@@ -1055,12 +1055,12 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 113 | 1398 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 113 | 1394 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 101 | 2046 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 74 | 3511 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 53 | 543 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 49 | 187 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 50 | 188 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 43 | 1129 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 33 | 256 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 33 | 100 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
@@ -1285,7 +1285,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 49 configurations in the measured corpus, at 187 sites.
+**How often.** Blocked 50 configurations in the measured corpus, at 188 sites.
 
 #### Module output not supported in static context
 

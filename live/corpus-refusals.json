@@ -10,7 +10,17 @@
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/alb/examples/complete-nlb",
@@ -21,7 +31,13 @@
       "sites": 30,
       "unresolved_modules": 3,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/alb/examples/mutual-auth-alb",
@@ -33,7 +49,21 @@
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 8
+      "shadowed": 8,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/autoscaling/examples/complete",
@@ -44,7 +74,13 @@
       "sites": 39,
       "unresolved_modules": 5,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd",
@@ -68,7 +104,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/cloud-platform/terraform/global-resources",
@@ -97,7 +139,25 @@
           "elasticsearch_opensearch_ism_policy",
           "elasticsearch_opensearch_monitor"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "auth0/auth0",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "phillbaker/elasticsearch",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/cool-assessment",
@@ -179,7 +239,21 @@
         "unadmitted_types": [
           "aws_default_route_table"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/cloudinit",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/cyhy-amis/terraform",
@@ -269,7 +343,21 @@
           "aws_iam_access_key",
           "aws_vpc_peering_connection_options"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/cloudinit",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/complete",
@@ -280,7 +368,17 @@
       "sites": 656,
       "unresolved_modules": 4,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/time",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/container-definition",
@@ -291,7 +389,17 @@
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/ec2-autoscaling",
@@ -302,7 +410,17 @@
       "sites": 135,
       "unresolved_modules": 4,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/time",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/express-service",
@@ -314,7 +432,17 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/fargate",
@@ -325,7 +453,17 @@
       "sites": 52,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/time",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/ecs/examples/managed-instances",
@@ -336,7 +474,17 @@
       "sites": 106,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/time",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/eks/examples/basic",
@@ -348,7 +496,38 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/eks/examples/irsa",
@@ -360,7 +539,37 @@
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 2,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/eks/examples/launch_templates",
@@ -372,7 +581,38 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/eks/examples/managed_node_groups",
@@ -384,7 +624,38 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/eks/examples/spot_instances",
@@ -396,7 +667,38 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-elasticsearch6",
@@ -431,7 +733,13 @@
             "sites": 2
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-govuk-attachments",
@@ -443,7 +751,7 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true,
+      "schemas": false,
       "profile": {
         "onboarding_class": "unreadable"
       }
@@ -474,7 +782,13 @@
           "aws_docdb_cluster_parameter_group",
           "aws_docdb_subnet_group"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq",
@@ -516,7 +830,25 @@
             "sites": 2
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-related-links",
@@ -543,7 +875,18 @@
             "sites": 3
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-search",
@@ -604,7 +947,17 @@
           "aws_autoscaling_attachment",
           "aws_autoscaling_notification"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-transition-postgresql",
@@ -639,7 +992,13 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/app-whitehall-backend",
@@ -672,7 +1031,17 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-assets",
@@ -705,7 +1074,13 @@
             "sites": 2
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-athena-query-results",
@@ -732,7 +1107,13 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-certificates",
@@ -761,7 +1142,13 @@
             "sites": 4
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-content-data-admin",
@@ -783,7 +1170,18 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-content-publisher",
@@ -811,7 +1209,18 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-csp-reporter",
@@ -862,7 +1271,17 @@
           "aws_apigatewayv2_integration",
           "aws_apigatewayv2_route"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-cyber-cloudwatch-to-splunk",
@@ -876,7 +1295,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-database-backups-bucket",
@@ -909,7 +1334,13 @@
             "sites": 10
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-datagovuk-organogram-bucket",
@@ -936,7 +1367,17 @@
             "sites": 4
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-fastly-logs",
@@ -968,7 +1409,23 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/archive versions matching \"~\u003e 1.3\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/archive v1.3.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-google-mirror-bucket",
@@ -979,7 +1436,7 @@
       "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true,
+      "schemas": false,
       "shadowed": 3,
       "profile": {
         "onboarding_class": "admissions-only",
@@ -995,7 +1452,14 @@
           "google_storage_bucket_iam_member",
           "google_storage_transfer_job"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-google-monitoring",
@@ -1006,7 +1470,7 @@
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true,
+      "schemas": false,
       "shadowed": 2,
       "profile": {
         "onboarding_class": "admissions-only",
@@ -1021,7 +1485,14 @@
           "google_storage_bucket",
           "google_storage_bucket_acl"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-monitoring",
@@ -1043,7 +1514,18 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-networking",
@@ -1078,7 +1560,18 @@
             "sites": 23
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-public-wafs",
@@ -1100,7 +1593,13 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-root-dns-zones",
@@ -1114,7 +1613,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-security",
@@ -1163,7 +1668,13 @@
         "unadmitted_types": [
           "aws_iam_account_password_policy"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-specialist-publisher",
@@ -1185,7 +1696,18 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-stack-dns-zones",
@@ -1209,7 +1731,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-vpc",
@@ -1231,7 +1759,13 @@
             "unset_var_only": true
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/ai-accelerator-opensearch",
@@ -1302,7 +1836,21 @@
           "aws_opensearch_vpc_endpoint",
           "aws_secretsmanager_secret_version"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cdn-analytics",
@@ -1335,7 +1883,17 @@
           "google_service_account",
           "google_service_account_iam_binding"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/chat",
@@ -1372,7 +1930,17 @@
         "unadmitted_types": [
           "aws_bedrock_model_invocation_logging_configuration"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/chat-evaluation-ci",
@@ -1389,7 +1957,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/chat-opensearch",
@@ -1431,7 +2009,21 @@
         "unadmitted_types": [
           "aws_secretsmanager_secret_version"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cloudfront",
@@ -1448,7 +2040,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-access",
@@ -1494,7 +2096,21 @@
           "kubernetes_role_binding_v1",
           "kubernetes_role_v1"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-infrastructure",
@@ -1571,7 +2187,21 @@
           "aws_networkflowmonitor_scope",
           "aws_secretsmanager_secret_version"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cluster-services",
@@ -1631,7 +2261,37 @@
           "kubernetes_namespace_v1",
           "kubernetes_secret_v1"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "alekc/kubectl",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/helm",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/time",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/csp-reporter",
@@ -1675,7 +2335,21 @@
           "aws_apigatewayv2_integration",
           "aws_apigatewayv2_route"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure",
@@ -1720,7 +2394,29 @@
           "helm_release",
           "kubernetes_role_binding_v1"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/helm",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/ecr",
@@ -1770,7 +2466,21 @@
             "sites": 2
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        },
+        {
+          "provider": "integrations/github",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/elasticache",
@@ -1788,7 +2498,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/ephemeral",
@@ -1825,7 +2545,13 @@
           "tfe_variable_set",
           "tfe_workspace_run"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/gcp-gov-graph",
@@ -1913,19 +2639,33 @@
           "google_vpc_access_connector",
           "google_workflows_workflow"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2",
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 0,
-      "sites": 24,
+      "instances": 3,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
-      "shadowed": 66,
+      "shadowed": 63,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
@@ -1935,19 +2675,28 @@
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 24
+            "sites": 21
           }
         ],
         "unadmitted_types": [
           "google_iam_workload_identity_pool",
           "google_iam_workload_identity_pool_provider",
-          "google_project",
           "google_project_iam_member",
           "google_project_service",
           "google_service_account",
           "google_service_account_iam_member"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/github",
@@ -1999,7 +2748,21 @@
           "github_team",
           "github_team_repository"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        },
+        {
+          "provider": "integrations/github",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure",
@@ -2116,7 +2879,37 @@
           "aws_secretsmanager_secret_version",
           "aws_wafv2_web_acl_association"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/govuk-reports",
@@ -2134,7 +2927,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/logging",
@@ -2146,7 +2949,7 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 1,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/logging.tfvars"
@@ -2168,16 +2971,34 @@
             "sites": 1
           },
           {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 1
+          },
+          {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 2
+            "sites": 1
           }
         ],
         "unadmitted_types": [
-          "google_storage_bucket",
-          "google_storage_bucket_access_control"
+          "google_storage_bucket"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/mobile-backend",
@@ -2195,7 +3016,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/neptune",
@@ -2233,7 +3064,17 @@
           "aws_neptune_cluster",
           "aws_neptune_cluster_instance"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/rds",
@@ -2275,7 +3116,21 @@
         "unadmitted_types": [
           "aws_secretsmanager_secret_version"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/release",
@@ -2303,7 +3158,17 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/root-dns",
@@ -2321,7 +3186,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/search-api-v2",
@@ -2370,7 +3245,29 @@
           "google_storage_bucket_object",
           "restapi_object"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/archive",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google-beta",
+          "present": true
+        },
+        {
+          "provider": "mastercard/restapi",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/search-opensearch",
@@ -2436,7 +3333,21 @@
           "aws_opensearch_vpc_endpoint",
           "aws_secretsmanager_secret_version"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/security",
@@ -2454,7 +3365,17 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/sentry",
@@ -2482,7 +3403,13 @@
         "unadmitted_types": [
           "sentry_project"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "jianyuan/sentry",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/service-linked-roles",
@@ -2500,7 +3427,13 @@
       ],
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/synthetic-test",
@@ -2528,7 +3461,17 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-aws-config",
@@ -2563,7 +3506,25 @@
           "tfe_variable",
           "tfe_variable_set"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-bootstrap",
@@ -2593,7 +3554,13 @@
           "tfe_workspace",
           "tfe_workspace_settings"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/tfc-configuration",
@@ -2629,7 +3596,13 @@
           "tfe_variable",
           "tfe_variable_set"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/tfe",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/vpc",
@@ -2665,7 +3638,13 @@
         "unadmitted_types": [
           "aws_accessanalyzer_analyzer"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-account",
@@ -2677,7 +3656,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 2,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-group",
@@ -2688,7 +3673,13 @@
       "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-oidc-provider",
@@ -2699,7 +3690,17 @@
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-policy",
@@ -2710,7 +3711,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-read-only-policy",
@@ -2721,7 +3728,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-role",
@@ -2732,7 +3745,13 @@
       "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-role-for-service-accounts",
@@ -2743,7 +3762,13 @@
       "sites": 861,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/iam/examples/iam-user",
@@ -2755,7 +3780,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5
+      "shadowed": 5,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/artifacts.k8s.io",
@@ -2779,7 +3810,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/audit-account",
@@ -2805,7 +3842,13 @@
           "aws_accessanalyzer_analyzer",
           "aws_s3control_storage_lens_configuration"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/cdn.packages.k8s.io",
@@ -2829,7 +3872,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/cncf-k8s-infra-aws-capa-ami",
@@ -2843,7 +3892,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/infrastructure-services",
@@ -2872,7 +3927,13 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/kops-infra-ci",
@@ -2905,7 +3966,17 @@
           "kubernetes_service",
           "kubernetes_service_account"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/macos",
@@ -2930,7 +4001,13 @@
         "unadmitted_types": [
           "aws_iam_role_policy_attachments_exclusive"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/management-account",
@@ -2976,7 +4053,13 @@
           "aws_organizations_organization",
           "aws_ssoadmin_managed_policy_attachment"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/policy-staging-account-1",
@@ -2990,7 +4073,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/prow-build-cluster",
@@ -3021,7 +4110,21 @@
         "unadmitted_types": [
           "helm_release"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/helm",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/kubernetes",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/registry-k8s-io-prod",
@@ -3035,7 +4138,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/registry-sandbox-k8s-io-image-layers",
@@ -3066,7 +4175,17 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/registry.k8s.io",
@@ -3090,7 +4209,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/test-artifacts.k8s.io",
@@ -3114,7 +4239,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/alias",
@@ -3126,7 +4257,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7
+      "shadowed": 7,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/async",
@@ -3138,7 +4291,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/build-package",
@@ -3150,7 +4325,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 28
+      "shadowed": 28,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/code-signing",
@@ -3162,7 +4359,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 2,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/complete",
@@ -3174,7 +4393,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7
+      "shadowed": 7,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/container-image",
@@ -3186,7 +4427,33 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 6
+      "shadowed": 6,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "kreuzwerker/docker",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/deploy",
@@ -3198,7 +4465,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/event-source-mapping",
@@ -3210,7 +4499,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/multiple-regions",
@@ -3222,7 +4533,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 2,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/runtimes",
@@ -3234,7 +4567,33 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7
+      "shadowed": 7,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/http",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/simple",
@@ -3246,7 +4605,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/simple-cicd",
@@ -3258,7 +4639,29 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/triggers",
@@ -3269,7 +4672,29 @@
       "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/with-efs",
@@ -3281,7 +4706,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/with-vpc",
@@ -3293,7 +4740,29 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/lambda/examples/with-vpc-s3-endpoint",
@@ -3305,7 +4774,29 @@
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/local",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/global/dns",
@@ -3326,7 +4817,13 @@
             "sites": 2
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/analytics-api",
@@ -3350,7 +4847,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/analytics-worker",
@@ -3364,7 +4867,18 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/assets",
@@ -3388,7 +4902,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/bastion",
@@ -3412,7 +4937,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/check-links",
@@ -3426,7 +4962,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/citation",
@@ -3450,7 +4992,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/client-api",
@@ -3474,7 +5027,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/content-negotiation",
@@ -3498,7 +5057,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-agent",
@@ -3512,7 +5082,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-orcid-agent",
@@ -3526,7 +5102,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-related-agent",
@@ -3540,7 +5122,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/datadog",
@@ -3564,7 +5152,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/datafile-generator",
@@ -3578,7 +5177,18 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/datafiles",
@@ -3602,7 +5212,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/datafiles-generator",
@@ -3616,7 +5232,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/design",
@@ -3640,7 +5262,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/events",
@@ -3664,7 +5297,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/federation",
@@ -3688,7 +5327,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/levriero",
@@ -3712,7 +5362,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/mds",
@@ -3736,7 +5397,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/message-queue",
@@ -3757,7 +5429,18 @@
             "sites": 15
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/metadata-completeness-api",
@@ -3781,7 +5464,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/metrics-api",
@@ -3805,7 +5494,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/oai",
@@ -3829,7 +5529,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/pidcheck",
@@ -3853,7 +5564,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/profiles",
@@ -3877,7 +5599,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/raw-resolution-logs",
@@ -3891,7 +5624,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/re3data",
@@ -3915,7 +5654,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/repository-finder",
@@ -3939,7 +5689,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/salesforce-api",
@@ -3953,7 +5714,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/schema",
@@ -3977,7 +5744,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/search",
@@ -4001,7 +5779,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/sitemaps-generator",
@@ -4015,7 +5799,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/stats-portal",
@@ -4039,7 +5829,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/store-crawler-results",
@@ -4053,7 +5854,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/strapi",
@@ -4067,7 +5874,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/test",
@@ -4091,7 +5904,18 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/template",
+          "present": false,
+          "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/blue-green-deployment",
@@ -4102,7 +5926,17 @@
       "sites": 5,
       "unresolved_modules": 3,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/complete-mssql",
@@ -4114,7 +5948,17 @@
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2
+      "shadowed": 2,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/complete-mysql",
@@ -4125,7 +5969,17 @@
       "sites": 6,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/complete-oracle",
@@ -4137,7 +5991,17 @@
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/complete-postgres",
@@ -4149,7 +6013,17 @@
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/cross-region-replica-postgres",
@@ -4160,7 +6034,17 @@
       "sites": 3,
       "unresolved_modules": 5,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/enhanced-monitoring",
@@ -4171,7 +6055,17 @@
       "sites": 4,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/groups",
@@ -4182,7 +6076,17 @@
       "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/replica-mysql",
@@ -4193,7 +6097,17 @@
       "sites": 6,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/replica-postgres",
@@ -4204,7 +6118,17 @@
       "sites": 4,
       "unresolved_modules": 2,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/role-association-postgres",
@@ -4215,7 +6139,17 @@
       "sites": 4,
       "unresolved_modules": 5,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/rds/examples/s3-import-mysql",
@@ -4226,7 +6160,17 @@
       "sites": 4,
       "unresolved_modules": 3,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/account-public-access",
@@ -4238,7 +6182,17 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/complete",
@@ -4250,7 +6204,17 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7
+      "shadowed": 7,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/directory-bucket",
@@ -4261,7 +6225,17 @@
       "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/notification",
@@ -4272,7 +6246,21 @@
       "sites": 21,
       "unresolved_modules": 4,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/null",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/object",
@@ -4283,7 +6271,17 @@
       "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-analytics",
@@ -4294,7 +6292,17 @@
       "sites": 42,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-inventory",
@@ -4305,7 +6313,17 @@
       "sites": 32,
       "unresolved_modules": 1,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/s3-replication",
@@ -4316,7 +6334,17 @@
       "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/s3-bucket/examples/table-bucket",
@@ -4328,7 +6356,17 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/security-group/examples/complete",
@@ -4340,7 +6378,13 @@
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/assets-backup-prod",
@@ -4369,7 +6413,13 @@
           "google_storage_bucket_iam_member",
           "google_storage_transfer_job"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/assets-backup-staging",
@@ -4398,7 +6448,13 @@
           "google_storage_bucket_iam_member",
           "google_storage_transfer_job"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/bastion",
@@ -4422,7 +6478,17 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/dns",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/bors",
@@ -4446,7 +6512,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/crater",
@@ -4500,7 +6572,21 @@
           "google_compute_region_instance_group_manager",
           "google_service_account"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/dns",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/crates-io-heroku-metrics",
@@ -4568,7 +6654,17 @@
           "aws_lb_listener_certificate",
           "github_actions_secret"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "integrations/github",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/dev-desktops",
@@ -4592,7 +6688,17 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/dns",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/dns",
@@ -4606,7 +6712,13 @@
       "schemas": true,
       "profile": {
         "onboarding_class": "clean"
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/dns-delegation",
@@ -4630,7 +6742,13 @@
             }
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/docs-rs",
@@ -4680,7 +6798,25 @@
           "fastly_tls_subscription",
           "fastly_tls_subscription_validation"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/domain-redirects",
@@ -4709,7 +6845,13 @@
             "sites": 6
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/fastly-exporter",
@@ -4761,7 +6903,13 @@
         "unadmitted_types": [
           "aws_lb_listener_certificate"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/fastly-tls-subscription",
@@ -4792,7 +6940,17 @@
           "fastly_tls_subscription",
           "fastly_tls_subscription_validation"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/google-workspace",
@@ -4818,7 +6976,13 @@
           "google_service_account",
           "google_service_account_key"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/google",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/monitorbot",
@@ -4891,7 +7055,21 @@
           "aws_lb_listener_certificate",
           "github_actions_secret"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        },
+        {
+          "provider": "integrations/github",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/playground",
@@ -4920,7 +7098,17 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/dns",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/rds-databases",
@@ -4952,7 +7140,21 @@
           "postgresql_grant",
           "postgresql_role"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "cyrilgdn/postgresql",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/random",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/releases",
@@ -4995,7 +7197,17 @@
         "unadmitted_types": [
           "aws_s3_bucket_inventory"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/external",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/rust-forge",
@@ -5024,7 +7236,13 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/rust-lang-org",
@@ -5053,7 +7271,13 @@
             "sites": 1
           }
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/rust-log-analyzer",
@@ -5121,7 +7345,17 @@
           "aws_lb_listener_certificate",
           "github_actions_secret"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "integrations/github",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/rustc-perf",
@@ -5179,7 +7413,13 @@
           "aws_iam_access_key",
           "aws_lb_listener_certificate"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/shared",
@@ -5232,7 +7472,21 @@
           "aws_lb_listener_certificate",
           "aws_s3_bucket_inventory"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/dns",
+          "present": true
+        },
+        {
+          "provider": "hashicorp/tls",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/team-members-access",
@@ -5257,7 +7511,13 @@
         "unadmitted_types": [
           "aws_iam_user_group_membership"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/team-members-datadog",
@@ -5298,7 +7558,13 @@
           "datadog_team_membership",
           "datadog_user"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "datadog/datadog",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/simpleinfra/terraform/team-members-fastly",
@@ -5324,7 +7590,13 @@
           "fastly_service_authorization",
           "fastly_user"
         ]
-      }
+      },
+      "provider_schemas": [
+        {
+          "provider": "fastly/fastly",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/block-public-access",
@@ -5336,7 +7608,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4
+      "shadowed": 4,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/complete",
@@ -5347,7 +7625,13 @@
       "sites": 639,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/flow-log",
@@ -5359,7 +7643,13 @@
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/ipam",
@@ -5371,7 +7661,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 13
+      "shadowed": 13,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/ipv6-dualstack",
@@ -5383,7 +7679,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/ipv6-only",
@@ -5395,7 +7697,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 9
+      "shadowed": 9,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/issues",
@@ -5407,7 +7715,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 29
+      "shadowed": 29,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/manage-default-vpc",
@@ -5419,7 +7733,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1
+      "shadowed": 1,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/network-acls",
@@ -5431,7 +7751,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/outpost",
@@ -5443,7 +7769,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 6
+      "shadowed": 6,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/secondary-cidr-blocks",
@@ -5455,7 +7787,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 5
+      "shadowed": 5,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/separate-route-tables",
@@ -5467,7 +7805,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": ".corpus/vpc/examples/simple",
@@ -5479,7 +7823,13 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3
+      "shadowed": 3,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/ai-location",
@@ -5490,7 +7840,13 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/apigateway",
@@ -5501,7 +7857,13 @@
       "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/aps",
@@ -5512,7 +7874,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/compute-platforms",
@@ -5523,7 +7891,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/connect-euc",
@@ -5534,7 +7908,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/data",
@@ -5545,7 +7925,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/data-movement",
@@ -5556,7 +7942,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/databases",
@@ -5567,7 +7959,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/devtools",
@@ -5578,7 +7976,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/dynamodb-elasticache",
@@ -5589,7 +7993,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/ec2-core",
@@ -5600,7 +8010,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/ec2-networking",
@@ -5611,7 +8027,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/ecs-eks",
@@ -5622,7 +8044,13 @@
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/governance",
@@ -5633,7 +8061,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/iam-ecr",
@@ -5644,7 +8078,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/identity",
@@ -5655,7 +8095,13 @@
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/iot",
@@ -5666,7 +8112,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/lambda",
@@ -5677,7 +8129,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/media",
@@ -5688,7 +8146,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/messaging",
@@ -5699,7 +8163,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/networking-advanced",
@@ -5710,7 +8180,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/observability",
@@ -5721,7 +8197,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/rds",
@@ -5732,7 +8214,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/remainder",
@@ -5743,7 +8231,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/route53-cloudfront",
@@ -5754,7 +8248,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/s3",
@@ -5765,7 +8265,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/sagemaker",
@@ -5776,7 +8282,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/security",
@@ -5787,7 +8299,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/storage",
@@ -5798,7 +8316,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/stragglers",
@@ -5809,7 +8333,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     },
     {
       "name": "live/e2e/estates/streaming",
@@ -5820,7 +8350,13 @@
       "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
-      "schemas": true
+      "schemas": true,
+      "provider_schemas": [
+        {
+          "provider": "hashicorp/aws",
+          "present": true
+        }
+      ]
     }
   ],
   "refusals": [
@@ -5831,7 +8367,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
       "configs": 113,
-      "sites": 1398,
+      "sites": 1394,
       "types": [
         {
           "type": "google_bigquery_table",
@@ -6167,10 +8703,6 @@
         },
         {
           "type": "google_bigquery_job",
-          "sites": 4
-        },
-        {
-          "type": "google_project",
           "sites": 4
         },
         {
@@ -6594,6 +9126,10 @@
           "sites": 1
         },
         {
+          "type": "google_project",
+          "sites": 1
+        },
+        {
           "type": "google_project_iam_policy",
           "sites": 1
         },
@@ -6615,10 +9151,6 @@
         },
         {
           "type": "google_secret_manager_secret_iam_member",
-          "sites": 1
-        },
-        {
-          "type": "google_storage_bucket_access_control",
           "sites": 1
         },
         {
@@ -6831,8 +9363,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 49,
-      "sites": 187,
+      "configs": 50,
+      "sites": 188,
       "examples": [
         ".corpus/autoscaling/main.tf:1463",
         ".corpus/cool-assessment/operations_routing.tf:21",
@@ -8189,11 +10721,11 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3395,
-    "sites": 10191,
+    "instances": 3398,
+    "sites": 10188,
     "refusals_fired": 28,
     "refusals_in_set": 118,
-    "configs_without_schemas": 0,
+    "configs_without_schemas": 3,
     "refusals_unregistered": 0
   },
   "populations": [
@@ -8213,8 +10745,8 @@
       "loaded": 144,
       "blocked": 118,
       "clean": 26,
-      "instances": 2219,
-      "sites": 2290,
+      "instances": 2222,
+      "sites": 2287,
       "reads_as": "rate"
     },
     {
@@ -8425,10 +10957,6 @@
       },
       {
         "type": "google_compute_network",
-        "configs": 2
-      },
-      {
-        "type": "google_project",
         "configs": 2
       },
       {
@@ -8800,6 +11328,10 @@
         "configs": 1
       },
       {
+        "type": "google_project",
+        "configs": 1
+      },
+      {
         "type": "google_project_iam_binding",
         "configs": 1
       },
@@ -8841,10 +11373,6 @@
       },
       {
         "type": "google_service_account_iam_member",
-        "configs": 1
-      },
-      {
-        "type": "google_storage_bucket_access_control",
         "configs": 1
       },
       {
@@ -8969,9 +11497,510 @@
   ],
   "schemas": {
     "present": true,
-    "provider": "hashicorp/aws",
-    "version": "6.59.0",
-    "resource_types": 1699
+    "providers": [
+      {
+        "provider": "alekc/kubectl",
+        "constraint": "3.0.0-beta3",
+        "version": "3.0.0-beta3",
+        "resource_types": 2,
+        "available": true
+      },
+      {
+        "provider": "auth0/auth0",
+        "constraint": "1.10.0",
+        "version": "1.10.0",
+        "resource_types": 55,
+        "available": true
+      },
+      {
+        "provider": "cyrilgdn/postgresql",
+        "constraint": "~\u003e 1.22",
+        "version": "1.27.0",
+        "resource_types": 15,
+        "available": true
+      },
+      {
+        "provider": "datadog/datadog",
+        "constraint": "4.1.0",
+        "version": "4.1.0",
+        "resource_types": 126,
+        "available": true
+      },
+      {
+        "provider": "fastly/fastly",
+        "constraint": "8.7.2",
+        "version": "8.7.2",
+        "resource_types": 46,
+        "available": true
+      },
+      {
+        "provider": "fastly/fastly",
+        "constraint": "~\u003e 5.0",
+        "version": "5.17.0",
+        "resource_types": 23,
+        "available": true
+      },
+      {
+        "provider": "fastly/fastly",
+        "constraint": "~\u003e 9.0",
+        "version": "9.6.0",
+        "resource_types": 51,
+        "available": true
+      },
+      {
+        "provider": "fastly/fastly",
+        "constraint": "~\u003e 9.5",
+        "version": "9.6.0",
+        "resource_types": 51,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/archive",
+        "version": "2.8.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/archive",
+        "constraint": "~\u003e 2.4",
+        "version": "2.8.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/archive",
+        "constraint": "~\u003e 2.7",
+        "version": "2.8.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/archive",
+        "constraint": "~\u003e 2.8.0",
+        "version": "2.8.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/aws",
+        "version": "6.59.0",
+        "resource_types": 1699,
+        "pinned": true,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/cloudinit",
+        "constraint": "~\u003e 2.0",
+        "version": "2.4.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/dns",
+        "version": "3.6.1",
+        "resource_types": 8,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/dns",
+        "constraint": "~\u003e 3.4",
+        "version": "3.6.1",
+        "resource_types": 8,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/dns",
+        "constraint": "~\u003e 3.4.1",
+        "version": "3.4.3",
+        "resource_types": 8,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/external",
+        "version": "2.4.1",
+        "available": true
+      },
+      {
+        "provider": "hashicorp/external",
+        "constraint": "2.3.4",
+        "version": "2.3.4",
+        "available": true
+      },
+      {
+        "provider": "hashicorp/external",
+        "constraint": "\u003e= 1.0.0",
+        "version": "2.4.1",
+        "available": true
+      },
+      {
+        "provider": "hashicorp/external",
+        "constraint": "~\u003e 2.3.3",
+        "version": "2.3.5",
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "version": "7.44.0",
+        "resource_types": 1342,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "6.50.0",
+        "version": "6.50.0",
+        "resource_types": 1096,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "~\u003e 6.0.1",
+        "version": "6.0.1",
+        "resource_types": 861,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "~\u003e 7.0",
+        "version": "7.44.0",
+        "resource_types": 1342,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "~\u003e 7.3",
+        "version": "7.44.0",
+        "resource_types": 1342,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "~\u003e 7.43.0",
+        "version": "7.43.0",
+        "resource_types": 1333,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/google-beta",
+        "version": "7.44.0",
+        "resource_types": 1470,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/helm",
+        "constraint": "~\u003e 3.1",
+        "version": "3.2.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/http",
+        "constraint": "\u003e= 3.0.0",
+        "version": "3.6.1",
+        "available": true
+      },
+      {
+        "provider": "hashicorp/kubernetes",
+        "constraint": "~\u003e 2.38.0",
+        "version": "2.38.0",
+        "resource_types": 82,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/kubernetes",
+        "constraint": "~\u003e 3.0",
+        "version": "3.2.1",
+        "resource_types": 81,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/kubernetes",
+        "constraint": "~\u003e 3.1",
+        "version": "3.2.1",
+        "resource_types": 81,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/local",
+        "constraint": "\u003e= 1.0.0",
+        "version": "2.9.0",
+        "resource_types": 2,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/local",
+        "constraint": "~\u003e 2.5",
+        "version": "2.9.0",
+        "resource_types": 2,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/null",
+        "version": "3.3.1",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/null",
+        "constraint": "\u003e= 2.0.0",
+        "version": "3.3.1",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/null",
+        "constraint": "\u003e= 3.2.0",
+        "version": "3.3.1",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/null",
+        "constraint": "~\u003e 3.0",
+        "version": "3.3.1",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/null",
+        "constraint": "~\u003e 3.2",
+        "version": "3.3.1",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 2.0.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 2.1.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 3.0.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 3.1.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 3.4.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 3.7.0",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "~\u003e 3.6",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "~\u003e 3.6.2",
+        "version": "3.6.3",
+        "resource_types": 8,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "~\u003e 3.8",
+        "version": "3.9.0",
+        "resource_types": 10,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tfe",
+        "version": "0.80.0",
+        "resource_types": 72,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tfe",
+        "constraint": "0.78.0",
+        "version": "0.78.0",
+        "resource_types": 70,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tfe",
+        "constraint": "~\u003e 0.78",
+        "version": "0.80.0",
+        "resource_types": 72,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tfe",
+        "constraint": "~\u003e 0.78.0",
+        "version": "0.78.0",
+        "resource_types": 70,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/time",
+        "constraint": "0.14.0",
+        "version": "0.14.0",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/time",
+        "constraint": "\u003e= 0.13.0",
+        "version": "0.14.1",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tls",
+        "version": "4.3.0",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tls",
+        "constraint": "4.0.5",
+        "version": "4.0.5",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tls",
+        "constraint": "\u003e= 3.0.0",
+        "version": "4.3.0",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tls",
+        "constraint": "\u003e= 4.0.0",
+        "version": "4.3.0",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/tls",
+        "constraint": "~\u003e 4.1",
+        "version": "4.3.0",
+        "resource_types": 4,
+        "available": true
+      },
+      {
+        "provider": "integrations/github",
+        "constraint": "~\u003e 6.10",
+        "version": "6.13.0",
+        "resource_types": 88,
+        "available": true
+      },
+      {
+        "provider": "integrations/github",
+        "constraint": "~\u003e 6.2.3",
+        "version": "6.2.3",
+        "resource_types": 70,
+        "available": true
+      },
+      {
+        "provider": "jianyuan/sentry",
+        "constraint": "0.15.4",
+        "version": "0.15.4",
+        "resource_types": 24,
+        "available": true
+      },
+      {
+        "provider": "kreuzwerker/docker",
+        "constraint": "\u003e= 3.0.0, \u003e= 3.5.0",
+        "version": "4.5.0",
+        "resource_types": 12,
+        "available": true
+      },
+      {
+        "provider": "mastercard/restapi",
+        "constraint": "~\u003e 3.0.0",
+        "version": "3.0.0",
+        "resource_types": 1,
+        "available": true
+      },
+      {
+        "provider": "phillbaker/elasticsearch",
+        "constraint": "2.0.7",
+        "version": "2.0.7",
+        "resource_types": 35,
+        "available": true
+      },
+      {
+        "provider": "hashicorp/archive",
+        "constraint": "~\u003e 1.3",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/archive versions matching \"~\u003e 1.3\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/archive v1.3.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/google",
+        "constraint": "2.4.1",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/kubernetes",
+        "constraint": "\u003e= 1.6.2, 1.10.0",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/local",
+        "constraint": "\u003e= 1.2.0, ~\u003e 1.2",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/null",
+        "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/random",
+        "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/template",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      },
+      {
+        "provider": "hashicorp/template",
+        "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+        "available": false,
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+      }
+    ]
   },
   "origins": [
     {
