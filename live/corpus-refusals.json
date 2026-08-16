@@ -383,7 +383,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 656,
+      "sites": 110,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
@@ -1820,7 +1820,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 38,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1842,15 +1842,10 @@
           },
           {
             "layer": "identity",
-            "id": "Attempt to get attribute from null value",
-            "sites": 4
-          },
-          {
-            "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3,
+            "sites": 1,
             "categories": {
-              "managed_resource": 3
+              "managed_resource": 1
             }
           },
           {
@@ -1861,7 +1856,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 10
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -3321,7 +3316,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 35,
-      "sites": 67,
+      "sites": 61,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3344,9 +3339,9 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 4,
+            "sites": 2,
             "categories": {
-              "managed_resource": 4
+              "managed_resource": 2
             }
           },
           {
@@ -3357,7 +3352,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 24
+            "sites": 20
           },
           {
             "layer": "lint",
@@ -3790,7 +3785,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 17,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6686,7 +6681,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 23,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6697,10 +6692,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 5,
+            "sites": 3,
             "categories": {
-              "data_source": 2,
-              "remote_state": 3
+              "data_source": 1,
+              "remote_state": 2
             }
           },
           {
@@ -6719,7 +6714,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 6
+            "sites": 4
           },
           {
             "layer": "lint",
@@ -7064,7 +7059,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 15,
-      "sites": 24,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7075,10 +7070,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 5,
+            "sites": 3,
             "categories": {
-              "data_source": 2,
-              "remote_state": 3
+              "data_source": 1,
+              "remote_state": 2
             }
           },
           {
@@ -7097,7 +7092,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 6
+            "sites": 4
           },
           {
             "layer": "lint",
@@ -7350,7 +7345,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 24,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7361,10 +7356,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 5,
+            "sites": 3,
             "categories": {
-              "data_source": 2,
-              "remote_state": 3
+              "data_source": 1,
+              "remote_state": 2
             }
           },
           {
@@ -7383,7 +7378,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 6
+            "sites": 4
           },
           {
             "layer": "lint",
@@ -9270,7 +9265,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 106,
-      "sites": 2409,
+      "sites": 2403,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -9287,8 +9282,8 @@
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
-      "configs": 74,
-      "sites": 3624,
+      "configs": 73,
+      "sites": 3281,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
@@ -9384,8 +9379,8 @@
       "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
-      "configs": 53,
-      "sites": 590,
+      "configs": 51,
+      "sites": 363,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:195",
         ".corpus/alb/examples/complete-alb/main.tf:195",
@@ -9678,23 +9673,6 @@
     },
     {
       "layer": "identity",
-      "id": "Attempt to get attribute from null value",
-      "title": "Attempt to get attribute from null value",
-      "what": "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
-      "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
-      "raised_by": "hcl",
-      "configs": 1,
-      "sites": 4,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:83",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:83"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Invalid operand",
       "title": "Invalid operand",
       "what": "An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.",
@@ -9805,6 +9783,17 @@
       "title": "Ambiguous attribute key",
       "what": "An object key in a statically evaluated expression is a bare name that could be either a variable reference or a literal string, so which was meant cannot be decided.",
       "docs_ref": "live/LIMITATIONS.md, \"Ambiguous attribute key\"",
+      "raised_by": "hcl",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Attempt to get attribute from null value",
+      "title": "Attempt to get attribute from null value",
+      "what": "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
+      "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
       "raised_by": "hcl",
       "configs": 0,
       "sites": 0,
@@ -10836,8 +10825,8 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3501,
-    "sites": 10776,
-    "refusals_fired": 27,
+    "sites": 10196,
+    "refusals_fired": 26,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
@@ -10860,7 +10849,7 @@
       "blocked": 120,
       "clean": 24,
       "instances": 2320,
-      "sites": 2609,
+      "sites": 2577,
       "reads_as": "rate"
     },
     {
@@ -10870,7 +10859,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 449,
-      "sites": 8126,
+      "sites": 7578,
       "reads_as": "ranking"
     }
   ],

@@ -1189,10 +1189,10 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 111 | 1346 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 106 | 2409 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 74 | 3624 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 106 | 2403 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 73 | 3281 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 53 | 590 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 51 | 363 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 49 | 200 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 48 | 95 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
@@ -1209,7 +1209,6 @@ refused, and each says so in its own entry.
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
-| 1 | 4 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
 | 1 | 1 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
@@ -1243,6 +1242,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Unlistable marker-discovered type | error | `internal/live/discovery` | "Unlistable marker-discovered type" |
 | - | - | discovery | Unscoped account reconciliation refused | error | `internal/live/discovery` | "policy-scope" |
 | 0 | 0 | identity | Ambiguous attribute key | error | `hcl` | "Ambiguous attribute key" |
+| 0 | 0 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
 | 0 | 0 | identity | Attempt to index null value | error | `hcl` | "Attempt to index null value" |
 | 0 | 0 | identity | Call to unknown function | error | `hcl` | "Call to unknown function" |
 | 0 | 0 | identity | Circular for_each reference | error | `internal/live/identity` | "Circular for_each reference" |
@@ -1394,7 +1394,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 106 configurations in the measured corpus, at 2409 sites.
+**How often.** Blocked 106 configurations in the measured corpus, at 2403 sites.
 
 #### Unable to compute static value
 
@@ -1402,7 +1402,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 74 configurations in the measured corpus, at 3624 sites.
+**How often.** Blocked 73 configurations in the measured corpus, at 3281 sites.
 
 #### Dynamic value in static context
 
@@ -1410,7 +1410,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 53 configurations in the measured corpus, at 590 sites.
+**How often.** Blocked 51 configurations in the measured corpus, at 363 sites.
 
 #### Unresolvable identity
 
@@ -1499,14 +1499,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 3 configurations in the measured corpus, at 5 sites.
-
-#### Attempt to get attribute from null value
-
-**What.** An identity argument, a count or a for_each reads an attribute of something that evaluated to null.
-
-**Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
 
 #### Invalid operand
 
@@ -1735,6 +1727,14 @@ reserved for the limits wing's fixture directories, and
 #### Ambiguous attribute key
 
 **What.** An object key in a statically evaluated expression is a bare name that could be either a variable reference or a literal string, so which was meant cannot be decided.
+
+**Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Attempt to get attribute from null value
+
+**What.** An identity argument, a count or a for_each reads an attribute of something that evaluated to null.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 

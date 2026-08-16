@@ -66,11 +66,11 @@ func TestArtifactMatchesOfflineRegeneration(t *testing.T) {
 			"populate it (see tools/importdocs-gen/main.go) rather than letting this test reach the network")
 	}
 
-	rows, docsFound, docsMissing, err := sweep(context.Background(), cacheDir, roster, noNetwork)
+	rows, docsFound, docsMissing, aliasRows, err := sweep(context.Background(), cacheDir, roster, noNetwork)
 	if err != nil {
 		t.Fatalf("offline sweep: %v", err)
 	}
-	art := buildArtifact(rows, len(roster), docsFound, docsMissing)
+	art := buildArtifact(rows, len(roster), docsFound, docsMissing, aliasRows)
 	got, err := art.marshal()
 	if err != nil {
 		t.Fatalf("marshaling the regenerated artifact: %v", err)
