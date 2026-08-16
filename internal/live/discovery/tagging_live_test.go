@@ -60,37 +60,55 @@ func TestFlociServesTaggingAPI(t *testing.T) {
 // Request.TaggingSweep and cloudcontrol.Client.GetResources rather than
 // Cloud Control's ListResources.
 //
-// It inherits that test's skip condition rather than avoiding it. Manual
-// probing (floci 1.5.33, 2026-08-12, same session as the Content-Type
-// finding TestFlociServesTaggingAPI documents) found the Resource Groups
-// Tagging API answers GetResources correctly on the wire - once the
-// Content-Type fix is in place - but does not yet reflect resources tagged
-// through the ordinary service APIs, the same gap class
-// cloudcontrol_live_test.go documents for Cloud Control's ListResources
-// rather than a different one: `aws iam create-role ... --tags
-// tofu-estate=...` followed immediately by `aws resourcegroupstaggingapi
-// get-resources` returns an empty ResourceTagMappingList, and the same is
-// true of an S3 bucket tagged via put-bucket-tagging - even though
-// `iam list-role-tags` on the same role correctly returns the tags that
-// were written. So this test runs the real pipeline (terraform apply,
-// GetResources against real floci, the ARN join, Discover) and asserts the
-// scan happened through SourceTagging, then skips with this evidence
-// recorded rather than asserting a bind floci cannot currently deliver. See
+// It asserts the bind. From the pin's move to
+// ghcr.io/lex00/floci@sha256:a1c729f4... this test discovers
+// aws_iam_role.demo through the estate-wide sweep and checks its ImportID,
+// rather than recording a gap and skipping.
+//
+// That was not always true, and the history is worth keeping because the
+// skip branch below is what a regression would land back on. Through
+// sha256:1362e856... floci served GetResources correctly on the wire - once
+// the Content-Type fix TestFlociServesTaggingAPI documents was in place -
+// but the index it answered from was fed by only 2 of its 64 services, so
+// `aws iam create-role ... --tags tofu-estate=...` followed immediately by
+// `aws resourcegroupstaggingapi get-resources` returned an empty
+// ResourceTagMappingList even though `iam list-role-tags` on the same role
+// returned the tags that were written. Issue #229 (2026-08-16) established
+// the gap was estate-wide rather than aws_iam_role- or S3-specific:
+// tools/floci-capability-gen -mode=tagging drives seven curated recipes
+// across seven distinct services (EC2, S3, SQS, SNS, DynamoDB, IAM, Secrets
+// Manager), each confirming its own tags natively first, and all seven came
+// back empty.
+//
+// floci's fix (lex00/floci#229) unions that private map with a live read of
+// every service's stores through StorageFactory, recognising tags and ARNs
+// structurally rather than per service. Re-probed against
+// sha256:a1c729f445a96fce8858ac45318d5188b5c2afc76a06e819f234326d52e6bd5f
+// on 2026-08-16: the same seven recipes are 7/7 implemented - see
+// live/floci-capabilities.json's "tagging-sweep" rows under that digest for
+// each one's ARN and native tag confirmation, and
+// tools/floci-capability-gen/tagging.go's package-level doc comment for the
+// probe's own mechanics.
+//
+// A separate direct probe on the same digest answered the one thing the
+// oracle above cannot, because it sweeps unfiltered while
+// sweepViaTagging sends TagFilter{Key: "tofu-estate", Values: [estate]}:
+// the union index honours TagFilters. Two SQS queues and one SNS topic
+// tagged across two estates plus one untagged topic gave 3 hits unfiltered,
+// 2 for tofu-estate=alpha, 1 for tofu-estate=beta, 0 for an absent value, 3
+// for a key-only filter and 0 for an absent key, with ResourceTypeFilters
+// narrowing correctly too. So the loop at tagging.go's sweepViaTagging does
+// not see foreign-estate ARNs and cannot raise spurious
+// ProblemUnsweepableOwnedType/ProblemUnresolvedTaggedARN warnings.
+//
+// The skip branch below is deliberately self-retiring:
+// flocitest.TaggingSweepCapabilityGate skips only on unimplemented/broken,
+// so an implemented row makes it a no-op and the t.Fatal after it fires.
+// Nothing needs editing here if floci regresses or if a future pin loses the
+// union index - the manifest row is what decides. See
 // testdata/tagging-e2e/main.tf for the type choice (aws_iam_role) and
 // TestFlociServesTaggingAPI for the Content-Type finding that makes this
 // test reach floci's tagging service at all.
-//
-// Issue #229 (2026-08-16) established that the gap is not aws_iam_role- or
-// S3-specific, or even the two-type coincidence this comment used to read
-// as: tools/floci-capability-gen -mode=tagging drives seven curated
-// recipes across seven distinct services (EC2, S3, SQS, SNS, DynamoDB, IAM,
-// Secrets Manager), each confirming its own tags natively before checking
-// an unfiltered GetResources sweep, and all seven came back empty against
-// ghcr.io/lex00/floci@sha256:1362e856... - the estate-wide tagging index
-// itself is what floci does not populate, not any one service's tagging
-// call. See live/floci-capabilities.json's "tagging-sweep" rows for the
-// full evidence and tools/floci-capability-gen/tagging.go's package-level
-// doc comment for the probe's own mechanics.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestTaggingSweepAgainstFloci -v
 func TestTaggingSweepAgainstFloci(t *testing.T) {
@@ -166,11 +184,12 @@ func TestTaggingSweepAgainstFloci(t *testing.T) {
 	if !ok {
 		// flocitest.TaggingSweepCapabilityGate skips with a loud, digest-cited
 		// reason when live/floci-capabilities.json already explains this
-		// exact gap (it does, as of the pinned digest - see this file's own
-		// doc comment for the full probe notes that entry is built from). If
-		// the manifest has no matching entry, this falls through to a real
-		// failure instead of a silent skip: an unexplained miss here means
-		// either floci's tagging-sweep coverage regressed, or a new gap needs
+		// exact gap. As of the pinned digest it does not: aws_iam_role's
+		// tagging-sweep row there is "implemented", so the gate is a no-op
+		// and the t.Fatal below is what a miss produces. If the manifest has
+		// no matching entry, this also falls through to a real failure
+		// instead of a silent skip: an unexplained miss here means either
+		// floci's tagging-sweep coverage regressed, or a new gap needs
 		// investigating and recording, not waving through by hand again.
 		flocitest.TaggingSweepCapabilityGate(t, "aws_iam_role")
 		t.Fatal("aws_iam_role.demo was not discovered through the estate-wide tagging sweep against real floci, " +

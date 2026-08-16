@@ -51,9 +51,16 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 var staleFlociMeasurements = map[string]string{
-	"plan-budget.json": "measured against sha256:4753246c, two pin moves back (sha256:488f4d6d, then sha256:da6298c1); " +
-		"re-measuring means re-running issue #64's estate benchmark against the current emulator, " +
+	"plan-budget.json": "measured against sha256:4753246c, several pin moves back (sha256:488f4d6d, sha256:da6298c1, " +
+		"sha256:1362e856); re-measuring means re-running issue #64's estate benchmark against the current emulator, " +
 		"which is an acceptance-tier run rather than a regeneration",
+	"cohort-acceptance.json": "measured against sha256:1362e856, one pin move back; the pin moved to sha256:a1c729f4 " +
+		"for the resourcegroupstaggingapi union-index fix, which was verified live (7/7 tagging-sweep recipes now " +
+		"implemented, and GetResources honours TagFilters). Re-measuring means re-running all 31 cohorts' " +
+		"apply/replan round-trip against one shared emulator, which is an acceptance-tier run rather than a " +
+		"regeneration - and the expectation is that it does not move the 4/27 split, only that it makes the 4 " +
+		"passes' removal leg non-vacuous (a blind tagging index answered \"nothing extra to destroy\" for the same " +
+		"reason a working one does)",
 }
 
 // flociPinRef is live/floci-image's full ref.
