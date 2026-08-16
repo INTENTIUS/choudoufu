@@ -173,7 +173,7 @@ func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 
 // severityLabel renders a refusal's severity for the table. Only the lint
 // layer has a mechanism for anything but fatal today ([lint.Rule.Severity],
-// GitHub issue #210): a lint refusal's ID is its rule's own string, so it is
+// GitHub issue #214): a lint refusal's ID is its rule's own string, so it is
 // looked up directly rather than duplicated into [check.Refusal], which
 // carries no severity field. Every other layer answers "error" because
 // nothing there can yet declare otherwise - not because this generator
@@ -235,7 +235,7 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"error in this table - it is the interesting end of it, and a set "+
 		"assembled by watching output could never contain one. **Severity** "+
 		"is `error` (fatal, stops the run) unless marked `warning` - today "+
-		"only a lint rule can declare `warning`, GitHub issue #210's "+
+		"only a lint rule can declare `warning`, GitHub issue #214's "+
 		"`state-backend`; every other layer's refusal is `error`.\n", len(catalog))
 	if measured {
 		fmt.Fprintf(&b, "\nCounts are from `%s`, over the corpus that artifact names. "+

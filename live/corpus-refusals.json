@@ -52,7 +52,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -66,11 +66,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -81,7 +76,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 11,
+      "sites": 10,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -89,11 +84,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -115,7 +105,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 190,
+      "sites": 189,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -182,11 +172,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 1
           }
@@ -202,7 +187,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 241,
-      "sites": 185,
+      "sites": 184,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -272,11 +257,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 21
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -424,7 +404,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 10,
+      "sites": 9,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -449,11 +429,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -479,7 +454,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -490,11 +465,6 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
             "sites": 1
           },
           {
@@ -517,7 +487,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 11,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -549,11 +519,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -564,7 +529,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -581,11 +546,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -596,7 +556,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 27,
+      "sites": 26,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -641,11 +601,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -662,7 +617,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 17,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 7,
       "schemas": true,
@@ -687,11 +642,6 @@
             "id": "Non-static identity argument",
             "sites": 10,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -702,7 +652,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -725,11 +675,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -740,7 +685,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -763,11 +708,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -778,7 +718,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -795,11 +735,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -810,7 +745,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -829,11 +764,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -844,7 +774,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -856,11 +786,6 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -871,7 +796,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -889,11 +814,6 @@
             "id": "Non-static identity argument",
             "sites": 4,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -904,7 +824,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -938,11 +858,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -957,22 +872,15 @@
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-cyber-cloudwatch-to-splunk",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 1,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -981,7 +889,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1004,11 +912,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 10
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1019,7 +922,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1036,11 +939,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 4
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1051,7 +949,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 11,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1073,11 +971,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1088,7 +981,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1096,11 +989,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -1120,7 +1008,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1128,11 +1016,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -1151,7 +1034,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 21,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1163,11 +1046,6 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1178,7 +1056,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 36,
+      "sites": 35,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1203,11 +1081,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 23
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1218,7 +1091,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1230,11 +1103,6 @@
             "id": "Non-static identity argument",
             "sites": 3,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1242,22 +1110,15 @@
     {
       "name": ".corpus/govuk-aws/terraform/projects/infra-root-dns-zones",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 2,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -1266,7 +1127,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 12,
+      "sites": 11,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1300,11 +1161,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 1
           }
@@ -1320,7 +1176,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1332,11 +1188,6 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1347,7 +1198,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1361,11 +1212,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1376,7 +1222,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1388,11 +1234,6 @@
             "id": "Non-static count expression",
             "sites": 1,
             "unset_var_only": true
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -1403,7 +1244,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 39,
+      "sites": 38,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1453,11 +1294,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 13
           }
@@ -1479,7 +1315,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1491,11 +1327,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -1517,7 +1348,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 42,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1539,11 +1370,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
           }
@@ -1556,10 +1382,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/chat-evaluation-ci",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1567,14 +1393,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -1583,7 +1402,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 17,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1610,11 +1429,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 1
           }
@@ -1627,10 +1441,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cloudfront",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 16,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1638,14 +1452,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -1654,7 +1461,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 68,
+      "sites": 67,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1681,11 +1488,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 35
           }
@@ -1705,7 +1507,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 66,
-      "sites": 28,
+      "sites": 27,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
@@ -1765,11 +1567,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -1787,7 +1584,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 44,
+      "sites": 43,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
@@ -1827,11 +1624,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 23
           }
@@ -1852,7 +1644,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 28,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1879,11 +1671,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -1901,7 +1688,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 32,
-      "sites": 14,
+      "sites": 13,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -1929,11 +1716,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 4
           }
@@ -1951,7 +1733,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1991,11 +1773,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -2003,10 +1780,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/elasticache",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2015,14 +1792,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/elasticache.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2068,7 +1838,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 292,
+      "sites": 291,
       "unresolved_modules": 6,
       "unset_variables": 0,
       "schemas": true,
@@ -2084,11 +1854,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 5
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2161,7 +1926,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 25,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -2172,11 +1937,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2200,7 +1960,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 32,
+      "sites": 31,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -2231,11 +1991,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 26
           }
@@ -2257,7 +2012,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 203,
-      "sites": 139,
+      "sites": 138,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2350,11 +2105,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 19
           }
@@ -2376,10 +2126,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/govuk-reports",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 1,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -2388,14 +2138,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/govuk-reports.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2404,7 +2147,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2431,11 +2174,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
           }
@@ -2449,10 +2187,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/mobile-backend",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 12,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2461,14 +2199,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/mobile-backend.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2477,7 +2208,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2499,11 +2230,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
           }
@@ -2520,7 +2246,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 157,
-      "sites": 60,
+      "sites": 59,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2547,11 +2273,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
           }
@@ -2567,7 +2288,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2585,11 +2306,6 @@
             "categories": {
               "tfe_outputs": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -2597,10 +2313,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/root-dns",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 3,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2609,14 +2325,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/root-dns.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2625,7 +2334,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 84,
+      "sites": 83,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2637,11 +2346,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2679,7 +2383,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 35,
-      "sites": 67,
+      "sites": 66,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2724,11 +2428,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 13
           }
@@ -2747,10 +2446,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/security",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 9,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2759,14 +2458,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/security.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2775,7 +2467,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2786,11 +2478,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2805,10 +2492,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/service-linked-roles",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 1,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2817,14 +2504,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/service-linked-roles.tfvars"
       ],
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -2833,7 +2513,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2851,11 +2531,6 @@
             "categories": {
               "tfe_outputs": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -2866,7 +2541,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2877,11 +2552,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2906,7 +2576,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -2917,11 +2587,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2941,7 +2606,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 29,
+      "sites": 28,
       "unresolved_modules": 118,
       "unset_variables": 0,
       "schemas": true,
@@ -2956,11 +2621,6 @@
             "layer": "lint",
             "id": "moved-block",
             "sites": 17
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -2982,7 +2642,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 52,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3000,11 +2660,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -3113,7 +2768,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 86,
+      "sites": 85,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3132,11 +2787,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 68
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3147,7 +2797,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3155,11 +2805,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -3178,7 +2823,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3197,11 +2842,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3209,22 +2849,15 @@
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/cncf-k8s-infra-aws-capa-ami",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 1,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -3233,7 +2866,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3252,11 +2885,6 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3267,7 +2895,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 12,
+      "sites": 11,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
@@ -3275,11 +2903,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -3305,7 +2928,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3313,11 +2936,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -3335,7 +2953,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 53,
-      "sites": 133,
+      "sites": 132,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -3361,11 +2979,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 46
           }
@@ -3383,22 +2996,15 @@
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/policy-staging-account-1",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 0,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -3407,7 +3013,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 7,
       "unset_variables": 1,
       "schemas": true,
@@ -3423,11 +3029,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -3440,22 +3041,15 @@
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/registry-k8s-io-prod",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -3464,7 +3058,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 14,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3485,11 +3079,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3500,7 +3089,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 47,
+      "sites": 46,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3519,11 +3108,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 37
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3534,7 +3118,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 86,
+      "sites": 85,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3553,11 +3137,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 68
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3759,7 +3338,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 61,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 15,
       "schemas": true,
@@ -3775,11 +3354,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3790,7 +3364,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 5,
       "schemas": true,
@@ -3804,11 +3378,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3816,22 +3385,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/analytics-worker",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 8,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -3840,7 +3402,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -3854,11 +3416,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3869,7 +3426,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 5,
       "schemas": true,
@@ -3883,11 +3440,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3895,22 +3447,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/check-links",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -3919,7 +3464,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -3933,11 +3478,6 @@
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3948,7 +3488,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 31,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 23,
       "schemas": true,
@@ -3967,11 +3507,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 13
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -3982,7 +3517,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4001,11 +3536,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4013,64 +3543,43 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-agent",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-orcid-agent",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/crossref-related-agent",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -4079,7 +3588,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -4093,11 +3602,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4105,22 +3609,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/datafile-generator",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 8,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -4129,7 +3626,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 8,
       "schemas": true,
@@ -4143,11 +3640,6 @@
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4155,22 +3647,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/datafiles-generator",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 1,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -4179,7 +3664,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -4193,11 +3678,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4208,7 +3688,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 8,
       "schemas": true,
@@ -4222,11 +3702,6 @@
             "categories": {
               "data_source": 3
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4237,7 +3712,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4256,11 +3731,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4271,7 +3741,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4290,11 +3760,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4305,7 +3770,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 9,
+      "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4324,11 +3789,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4339,7 +3799,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 29,
-      "sites": 16,
+      "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4350,11 +3810,6 @@
             "layer": "lint",
             "id": "moved-block",
             "sites": 15
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4365,7 +3820,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 6,
       "schemas": true,
@@ -4379,11 +3834,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4394,7 +3844,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4413,11 +3863,6 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4428,7 +3873,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -4447,17 +3892,146 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/pidcheck",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 2,
+      "sites": 1,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "data-read-eligible",
+        "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/profiles",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 10,
+      "sites": 6,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "language-blocked",
+        "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 3,
+            "categories": {
+              "data_source": 3
+            }
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/raw-resolution-logs",
+      "origin": "published deployment",
+      "blocked": false,
+      "loaded": true,
+      "instances": 1,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "clean"
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/re3data",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 6,
+      "sites": 4,
+      "unresolved_modules": 0,
+      "unset_variables": 3,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "language-blocked",
+        "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/repository-finder",
+      "origin": "published deployment",
+      "blocked": true,
+      "loaded": true,
+      "instances": 1,
+      "sites": 2,
+      "unresolved_modules": 0,
+      "unset_variables": 2,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "data-read-eligible",
+        "refusals": [
+          {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/salesforce-api",
+      "origin": "published deployment",
+      "blocked": false,
+      "loaded": true,
+      "instances": 6,
+      "sites": 0,
+      "unresolved_modules": 0,
+      "unset_variables": 0,
+      "schemas": true,
+      "profile": {
+        "onboarding_class": "clean"
+      }
+    },
+    {
+      "name": ".corpus/mastino/prod-eu-west/services/schema",
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
@@ -4472,183 +4046,10 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/profiles",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 10,
-      "sites": 7,
-      "unresolved_modules": 0,
-      "unset_variables": 3,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "language-blocked",
-        "refusals": [
-          {
-            "layer": "dataread",
-            "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
-            "categories": {
-              "data_source": 3
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/raw-resolution-logs",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 1,
-      "sites": 1,
-      "unresolved_modules": 0,
-      "unset_variables": 0,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/re3data",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 6,
-      "sites": 5,
-      "unresolved_modules": 0,
-      "unset_variables": 3,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "language-blocked",
-        "refusals": [
-          {
-            "layer": "dataread",
-            "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/repository-finder",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 1,
-      "sites": 3,
-      "unresolved_modules": 0,
-      "unset_variables": 2,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "data-read-eligible",
-        "refusals": [
-          {
-            "layer": "dataread",
-            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/salesforce-api",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 6,
-      "sites": 1,
-      "unresolved_modules": 0,
-      "unset_variables": 0,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
-      }
-    },
-    {
-      "name": ".corpus/mastino/prod-eu-west/services/schema",
-      "origin": "published deployment",
-      "blocked": true,
-      "loaded": true,
-      "instances": 2,
-      "sites": 3,
-      "unresolved_modules": 0,
-      "unset_variables": 2,
-      "schemas": true,
-      "profile": {
-        "onboarding_class": "data-read-eligible",
-        "refusals": [
-          {
-            "layer": "dataread",
-            "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
-            "categories": {
-              "data_source": 2
-            }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4659,7 +4060,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -4673,11 +4074,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4685,22 +4081,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/sitemaps-generator",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 3,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -4709,7 +4098,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 2,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -4723,11 +4112,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -4735,43 +4119,29 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/store-crawler-results",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 4,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
       "name": ".corpus/mastino/prod-eu-west/services/strapi",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 0,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -4780,7 +4150,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -4794,11 +4164,6 @@
             "categories": {
               "data_source": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5058,7 +4423,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5066,11 +4431,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -5092,7 +4452,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 8,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5100,11 +4460,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -5126,7 +4481,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5140,11 +4495,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5155,7 +4505,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5169,11 +4519,6 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5184,7 +4529,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 22,
-      "sites": 17,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5215,11 +4560,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 9
           }
@@ -5243,7 +4583,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5293,11 +4633,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 5
           }
@@ -5316,7 +4651,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 11,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5330,11 +4665,6 @@
             "categories": {
               "data_source": 10
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5342,22 +4672,15 @@
     {
       "name": ".corpus/simpleinfra/terraform/dns",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 35,
-      "sites": 1,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "backend-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          }
-        ]
+        "onboarding_class": "clean"
       }
     },
     {
@@ -5366,7 +4689,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 6,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5380,11 +4703,6 @@
             "categories": {
               "data_source": 5
             }
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5395,7 +4713,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5423,11 +4741,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 8
           }
@@ -5450,7 +4763,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 42,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5469,11 +4782,6 @@
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 6
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5484,7 +4792,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5517,11 +4825,6 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
             "sites": 1
           },
           {
@@ -5572,7 +4875,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5580,11 +4883,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -5603,7 +4901,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 15,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5658,11 +4956,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 5
           }
@@ -5681,7 +4974,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5700,11 +4993,6 @@
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5715,7 +5003,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 7,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5727,11 +5015,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -5752,7 +5035,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 15,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5780,11 +5063,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
           }
@@ -5800,7 +5078,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5819,11 +5097,6 @@
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5834,7 +5107,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 4,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5853,11 +5126,6 @@
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
           }
         ]
       }
@@ -5868,7 +5136,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5918,11 +5186,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 5
           }
@@ -5941,7 +5204,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 28,
-      "sites": 18,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5983,11 +5246,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -6004,7 +5262,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 83,
-      "sites": 20,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6040,11 +5298,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
           }
@@ -6062,7 +5315,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 51,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6070,11 +5323,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -6092,7 +5340,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 42,
+      "sites": 41,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6115,11 +5363,6 @@
           },
           {
             "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "unadmitted-type",
             "sites": 25
           }
@@ -6138,7 +5381,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6146,11 +5389,6 @@
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "state-backend",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -6661,23 +5899,6 @@
     }
   ],
   "refusals": [
-    {
-      "layer": "lint",
-      "id": "state-backend",
-      "title": "State backends are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
-      "raised_by": "internal/live/lint",
-      "configs": 142,
-      "sites": 142,
-      "examples": [
-        ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd/main.tf:4",
-        ".corpus/cloud-platform/terraform/global-resources/main.tf:2",
-        ".corpus/cool-assessment/backend.tf:2",
-        ".corpus/cyhy-amis/terraform/backend.tf:2",
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:12"
-      ],
-      "registered": true
-    },
     {
       "layer": "lint",
       "id": "unadmitted-type",
@@ -9021,6 +8242,16 @@
     },
     {
       "layer": "lint",
+      "id": "state-backend",
+      "title": "State backends are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"backend-block\" / \"cloud-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "undeclared-provider-alias",
       "title": "Provider configuration is not declared",
       "docs_ref": "live/LIMITATIONS.md, \"undeclared-provider-alias\"",
@@ -9034,8 +8265,8 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3395,
-    "sites": 10431,
-    "refusals_fired": 29,
+    "sites": 10289,
+    "refusals_fired": 28,
     "refusals_in_set": 118,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
@@ -9055,10 +8286,10 @@
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 144,
-      "clean": 0,
+      "blocked": 118,
+      "clean": 26,
       "instances": 2219,
-      "sites": 2467,
+      "sites": 2325,
       "reads_as": "rate"
     },
     {
@@ -9079,11 +8310,11 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 0
+        "configs": 26
       },
       {
         "class": "backend-only",
-        "configs": 26
+        "configs": 0
       },
       {
         "class": "admissions-only",
