@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 954,
-    "compared": 944,
+    "admitted_total": 959,
+    "compared": 949,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 849,
-    "adopted_unchanged_pct": 89.94,
+    "adopted_unchanged": 854,
+    "adopted_unchanged_pct": 89.99,
     "genuine_mismatches": 95,
     "annotated": 95,
     "unannotated_mismatches": 0,
@@ -23,9 +23,9 @@
       "adopted_unchanged_pct": 100
     },
     "APS": {
-      "compared": 6,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 83.33
+      "compared": 7,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 85.71
     },
     "ARCRegionSwitch": {
       "compared": 1,
@@ -323,9 +323,9 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 92,
-      "adopted_unchanged": 79,
-      "adopted_unchanged_pct": 85.87
+      "compared": 93,
+      "adopted_unchanged": 80,
+      "adopted_unchanged_pct": 86.02
     },
     "ECR": {
       "compared": 11,
@@ -333,8 +333,8 @@
       "adopted_unchanged_pct": 100
     },
     "ECS": {
-      "compared": 8,
-      "adopted_unchanged": 8,
+      "compared": 9,
+      "adopted_unchanged": 9,
       "adopted_unchanged_pct": 100
     },
     "EFS": {
@@ -343,9 +343,9 @@
       "adopted_unchanged_pct": 100
     },
     "EKS": {
-      "compared": 7,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 71.43
+      "compared": 8,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 75
     },
     "EMR": {
       "compared": 4,
@@ -868,8 +868,8 @@
       "adopted_unchanged_pct": 100
     },
     "ServiceDiscovery": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "Shield": {
@@ -4661,6 +4661,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ecs_task_set",
+      "service": "ECS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_efs_access_point",
       "service": "EFS",
       "proposed_bucket": "server-assigned",
@@ -4806,6 +4814,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_eks_pod_identity_association",
+      "service": "EKS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -7891,6 +7907,14 @@
       "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example is the parent workspace's opaque id (ws-...), whose value prefix matches no token of workspace_id. The ratified row is the ratifiers' reading of the same page."
     },
     {
+      "tf_type": "aws_prometheus_anomaly_detector",
+      "service": "APS",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_prometheus_query_logging_configuration",
       "service": "APS",
       "proposed_bucket": "client-named",
@@ -9554,6 +9578,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_service_discovery_private_dns_namespace",
+      "service": "ServiceDiscovery",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_service_discovery_public_dns_namespace",
       "service": "ServiceDiscovery",
       "proposed_bucket": "server-assigned",
@@ -10639,6 +10671,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+    },
+    {
+      "tf_type": "aws_vpc_ipam_pool_cidr_allocation",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_vpc_ipam_resource_discovery",

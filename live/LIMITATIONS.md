@@ -482,8 +482,8 @@ admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths (`live/SURVEY.md`, 65 of 68 top types admitted; the
-three out are the excluded-by-rule set below), and the tables that record
+four admission paths (`live/SURVEY.md`, 66 of 68 top types admitted; the
+two out are the excluded-by-rule set below), and the tables that record
 admission
 (`internal/live/lint/admission_generated.go`, mirrored by
 `internal/live/identity`'s `table_generated.go`, the copy the sweep and
@@ -496,7 +496,10 @@ reversal) let its batch land. `aws_iam_access_key` is stabler than either:
 it is in the AWS provider survey's curated top types, and it is out by
 ruling rather than by any gap - the access key ID is server-assigned and
 the secret half is unreadable after create, so issue #125 held the ops
-exclusion and withdrew the one admission ever made. The standing
+exclusion and withdrew the one admission ever made. What cannot be read
+back there is the resource's own contents, never the marker, and that is
+the distinction which took `aws_secretsmanager_secret_version` off this
+list on 2026-08-16. The standing
 credential-material exclusion is the single class type parity deliberately
 leaves out, so no future ratification batch retires this example.
 
@@ -506,15 +509,20 @@ boundary, not a ban. `aws_nat_gateway` was exactly this case until issue
 #65's EC2 networking batch reached it, `aws_cloudwatch_event_rule` until
 the #175 batch built the `Component` vocabulary its omitted-bus identity
 needed, and most of the survey's remaining unadmitted rows still are.
-Three surveyed types are out by the admission rule
-itself, with no wiring batch ever coming: `aws_iam_access_key` and
-`aws_secretsmanager_secret_version` (credentials, whose identity is born
-server-side alongside a secret that can never be read again. They become a
+Two surveyed types are out by the admission rule
+itself, with no wiring batch ever coming: `aws_iam_access_key` (a
+credential, whose identity is born
+server-side alongside a secret that can never be read again. It becomes a
 lifecycle-layer Op writing to the secret store, referenced by ARN or
 pointer, never by value, the same forwarding `random_password` gets above)
 and `aws_acm_certificate_validation` (a waiter pretending to be a resource,
 it moves to lifecycle sequencing, the same forwarding as `time_sleep`).
-`live/SURVEY.md`, "The three the rule excludes", has the full account.
+`aws_secretsmanager_secret_version` was a third until 2026-08-16, when the
+maintainer withdrew the exclusion: the ownership marker goes into a tag,
+never into the secret, so the credential rationale never applied to it. It
+is ordinary admission debt now, refused like every other untaggable type
+whose identity carries a server-minted component (#233).
+`live/SURVEY.md`, "The two the rule excludes", has the full account.
 
 **Forwarding address.** For types not yet covered: the provider survey
 (`live/SURVEY.md`) and the generated admission table, which grows as
@@ -528,7 +536,7 @@ schema fallback runs only when the caller supplied provider schemas
 `CheckContext` passes). And the naming signal flips a refusal to an
 admission when every block of the type sets its identity argument
 explicitly. A `*_prefix` argument used in place of the name itself is the
-usual reason a type lands here. For the three
+usual reason a type lands here. For the two
 types the rule excludes: the lifecycle layer, per their entries in
 `live/SURVEY.md`.
 

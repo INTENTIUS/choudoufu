@@ -26,9 +26,9 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 954 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 577, client-named 474, composite 152, assembled 10) | 1213 types | A ratification batch: paste, fixture, test. |
-| Needs a hand separator | 78 types | One one-character import-separator decision each. |
+| Admitted (the shipped table) | 959 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 578, client-named 474, composite 152, assembled 10) | 1214 types | A ratification batch: paste, fixture, test. |
+| Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 335 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-954<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+959<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
@@ -222,14 +222,15 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_ecs_capacity_provider`, `aws_ecs_cluster`,
   `aws_ecs_cluster_capacity_providers`, `aws_ecs_daemon`,
   `aws_ecs_daemon_task_definition`, `aws_ecs_express_gateway_service`,
-  `aws_ecs_service`, `aws_ecs_task_definition`, `aws_efs_access_point`,
-  `aws_efs_file_system`, `aws_efs_mount_target`,
+  `aws_ecs_service`, `aws_ecs_task_definition`, `aws_ecs_task_set`,
+  `aws_efs_access_point`, `aws_efs_file_system`, `aws_efs_mount_target`,
   `aws_egress_only_internet_gateway`, `aws_eip`, `aws_eip_association`,
   `aws_eks_access_entry`, `aws_eks_access_policy_association`,
   `aws_eks_addon`, `aws_eks_capability`, `aws_eks_cluster`,
   `aws_eks_fargate_profile`, `aws_eks_node_group`,
-  `aws_elastic_beanstalk_application`, `aws_elastic_beanstalk_environment`,
-  `aws_elasticache_cluster`, `aws_elasticache_global_replication_group`,
+  `aws_eks_pod_identity_association`, `aws_elastic_beanstalk_application`,
+  `aws_elastic_beanstalk_environment`, `aws_elasticache_cluster`,
+  `aws_elasticache_global_replication_group`,
   `aws_elasticache_parameter_group`, `aws_elasticache_replication_group`,
   `aws_elasticache_serverless_cache`, `aws_elasticache_subnet_group`,
   `aws_elasticache_user`, `aws_elasticache_user_group`,
@@ -366,6 +367,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_pinpointsmsvoicev2_phone_number`, `aws_pinpointsmsvoicev2_pool`,
   `aws_pinpointsmsvoicev2_resource_policy`, `aws_pipes_pipe`,
   `aws_placement_group`, `aws_prometheus_alert_manager_definition`,
+  `aws_prometheus_anomaly_detector`,
   `aws_prometheus_query_logging_configuration`,
   `aws_prometheus_rule_group_namespace`, `aws_prometheus_scraper`,
   `aws_prometheus_scraper_logging_configuration`, `aws_prometheus_workspace`,
@@ -451,6 +453,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_securityhub_standards_subscription`, `aws_securitylake_data_lake`,
   `aws_securitylake_subscriber`, `aws_service_discovery_http_namespace`,
   `aws_service_discovery_instance`,
+  `aws_service_discovery_private_dns_namespace`,
   `aws_service_discovery_public_dns_namespace`,
   `aws_service_discovery_service`, `aws_servicecatalog_portfolio`,
   `aws_servicecatalog_portfolio_share`, `aws_servicecatalog_product`,
@@ -502,7 +505,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_vpc_endpoint_route_table_association`,
   `aws_vpc_endpoint_security_group_association`, `aws_vpc_endpoint_service`,
   `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam`, `aws_vpc_ipam_pool`,
-  `aws_vpc_ipam_pool_cidr`, `aws_vpc_ipam_resource_discovery`,
+  `aws_vpc_ipam_pool_cidr`, `aws_vpc_ipam_pool_cidr_allocation`,
+  `aws_vpc_ipam_resource_discovery`,
   `aws_vpc_ipam_resource_discovery_association`, `aws_vpc_ipam_scope`,
   `aws_vpc_peering_connection`, `aws_vpc_route_server`,
   `aws_vpc_route_server_endpoint`, `aws_vpc_route_server_peer`,

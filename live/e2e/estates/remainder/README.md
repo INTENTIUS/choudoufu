@@ -246,6 +246,55 @@ service:
 `aws_transfer_web_app` — were dropped to a concurrent batch; see "Dropped
 to a concurrent batch" above.)
 
+## Reversed 2026-08-16: five taggable server-minted composites (wall/servermint)
+
+Five types this batch and the `ecs_eks` batch recorded as rejected below
+are now admitted: `aws_ecs_task_set`, `aws_eks_pod_identity_association`,
+`aws_prometheus_anomaly_detector`,
+`aws_service_discovery_private_dns_namespace` and
+`aws_vpc_ipam_pool_cidr_allocation`.
+
+The rejections were right about the shape and wrong about what the shape
+costs. Each reason said the classifier's flat server-assigned proposal
+"drops a config-supplied component" - `cluster`/`service` for the task
+set, `workspace_id` for the anomaly detector, `domain_identifier`-style
+parent scopes for the rest. That is true of the import ID string, and it
+does not matter for a `ServerAssigned` row: the import ID is never built
+from `Components` for such a type. It is read back from the cloud, and
+`ImportSyntax` is documentation only, as `internal/live/identity/table.go`
+says in the field's own doc comment. The shipped table already carries 51
+`ServerAssigned` rows whose `ImportSyntax` has a separator in it -
+`aws_connect_queue` `INSTANCEID:QUEUEID`, `aws_transfer_agreement`
+`SERVER_ID/AGREEMENT_ID` (its `agreement_id` sits under Attribute
+Reference in the same doc cache these rejections were read from) - so the
+line these four sat behind was not a capability boundary.
+
+What does matter is taggability, and it is the whole test. All four carry
+a top-level `tags` argument at v6.59.0 (`live/survey-full.json`
+`signals.taggable`), so `internal/live/stamp` writes the ownership marker
+and the tag-filtered sweep finds it. The parent scope is not load-bearing:
+**parent-scoped enumeration can confirm an identity the configuration has
+already narrowed to one; it cannot supply one.** For a taggable type the
+marker does the narrowing and the parent only shrinks the candidate set,
+which is why these four move and the 38 untaggable members of the same
+bucket stay refused - for them there is nowhere to write a marker at all,
+and `tools/row-gen/rejected.json` now says so in those words.
+
+All five are reproduced by row-gen's own fresh classifier
+(`live/rowgen-convergence.json`: `matched`, no mismatch classes), so
+nothing here is a hand-written row standing in for a derivation. Four
+needed no generator change at all. The fifth,
+`aws_vpc_ipam_pool_cidr_allocation`, needed one in
+`tools/importdocs-gen`: its Import section reads "using the allocation
+`id` and `pool id`, separated by `_`", and the scrape's clause reader
+matched only backticked tokens shaped like snake_case arguments, so it
+found one token against a two-segment example, failed its own arity gate,
+and emitted no `id_parts` for the page. With the spaced token read, the
+`id` segment resolves to the doc's own Attribute Reference and
+`tryDocNamedServerSegment` fires the same way it does for the Connect and
+Transfer families. Reach of that widening across the pinned v6.59.0 doc
+cache, measured rather than assumed: one page of 1,693.
+
 ## Rejected on identity grounds (58 types)
 
 Independent verification against the pinned v6.58.0 provider's own

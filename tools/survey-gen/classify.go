@@ -35,11 +35,35 @@ const (
 // #25's own design: "what legitimately stays hand-written: the
 // excluded-by-rule set ... credentials and waiters need the Ops judgment."
 // No schema says a secret is unreadable after create or that a resource is
-// a waiter, so these three carry their reason here instead of a derivation.
+// a waiter, so these two carry their reason here instead of a derivation.
+//
+// It is two rather than three since the maintainer's 2026-08-16 ruling on
+// aws_secretsmanager_secret_version, which used to sit here reading
+// "credential: secret_id plus a server-assigned version UUID, the secret
+// unreadable after create". The ownership marker goes into a TAG, never
+// into the secret, so nothing about marking a secret version reads or
+// exposes its contents and the credential-material rationale never applied
+// to it. It was also never on CLAUDE.md's sanctioned list, which is exactly
+// four types (aws_iam_access_key, aws_iot_certificate,
+// aws_ivs_playback_key_pair, aws_appstream_directory_config) and does not
+// grow. So the type is admission debt like any other and classifies from
+// its own schema below, which on the pinned release puts it on the "list +
+// content match" path: untaggable, but the provider does ship a native
+// list resource for it, and its identity schema requires the server-minted
+// version_id beside the configuration's own secret_id. That is the same
+// shape as the rest of tools/row-gen/rejected.json's server-minted
+// composites, so it stays unadmitted for their reason - no marker-capable
+// argument, blocked on #233 - reached by derivation rather than by veto.
+//
+// aws_iam_access_key stays because its distinguishing fact is not the
+// marker at all: the secret half is returned once at create and is
+// unreadable afterwards, so a live read cannot reconstruct what the
+// configuration is entitled to hold. That is a statement about the
+// resource's own contents, which no schema carries, and it is on the
+// sanctioned list.
 var opsExcluded = map[string]string{
-	"aws_iam_access_key":                "credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable",
-	"aws_secretsmanager_secret_version": "credential: secret_id plus a server-assigned version UUID, the secret unreadable after create",
-	"aws_acm_certificate_validation":    "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer",
+	"aws_iam_access_key":             "credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable",
+	"aws_acm_certificate_validation": "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer",
 }
 
 // Survey is the committed artifact: live/survey.json.
@@ -145,7 +169,9 @@ type IdentityAttrs struct {
 // than loaded here for the same reason internal/live/identity takes one: the
 // fact lives in live/mapping.json, and a classifier that reaches for an
 // artifact on its own is harder to test than one handed the answer.
-func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, service identity.ServiceOf) Survey {
+// enumerate is the same arrangement for the Cloud Control listing question;
+// see cfnEnumeration.
+func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, service identity.ServiceOf, enumerate cfnEnumeration) Survey {
 	// The strict client-named judgment is identity.Derivable's, not this
 	// tool's: it is the one classifier that already knows the
 	// Optional+Computed trap (aws_s3_bucket.bucket and aws_vpc.id are the
@@ -185,7 +211,7 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, se
 	sorted := append([]string(nil), roster...)
 	sort.Strings(sorted)
 	for _, typeName := range sorted {
-		row := classify(typeName, schema, derivable, allTypes, service)
+		row := classify(typeName, schema, derivable, allTypes, service, enumerate)
 		if c, ok := report.Admits(typeName); ok {
 			row.Admission = string(c.Admits)
 		}
@@ -236,11 +262,17 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 //     makes the path parent-derived; otherwise client-named.
 //  4. An identity schema the strict rule cannot prove client-assigned falls
 //     through to the discovery paths: marker when the type is taggable,
-//     list plus content match when a native list resource exists, moves to
-//     Ops when neither.
+//     list plus content match when the type can be enumerated at all, moves
+//     to Ops when neither.
 //  5. No identity schema at all: the same discovery fallback, with the
 //     evidence saying the identity side is unreadable from schemas.
-func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string, service identity.ServiceOf) Row {
+//
+// enumerate answers "can this type be listed, and how", over the same two
+// registry facts internal/live/discovery's own enumeration-source selection
+// reads. It is passed in for the same reason service is: the fact lives in
+// live/mapping.json and live/registry.json, and a classifier handed the
+// answer is easier to test than one that reaches for an artifact.
+func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string, service identity.ServiceOf, enumerate cfnEnumeration) Row {
 	rs := schema.ResourceTypes[typeName]
 	_, hasList := schema.ListResourceTypes[typeName]
 
@@ -328,19 +360,57 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		}
 	}
 
-	switch {
+	switch cfnType, scoping, listable := enumerate(typeName); {
 	case row.Signals.Taggable:
 		row.Path = pathMarker
 		row.Evidence = identityNote + "; taggable, so recoverable by tag-filtered list"
 	case hasList:
 		row.Path = pathListContent
 		row.Evidence = identityNote + "; untaggable, native list resource exists"
+	case listable && len(scoping) == 0:
+		row.Path = pathListContent
+		row.Evidence = identityNote + "; untaggable and no native list resource, but Cloud Control lists " + cfnType + " with no scoping input"
+	case listable:
+		row.Path = pathOps
+		row.Evidence = identityNote + "; untaggable, no native list resource, and Cloud Control's list handler for " + cfnType +
+			" requires " + strings.Join(scoping, " and ") + " as scoping input, which no enumeration leg supplies today"
 	default:
 		row.Path = pathOps
-		row.Evidence = identityNote + "; untaggable and no native list resource, so no admission path recovers it"
+		row.Evidence = identityNote + "; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
 	}
 	return row
 }
+
+// cfnEnumeration reports how Cloud Control can enumerate a Terraform type:
+// the CFN type ListResources would be asked for, the scoping input that
+// type's list handler requires (empty when it needs none), and whether the
+// registry names a list handler for it at all.
+//
+// It exists because live/survey-full.json spent 699 rows asserting "no
+// admission path recovers it" from one signal - the PROVIDER's own native
+// list resource (GetProviderSchemaResponse.ListResourceTypes) - while
+// internal/live/discovery/discovery.go's scanType has read two signals
+// since issue #47: the native list resource first, then, for a type that
+// has none, the mapped CFN type's own Cloud Control list handler
+// (cloudControlSource -> registry.Roster.EnumerationSource). A survey whose
+// enumeration question is narrower than the code's answers it wrong, and
+// says so in the artifact every downstream document quotes.
+//
+// The signature deliberately merges registry.Roster's two accessors rather
+// than exposing them separately: EnumerationSource is true only for a list
+// handler needing no input and EnumerationSourceScoped only for one that
+// does, so a caller reading either alone sees "not listable" for half the
+// listable set - which is the shape of mistake this whole function exists
+// to correct.
+type cfnEnumeration func(tfType string) (cfnType string, requiredInput []string, listable bool)
+
+// noEnumeration is the cfnEnumeration a caller with no registry roster
+// passes: nothing is listable through Cloud Control, which reproduces the
+// classifier's pre-#47 behaviour exactly. It is the honest answer for a
+// test fixture whose types are not in live/mapping.json at all, not a
+// silent default - buildSurvey takes the function rather than a nilable
+// roster so that "no roster" is a decision at the call site.
+func noEnumeration(string) (string, []string, bool) { return "", nil, false }
 
 // cloudValuesOf returns the cloud properties the fork's identity table
 // substitutes into this type's import identity, in component order and

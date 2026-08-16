@@ -153,3 +153,55 @@ func TestIDParts_PlainEnumAllUnknownProvesNothing(t *testing.T) {
 		t.Errorf("idParts = %v, want nil (no part resolves to anything)", got)
 	}
 }
+
+// TestIDParts_SpacedBacktickSegmentName is the hole phraseArgRe closes:
+// the IPAM allocation page names one segment in snake_case and the other as
+// a spaced phrase, both inside backticks, in the same "separated by"
+// sentence. snakeArgRe matched only the first, which left the clause with
+// one token against a two-segment example, so the arity gate refused the
+// whole attribution and the page contributed no id_parts at all - which in
+// turn kept the type in row-gen's needs-hand-separator bucket, where no
+// argument-reconstruction rule can ever be right about it.
+//
+// The `id` segment resolves to the doc's own Attribute Reference, which is
+// the fact tools/row-gen's tryDocNamedServerSegment needs. "pool id"
+// resolves to neither section and must stay "unknown": the resource's own
+// argument is ipam_pool_id, and claiming a match on a partial phrase is the
+// aws_lambda_alias mistake above in the other direction.
+func TestIDParts_SpacedBacktickSegmentName(t *testing.T) {
+	section := "## Import\n\nimport IPAM allocations using the allocation `id` and `pool id`, separated by `_`. For example:\n\n```console\n% terraform import aws_vpc_ipam_pool_cidr_allocation.example ipam-pool-alloc-0dc6d1_ipam-pool-07cfb5\n```\n"
+	got := idParts(section, "aws_vpc_ipam_pool_cidr_allocation", sepPtr("_"),
+		"ipam-pool-alloc-0dc6d1_ipam-pool-07cfb5",
+		opt("ipam_pool_id", "cidr", "description", "netmask_length"), []string{"id"})
+	want := []IDPart{
+		{Token: "id", Source: idPartSourceAttribute},
+		{Token: "pool id", Source: idPartSourceUnknown},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("idParts = %v, want %v", got, want)
+	}
+}
+
+// TestSeparatedByPhraseTokens_NeverNarrowsTheStrictRead pins the fallback's
+// one contract: it is only ever consulted when the strict sources found
+// fewer than two tokens, and it refuses rather than returning a shorter
+// list. A page whose clause names two snake_case arguments must be
+// unaffected, which is what keeps this widening from re-attributing the
+// 1692 pages that already resolve.
+func TestSeparatedByPhraseTokens_NeverNarrowsTheStrictRead(t *testing.T) {
+	section := "## Import\n\nimport them using the `instance_id` and `queue_id` separated by a colon (`:`).\n"
+	strict := dedupe(snakeArgRe.FindAllStringSubmatch(section, -1), 1)
+	if len(strict) < 2 {
+		t.Fatalf("fixture no longer exercises the strict path: %v", strict)
+	}
+	got := separatedByPhraseTokens(section)
+	if len(got) < len(strict) {
+		t.Errorf("separatedByPhraseTokens = %v, narrower than the strict read %v", got, strict)
+	}
+
+	// No "using" before the clause: nothing to scan, and the fallback must
+	// say so rather than reaching backwards into unrelated prose.
+	if got := separatedByPhraseTokens("## Import\n\nthe `a b` and `c d`, separated by `_`.\n"); got != nil {
+		t.Errorf("separatedByPhraseTokens with no leading \"using\" = %v, want nil", got)
+	}
+}

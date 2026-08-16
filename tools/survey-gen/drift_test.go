@@ -65,10 +65,21 @@ var surveyExpectations = []surveyExpectation{
 			IdentitySchema int
 		}{Taggable: 47, ListResource: 58, IdentitySchema: 61},
 		Paths: map[string]int{
-			"marker":               37,
-			"client-named":         14,
-			"list + content match": 6,
-			"moves to Ops":         5,
+			"marker":       37,
+			"client-named": 14,
+			// 6 -> 9 and 5 -> 2 on 2026-08-16, from two classifier
+			// changes in one commit. Two of the three
+			// (aws_cloudfront_origin_access_control, aws_iam_group)
+			// moved because the enumeration question widened from the
+			// provider's native list resource alone to the two signals
+			// internal/live/discovery has read since #47, the second
+			// being the mapped CFN type's Cloud Control list handler.
+			// The third (aws_secretsmanager_secret_version) moved
+			// because its hand exclusion in opsExcluded was withdrawn by
+			// ruling; it has a native list resource and had always
+			// classified underneath the veto.
+			"list + content match": 9,
+			"moves to Ops":         2,
 			"parent-derived":       4,
 			"account-derived":      2,
 		},
@@ -82,11 +93,29 @@ var surveyExpectations = []surveyExpectation{
 			IdentitySchema int
 		}{Taggable: 847, ListResource: 195, IdentitySchema: 479},
 		Paths: map[string]int{
-			"marker":               789,
-			"moves to Ops":         702,
+			// 789 -> 787: aws_comprehend_entity_recognizer and
+			// aws_kinesisanalyticsv2_application moved marker ->
+			// account-derived. Neither is this commit's doing - both
+			// gained identity-table components naming a cloud value in
+			// an earlier merge that regenerated the tables and not this
+			// artifact, the same at-pin staleness the #150 note below
+			// records. A regeneration was what surfaced them.
+			"marker": 787,
+			// 702 -> 583. 118 rows moved to "list + content match"
+			// because the classifier's enumeration question now reads
+			// the mapped CFN type's Cloud Control list handler as well
+			// as the provider's native list resource, which is what
+			// internal/live/discovery/discovery.go's scanType has done
+			// since #47; the 119th mover,
+			// aws_secretsmanager_secret_version, came off opsExcluded by
+			// ruling and classifies on its native list resource. The 85
+			// rows whose CFN list handler needs scoping input stay here,
+			// with evidence that now names the input rather than
+			// claiming no list exists.
+			"moves to Ops":         583,
 			"client-named":         117,
 			"parent-derived":       47,
-			"list + content match": 24,
+			"list + content match": 143,
 			// aws_ecs_capacity_provider moved marker -> account-derived
 			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
 			// ARN folds in the run's region and account-id, which
@@ -98,7 +127,7 @@ var surveyExpectations = []surveyExpectation{
 			// are hand-synced to the committed artifact rather than
 			// derived from a fresh run, so nothing caught it until a live
 			// regeneration was actually run and diffed against it.
-			"account-derived": 20,
+			"account-derived": 22,
 		},
 	},
 }

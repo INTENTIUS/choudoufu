@@ -414,6 +414,24 @@ func TestTaggable(t *testing.T) {
 // same.
 var (
 	taggableAdmittedTypes = []string{
+		// wall/servermint admitted four of tools/row-gen/rejected.json's
+		// server-minted composites - a config-supplied parent scope beside
+		// a segment the service mints - on the one fact that separates
+		// them from the 38 that stayed refused: all four are taggable, so
+		// the ownership marker is the discriminator and the parent scope
+		// only narrows the candidate set. Taggability from
+		// live/survey-full.json's signals.taggable at v6.59.0, which
+		// TestPinnedTaggabilityMatchesTheSurvey re-reads rather than
+		// trusting this comment; each doc page's Attribute Reference
+		// exports tags_all to match.
+		"aws_ecs_task_set",
+		"aws_eks_pod_identity_association",
+		"aws_prometheus_anomaly_detector",
+		"aws_service_discovery_private_dns_namespace",
+		// The fifth, once tools/importdocs-gen stopped dropping a
+		// backtick-quoted segment name that carries a space ("using the
+		// allocation `id` and `pool id`, separated by `_`").
+		"aws_vpc_ipam_pool_cidr_allocation",
 		// wall/rejected4 admitted the eighteen mapped WAF Classic and WAF
 		// Classic Regional types the remainder batch had held out under
 		// live/residue.go's DeprecatedServices roster. Taggability from two
@@ -1076,6 +1094,17 @@ func testSchemas() Schemas {
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),
 		"aws_ebs_volume":                                     taggedSchema("id", "arn", "availability_zone", "size"),
+
+		// The four server-minted composites wall/servermint admitted.
+		// Attribute shapes follow each doc page's own Argument and
+		// Attribute Reference; all four carry a top-level tags argument,
+		// which is the whole reason they were admitted and the other 38 in
+		// the same bucket were not.
+		"aws_ecs_task_set":                            taggedSchema("id", "arn", "task_set_id", "service", "cluster", "task_definition"),
+		"aws_eks_pod_identity_association":            taggedSchema("id", "association_arn", "association_id", "cluster_name", "namespace", "service_account", "role_arn"),
+		"aws_prometheus_anomaly_detector":             taggedSchema("id", "arn", "workspace_id", "alias"),
+		"aws_service_discovery_private_dns_namespace": taggedSchema("id", "arn", "name", "vpc", "hosted_zone"),
+		"aws_vpc_ipam_pool_cidr_allocation":           taggedSchema("id", "ipam_pool_id", "cidr", "description"),
 
 		// The WAF Classic and WAF Classic Regional batch (wall/rejected4).
 		// Attribute shapes follow each doc page's own Argument/Attribute

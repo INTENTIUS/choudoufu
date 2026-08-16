@@ -204,8 +204,9 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 		return fmt.Errorf("loading the embedded registry roster: %w", err)
 	}
 	serviceOf := identity.ServiceOf(reg.ServiceOf)
+	enumerate := rosterEnumeration(reg)
 
-	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf)
+	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf, enumerate)
 	if accept {
 		survey.Accepted = today
 	}
@@ -225,7 +226,7 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 		return nil
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf, enumerate)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	if accept {
 		full.Accepted = today
@@ -242,6 +243,26 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 	fmt.Fprintf(log, "survey-gen: wrote %s (%d types: %d taggable, %d with list resources, %d with identity schemas)%s\n",
 		surveyFullJSONRel, len(full.Types), full.Counts.Taggable, full.Counts.ListResource, full.Counts.IdentitySchema, acceptedSuffix(full.Accepted))
 	return nil
+}
+
+// rosterEnumeration adapts the embedded registry roster to the classifier's
+// cfnEnumeration: the two accessors internal/live/discovery's own
+// enumeration-source selection uses, read as one question.
+//
+// EnumerationSource and EnumerationSourceScoped are documented as never
+// both true for a type - the first excludes exactly what the second
+// requires - so their order here is a formality rather than a precedence
+// choice, and the roster stays the only source of the answer.
+func rosterEnumeration(reg *registry.Roster) cfnEnumeration {
+	return func(tfType string) (string, []string, bool) {
+		if cfnType, ok := reg.EnumerationSource(tfType); ok {
+			return cfnType, nil, true
+		}
+		if cfnType, required, ok := reg.EnumerationSourceScoped(tfType); ok {
+			return cfnType, required, true
+		}
+		return "", nil, false
+	}
 }
 
 // acceptedSuffix renders ", accepted <date>" for a log line when accepted
