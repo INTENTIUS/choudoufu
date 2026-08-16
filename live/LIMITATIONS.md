@@ -1341,11 +1341,11 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 110 | 1299 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 99 | 2295 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 99 | 4585 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 63 | 2982 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 46 | 690 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 33 | 131 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
@@ -1359,8 +1359,8 @@ refused, and each says so in its own entry.
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
+| 1 | 5 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
-| 1 | 3 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
 | 1 | 1 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | error | `internal/live/identity` | "unadmitted-type" |
@@ -1548,15 +1548,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 99 configurations in the measured corpus, at 2295 sites.
-
-#### Unable to compute static value
-
-**What.** Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 63 configurations in the measured corpus, at 2982 sites.
+**How often.** Blocked 99 configurations in the measured corpus, at 4585 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1573,6 +1565,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 47 configurations in the measured corpus, at 338 sites.
+
+#### Unable to compute static value
+
+**What.** Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 46 configurations in the measured corpus, at 690 sites.
 
 #### Unresolvable identity
 
@@ -1646,6 +1646,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 3 configurations in the measured corpus, at 5 sites.
 
+#### Data source provider not configurable
+
+**What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 5 sites.
+
 #### Invalid operand
 
 **What.** An operator inside a statically evaluated expression was given an operand of the wrong type - arithmetic on a string, for instance.
@@ -1653,14 +1661,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
-
-#### Data source provider not configurable
-
-**What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked 1 configuration in the measured corpus, at 3 sites.
 
 #### Ambiguous list-valued identity argument
 

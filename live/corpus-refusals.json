@@ -176,17 +176,17 @@
           {
             "layer": "dataread",
             "id": "Data source provider not configurable",
-            "sites": 3,
+            "sites": 5,
             "categories": {
-              "data_source": 3
+              "data_source": 5
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 19,
+            "sites": 27,
             "categories": {
-              "remote_state": 17
+              "remote_state": 25
             }
           },
           {
@@ -216,7 +216,7 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 19
+            "sites": 9
           },
           {
             "layer": "identity",
@@ -328,7 +328,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 5
+            "sites": 5,
+            "categories": {
+              "managed_resource": 5
+            }
           },
           {
             "layer": "identity",
@@ -1668,7 +1671,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 2
+            }
           },
           {
             "layer": "lint",
@@ -1831,7 +1837,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 2
+            }
           },
           {
             "layer": "lint",
@@ -2089,20 +2098,15 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-access.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 16,
+            "sites": 32,
             "categories": {
-              "data_source": 16
+              "data_source": 32
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 16
           },
           {
             "layer": "lint",
@@ -2247,9 +2251,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 4,
+            "sites": 11,
             "categories": {
-              "tfe_outputs": 4
+              "tfe_outputs": 11
             }
           },
           {
@@ -2259,11 +2263,6 @@
             "categories": {
               "module_output": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 7
           },
           {
             "layer": "lint",
@@ -2455,9 +2454,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 5,
             "categories": {
-              "tfe_outputs": 2
+              "tfe_outputs": 5
             }
           },
           {
@@ -2471,7 +2470,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 4
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "stamp",
@@ -2959,7 +2961,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           }
         ]
       },
@@ -3271,9 +3276,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 20,
+            "sites": 36,
             "categories": {
-              "tfe_outputs": 20
+              "tfe_outputs": 36
             }
           },
           {
@@ -3292,7 +3297,10 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 20
+            "sites": 4,
+            "categories": {
+              "managed_resource": 4
+            }
           },
           {
             "layer": "lint",
@@ -6505,20 +6513,15 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 4,
             "categories": {
               "data_source": 2,
-              "remote_state": 1
+              "remote_state": 2
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
             "sites": 1
           },
           {
@@ -6575,21 +6578,16 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 7,
             "categories": {
               "data_source": 1,
-              "remote_state": 2
+              "remote_state": 6
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 4
           },
           {
             "layer": "lint",
@@ -6830,21 +6828,16 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 5,
             "categories": {
               "data_source": 1,
-              "remote_state": 2
+              "remote_state": 4
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 2
           }
         ]
       },
@@ -6940,21 +6933,16 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 7,
             "categories": {
               "data_source": 1,
-              "remote_state": 2
+              "remote_state": 6
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 4
           },
           {
             "layer": "lint",
@@ -7205,21 +7193,16 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 7,
             "categories": {
               "data_source": 1,
-              "remote_state": 2
+              "remote_state": 6
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
-            "sites": 4
           },
           {
             "layer": "lint",
@@ -7261,20 +7244,15 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 7,
+            "sites": 9,
             "categories": {
               "data_source": 5,
-              "remote_state": 2
+              "remote_state": 4
             }
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 2
-          },
-          {
-            "layer": "identity",
-            "id": "Unable to compute static value",
             "sites": 2
           },
           {
@@ -9045,13 +9023,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 99,
-      "sites": 2295,
+      "sites": 4585,
       "examples": [
         ".corpus/alb/examples/complete-nlb/main.tf:12",
+        ".corpus/alb/examples/complete-nlb/main.tf:203",
         ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd/main.tf:37",
         ".corpus/cloud-platform/terraform/aws-accounts/cloud-platform-dsd/main.tf:38",
-        ".corpus/cool-assessment/locals.tf:125",
-        ".corpus/cool-assessment/locals.tf:127"
+        ".corpus/cool-assessment/guacamole_route53.tf:8"
       ],
       "registered": true
     },
@@ -9135,24 +9113,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Unable to compute static value",
-      "title": "Unable to compute static value",
-      "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
-      "raised_by": "internal/configs",
-      "configs": 63,
-      "sites": 2982,
-      "examples": [
-        ".corpus/alb/main.tf:231",
-        ".corpus/alb/main.tf:243",
-        ".corpus/alb/main.tf:460",
-        ".corpus/alb/main.tf:477",
-        ".corpus/alb/main.tf:565"
-      ],
-      "registered": true
-    },
-    {
       "layer": "stamp",
       "id": "Unmarked apply of a marker-only resource",
       "title": "Unmarked apply of a marker-only resource",
@@ -9185,6 +9145,24 @@
         ".corpus/alb/examples/complete-alb/main.tf:196",
         ".corpus/alb/examples/complete-alb/main.tf:196",
         ".corpus/alb/examples/complete-alb/main.tf:197"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unable to compute static value",
+      "title": "Unable to compute static value",
+      "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+      "raised_by": "internal/configs",
+      "configs": 46,
+      "sites": 690,
+      "examples": [
+        ".corpus/alb/main.tf:231",
+        ".corpus/alb/main.tf:243",
+        ".corpus/alb/main.tf:460",
+        ".corpus/alb/main.tf:477",
+        ".corpus/alb/main.tf:565"
       ],
       "registered": true
     },
@@ -9417,6 +9395,24 @@
       "registered": true
     },
     {
+      "layer": "dataread",
+      "id": "Data source provider not configurable",
+      "title": "Data source provider not configurable",
+      "what": "A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source provider not configurable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 1,
+      "sites": 5,
+      "examples": [
+        ".corpus/cool-assessment/kali_route53.tf:6",
+        ".corpus/cool-assessment/locals.tf:136",
+        ".corpus/cool-assessment/locals.tf:136",
+        ".corpus/cool-assessment/locals.tf:136",
+        ".corpus/cool-assessment/windows_route53.tf:6"
+      ],
+      "registered": true
+    },
+    {
       "layer": "identity",
       "id": "Invalid operand",
       "title": "Invalid operand",
@@ -9430,22 +9426,6 @@
         ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:271",
         ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:281",
         ".corpus/govuk-aws/terraform/modules/aws/rds_instance/main.tf:281"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "dataread",
-      "id": "Data source provider not configurable",
-      "title": "Data source provider not configurable",
-      "what": "A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source provider not configurable\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 1,
-      "sites": 3,
-      "examples": [
-        ".corpus/cool-assessment/locals.tf:136",
-        ".corpus/cool-assessment/locals.tf:136",
-        ".corpus/cool-assessment/locals.tf:136"
       ],
       "registered": true
     },
@@ -10650,11 +10630,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 35
+        "configs": 36
       },
       {
         "class": "language-blocked",
-        "configs": 61
+        "configs": 60
       },
       {
         "class": "unreadable",
