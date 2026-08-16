@@ -123,6 +123,25 @@ type Component struct {
 	// left it out.
 	Default string
 
+	// ServerAssignedIfAbsent is true when the provider itself documents
+	// that omitting every name in Attrs is not an absence of identity but
+	// a request for one: the provider assigns a fresh value - usually a
+	// random, unique one - at create time, the same convention
+	// [TypeIdentity.ServerAssigned] already gives a type-wide resolution
+	// class to. Component narrows that convention to a single argument
+	// ("If omitted, Terraform will assign a random, unique name" on an
+	// otherwise ordinarily-identified type, not a type whose identity is
+	// server-assigned outright), so a component whose Attrs are all unset
+	// classifies [ClassNeedsDiscovery] instead of refusing outright - see
+	// [resolver.identityArgs]'s attr-nil branch. Unlike Default, which
+	// supplies a known literal, this supplies no value at all: the
+	// resolver still cannot build the import ID, it can only say why not
+	// yet. Derived by tools/row-gen/emit.go from
+	// tools/importdocs-gen's Argument Reference scrape
+	// (ArgumentRefEntry.ServerAssignedIfAbsent) for every ratified row, the
+	// same way every other field in this file is - see #190.
+	ServerAssignedIfAbsent bool
+
 	// Cloud names a value that comes from the cloud the run is pointed at
 	// rather than from the configuration: the AWS account ID, the region.
 	// [CloudNone] - the zero value - means this component is a literal or an

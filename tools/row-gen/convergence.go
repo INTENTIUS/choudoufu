@@ -357,9 +357,40 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 
 // componentsEqual compares two Component slices structurally, treating nil
 // and empty as equal (both mean "no components").
+// componentsEqual compares two component lists ignoring
+// [identity.Component.ServerAssignedIfAbsent] (#190). Every other field this
+// package's classifyAll pipeline reconstructs the way a ratification batch
+// would have chosen it; ServerAssignedIfAbsent is not one of those - no
+// proposal bucket ever claims it, because it is not a classification
+// judgment at all, only emit.go's own mergeServerAssigned annotation of an
+// already-ratified row from live/import-grammar.json's Argument Reference
+// evidence (renderIdentityFile's doc comment explains why that lives in
+// emit.go rather than here). Comparing it here would fail every ratified row
+// mergeServerAssigned touches the moment #190 landed, for a field
+// compareOne's caller never asked classifyAll to propose - the same
+// "claimed nothing, so it is not wrong" reasoning compareOne already applies
+// to an unclaimed IdentityAttrs value.
 func componentsEqual(a, b []identity.Component) bool {
 	if len(a) == 0 && len(b) == 0 {
 		return true
 	}
-	return reflect.DeepEqual(a, b)
+	return reflect.DeepEqual(stripServerAssignedIfAbsent(a), stripServerAssignedIfAbsent(b))
+}
+
+// stripServerAssignedIfAbsent returns a copy of comps with every
+// [identity.Component.ServerAssignedIfAbsent] cleared, for componentsEqual's
+// own comparison. Never mutates its argument: a is [identity.DefaultTable]'s
+// own slice by way of compareOne's ratified parameter, and mutating it in
+// place would corrupt the table every other caller in this process still
+// reads.
+func stripServerAssignedIfAbsent(comps []identity.Component) []identity.Component {
+	if len(comps) == 0 {
+		return comps
+	}
+	out := make([]identity.Component, len(comps))
+	for i, c := range comps {
+		c.ServerAssignedIfAbsent = false
+		out[i] = c
+	}
+	return out
 }

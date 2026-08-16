@@ -671,6 +671,24 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
 				continue
 			}
+			if comp.ServerAssignedIfAbsent {
+				// The provider's own Argument Reference documents this
+				// argument as one it fills in itself when the
+				// configuration leaves it blank ("If omitted, Terraform
+				// will assign a random, unique name" and its siblings -
+				// see [Component.ServerAssignedIfAbsent] and #190). That
+				// is the identical situation the *_prefix branch just
+				// below handles for a different spelling of the same
+				// convention: not a missing argument, but a name this run
+				// cannot compute before the object exists.
+				return Resolution{
+					Addr:  addr,
+					Class: ClassNeedsDiscovery,
+					Reason: fmt.Sprintf(
+						"%s has no value for %s; the provider assigns one automatically when it is omitted, so the value is not known until the object exists.",
+						addr.String(), orList(comp.Attrs)),
+				}, true
+			}
 			if prefixAttr, base := firstPrefixSibling(attrs, comp.Attrs); prefixAttr != nil {
 				// The block names the object through "<base>_prefix", not
 				// "<base>" - a convention the provider documents across
