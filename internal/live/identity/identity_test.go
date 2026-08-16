@@ -749,7 +749,7 @@ func TestCloudComponentsHaveAnEmptyContextAnswer(t *testing.T) {
 			if _, ok := empty.value(comp.Cloud); ok {
 				t.Errorf("%s: the zero CloudContext claims to know its %s", typeName, comp.Cloud)
 			}
-			if missing, ok := (&resolver{}).missingCloudValue(entry, nil, instScope{}, addrs.AbsResourceInstance{}); !ok || missing == CloudNone {
+			if missing, ok := (&resolver{}).missingCloudValue(entry, nil, instScope{}, addrs.AbsResourceInstance{}, cloudScopeKey{}); !ok || missing == CloudNone {
 				t.Errorf("%s: an empty context does not report a missing cloud value", typeName)
 			}
 			if reason := cloudReason(entry, comp.Cloud); !strings.Contains(reason, entry.ImportSyntax) {

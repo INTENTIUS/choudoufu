@@ -733,6 +733,11 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 
 	scope := exp.scope(addr.Resource.Key)
 
+	// Computed here rather than at the successful return below because the
+	// region it carries is also this resource's answer for a
+	// [CloudRegion] component: see [resolver.cloudValueFor].
+	cloudScope := r.resourceCloudScope(rc, scope)
+
 	// Cloud properties are checked before anything else in the body is
 	// interpreted, so that a type this run cannot name gets the one honest
 	// answer - "the account is not known here" - rather than an error about
@@ -742,7 +747,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// to it (a Glue catalog_id defaults to the caller's own account) can be
 	// answered by the configuration instead: see [Component.Attrs] on a
 	// cloud-bearing component, and cloudComponentAttr below.
-	if missing, ok := r.missingCloudValue(entry, attrs, scope, addr); ok {
+	if missing, ok := r.missingCloudValue(entry, attrs, scope, addr, cloudScope); ok {
 		return Resolution{
 			Addr:      addr,
 			Class:     ClassNeedsDiscovery,
@@ -801,7 +806,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				addTo(comp.identityAttrFor(attr.Name), got)
 				continue
 			}
-			v, _ := r.cloud.value(comp.Cloud)
+			v, _ := r.cloudValueFor(comp.Cloud, cloudScope)
 			got := []Part{{Literal: v}}
 			parts = append(parts, got...)
 			addTo(comp.identityAttrFor(""), got)
@@ -927,7 +932,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 
 	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
-	res.cloudScope = r.resourceCloudScope(rc, scope)
+	res.cloudScope = cloudScope
 	return res, true
 }
 
@@ -1016,7 +1021,7 @@ func classify(addr addrs.AbsResourceInstance, parts []Part, attrs []AttrFormula,
 // needs that neither the run nor the configuration supplied, in component
 // order. A component the configuration answers (see cloudComponentAttr) is
 // not missing anything, whether or not the run was told the cloud value.
-func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) (CloudValue, bool) {
+func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance, cs cloudScopeKey) (CloudValue, bool) {
 	for _, comp := range entry.Components {
 		if comp.Cloud == CloudNone {
 			continue
@@ -1024,11 +1029,53 @@ func (r *resolver) missingCloudValue(entry TypeIdentity, attrs hcl.Attributes, s
 		if r.cloudComponentAttr(comp, attrs, scope, addr) != nil {
 			continue
 		}
-		if _, ok := r.cloud.value(comp.Cloud); !ok {
+		if _, ok := r.cloudValueFor(comp.Cloud, cs); !ok {
 			return comp.Cloud, true
 		}
 	}
 	return CloudNone, false
+}
+
+// cloudValueFor is this run's value for one cloud property, for the resource
+// whose scope is cs, and whether it has one. It is the single answer both
+// [resolver.missingCloudValue] and the component loop read, so the refusal
+// and the identity can never disagree about what is known.
+//
+// [CloudRegion] is answered from the resource's own effective region rather
+// than from the caller-supplied [CloudContext], because that value is
+// already established per resource, from configuration alone, with no cloud
+// call: [resolver.effectiveRegion] takes the resource's own `region`
+// argument when it states one and otherwise the region its resolved
+// provider configuration statically declares, which is exactly the
+// defaulting the AWS provider itself applies. A region component and the
+// `region` argument the provider documents as defaulting to it are already
+// the same component in the table (every {Cloud: "region"} row carries
+// Attrs: ["region"]), so the argument case is handled by
+// [resolver.cloudComponentAttr] before this is reached and only the
+// provider-block fallback arrives here.
+//
+// Two consequences worth stating, since this turns refusals into
+// identities. Being per-resource, it is right in an estate with several
+// provider configurations in several regions, where one global field would
+// have named one region for all of them. And a region established this way
+// is stable between the analysis and the apply for the same reason every
+// other identity argument is - it came out of the configuration, not out of
+// the environment - so it is safe to build into a marker.
+//
+// regionKnown false and a known-but-empty region both mean "not
+// established" here (see [cloudScopeKey]'s own comment for why the two are
+// distinct for collision purposes: `region = ""` is a value to compare, but
+// it is not a region to name an object under). Both fall through to the
+// [CloudContext], which reports its own empty string as unknown, so the run
+// refuses exactly as it did before.
+//
+// [CloudAccountID] has no config-only source and is not answered here. See
+// [CloudContext] for where the account first becomes knowable.
+func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
+	if which == CloudRegion && cs.regionKnown && cs.region != "" {
+		return cs.region, true
+	}
+	return r.cloud.value(which)
 }
 
 // cloudComponentAttr reports the resource argument that supplies a
