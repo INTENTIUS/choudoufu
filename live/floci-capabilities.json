@@ -2895,6 +2895,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Re-probed against this digest (batch-3 re-pin) 2026-08-16: control plane remains daemonless - CreateDomain and DescribeDomain return Processing=false immediately with no docker socket mounted, and the create/describe/delete round-trip works socketless. The search data plane still needs the socket-backed container, unverifiable without the socket - same limitation as the previous pin; nothing in this batch's three fixes (RDS engine echo, CloudFront TenantConfig, CBOR Date-suffix tagging) touches OpenSearch.",
+          "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
+        },
+        {
           "type": "aws_opensearchserverless_collection",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -2993,6 +2999,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
         },
         {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest (batch-3 re-pin) 2026-08-16: a raw POST /ledgers still returns a clean UnknownOperationException (\"Unknown operation: POST /ledgers\") - no QLDB handler, same as the previous pin. The aws CLI's own qldb subcommand is unavailable in this environment (botocore has dropped the QLDB service model following AWS's QLDB end-of-support), so this probe used a raw signed HTTP request instead of the CLI, unlike the prior investigation.",
+          "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
+        },
+        {
           "type": "aws_ram_permission",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -3040,6 +3052,12 @@
           "status": "implemented",
           "evidence": "ListResources(AWS::RDS::DBShardGroup) succeeded",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol)"
+        },
+        {
+          "type": "aws_redshift_cluster",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest (batch-3 re-pin) 2026-08-16: redshift CreateCluster still misroutes to the SQS handler (\"Operation CreateCluster is not supported by SQS\"), same as the previous pin.",
+          "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
         },
         {
           "type": "aws_redshift_cluster",
