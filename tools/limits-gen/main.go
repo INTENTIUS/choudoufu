@@ -66,6 +66,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/docsref"
+	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mdspan"
 )
 
@@ -170,6 +171,20 @@ func readCorpus(path string) (map[string]frequency, bool, error) {
 
 func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 
+// severityLabel renders a refusal's severity for the table. Only the lint
+// layer has a mechanism for anything but fatal today ([lint.Rule.Severity],
+// GitHub issue #210): a lint refusal's ID is its rule's own string, so it is
+// looked up directly rather than duplicated into [check.Refusal], which
+// carries no severity field. Every other layer answers "error" because
+// nothing there can yet declare otherwise - not because this generator
+// assumes so.
+func severityLabel(r check.Refusal) string {
+	if r.Layer == check.LayerLint && lint.Rule(r.ID).Severity() == lint.SeverityWarning {
+		return "warning"
+	}
+	return "error"
+}
+
 // ranked returns the catalog ordered the way the corpus artifact ranks it:
 // by configurations blocked, then sites, then layer and ID.
 //
@@ -198,8 +213,8 @@ func ranked(catalog []check.Refusal, freq map[string]frequency) []check.Refusal 
 // renderTable renders the ranked index of every refusal.
 func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bool) string {
 	var b strings.Builder
-	b.WriteString("| Configs | Sites | Layer | Refusal | Raised by | Documented at |\n")
-	b.WriteString("|---|---|---|---|---|---|\n")
+	b.WriteString("| Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |\n")
+	b.WriteString("|---|---|---|---|---|---|---|\n")
 	for _, r := range ranked(catalog, freq) {
 		// A dash is "not measured", a zero is "measured and blocked
 		// nothing". Collapsing the two would be the exact failure this
@@ -209,8 +224,8 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		if f, ok := freq[key(r)]; ok && measured {
 			configs, sites = fmt.Sprint(f.Configs), fmt.Sprint(f.Sites)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | `%s` | %s |\n",
-			configs, sites, r.Layer, mdCell(r.ID), r.RaisedBy, mdCell(documentedAt(r)))
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | `%s` | %s |\n",
+			configs, sites, r.Layer, mdCell(r.ID), severityLabel(r), r.RaisedBy, mdCell(documentedAt(r)))
 	}
 
 	fmt.Fprintf(&b, "\n**%d refusals**, from every registry the live path has: "+
@@ -218,7 +233,10 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"`internal/live/passthrough`'s, `internal/live/stamp`'s and "+
 		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
 		"error in this table - it is the interesting end of it, and a set "+
-		"assembled by watching output could never contain one.\n", len(catalog))
+		"assembled by watching output could never contain one. **Severity** "+
+		"is `error` (fatal, stops the run) unless marked `warning` - today "+
+		"only a lint rule can declare `warning`, GitHub issue #210's "+
+		"`state-backend`; every other layer's refusal is `error`.\n", len(catalog))
 	if measured {
 		fmt.Fprintf(&b, "\nCounts are from `%s`, over the corpus that artifact names. "+
 			"Read them as a ranking and not as a rate: the corpus leans on module "+

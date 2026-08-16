@@ -565,6 +565,57 @@ func TestDiagnostics(t *testing.T) {
 	}
 }
 
+// TestStateBackendIsWarningSeverity is GitHub issue #210's ruling: a
+// terraform-block state backend or cloud block no longer blocks a stateless
+// run. It checks both ends - the rule's own [Rule.Severity] and what
+// [Diagnostics] does with an issue that rule produced - against the two
+// fixtures that trip [RuleStateBackend] in its two HCL forms.
+func TestStateBackendIsWarningSeverity(t *testing.T) {
+	if got := RuleStateBackend.Severity(); got != SeverityWarning {
+		t.Fatalf("RuleStateBackend.Severity() = %v, want SeverityWarning", got)
+	}
+
+	for _, fixture := range []string{"testdata/backend", "testdata/cloud"} {
+		t.Run(fixture, func(t *testing.T) {
+			cfg := loadConfigDir(t, fixture)
+			issues := CheckContext(t.Context(), cfg)
+			if len(issues) != 1 {
+				t.Fatalf("expected 1 issue, got %d: %v", len(issues), issues)
+			}
+			if issues[0].Rule != RuleStateBackend {
+				t.Fatalf("issue rule = %q, want %q", issues[0].Rule, RuleStateBackend)
+			}
+
+			diags := Diagnostics(issues)
+			if len(diags) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+			}
+			if diags[0].Severity() != tfdiags.Warning {
+				t.Errorf("severity = %v, want Warning; #210 demoted state-backend from a refusal", diags[0].Severity())
+			}
+		})
+	}
+}
+
+// TestOnlyStateBackendIsWarningSeverity is the mechanism check for #210: it
+// declares severity as a property of a rule, derived by [Rule.Severity] and
+// consulted by [Diagnostics] and [HasErrors], never special-cased on a rule
+// name in control flow. If a future rule wants warning severity, the change
+// is a one-line ruleInfo entry - so every rule constant except
+// RuleStateBackend must still answer SeverityError, or something started
+// branching on identity instead of reading the declared field.
+func TestOnlyStateBackendIsWarningSeverity(t *testing.T) {
+	for _, rule := range Rules() {
+		want := SeverityError
+		if rule == RuleStateBackend {
+			want = SeverityWarning
+		}
+		if got := rule.Severity(); got != want {
+			t.Errorf("%s.Severity() = %v, want %v", rule, got, want)
+		}
+	}
+}
+
 // TestAdmissionTableCoversEstate is a guard on the table itself rather than
 // on the check: every managed resource type used by a fixture must be
 // admitted. The universe used to be exactly the union of the demo estate

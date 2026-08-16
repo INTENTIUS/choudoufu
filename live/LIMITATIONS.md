@@ -377,32 +377,42 @@ named reason.
 
 **Construct.** `terraform { backend "..." { } }`.
 
-**Why banned.** A backend configures where authoritative state is stored and
-locked. Under markers the live system is that store, and concurrent writes
-to a record are settled by conditional write. Named explicitly in "Banned,
-and why".
+**Why a warning, not a refusal.** A backend configures where authoritative
+state is stored and locked. Under markers the live system is that store, and
+concurrent writes to a record are settled by conditional write - so the
+block is simply not read: no file under `internal/live` consults
+`mod.Backend`, and `internal/command/live_plan.go`'s design note explains why
+avoiding the backend, rather than stubbing it, is what makes "no state was
+read or written" structural. GitHub issue #210 demoted this from a fatal
+finding once the corpus showed it was the sole thing blocking every estate on
+the onboarding ladder's upper rungs, and leaving the block in place carries
+no risk: it configures nothing this run touches.
 
-**Forwarding address.** None. Remove the block. The projection, rebuilt
-from the live system every run and discarded after, is what a backend would
-otherwise have stored.
+**Forwarding address.** None required. Deleting the block is still the
+recommended edit, so the configuration says what actually happens - the
+projection, rebuilt from the live system every run and discarded after, is
+what a backend would otherwise have stored - but the plan proceeds either
+way.
 
 **Enforcement.** `RuleStateBackend`, `internal/live/lint/lint.go`
-(`checkStateBackends`). Fixture at `live/e2e/limits/backend-block/`.
+(`checkStateBackends`), warning severity (`Rule.Severity`,
+`internal/live/lint/issue.go`). Fixture at `live/e2e/limits/backend-block/`.
 
 ### cloud-block
 
 **Construct.** `terraform { cloud { } }`.
 
-**Why banned.** A remote state backend under another name, with remote
-locking attached. The same problem as `backend-block` by a different
-syntax.
+**Why a warning, not a refusal.** A remote state backend under another name,
+with remote locking attached. The same story as `backend-block` by a
+different syntax, including the demotion: GitHub issue #210.
 
-**Forwarding address.** None. Remove the block, same as `backend-block`.
+**Forwarding address.** None required. Deleting the block is still the
+recommended edit, same as `backend-block`.
 
-**Enforcement.** `RuleStateBackend`, the same rule as `backend-block`. The two
-fixtures exist separately because they are two distinct HCL forms of one
-rule, and each should be provably caught on its own. Fixture at
-`live/e2e/limits/cloud-block/`.
+**Enforcement.** `RuleStateBackend`, the same rule as `backend-block`, same
+warning severity. The two fixtures exist separately because they are two
+distinct HCL forms of one rule, and each should be provably caught on its
+own. Fixture at `live/e2e/limits/cloud-block/`.
 
 ### unadmitted-type
 
@@ -1021,185 +1031,185 @@ evaluability at all, such as a working directory the operating system
 refused, and each says so in its own entry.
 
 <!-- limits-gen:begin refusal-table -->
-| Configs | Sites | Layer | Refusal | Raised by | Documented at |
-|---|---|---|---|---|---|
-| 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 113 | 1398 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
-| 101 | 1831 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 74 | 3511 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 62 | 402 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
-| 53 | 543 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
-| 46 | 1230 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
-| 33 | 256 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
-| 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
-| 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
-| 21 | 63 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
-| 18 | 63 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
-| 15 | 68 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
-| 10 | 51 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
-| 10 | 19 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
-| 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
-| 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
-| 6 | 17 | lint | child-module | `internal/live/lint` | "child-module" |
-| 3 | 3 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
-| 2 | 2 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 1 | 50 | lint | for-each-key | `internal/live/lint` | "foreach-invalid-key" |
-| 1 | 4 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
-| 1 | 4 | identity | Invalid operand | `hcl` | "Invalid operand" |
-| 1 | 2 | identity | Invalid function argument | `hcl` | "Invalid function argument" |
-| 1 | 2 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 1 | 1 | identity | Ambiguous list-valued identity argument | `internal/live/identity` | "Ambiguous list-valued identity argument" |
-| 1 | 1 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
-| 1 | 1 | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
-| 0 | 0 | dataread | Cross-stack outputs unavailable | `internal/live/dataread` | "Cross-stack outputs unavailable" |
-| 0 | 0 | dataread | Cross-stack state unavailable | `internal/live/dataread` | "Cross-stack state unavailable" |
-| 0 | 0 | dataread | Data source provider not configurable | `internal/live/dataread` | "Data source provider not configurable" |
-| 0 | 0 | dataread | Data source read failed | `internal/live/dataread` | "Data source read failed" |
-| - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
-| - | - | discovery | Cloud Control identifier could not be composed | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
-| - | - | discovery | Failed to list a resource type | `internal/live/discovery` | "Failed to list a resource type" |
-| - | - | discovery | Incomplete sweep for undeclared resources | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
-| - | - | discovery | Indistinguishable instances without per-instance markers | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
-| - | - | discovery | Invalid estate name | `internal/live/discovery` | "Invalid estate name" |
-| - | - | discovery | Listed resource with no identity | `internal/live/discovery` | "Listed resource with no identity" |
-| - | - | discovery | Listed resource with no tags | `internal/live/discovery` | "Listed resource with no tags" |
-| - | - | discovery | Malformed ownership marker | `internal/live/discovery` | "Malformed ownership marker" |
-| - | - | discovery | Malformed slot marker | `internal/live/discovery` | "Malformed slot marker" |
-| - | - | discovery | No AWS account ID from the provider | `internal/live/discovery` | "No AWS account ID from the provider" |
-| - | - | discovery | No configuration to discover against | `internal/live/discovery` | "No configuration to discover against" |
-| - | - | discovery | No provider access | `internal/live/discovery` | "No provider access" |
-| - | - | discovery | No slot left to mint | `internal/live/discovery` | "No slot left to mint" |
-| - | - | discovery | One marker value for two declared addresses | `internal/live/discovery` | "One marker value for two declared addresses" |
-| - | - | discovery | Owned resource of a type the sweep cannot cover | `internal/live/discovery` | "Owned resource of a type the sweep cannot cover" |
-| - | - | discovery | Partial slot markers on a count set | `internal/live/discovery` | "Partial slot markers on a count set" |
-| - | - | discovery | Resolved resource missing from the configuration | `internal/live/discovery` | "Resolved resource missing from the configuration" |
-| - | - | discovery | Tagged resource's ARN could not be joined to a resource type | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
-| - | - | discovery | Two live resources claiming one address | `internal/live/discovery` | "Two live resources claiming one address" |
-| - | - | discovery | Two live resources claiming one slot | `internal/live/discovery` | "Two live resources claiming one slot" |
-| - | - | discovery | Unclassified discovery problem | `internal/live/discovery` | "Unclassified discovery problem" |
-| - | - | discovery | Unlistable marker-discovered type | `internal/live/discovery` | "Unlistable marker-discovered type" |
-| - | - | discovery | Unscoped account reconciliation refused | `internal/live/discovery` | "policy-scope" |
-| 0 | 0 | identity | Ambiguous attribute key | `hcl` | "Ambiguous attribute key" |
-| 0 | 0 | identity | Attempt to index null value | `hcl` | "Attempt to index null value" |
-| 0 | 0 | identity | Call to unknown function | `hcl` | "Call to unknown function" |
-| 0 | 0 | identity | Circular for_each reference | `internal/live/identity` | "Circular for_each reference" |
-| 0 | 0 | identity | Circular identity reference | `internal/live/identity` | "Circular identity reference" |
-| 0 | 0 | identity | Circular reference | `internal/configs` | "Circular reference" |
-| 0 | 0 | identity | Condition is null | `hcl` | "Condition is null" |
-| 0 | 0 | identity | Configuration loaded without a static evaluator | `internal/live/identity` | "Configuration loaded without a static evaluator" |
-| 0 | 0 | identity | Duplicate object key | `hcl` | "Duplicate object key" |
-| 0 | 0 | identity | Ephemeral value not allowed | `internal/configs` | "Ephemeral value not allowed" |
-| 0 | 0 | identity | Error in function call | `hcl` | "Error in function call" |
-| 0 | 0 | identity | Expression not evaluable here | `internal/live/identity` | "Expression not evaluable here" |
-| 0 | 0 | identity | Failed to get working directory | `internal/configs` | "Failed to get working directory" |
-| 0 | 0 | identity | Function calls not allowed | `hcl` | "Function calls not allowed" |
-| 0 | 0 | identity | Identity derived from a sensitive value | `internal/live/identity` | "Identity derived from a sensitive value" |
-| 0 | 0 | identity | Identity derived from an impure function | `internal/live/identity` | "Identity derived from an impure function" |
-| 0 | 0 | identity | Identity table and provider schema disagree | `internal/live/identity` | "Identity table and provider schema disagree" |
-| 0 | 0 | identity | Inconsistent conditional result types | `hcl` | "Inconsistent conditional result types" |
-| 0 | 0 | identity | Incorrect condition type | `hcl` | "Incorrect condition type" |
-| 0 | 0 | identity | Incorrect key type | `hcl` | "Incorrect key type" |
-| 0 | 0 | identity | Invalid "path" attribute | `internal/configs` | "Invalid "path" attribute" |
-| 0 | 0 | identity | Invalid "terraform" attribute | `internal/configs` | "Invalid "terraform" attribute" |
-| 0 | 0 | identity | Invalid 'for' condition | `hcl` | "Invalid 'for' condition" |
-| 0 | 0 | identity | Invalid attribute in static context | `internal/configs` | "Invalid attribute in static context" |
-| 0 | 0 | identity | Invalid count | `internal/live/identity` | "Invalid count" |
-| 0 | 0 | identity | Invalid default value for module argument | `internal/configs` | "Invalid default value for module argument" |
-| 0 | 0 | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
-| 0 | 0 | identity | Invalid for_each condition | `internal/live/identity` | "Invalid for_each condition" |
-| 0 | 0 | identity | Invalid for_each key | `internal/live/identity` | "Invalid for_each key" |
-| 0 | 0 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
-| 0 | 0 | identity | Invalid for_each value | `internal/live/identity` | "Invalid for_each value" |
-| 0 | 0 | identity | Invalid index | `hcl` | "Invalid index" |
-| 0 | 0 | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
-| 0 | 0 | identity | Invalid nested splat expressions | `hcl` | "Invalid nested splat expressions" |
-| 0 | 0 | identity | Invalid object key | `hcl` | "Invalid object key" |
-| 0 | 0 | identity | Invalid path step | `hcl` | "Invalid path step" |
-| 0 | 0 | identity | Invalid reference | `internal/addrs` | "Invalid reference" |
-| 0 | 0 | identity | Invalid template interpolation value | `hcl` | "Invalid template interpolation value" |
-| 0 | 0 | identity | Invalid value for input variable | `internal/configs` | "Invalid value for input variable" |
-| 0 | 0 | identity | Iteration over non-iterable value | `hcl` | "Iteration over non-iterable value" |
-| 0 | 0 | identity | Iteration over null value | `hcl` | "Iteration over null value" |
-| 0 | 0 | identity | Missing map element | `hcl` | "Missing map element" |
-| 0 | 0 | identity | No configuration to resolve | `internal/live/identity` | "No configuration to resolve" |
-| 0 | 0 | identity | No configuration to scan | `internal/live/identity` | "No configuration to scan" |
-| 0 | 0 | identity | Non-static lifecycle.enabled expression | `internal/live/identity` | "Non-static lifecycle.enabled expression" |
-| 0 | 0 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
-| 0 | 0 | identity | Not enough function arguments | `hcl` | "Not enough function arguments" |
-| 0 | 0 | identity | Null condition | `hcl` | "Null condition" |
-| 0 | 0 | identity | Null value as key | `hcl` | "Null value as key" |
-| 0 | 0 | identity | Operation failed | `hcl` | "Operation failed" |
-| 0 | 0 | identity | Provider function in static context | `internal/configs` | "Provider function in static context" |
-| 0 | 0 | identity | Reference to a module instance that does not exist | `internal/live/identity` | "Reference to a module instance that does not exist" |
-| 0 | 0 | identity | Reference to a resource instance that does not exist | `internal/live/identity` | "Reference to a resource instance that does not exist" |
-| 0 | 0 | identity | Reference to undeclared resource | `internal/live/identity` | "Reference to undeclared resource" |
-| 0 | 0 | identity | Required variable not set | `internal/configs` | "Required variable not set" |
-| 0 | 0 | identity | Reserved symbol name | `internal/addrs` | "Reserved symbol name" |
-| 0 | 0 | identity | Resource type has no orphan recovery | `internal/live/identity` | "Resource type has no orphan recovery" |
-| 0 | 0 | identity | Sensitive count expression | `internal/live/identity` | "Sensitive count expression" |
-| 0 | 0 | identity | Sensitive for_each expression | `internal/live/identity` | "Sensitive for_each expression" |
-| 0 | 0 | identity | Sensitive lifecycle.enabled expression | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
-| 0 | 0 | identity | Sensitive value not allowed | `internal/configs` | "Sensitive value not allowed" |
-| 0 | 0 | identity | Splat of null value | `hcl` | "Splat of null value" |
-| 0 | 0 | identity | The identity table names something the provider does not have | `internal/live/identity` | "The identity table names something the provider does not have" |
-| 0 | 0 | identity | Too many function arguments | `hcl` | "Too many function arguments" |
-| 0 | 0 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
-| 0 | 0 | identity | Unable to parse provider function | `internal/addrs` | "Unable to parse provider function" |
-| 0 | 0 | identity | Unable to use variable in static context | `internal/configs` | "Unable to use variable in static context" |
-| 0 | 0 | identity | Undefined local | `internal/configs` | "Undefined local" |
-| 0 | 0 | identity | Undefined variable | `internal/configs` | "Undefined variable" |
-| 0 | 0 | identity | Unknown variable | `hcl` | "Unknown variable" |
-| 0 | 0 | identity | Unsupported each.value reference | `internal/live/identity` | "Unsupported each.value reference" |
-| 0 | 0 | identity | Unusable data-source result | `internal/live/identity` | "Unusable data-source result" |
-| 0 | 0 | identity | Variables not allowed | `hcl` | "Variables not allowed" |
-| 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
-| 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
-| 0 | 0 | lint | child-live-config | `internal/live/lint` | "child-live-config" |
-| 0 | 0 | lint | ignore-changes | `internal/live/lint` | "ignore-changes" |
-| 0 | 0 | lint | overlong-address | `internal/live/lint` | "overlong-address" |
-| 0 | 0 | lint | policy-scope | `internal/live/lint` | "policy-scope" |
-| 0 | 0 | lint | policy-threshold | `internal/live/lint` | "policy-threshold" |
-| 0 | 0 | lint | policy-verb | `internal/live/lint` | "policy-verb" |
-| 0 | 0 | lint | receipt-leaf | `internal/live/lint` | live/RECEIPTS.md, "Guard 4. The leaf rule" |
-| 0 | 0 | lint | receipt-secret | `internal/live/lint` | live/RECEIPTS.md, "Secrets discipline" |
-| 0 | 0 | lint | receipt-value | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
-| 0 | 0 | lint | undeclared-provider-alias | `internal/live/lint` | "undeclared-provider-alias" |
-| - | - | projection | Cannot decode a persisted record | `internal/live/projection` | "Cannot decode a persisted record" |
-| - | - | projection | Cannot encode a projected object | `internal/live/projection` | "Cannot encode a projected object" |
-| - | - | projection | Cannot import for projection | `internal/live/projection` | "Cannot import for projection" |
-| - | - | projection | Cannot list the record store | `internal/live/projection` | "Cannot list the record store" |
-| - | - | projection | Cannot persist a record | `internal/live/projection` | "Cannot persist a record" |
-| - | - | projection | Cannot read a parent's identity from the projection | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
-| - | - | projection | Cannot read a persisted record | `internal/live/projection` | "Cannot read a persisted record" |
-| - | - | projection | Cannot read for projection | `internal/live/projection` | "Cannot read for projection" |
-| - | - | projection | Could not write the discovery hint | `internal/live/projection` | "Could not write the discovery hint" |
-| - | - | projection | Cyclic parent-derived identities | `internal/live/projection` | "Cyclic parent-derived identities" |
-| - | - | projection | Empty import identity | `internal/live/projection` | "Empty import identity" |
-| - | - | projection | Ignoring an additional imported object | `internal/live/projection` | "Ignoring an additional imported object" |
-| - | - | projection | Live resource outside this estate | `internal/live/projection` | "Live resource outside this estate" |
-| - | - | projection | No configuration to project | `internal/live/projection` | "No configuration to project" |
-| - | - | projection | No identity resolutions to project | `internal/live/projection` | "No identity resolutions to project" |
-| - | - | projection | No provider access | `internal/live/projection` | "No provider access" |
-| - | - | projection | No provider for an undeclared resource | `internal/live/projection` | "No provider for an undeclared resource" |
-| - | - | projection | No state returned by the provider | `internal/live/projection` | "No state returned by the provider" |
-| - | - | projection | Parent-derived identity with no formula | `internal/live/projection` | "Parent-derived identity with no formula" |
-| - | - | projection | Persisted record does not match the current schema | `internal/live/projection` | "Persisted record does not match the current schema" |
-| - | - | projection | Provider produced an invalid object | `internal/live/projection` | "Provider produced an invalid object" |
-| - | - | projection | Provider unavailable | `internal/live/projection` | "Provider unavailable" |
-| - | - | projection | Record store write conflict | `internal/live/projection` | "Record store write conflict" |
-| - | - | projection | Record-backed instance with no record store | `internal/live/projection` | "Record-backed instance with no record store" |
-| - | - | projection | Resolved instance missing from the configuration | `internal/live/projection` | "Resolved instance missing from the configuration" |
-| - | - | projection | Unsupported resource type for the provider | `internal/live/projection` | "Unsupported resource type for the provider" |
-| - | - | stamp | No configuration to stamp | `internal/live/stamp` | "No configuration to stamp" |
-| - | - | stamp | No estate name to stamp with | `internal/live/stamp` | "No estate name to stamp with" |
-| - | - | stamp | No provider schemas for marker stamping | `internal/live/stamp` | "No provider schemas for marker stamping" |
-| - | - | stamp | Ownership marker conflict | `internal/live/stamp` | "Ownership marker conflict" |
-| - | - | stamp | Ownership marker could not be checked | `internal/live/stamp` | "Ownership marker could not be checked" |
-| - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
-| - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
+|---|---|---|---|---|---|---|
+| 142 | 142 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
+| 113 | 1398 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 99 | 1701 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 86 | 3532 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
+| 64 | 403 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 54 | 537 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 46 | 1230 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 45 | 280 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
+| 33 | 97 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 31 | 90 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
+| 24 | 77 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
+| 22 | 187 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 22 | 66 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
+| 21 | 110 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
+| 19 | 62 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 18 | 63 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
+| 13 | 30 | lint | child-module | error | `internal/live/lint` | "child-module" |
+| 13 | 27 | identity | Invalid for_each set | error | `internal/live/identity` | "Invalid for_each set" |
+| 12 | 150 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
+| 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
+| 3 | 10 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
+| 3 | 3 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
+| 1 | 50 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
+| 1 | 10 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
+| 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
+| 1 | 2 | identity | Invalid function argument | error | `hcl` | "Invalid function argument" |
+| 1 | 2 | identity | Non-string identity argument | error | `internal/live/identity` | "Non-string identity argument" |
+| 1 | 1 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
+| 1 | 1 | identity | Resource type outside the live-markers subset | error | `internal/live/identity` | "unadmitted-type" |
+| 1 | 1 | identity | Unsupported attribute | error | `hcl` | "Unsupported attribute" |
+| 0 | 0 | dataread | Cross-stack outputs unavailable | error | `internal/live/dataread` | "Cross-stack outputs unavailable" |
+| 0 | 0 | dataread | Cross-stack state unavailable | error | `internal/live/dataread` | "Cross-stack state unavailable" |
+| 0 | 0 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
+| 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
+| - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
+| - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
+| - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
+| - | - | discovery | Incomplete sweep for undeclared resources | error | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
+| - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
+| - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
+| - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
+| - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
+| - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
+| - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
+| - | - | discovery | No AWS account ID from the provider | error | `internal/live/discovery` | "No AWS account ID from the provider" |
+| - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
+| - | - | discovery | No provider access | error | `internal/live/discovery` | "No provider access" |
+| - | - | discovery | No slot left to mint | error | `internal/live/discovery` | "No slot left to mint" |
+| - | - | discovery | One marker value for two declared addresses | error | `internal/live/discovery` | "One marker value for two declared addresses" |
+| - | - | discovery | Owned resource of a type the sweep cannot cover | error | `internal/live/discovery` | "Owned resource of a type the sweep cannot cover" |
+| - | - | discovery | Partial slot markers on a count set | error | `internal/live/discovery` | "Partial slot markers on a count set" |
+| - | - | discovery | Resolved resource missing from the configuration | error | `internal/live/discovery` | "Resolved resource missing from the configuration" |
+| - | - | discovery | Tagged resource's ARN could not be joined to a resource type | error | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
+| - | - | discovery | Two live resources claiming one address | error | `internal/live/discovery` | "Two live resources claiming one address" |
+| - | - | discovery | Two live resources claiming one slot | error | `internal/live/discovery` | "Two live resources claiming one slot" |
+| - | - | discovery | Unclassified discovery problem | error | `internal/live/discovery` | "Unclassified discovery problem" |
+| - | - | discovery | Unlistable marker-discovered type | error | `internal/live/discovery` | "Unlistable marker-discovered type" |
+| - | - | discovery | Unscoped account reconciliation refused | error | `internal/live/discovery` | "policy-scope" |
+| 0 | 0 | identity | Ambiguous attribute key | error | `hcl` | "Ambiguous attribute key" |
+| 0 | 0 | identity | Attempt to index null value | error | `hcl` | "Attempt to index null value" |
+| 0 | 0 | identity | Call to unknown function | error | `hcl` | "Call to unknown function" |
+| 0 | 0 | identity | Circular for_each reference | error | `internal/live/identity` | "Circular for_each reference" |
+| 0 | 0 | identity | Circular identity reference | error | `internal/live/identity` | "Circular identity reference" |
+| 0 | 0 | identity | Circular reference | error | `internal/configs` | "Circular reference" |
+| 0 | 0 | identity | Condition is null | error | `hcl` | "Condition is null" |
+| 0 | 0 | identity | Configuration loaded without a static evaluator | error | `internal/live/identity` | "Configuration loaded without a static evaluator" |
+| 0 | 0 | identity | Duplicate object key | error | `hcl` | "Duplicate object key" |
+| 0 | 0 | identity | Ephemeral value not allowed | error | `internal/configs` | "Ephemeral value not allowed" |
+| 0 | 0 | identity | Error in function call | error | `hcl` | "Error in function call" |
+| 0 | 0 | identity | Expression not evaluable here | error | `internal/live/identity` | "Expression not evaluable here" |
+| 0 | 0 | identity | Failed to get working directory | error | `internal/configs` | "Failed to get working directory" |
+| 0 | 0 | identity | Function calls not allowed | error | `hcl` | "Function calls not allowed" |
+| 0 | 0 | identity | Identity derived from a sensitive value | error | `internal/live/identity` | "Identity derived from a sensitive value" |
+| 0 | 0 | identity | Identity derived from an impure function | error | `internal/live/identity` | "Identity derived from an impure function" |
+| 0 | 0 | identity | Identity table and provider schema disagree | error | `internal/live/identity` | "Identity table and provider schema disagree" |
+| 0 | 0 | identity | Inconsistent conditional result types | error | `hcl` | "Inconsistent conditional result types" |
+| 0 | 0 | identity | Incorrect condition type | error | `hcl` | "Incorrect condition type" |
+| 0 | 0 | identity | Incorrect key type | error | `hcl` | "Incorrect key type" |
+| 0 | 0 | identity | Invalid "path" attribute | error | `internal/configs` | "Invalid "path" attribute" |
+| 0 | 0 | identity | Invalid "terraform" attribute | error | `internal/configs` | "Invalid "terraform" attribute" |
+| 0 | 0 | identity | Invalid 'for' condition | error | `hcl` | "Invalid 'for' condition" |
+| 0 | 0 | identity | Invalid attribute in static context | error | `internal/configs` | "Invalid attribute in static context" |
+| 0 | 0 | identity | Invalid count | error | `internal/live/identity` | "Invalid count" |
+| 0 | 0 | identity | Invalid default value for module argument | error | `internal/configs` | "Invalid default value for module argument" |
+| 0 | 0 | identity | Invalid expanding argument value | error | `hcl` | "Invalid expanding argument value" |
+| 0 | 0 | identity | Invalid for_each condition | error | `internal/live/identity` | "Invalid for_each condition" |
+| 0 | 0 | identity | Invalid for_each key | error | `internal/live/identity` | "Invalid for_each key" |
+| 0 | 0 | identity | Invalid for_each value | error | `internal/live/identity` | "Invalid for_each value" |
+| 0 | 0 | identity | Invalid index | error | `hcl` | "Invalid index" |
+| 0 | 0 | identity | Invalid index key | error | `internal/addrs` | "Invalid index key" |
+| 0 | 0 | identity | Invalid nested splat expressions | error | `hcl` | "Invalid nested splat expressions" |
+| 0 | 0 | identity | Invalid object key | error | `hcl` | "Invalid object key" |
+| 0 | 0 | identity | Invalid path step | error | `hcl` | "Invalid path step" |
+| 0 | 0 | identity | Invalid reference | error | `internal/addrs` | "Invalid reference" |
+| 0 | 0 | identity | Invalid template interpolation value | error | `hcl` | "Invalid template interpolation value" |
+| 0 | 0 | identity | Invalid value for input variable | error | `internal/configs` | "Invalid value for input variable" |
+| 0 | 0 | identity | Iteration over non-iterable value | error | `hcl` | "Iteration over non-iterable value" |
+| 0 | 0 | identity | Iteration over null value | error | `hcl` | "Iteration over null value" |
+| 0 | 0 | identity | Missing map element | error | `hcl` | "Missing map element" |
+| 0 | 0 | identity | No configuration to resolve | error | `internal/live/identity` | "No configuration to resolve" |
+| 0 | 0 | identity | No configuration to scan | error | `internal/live/identity` | "No configuration to scan" |
+| 0 | 0 | identity | Non-static lifecycle.enabled expression | error | `internal/live/identity` | "Non-static lifecycle.enabled expression" |
+| 0 | 0 | identity | Not enough function arguments | error | `hcl` | "Not enough function arguments" |
+| 0 | 0 | identity | Null condition | error | `hcl` | "Null condition" |
+| 0 | 0 | identity | Null value as key | error | `hcl` | "Null value as key" |
+| 0 | 0 | identity | Operation failed | error | `hcl` | "Operation failed" |
+| 0 | 0 | identity | Provider function in static context | error | `internal/configs` | "Provider function in static context" |
+| 0 | 0 | identity | Reference to a module instance that does not exist | error | `internal/live/identity` | "Reference to a module instance that does not exist" |
+| 0 | 0 | identity | Reference to a resource instance that does not exist | error | `internal/live/identity` | "Reference to a resource instance that does not exist" |
+| 0 | 0 | identity | Reference to undeclared resource | error | `internal/live/identity` | "Reference to undeclared resource" |
+| 0 | 0 | identity | Required variable not set | error | `internal/configs` | "Required variable not set" |
+| 0 | 0 | identity | Reserved symbol name | error | `internal/addrs` | "Reserved symbol name" |
+| 0 | 0 | identity | Resource type has no orphan recovery | error | `internal/live/identity` | "Resource type has no orphan recovery" |
+| 0 | 0 | identity | Sensitive count expression | error | `internal/live/identity` | "Sensitive count expression" |
+| 0 | 0 | identity | Sensitive for_each expression | error | `internal/live/identity` | "Sensitive for_each expression" |
+| 0 | 0 | identity | Sensitive lifecycle.enabled expression | error | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
+| 0 | 0 | identity | Sensitive value not allowed | error | `internal/configs` | "Sensitive value not allowed" |
+| 0 | 0 | identity | Splat of null value | error | `hcl` | "Splat of null value" |
+| 0 | 0 | identity | The identity table names something the provider does not have | error | `internal/live/identity` | "The identity table names something the provider does not have" |
+| 0 | 0 | identity | Too many function arguments | error | `hcl` | "Too many function arguments" |
+| 0 | 0 | identity | Unable to parse provider function | error | `internal/addrs` | "Unable to parse provider function" |
+| 0 | 0 | identity | Unable to use variable in static context | error | `internal/configs` | "Unable to use variable in static context" |
+| 0 | 0 | identity | Undefined local | error | `internal/configs` | "Undefined local" |
+| 0 | 0 | identity | Undefined variable | error | `internal/configs` | "Undefined variable" |
+| 0 | 0 | identity | Unknown variable | error | `hcl` | "Unknown variable" |
+| 0 | 0 | identity | Unsupported each.value reference | error | `internal/live/identity` | "Unsupported each.value reference" |
+| 0 | 0 | identity | Unusable data-source result | error | `internal/live/identity` | "Unusable data-source result" |
+| 0 | 0 | identity | Variables not allowed | error | `hcl` | "Variables not allowed" |
+| 0 | 0 | identity | for_each key cannot be recorded as a marker | error | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
+| 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
+| 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
+| 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
+| 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
+| 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
+| 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |
+| 0 | 0 | lint | policy-verb | error | `internal/live/lint` | "policy-verb" |
+| 0 | 0 | lint | receipt-leaf | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 4. The leaf rule" |
+| 0 | 0 | lint | receipt-secret | error | `internal/live/lint` | live/RECEIPTS.md, "Secrets discipline" |
+| 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
+| 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
+| - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
+| - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
+| - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
+| - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
+| - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
+| - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
+| - | - | projection | Cannot read a persisted record | error | `internal/live/projection` | "Cannot read a persisted record" |
+| - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
+| - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
+| - | - | projection | Cyclic parent-derived identities | error | `internal/live/projection` | "Cyclic parent-derived identities" |
+| - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
+| - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
+| - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
+| - | - | projection | No configuration to project | error | `internal/live/projection` | "No configuration to project" |
+| - | - | projection | No identity resolutions to project | error | `internal/live/projection` | "No identity resolutions to project" |
+| - | - | projection | No provider access | error | `internal/live/projection` | "No provider access" |
+| - | - | projection | No provider for an undeclared resource | error | `internal/live/projection` | "No provider for an undeclared resource" |
+| - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
+| - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
+| - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
+| - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
+| - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
+| - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
+| - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
+| - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
+| - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
+| - | - | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
+| - | - | stamp | No estate name to stamp with | error | `internal/live/stamp` | "No estate name to stamp with" |
+| - | - | stamp | No provider schemas for marker stamping | error | `internal/live/stamp` | "No provider schemas for marker stamping" |
+| - | - | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
+| - | - | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
+| - | - | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
+| - | - | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #210's `state-backend`; every other layer's refusal is `error`.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1229,7 +1239,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 101 configurations in the measured corpus, at 1831 sites.
+**How often.** Blocked 99 configurations in the measured corpus, at 1701 sites.
 
 #### Unable to compute static value
 
@@ -1237,7 +1247,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 74 configurations in the measured corpus, at 3511 sites.
+**How often.** Blocked 86 configurations in the measured corpus, at 3532 sites.
 
 #### Unresolvable identity
 
@@ -1245,7 +1255,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 62 configurations in the measured corpus, at 402 sites.
+**How often.** Blocked 64 configurations in the measured corpus, at 403 sites.
 
 #### Dynamic value in static context
 
@@ -1253,7 +1263,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 53 configurations in the measured corpus, at 543 sites.
+**How often.** Blocked 54 configurations in the measured corpus, at 537 sites.
 
 #### Module output not supported in static context
 
@@ -1261,7 +1271,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 256 sites.
+**How often.** Blocked 45 configurations in the measured corpus, at 280 sites.
 
 #### Not an identity attribute
 
@@ -1279,13 +1289,29 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 24 configurations in the measured corpus, at 77 sites.
 
+#### Identity not resolvable from configuration
+
+**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 22 configurations in the measured corpus, at 187 sites.
+
+#### Identity argument not set
+
+**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 22 configurations in the measured corpus, at 66 sites.
+
 #### Non-static for_each expression
 
 **What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 21 configurations in the measured corpus, at 63 sites.
+**How often.** Blocked 19 configurations in the measured corpus, at 62 sites.
 
 #### Non-static identity argument
 
@@ -1295,13 +1321,21 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 18 configurations in the measured corpus, at 63 sites.
 
-#### Identity not resolvable from configuration
+#### Invalid for_each set
 
-**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+**What.** A for_each set's element type is not a string.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 15 configurations in the measured corpus, at 68 sites.
+**How often.** Blocked 13 configurations in the measured corpus, at 27 sites.
+
+#### Data source not readable before resolution
+
+**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 12 configurations in the measured corpus, at 150 sites.
 
 #### Non-static count expression
 
@@ -1311,29 +1345,13 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
 
-#### Identity argument not set
-
-**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 10 configurations in the measured corpus, at 19 sites.
-
-#### Data source not readable before resolution
-
-**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked 6 configurations in the measured corpus, at 48 sites.
-
 #### Attempt to get attribute from null value
 
 **What.** An identity argument, a count or a for_each reads an attribute of something that evaluated to null.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
+**How often.** Blocked 1 configuration in the measured corpus, at 10 sites.
 
 #### Invalid operand
 
@@ -1348,6 +1366,14 @@ reserved for the limits wing's fixture directories, and
 **What.** A function inside a statically evaluated expression was given an argument of the wrong type or an unacceptable value.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 2 sites.
+
+#### Non-string identity argument
+
+**What.** An identity argument evaluates to a value that is not a string.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 2 sites.
 
@@ -1807,14 +1833,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
-#### Invalid for_each set
-
-**What.** A for_each set's element type is not a string.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
 #### Invalid for_each value
 
 **What.** A for_each value is neither a map nor a set of strings.
@@ -1930,14 +1948,6 @@ reserved for the limits wing's fixture directories, and
 #### Non-static lifecycle.enabled expression
 
 **What.** A lifecycle.enabled expression cannot be resolved from configuration alone.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### Non-string identity argument
-
-**What.** An identity argument evaluates to a value that is not a string.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 

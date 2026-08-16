@@ -131,13 +131,35 @@ const (
 	RuleModuleProviderBlock Rule = "module-provider-block"
 )
 
+// Severity is how fatal a rule's issues are treated as once they reach a
+// command. [SeverityError] is the zero value on purpose: every rule declared
+// before this type existed has no severity field set in its ruleInfo entry,
+// and a struct literal that never sets the field gets the zero value - so
+// adding this type changes no rule's behavior except the one that opts in by
+// writing severity: SeverityWarning.
+type Severity int
+
+const (
+	// SeverityError is fatal: [Diagnostics] renders it as hcl.DiagError, and
+	// a caller that treats any issue as blocking (LivePlanCommand,
+	// internal/live/check's Findings) keeps doing so.
+	SeverityError Severity = iota
+
+	// SeverityWarning is not fatal: [Diagnostics] renders it as
+	// hcl.DiagWarning, and a caller built on [HasErrors] or on
+	// internal/live/check's Warnings/Findings split lets a run with only
+	// this severity's issues proceed.
+	SeverityWarning
+)
+
 // ruleInfo is the fixed part of every issue a rule produces: the one-line
-// summary and the live/LIMITATIONS.md entry that documents the rule. The
-// variable part (which construct tripped it, where, and what to do about this
-// particular one) lives on the Issue.
+// summary, the live/LIMITATIONS.md entry that documents the rule, and how
+// fatal it is. The variable part (which construct tripped it, where, and
+// what to do about this particular one) lives on the Issue.
 var ruleInfo = map[Rule]struct {
-	summary string
-	docsRef string
+	summary  string
+	docsRef  string
+	severity Severity
 }{
 	RuleProvisioner: {
 		summary: "Provisioners are not available under live resource markers",
@@ -168,6 +190,16 @@ var ruleInfo = map[Rule]struct {
 	RuleStateBackend: {
 		summary: "State backends are not available under live resource markers",
 		docsRef: `live/LIMITATIONS.md, "backend-block" / "cloud-block"`,
+		// GitHub issue #210's ruling: demoted from fatal to a warning. Every
+		// estate on the onboarding ladder's rungs above language-blocked
+		// (internal/live/check/ladder.go, #175) carries only this finding, so
+		// treating it as fatal was gating a clean verdict on an edit
+		// choudoufu does not need: the live path never reads mod.Backend or
+		// mod.CloudConfig (see checkStateBackends and
+		// internal/command/live_plan.go's design note on avoiding rather
+		// than stubbing the backend), so the block is already inert rather
+		// than merely unwise.
+		severity: SeverityWarning,
 	},
 	RuleCountIndex: {
 		summary: "count.index is not available in resource arguments",
@@ -272,6 +304,17 @@ func (r Rule) DocsRef() string {
 	return "live/LIMITATIONS.md"
 }
 
+// Severity reports how fatal an issue this rule produces should be treated
+// as. An unregistered rule answers [SeverityError], the same default a
+// registered rule gets when its ruleInfo entry never sets the field: see
+// [Severity].
+func (r Rule) Severity() Severity {
+	if info, ok := ruleInfo[r]; ok {
+		return info.severity
+	}
+	return SeverityError
+}
+
 // Issue is a single rejection: one construct in one configuration that puts
 // the configuration outside the stateless subset.
 type Issue struct {
@@ -318,10 +361,11 @@ func (i Issue) Error() string {
 }
 
 // Diagnostics converts issues into diagnostics for a command to render. Each
-// issue becomes one error diagnostic whose summary is the rule's summary,
-// whose detail names the construct, explains the rule, and cites the doc
-// entry that documents it, and whose subject is the construct's source
-// range.
+// issue becomes one diagnostic whose summary is the rule's summary, whose
+// detail names the construct, explains the rule, and cites the doc entry
+// that documents it, and whose subject is the construct's source range. The
+// diagnostic's severity is [Rule.Severity]: hcl.DiagError for every rule
+// that has not declared otherwise, hcl.DiagWarning for one that has.
 func Diagnostics(issues []Issue) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	for _, issue := range issues {
@@ -333,12 +377,31 @@ func Diagnostics(issues []Issue) tfdiags.Diagnostics {
 		if len(issue.Module) > 0 {
 			detail = fmt.Sprintf("In %s, %s", issue.Module.String(), detail)
 		}
+		severity := hcl.DiagError
+		if issue.Rule.Severity() == SeverityWarning {
+			severity = hcl.DiagWarning
+		}
 		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
+			Severity: severity,
 			Summary:  issue.Rule.Summary(),
 			Detail:   detail,
 			Subject:  &subject,
 		})
 	}
 	return diags
+}
+
+// HasErrors reports whether any issue in issues is error severity - the
+// question a caller must ask before treating [CheckWith]'s result as fatal,
+// now that a rule can declare [SeverityWarning]. Every issue whose rule has
+// not declared otherwise is error severity, so a caller that used to test
+// len(issues) > 0 and now tests HasErrors(issues) reads identically for
+// every rule except one that has explicitly opted into warning severity.
+func HasErrors(issues []Issue) bool {
+	for _, issue := range issues {
+		if issue.Rule.Severity() != SeverityWarning {
+			return true
+		}
+	}
+	return false
 }

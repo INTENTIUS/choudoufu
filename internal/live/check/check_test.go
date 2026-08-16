@@ -150,7 +150,6 @@ func TestAnalyzeReportsTheRuleThatFired(t *testing.T) {
 	}{
 		{"count-index", LayerLint, string(lint.RuleCountIndex)},
 		{"provisioner", LayerLint, string(lint.RuleProvisioner)},
-		{"backend", LayerLint, string(lint.RuleStateBackend)},
 		{"moved", LayerLint, string(lint.RuleMovedBlock)},
 	}
 
@@ -183,6 +182,48 @@ func TestAnalyzeReportsTheRuleThatFired(t *testing.T) {
 			}
 			if !found {
 				t.Errorf("expected %s/%s; got %s", test.layer, test.id, findingIDs(report))
+			}
+		})
+	}
+}
+
+// TestAnalyzeRoutesStateBackendToWarning is GitHub issue #210: RuleStateBackend
+// is [lint.SeverityWarning] now, so a configuration whose only issue is a
+// backend block is not blocked - the finding lands in Warnings, not Findings,
+// registered in the catalog under the same (layer, ID) either channel would
+// use. "backend" and "cloud" are lint's own limits fixtures, sharing this
+// rule for the two HCL forms that trip it (see live/LIMITATIONS.md).
+func TestAnalyzeRoutesStateBackendToWarning(t *testing.T) {
+	for _, fixture := range []string{"backend", "cloud"} {
+		t.Run(fixture, func(t *testing.T) {
+			report := Dir(t.Context(), filepath.Join("..", "lint", "testdata", fixture), Context{})
+			if !report.Readable() {
+				t.Fatalf("fixture did not load: %s", report.Load.Diags.Error())
+			}
+			if report.Blocked() {
+				t.Fatalf("report.Blocked() = true; a warning-severity issue must not block: %v", report.Findings)
+			}
+			for _, finding := range report.Findings {
+				if finding.Layer == LayerLint && finding.ID == string(lint.RuleStateBackend) {
+					t.Errorf("state-backend finding present in report.Findings; it must be in Warnings only: %v", finding)
+				}
+			}
+
+			var found bool
+			for _, warning := range report.Warnings {
+				if warning.Layer != LayerLint || warning.ID != string(lint.RuleStateBackend) {
+					continue
+				}
+				found = true
+				if len(warning.Sites) == 0 {
+					t.Errorf("%s has no sites", warning.ID)
+				}
+				if !warning.Registered {
+					t.Errorf("%s is not in the catalog", warning.ID)
+				}
+			}
+			if !found {
+				t.Errorf("expected %s/%s in report.Warnings; got %v", LayerLint, lint.RuleStateBackend, report.Warnings)
 			}
 		})
 	}
