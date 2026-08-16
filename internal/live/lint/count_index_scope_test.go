@@ -148,7 +148,9 @@ resource "null_resource" "trigger" {
 // TestCountIndexUnknownTypeStillWalksNestedBlocks pins the conservative
 // default for a type absent from identity.LookupType entirely: every
 // argument at every depth, nested blocks included, stays in scope, exactly
-// as the rule behaved before #187. The type is also outside the v0
+// as the rule behaved before #187. The nested value indexes into a
+// collection (#192's narrowing only leaves a pure scalar unrefused) so it
+// stays a genuine hit regardless of scope. The type is also outside the v0
 // admission table, so RuleUnadmittedType fires too; this test only checks
 // that RuleCountIndex is among the issues, which is what a regression in
 // the walkAll fallback would remove.
@@ -158,7 +160,7 @@ resource "made_up_provider_made_up_type" "nested" {
   count = 2
 
   block {
-    value = count.index
+    value = ["a", "b", "c"][count.index]
   }
 }
 `

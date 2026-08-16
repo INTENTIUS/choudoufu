@@ -238,28 +238,51 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "count.index in every position it must still be caught",
+			name: "count.index indexing, accessor calls, and branch-selecting conditionals are still caught",
 			dir:  "testdata/count-index",
 			want: []wantIssue{
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_network_acl_rule.plain_arg",
+					construct: "count.index in aws_network_acl_rule.list_index",
 					file:      "testdata/count-index/main.tf",
-					line:      18,
+					line:      32,
 				},
 				{
 					rule:      RuleCountIndex,
-					construct: "count.index in aws_route53_record.in_identity_template",
+					construct: "count.index in aws_route53_record.list_index_in_template",
 					file:      "testdata/count-index/main.tf",
-					line:      35,
+					line:      49,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.offset_index",
+					file:      "testdata/count-index/main.tf",
+					line:      63,
+				},
+				{
+					rule:      RuleCountIndex,
+					construct: "count.index in aws_network_acl_rule.element_accessor",
+					file:      "testdata/count-index/main.tf",
+					line:      80,
 				},
 				{
 					rule:      RuleCountIndex,
 					construct: "count.index in aws_network_acl_rule.conditional",
 					file:      "testdata/count-index/main.tf",
-					line:      49,
+					line:      99,
 				},
 			},
+		},
+		{
+			// #192's narrowing: count.index rendered as a pure scalar - a
+			// template, arithmetic, a conditional operand, or a bare
+			// argument - never indexes into a collection, so it is not
+			// refused even when it lands in an identity-bearing argument.
+			// See testdata/count-index for the mirror-image, still-caught
+			// indexing fixture using the same two resource types.
+			name: "count.index rendered as a pure scalar is not caught",
+			dir:  "testdata/count-index-pure-scalar",
+			want: nil,
 		},
 		{
 			// The mirror image of the previous case, and the point of #187's
