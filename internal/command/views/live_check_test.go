@@ -153,62 +153,70 @@ func TestTrailerSaysNoRefusalIsAffectedWhenNoneIs(t *testing.T) {
 	}
 }
 
-// TestVerdictLeadsWithTheOneEditWhenOnlyTheBackendBlocks is #175's case:
-// 11 of 145 real published estates are in exactly this state, and the
-// headline is where their reader stops.
-func TestVerdictLeadsWithTheOneEditWhenOnlyTheBackendBlocks(t *testing.T) {
+// TestVerdictNamesTheBackendEditWhenItIsAllThatRemains is #175's case,
+// revised by #215 after #214 demoted state-backend from a fatal finding to
+// a warning: the rule can no longer block a configuration at all, so this
+// is now the clean-but-one-warning estate rather than the one-edit-away
+// blocked one. live/e2e/limits/backend-block is exactly this shape - a real
+// live-check run against it is Blocked: false with a single state-backend
+// warning, which is what this constructs directly.
+func TestVerdictNamesTheBackendEditWhenItIsAllThatRemains(t *testing.T) {
 	out := renderLiveCheck(t, LiveCheckReport{
-		Dir: ".", Blocked: true, Sites: 1, Instances: 4,
-		Findings:          []LiveCheckFinding{finding("State backends are not available under live resource markers", 1, 0)},
-		OnlyBackendBlocks: true,
+		Dir: ".", Blocked: false, Instances: 4,
+		Warnings:           []LiveCheckCount{{Label: "State backends are not available under live resource markers", Count: 1}},
+		OnlyBackendRemains: true,
 	})
 
-	if !strings.Contains(out, "one edit from moving") {
-		t.Errorf("the one-edit verdict is missing:\n%s", out)
+	if !strings.Contains(out, "already moves under live resource markers") {
+		t.Errorf("the backend-remains verdict is missing:\n%s", out)
 	}
-	if strings.Contains(out, "cannot move under live resource markers yet") {
-		t.Errorf("the generic blocked headline still leads a one-edit configuration:\n%s", out)
+	if strings.Contains(out, "Nothing in . is refused") {
+		t.Errorf("the generic clean headline still leads a backend-only estate:\n%s", out)
+	}
+	if !strings.Contains(out, "recommended edit") {
+		t.Errorf("the verdict does not say deleting the block is still recommended:\n%s", out)
 	}
 }
 
-// TestVerdictDoesNotClaimOneEditWhenAnythingElseBlocks keeps the first
-// honest: a second refusal of any kind means the edit is not the whole
-// distance, and claiming otherwise is the inconclusive-verdict failure
-// mode with a different sentence.
-func TestVerdictDoesNotClaimOneEditWhenAnythingElseBlocks(t *testing.T) {
+// TestVerdictDoesNotClaimBackendRemainsWhenAnotherWarningJoinsIt keeps the
+// first honest: a second warning of any kind means the backend block is not
+// the only remaining item, so the generic clean verdict is the accurate
+// one.
+func TestVerdictDoesNotClaimBackendRemainsWhenAnotherWarningJoinsIt(t *testing.T) {
 	out := renderLiveCheck(t, LiveCheckReport{
-		Dir: ".", Blocked: true, Sites: 2, Instances: 1,
-		Findings: []LiveCheckFinding{
-			finding("State backends are not available under live resource markers", 1, 0),
-			finding("Non-static identity argument", 1, 0),
+		Dir: ".", Blocked: false, Instances: 1,
+		Warnings: []LiveCheckCount{
+			{Label: "State backends are not available under live resource markers", Count: 1},
+			{Label: "Some other non-fatal diagnostic", Count: 1},
 		},
 	})
 
-	if strings.Contains(out, "one edit from moving") {
-		t.Errorf("a configuration with a non-backend refusal was reported one edit away:\n%s", out)
+	if strings.Contains(out, "already moves under live resource markers") {
+		t.Errorf("a configuration with a non-backend warning was reported as only-backend-remains:\n%s", out)
+	}
+	if !strings.Contains(out, "Nothing in . is refused") {
+		t.Errorf("the generic clean verdict is missing:\n%s", out)
+	}
+}
+
+// TestBlockedVerdictNeverClaimsBackendRemains guards the view's own
+// invariant directly rather than trusting the command package to uphold it:
+// state-backend can no longer reach Findings, so a real Analyze() output can
+// never set both Blocked and OnlyBackendRemains, but the view must not rely
+// on that alone. A blocked configuration has to read as blocked, never as a
+// clean "already moves" claim that contradicts the refusal printed right
+// below it.
+func TestBlockedVerdictNeverClaimsBackendRemains(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Sites: 1, Instances: 1,
+		Findings:           []LiveCheckFinding{finding("Non-static identity argument", 1, 0)},
+		OnlyBackendRemains: true,
+	})
+
+	if strings.Contains(out, "already moves under live resource markers") {
+		t.Errorf("a blocked configuration claimed to already move under live resource markers:\n%s", out)
 	}
 	if !strings.Contains(out, "cannot move under live resource markers yet") {
 		t.Errorf("the blocked verdict is missing:\n%s", out)
-	}
-}
-
-// TestOneEditYieldsToTheVariableCaveat: a backend refusal never reads a
-// variable, but the flag is computed elsewhere - if both ever arrive set,
-// the variable caveat must win, because "one edit" would then be a claim
-// the evidence does not support.
-func TestOneEditYieldsToTheVariableCaveat(t *testing.T) {
-	out := renderLiveCheck(t, LiveCheckReport{
-		Dir: ".", Blocked: true, Sites: 2, Instances: 1,
-		Findings: []LiveCheckFinding{
-			finding("State backends are not available under live resource markers", 2, 2, "region"),
-		},
-		UnsetVariables:            []string{"region"},
-		VariableDependentFindings: 1,
-		FullyVariableDependent:    1,
-		OnlyBackendBlocks:         true,
-	})
-
-	if strings.Contains(out, "one edit from moving") {
-		t.Errorf("the one-edit claim overrode the unset-variable caveat:\n%s", out)
 	}
 }

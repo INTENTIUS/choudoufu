@@ -161,14 +161,19 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		}
 	}
 
-	// The one-edit case (#175): every refusal is the state-backend rule, so
-	// removing the backend/cloud block is the whole distance to a clean
-	// verdict. Computed here, where the finding IDs are, per this
-	// function's own rule that what is true is decided below the view.
-	out.OnlyBackendBlocks = report.Blocked()
-	for _, finding := range report.Findings {
-		if finding.ID != string(lint.RuleStateBackend) {
-			out.OnlyBackendBlocks = false
+	// The one-remaining-item case (#175, revised by #215 after #214 demoted
+	// state-backend from a fatal finding to a warning): the state-backend
+	// rule can no longer reach Findings at all, so it can no longer be what
+	// blocks a configuration. What it can still do is be the ONLY warning on
+	// an otherwise-clean estate, which is worth naming explicitly rather
+	// than folding into an unqualified "nothing is refused" - the deletion
+	// is still the recommended edit even though it is no longer required.
+	// Computed here, where the warning IDs are, per this function's own rule
+	// that what is true is decided below the view.
+	out.OnlyBackendRemains = !report.Blocked() && len(report.Warnings) > 0
+	for _, warning := range report.Warnings {
+		if warning.ID != string(lint.RuleStateBackend) {
+			out.OnlyBackendRemains = false
 			break
 		}
 	}

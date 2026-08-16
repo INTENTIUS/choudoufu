@@ -58,14 +58,20 @@ type LiveCheckReport struct {
 	VariableDependentFindings int
 	FullyVariableDependent    int
 
-	// OnlyBackendBlocks is true when every refusal is the state-backend
-	// rule: the configuration passes both checked passes the moment its
-	// backend or cloud block is removed, which is the documented onboarding
-	// edit. Measured over the published-deployment corpus (#175), that is
-	// the exact state of 11 of 145 real estates, and a headline that reads
-	// the same for them as for a forty-refusal configuration buries the
-	// answer the reader most needs.
-	OnlyBackendBlocks bool
+	// OnlyBackendRemains is true when the configuration is not blocked and
+	// the only warning is the state-backend rule: the sole remaining
+	// friction is a backend or cloud block, which choudoufu ignores rather
+	// than reads. Deleting it is still the recommended edit - so the
+	// configuration says what actually happens - though it is not required.
+	//
+	// Before #214 demoted state-backend from a fatal finding to a warning,
+	// this named the "one edit from moving" case (#175): 11 of 145 real
+	// published estates were blocked on exactly this rule and nothing else.
+	// That case cannot occur anymore - state-backend never reaches
+	// Findings, so it can no longer be what blocks a configuration - but the
+	// clean verdict it now describes is still worth calling out by name
+	// rather than folding into an unqualified "nothing is refused".
+	OnlyBackendRemains bool
 }
 
 // LiveCheckFinding is one refusal and where it fired.
@@ -162,12 +168,6 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		// the ones who run with none of them set.
 		settled := len(rep.Findings) - rep.FullyVariableDependent
 		switch {
-		case rep.OnlyBackendBlocks && rep.FullyVariableDependent == 0:
-			fmt.Fprintf(&b, "\n%s is one edit from moving under live resource markers:\n", rep.Dir)
-			fmt.Fprintf(&b, "every refusal below is the state backend, and here the live system is the store.\n")
-			fmt.Fprintf(&b, "Remove the backend or cloud block at the site(s) below and run this again.\n")
-			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
-				len(rep.Findings), rep.Sites, rep.Instances)
 		case settled == 0 && rep.FullyVariableDependent > 0:
 			fmt.Fprintf(&b, "\n%s is inconclusive: every refusal below depends on an input variable that\n", rep.Dir)
 			fmt.Fprintf(&b, "had no value. Supply %s and run this again.\n", varPhrase(rep.UnsetVariables))
@@ -184,6 +184,19 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 			fmt.Fprintf(&b, "%d refusal(s) across %d site(s); %d managed resource instance(s) resolved.\n",
 				len(rep.Findings), rep.Sites, rep.Instances)
 		}
+	} else if rep.OnlyBackendRemains {
+		// #215: the estate is clean, but the only warning below is its
+		// backend or cloud block. That block is inert under live resource
+		// markers rather than merely superfluous, and the rule's own detail
+		// text (internal/live/lint/lint.go, checkStateBackends) already
+		// recommends deleting it; nothing else in this report surfaces that
+		// recommendation, so it is worth this one dedicated sentence rather
+		// than folding into the generic clean verdict below.
+		fmt.Fprintf(&b, "\n%s already moves under live resource markers.\n", rep.Dir)
+		fmt.Fprintf(&b, "The only warning below is its backend or cloud block: the live system is the store,\n")
+		fmt.Fprintf(&b, "and this block is ignored. Deleting it is still the recommended edit, so the\n")
+		fmt.Fprintf(&b, "configuration says what actually happens, but it is not required.\n")
+		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	} else {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
