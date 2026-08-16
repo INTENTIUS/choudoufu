@@ -165,7 +165,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 182,
+      "sites": 183,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
@@ -247,6 +247,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 1
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ],
         "unadmitted_types": [
@@ -274,7 +279,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 244,
-      "sites": 167,
+      "sites": 172,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
@@ -344,6 +349,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 8
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 5
           }
         ],
         "unadmitted_types": [
@@ -543,7 +553,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 77,
+      "sites": 79,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -585,7 +595,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 79,
+      "sites": 80,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -671,7 +681,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 79,
+      "sites": 80,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -915,7 +925,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 26,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -962,6 +972,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ],
         "unadmitted_types": [
@@ -1249,7 +1264,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 23,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 4,
       "schemas": true,
@@ -1280,6 +1295,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -1401,7 +1421,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 21,
-      "sites": 9,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1418,6 +1438,11 @@
             "layer": "identity",
             "id": "Unresolvable identity",
             "sites": 1
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 5
           }
         ]
       },
@@ -1511,7 +1536,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 21,
-      "sites": 2,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
@@ -1523,6 +1548,11 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ]
       },
@@ -2042,10 +2072,10 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cloudfront",
       "origin": "published deployment",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 0,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2053,7 +2083,14 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "clean"
+        "onboarding_class": "language-blocked",
+        "refusals": [
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
+          }
+        ]
       },
       "provider_schemas": [
         {
@@ -2132,7 +2169,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 66,
-      "sites": 28,
+      "sites": 30,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
@@ -2202,6 +2239,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -2321,7 +2363,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 29,
-      "sites": 5,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2331,7 +2373,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/csp-reporter.tfvars"
       ],
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -2345,6 +2387,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -2441,7 +2488,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 5,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2475,6 +2522,11 @@
           {
             "layer": "identity",
             "id": "Unable to compute static value",
+            "sites": 2
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
             "sites": 2
           }
         ]
@@ -3073,7 +3125,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 157,
-      "sites": 59,
+      "sites": 60,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3083,7 +3135,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/rds.tfvars"
       ],
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -3102,6 +3154,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ],
         "unadmitted_types": [
@@ -3847,12 +3904,12 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 4,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -3861,6 +3918,11 @@
             "categories": {
               "data_source": 1
             }
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ]
       },
@@ -3897,7 +3959,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 2,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3916,6 +3978,11 @@
             "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 1
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ]
       },
@@ -4120,15 +4187,22 @@
     {
       "name": ".corpus/k8s-io/infra/aws/terraform/registry-k8s-io-prod",
       "origin": "published deployment",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "clean"
+        "onboarding_class": "language-blocked",
+        "refusals": [
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
+          }
+        ]
       },
       "provider_schemas": [
         {
@@ -4244,7 +4318,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 44,
+      "sites": 46,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4312,7 +4386,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 300,
+      "sites": 304,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4380,7 +4454,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 25,
-      "sites": 303,
+      "sites": 306,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4660,7 +4734,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 24,
+      "sites": 25,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4693,7 +4767,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 24,
+      "sites": 25,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4912,7 +4986,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 4,
+      "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 5,
       "schemas": true,
@@ -4932,6 +5006,11 @@
             "id": "Non-static identity argument",
             "sites": 2,
             "unset_var_only": true
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ]
       },
@@ -5378,12 +5457,12 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 12,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -5392,6 +5471,11 @@
             "categories": {
               "data_source": 5
             }
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ]
       },
@@ -6154,7 +6238,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 4,
+      "sites": 5,
       "unresolved_modules": 3,
       "unset_variables": 0,
       "schemas": true,
@@ -6455,12 +6539,12 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 1,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -6469,6 +6553,11 @@
             "categories": {
               "data_source": 1
             }
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ]
       },
@@ -6519,7 +6608,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 22,
-      "sites": 16,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6552,6 +6641,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 9
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 1
           }
         ],
         "unadmitted_types": [
@@ -6597,18 +6691,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 4,
             "categories": {
-              "data_source": 1,
+              "data_source": 2,
               "remote_state": 2
             }
           },
@@ -6660,12 +6746,12 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 10,
+      "sites": 12,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -6674,6 +6760,11 @@
             "categories": {
               "data_source": 10
             }
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ]
       },
@@ -6988,18 +7079,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 4,
             "categories": {
-              "data_source": 1,
+              "data_source": 2,
               "remote_state": 2
             }
           },
@@ -7060,7 +7143,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 2,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7078,6 +7161,11 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
+            "sites": 1
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
             "sites": 1
           }
         ]
@@ -7145,7 +7233,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 45,
-      "sites": 8,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7170,6 +7258,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 2
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 5
           }
         ],
         "unadmitted_types": [
@@ -7273,18 +7366,10 @@
         "refusals": [
           {
             "layer": "dataread",
-            "id": "Data source not readable before resolution",
-            "sites": 1,
-            "categories": {
-              "data_source": 1
-            }
-          },
-          {
-            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 3,
+            "sites": 4,
             "categories": {
-              "data_source": 1,
+              "data_source": 2,
               "remote_state": 2
             }
           },
@@ -7336,7 +7421,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 28,
-      "sites": 17,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7380,6 +7465,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -7400,7 +7490,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 83,
-      "sites": 19,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7438,6 +7528,11 @@
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 3
+          },
+          {
+            "layer": "stamp",
+            "id": "Unmarked apply of a marker-only resource",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -7612,7 +7707,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 304,
+      "sites": 305,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -7810,7 +7905,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 36,
-      "sites": 1,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7827,7 +7922,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 23,
-      "sites": 4,
+      "sites": 6,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7875,10 +7970,10 @@
     {
       "name": "live/e2e/estates/connect-euc",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7892,10 +7987,10 @@
     {
       "name": "live/e2e/estates/data",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 0,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7943,10 +8038,10 @@
     {
       "name": "live/e2e/estates/devtools",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 21,
-      "sites": 0,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7977,10 +8072,10 @@
     {
       "name": "live/e2e/estates/ec2-core",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 0,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8045,10 +8140,10 @@
     {
       "name": "live/e2e/estates/iam-ecr",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 0,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8079,10 +8174,10 @@
     {
       "name": "live/e2e/estates/iot",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8096,10 +8191,10 @@
     {
       "name": "live/e2e/estates/lambda",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8147,10 +8242,10 @@
     {
       "name": "live/e2e/estates/networking-advanced",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 45,
-      "sites": 0,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8164,10 +8259,10 @@
     {
       "name": "live/e2e/estates/observability",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 33,
-      "sites": 0,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8198,10 +8293,10 @@
     {
       "name": "live/e2e/estates/remainder",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 0,
+      "sites": 8,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8215,10 +8310,10 @@
     {
       "name": "live/e2e/estates/route53-cloudfront",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 32,
-      "sites": 0,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8266,10 +8361,10 @@
     {
       "name": "live/e2e/estates/security",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 51,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8317,10 +8412,10 @@
     {
       "name": "live/e2e/estates/streaming",
       "origin": "in-repo fixture",
-      "blocked": false,
+      "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 0,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -9188,7 +9283,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 106,
-      "sites": 2362,
+      "sites": 2403,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -9328,6 +9423,24 @@
         ".corpus/cool-assessment/operations_routing.tf:29",
         ".corpus/cool-assessment/operations_routing.tf:39",
         ".corpus/cyhy-amis/terraform/bod_vpc.tf:121"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Unmarked apply of a marker-only resource",
+      "title": "Unmarked apply of a marker-only resource",
+      "what": "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unmarked apply of a marker-only resource\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 48,
+      "sites": 95,
+      "examples": [
+        ".corpus/cool-assessment/kali_ec2.tf:100",
+        ".corpus/cyhy-amis/terraform/cloudwatch_alarm_sns_topic.tf:11",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
+        ".corpus/cyhy-amis/terraform/fdi_lambda.tf:100"
       ],
       "registered": true
     },
@@ -9475,24 +9588,6 @@
       "registered": true
     },
     {
-      "layer": "dataread",
-      "id": "Data source not readable before resolution",
-      "title": "Data source not readable before resolution",
-      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 7,
-      "sites": 50,
-      "examples": [
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:130",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:141",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
-        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "moved-block",
       "title": "moved blocks are not available under live resource markers",
@@ -9523,6 +9618,24 @@
         ".corpus/cool-assessment/gophish_ec2.tf:139",
         ".corpus/cool-assessment/kali_ec2.tf:109",
         ".corpus/cool-assessment/nessus_ec2.tf:120"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Data source not readable before resolution",
+      "title": "Data source not readable before resolution",
+      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 4,
+      "sites": 9,
+      "examples": [
+        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:130",
+        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:141",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
       ],
       "registered": true
     },
@@ -10664,15 +10777,81 @@
       "configs": 0,
       "sites": 0,
       "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "No configuration to stamp",
+      "title": "No configuration to stamp",
+      "what": "Stamping was given no configuration to rewrite. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"No configuration to stamp\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "No estate name to stamp with",
+      "title": "No estate name to stamp with",
+      "what": "Stamping was given no estate name, or one outside the tofu-estate marker grammar, so there is no value to write into the markers.",
+      "docs_ref": "live/LIMITATIONS.md, \"No estate name to stamp with\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "No provider schemas for marker stamping",
+      "title": "No provider schemas for marker stamping",
+      "what": "Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"No provider schemas for marker stamping\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Ownership marker conflict",
+      "title": "Ownership marker conflict",
+      "what": "The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Ownership marker conflict\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Ownership marker could not be checked",
+      "title": "Ownership marker could not be checked",
+      "what": "An ownership tag is already set in the configuration to an expression this run cannot evaluate, so whether it agrees with this estate's markers is unknown. A warning: a resource that can only be found by its marker gets the error below instead, under its own heading, because [stamper.unstampableAt] swaps the summary as well as the severity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Ownership marker could not be checked\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Ownership markers not stamped",
+      "title": "Ownership markers not stamped",
+      "what": "A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration.",
+      "docs_ref": "live/LIMITATIONS.md, \"Ownership markers not stamped\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
     }
   ],
   "totals": {
     "configs": 250,
     "loaded": 249,
     "instances": 3500,
-    "sites": 10667,
-    "refusals_fired": 26,
-    "refusals_in_set": 118,
+    "sites": 10762,
+    "refusals_fired": 27,
+    "refusals_in_set": 125,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
   },
@@ -10681,20 +10860,20 @@
       "origin": "in-repo fixture",
       "configs": 31,
       "loaded": 31,
-      "blocked": 4,
-      "clean": 27,
+      "blocked": 17,
+      "clean": 14,
       "instances": 731,
-      "sites": 8,
+      "sites": 41,
       "reads_as": "ranking"
     },
     {
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 118,
-      "clean": 26,
+      "blocked": 120,
+      "clean": 24,
       "instances": 2320,
-      "sites": 2546,
+      "sites": 2591,
       "reads_as": "rate"
     },
     {
@@ -10704,7 +10883,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 449,
-      "sites": 8113,
+      "sites": 8130,
       "reads_as": "ranking"
     }
   ],
@@ -10715,7 +10894,7 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 26
+        "configs": 24
       },
       {
         "class": "backend-only",
@@ -10727,11 +10906,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 39
+        "configs": 33
       },
       {
         "class": "language-blocked",
-        "configs": 60
+        "configs": 68
       },
       {
         "class": "unreadable",
@@ -11420,12 +11599,12 @@
   "checked_layers": [
     "lint",
     "identity",
-    "dataread"
+    "dataread",
+    "stamp"
   ],
   "unchecked_layers": [
     "discovery",
-    "projection",
-    "stamp"
+    "projection"
   ],
   "schemas": {
     "present": true,

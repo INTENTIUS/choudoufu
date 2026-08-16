@@ -1189,11 +1189,12 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 112 | 1357 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 106 | 2362 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 106 | 2403 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 73 | 3613 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 53 | 590 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 49 | 200 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 48 | 95 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 35 | 108 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 34 | 263 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
@@ -1202,9 +1203,9 @@ refused, and each says so in its own entry.
 | 21 | 63 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
-| 7 | 50 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
+| 4 | 9 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
@@ -1356,13 +1357,12 @@ refused, and each says so in its own entry.
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
-| - | - | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
-| - | - | stamp | No estate name to stamp with | error | `internal/live/stamp` | "No estate name to stamp with" |
-| - | - | stamp | No provider schemas for marker stamping | error | `internal/live/stamp` | "No provider schemas for marker stamping" |
-| - | - | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
-| - | - | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
-| - | - | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
-| - | - | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 0 | 0 | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
+| 0 | 0 | stamp | No estate name to stamp with | error | `internal/live/stamp` | "No estate name to stamp with" |
+| 0 | 0 | stamp | No provider schemas for marker stamping | error | `internal/live/stamp` | "No provider schemas for marker stamping" |
+| 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
+| 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
+| 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
 **175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
 
@@ -1394,7 +1394,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 106 configurations in the measured corpus, at 2362 sites.
+**How often.** Blocked 106 configurations in the measured corpus, at 2403 sites.
 
 #### Unable to compute static value
 
@@ -1419,6 +1419,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 49 configurations in the measured corpus, at 200 sites.
+
+#### Unmarked apply of a marker-only resource
+
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Blocked 48 configurations in the measured corpus, at 95 sites.
 
 #### Not an identity attribute
 
@@ -1482,7 +1490,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 7 configurations in the measured corpus, at 50 sites.
+**How often.** Blocked 4 configurations in the measured corpus, at 9 sites.
 
 #### Identity argument not set
 
@@ -2538,7 +2546,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### No estate name to stamp with
 
@@ -2546,7 +2554,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### No provider schemas for marker stamping
 
@@ -2554,7 +2562,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Ownership marker conflict
 
@@ -2562,7 +2570,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Ownership marker could not be checked
 
@@ -2570,7 +2578,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Ownership markers not stamped
 
@@ -2578,15 +2586,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
-
-#### Unmarked apply of a marker-only resource
-
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 <!-- limits-gen:end refusal-entries -->
 
