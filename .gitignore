@@ -88,6 +88,7 @@ site/public/
 /mapping-gen
 /merge-guard
 /protobuf-compile
+/refusal-probe
 /registry-gen
 /row-gen
 /selected-go-version
