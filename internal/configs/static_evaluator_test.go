@@ -57,6 +57,8 @@ locals {
 	# Bad References
 	invalid_ref = invalid.attribute
 	unavailable_ref = foo.bar.attribute
+	module_whole_ref = module.child
+	module_output_ref = module.child.out
 
 	# Circular References
 	circular = local.circular
@@ -190,6 +192,12 @@ resource "foo" "bar" {}
 		}{
 			{"invalid_ref", "eval.tf:37,16-33: Dynamic value in static context; Unable to use invalid.attribute in static context, which is required by local.invalid_ref"},
 			{"unavailable_ref", "eval.tf:38,20-27: Dynamic value in static context; Unable to use foo.bar in static context, which is required by local.unavailable_ref"},
+			// A bare module reference (every output, unkeyed) refuses with
+			// the same summary as a named output: both need the module
+			// evaluated, which static evaluation never does. See #191 and
+			// the matching case in StaticValidateReferences.
+			{"module_whole_ref", "eval.tf:39,21-33: Module output not supported in static context; Unable to use module.child in static context, which is required by local.module_whole_ref"},
+			{"module_output_ref", "eval.tf:40,22-38: Module output not supported in static context; Unable to use module.child.out in static context, which is required by local.module_output_ref"},
 		}
 		for _, local := range locals {
 			t.Run(local.ident, func(t *testing.T) {
@@ -209,15 +217,15 @@ resource "foo" "bar" {}
 			diags []string
 		}{
 			{"circular", []string{
-				"eval.tf:41,2-27: Circular reference; local.circular is self referential",
+				"eval.tf:43,2-27: Circular reference; local.circular is self referential",
 			}},
 			{"circular_ref", []string{
-				"eval.tf:41,2-27: Circular reference; local.circular is self referential",
-				"eval.tf:42,2-31: Unable to compute static value; local.circular_ref depends on local.circular which is not available",
+				"eval.tf:43,2-27: Circular reference; local.circular is self referential",
+				"eval.tf:44,2-31: Unable to compute static value; local.circular_ref depends on local.circular which is not available",
 			}},
 			{"circular_a", []string{
-				"eval.tf:43,2-31: Unable to compute static value; local.circular_a depends on local.circular_b which is not available",
-				"eval.tf:43,2-31: Circular reference; local.circular_a is self referential",
+				"eval.tf:45,2-31: Unable to compute static value; local.circular_a depends on local.circular_b which is not available",
+				"eval.tf:45,2-31: Circular reference; local.circular_a is self referential",
 			}},
 		}
 		for _, local := range locals {
@@ -245,9 +253,9 @@ resource "foo" "bar" {}
 		_, diags := eval.Evaluate(t.Context(), badref.Expr, StaticIdentifier{Subject: fmt.Sprintf("local.%s", badref.Name), DeclRange: badref.DeclRange})
 		assertExactDiagnostics(t, diags, []string{
 			"eval.tf:2,1-15: Variable value not provided; var.str not included",
-			"eval.tf:47,2-17: Unable to compute static value; local.ref_a depends on var.str which is not available",
-			"eval.tf:48,2-21: Unable to compute static value; local.ref_b depends on local.ref_a which is not available",
-			"eval.tf:49,2-21: Unable to compute static value; local.ref_c depends on local.ref_b which is not available",
+			"eval.tf:49,2-17: Unable to compute static value; local.ref_a depends on var.str which is not available",
+			"eval.tf:50,2-21: Unable to compute static value; local.ref_b depends on local.ref_a which is not available",
+			"eval.tf:51,2-21: Unable to compute static value; local.ref_c depends on local.ref_b which is not available",
 		})
 	})
 
@@ -259,8 +267,8 @@ resource "foo" "bar" {}
 			ident string
 			diag  string
 		}{
-			{"local_missing", "eval.tf:52,18-31: Undefined local; Undefined local local.missing"},
-			{"var_missing", "eval.tf:53,16-27: Undefined variable; Undefined variable var.missing"},
+			{"local_missing", "eval.tf:54,18-31: Undefined local; Undefined local local.missing"},
+			{"var_missing", "eval.tf:55,16-27: Undefined variable; Undefined variable var.missing"},
 		}
 		for _, local := range locals {
 			t.Run(local.ident, func(t *testing.T) {
@@ -298,9 +306,9 @@ resource "foo" "bar" {}
 		}
 
 		_, diags = eval.Evaluate(t.Context(), mod.Locals["missing_func"].Expr, StaticIdentifier{Subject: fmt.Sprintf("local.%s", mod.Locals["missing_func"].Name), DeclRange: mod.Locals["missing_func"].DeclRange})
-		assertExactDiagnostics(t, diags, []string{`eval.tf:60,17-27: Call to unknown function; There is no function named "missing_fn".`})
+		assertExactDiagnostics(t, diags, []string{`eval.tf:62,17-27: Call to unknown function; There is no function named "missing_fn".`})
 		_, diags = eval.Evaluate(t.Context(), mod.Locals["provider_func"].Expr, StaticIdentifier{Subject: fmt.Sprintf("local.%s", mod.Locals["provider_func"].Name), DeclRange: mod.Locals["provider_func"].DeclRange})
-		assertExactDiagnostics(t, diags, []string{`eval.tf:61,18-36: Provider function in static context; Unable to use provider::type::fn in static context, which is required by local.provider_func`})
+		assertExactDiagnostics(t, diags, []string{`eval.tf:63,18-36: Provider function in static context; Unable to use provider::type::fn in static context, which is required by local.provider_func`})
 	})
 }
 

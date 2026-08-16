@@ -213,6 +213,13 @@ func categorizeReference(subject addrs.Referenceable) ReferenceCategory {
 		return categorizeResourceMode(s.Resource.Mode, s.Resource.Type)
 	case addrs.ModuleCallInstanceOutput:
 		return CategoryModuleOutput
+	case addrs.ModuleCall, addrs.ModuleCallInstance:
+		// module.foo (every output, unkeyed) and module.foo[0] (every
+		// output of one instance) name the whole module call rather than
+		// one named output, but need the same thing a named output needs:
+		// the module evaluated, which static evaluation never does. See
+		// the matching case in [staticScopeData.StaticValidateReferences].
+		return CategoryModuleOutput
 	case addrs.ProviderFunction:
 		return CategoryProviderFunction
 	default:
@@ -260,7 +267,14 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			continue
 		case addrs.TerraformAttr:
 			continue
-		case addrs.ModuleCallInstanceOutput:
+		case addrs.ModuleCallInstanceOutput, addrs.ModuleCall, addrs.ModuleCallInstance:
+			// The named-output form (module.foo.bar) and the whole-module
+			// form (module.foo, or the keyed module.foo[0]) both refuse for
+			// the same reason: whatever they name is produced by evaluating
+			// the module, which has not happened yet. Splitting them into
+			// two diagnostics here would separate a user's "I referenced
+			// the whole module instead of one output" mistake from its own
+			// twin for no reason a reader could tell was intentional.
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Module output not supported in static context",
