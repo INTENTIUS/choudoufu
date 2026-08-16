@@ -363,6 +363,108 @@ func TestAnalyzeCascadesPerForEachKeyEvenWhenOneKeyIsMixed(t *testing.T) {
 	}
 }
 
+// TestAnalyzeDoesNotCascadeOntoADirectlyEligibleParentThatAlsoHardFails is
+// the hole the #221 family left open, found by reading the fixpoint's two
+// gates against each other: it guarded hardFailureAddrs on the CHILD and
+// eligibleAddrs on the PARENT, so a parent that was both eligible and
+// independently hard-failing still resolved a cascade onto itself.
+//
+// TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop looks like it
+// covers this and does not. There the mixed hop's good component is itself
+// a cascade, so the hop is only ever a candidate for eligibleAddrs by way
+// of the fixpoint - which does check hardFailureAddrs - and it never gets
+// in. Here the mixed hop's good component reads the data source DIRECTLY,
+// so classifyDataSite's branch puts it into eligibleAddrs with no
+// hard-failure gate at all, and the dependent's cascade found it there.
+//
+// Reproduced on the unfixed tree: this fixture reported two
+// data-read-eligible sites (parent's own read plus dependent's cascade,
+// reading "No configuration edit is needed") and zero "Unresolvable
+// identity" sites, while parent's "name" failure sat in the same report
+// proving its identity can never be built.
+func TestAnalyzeDoesNotCascadeOntoADirectlyEligibleParentThatAlsoHardFails(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-direct-read-mixed-parent")
+
+	var datareadCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+			for _, site := range f.Sites {
+				if strings.Contains(site.Detail, "dependent") {
+					t.Errorf("the dependent's cascade onto a hard-failing parent was reclassified as eligible: %s", site.Detail)
+				}
+			}
+		case LayerIdentity:
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// Only the parent's own read stays eligible - #221's settled position
+	// is that the direct case is untouched; it is the cascade onto the
+	// instance, not the read itself, that has to be held back.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the parent's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Identity argument not set\" site (the parent's own) and one \"Unresolvable identity\" site (the dependent's held-back cascade), got %+v", identityIDs)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeCascadesOntoADirectlyEligibleParentPerForEachKey is the
+// adversarial half of the test above: what does the new parent gate newly
+// REFUSE that used to work?
+//
+// Both keys of the parent read the same eligible data source directly, so
+// both are in eligibleAddrs; only key "b" is also hard-failing. A gate
+// keyed by resource rather than by instance address would pass the test
+// above and still hold back dependent["a"], a reference nothing is wrong
+// with. dependent["a"] must reclassify and dependent["b"] must not, from
+// one fixpoint pass over one eligibleAddrs.
+//
+// Reproduced on the unfixed tree: four data-read-eligible sites and zero
+// "Unresolvable identity" - both dependents read as fine, dependent["b"]
+// falsely.
+func TestAnalyzeCascadesOntoADirectlyEligibleParentPerForEachKey(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-direct-read-mixed-parent-foreach")
+
+	var eligibleSites []string
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			for _, site := range f.Sites {
+				eligibleSites = append(eligibleSites, site.Detail)
+			}
+		case LayerIdentity:
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// Both parent keys' own reads, plus dependent["a"]'s cascade.
+	if len(eligibleSites) != 3 {
+		t.Fatalf("want three data-read-eligible sites, got %d: %+v", len(eligibleSites), eligibleSites)
+	}
+	var sawKeyA bool
+	for _, detail := range eligibleSites {
+		if strings.Contains(detail, `dependent["a"]`) {
+			sawKeyA = true
+		}
+		if strings.Contains(detail, `dependent["b"]`) {
+			t.Errorf("dependent[\"b\"]'s cascade onto the hard-failing parent key was reclassified as eligible: %s", detail)
+		}
+	}
+	if !sawKeyA {
+		t.Errorf("dependent[\"a\"]'s cascade onto a clean parent key was newly refused by the parent gate: %+v", eligibleSites)
+	}
+	if identityIDs["Null identity argument"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Null identity argument\" site (parent[\"b\"]) and one \"Unresolvable identity\" site (dependent[\"b\"]), got %+v", identityIDs)
+	}
+}
+
 // TestParseCascadeDetail pins the fixed format
 // internal/live/identity/resolve.go's parentPart raises "Unresolvable
 // identity" with, and that a summary or detail that does not match it -
