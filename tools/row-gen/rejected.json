@@ -145,10 +145,10 @@
       ]
     },
     "aws_bedrockagentcore_registry": {
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
-      ],
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+      ]
     },
     "aws_bedrockagentcore_workload_identity": {
       "recovered_from": [
@@ -181,12 +181,6 @@
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
-    "aws_comprehend_entity_recognizer": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_stragglers.go"
-      ],
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
-    },
     "aws_datazone_environment_profile": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
@@ -213,45 +207,13 @@
         "internal/live/identity/table_cohort_rds.go"
       ]
     },
-    "aws_devopsguru_notification_channel": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_dx_hosted_private_virtual_interface": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_dx_hosted_public_virtual_interface": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_dx_hosted_transit_virtual_interface": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_dynamodb_contributor_insights": {
       "recovered_from": [
         "internal/live/identity/table_cohort_dynamodb_elasticache.go"
       ]
     },
-    "aws_dynamodb_global_secondary_index": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
-    "aws_dynamodb_kinesis_streaming_destination": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
-      ]
-    },
     "aws_ec2_carrier_gateway": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
+      "reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but internal/live/discovery/tagging_test.go's TestJoinTaggedResourceRealArtifacts and TestTaggableSetCoversAdmissionTable-adjacent fixtures name this exact type, by constant (unswept = \"aws_ec2_carrier_gateway\"), as the canonical 'mapped in live/mapping.json but not in identity.DefaultTable' real-artifact example (residue.go's own comment traces the aws_instance -> aws_nat_gateway -> aws_ec2_carrier_gateway baton this fork has passed before; a prior batch tried swapping the fixture to aws_verifiedaccess_group and reverted when that swap needed a live/mapping.json via this package's Roster does not count as mapped). Admitting this type breaks that fixture. Left unadmitted; the fix is swapping the fixture's canonical example in internal/live/discovery, outside this batch's write surface."
     },
     "aws_ec2_client_vpn_authorization_rule": {
       "recovered_from": [
@@ -289,10 +251,10 @@
       ]
     },
     "aws_eks_pod_identity_association": {
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"
-      ],
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+      ]
     },
     "aws_elastic_beanstalk_application_version": {
       "recovered_from": [
@@ -309,11 +271,6 @@
         "internal/live/identity/table_cohort_databases.go",
         "internal/live/identity/table_cohort_dynamodb_elasticache.go",
         "internal/live/identity/table_cohort_remainder.go"
-      ]
-    },
-    "aws_elasticache_user_group_association": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_dynamodb_elasticache.go"
       ]
     },
     "aws_emr_instance_fleet": {
@@ -337,9 +294,7 @@
       ]
     },
     "aws_fms_policy": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
+      "reason": "verifies cleanly (server-assigned via ARN) but ties with the already-admitted aws_iam_policy under internal/live/identity/parent.go's _policy suffix convention: both are fourteen characters, and lexicographically 'aws_fms_policy' < 'aws_iam_policy', so parentByConvention's shortest-then-alphabetical tie-break risks silently redirecting a policy_arn-shaped argument's convention match away from aws_iam_policy once aws_fms_policy joins DefaultTable (live/e2e/estates/remainder/README.md, 'A naming collision the identity package's convention-based parent inference cannot disambiguate'). Left unadmitted; the fix belongs in parent.go's tie-break rule, out of this batch's write surface."
     },
     "aws_gamelift_game_server_group": {
       "recovered_from": [
@@ -393,16 +348,6 @@
         "internal/live/identity/table_cohort_identity.go"
       ]
     },
-    "aws_inspector_resource_group": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_iot_ca_certificate": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_iot.go"
-      ]
-    },
     "aws_iot_certificate": {
       "recovered_from": [
         "internal/live/identity/table_cohort_iot.go"
@@ -422,11 +367,6 @@
       "reason": "public_key is Required, ForceNew and write-only (no IVS read returns the material), so a marker-rebuilt plan always proposes replacement - measured by the acceptance tier's media cohort 2026-08-14 (#124). Same ground as SURVEY.md's credential-material exclusion (aws_iam_access_key, #125), extended to client-supplied write-only material."
     },
     "aws_kinesis_video_stream": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_data.go"
-      ]
-    },
-    "aws_kinesisanalyticsv2_application": {
       "recovered_from": [
         "internal/live/identity/table_cohort_data.go"
       ]
@@ -484,18 +424,7 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
-    "aws_lightsail_domain": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_compute_platforms.go"
-      ],
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
-    },
     "aws_m2_deployment": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_mailmanager_ingress_point": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
@@ -503,27 +432,12 @@
     "aws_medialive_multiplex_program": {
       "reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
     },
-    "aws_msk_single_scram_secret_association": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_network_acl_association": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_networking.go"
-      ]
-    },
     "aws_network_interface_sg_attachment": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_core.go"
       ]
     },
     "aws_networkflowmonitor_monitor": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_osis_pipeline": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
@@ -554,16 +468,6 @@
         "internal/live/identity/table_cohort_rds.go"
       ]
     },
-    "aws_resiliencehubv2_service": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_resiliencehubv2_system": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_route53_cidr_location": {
       "recovered_from": [
         "internal/live/identity/table_cohort_route53_cloudfront.go"
@@ -575,11 +479,6 @@
       ]
     },
     "aws_s3control_multi_region_access_point_policy": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_s3outposts_endpoint": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
       ]
@@ -649,19 +548,9 @@
         "internal/live/identity/table_cohort_remainder.go"
       ]
     },
-    "aws_verifiedaccess_group": {
-      "recovered_from": [
-        "live/e2e/estates/remainder/README.md"
-      ]
-    },
     "aws_vpc_block_public_access_options": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
-      ]
-    },
-    "aws_vpc_endpoint_connection_notification": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_networking.go"
       ]
     },
     "aws_vpc_endpoint_service_allowed_principal": {
@@ -676,10 +565,10 @@
       ]
     },
     "aws_vpn_gateway_attachment": {
+      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
-      ],
-      "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted"
+      ]
     },
     "aws_vpn_gateway_route_propagation": {
       "recovered_from": [
