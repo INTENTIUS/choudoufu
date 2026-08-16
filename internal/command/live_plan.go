@@ -1045,7 +1045,7 @@ func statelessEstateFor(ctx context.Context, flagValue string, config *configs.C
 // run stamped, and what it did not, is the record of whether the estate's
 // ownership is intact after this plan, and a caller that cannot see it cannot
 // check anything about it (audit finding C2).
-func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]bool, policyUntag map[string]string) (*stamp.Result, tfdiags.Diagnostics) {
+func statelessStamp(ctx context.Context, config *configs.Config, estateFlag string, schemas *tofu.Schemas, slotTable map[string]string, needsDiscovery map[string]identity.BlockDiscovery, policyUntag map[string]string) (*stamp.Result, tfdiags.Diagnostics) {
 	estate, declared, diags := statelessEstateFor(ctx, estateFlag, config)
 	if diags.HasErrors() {
 		return nil, diags
@@ -1105,7 +1105,7 @@ func statelessStamp(ctx context.Context, config *configs.Config, estateFlag stri
 // skipped all the way into the cloud (audit finding C2). One reader of the
 // report, checking the one property that matters, is what makes that
 // impossible to reintroduce quietly.
-func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdiags.Diagnostics {
+func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.BlockDiscovery) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if res == nil || len(needsDiscovery) == 0 {
 		return diags
@@ -1130,15 +1130,16 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdia
 		// statelessProviders.resourceSchemas drops rather than resolves), a
 		// partial acquisition - and each one fails the run later with a
 		// message that names the real problem.
-		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !needsDiscovery[skip.Addr.String()] {
+		disco, marked := needsDiscovery[skip.Addr.String()]
+		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Unstamped marker-only resource",
 			fmt.Sprintf(
-				"%s has an identity the provider assigns at create time, so its ownership marker is the only handle any later run will have on it, and marker stamping reported %s: %s Applying it in this state would create a resource this configuration can never find again.",
-				skip.Addr, skip.Reason, skip.Detail),
+				"Marker stamping reported %s for %s: %s %s",
+				skip.Reason, skip.Addr, skip.Detail, stamp.UnmarkedDiscoveryDetail(skip.Addr, disco)),
 		))
 	}
 	return diags
@@ -1149,31 +1150,14 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]bool) tfdia
 // address, taken from identity resolution rather than from what discovery
 // managed to bind: an instance discovery found is still one that nothing but
 // its marker could have found.
-func statelessNeedsDiscovery(resolutions *identity.Result) map[string]bool {
-	if resolutions == nil {
-		return nil
-	}
-	needs := resolutions.NeedsDiscovery()
-	out := make(map[string]bool, len(needs))
-	for _, r := range needs {
-		// .Config(), not .ContainingResource(): both consumers key on an
-		// addrs.ConfigResource, which carries no instance keys.
-		// [stamp.Request.NeedsDiscovery] documents the contract as
-		// "module-qualified block address", stamp.mustStamp builds its
-		// lookup from addrs.ConfigResource, and stamp.Skip.Addr is one.
-		//
-		// Identity resolution walks KEYED module instances, so
-		// AbsResource.String() rendered module.wrapped["a"].aws_eip.app
-		// while both readers looked up module.wrapped.aws_eip.app. Inside a
-		// for_each'd module the two could never match, which silently
-		// downgraded the must-stamp error to a warning and let a
-		// server-assigned resource be created with no ownership marker on
-		// it - unfindable by any later run, with every subsequent plan
-		// proposing another one. live/LIMITATIONS.md documented the
-		// guarantee as holding. See #111.
-		out[r.Addr.ContainingResource().Config().String()] = true
-	}
-	return out
+func statelessNeedsDiscovery(resolutions *identity.Result) map[string]identity.BlockDiscovery {
+	// The keying this needs - .Config(), not the keyed
+	// [addrs.AbsResourceInstance] resolution walks - and the reason it is
+	// load-bearing are both in
+	// [identity.Result.DiscoveryCausesByBlock]'s own doc comment, along with
+	// #111, the bug that came of this package and internal/live/check each
+	// keeping their own copy of it.
+	return resolutions.DiscoveryCausesByBlock()
 }
 
 // statelessUndiscoveredNote names what a run without discovery leaves

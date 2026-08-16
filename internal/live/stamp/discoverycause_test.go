@@ -1,0 +1,173 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package stamp
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+)
+
+// The refusal a marker-only resource gets when nothing could be stamped on it
+// used to be one sentence for every reason it could not be found: "has an
+// identity the provider assigns at create time". Across the 250-fixture
+// corpus that sentence was true of just over half the sites it appeared on.
+// The rest were an omitted name argument, a name_prefix, or a cloud property
+// this run was never told - three situations with a next step, told they had
+// none.
+//
+// Every assertion below is on the RENDERED diagnostic, never on a predicate:
+// a boolean saying "this is a cloud cause" can be right while the sentence an
+// operator reads is the other one, and that shape of defect has shipped green
+// in this repository three times.
+
+// untaggableSource is one resource of a type testSchemas() gives no tags map,
+// which is the skip that carries 103 of the corpus's 104 sites into this
+// refusal.
+const untaggableSource = `
+resource "aws_route_table_association" "app" {
+  subnet_id      = "subnet-1"
+  route_table_id = "rtb-1"
+}
+`
+
+func stampWithCause(t *testing.T, disco identity.BlockDiscovery) (string, tfdiags.Severity) {
+	t.Helper()
+
+	cfg := loadSource(t, untaggableSource)
+	_, diags := Stamp(t.Context(), Request{
+		Estate:  "stamp-unit",
+		Config:  cfg,
+		Schemas: testSchemas(),
+		NeedsDiscovery: map[string]identity.BlockDiscovery{
+			"aws_route_table_association.app": disco,
+		},
+	})
+	if len(diags) != 1 {
+		t.Fatalf("expected exactly one diagnostic, got %d: %s", len(diags), diags.ErrWithWarnings())
+	}
+	return diags[0].Description().Detail, diags[0].Severity()
+}
+
+// TestUnmarkedDiscoveryDetail_everyCauseIsToldApart is the whole point of
+// [identity.DiscoveryCause] reaching this package: four causes, four
+// sentences, and the three that have a next step say what it is.
+//
+// It iterates [identity.AllDiscoveryCauses] rather than a list written here,
+// so a cause added to identity with no sentence of its own fails this test
+// instead of silently inheriting the server-assigned wording.
+func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
+	args := map[identity.DiscoveryCause][]string{
+		identity.DiscoveryCloudUnknown: {string(identity.CloudAccountID)},
+		identity.DiscoveryNameOmitted:  {"name"},
+		identity.DiscoveryNamePrefix:   {"name", "name_prefix"},
+	}
+	// What the operator must be able to read out of each sentence. The
+	// server-assigned pair share one, deliberately: there is no
+	// configuration edit that resolves a server-minted identity, so its
+	// sentence offers no step and the unspecified fallback is the same
+	// sentence for the same reason.
+	want := map[identity.DiscoveryCause][]string{
+		identity.DiscoveryCauseUnspecified: {"identity the provider assigns at create time"},
+		identity.DiscoveryServerAssigned:   {"identity the provider assigns at create time"},
+		identity.DiscoveryCloudUnknown:     {"AWS account ID", "property of the cloud this run is pointed at"},
+		identity.DiscoveryNameOmitted:      {"sets no name", "Setting name to a value this configuration chooses"},
+		identity.DiscoveryNamePrefix:       {"named through name_prefix", "Naming it with name instead of name_prefix"},
+	}
+
+	details := make(map[identity.DiscoveryCause]string)
+	for _, cause := range identity.AllDiscoveryCauses() {
+		detail, severity := stampWithCause(t, identity.BlockDiscovery{Cause: cause, Args: args[cause]})
+		details[cause] = detail
+
+		// The severity is not the cause's to change. Every one of these is a
+		// resource with nowhere to write a marker and no identity this run
+		// can compute, and it is unfindable afterwards however it got that
+		// way. A cause that softened this would be handing back a false
+		// "you are fine".
+		if severity != tfdiags.Error {
+			t.Errorf("cause %s produced severity %v, want Error", cause, severity)
+		}
+
+		phrases, known := want[cause]
+		if !known {
+			t.Errorf("cause %s has no expected wording here; add its sentence to UnmarkedDiscoveryDetail and to this table", cause)
+			continue
+		}
+		for _, phrase := range phrases {
+			if !strings.Contains(detail, phrase) {
+				t.Errorf("cause %s rendered:\n  %s\nwhich does not contain %q", cause, detail, phrase)
+			}
+		}
+	}
+
+	// And the three distinct sentences really are distinct: a switch that
+	// fell through would satisfy every "contains" above for the
+	// server-assigned pair and none of the others, but a table that drifted
+	// into two causes sharing a phrase would not be caught by that alone.
+	distinct := map[string][]identity.DiscoveryCause{}
+	for cause, detail := range details {
+		distinct[detail] = append(distinct[detail], cause)
+	}
+	if len(distinct) != 4 {
+		t.Errorf("expected 4 distinct sentences across %d causes, got %d: %v", len(details), len(distinct), distinct)
+	}
+}
+
+// TestUnmarkedDiscoveryDetail_zeroCauseStillRefuses is the trap this map's
+// shape creates and the reason [stamper.discovery] uses the comma-ok form.
+//
+// [identity.BlockDiscovery]'s zero value carries the empty cause, which is
+// also what a Go map returns for a key that is not in it. A reader that
+// decided "marker-only" by comparing the looked-up value against the zero
+// value would downgrade every entry a caller built without a cause from the
+// hard error this mechanism exists to raise into a warning - audit finding
+// C2, reintroduced by a refactor rather than by a decision.
+func TestUnmarkedDiscoveryDetail_zeroCauseStillRefuses(t *testing.T) {
+	detail, severity := stampWithCause(t, identity.BlockDiscovery{})
+	if severity != tfdiags.Error {
+		t.Fatalf("an entry left at the zero BlockDiscovery produced severity %v, want Error", severity)
+	}
+	if !strings.Contains(detail, "identity the provider assigns at create time") {
+		t.Errorf("the zero cause did not fall back to the generic sentence; got:\n  %s", detail)
+	}
+}
+
+// TestUnmarkedDiscoveryDetail_missingArgsFallBack: the subjects travel in a
+// []string, so a caller can hand over a cause with nothing in it. Each of the
+// three sentences that reads an argument out of that slice must degrade to
+// something true rather than render an empty name or index out of range.
+func TestUnmarkedDiscoveryDetail_missingArgsFallBack(t *testing.T) {
+	for _, cause := range []identity.DiscoveryCause{
+		identity.DiscoveryCloudUnknown,
+		identity.DiscoveryNameOmitted,
+		identity.DiscoveryNamePrefix,
+	} {
+		detail, severity := stampWithCause(t, identity.BlockDiscovery{Cause: cause})
+		if severity != tfdiags.Error {
+			t.Errorf("cause %s with no args produced severity %v, want Error", cause, severity)
+		}
+		if strings.Contains(detail, `""`) || strings.Contains(detail, "  ") {
+			t.Errorf("cause %s with no args rendered a hole:\n  %s", cause, detail)
+		}
+		if !strings.Contains(detail, "aws_route_table_association.app") {
+			t.Errorf("cause %s with no args did not name the resource:\n  %s", cause, detail)
+		}
+	}
+
+	// A cloud cause whose one argument is present but is not a CloudValue
+	// this package knows: CloudValue.Describe returns the raw string for an
+	// unrecognised value, so the sentence still names something.
+	detail, _ := stampWithCause(t, identity.BlockDiscovery{
+		Cause: identity.DiscoveryCloudUnknown,
+		Args:  []string{"partition"},
+	})
+	if !strings.Contains(detail, "partition") {
+		t.Errorf("an unrecognised cloud property was dropped from the sentence:\n  %s", detail)
+	}
+}

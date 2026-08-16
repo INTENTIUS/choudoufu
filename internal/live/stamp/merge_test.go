@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // Audit finding C2's regression, in one sentence: a resource whose identity
@@ -31,10 +33,10 @@ import (
 
 // needsDiscovery is the request field the caller fills from identity
 // resolution: these blocks' instances have server-assigned identities.
-func needsDiscovery(addrs ...string) map[string]bool {
-	out := make(map[string]bool, len(addrs))
+func needsDiscovery(addrs ...string) map[string]identity.BlockDiscovery {
+	out := make(map[string]identity.BlockDiscovery, len(addrs))
 	for _, a := range addrs {
-		out[a] = true
+		out[a] = identity.BlockDiscovery{Cause: identity.DiscoveryServerAssigned}
 	}
 	return out
 }

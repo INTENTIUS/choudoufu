@@ -170,13 +170,11 @@ func declaredEstateNamesFrom(ctx context.Context, cfg *configs.Config, seen map[
 	}
 }
 
-// stampNeedsDiscovery is [internal/command.statelessNeedsDiscovery]
-// reimplemented for the same reason [declaredEstateNames] is: it builds
-// [stamp.Request.NeedsDiscovery] from identity resolution's own
-// classification, keyed the way stamp.mustStamp and stamp.Skip.Addr both key
-// their lookups - by [addrs.ConfigResource.String], not by the keyed
-// [addrs.AbsResourceInstance] resolution walks, so a resource inside a
-// for_each'd module still matches (see GitHub issue #111).
+// stampNeedsDiscovery builds [stamp.Request.NeedsDiscovery] from identity
+// resolution's own classification. The keying and the block-level fold both
+// live in [identity.Result.DiscoveryCausesByBlock] now - this instrument and
+// internal/command kept two copies of them, which is exactly the shape GitHub
+// issue #111 was, so there is one.
 //
 // It says nothing about provider schemas, deliberately. GitHub issue #230's
 // invariant - a type whose own schema this run could not read is UNKNOWN,
@@ -189,14 +187,6 @@ func declaredEstateNamesFrom(ctx context.Context, cfg *configs.Config, seen map[
 // non-nil schema Block), so an entry carrying a schema with no block would
 // have slipped past the gate straight into the refusal it was meant to
 // prevent.
-func stampNeedsDiscovery(result *identity.Result) map[string]bool {
-	if result == nil {
-		return nil
-	}
-	needs := result.NeedsDiscovery()
-	out := make(map[string]bool, len(needs))
-	for _, r := range needs {
-		out[r.Addr.ContainingResource().Config().String()] = true
-	}
-	return out
+func stampNeedsDiscovery(result *identity.Result) map[string]identity.BlockDiscovery {
+	return result.DiscoveryCausesByBlock()
 }
