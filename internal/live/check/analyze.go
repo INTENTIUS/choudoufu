@@ -327,7 +327,25 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			}
 			allEligible := true
 			for _, i := range idxs {
-				if !eligibleAddrs[cascades[i].parent] {
+				// Both sides, not just the child. An instance enters
+				// eligibleAddrs by either of two routes, and only one of
+				// them proves the instance as a whole resolves: the cascade
+				// route just below is gated on hardFailureAddrs, but the
+				// direct route (classifyDataSite, above) records the
+				// instance the moment ONE of its components is an eligible
+				// read and knows nothing about its other components. So a
+				// parent can be simultaneously eligible and independently
+				// hard-failing, and reading only eligibleAddrs would tell
+				// this dependent "no configuration edit is needed" on the
+				// strength of an instance whose identity can never be
+				// built - the same false assurance #221 reported, entered
+				// through the other door. Gating at consumption rather than
+				// at insertion is deliberate: the eligible read and the
+				// hard failure are separate diagnostics in one unordered
+				// slice, so either may be seen first and neither insertion
+				// site can see the other. Pinned by
+				// testdata/cascade-direct-read-mixed-parent.
+				if p := cascades[i].parent; !eligibleAddrs[p] || hardFailureAddrs[p] {
 					allEligible = false
 					break
 				}
