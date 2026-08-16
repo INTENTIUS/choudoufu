@@ -667,7 +667,7 @@ rather than asserted.
 | CUR | `cur` | 1 of 12 |
 | SSMQuickSetup | `ssm-quicksetup` | 1 of 14 |
 
-17 of the 154 IAM prefixes this estate's admitted types reach name the key on at least one action. The remaining 137 are **unmeasured, not disproven**: the reference does not set out to enumerate every global condition key per action, and `lambda:GetFunction` lists none at all while Lambda does support tag-based authorization. Read this as the set a marker-scoped grant is known to bite on, never as its complement.
+17 of the 157 IAM prefixes this estate's admitted types reach name the key on at least one action. The remaining 140 are **unmeasured, not disproven**: the reference does not set out to enumerate every global condition key per action, and `lambda:GetFunction` lists none at all while Lambda does support tag-based authorization. Read this as the set a marker-scoped grant is known to bite on, never as its complement.
 <!-- iamref-gen:end resource-tag-services -->
 
 The asymmetry in that last sentence is the whole of how to use this section,
@@ -790,7 +790,7 @@ already was, and whether AWS evaluates `aws:TagKeys` on it is resolvable
 from the Service Authorization Reference.
 
 <!-- iamref-gen:begin scp-untag-actions -->
-127 tag-removal actions across this estate's services name `aws:TagKeys` in the Service Authorization Reference, so a `Deny` conditioned on it is evaluated for them. Each service's removal verb is resolved from botocore's own service models (`live/tag-verbs.json`), not written by hand.
+130 tag-removal actions across this estate's services name `aws:TagKeys` in the Service Authorization Reference, so a `Deny` conditioned on it is evaluated for them. Each service's removal verb is resolved from botocore's own service models (`live/tag-verbs.json`), not written by hand.
 
 <details>
 <summary>The full action list, for pasting into the policy above</summary>
@@ -804,7 +804,9 @@ from the Service Authorization Reference.
   "app-integrations:UntagResource",
   "appconfig:UntagResource",
   "appflow:UntagResource",
+  "application-autoscaling:UntagResource",
   "apprunner:UntagResource",
+  "appstream:UntagResource",
   "appsync:UntagResource",
   "arc-region-switch:UntagResource",
   "athena:UntagResource",
@@ -814,6 +816,7 @@ from the Service Authorization Reference.
   "bcm-data-exports:UntagResource",
   "bedrock:UntagResource",
   "billing:UntagResource",
+  "budgets:UntagResource",
   "ce:UntagResource",
   "chatbot:UntagResource",
   "cleanrooms:UntagResource",
