@@ -383,7 +383,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 110,
+      "sites": 104,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
@@ -425,7 +425,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 11,
-      "sites": 135,
+      "sites": 133,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
@@ -468,7 +468,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 22,
-      "sites": 48,
+      "sites": 44,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -489,7 +489,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 107,
+      "sites": 105,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -2387,7 +2387,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 32,
-      "sites": 14,
+      "sites": 8,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -2397,7 +2397,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/datagovuk-infrastructure.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -2407,11 +2407,6 @@
               "data_source": 2,
               "tfe_outputs": 2
             }
-          },
-          {
-            "layer": "lint",
-            "id": "moved-block",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -2787,7 +2782,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 204,
-      "sites": 244,
+      "sites": 229,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2873,11 +2868,6 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 5
-          },
-          {
-            "layer": "lint",
-            "id": "moved-block",
-            "sites": 15
           },
           {
             "layer": "lint",
@@ -3577,7 +3567,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 28,
+      "sites": 11,
       "unresolved_modules": 118,
       "unset_variables": 0,
       "schemas": true,
@@ -3586,13 +3576,8 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "moved-block",
-            "sites": 17
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -3679,7 +3664,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 17,
+      "sites": 11,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3785,7 +3770,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 16,
+      "sites": 12,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3946,23 +3931,22 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 18,
-      "sites": 11,
+      "instances": 19,
+      "sites": 10,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 11,
+      "shadowed": 10,
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 11
+            "sites": 10
           }
         ],
         "unadmitted_types": [
-          "aws_eks_pod_identity_association",
           "aws_vpc_ipam_preview_next_cidr",
           "kubernetes_api_service",
           "kubernetes_cluster_role",
@@ -4156,24 +4140,14 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 1,
-      "sites": 13,
+      "instances": 13,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 11
-          },
           {
             "layer": "lint",
             "id": "logical-resource",
@@ -4257,8 +4231,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 45,
+      "instances": 6,
+      "sites": 42,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4291,8 +4265,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 23,
+      "instances": 6,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4325,8 +4299,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 62,
-      "sites": 275,
+      "instances": 63,
+      "sites": 274,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4359,8 +4333,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 22,
+      "instances": 4,
+      "sites": 21,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4393,8 +4367,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 28,
-      "sites": 288,
+      "instances": 38,
+      "sites": 278,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4427,8 +4401,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 48,
+      "instances": 6,
+      "sites": 45,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4465,8 +4439,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 9,
-      "sites": 29,
+      "instances": 10,
+      "sites": 28,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4499,8 +4473,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 53,
+      "instances": 10,
+      "sites": 50,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4533,8 +4507,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 73,
+      "instances": 9,
+      "sites": 72,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4567,8 +4541,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 9,
-      "sites": 57,
+      "instances": 13,
+      "sites": 53,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4605,8 +4579,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 19,
+      "instances": 4,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4639,8 +4613,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 19,
+      "instances": 4,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4673,8 +4647,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
-      "sites": 24,
+      "instances": 5,
+      "sites": 23,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4706,8 +4680,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 6,
-      "sites": 24,
+      "instances": 7,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4740,8 +4714,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 23,
+      "instances": 4,
+      "sites": 22,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4774,8 +4748,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 23,
+      "instances": 4,
+      "sites": 22,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -5427,22 +5401,15 @@
     {
       "name": ".corpus/mastino/prod-eu-west/services/message-queue",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
       "instances": 29,
-      "sites": 15,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "moved-block",
-            "sites": 15
-          }
-        ]
+        "onboarding_class": "clean"
       },
       "provider_schemas": [
         {
@@ -6213,8 +6180,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 62,
+      "instances": 22,
+      "sites": 43,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6256,8 +6223,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 21,
+      "instances": 8,
+      "sites": 18,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
@@ -6281,8 +6248,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 26,
+      "instances": 11,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6302,8 +6269,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 1,
-      "sites": 42,
+      "instances": 13,
+      "sites": 30,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6323,8 +6290,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 1,
-      "sites": 32,
+      "instances": 10,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -6344,8 +6311,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
-      "sites": 24,
+      "instances": 11,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8280,7 +8247,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
       "configs": 111,
-      "sites": 1329,
+      "sites": 1314,
       "types": [
         {
           "type": "google_bigquery_table",
@@ -8389,10 +8356,6 @@
         {
           "type": "restapi_object",
           "sites": 15
-        },
-        {
-          "type": "aws_ecs_task_set",
-          "sites": 14
         },
         {
           "type": "google_project_iam_member",
@@ -8791,10 +8754,6 @@
           "sites": 1
         },
         {
-          "type": "aws_eks_pod_identity_association",
-          "sites": 1
-        },
-        {
           "type": "aws_iam_account_alias",
           "sites": 1
         },
@@ -9115,8 +9074,8 @@
       "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
-      "configs": 106,
-      "sites": 2406,
+      "configs": 107,
+      "sites": 2410,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -9266,32 +9225,14 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 45,
-      "sites": 193,
+      "configs": 37,
+      "sites": 135,
       "examples": [
         ".corpus/cool-assessment/operations_routing.tf:21",
         ".corpus/cool-assessment/operations_routing.tf:29",
         ".corpus/cool-assessment/operations_routing.tf:39",
         ".corpus/cyhy-amis/terraform/bod_vpc.tf:121",
         ".corpus/cyhy-amis/terraform/bod_vpc.tf:137"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 36,
-      "sites": 88,
-      "examples": [
-        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/transitgateway.tf:69",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
       ],
       "registered": true
     },
@@ -9368,6 +9309,24 @@
     },
     {
       "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 13,
+      "sites": 32,
+      "examples": [
+        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/transitgateway.tf:69",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Non-static count expression",
       "title": "Non-static count expression",
       "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
@@ -9399,23 +9358,6 @@
         ".corpus/cyhy-amis/terraform/bod_docker_route53.tf:14",
         ".corpus/cyhy-amis/terraform/bod_route53.tf:74",
         ".corpus/cyhy-amis/terraform/bod_route53.tf:74"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "moved-block",
-      "title": "moved blocks are not available under live resource markers",
-      "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
-      "raised_by": "internal/live/lint",
-      "configs": 6,
-      "sites": 63,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:54",
-        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:59",
-        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:64",
-        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:69",
-        ".corpus/govuk-infrastructure/terraform/deployments/datagovuk-infrastructure/organogram_bucket.tf:74"
       ],
       "registered": true
     },
@@ -9473,6 +9415,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 2,
+      "sites": 35,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
+        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "provisioner",
       "title": "Provisioners are not available under live resource markers",
@@ -9483,24 +9443,6 @@
       "examples": [
         ".corpus/autoscaling/examples/complete/main.tf:882",
         ".corpus/rds/examples/s3-import-mysql/main.tf:191"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 1,
-      "sites": 34,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41"
       ],
       "registered": true
     },
@@ -10512,6 +10454,16 @@
     },
     {
       "layer": "lint",
+      "id": "moved-block",
+      "title": "moved blocks are not available under live resource markers",
+      "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "overlong-address",
       "title": "Resource address does not fit in a marker",
       "docs_ref": "live/LIMITATIONS.md, \"overlong-address\"",
@@ -10659,7 +10611,7 @@
       "layer": "stamp",
       "id": "Ownership markers not stamped",
       "title": "Ownership markers not stamped",
-      "what": "A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below.",
+      "what": "A resource's tags could not be given this estate's ownership markers - most often an untaggable type, or a tags argument this pass cannot append to. Reported as a warning, because the resource is still identifiable from its configuration. Also the form a marker-only resource takes when this run could not read its type's schema at all: whether it can carry a marker is then unknown rather than known to be impossible, and an unknown is never reported as the error below. A third case is a type that HAS a settable tags map whose documented vocabulary an ownership marker cannot be spelled in - a key space the provider defines rather than the configuration, or a character set and length the escaped address does not fit. GCP's resource-manager tag bindings are the found example: keys must name TagKey objects that already exist, and on several types the field forces replacement when mutated. A type with no tag surface at all stays silent, because being identified by an argument instead of a marker is ordinary and hundreds of types are; a tag surface that exists and cannot be used is not, so it is said out loud.",
       "docs_ref": "live/LIMITATIONS.md, \"Ownership markers not stamped\"",
       "raised_by": "internal/live/stamp",
       "configs": 0,
@@ -10670,9 +10622,9 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3708,
-    "sites": 9128,
-    "refusals_fired": 25,
+    "instances": 3813,
+    "sites": 8941,
+    "refusals_fired": 24,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
@@ -10692,10 +10644,10 @@
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 119,
-      "clean": 25,
-      "instances": 2372,
-      "sites": 2402,
+      "blocked": 118,
+      "clean": 26,
+      "instances": 2385,
+      "sites": 2336,
       "reads_as": "rate"
     },
     {
@@ -10704,8 +10656,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 603,
-      "sites": 6685,
+      "instances": 695,
+      "sites": 6564,
       "reads_as": "ranking"
     }
   ],
@@ -10716,7 +10668,7 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 25
+        "configs": 26
       },
       {
         "class": "backend-only",
@@ -10724,15 +10676,15 @@
       },
       {
         "class": "admissions-only",
-        "configs": 21
+        "configs": 23
       },
       {
         "class": "data-read-eligible",
-        "configs": 34
+        "configs": 35
       },
       {
         "class": "language-blocked",
-        "configs": 64
+        "configs": 60
       },
       {
         "class": "unreadable",
@@ -10938,10 +10890,6 @@
       },
       {
         "type": "aws_ce_cost_allocation_tag",
-        "configs": 1
-      },
-      {
-        "type": "aws_eks_pod_identity_association",
         "configs": 1
       },
       {

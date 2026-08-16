@@ -1291,26 +1291,25 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 111 | 1329 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 106 | 2406 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 111 | 1314 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 107 | 2410 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 70 | 3279 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 51 | 355 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 51 | 104 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
-| 45 | 193 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 36 | 88 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 37 | 135 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 23 | 210 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 317 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 13 | 32 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 9 | 37 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
-| 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 4 | 13 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
+| 2 | 35 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 3 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
@@ -1425,6 +1424,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
+| 0 | 0 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |
@@ -1497,7 +1497,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 106 configurations in the measured corpus, at 2406 sites.
+**How often.** Blocked 107 configurations in the measured corpus, at 2410 sites.
 
 #### Unable to compute static value
 
@@ -1529,15 +1529,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 45 configurations in the measured corpus, at 193 sites.
-
-#### Not an identity attribute
-
-**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 36 configurations in the measured corpus, at 88 sites.
+**How often.** Blocked 37 configurations in the measured corpus, at 135 sites.
 
 #### Module output not supported in static context
 
@@ -1562,6 +1554,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 18 configurations in the measured corpus, at 59 sites.
+
+#### Not an identity attribute
+
+**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 13 configurations in the measured corpus, at 32 sites.
 
 #### Non-static count expression
 
