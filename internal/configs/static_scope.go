@@ -455,7 +455,7 @@ func (s staticScopeData) GetPathAttr(_ context.Context, addr addrs.PathAttr, rng
 		return cty.StringVal(s.eval.modulePath()), diags
 
 	case "root":
-		return cty.StringVal(s.eval.call.rootPath), diags
+		return cty.StringVal(s.eval.rootDir()), diags
 
 	default:
 		suggestion := didyoumean.NameSuggestion(addr.Name, []string{"cwd", "module", "root"})

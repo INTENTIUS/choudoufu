@@ -342,11 +342,14 @@ func (s *StaticEvaluator) baseDir() string {
 // path.root deliberately does NOT get this same relative treatment (see
 // GetPathAttr's "root" case): configurations across this fork's own corpus
 // use basename(abspath(path.root)) to recover the deployment directory's
-// own name for a tag value, which needs the real directory, not ".". No
-// corpus configuration combines path.root with a file()-family call, so
-// that combination stays exposed to the same doubling this fixes for
-// path.module - a documented, currently theoretical gap, not a silent one:
-// see internal/configs/static_evaluator_test.go.
+// own name for a tag value, which needs the real directory, not ".". It
+// gets [StaticEvaluator.rootDir]'s different fix instead - made absolute
+// rather than relative - which closes the doubling issue #226 found in
+// this same "no corpus configuration combines path.root with a
+// file()-family call" gap this comment used to describe as theoretical;
+// see rootDir's own doc for why an absolute value is what stops the
+// doubling for path.root specifically, where modulePath's relative
+// approach does not apply.
 //
 // Falls back to cfg.SourceDir unchanged - this method's behaviour before
 // this fix - when there is no rootPath to make the value relative to, or
@@ -366,6 +369,56 @@ func (s *StaticEvaluator) modulePath() string {
 		return s.cfg.SourceDir
 	}
 	return rel
+}
+
+// rootDir is path.root's value: the root module's own directory, made
+// absolute.
+//
+// path.root deliberately stays anchored to the real root directory rather
+// than being made relative to it the way [StaticEvaluator.modulePath] makes
+// path.module relative - see modulePath's own doc for why: this fork's
+// corpus uses basename(abspath(path.root)), 25+ sites across
+// govuk-infrastructure and govuk-aws, to recover the deployment directory's
+// own name, and that needs the real directory, not ".".
+//
+// But call.rootPath's raw string - what this method returned before this
+// fix (issue #226) - is the exact same string [StaticEvaluator.baseDir]
+// resolves every bare file()-family argument against. "${path.root}/x"
+// then doubles exactly the way modulePath's doc describes for
+// "${path.module}/x" before ITS fix: the argument becomes "rootPath/x",
+// and openFile (internal/lang/funcs/filesystem.go) joins that onto
+// baseDir=rootPath, producing "rootPath/rootPath/x". modulePath's fix does
+// not transfer here - there is no relative form of path.root that stays
+// "." at the root and still survives basename(abspath(...)) the way
+// path.module's does, because abspath(".") answers with the process's
+// actual working directory, not the root module's, whenever this fork's
+// invocation cwd is not the root (exactly the mismatch #205 exists to
+// route around in the first place).
+//
+// Making the value absolute breaks the doubling a different way, without
+// giving up path.root's own meaning: once path.root is absolute,
+// "${path.root}/x" is itself an absolute path, and openFile only joins
+// baseDir onto an argument that is NOT already absolute -
+// filepath.IsAbs(path) is true, so the join is skipped entirely and the
+// argument opens as-is, single, never doubled. basename(abspath(x)) is
+// idempotent on an already-absolute, already-clean x, so every corpus
+// site's answer is unchanged; see TestStaticEvaluator_rootDir for the
+// direct check and TestStaticEvaluator_PathRootPrefixedFileDoesNotDouble
+// for the end-to-end proof mirroring modulePath's own doubling test.
+//
+// The anchor is baseDir() itself, not call.rootPath directly, so the same
+// rootPath-then-cfg.SourceDir-then-"." fallback chain baseDir's own doc
+// explains applies here too, rather than a second copy of it. Abs can only
+// fail if os.Getwd fails, a system-level condition no real construction
+// site hits; falling back to the un-absolute baseDir() in that case keeps
+// this method total rather than swallowing the error into ".".
+func (s *StaticEvaluator) rootDir() string {
+	dir := s.baseDir()
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return dir
+	}
+	return filepath.ToSlash(abs)
 }
 
 func (s *StaticEvaluator) scope(ident StaticIdentifier) *lang.Scope {
