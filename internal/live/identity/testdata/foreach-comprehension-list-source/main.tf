@@ -1,22 +1,24 @@
-# Audit of #189's forExprKeys: the for-comprehension key-set chase read its
-# SOURCE collection's key set through staticForEachKeys, which - once the
-# same commit taught staticForEachKeys to union a tuple's elements' keys -
-# answered a LIST with the union of its elements' own object keys.
-#
-# A list's keys are its integer indices. `for i, h in local.hosts` binds i
-# to 0, 1, 2, so this block really expands to
+# #239: a for-comprehension ranging over a LIST. A list's keys are its
+# integer indices, so `for i, h in local.hosts` binds i to 0, 1, 2 and this
+# block expands to
 #   aws_iam_user.this["item-0"], ["item-1"], ["item-2"]
-# and OpenTofu creates three users named item-0/item-1/item-2.
+# with OpenTofu creating three users named item-0/item-1/item-2.
 #
-# Before the fix, the chase returned the union {"host", "port"} - the keys
-# of the ELEMENTS - and this resolved to TWO instances,
-# aws_iam_user.this["item-host"] and ["item-port"], with import IDs
-# "item-host" and "item-port", and no diagnostic at all: check.Dir reported
-# the directory as clean, three instances, not blocked. Wrong addresses,
-# wrong identities, wrong count, silently.
+# This fixture began as the audit's wrong-key-set finding. #189 taught
+# staticForEachKeys to union a tuple's elements' own object keys, and
+# forExprKeys read its source collection through that, so the chase
+# answered the union {"host", "port"} - the keys of the ELEMENTS - and this
+# resolved to TWO instances, aws_iam_user.this["item-host"] and
+# ["item-port"], with import IDs "item-host" and "item-port", and no
+# diagnostic at all: check.Dir reported the directory as clean, three
+# instances, not blocked. Wrong addresses, wrong identities, wrong count,
+# silently.
 #
-# forExprKeys now declines a list source, which puts the ordinary
-# "Unable to compute static value" for_each refusal back in its place.
+# The audit fix bought correctness by refusing the shape outright. #239
+# recovers it: the chase now carries the key's cty TYPE, so a list source
+# binds the loop's key variable to a number exactly as
+# hclsyntax.ForExpr.Value does, and the key set is the three indices rather
+# than an invention.
 
 resource "aws_iam_role" "team" {
   name = "team"

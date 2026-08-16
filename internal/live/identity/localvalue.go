@@ -207,13 +207,13 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 //     which is the sole position where a list's elements ARE the separate
 //     objects being unioned. See tupleIsArgs.
 //   - A for-comprehension producing an object ([resolver.forExprKeys]):
-//     chases the SOURCE collection's own key set, then evaluates the
-//     comprehension's KEY clause once per source key with ONLY the loop's
-//     key variable bound - never its value variable, never the source
-//     collection's actual values - so a key clause that turns out to need
-//     the value side fails to evaluate (an unbound reference) and refuses
-//     cleanly, rather than answer with something nothing here actually
-//     knows.
+//     chases the SOURCE collection's own key set - a map's keys, a list's
+//     integer indices - then evaluates the comprehension's KEY clause once
+//     per source element with the loop's key variable bound, and its value
+//     variable bound only where the source collection evaluated whole. A
+//     key clause that needs a value side nothing here read fails to
+//     evaluate (an unbound reference) and refuses cleanly, rather than
+//     answer with something nothing here actually knows.
 //
 // tupleIsArgs is the audit fix for a wrong-key-set defect the TupleConsExpr
 // case shipped with: outside merge(list...)'s splat, a tuple is a LIST, and
@@ -226,20 +226,76 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 // `for_each = <tuple>` (which OpenTofu rejects outright - for_each takes a
 // map or a set of strings) and, far more damagingly, a for-comprehension
 // ranging over a list, where `{ for i, h in local.hosts : "item-${i}" => h }`
-// really produces "item-0"/"item-1"/"item-2". So the tuple reading is now
-// admitted only in the one position that licenses it, and everywhere else
-// this declines and leaves the ordinary for_each diagnostic standing.
+// really produces "item-0"/"item-1"/"item-2".
+//
+// #239 recovers the second of those, which is an ordinary idiom rather than
+// an invalid configuration, by making the chase SHAPE-AWARE instead of
+// declining: [resolver.staticCollKeys] answers with the key values cty
+// itself binds a loop variable to - a string for a map, an object or a set
+// of strings, a NUMBER for a list or a tuple - and this function, which
+// serves the for_each position, narrows that to the strings a for_each may
+// use as instance keys. A tuple therefore still refuses HERE (its keys are
+// numbers, which for_each does not accept), while [resolver.forExprKeys]
+// can range over it and get 0, 1, 2.
 //
 // It deliberately does not chase a selector before reaching the object
 // (for_each = local.foo.bar is not supported): the corpus shape this fix
 // exists for is always a bare local or module variable ranged over
 // directly.
 func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, bool) {
+	keys, ok := r.staticCollKeys(expr, ident, depth, tupleIsArgs)
+	if !ok {
+		return nil, false
+	}
+	return stringKeys(keys)
+}
+
+// stringKeys narrows a collection's key set to the strings a for_each
+// expansion - or a merge() argument, whose keys are an object's - can use.
+// A non-string key is exactly a list or tuple's integer index, and refusing
+// it is what keeps `for_each = <tuple>` refused: OpenTofu rejects that
+// outright ("the for_each argument must be a map, or set of strings"), so
+// answering it with "0", "1" would invent instance keys nothing produces.
+func stringKeys(keys []cty.Value) ([]string, bool) {
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		// IsMarked before AsString, which panics rather than errors on a
+		// marked value. Every producer feeding this either constructs the
+		// key with cty or takes the KEY half of an element iterator, so
+		// none can be marked today - but that is a property of five call
+		// sites rather than of this loop, and the loop is where the read
+		// happens.
+		if k.Type() != cty.String || k.IsNull() || !k.IsKnown() || k.IsMarked() {
+			return nil, false
+		}
+		out = append(out, k.AsString())
+	}
+	return out, true
+}
+
+// staticCollKeys is the shape-aware half of the key-set chase: it answers
+// with the key set of whatever collection expr denotes, each key carried as
+// the cty value HCL binds a for-expression's key variable to.
+//
+// The typing is not decoration. cty's own element iterators synthesize a
+// StringVal for a map key or an object attribute name and a NumberIntVal
+// for a list or tuple index (cty/element_iterator.go), and
+// hclsyntax.ForExpr.Value binds e.KeyVar to that value verbatim - so
+// `"item-${i}"` over a three-element list renders item-0, item-1, item-2,
+// and over a map of the same size renders the map's own keys. Returning
+// []string here is what made those two indistinguishable and produced the
+// #239 defect; the caller that needs strings asks for them explicitly
+// through [stringKeys].
+//
+// Every shape chased is one whose key set is decided without evaluating a
+// single VALUE expression, which is the whole point: a managed resource's
+// attribute buried in a value must not refuse the block.
+func (r *resolver) staticCollKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]cty.Value, bool) {
 	if depth > maxStaticDecomposeDepth {
 		return nil, false
 	}
 	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
-		return r.staticForEachKeys(paren.Expression, ident, depth+1, tupleIsArgs)
+		return r.staticCollKeys(paren.Expression, ident, depth+1, tupleIsArgs)
 	}
 
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
@@ -251,29 +307,48 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 					// tupleIsArgs propagates through the alias: the corpus
 					// shape is merge(local.teams...), where the splatted
 					// argument is a local naming the list.
-					return r.staticForEachKeys(defExpr, ident, depth+1, tupleIsArgs)
+					return r.staticCollKeys(defExpr, ident, depth+1, tupleIsArgs)
 				}
 			}
 		}
 	}
 
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
-		return r.objectConsKeys(obj, ident)
+		names, ok := r.objectConsKeys(obj, ident)
+		if !ok {
+			return nil, false
+		}
+		return stringVals(names), true
 	}
 
 	if fe, ok := expr.(*hclsyntax.ForExpr); ok {
-		return r.forExprKeys(fe, ident, depth)
+		names, ok := r.forExprKeys(fe, ident, depth)
+		if !ok {
+			return nil, false
+		}
+		// A for-comprehension with a key clause produces an OBJECT, whose
+		// keys are strings whatever it ranged over.
+		return stringVals(names), true
 	}
 
 	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
 		if !tupleIsArgs {
-			return nil, false
+			// A tuple anywhere but merge()'s splat is a list, and a list's
+			// keys are its integer indices: one per element, distinct by
+			// construction, and knowable from the literal's own length
+			// whatever its elements turn out to be.
+			keys := make([]cty.Value, 0, len(tuple.Exprs))
+			for i := range tuple.Exprs {
+				keys = append(keys, cty.NumberIntVal(int64(i)))
+			}
+			return keys, true
 		}
 		seen := map[string]bool{}
 		var keys []string
 		for _, elem := range tuple.Exprs {
 			// An element of the splatted list is one of merge's arguments,
-			// an object in its own right - never itself a list of them.
+			// an object in its own right - never itself a list of them, and
+			// never a list at all, which is why this asks for strings.
 			got, ok := r.staticForEachKeys(elem, ident, depth+1, false)
 			if !ok {
 				return nil, false
@@ -285,7 +360,7 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 				}
 			}
 		}
-		return keys, true
+		return stringVals(keys), true
 	}
 
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
@@ -296,6 +371,10 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 			// ExpandFinal is set: that is the one argument whose elements
 			// stand in for merge's own separate arguments.
 			argIsSplat := call.ExpandFinal && i == len(call.Args)-1
+			// staticForEachKeys, not staticCollKeys: merge takes maps and
+			// objects, so an argument whose key set is integer indices is
+			// not a merge argument at all and refuses here rather than
+			// contributing "0", "1" to the union.
 			got, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
 			if !ok {
 				return nil, false
@@ -307,10 +386,20 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 				}
 			}
 		}
-		return keys, true
+		return stringVals(keys), true
 	}
 
 	return nil, false
+}
+
+// stringVals lifts a string key set into the typed form [staticCollKeys]
+// hands back. cty.StringVal constructs, so nothing here can be marked.
+func stringVals(names []string) []cty.Value {
+	out := make([]cty.Value, 0, len(names))
+	for _, n := range names {
+		out = append(out, cty.StringVal(n))
+	}
+	return out
 }
 
 // objectConsKeys reads every key of an object constructor, evaluating only
@@ -351,45 +440,87 @@ func (r *resolver) objectConsKeys(obj *hclsyntax.ObjectConsExpr, ident configs.S
 //
 // The result's key set is knowable without ever evaluating a value clause
 // whenever the key clause itself is: chase SRC's own key set (recursively,
-// through [resolver.staticForEachKeys] again, so a further local/merge/
-// for chain underneath composes exactly the way it already does elsewhere
-// in this file), then evaluate the key clause once per source key, with
-// ONLY the loop's key variable bound in scope - deliberately never its
-// value variable, and never a value read out of SRC. [resolver.evalPure]
-// resolves an unbound reference as an ordinary evaluation failure (see its
-// own "for-comprehension's own loop variable" handling), so a key clause
-// that turns out to read the value variable - `name if user.active`-shaped,
-// or simply `user.id` instead of `name` - fails here and the whole
-// for-comprehension is refused, not answered with a guess.
+// through [resolver.staticCollKeys] again, so a further local/merge/for
+// chain underneath composes exactly the way it already does elsewhere in
+// this file), then evaluate the key clause once per source element.
+// [resolver.evalPure] resolves an unbound reference as an ordinary
+// evaluation failure (see its own "for-comprehension's own loop variable"
+// handling), so a key clause reading something not bound here fails and the
+// whole for-comprehension is refused, not answered with a guess.
 //
-// It also refuses outright, before evaluating anything, whenever:
+// #239 widened it from "a map source, key variable only" to the rule that
+// covers a map and a LIST alike: the key set is provable whenever the
+// SOURCE's own key set is provable and every key clause evaluates from
+// what is bound. Two things follow from that, and both come from
+// hclsyntax.ForExpr.Value itself rather than from anything invented here:
 //
-//   - the comprehension has no key clause at all (a tuple-producing for,
-//     `for v in x : f(v)`, which is not what an object-typed for_each needs
-//     in the first place); or
-//   - it filters with an "if" clause: the filter itself might read the
-//     value side (`if user.active`, the very thing this fix exists to
-//     avoid needing), and there is no way to tell from the syntax alone
-//     that it does not, so this declines the whole comprehension rather
-//     than assume no filtered element is ever significant to the key set.
+//   - The key variable's cty TYPE decides what a key renders as. Over a
+//     three-element list HCL binds it to 0, 1, 2, so `"item-${i}"` is
+//     item-0/1/2 - three instances, which is what OpenTofu creates. The
+//     pre-#239 chase read the same list as the union of its elements'
+//     object keys and answered two, silently. [resolver.staticCollKeys]
+//     now carries the type, so this binds what HCL binds.
+//   - When the source collection evaluates whole in the static scope, the
+//     VALUE variable is bound too, exactly as HCL binds it, and a key
+//     clause reading the value side (`h.name`) is provable rather than
+//     refused. That is not a relaxation of the safety rule: it applies
+//     only where the source is ordinary configuration data with no
+//     resource, data source or module output anywhere inside it. Where the
+//     source is not evaluable - the corpus shape this fix was written for,
+//     merge() of comprehensions whose values reach a managed resource -
+//     only the key variable is bound, and a key clause that needs the
+//     value side fails to evaluate and refuses, as before.
+//
+// It refuses outright, before evaluating anything, when the comprehension
+// has no key clause at all (a tuple-producing for, `for v in x : f(v)`,
+// which is not what an object-typed for_each needs in the first place).
+//
+// An "if" clause no longer refuses unconditionally, but it does decide
+// membership, so it is evaluated per element under exactly the bindings
+// above and must produce a known, unmarked bool for EVERY element. One
+// element it cannot decide means the key set is not proven and the whole
+// comprehension refuses - a filter this cannot read (`if user.active` over
+// a source whose values are not knowable) is still the case it declines.
+//
+// A key produced twice refuses rather than folding two elements into one
+// instance. HCL itself errors on that ("Duplicate object key: two
+// different items produced the key..."), so a configuration reaching it is
+// already invalid, and the fold is the exact shape that made two
+// count.index instances share one live marker in #178. Grouping mode
+// (`k => v...`) is the one place a repeated key legitimately means one
+// entry, and is deduplicated instead.
 func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, bool) {
-	if fe.KeyExpr == nil || fe.KeyVar == "" || fe.CondExpr != nil {
+	if fe.KeyExpr == nil {
 		return nil, false
 	}
 
-	// tupleIsArgs is false: a for-comprehension's source collection is
-	// ranged over, so if it is a list the loop's key variable is the
-	// INTEGER INDEX, not any key belonging to an element. Declining is the
-	// honest answer here; see [resolver.staticForEachKeys]'s own note.
-	srcKeys, ok := r.staticForEachKeys(fe.CollExpr, ident, depth+1, false)
+	srcKeys, srcVals, ok := r.forSourceElements(fe.CollExpr, ident, depth)
 	if !ok {
 		return nil, false
 	}
 
 	seen := map[string]bool{}
 	var keys []string
-	for _, srcKey := range srcKeys {
-		scope := instScope{vars: map[string]cty.Value{fe.KeyVar: cty.StringVal(srcKey)}}
+	for i, srcKey := range srcKeys {
+		vars := map[string]cty.Value{}
+		if fe.KeyVar != "" {
+			vars[fe.KeyVar] = srcKey
+		}
+		if srcVals != nil && fe.ValVar != "" {
+			vars[fe.ValVar] = srcVals[i]
+		}
+		scope := instScope{vars: vars}
+
+		if fe.CondExpr != nil {
+			include, condOK := r.forCondIncludes(fe.CondExpr, scope, ident)
+			if !condOK {
+				return nil, false
+			}
+			if !include {
+				continue
+			}
+		}
+
 		kv, diags := r.evalPure(fe.KeyExpr, scope, ident)
 		if diags.HasErrors() {
 			return nil, false
@@ -402,12 +533,108 @@ func (r *resolver) forExprKeys(fe *hclsyntax.ForExpr, ident configs.StaticIdenti
 			return nil, false
 		}
 		name := ks.AsString()
-		if !seen[name] {
-			seen[name] = true
-			keys = append(keys, name)
+		if seen[name] {
+			if fe.Group {
+				continue
+			}
+			return nil, false
 		}
+		seen[name] = true
+		keys = append(keys, name)
 	}
 	return keys, true
+}
+
+// forSourceElements reports what a for-comprehension's SOURCE collection
+// binds its loop variables to, one entry per element in iteration order.
+//
+// vals is non-nil only when the source evaluated as a whole value, which is
+// the only circumstance under which the value variable may be bound: the
+// values are then ordinary configuration data this resolver read for
+// itself, not a guess standing in for something it refused to read. When
+// the source is only structurally knowable - a list literal whose elements
+// mention a managed resource, merge() of comprehensions - keys are still
+// exact and vals is nil.
+//
+// Evaluation is tried first because it yields strictly more: the same keys
+// plus the values beside them.
+func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.StaticIdentifier, depth int) (keys, vals []cty.Value, ok bool) {
+	if keys, vals, ok := r.evaluatedCollElements(coll, ident); ok {
+		return keys, vals, true
+	}
+	// tupleIsArgs is false: a for-comprehension's source is ranged over, so
+	// a list here is a list, and its keys are its integer indices - never
+	// the union of its elements' own object keys, which is only ever what
+	// merge()'s splatted argument means.
+	keys, ok = r.staticCollKeys(coll, ident, depth+1, false)
+	if !ok {
+		return nil, nil, false
+	}
+	return keys, nil, true
+}
+
+// evaluatedCollElements reads a collection that evaluates whole under the
+// static scope, keys and values alike, in cty's own iteration order.
+//
+// The reading is cty's, not a re-derivation of it: a map or object is keyed
+// by its own keys, a list or tuple by its integer indices, a set by its
+// elements - which is what an element iterator hands back, and what
+// hclsyntax.ForExpr.Value then binds. Anything that is not a collection at
+// all cannot be ranged over and refuses.
+func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident configs.StaticIdentifier) (keys, vals []cty.Value, ok bool) {
+	// An impure call would make the collection a different collection on
+	// the next run. Its LENGTH might well be stable, but nothing here can
+	// show that, and [resolver.evalStatic] refuses the same shape one layer
+	// up for the same reason.
+	if len(impureCallsIn(expr)) > 0 {
+		return nil, nil, false
+	}
+	val, diags := r.evalPure(expr, instScope{}, ident)
+	if diags.HasErrors() || val == cty.NilVal {
+		return nil, nil, false
+	}
+	// ContainsMarked, and BEFORE any other read: a mark on an element
+	// hoists to the containing value only for a set, so a marked string
+	// inside a list, map, object or tuple leaves the outer value unmarked
+	// and IsWhollyKnown's own iteration would then panic on it. The
+	// asymmetry is cty's and is asserted in internal/live/marksafe's
+	// TestOnlySetsHoistElementMarks. Refusing rather than unmarking,
+	// because these keys become part of an address and an address becomes a
+	// cloud tag written in plaintext.
+	if val.ContainsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return nil, nil, false
+	}
+	ty := val.Type()
+	switch {
+	case ty.IsMapType(), ty.IsObjectType(), ty.IsListType(), ty.IsTupleType(), ty.IsSetType():
+	default:
+		return nil, nil, false
+	}
+	for it := val.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		keys = append(keys, k)
+		vals = append(vals, v)
+	}
+	return keys, vals, true
+}
+
+// forCondIncludes evaluates a comprehension's "if" clause for one element.
+// The second result is whether the clause could be decided at all; a false
+// there means the key set is not provable, never that the element is out.
+func (r *resolver) forCondIncludes(cond hclsyntax.Expression, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
+	cv, diags := r.evalPure(cond, scope, ident)
+	if diags.HasErrors() {
+		return false, false
+	}
+	b, err := convert.Convert(cv, cty.Bool)
+	// IsMarked before True, which panics rather than errors on a marked
+	// value - the same three lines the key read below carries, for the same
+	// reason. A filter decided by a sensitive value decides which addresses
+	// exist, so it refuses rather than being unmarked.
+	if err != nil || b.IsNull() || !b.IsKnown() || b.IsMarked() {
+		return false, false
+	}
+	return b.True(), true
 }
 
 // ---- the local-values fix ----------------------------------------------

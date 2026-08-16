@@ -83,34 +83,158 @@ func TestConditionalUnselectedBranchMayNotExist(t *testing.T) {
 	})
 }
 
-// TestForEachComprehensionOverListRefuses is the audit's wrong-key-set
-// finding. #189 taught [resolver.staticForEachKeys] to union a tuple's
-// elements' own object keys, and [resolver.forExprKeys] read its source
-// collection's key set through that - so a for-comprehension ranging over a
-// LIST was answered with the union of the list elements' keys instead of
-// the list's integer indices.
+// TestForEachComprehensionOverListResolvesToIndices is the audit's
+// wrong-key-set finding and #239's recovery of the capability that closing
+// it cost.
 //
-// The fixture's three-element list of {host, port} objects therefore
+// #189 taught [resolver.staticForEachKeys] to union a tuple's elements' own
+// object keys, and [resolver.forExprKeys] read its source collection's key
+// set through that - so a for-comprehension ranging over a LIST was
+// answered with the union of the list elements' keys instead of the list's
+// integer indices. The fixture's three-element list of {host, port} objects
 // resolved to TWO instances under the invented keys "item-host" and
 // "item-port", where OpenTofu creates three under "item-0", "item-1",
 // "item-2". No diagnostic fired, because staticForEachKeys only runs where
 // evaluating the expression whole has already failed - so the whole
 // directory came back clean from check.Dir.
-func TestForEachComprehensionOverListRefuses(t *testing.T) {
+//
+// The audit fix refused the shape. #239 resolves it instead, and this test
+// is written to catch the original defect rather than to agree with the new
+// rule: it asserts the exact resolved set, so a missing instance, a spare
+// one, an invented key or a duplicated import ID each fails, and it asserts
+// the COUNT separately, because the original bug's whole signature was two
+// instances where OpenTofu makes three.
+func TestForEachComprehensionOverListResolvesToIndices(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "foreach-comprehension-list-source"), nil)
 
 	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
 
-	if !diags.HasErrors() {
-		t.Fatal("expected a refusal: the for-comprehension ranges over a list, whose keys are integer indices")
+	assertClassifications(t, result, map[string]string{
+		`aws_iam_role.team`:           `CONCRETE team`,
+		`aws_iam_user.this["item-0"]`: `CONCRETE item-0`,
+		`aws_iam_user.this["item-1"]`: `CONCRETE item-1`,
+		`aws_iam_user.this["item-2"]`: `CONCRETE item-2`,
+	})
+	assertInstancesInjective(t, result, "aws_iam_user.this", 3)
+}
+
+// TestForEachComprehensionOverListValueVar is the same idiom without an
+// index variable: the key clause reads the ELEMENT, which is bound only
+// because the source collection evaluated whole in the static scope.
+func TestForEachComprehensionOverListValueVar(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "foreach-comprehension-list-value-var"), nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	assertClassifications(t, result, map[string]string{
+		`aws_iam_role.team`:          `CONCRETE team`,
+		`aws_iam_user.this["alpha"]`: `CONCRETE alpha`,
+		`aws_iam_user.this["beta"]`:  `CONCRETE beta`,
+	})
+	assertInstancesInjective(t, result, "aws_iam_user.this", 2)
+}
+
+// TestForEachComprehensionFilteredList: an "if" clause decides membership,
+// and where it can be decided the key set is still exact - and smaller than
+// the source. Two of three elements survive `if h.keep`.
+func TestForEachComprehensionFilteredList(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "foreach-comprehension-list-filtered"), nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	assertClassifications(t, result, map[string]string{
+		`aws_iam_role.team`:           `CONCRETE team`,
+		`aws_iam_user.this["item-0"]`: `CONCRETE item-0`,
+		`aws_iam_user.this["item-1"]`: `CONCRETE item-1`,
+	})
+	assertInstancesInjective(t, result, "aws_iam_user.this", 2)
+}
+
+// TestForEachComprehensionGroupedList is the counterpart to the collision
+// boundary below: the same non-injective key clause over the same list,
+// with grouping (`=> v...`), where folding is what the configuration asks
+// for and OpenTofu really does create two instances. Paired so that the
+// refusal below is shown to be about the fold being unasked-for rather
+// than about repeated keys as such.
+func TestForEachComprehensionGroupedList(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "foreach-comprehension-list-grouped"), nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	assertClassifications(t, result, map[string]string{
+		`aws_iam_role.team`:           `CONCRETE team`,
+		`aws_iam_user.this["item-0"]`: `CONCRETE item-0`,
+		`aws_iam_user.this["item-1"]`: `CONCRETE item-1`,
+	})
+	assertInstancesInjective(t, result, "aws_iam_user.this", 2)
+}
+
+// TestForEachComprehensionListBoundaries are the shapes #239 must still
+// refuse, each isolating one reason:
+//
+//   - the list's LENGTH is not knowable, so the instance count is not;
+//   - the length is knowable but the KEY clause reads a managed resource,
+//     so the addresses are not;
+//   - the key clause is a non-injective function of the index, so two
+//     elements would share one address and one marker - HCL refuses that
+//     configuration outright, and folding it into two instances is how
+//     #178 lost an instance in the first place;
+//   - the "if" clause cannot be decided, so membership is not knowable
+//     even though every key expression evaluates fine.
+//
+// Each must produce a diagnostic AND enumerate no instance: a refusal that
+// still leaves addresses behind is the failure mode the audit found.
+func TestForEachComprehensionListBoundaries(t *testing.T) {
+	for _, fixture := range []string{
+		"foreach-comprehension-list-nonstatic-length",
+		"foreach-comprehension-list-key-reads-resource",
+		"foreach-comprehension-list-key-collides",
+		"foreach-comprehension-filter-unreadable",
+	} {
+		t.Run(fixture, func(t *testing.T) {
+			cfg := loadConfig(t, filepath.Join("testdata", fixture), nil)
+
+			result, diags := Resolve(context.Background(), cfg)
+
+			if !diags.HasErrors() {
+				t.Fatal("expected a refusal: this comprehension's key set is not provable")
+			}
+			for _, r := range result.All() {
+				if strings.HasPrefix(r.Addr.String(), "aws_iam_user.this[") {
+					t.Errorf("%s enumerated under a key set nothing here can prove", r.Addr)
+				}
+			}
+		})
 	}
-	if !hasDiag(diags, "Unable to compute static value", "aws_iam_user.this for_each depends on local.byidx") {
-		t.Errorf("expected the ordinary for_each refusal to stand; got:\n%s", renderDiags(diags))
-	}
+}
+
+// assertInstancesInjective is the count-and-collision half of the bar #239
+// was held to. The key set has to be complete (n instances, not n-1) and
+// injective all the way through to what gets written: two addresses must
+// never carry the same import ID, because the import ID names the live
+// object and the address is what a tofu-address marker records.
+func assertInstancesInjective(t *testing.T, result *Result, resType string, want int) {
+	t.Helper()
+
+	byImportID := map[string]string{}
+	n := 0
 	for _, r := range result.All() {
-		if strings.HasPrefix(r.Addr.String(), "aws_iam_user.this[") {
-			t.Errorf("%s enumerated: the key set was invented from the list elements' own object keys, not the list's indices", r.Addr)
+		if !strings.HasPrefix(r.Addr.String(), resType+"[") {
+			continue
 		}
+		n++
+		if prev, dup := byImportID[r.ImportID]; dup {
+			t.Errorf("%s and %s both resolve to import ID %q: two addresses, one live object",
+				prev, r.Addr, r.ImportID)
+		}
+		byImportID[r.ImportID] = r.Addr.String()
+	}
+	if n != want {
+		t.Errorf("%s expanded to %d instances, want %d", resType, n, want)
 	}
 }
 
