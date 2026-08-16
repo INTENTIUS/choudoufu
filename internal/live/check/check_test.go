@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/passthrough"
@@ -35,6 +36,12 @@ func TestCatalogComesFromBothTables(t *testing.T) {
 	// actually wrote the diagnostic.
 	for _, refusal := range passthrough.Refusals() {
 		want[string(LayerIdentity)+"/"+refusal.Summary] = true
+	}
+	// The fourth table, added by #179: the data-read phase's offline
+	// eligibility classification is a checked pass, so its registry ranks
+	// in the catalog alongside the other two.
+	for _, refusal := range dataread.Refusals() {
+		want[string(LayerDataread)+"/"+refusal.Summary] = true
 	}
 
 	got := map[string]bool{}

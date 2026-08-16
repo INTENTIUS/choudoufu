@@ -8,6 +8,7 @@ package check
 import (
 	"sort"
 
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
@@ -29,6 +30,14 @@ const (
 	// instance's identity be computed from the configuration alone.
 	LayerIdentity Layer = "identity"
 
+	// LayerDataread is [dataread.Analyze]: for every data source identity
+	// resolution demands, can a live-plan read it before resolution. The
+	// analysis is offline - eligibility classification only, no read - so
+	// this instrument can run it without breaking its no-cloud-calls
+	// contract; the read itself remains a plan-time act this instrument
+	// did not perform, which is why an eligible finding is not "clean".
+	LayerDataread Layer = "dataread"
+
 	// LayerStamp is internal/live/stamp, which rewrites resource bodies to
 	// carry ownership markers. Not run here: its refusals are about what a
 	// provider's schema says is taggable and what a live object already
@@ -46,8 +55,8 @@ const (
 )
 
 // CheckedLayers are the passes [Analyze] runs. Everything a report says is
-// derived from these two and nothing else.
-func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity} }
+// derived from these three and nothing else.
+func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity, LayerDataread} }
 
 // UncheckedLayers are the live-path stages a configuration still has to
 // survive that [Analyze] cannot see, because each of them needs a cloud.
@@ -120,6 +129,7 @@ type Refusal struct {
 const (
 	RaisedByLint       = "internal/live/lint"
 	RaisedByIdentity   = "internal/live/identity"
+	RaisedByDataread   = "internal/live/dataread"
 	RaisedByStamp      = "internal/live/stamp"
 	RaisedByDiscovery  = "internal/live/discovery"
 	RaisedByProjection = "internal/live/projection"
@@ -139,6 +149,7 @@ const (
 var livePackages = map[string]bool{
 	RaisedByLint:       true,
 	RaisedByIdentity:   true,
+	RaisedByDataread:   true,
 	RaisedByStamp:      true,
 	RaisedByDiscovery:  true,
 	RaisedByProjection: true,
@@ -205,6 +216,20 @@ func Catalog() []Refusal {
 			What:     refusal.What,
 			DocsRef:  refusal.DocsRef(),
 			RaisedBy: string(refusal.Origin),
+		})
+	}
+
+	// The fourth source is issue #179's data-read phase. Its findings are
+	// checked - the eligibility analysis is offline - so its registry
+	// belongs in the ranked catalog, not only in [AllRefusals].
+	for _, refusal := range dataread.Refusals() {
+		out = append(out, Refusal{
+			Layer:    LayerDataread,
+			ID:       refusal.Summary,
+			Title:    refusal.Summary,
+			What:     refusal.What,
+			DocsRef:  refusal.DocsRef(),
+			RaisedBy: RaisedByDataread,
 		})
 	}
 
@@ -276,7 +301,7 @@ func AllRefusals() []Refusal {
 // smaller than its own doc comment claimed, and nothing said so. A list an
 // author can forget to extend is exactly the shape that needs the test.
 func LayersWithRegistries() []Layer {
-	return []Layer{LayerLint, LayerIdentity, LayerStamp, LayerDiscovery, LayerProjection}
+	return []Layer{LayerLint, LayerIdentity, LayerDataread, LayerStamp, LayerDiscovery, LayerProjection}
 }
 
 // lookup returns the catalog entry for one layer and ID.
@@ -323,6 +348,17 @@ func lookup(layer Layer, id string) (Refusal, bool) {
 				What:     refusal.What,
 				DocsRef:  refusal.DocsRef(),
 				RaisedBy: string(refusal.Origin),
+			}, true
+		}
+	case LayerDataread:
+		if refusal, ok := dataread.LookupRefusal(id); ok {
+			return Refusal{
+				Layer:    LayerDataread,
+				ID:       refusal.Summary,
+				Title:    refusal.Summary,
+				What:     refusal.What,
+				DocsRef:  refusal.DocsRef(),
+				RaisedBy: RaisedByDataread,
 			}, true
 		}
 	}

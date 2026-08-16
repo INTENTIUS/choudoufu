@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -98,6 +99,18 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	if result != nil {
 		report.Instances = result.Len()
 	}
+
+	// Issue #179's third checked pass, computed lazily: the eligibility
+	// analysis probes resolution a few more times, and a configuration
+	// whose refusals never name a data source should not pay for it.
+	var dataAnalysis *dataread.Analysis
+	analysis := func() *dataread.Analysis {
+		if dataAnalysis == nil {
+			dataAnalysis = dataread.Analyze(ctx, cfg, dataread.Options{Schemas: actx.Schemas})
+		}
+		return dataAnalysis
+	}
+
 	for _, diag := range diags {
 		desc := diag.Description()
 		site := Site{
@@ -118,6 +131,19 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 				report.Shadowed++
 				continue
 			}
+			// A same-stack data-source refusal is re-homed under the
+			// data-read pass's own classification: an eligible site is no
+			// longer a language refusal at all (a live-plan reads the value
+			// before resolution), and an ineligible one gets the
+			// class-specific wording instead of the generic dynamic-value
+			// text. Cross-stack sites keep today's refusal until stages 2
+			// and 3 read them.
+			if layer, id, detail, ok := classifyDataSite(diag, analysis); ok {
+				site.Detail = detail
+				f := findings.get(layer, id)
+				f.add(site)
+				continue
+			}
 			f := findings.get(LayerIdentity, desc.Summary)
 			f.add(site)
 		default:
@@ -135,6 +161,34 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	rank(report.Findings)
 	rank(report.Warnings)
 	return report
+}
+
+// classifyDataSite maps one identity-layer refusal to the data-read pass's
+// verdict on the data source it names, when it names a same-stack one that
+// the analysis classified. ok is false for everything else - non-data
+// refusals, cross-stack references, and references to data sources the
+// module does not declare - and the caller keeps the diagnostic exactly as
+// identity raised it.
+func classifyDataSite(diag tfdiags.Diagnostic, analysis func() *dataread.Analysis) (Layer, string, string, bool) {
+	ref := tfdiags.ExtraInfo[configs.RefusedReference](diag)
+	if ref.Category != configs.CategoryDataSource {
+		return "", "", "", false
+	}
+	res, ok := dataread.DataSubject(ref.Subject)
+	if !ok {
+		return "", "", "", false
+	}
+	src, found := analysis().SourceFor(ref.Module, res)
+	if !found || src.CrossStack {
+		return "", "", "", false
+	}
+	if src.Eligible {
+		detail := fmt.Sprintf(
+			"%s reads %s, which a live-plan resolves by reading the data source from the provider before identity resolution. No configuration edit is needed; the read itself was not performed by this check and can still fail at plan time.",
+			ref.NeededBy, res.String())
+		return LayerDataread, dataread.SummaryEligibleRead, detail, true
+	}
+	return LayerDataread, src.ReasonSummary, src.ReasonDetail, true
 }
 
 // Dir loads one directory and analyzes it: the entry point both front ends

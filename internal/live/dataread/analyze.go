@@ -186,7 +186,7 @@ func (an *analyzer) demandRoots(diags tfdiags.Diagnostics) []demandRoot {
 		if ref.Category != configs.CategoryDataSource && ref.Category != configs.CategoryCrossStackDataSource {
 			continue
 		}
-		res, ok := dataSubject(ref.Subject)
+		res, ok := DataSubject(ref.Subject)
 		if !ok {
 			continue
 		}
@@ -198,9 +198,10 @@ func (an *analyzer) demandRoots(diags tfdiags.Diagnostics) []demandRoot {
 	return roots
 }
 
-// dataSubject extracts the containing data resource from a refused
-// reference's subject, when it names one.
-func dataSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
+// DataSubject extracts the containing data resource from a reference's
+// subject, when it names one. Exported for the check layer, which uses it
+// to map a refusal site back to the data source this analysis classified.
+func DataSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
 	switch s := subject.(type) {
 	case addrs.Resource:
 		if s.Mode == addrs.DataResourceMode {
@@ -336,7 +337,7 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		case ref == nil:
 			continue
 		default:
-			if dep, ok := dataSubject(ref.Subject); ok {
+			if dep, ok := DataSubject(ref.Subject); ok {
 				deps[dep.String()] = dep
 				continue
 			}

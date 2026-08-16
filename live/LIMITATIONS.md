@@ -1029,6 +1029,10 @@ refused, and each says so in its own entry.
 | 1 | 1 | identity | Ambiguous list-valued identity argument | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | `internal/live/identity` | "unadmitted-type" |
 | 1 | 1 | identity | Unsupported attribute | `hcl` | "Unsupported attribute" |
+| - | - | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
+| - | - | dataread | Data source provider not configurable | `internal/live/dataread` | "Data source provider not configurable" |
+| - | - | dataread | Data source read failed | `internal/live/dataread` | "Data source read failed" |
+| - | - | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | - | - | discovery | Address too long to carry an ownership marker | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Failed to list a resource type | `internal/live/discovery` | "Failed to list a resource type" |
@@ -1119,6 +1123,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Undefined variable | `internal/configs` | "Undefined variable" |
 | 0 | 0 | identity | Unknown variable | `hcl` | "Unknown variable" |
 | 0 | 0 | identity | Unsupported each.value reference | `internal/live/identity` | "Unsupported each.value reference" |
+| - | - | identity | Unusable data-source result | `internal/live/identity` | "Unusable data-source result" |
 | 0 | 0 | identity | Variables not allowed | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | `internal/live/identity` | "for_each over a resource that is not keyed" |
@@ -1166,7 +1171,7 @@ refused, and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**167 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**172 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1333,6 +1338,38 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 1 site.
+
+#### Data source not readable before resolution
+
+**What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Data source provider not configurable
+
+**What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Data source read failed
+
+**What.** The provider returned an error for a pre-resolution data-source read, quoted verbatim. Fatal for the run: resolution built on a missing value would plan to create things that exist.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Resolves at plan time via a data-source read
+
+**What.** Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Cloud Control identifier could not be composed
 
@@ -2037,6 +2074,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Unusable data-source result
+
+**What.** The data-read phase handed resolution a result it cannot index: not an absolute data resource instance address, or one resource's instances mixing key kinds. A caller error, not a configuration one.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Variables not allowed
 
