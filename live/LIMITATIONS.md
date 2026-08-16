@@ -1003,8 +1003,8 @@ refused, and each says so in its own entry.
 | 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 81 | 1580 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 74 | 593 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
-| 68 | 625 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
+| 61 | 568 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
 | 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 38 | 120 | lint | remote-state | `internal/live/lint` | "remote-state" |
@@ -1019,6 +1019,7 @@ refused, and each says so in its own entry.
 | 18 | 101 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
+| 12 | 57 | dataread | Cross-stack outputs unavailable | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
@@ -1171,7 +1172,7 @@ refused, and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**172 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**173 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1225,7 +1226,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 68 configurations in the measured corpus, at 625 sites.
+**How often.** Blocked 61 configurations in the measured corpus, at 568 sites.
 
 #### Module output not supported in static context
 
@@ -1290,6 +1291,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 18 configurations in the measured corpus, at 73 sites.
+
+#### Cross-stack outputs unavailable
+
+**What.** A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 12 configurations in the measured corpus, at 57 sites.
 
 #### Invalid for_each set
 
@@ -1661,7 +1670,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Identity derived from a sensitive value
 
-**What.** An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one.
+**What.** An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one. When the value is not genuinely secret - tfe_outputs marking its whole result sensitive is the common case - the remedy is nonsensitive(...) around the specific value.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 

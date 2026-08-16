@@ -128,8 +128,8 @@
             "id": "Dynamic value in static context",
             "sites": 88,
             "categories": {
-              "cross_stack_data_source": 16,
-              "managed_resource": 72
+              "managed_resource": 72,
+              "remote_state": 16
             }
           },
           {
@@ -242,8 +242,8 @@
             "id": "Dynamic value in static context",
             "sites": 7,
             "categories": {
-              "cross_stack_data_source": 2,
-              "managed_resource": 5
+              "managed_resource": 5,
+              "remote_state": 2
             }
           },
           {
@@ -582,7 +582,7 @@
             "id": "Dynamic value in static context",
             "sites": 4,
             "categories": {
-              "cross_stack_data_source": 4
+              "remote_state": 4
             }
           },
           {
@@ -1033,7 +1033,7 @@
             "id": "Dynamic value in static context",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "remote_state": 1
             }
           },
           {
@@ -1583,6 +1583,14 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 2,
+            "categories": {
+              "tfe_outputs": 2
+            }
+          },
+          {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
             "sites": 12
@@ -1590,9 +1598,8 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 4,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2,
               "managed_resource": 2
             }
           },
@@ -1703,11 +1710,11 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 3,
             "categories": {
-              "cross_stack_data_source": 3
+              "tfe_outputs": 3
             }
           },
           {
@@ -1778,11 +1785,11 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2
+              "tfe_outputs": 2
             }
           },
           {
@@ -1911,11 +1918,18 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 1,
+            "categories": {
+              "tfe_outputs": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 7,
+            "sites": 6,
             "categories": {
-              "cross_stack_data_source": 1,
               "managed_resource": 6
             }
           },
@@ -1988,11 +2002,11 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 4,
             "categories": {
-              "cross_stack_data_source": 4
+              "tfe_outputs": 4
             }
           },
           {
@@ -2081,11 +2095,11 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "tfe_outputs": 1
             }
           },
           {
@@ -2138,18 +2152,18 @@
         "refusals": [
           {
             "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 2,
+            "categories": {
+              "tfe_outputs": 2
+            }
+          },
+          {
+            "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
-            }
-          },
-          {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
-            "sites": 2,
-            "categories": {
-              "cross_stack_data_source": 2
             }
           },
           {
@@ -2211,11 +2225,18 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 1,
+            "categories": {
+              "tfe_outputs": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 2,
+            "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1,
               "managed_resource": 1
             }
           },
@@ -2534,6 +2555,14 @@
         "refusals": [
           {
             "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 20,
+            "categories": {
+              "tfe_outputs": 20
+            }
+          },
+          {
+            "layer": "dataread",
             "id": "Data source not readable before resolution",
             "sites": 2,
             "categories": {
@@ -2551,9 +2580,8 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 21,
+            "sites": 1,
             "categories": {
-              "cross_stack_data_source": 20,
               "managed_resource": 1
             }
           },
@@ -2879,17 +2907,17 @@
       "instances": 6,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 1,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "tfe_outputs": 1
             }
           },
           {
@@ -3002,6 +3030,14 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
+            "sites": 19,
+            "categories": {
+              "tfe_outputs": 19
+            }
+          },
+          {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
             "sites": 12
@@ -3009,9 +3045,8 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 21,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 19,
               "managed_resource": 2
             }
           },
@@ -3148,17 +3183,17 @@
       "instances": 6,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 1,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Cross-stack outputs unavailable",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "tfe_outputs": 1
             }
           },
           {
@@ -5623,7 +5658,7 @@
             "id": "Dynamic value in static context",
             "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2
+              "remote_state": 2
             }
           },
           {
@@ -5904,7 +5939,7 @@
             "id": "Dynamic value in static context",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "remote_state": 1
             }
           },
           {
@@ -6040,7 +6075,7 @@
             "id": "Dynamic value in static context",
             "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2
+              "remote_state": 2
             }
           },
           {
@@ -6362,7 +6397,7 @@
             "id": "Dynamic value in static context",
             "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2
+              "remote_state": 2
             }
           },
           {
@@ -6444,7 +6479,7 @@
             "id": "Dynamic value in static context",
             "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1
+              "remote_state": 1
             }
           },
           {
@@ -8128,24 +8163,6 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 68,
-      "sites": 625,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196"
-      ],
-      "registered": true
-    },
-    {
       "layer": "lint",
       "id": "logical-resource",
       "title": "Logical resource is not admitted",
@@ -8221,6 +8238,24 @@
         ".corpus/alb/examples/mutual-auth-alb/main.tf:293",
         ".corpus/alb/examples/mutual-auth-alb/main.tf:298",
         ".corpus/alb/examples/mutual-auth-alb/main.tf:322"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 61,
+      "sites": 568,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
       ],
       "registered": true
     },
@@ -8467,6 +8502,24 @@
         ".corpus/cool-assessment/gophish_ec2.tf:139",
         ".corpus/cool-assessment/kali_ec2.tf:109",
         ".corpus/cool-assessment/nessus_ec2.tf:120"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Cross-stack outputs unavailable",
+      "title": "Cross-stack outputs unavailable",
+      "what": "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
+      "docs_ref": "live/LIMITATIONS.md, \"Cross-stack outputs unavailable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 12,
+      "sites": 57,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/route53.tf:10",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/security_groups.tf:14",
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/main.tf:38",
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/security.tf:37",
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/security.tf:61"
       ],
       "registered": true
     },
@@ -8841,7 +8894,7 @@
       "layer": "identity",
       "id": "Identity derived from a sensitive value",
       "title": "Identity derived from a sensitive value",
-      "what": "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one.",
+      "what": "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one. When the value is not genuinely secret - tfe_outputs marking its whole result sensitive is the common case - the remedy is nonsensitive(...) around the specific value.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity derived from a sensitive value\"",
       "raised_by": "internal/live/identity",
       "configs": 0,
@@ -9559,8 +9612,8 @@
     "loaded": 249,
     "instances": 2794,
     "sites": 14601,
-    "refusals_fired": 33,
-    "refusals_in_set": 115,
+    "refusals_fired": 34,
+    "refusals_in_set": 116,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
