@@ -172,6 +172,12 @@ must build concurrently work in isolated worktrees.
   a session-start commit and would have reverted a day's work on merge. The fix
   each time is to fetch main into the worktree and rebase or redo before
   validating.
+- **Never prune a worktree by "is its branch merged".** A branch with no
+  commits yet is trivially an ancestor of `main`, so a loop over
+  `git merge-base --is-ancestor "$b" main` deletes every live agent that has
+  not committed. I did this and destroyed five running agents' worktrees at
+  once, one of them 23 minutes in. Prune by checking the agent is finished —
+  its report is in hand — not by asking git.
 - **Never use `git stash` here.** The stash stack lives in the shared `.git`
   and is therefore shared across every worktree. An agent stashed what it
   believed was its own clean tree and its `pop` landed another agent's
