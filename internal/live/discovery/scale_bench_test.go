@@ -17,8 +17,10 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This is issue #64's benchmark half: a synthetic-scale estate (manufactured
@@ -197,6 +199,17 @@ type scaleReport struct {
 	Materialized int            `json:"materialized"`
 }
 
+// benchProviders satisfies dataread.Providers over the benchmark's one
+// launched provider process, the way the command layer's statelessProviders
+// does over its plugin cache.
+type benchProviders struct {
+	provider providers.Interface
+}
+
+func (b benchProviders) ConfiguredProvider(context.Context, addrs.AbsProviderConfig) (providers.Interface, error) {
+	return b.provider, nil
+}
+
 func (r scaleReport) String() string {
 	return "ESTATE SCALE BENCHMARK: N=" + strconv.Itoa(r.N) +
 		" apply=" + r.ApplyElapsed.String() +
@@ -273,6 +286,20 @@ func runScaleBenchmark(t *testing.T, n int) scaleReport {
 	resolutions := resolveOrFail(t, cfg).All()
 
 	planStart := time.Now()
+
+	// Issue #179's data-read phase, the pre-resolution step of
+	// live_plan.go's pipeline, inside the measured window so that its
+	// ReadDataSource calls count into the same plan-call budget as
+	// discovery's and projection's reads. The generated estate declares no
+	// data sources, so today this is the phase's free path - an offline
+	// probe, zero network calls, calls_total unchanged - and the wiring is
+	// what makes a future data-source-bearing fixture's reads measured
+	// rather than assumed.
+	dataAnalysis := dataread.Analyze(context.Background(), cfg, dataread.Options{})
+	if _, drDiags := dataread.Read(context.Background(), cfg, dataAnalysis, benchProviders{provider}); drDiags.HasErrors() {
+		t.Fatalf("data-read phase failed: %s", drDiags.Err())
+	}
+
 	res, diags := Discover(context.Background(), Request{
 		Estate:           benchEstate,
 		Config:           cfg,
