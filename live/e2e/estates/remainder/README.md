@@ -246,12 +246,13 @@ service:
 `aws_transfer_web_app` — were dropped to a concurrent batch; see "Dropped
 to a concurrent batch" above.)
 
-## Reversed 2026-08-16: four taggable server-minted composites (wall/servermint)
+## Reversed 2026-08-16: five taggable server-minted composites (wall/servermint)
 
-Four types this batch and the `ecs_eks` batch recorded as rejected below
+Five types this batch and the `ecs_eks` batch recorded as rejected below
 are now admitted: `aws_ecs_task_set`, `aws_eks_pod_identity_association`,
-`aws_prometheus_anomaly_detector` and
-`aws_service_discovery_private_dns_namespace`.
+`aws_prometheus_anomaly_detector`,
+`aws_service_discovery_private_dns_namespace` and
+`aws_vpc_ipam_pool_cidr_allocation`.
 
 The rejections were right about the shape and wrong about what the shape
 costs. Each reason said the classifier's flat server-assigned proposal
@@ -279,10 +280,20 @@ which is why these four move and the 38 untaggable members of the same
 bucket stay refused - for them there is nowhere to write a marker at all,
 and `tools/row-gen/rejected.json` now says so in those words.
 
-No generator rule changed. All four are reproduced by row-gen's own fresh
-classifier (`live/rowgen-convergence.json`: `matched`, no mismatch
-classes), so nothing here is a hand-written row standing in for a
-derivation.
+All five are reproduced by row-gen's own fresh classifier
+(`live/rowgen-convergence.json`: `matched`, no mismatch classes), so
+nothing here is a hand-written row standing in for a derivation. Four
+needed no generator change at all. The fifth,
+`aws_vpc_ipam_pool_cidr_allocation`, needed one in
+`tools/importdocs-gen`: its Import section reads "using the allocation
+`id` and `pool id`, separated by `_`", and the scrape's clause reader
+matched only backticked tokens shaped like snake_case arguments, so it
+found one token against a two-segment example, failed its own arity gate,
+and emitted no `id_parts` for the page. With the spaced token read, the
+`id` segment resolves to the doc's own Attribute Reference and
+`tryDocNamedServerSegment` fires the same way it does for the Connect and
+Transfer families. Reach of that widening across the pinned v6.59.0 doc
+cache, measured rather than assumed: one page of 1,693.
 
 ## Rejected on identity grounds (58 types)
 

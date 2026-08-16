@@ -136338,6 +136338,16 @@
           "name": "tags",
           "required": false
         }
+      ],
+      "id_parts": [
+        {
+          "token": "id",
+          "source": "attribute"
+        },
+        {
+          "token": "pool id",
+          "source": "unknown"
+        }
       ]
     },
     {

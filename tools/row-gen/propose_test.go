@@ -335,11 +335,13 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// them via="deprecated-service" with a null cfn_type, so row-gen never
 	// classifies them at all. They are the cfn-unmodeled debt, a different
 	// address from this one.
-	// wall/servermint took four more out: aws_ecs_task_set,
+	// wall/servermint took five more out: aws_ecs_task_set,
 	// aws_eks_pod_identity_association, aws_prometheus_anomaly_detector
-	// and aws_service_discovery_private_dns_namespace. All four are the
+	// aws_service_discovery_private_dns_namespace and, once
+	// tools/importdocs-gen stopped dropping a backtick-quoted segment name
+	// carrying a space, aws_vpc_ipam_pool_cidr_allocation. All five are the
 	// bucket #242 measured - a config-supplied parent scope beside a
-	// segment the service mints - and all four are TAGGABLE, which is the
+	// segment the service mints - and all five are TAGGABLE, which is the
 	// fact that separates them from the 38 that stayed. A taggable
 	// server-assigned type is what the shipped table already carries 51
 	// times with a separator in its ImportSyntax; the marker is the
@@ -347,8 +349,8 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// Each was reproduced by the fresh classifier with no generator change
 	// and no annotations.json ruling (rowgen-convergence: matched, no
 	// mismatch classes), which is why the batch adds no rule here.
-	if len(rejected) < 82 {
-		t.Errorf("rejected.json carries %d types, want at least the 82 standing after wall/servermint's 4-type admission", len(rejected))
+	if len(rejected) < 81 {
+		t.Errorf("rejected.json carries %d types, want at least the 81 standing after wall/servermint's 5-type admission", len(rejected))
 	}
 }
 

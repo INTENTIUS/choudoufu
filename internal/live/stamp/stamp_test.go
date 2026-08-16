@@ -428,6 +428,10 @@ var (
 		"aws_eks_pod_identity_association",
 		"aws_prometheus_anomaly_detector",
 		"aws_service_discovery_private_dns_namespace",
+		// The fifth, once tools/importdocs-gen stopped dropping a
+		// backtick-quoted segment name that carries a space ("using the
+		// allocation `id` and `pool id`, separated by `_`").
+		"aws_vpc_ipam_pool_cidr_allocation",
 		// wall/rejected4 admitted the eighteen mapped WAF Classic and WAF
 		// Classic Regional types the remainder batch had held out under
 		// live/residue.go's DeprecatedServices roster. Taggability from two
@@ -1100,6 +1104,7 @@ func testSchemas() Schemas {
 		"aws_eks_pod_identity_association":            taggedSchema("id", "association_arn", "association_id", "cluster_name", "namespace", "service_account", "role_arn"),
 		"aws_prometheus_anomaly_detector":             taggedSchema("id", "arn", "workspace_id", "alias"),
 		"aws_service_discovery_private_dns_namespace": taggedSchema("id", "arn", "name", "vpc", "hosted_zone"),
+		"aws_vpc_ipam_pool_cidr_allocation":           taggedSchema("id", "ipam_pool_id", "cidr", "description"),
 
 		// The WAF Classic and WAF Classic Regional batch (wall/rejected4).
 		// Attribute shapes follow each doc page's own Argument/Attribute

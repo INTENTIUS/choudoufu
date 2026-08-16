@@ -26,9 +26,9 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 958 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 577, client-named 474, composite 152, assembled 10) | 1213 types | A ratification batch: paste, fixture, test. |
-| Needs a hand separator | 78 types | One one-character import-separator decision each. |
+| Admitted (the shipped table) | 959 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 578, client-named 474, composite 152, assembled 10) | 1214 types | A ratification batch: paste, fixture, test. |
+| Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 335 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-958<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+959<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
@@ -505,7 +505,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_vpc_endpoint_route_table_association`,
   `aws_vpc_endpoint_security_group_association`, `aws_vpc_endpoint_service`,
   `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam`, `aws_vpc_ipam_pool`,
-  `aws_vpc_ipam_pool_cidr`, `aws_vpc_ipam_resource_discovery`,
+  `aws_vpc_ipam_pool_cidr`, `aws_vpc_ipam_pool_cidr_allocation`,
+  `aws_vpc_ipam_resource_discovery`,
   `aws_vpc_ipam_resource_discovery_association`, `aws_vpc_ipam_scope`,
   `aws_vpc_peering_connection`, `aws_vpc_route_server`,
   `aws_vpc_route_server_endpoint`, `aws_vpc_route_server_peer`,

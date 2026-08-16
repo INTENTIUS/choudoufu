@@ -430,12 +430,6 @@
         "internal/live/identity/table_cohort_ec2_networking.go"
       ]
     },
-    "aws_vpc_ipam_pool_cidr_allocation": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ec2_networking.go",
-        "internal/live/identity/table_cohort_stragglers.go"
-      ]
-    },
     "aws_vpn_gateway_attachment": {
       "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
       "recovered_from": [

@@ -889,6 +889,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_vpc_ipam":                                                          {},
 	"aws_vpc_ipam_pool":                                                     {},
 	"aws_vpc_ipam_pool_cidr":                                                {},
+	"aws_vpc_ipam_pool_cidr_allocation":                                     {},
 	"aws_vpc_ipam_resource_discovery":                                       {},
 	"aws_vpc_ipam_resource_discovery_association":                           {},
 	"aws_vpc_ipam_scope":                                                    {},

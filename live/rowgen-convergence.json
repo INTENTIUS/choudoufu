@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 958,
-    "compared": 948,
+    "admitted_total": 959,
+    "compared": 949,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 842,
-    "adopted_unchanged_pct": 88.82,
+    "adopted_unchanged": 843,
+    "adopted_unchanged_pct": 88.83,
     "genuine_mismatches": 106,
     "annotated": 106,
     "unannotated_mismatches": 0,
@@ -323,9 +323,9 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 92,
-      "adopted_unchanged": 79,
-      "adopted_unchanged_pct": 85.87
+      "compared": 93,
+      "adopted_unchanged": 80,
+      "adopted_unchanged_pct": 86.02
     },
     "ECR": {
       "compared": 11,
@@ -10550,6 +10550,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+    },
+    {
+      "tf_type": "aws_vpc_ipam_pool_cidr_allocation",
+      "service": "EC2",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_vpc_ipam_resource_discovery",
