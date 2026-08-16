@@ -44,25 +44,30 @@ import (
 // may be in neither internal/live/identity.DefaultTable nor
 // tools/row-gen/rejected.json.
 //
-// Measured at 669 on 2026-08-16 against hashicorp/aws 6.59.0 (949 admitted,
-// 81 vetoed, 669 unreached, summing to live/survey-full.json's 1699 exactly).
-// It was also 669 at the earlier measurement in #245, where the split was
-// 944/86/669 - the batch that moved five types from the ledger into the table
-// did not change this count at all, which is the whole reason this constant
-// exists rather than a count of the ledger.
+// Measured at 665 on 2026-08-16 against hashicorp/aws 6.59.0 (953 admitted,
+// 81 vetoed, 665 unreached, summing to live/survey-full.json's 1699 exactly),
+// after the DocDB family batch admitted four types no ratification batch had
+// ever reached. It stood at 669 for the two measurements before that (949/81
+// and, in #245, 944/86) - the batch that moved five types from the ledger into
+// the table did not change this count at all, which is the whole reason this
+// constant exists rather than a count of the ledger.
 //
 // Lower it whenever a batch lands; raising it is admitting a type stopped
 // being reachable, and needs to be a deliberate, reviewed edit rather than a
 // silent one. A drop is welcome and simply means the constant is stale.
 //
-// Of the 669 as measured, 60 are nevertheless admitted at run time by
-// internal/live/lint's schema fallback (identity.SynthesizeTypeIdentity) when
-// the caller supplies provider schemas, leaving 609 hard resolve errors. That
-// 60 is a floor, not a ceiling, because a real run also supplies a config
-// signal. This test deliberately does not subtract it: the fallback needs a
+// When this count stood at 669, 60 of that population were nevertheless
+// admitted at run time by internal/live/lint's schema fallback
+// (identity.SynthesizeTypeIdentity) with provider schemas supplied, leaving
+// 609 hard resolve errors; that 60 was a floor, not a ceiling, because a real
+// run also supplies a config signal. The four DocDB types this count dropped
+// by were not among the 60 - they refused under real schemas in
+// live/corpus-refusals.json's own ladder, which is what put them on the
+// demanded list - so the rescued figure is unchanged and the hard population
+// is 605. This test deliberately does not subtract it: the fallback needs a
 // live provider plugin, and a ratchet that cannot run without one is a
 // ratchet that does not run.
-const unreachedRatchetMax = 669
+const unreachedRatchetMax = 665
 
 // universeFloor is the anti-tamper leg. The count this file ratchets is a
 // difference, so shrinking live/survey-full.json's type roster lowers it just
