@@ -163,3 +163,44 @@ func TestForEachSensitiveKeyRefuses(t *testing.T) {
 		})
 	}
 }
+
+// TestConditionalInsideForEachedModuleArgument is the cross-merge check the
+// audit brief asked for: wall/conditional (#196) and wall/localvalue (#189)
+// landed from independent branches and both write into the identity
+// resolver, so a per-branch green says nothing about their composition.
+//
+// The fixture puts them in one expression - a conditional inside a
+// for_each'd module call's argument, indexing two for_each'd siblings by
+// the CALL's own each.key. Both instances must resolve, each to its own
+// key's sibling, and flipping the condition must flip both.
+func TestConditionalInsideForEachedModuleArgument(t *testing.T) {
+	dir := filepath.Join("testdata", "module-foreach-conditional-arg")
+
+	for _, tc := range []struct {
+		name       string
+		usePrimary cty.Value
+		want       map[string]string
+	}{
+		{"primary", cty.True, map[string]string{
+			`module.user["alice"].aws_iam_user.this`: "CONCRETE primary-alice",
+			`module.user["bob"].aws_iam_user.this`:   "CONCRETE primary-bob",
+		}},
+		{"secondary", cty.False, map[string]string{
+			`module.user["alice"].aws_iam_user.this`: "CONCRETE secondary-alice",
+			`module.user["bob"].aws_iam_user.this`:   "CONCRETE secondary-bob",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := loadConfigTree(t, dir, map[string]cty.Value{"use_primary": tc.usePrimary})
+			result, diags := Resolve(context.Background(), cfg)
+			assertNoErrors(t, diags)
+
+			for addr, want := range tc.want {
+				got := resolutionAt(t, result, addr)
+				if got.Class != ClassConcrete || "CONCRETE "+got.ImportID != want {
+					t.Errorf("%s resolved %s %q, want %q", addr, got.Class, got.ImportID, want)
+				}
+			}
+		})
+	}
+}
