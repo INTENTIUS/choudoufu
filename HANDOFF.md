@@ -66,24 +66,20 @@ reads as a finished record, but its own "Known follow-ups" section lists
 unresolved dead-code and rung-retirement items. An earlier version of this
 file listed it as closed; it was not.
 
-Still open, ranked by corpus-wide config count, recomputed at HEAD:
+Still open. **Deliberately no per-issue counts here.** An earlier version of
+this file carried a burndown table; it was stale within twenty minutes twice,
+and once carried two rows that were wrong at the moment they were written. The
+numbers move every time an agent lands, so a table in a handoff is a trap by
+construction — the file's own first rule is recompute, never carry forward.
 
-| issue | refusal | configs | sites |
-|---|---|---|---|
-| #189 | Dynamic value in static context | 52 | 365 |
-| #184 | Unresolvable identity | 49 | 200 |
-| #224 | Unmarked apply of a marker-only resource | 48 | 95 |
-| #197 | Not an identity attribute | 33 | 85 |
-| #196 | Identity not resolvable from configuration | 22 | 118 |
-| #187 | Non-static for_each expression | 19 | 60 |
-| #193 | Data source not readable before resolution | 4 | 9 |
-| #204 | Attempt to get attribute from null value | 0 | 0 |
-| #209 | Unsupported attribute | 0 | 0 |
+Get them from the artifact:
 
-#189 has since closed — 94% of its sites are genuine value circularity matching
-upstream byte-for-byte, and the two actionable slices are filed separately.
+    python3 -c "import json;d=json.load(open('live/corpus-refusals.json'));[print(f\"{r['configs']:>4} cfg {r['sites']:>6} sites  {r['id']}\") for r in sorted(d['refusals'],key=lambda x:-x['configs'])[:12]]"
 
-#204 and #209 are at zero in the artifact committed alongside this file.
+Open wall classes at the time of writing, unranked: #184, #187, #193, #196,
+#197, #204, #209, #224. #189 closed — 94% of its sites are genuine value
+circularity matching upstream byte-for-byte, with the two actionable slices
+filed separately.
 
 **Read #184's own latest comment before spending on it.** The retired table's
 "rides on others, no machinery of its own" was backwards — it is the sole
