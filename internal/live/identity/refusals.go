@@ -105,6 +105,8 @@ var refusals = []Refusal{
 	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", ""},
 	{"Identity not resolvable from configuration", "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.", ""},
 	{"Invalid count", "A count expression is not a whole non-negative number.", ""},
+	{"Invalid for_each condition", "The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.", ""},
+	{"Invalid for_each key", "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.", ""},
 	{"Invalid for_each set", "A for_each set's element type is not a string.", ""},
 	{"Invalid for_each value", "A for_each value is neither a map nor a set of strings.", ""},
 	{"No configuration to resolve", "Resolution was handed an empty configuration. A caller error, not a configuration one.", ""},

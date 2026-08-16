@@ -1088,6 +1088,15 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 			// panics on repetition references, so they must not reach it.
 			continue
 		}
+		if _, bound := scope.vars[trav.RootName()]; bound {
+			// Anything else the scope already supplies a value for - a
+			// for-comprehension's own loop variable, bound by
+			// forEachOverComprehension below rather than by "each"/"count" -
+			// is a local binding too, for the same reason: the static
+			// evaluator has no notion of it and would either panic or
+			// misreport it as an undeclared reference.
+			continue
+		}
 		travs = append(travs, trav)
 	}
 
@@ -1541,6 +1550,11 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 	// for_each over another resource: the keys are that resource's keys,
 	// which is config data even though the values are not.
 	if r.isSymbolic(expr, instScope{}) {
+		if fe, ok := unwrapForExpr(expr); ok {
+			if got, exOK, applicable := r.forEachOverComprehension(rc, fe); applicable {
+				return got, exOK
+			}
+		}
 		return r.forEachOverResource(rc)
 	}
 
@@ -1634,37 +1648,8 @@ func (r *resolver) forEachOverResource(rc *configs.Resource) (*expansion, bool) 
 	addr := rc.Addr()
 	expr := rc.ForEach
 
-	trav, diags := hcl.AbsTraversalForExpr(expr)
-	if diags.HasErrors() {
-		r.errorf(expr.Range(), "Non-static for_each expression",
-			"The for_each value for %s is computed from another resource's attributes. Only a plain reference to another resource (for_each = aws_subnet.this) can have its instance keys resolved from configuration; anything computed from resource attributes is known only after the cloud is read.", addr.String())
-		return nil, false
-	}
-	ref, refDiags := addrs.ParseRef(trav)
-	if refDiags.HasErrors() {
-		r.diags = r.diags.Append(refDiags)
-		return nil, false
-	}
-	parentAddr, ok := ref.Subject.(addrs.Resource)
-	if !ok || len(ref.Remaining) > 0 || parentAddr.Mode != addrs.ManagedResourceMode {
-		r.errorf(expr.Range(), "Non-static for_each expression",
-			"The for_each value for %s refers to %s. Instance keys can be propagated only from a whole managed resource (for_each = aws_subnet.this).", addr.String(), ref.Subject.String())
-		return nil, false
-	}
-
-	parentRC := r.mod.ResourceByAddr(parentAddr)
-	if parentRC == nil {
-		r.errorf(expr.Range(), "Reference to undeclared resource",
-			"The for_each value for %s refers to %s, which is not declared in this configuration.", addr.String(), parentAddr.String())
-		return nil, false
-	}
-	parentExp, ok := r.expansionFor(parentRC)
+	parentAddr, parentExp, ok := r.resolveResourceRef(expr, addr.String(), expr.Range())
 	if !ok {
-		return nil, false
-	}
-	if parentExp.eachValues == nil && parentExp.eachParent == nil {
-		r.errorf(expr.Range(), "for_each over a resource that is not keyed",
-			"The for_each value for %s is %s, which does not use for_each, so it is not a map of instances. OpenTofu accepts only a map or a set of strings as a for_each argument.", addr.String(), parentAddr.String())
 		return nil, false
 	}
 
@@ -1673,6 +1658,183 @@ func (r *resolver) forEachOverResource(rc *configs.Resource) (*expansion, bool) 
 		keys:       append([]addrs.InstanceKey(nil), parentExp.keys...),
 		eachParent: &parent,
 	}, true
+}
+
+// resolveResourceRef resolves expr as a bare reference to a whole managed
+// resource - for_each = aws_subnet.this itself, or the collection clause of
+// a for-comprehension over one (forEachOverComprehension below) - into that
+// resource's own already-computed expansion. subject and rng scope the
+// diagnostic to whichever site actually wrote the reference.
+func (r *resolver) resolveResourceRef(expr hcl.Expression, subject string, rng hcl.Range) (addrs.Resource, *expansion, bool) {
+	trav, diags := hcl.AbsTraversalForExpr(expr)
+	if diags.HasErrors() {
+		r.errorf(rng, "Non-static for_each expression",
+			"The for_each value for %s is computed from another resource's attributes. Only a plain reference to another resource (for_each = aws_subnet.this) can have its instance keys resolved from configuration; anything computed from resource attributes is known only after the cloud is read.", subject)
+		return addrs.Resource{}, nil, false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		r.diags = r.diags.Append(refDiags)
+		return addrs.Resource{}, nil, false
+	}
+	parentAddr, ok := ref.Subject.(addrs.Resource)
+	if !ok || len(ref.Remaining) > 0 || parentAddr.Mode != addrs.ManagedResourceMode {
+		r.errorf(rng, "Non-static for_each expression",
+			"The for_each value for %s refers to %s. Instance keys can be propagated only from a whole managed resource (for_each = aws_subnet.this).", subject, ref.Subject.String())
+		return addrs.Resource{}, nil, false
+	}
+
+	parentRC := r.mod.ResourceByAddr(parentAddr)
+	if parentRC == nil {
+		r.errorf(rng, "Reference to undeclared resource",
+			"The for_each value for %s refers to %s, which is not declared in this configuration.", subject, parentAddr.String())
+		return addrs.Resource{}, nil, false
+	}
+	parentExp, ok := r.expansionFor(parentRC)
+	if !ok {
+		return addrs.Resource{}, nil, false
+	}
+	if parentExp.eachValues == nil && parentExp.eachParent == nil && !parentExp.keyOnly {
+		r.errorf(rng, "for_each over a resource that is not keyed",
+			"The for_each value for %s is %s, which does not use for_each, so it is not a map of instances. OpenTofu accepts only a map or a set of strings as a for_each argument.", subject, parentAddr.String())
+		return addrs.Resource{}, nil, false
+	}
+	return parentAddr, parentExp, true
+}
+
+// forEachOverComprehension recognizes `for_each = { for k, v in <resource> :
+// keyExpr => valExpr if cond }`: a for-comprehension whose collection is a
+// bare reference to another managed resource. It resolves when the key
+// clause and the "if" filter depend only on the comprehension's own key
+// variable and on locally-evaluable data, never on the value variable -
+// the same test [resolver.evalPure]'s marked-value handling already makes
+// unnecessary to guess at, because it is checked structurally, on
+// expr.Variables(), rather than by evaluating anything the parent keeps
+// symbolic. The parent's own already-computed expansion.keys is the only
+// input this needs; it never looks at what a value var would carry.
+//
+// applicable is false whenever the shape does not match at all: not an
+// object-producing for-expression (for_each never accepts the tuple a
+// key-less for-expression produces directly), or a collection clause that
+// is not a bare reference to a for_each'd managed resource. The caller
+// falls back to forEachOverResource's own diagnostic on the whole
+// expression in that case - the same "computed from another resource's
+// attributes" message a comprehension already got before this function
+// existed. When applicable is true, ok reports whether resolution actually
+// succeeded, and a diagnostic has already been recorded in its place when
+// it did not.
+func (r *resolver) forEachOverComprehension(rc *configs.Resource, fe *hclsyntax.ForExpr) (exp *expansion, ok bool, applicable bool) {
+	if fe.KeyExpr == nil {
+		// A key-less for-expression produces a tuple, never a map or object;
+		// for_each cannot take that shape directly (only wrapped in
+		// toset(...), a different top-level expression this function is
+		// never reached for). Nothing here applies to it.
+		return nil, false, false
+	}
+
+	if _, diags := hcl.AbsTraversalForExpr(fe.CollExpr); diags.HasErrors() {
+		// The collection clause is not a bare reference to begin with - some
+		// other expression this function does not recognize, symbolic for a
+		// reason unrelated to "for_each over a resource". Not this shape:
+		// stay silent and let the whole-expression fallback in
+		// forEachExpansion raise its own diagnostic, the same one a
+		// comprehension always got before this function existed.
+		return nil, false, false
+	}
+
+	// The collection clause looks like a plain resource reference, so this
+	// IS the shape from here on: every failure below is this function's to
+	// report, not forEachOverResource's, or the site would be counted (and
+	// diagnosed) twice for the one for_each argument that produced it.
+	addr := rc.Addr()
+	subject := addr.String()
+	rng := rc.ForEach.Range()
+
+	_, parentExp, resolved := r.resolveResourceRef(fe.CollExpr, subject, rng)
+	if !resolved {
+		return nil, false, true
+	}
+
+	if fe.ValVar != "" && (refsRoot(fe.KeyExpr, fe.ValVar) || (fe.CondExpr != nil && refsRoot(fe.CondExpr, fe.ValVar))) {
+		r.errorf(rng, "Non-static for_each expression",
+			"The for_each value for %s is a comprehension whose key or filter reads %s, its own iterated value. Only the key and locally-evaluable data can decide which instances exist and what they are named; a value read from the iterated resource is known only after the cloud is read.", subject, fe.ValVar)
+		return nil, false, true
+	}
+
+	ident := r.moduleIdentifier(subject+" for_each", rng)
+	seen := map[string]bool{}
+	var names []string
+	for _, pk := range parentExp.keys {
+		var scope instScope
+		if fe.KeyVar != "" {
+			scope.vars = map[string]cty.Value{fe.KeyVar: keyValue(pk)}
+		}
+		if fe.CondExpr != nil {
+			condVal, condOK := r.evalStatic(fe.CondExpr, scope, ident)
+			if !condOK {
+				return nil, false, true
+			}
+			include, err := convert.Convert(condVal, cty.Bool)
+			if err != nil || include.IsNull() || !include.IsKnown() {
+				r.errorf(fe.CondExpr.Range(), "Invalid for_each condition",
+					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
+				return nil, false, true
+			}
+			if include.False() {
+				continue
+			}
+		}
+		keyVal, keyOK := r.evalStatic(fe.KeyExpr, scope, ident)
+		if !keyOK {
+			return nil, false, true
+		}
+		ks, err := convert.Convert(keyVal, cty.String)
+		if err != nil || ks.IsNull() || !ks.IsKnown() {
+			r.errorf(fe.KeyExpr.Range(), "Invalid for_each key",
+				"The key clause of %s's for_each comprehension did not evaluate to a known string.", subject)
+			return nil, false, true
+		}
+		name := ks.AsString()
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+
+	sort.Strings(names)
+	built := &expansion{keyOnly: true}
+	for _, n := range names {
+		built.keys = append(built.keys, addrs.StringKey(n))
+	}
+	result, checkedOK := r.checkedForEachKeys(rc, built)
+	return result, checkedOK, true
+}
+
+// unwrapForExpr reports whether expr is, ignoring surrounding parentheses, a
+// *hclsyntax.ForExpr - the shape forEachOverComprehension knows how to read.
+func unwrapForExpr(expr hcl.Expression) (*hclsyntax.ForExpr, bool) {
+	for {
+		switch e := expr.(type) {
+		case *hclsyntax.ParenthesesExpr:
+			expr = e.Expression
+		case *hclsyntax.ForExpr:
+			return e, true
+		default:
+			return nil, false
+		}
+	}
+}
+
+// refsRoot reports whether expr references name as the root of one of its
+// free variables - the same expr.Variables() traversal isSymbolic already
+// reads, just checked against a single name instead of a fixed keyword set.
+func refsRoot(expr hcl.Expression, name string) bool {
+	for _, trav := range expr.Variables() {
+		if trav.RootName() == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *resolver) moduleIdentifier(subject string, rng hcl.Range) configs.StaticIdentifier {

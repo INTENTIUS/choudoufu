@@ -993,8 +993,8 @@ refused, and each says so in its own entry.
 | 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 26 | 126 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
-| 24 | 106 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
+| 23 | 103 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 22 | 39 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
 | 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
@@ -1068,6 +1068,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Invalid count | `internal/live/identity` | "Invalid count" |
 | 0 | 0 | identity | Invalid default value for module argument | `internal/configs` | "Invalid default value for module argument" |
 | 0 | 0 | identity | Invalid expanding argument value | `hcl` | "Invalid expanding argument value" |
+| 0 | 0 | identity | Invalid for_each condition | `internal/live/identity` | "Invalid for_each condition" |
+| 0 | 0 | identity | Invalid for_each key | `internal/live/identity` | "Invalid for_each key" |
 | 0 | 0 | identity | Invalid for_each value | `internal/live/identity` | "Invalid for_each value" |
 | 0 | 0 | identity | Invalid index | `hcl` | "Invalid index" |
 | 0 | 0 | identity | Invalid index key | `internal/addrs` | "Invalid index key" |
@@ -1155,7 +1157,7 @@ refused, and each says so in its own entry.
 | - | - | stamp | Ownership markers not stamped | `internal/live/stamp` | "Ownership markers not stamped" |
 | - | - | stamp | Unmarked apply of a marker-only resource | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 
-**173 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
+**175 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1235,14 +1237,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 26 configurations in the measured corpus, at 126 sites.
 
-#### Non-static for_each expression
-
-**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 24 configurations in the measured corpus, at 106 sites.
-
 #### Null identity argument
 
 **What.** An identity argument evaluates to null.
@@ -1250,6 +1244,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 24 configurations in the measured corpus, at 77 sites.
+
+#### Non-static for_each expression
+
+**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 23 configurations in the measured corpus, at 103 sites.
 
 #### Identity argument not set
 
@@ -1760,6 +1762,22 @@ reserved for the limits wing's fixture directories, and
 **What.** A function call expands an argument with ... over something that is not a list or tuple.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid for_each condition
+
+**What.** The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked no configuration in the measured corpus.
+
+#### Invalid for_each key
+
+**What.** The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
 

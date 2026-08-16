@@ -2329,7 +2329,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 35,
+      "sites": 32,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
@@ -2349,11 +2349,6 @@
             "layer": "identity",
             "id": "Invalid function argument",
             "sites": 2
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 3
           },
           {
             "layer": "identity",
@@ -8098,24 +8093,6 @@
     },
     {
       "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
-      "raised_by": "internal/live/identity",
-      "configs": 24,
-      "sites": 106,
-      "examples": [
-        ".corpus/cool-assessment/efs.tf:22",
-        ".corpus/cool-assessment/efs.tf:39",
-        ".corpus/cool-assessment/network_acls.tf:23",
-        ".corpus/cool-assessment/operations_acl_rules.tf:8",
-        ".corpus/cool-assessment/operations_acl_rules.tf:27"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Null identity argument",
       "title": "Null identity argument",
       "what": "An identity argument evaluates to null.",
@@ -8129,6 +8106,24 @@
         ".corpus/autoscaling/main.tf:293",
         ".corpus/autoscaling/main.tf:293",
         ".corpus/autoscaling/main.tf:293"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 23,
+      "sites": 103,
+      "examples": [
+        ".corpus/cool-assessment/efs.tf:22",
+        ".corpus/cool-assessment/efs.tf:39",
+        ".corpus/cool-assessment/network_acls.tf:23",
+        ".corpus/cool-assessment/operations_acl_rules.tf:8",
+        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
@@ -8771,6 +8766,28 @@
     },
     {
       "layer": "identity",
+      "id": "Invalid for_each condition",
+      "title": "Invalid for_each condition",
+      "what": "The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each condition\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Invalid for_each key",
+      "title": "Invalid for_each key",
+      "what": "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Invalid for_each key\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Invalid for_each value",
       "title": "Invalid for_each value",
       "what": "A for_each value is neither a map nor a set of strings.",
@@ -9347,9 +9364,9 @@
     "configs": 250,
     "loaded": 249,
     "instances": 2813,
-    "sites": 14462,
+    "sites": 14459,
     "refusals_fired": 32,
-    "refusals_in_set": 116,
+    "refusals_in_set": 118,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
@@ -9371,7 +9388,7 @@
       "blocked": 144,
       "clean": 0,
       "instances": 1713,
-      "sites": 3148,
+      "sites": 3145,
       "reads_as": "rate"
     },
     {
