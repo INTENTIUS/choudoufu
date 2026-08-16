@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
@@ -195,6 +196,12 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		omitted:    make(map[string]Omission),
 		causes:     make(map[string]string),
 		depsByType: make(map[string][]addrs.ConfigResource),
+		// The `moved` blocks this configuration's markers may follow (GitHub
+		// issue #198), computed once for the whole projection because
+		// [builder.checkOwnership] asks about them per instance. A
+		// configuration with no moved blocks gets an empty slice here and
+		// [moved.Accepts] degenerates to one address comparison.
+		movedStmts: moved.Honoured(cfg),
 	}
 	b.run(ctx, resolutions)
 
@@ -226,6 +233,11 @@ type builder struct {
 	cfg       *configs.Config
 	opts      Options
 	providers *providerCache
+
+	// movedStmts is the honoured `moved` statements of cfg, which decide
+	// which prior tofu-address markers still name a declared instance. See
+	// [builder.checkOwnership].
+	movedStmts []moved.Statement
 
 	state *states.State
 

@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -186,12 +187,23 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 		// nothing on it that says whose it is.
 		b.unowned(addr, typeName, importID, "", fmt.Sprintf(
 			"The provider read the %s with identity %q back without a tags attribute, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
-			typeName, importID, markers.TagEstate), false)
+			typeName, importID, markers.TagEstate), noMarkerCause(typeName), false)
 		return ownershipUnowned
 	}
 
 	estate := tags[markers.TagEstate]
 	tagged := estate != "" && own.Estate != "" && estate == own.Estate
+
+	if tagged {
+		// This estate's marker is on the object, so the second half of the
+		// marker spec's ownership question applies: WHICH of this estate's
+		// instances is it? GitHub issue #244 - both this layer and discovery
+		// deferred that to the other, in comments, and neither performed it.
+		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
+			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
+			return ownershipUnowned
+		}
+	}
 
 	verb := own.Policy.Verb(true, tagged)
 	nonDefault := verb != policy.DefaultVerb[quadrantFor(tagged)]
@@ -244,8 +256,129 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			"A live %s already exists with identity %q and carries %s=%q, so it belongs to another estate and nothing in this plan reads, changes or destroys it. See live/MARKERS.md, \"Ownership semantics\".",
 			typeName, importID, markers.TagEstate, estate)
 	}
-	b.unowned(addr, typeName, importID, estate, detail, nonDefault && verb == policy.Keep)
+	b.unowned(addr, typeName, importID, estate, detail, noMarkerCause(typeName), nonDefault && verb == policy.Keep)
 	return ownershipUnowned
+}
+
+// The two summaries this file's refusals carry, and this file's two entries
+// in [refusals]. They are separated because they mean different things to an
+// operator: the first is "somebody else's resource is in the way", a fact
+// about the account; the second is "this estate's own marker disagrees with
+// this estate's own configuration", which is the wrong-marker class and
+// always needs a human.
+const (
+	SummaryOutsideEstate = "Live resource outside this estate"
+	SummaryWrongAddress  = "Live resource marked for another address"
+)
+
+// noMarkerCause is the subordinate clause a dependent instance's own omission
+// nests, for the estate-marker half of the check.
+func noMarkerCause(typeName string) string {
+	return fmt.Sprintf("the live %s at its identity carries no ownership marker for this estate.", typeName)
+}
+
+// addressNames answers the second half of the ownership question, for a live
+// object already established to carry this estate's tofu-estate marker: does
+// its tofu-address marker name THIS instance?
+//
+// It returns the operator-facing detail and the nesting clause for a
+// refusal, and false, when it does not. Until GitHub issue #244 this function
+// did not exist and every answer was "yes, adopt it".
+//
+// # The one shape that is NOT refused, and why
+//
+// A live object carrying this estate's tofu-estate marker and NO tofu-address
+// marker at all is admitted, and the plan's ordinary tags diff then writes
+// the missing marker. That is a deliberate decision, not an oversight, and it
+// is at first reading in tension with live/MARKERS.md, "Ownership semantics",
+// which calls a resource with tofu-estate and a missing or unparseable
+// tofu-address malformed and says it is "never guessed at". The reconciliation
+// is what the two layers each have in hand:
+//
+//   - internal/live/discovery meets such an object during a scan or a sweep,
+//     where the marker is the ONLY thing that could attach it to an instance.
+//     With no address there is nothing to attach it by, so guessing is the
+//     only remaining move and it correctly refuses to - ProblemMalformedMarker.
+//   - This function meets it at an identity the CONFIGURATION named. The
+//     object was fetched by the import ID a declared instance computed, so
+//     "which instance is this" is already answered by evidence that is not the
+//     marker, and admitting it is not a guess. What is missing is a marker
+//     this run is about to write.
+//
+// That is exactly the shipped migration path for a resource stamped by a run
+// older than the tofu-address marker, and it is what
+// TestLivePlan_stampsMissingMarkers in internal/command asserts, down to the
+// `+ "tofu-address"` line in the plan. Refusing it would break every estate
+// carrying such a resource, in exchange for nothing: an absent marker
+// contradicts no other claim, so nothing can be leaked or double-claimed by
+// completing it.
+//
+// A tofu-address that is present and names another instance is the opposite
+// case in every respect. There the estate's own marker and the estate's own
+// configuration disagree about one object, adopting it makes this plan rewrite
+// a marker off an object that belongs to a sibling instance, and the object
+// that sibling's address named is left behind still carrying it - two live
+// objects, one estate, one address, which live/MARKERS.md names as an error.
+// That one is refused.
+//
+// A gapped continuation chain is refused with it, not adopted with the absent
+// case: a chain with a hole in it IS a competing claim, just an unreadable
+// one, and the address it would have spelled could perfectly well be another
+// instance's. Adopting it would destroy the only evidence of that.
+//
+// The comparison goes through [moved.Accepts], which is the single definition
+// of "this marker names this instance" that discovery's own index is also
+// built from ([moved.Aliases]). Two things follow from that and both are
+// load-bearing:
+//
+//   - A `moved` block legitimately leaves the live object carrying the OLD
+//     address until the marker rewrite lands, and that rewrite is the ordinary
+//     tags diff the provider plans (GitHub issue #198). A bare equality here
+//     would refuse every configuration with a moved block in it.
+//   - A marker written under an older escaping grammar still names the
+//     instance it always named, because [markers.AddressMatches] tries all
+//     three grammars this fork has stamped with. A bare string comparison
+//     against [markers.EscapeAddress] reintroduces the cross-grammar hole that
+//     produced 107 false positives earlier in this campaign.
+//
+// This runs BEFORE the ownership policy's verbs, and deliberately outside
+// them. A wrong address is not the declared_untagged quadrant, however much
+// "not tagged for me" sounds like it: the object IS tagged, by this estate,
+// for another one of its own instances. Folding it into that quadrant would
+// let policy { declared_untagged = "adopt" } adopt a sibling instance's live
+// object, and stamping would then write this instance's address onto it -
+// producing the two-objects-one-address collision live/MARKERS.md names as an
+// error, manufactured by the tool.
+//
+// live-mv is unaffected: its plan path materializes through
+// [BuildFrom], which passes a zero Options, so Ownership is nil and this
+// function is never reached. That is checked by
+// TestOwnershipAddress_mvMaterializePathIsUnaffected.
+func (b *builder) addressNames(addr addrs.AbsResourceInstance, typeName, importID string, tags map[string]string) (detail, cause string, ok bool) {
+	raw, corrupt := markers.GatherAddress(tags)
+	switch {
+	case corrupt:
+		return fmt.Sprintf(
+			"A live %s with identity %q carries this estate's %s marker, but its %s continuation tags have a gap in them - one of %s-2, %s-3, ... is missing while a later one is present. Per live/MARKERS.md such a resource is malformed: neither owned nor foreign, and never read as the address up to the gap. It was left out of this plan, which therefore proposes creating %s. Repair the tags by hand and re-run.",
+			typeName, importID, markers.TagEstate, markers.TagAddress,
+			markers.TagAddress, markers.TagAddress, addr,
+		), fmt.Sprintf("the live %s at its identity carries a malformed %s marker.", typeName, markers.TagAddress), false
+
+	case raw == "":
+		// No competing claim to contradict the identity the configuration
+		// computed. Admitted, and this run stamps the marker it is missing -
+		// see this function's doc comment for why this is the one shape not
+		// refused, and why that does not contradict live/MARKERS.md.
+		return "", "", true
+
+	case !moved.Accepts(b.movedStmts, addr, markers.EscapeAddress(raw)):
+		return fmt.Sprintf(
+			"A live %s with identity %q carries this estate's %s marker and %s=%q, which names a different resource than %s. The identity this configuration computes for %s therefore lands on an object another instance of this same estate owns. Adopting it would make this plan rewrite that object's %s marker onto %s and leave the object that address named behind, still marked, which live/MARKERS.md names as an error. It was left out of this plan instead. If the resource really did move, say so with a moved block or with choudoufu live-mv; if two instances have renumbered onto each other, that is what has to be fixed.",
+			typeName, importID, markers.TagEstate, markers.TagAddress, raw, addr,
+			addr, markers.TagAddress, addr,
+		), fmt.Sprintf("the live %s at its identity carries another address's %s marker.", typeName, markers.TagAddress), false
+	}
+	return "", "", true
 }
 
 // quadrantFor is the declared-side quadrant one "tagged" reading names.
@@ -271,7 +404,14 @@ func quadrantFor(tagged bool) policy.Quadrant {
 // documented as a quieter variant of refuse, so the loud warning a plain
 // refusal always carries is left off. The fact still travels in
 // [Result.Unowned] and [Result.Omitted] for any caller that wants it.
-func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail string, quiet bool) {
+//
+// summary and cause are parameters rather than constants because this
+// function now serves two different refusals: "this is somebody else's
+// resource" and GitHub issue #244's "this is this estate's own resource,
+// marked for a different one of its instances". Both keep a resource out of
+// the prior state on the same terms, and they must not read as the same
+// finding - each has its own entry in [refusals].
+func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string, quiet bool) {
 	b.unownedList = append(b.unownedList, Unowned{
 		Addr:     addr,
 		TypeName: typeName,
@@ -282,12 +422,37 @@ func (b *builder) unowned(addr addrs.AbsResourceInstance, typeName, importID, es
 	if !quiet {
 		b.diags = b.diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
-			"Live resource outside this estate",
+			SummaryOutsideEstate,
 			detail,
 		))
 	}
-	b.omit(addr, ReasonUnowned, detail, fmt.Sprintf(
-		"the live %s at its identity carries no ownership marker for this estate.", typeName))
+	b.omit(addr, ReasonUnowned, detail, cause)
+}
+
+// unownedAddress is [builder.unowned] for GitHub issue #244's refusal: this
+// estate's own marker, naming a different one of its own instances (or no
+// instance at all). It records exactly the same three things - the Unowned
+// entry, the warning, the omission - under its own summary, because the two
+// findings mean different things to whoever reads the plan and because a
+// refusal that cannot be told apart from another cannot be looked up.
+//
+// It is never quiet. The quiet variant exists only for declared_untagged's
+// "keep" verb, and a wrong address is not that quadrant - see
+// [builder.addressNames].
+func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, importID, estate, detail, cause string) {
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:     addr,
+		TypeName: typeName,
+		ImportID: importID,
+		Estate:   estate,
+		Detail:   detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(
+		tfdiags.Warning,
+		SummaryWrongAddress,
+		detail,
+	))
+	b.omit(addr, ReasonUnowned, detail, cause)
 }
 
 // markerCapable reports whether a resource type has anywhere to carry an

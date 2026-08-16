@@ -98,6 +98,10 @@ var refusals = []Refusal{
 		What:    "An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.",
 	},
 	{
+		Summary: "Live resource marked for another address",
+		What:    "A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.",
+	},
+	{
 		Summary: "Live resource outside this estate",
 		What:    "A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.",
 	},

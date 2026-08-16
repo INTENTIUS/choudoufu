@@ -5,38 +5,39 @@ package projection
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// These tests pin what [builder.checkOwnership] does TODAY about the
-// tofu-address marker, which is nothing: it reads tags[markers.TagEstate]
-// and no other tag, so a live object carrying this estate's marker under
-// some other resource's address is adopted into prior state without a
-// diagnostic, an omission or an Unowned entry.
+// These tests pin what [builder.checkOwnership] does about the tofu-address
+// marker, which until GitHub issue #244 landed was nothing: it read
+// tags[markers.TagEstate] and no other tag, so a live object carrying this
+// estate's marker under some other resource's address was adopted into prior
+// state without a diagnostic, an omission or an Unowned entry.
 //
-// That is GitHub issue #244, and it is a defect, not a decision. These
-// assertions record the defective behavior so the reproduction is not lost
-// and so the eventual fix has to come here and invert them deliberately
-// rather than discovering this file by surprise. Every want below that
-// reads "adopted" or "no refusal" is the bug; when #244 lands, each becomes
-// its opposite.
+// The file used to record that defect. It now records its opposite, plus the
+// two things a fix could easily have broken and did not: a `moved` block,
+// whose whole mechanism is a live object legitimately carrying the OLD
+// address until the tag rewrite lands (issue #198), and live-mv's own
+// materialize path, which does not go through the ownership check at all.
 //
 // The other half of #244 is in internal/live/discovery, whose scan drops a
 // live object whose marker names a ClassConcrete declared address
-// (discovery.go:1171's `if decl.declares(...) { continue }`) on the stated
-// grounds that "the marker only confirms the estate still owns what it
-// thinks it owns" - the confirmation this function does not perform. A
-// probe for that half needs that package's own list-client fakes and is
-// not written yet.
+// (discovery.go's `if decl.declares(...) { continue }`) on the stated grounds
+// that "the marker only confirms the estate still owns what it thinks it
+// owns" - the confirmation this file's subject now performs. That half is
+// still open; see internal/live/discovery/ownership_address_test.go, which
+// pins it.
 
-// TestOwnershipAddress_wrongAddressSameEstateIsAdopted: this estate's
-// marker, another resource's address. Stock OpenTofu, holding no state for
-// this address, would plan a create (and, for a unique-named type, collide);
-// choudoufu adopts.
-func TestOwnershipAddress_wrongAddressSameEstateIsAdopted(t *testing.T) {
+// TestOwnershipAddress_wrongAddressSameEstateIsRefused: this estate's marker,
+// another resource's address. Stock OpenTofu, holding no state for this
+// address, plans a create (and, for a unique-named type, collides); choudoufu
+// used to adopt. It now refuses, loudly.
+func TestOwnershipAddress_wrongAddressSameEstateIsRefused(t *testing.T) {
 	cfg := loadConfig(t, "testdata/named")
 
 	cloud := newFakeCloud()
@@ -54,27 +55,32 @@ func TestOwnershipAddress_wrongAddressSameEstateIsAdopted(t *testing.T) {
 
 	assertNoErrors(t, diags)
 
-	// #244: all four of these are the defect.
-	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
-		t.Fatal("issue #244 appears to be fixed: another instance's live object is no longer adopted. Invert this file's assertions.")
+	if res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("another instance's live object was adopted (issue #244):\n%s", res)
 	}
-	if len(res.Unowned) != 0 {
-		t.Errorf("issue #244 appears to be fixed: the address disagreement now produces a refusal (%+v). Invert this file's assertions.", res.Unowned)
+	if len(res.Unowned) != 1 {
+		t.Fatalf("the address disagreement produced no single Unowned entry: %+v", res.Unowned)
 	}
-	if len(res.Omitted) != 0 {
-		t.Errorf("issue #244 appears to be fixed: the address disagreement now produces an omission (%+v). Invert this file's assertions.", res.Omitted)
+	if got := res.Unowned[0].Estate; got != ownershipEstate {
+		t.Errorf("the Unowned entry records estate %q, want this run's own %q - the object IS this estate's, which is the point", got, ownershipEstate)
 	}
-	if len(diags) != 0 {
-		t.Errorf("issue #244 appears to be fixed: the address disagreement now warns:\n%s", renderDiags(diags))
+	om := omissionFor(t, res, `aws_cloudwatch_log_group.app`)
+	if !strings.Contains(om.Detail, "aws_cloudwatch_log_group.somebody_else") {
+		t.Errorf("the omission does not name the address the live object actually carries:\n%s", om.Detail)
+	}
+	if got := diagSummaries(diags); len(got) != 1 || got[0] != SummaryWrongAddress {
+		t.Errorf("diagnostics = %v, want exactly [%q]:\n%s", got, SummaryWrongAddress, renderDiags(diags))
 	}
 }
 
-// TestOwnershipAddress_renumberedIndexIsAdopted is the shape the widened
+// TestOwnershipAddress_renumberedIndexIsRefused is the shape the widened
 // count.index domain rule (internal/live/lint/count_index_domain.go) admits:
 // an identity-bearing argument indexed by count.index, where deleting a
 // middle element renumbers the survivors. app resolves to the identity the
-// live object marked app[2] holds, and adopts it.
-func TestOwnershipAddress_renumberedIndexIsAdopted(t *testing.T) {
+// live object marked app[2] holds. Adopting it is what would have made this
+// plan rewrite app[2]'s marker onto app, leaving the object app named behind
+// carrying a marker a second object now also carries.
+func TestOwnershipAddress_renumberedIndexIsRefused(t *testing.T) {
 	cfg := loadConfig(t, "testdata/named")
 
 	cloud := newFakeCloud()
@@ -90,19 +96,29 @@ func TestOwnershipAddress_renumberedIndexIsAdopted(t *testing.T) {
 	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
 
 	assertNoErrors(t, diags)
-	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
-		t.Fatal("issue #244 appears to be fixed: a renumbered index no longer adopts the neighbouring instance's live object. Invert this file's assertions.")
+	if res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("a renumbered index adopted the neighbouring instance's live object:\n%s", res)
 	}
-	if len(res.Unowned) != 0 {
-		t.Errorf("issue #244 appears to be fixed: %+v", res.Unowned)
+	if len(res.Unowned) != 1 {
+		t.Fatalf("Unowned = %+v, want one entry", res.Unowned)
 	}
 }
 
-// TestOwnershipAddress_missingAddressMarkerIsAdopted: the estate marker
-// alone, no tofu-address at all. Whether this one is a defect or a
-// deliberate hand-adoption affordance is the open policy question on #244;
-// it is pinned here because the fix has to answer it either way.
-func TestOwnershipAddress_missingAddressMarkerIsAdopted(t *testing.T) {
+// TestOwnershipAddress_missingAddressMarkerIsStillAdmitted settles the policy
+// question #244 left open, in the direction of KEEPING today's behavior.
+//
+// The estate marker with no tofu-address at all is the shape a resource
+// stamped by a run older than the address marker has, and completing it is a
+// shipped migration path: internal/command's TestLivePlan_stampsMissingMarkers
+// asserts the resulting plan down to its `+ "tofu-address"` line. Unlike a
+// wrong address, an absent one contradicts nothing - the instance was found by
+// the identity the configuration itself computed, so admitting it is not the
+// guess live/MARKERS.md forbids, and nothing can be leaked or double-claimed
+// by writing a marker where there was none. See [builder.addressNames]'s doc
+// comment for the full reconciliation with the spec and with discovery, which
+// refuses the same shape because on its path the marker is the only evidence
+// there is.
+func TestOwnershipAddress_missingAddressMarkerIsStillAdmitted(t *testing.T) {
 	cfg := loadConfig(t, "testdata/named")
 
 	cloud := newFakeCloud()
@@ -118,6 +134,159 @@ func TestOwnershipAddress_missingAddressMarkerIsAdopted(t *testing.T) {
 
 	assertNoErrors(t, diags)
 	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
-		t.Fatal("issue #244's no-address case changed: an object with the estate marker and no tofu-address is no longer adopted. Settle it on the issue and update this test.")
+		t.Fatalf("an object with the estate marker and no tofu-address was refused, which breaks the older-run migration path TestLivePlan_stampsMissingMarkers covers:\n%s", res)
 	}
+	if len(res.Unowned) != 0 || len(diags) != 0 {
+		t.Errorf("an absent address marker produced a complaint: %+v\n%s", res.Unowned, renderDiags(diags))
+	}
+}
+
+// TestOwnershipAddress_corruptContinuationChainIsRefused: a tofu-address-3
+// with no tofu-address-2. live/MARKERS.md calls this the same malformed case
+// as a missing address and forbids reading it as the address up to the gap.
+func TestOwnershipAddress_corruptContinuationChainIsRefused(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:          ownershipEstate,
+		markers.TagAddress:         "aws_cloudwatch_log_group.app",
+		markers.ContinuationTag(3): "trailing",
+	})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("a gapped continuation chain was read as the address up to the gap and adopted:\n%s", res)
+	}
+}
+
+// TestOwnershipAddress_ownAddressIsStillAdmitted is the control. A rule that
+// refused everything would be safe and useless, and this is the case every
+// working estate is in.
+func TestOwnershipAddress_ownAddressIsStillAdmitted(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:  ownershipEstate,
+		markers.TagAddress: markers.EscapeAddress(`aws_cloudwatch_log_group.app`),
+	})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("the estate's own correctly marked resource was refused:\n%s", res)
+	}
+	if len(res.Unowned) != 0 || len(diags) != 0 {
+		t.Errorf("a correct marker produced a complaint: %+v\n%s", res.Unowned, renderDiags(diags))
+	}
+}
+
+// TestOwnershipAddress_movedBlockAdmitsTheOldAddress is the constraint that
+// makes a bare equality comparison wrong. A honoured `moved` block leaves the
+// live object carrying its OLD tofu-address until the marker rewrite lands,
+// and that rewrite is the ordinary tags diff the provider plans - it cannot
+// happen before the object is in the prior state. Refusing here would break
+// every moved block (issue #198) at the moment issue #244 was fixed.
+func TestOwnershipAddress_movedBlockAdmitsTheOldAddress(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named-moved")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:  ownershipEstate,
+		markers.TagAddress: markers.EscapeAddress(`aws_cloudwatch_log_group.legacy_app`),
+	})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("a moved block's old address was refused, which breaks issue #198:\n%s", res)
+	}
+	if len(res.Unowned) != 0 || len(diags) != 0 {
+		t.Errorf("a moved block's old address produced a complaint: %+v\n%s", res.Unowned, renderDiags(diags))
+	}
+}
+
+// TestOwnershipAddress_movedBlockDoesNotAdmitAThirdAddress: the alias set is
+// the moved block's origins, not "any address". A moved block from
+// legacy_app must not make a marker naming somebody_else acceptable.
+func TestOwnershipAddress_movedBlockDoesNotAdmitAThirdAddress(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named-moved")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:  ownershipEstate,
+		markers.TagAddress: markers.EscapeAddress(`aws_cloudwatch_log_group.somebody_else`),
+	})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("a moved block widened the acceptable markers to an address it never mentions:\n%s", res)
+	}
+}
+
+// TestOwnershipAddress_mvMaterializePathIsUnaffected settles #244's stated
+// blocker "whether mv's plan path goes through checkOwnership, and with which
+// address in hand, has to be settled before a refusal lands, or the one
+// supported way to change an address breaks."
+//
+// It does not go through it. internal/live/mv's materialize calls
+// [BuildFrom], which passes a zero Options, so Ownership is nil and
+// checkOwnership returns at its first case. This pins the property mv relies
+// on, in the package that owns it, so a later change to BuildFrom's defaults
+// fails here rather than in mv's own fixtures.
+func TestOwnershipAddress_mvMaterializePathIsUnaffected(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate: ownershipEstate,
+		// The old address, mid-rename: exactly what mv reads before it
+		// rewrites the tag.
+		markers.TagAddress: markers.EscapeAddress(`aws_cloudwatch_log_group.before_the_rename`),
+	})
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, `aws_cloudwatch_log_group.app`), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t))
+
+	assertNoErrors(t, diags)
+	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
+		t.Fatalf("BuildFrom now applies an ownership check, which breaks live-mv's materialize:\n%s", res)
+	}
+}
+
+// diagSummaries is the Summary of every diagnostic, in order. The refusal
+// registry is keyed by Summary, so asserting on it is asserting that the
+// refusal a user gets is the one they can look up.
+func diagSummaries(diags tfdiags.Diagnostics) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, d.Description().Summary)
+	}
+	return out
 }
