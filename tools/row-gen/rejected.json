@@ -303,11 +303,6 @@
         "internal/live/identity/table_cohort_ec2_networking.go"
       ]
     },
-    "aws_ecs_capacity_provider": {
-      "recovered_from": [
-        "internal/live/identity/table_cohort_ecs_eks.go"
-      ]
-    },
     "aws_ecs_task_set": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ecs_eks.go"

@@ -322,6 +322,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_ecr_repository_policy":                                             {},
 	"aws_ecrpublic_repository":                                              {},
 	"aws_ecrpublic_repository_policy":                                       {},
+	"aws_ecs_capacity_provider":                                             {},
 	"aws_ecs_cluster":                                                       {},
 	"aws_ecs_cluster_capacity_providers":                                    {},
 	"aws_ecs_daemon":                                                        {},
