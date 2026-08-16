@@ -181,3 +181,48 @@ func LookupRefusal(summary string) (Refusal, bool) {
 	}
 	return Refusal{}, false
 }
+
+// SeverityForRefusal is the severity of the diagnostic this package raises
+// under one registry Summary, so that a report about refusals can tell a
+// blocker from a note.
+//
+// [Refusal] itself carries no severity field, and adding one would have
+// meant hand-writing sixteen answers next to sixteen entries with nothing
+// checking them against the code. This reads them off instead: a Summary
+// that belongs to a [ProblemKind] answers with that kind's own
+// [ProblemKind.Severity], which is the switch [problemDiag] uses to build
+// the diagnostic. It is the same call, not a parallel copy of it -
+// problemDiag and sweepGapDiag both route their severity through this
+// function, so a wrong answer here is a wrong diagnostic rather than a
+// wrong document.
+//
+// Everything else is an error: the caller errors (a request with no estate
+// name, no configuration or no provider handle) and the marker-trouble
+// refusals (an address too long to carry, two addresses escaping to one
+// value) all stop the run. TestEveryRegisteredRefusalHasAStatedSeverity is
+// what keeps that from being an assumption - a Summary added to the registry
+// that is neither a problem kind's nor the sweep gap's has to be accounted
+// for there before it can silently render as a blocker.
+func SeverityForRefusal(summary string) Severity {
+	if kind, ok := problemKindForSummary(summary); ok {
+		return kind.Severity()
+	}
+	if summary == SummaryIncompleteSweep {
+		// A gap in removal coverage, never a wrong plan: the run in front
+		// of the operator is correct and simply did not see everything.
+		return SeverityWarning
+	}
+	return SeverityError
+}
+
+// problemKindForSummary is [problemSummaries] read backwards. The map is
+// injective - TestProblemSummariesAreDistinct - so the reverse lookup is
+// well defined rather than dependent on Go's map order.
+func problemKindForSummary(summary string) (ProblemKind, bool) {
+	for kind, s := range problemSummaries {
+		if s == summary {
+			return kind, true
+		}
+	}
+	return "", false
+}

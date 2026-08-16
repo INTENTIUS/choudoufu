@@ -182,6 +182,12 @@ func Reconcile(ctx context.Context, req ReconcileRequest) (*ReconcileResult, tfd
 // considers - issue #67's "only types that are BOTH admitted and
 // enumerable are deletable" - enumerable is decided per type in
 // [reconcileType].
+//
+// A record-backed type is excluded from both branches for the same reason
+// [sweepTypes] excludes it: [cloudObservable] says it has no cloud object to
+// reconcile against. An untagged stranger of type null_resource is not a
+// thing that can exist in an account, and reconcileType would otherwise file
+// a NOT_ENUMERABLE gap for each of the fourteen on every scoped pass.
 func reconcileTypeUniverse(scope *policy.Scope) []string {
 	if len(scope.Types) > 0 {
 		out := make([]string, 0, len(scope.Types))
@@ -190,13 +196,19 @@ func reconcileTypeUniverse(scope *policy.Scope) []string {
 			admitted[t] = true
 		}
 		for _, t := range scope.Types {
-			if admitted[t] {
+			if admitted[t] && cloudObservable(t) {
 				out = append(out, t)
 			}
 		}
 		return out
 	}
-	return append([]string(nil), identity.AdmittedTypes()...)
+	out := make([]string, 0, len(identity.AdmittedTypes()))
+	for _, t := range identity.AdmittedTypes() {
+		if cloudObservable(t) {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // reconcileService is the provider service namespace one type belongs to,

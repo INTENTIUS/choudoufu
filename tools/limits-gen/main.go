@@ -65,6 +65,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/docsref"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mdspan"
@@ -171,16 +172,37 @@ func readCorpus(path string) (map[string]frequency, bool, error) {
 
 func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 
-// severityLabel renders a refusal's severity for the table. Only the lint
-// layer has a mechanism for anything but fatal today ([lint.Rule.Severity],
-// GitHub issue #214): a lint refusal's ID is its rule's own string, so it is
-// looked up directly rather than duplicated into [check.Refusal], which
-// carries no severity field. Every other layer answers "error" because
-// nothing there can yet declare otherwise - not because this generator
-// assumes so.
+// severityLabel renders a refusal's severity for the table.
+//
+// [check.Refusal] carries no severity field, so each layer that has a
+// mechanism for anything but fatal is asked directly, by the ID that layer's
+// refusals are keyed on. Two do today:
+//
+//   - lint, whose refusal ID is its rule's own string ([lint.Rule.Severity],
+//     GitHub issue #214);
+//   - discovery, whose refusal ID is the diagnostic Summary and whose
+//     [discovery.SeverityForRefusal] is the same call the diagnostic itself
+//     is built from - five of its refusals are warnings.
+//
+// This function said "error" for every discovery refusal until that second
+// case existed, which put four warnings in the table as blockers: an
+// unresolvable account ID, a displaced marker, a tagged ARN that could not
+// be joined, an owned resource of an unsweepable type - plus the sweep-gap
+// note. A reader ranking work off this table was reading four to five
+// non-blockers as things that stop a run.
+//
+// The remaining layers answer "error" because nothing in them can yet
+// declare otherwise, not because this generator assumes so.
 func severityLabel(r check.Refusal) string {
-	if r.Layer == check.LayerLint && lint.Rule(r.ID).Severity() == lint.SeverityWarning {
-		return "warning"
+	switch r.Layer {
+	case check.LayerLint:
+		if lint.Rule(r.ID).Severity() == lint.SeverityWarning {
+			return "warning"
+		}
+	case check.LayerDiscovery:
+		if discovery.SeverityForRefusal(r.ID) == discovery.SeverityWarning {
+			return "warning"
+		}
 	}
 	return "error"
 }
@@ -234,9 +256,13 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
 		"error in this table - it is the interesting end of it, and a set "+
 		"assembled by watching output could never contain one. **Severity** "+
-		"is `error` (fatal, stops the run) unless marked `warning` - today "+
-		"only a lint rule can declare `warning`, GitHub issue #214's "+
-		"`state-backend`; every other layer's refusal is `error`.\n", len(catalog))
+		"is `error` (fatal, stops the run) unless marked `warning`. Two "+
+		"layers can declare `warning` today: a lint rule (GitHub issue "+
+		"#214's `state-backend`) and a discovery refusal, whose severity is "+
+		"read from the same call the diagnostic is built from. A `warning` "+
+		"does not stop the run - it says this run saw less than the whole "+
+		"picture, or found something outside its own coverage - so it is not "+
+		"a blocker and should not be ranked as one.\n", len(catalog))
 	if measured {
 		fmt.Fprintf(&b, "\nCounts are from `%s`, over the corpus that artifact names. "+
 			"Read them as a ranking and not as a rate: the corpus leans on module "+

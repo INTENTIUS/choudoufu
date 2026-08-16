@@ -20,3 +20,10 @@ package discovery
 // otherwise the single refusal that could never be documented. The kind is
 // in the detail.
 const SummaryUnclassifiedProblem = "Unclassified discovery problem"
+
+// SummaryIncompleteSweep is the summary [sweepGapDiag] raises for a sweep
+// gap the operator is told about out loud - a list call that failed, a list
+// configuration that could not be built. It is a constant so that
+// [SeverityForRefusal] and the call site name the same string rather than
+// two copies of it that can drift.
+const SummaryIncompleteSweep = "Incomplete sweep for undeclared resources"

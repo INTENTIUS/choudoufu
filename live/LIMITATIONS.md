@@ -1352,23 +1352,23 @@ refused, and each says so in its own entry.
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Failed to list a resource type | error | `internal/live/discovery` | "Failed to list a resource type" |
-| - | - | discovery | Incomplete sweep for undeclared resources | error | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
+| - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
 | - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
-| - | - | discovery | Live resource displaced from the address it is marked for | error | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
+| - | - | discovery | Live resource displaced from the address it is marked for | warning | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
 | - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
-| - | - | discovery | No AWS account ID from the provider | error | `internal/live/discovery` | "No AWS account ID from the provider" |
+| - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
 | - | - | discovery | No provider access | error | `internal/live/discovery` | "No provider access" |
 | - | - | discovery | No slot left to mint | error | `internal/live/discovery` | "No slot left to mint" |
 | - | - | discovery | One marker value for two declared addresses | error | `internal/live/discovery` | "One marker value for two declared addresses" |
-| - | - | discovery | Owned resource of a type the sweep cannot cover | error | `internal/live/discovery` | "Owned resource of a type the sweep cannot cover" |
+| - | - | discovery | Owned resource of a type the sweep cannot cover | warning | `internal/live/discovery` | "Owned resource of a type the sweep cannot cover" |
 | - | - | discovery | Partial slot markers on a count set | error | `internal/live/discovery` | "Partial slot markers on a count set" |
 | - | - | discovery | Resolved resource missing from the configuration | error | `internal/live/discovery` | "Resolved resource missing from the configuration" |
-| - | - | discovery | Tagged resource's ARN could not be joined to a resource type | error | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
+| - | - | discovery | Tagged resource's ARN could not be joined to a resource type | warning | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
 | - | - | discovery | Two live resources claiming one address | error | `internal/live/discovery` | "Two live resources claiming one address" |
 | - | - | discovery | Two live resources claiming one slot | error | `internal/live/discovery` | "Two live resources claiming one slot" |
 | - | - | discovery | Unclassified discovery problem | error | `internal/live/discovery` | "Unclassified discovery problem" |
@@ -1500,7 +1500,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**177 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning` - today only a lint rule can declare `warning`, GitHub issue #214's `state-backend`; every other layer's refusal is `error`.
+**177 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

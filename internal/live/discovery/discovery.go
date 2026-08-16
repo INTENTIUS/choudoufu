@@ -442,6 +442,9 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 // "the types recorded as belonging to this estate" is the design that cannot
 // exist here: the recording of it would be a store, which is exactly the
 // thing whose absence is the point.
+//
+// One class of admitted type is excluded outright: a record-backed one
+// ([identity.TypeIdentity.RecordBacked]). See [cloudObservable].
 func sweepTypes(req Request, decl *declared) []string {
 	universe := req.SweepTypes
 	if len(universe) == 0 {
@@ -452,10 +455,47 @@ func sweepTypes(req Request, decl *declared) []string {
 		if decl.types[t] != nil {
 			continue
 		}
+		if !cloudObservable(t) {
+			continue
+		}
 		out = append(out, t)
 	}
 	sort.Strings(out)
 	return out
+}
+
+// cloudObservable reports whether a resource type can have a live cloud
+// object at all, which is the precondition for asking a provider to list it.
+//
+// It is false for exactly the record-backed types (GitHub issue #73's
+// RECORD_ADMITTED logical types: null_resource, terraform_data, and the
+// random_* and time_* families). Those have no cloud counterpart by
+// construction - choudoufu persists them itself, per estate, and
+// internal/live/projection materializes an instance from that record without
+// any cloud read at all ([identity.ClassRecordBacked], build.go's
+// materializeRecord). Listing one is asking the account about something that
+// was never there, and the provider handle discovery lists through has no
+// list resource for it either way, so every such request came back as a
+// [SweepGapNotListable] gap: fourteen of them on every swept plan, each one
+// telling an operator that removal coverage has a hole where no coverage was
+// ever possible or needed. A deleted null_resource block is the record
+// store's business, never the sweep's.
+//
+// The rule is read off the admission table rather than named type by type,
+// so a row row-gen marks RecordBacked later is excluded the day it lands.
+// The universe is filtered whoever asked for it, including an explicit
+// [Request.SweepTypes]: "has no cloud object" is a property of the type, not
+// of the caller.
+func cloudObservable(typeName string) bool {
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		// Outside the table entirely. sweepTypes' own universe cannot
+		// contain such a type, but an explicit Request.SweepTypes can, and
+		// "unknown" is not "record-backed" - leave it to the scan, which
+		// reports what it finds.
+		return true
+	}
+	return !entry.RecordBacked
 }
 
 // ---------------------------------------------------------------------------
@@ -1653,8 +1693,8 @@ func sweepGapDiag(res *Result, g SweepGap) tfdiags.Diagnostics {
 		return diags
 	}
 	return diags.Append(tfdiags.Sourceless(
-		tfdiags.Warning,
-		"Incomplete sweep for undeclared resources",
+		tfdiagsSeverity(SeverityForRefusal(SummaryIncompleteSweep)),
+		SummaryIncompleteSweep,
 		g.Detail,
 	))
 }
@@ -1844,15 +1884,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 				continue
 			}
 			reported[blk] = true
-			diags = diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemNeedsSlotMarkers,
-				TypeName: typeName,
-				Marker:   blk.addr,
-				LiveIDs:  claimantIDs(blk.claimants),
-				Detail: fmt.Sprintf(
-					"%d live %s resource(s) carry the marker %q, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. Nothing distinguishes which live resource is which instance. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
-					len(blk.claimants), typeName, blk.addr, blk.instances),
-			}))
+			diags = diags.Append(problemDiag(res, blockLevelMarkerProblem(typeName, blk)))
 		}
 	}
 
@@ -1896,6 +1928,93 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 		})
 	}
 	return diags
+}
+
+// blockLevelMarkerProblem is the [ProblemNeedsSlotMarkers] a for_each block
+// gets when live resources carry the block's own address rather than one of
+// its instance keys.
+//
+// It names the markers the claimants actually carried, which is GitHub issue
+// #248. Since #198 a *declaredBlock also answers to every address a moved
+// block says it used to have, so a claimant can reach this block under a
+// name that is not blk.addr - and blk.addr is what the message used to
+// print. An operator following a moved block holds the origin address and
+// was handed the destination: greping their cloud tags for it finds nothing,
+// and the remedy ("rewrite each resource's tofu-address") gave them no way
+// to locate the resource it was about. Problem.Marker carried the same wrong
+// value, against its own field documentation - "the tofu-address value
+// involved, escaped as compared" is claimant.escaped, never the block's
+// canonical name.
+//
+// The live IDs go into the sentence for the same reason (#248's third
+// option, taken as well as the first rather than instead of it): they are
+// what an operator can act on directly, and they were already on the Problem
+// without ever appearing in the text.
+//
+// A claimant that carried the block's own address gets today's wording
+// unchanged - that is the overwhelmingly common case and it was never wrong.
+func blockLevelMarkerProblem(typeName string, blk *declaredBlock) Problem {
+	carried := carriedMarkers(blk.claimants)
+	ids := claimantIDs(blk.claimants)
+
+	// Marker holds the value compared when there is one of them. Several
+	// claimants carrying several spellings of one block have no single such
+	// value, so the block's own address stands in and the sentence names
+	// every spelling.
+	marker := blk.addr
+	if len(carried) == 1 {
+		marker = carried[0]
+	}
+
+	var whichBlock string
+	if len(carried) != 1 || carried[0] != blk.addr {
+		whichBlock = fmt.Sprintf(", which this configuration now declares as %q", blk.addr)
+	}
+
+	return Problem{
+		Kind:     ProblemNeedsSlotMarkers,
+		TypeName: typeName,
+		Marker:   marker,
+		LiveIDs:  ids,
+		Detail: fmt.Sprintf(
+			"%d live %s resource(s) (%s) carry the marker %s%s, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. Nothing distinguishes which live resource is which instance. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
+			len(blk.claimants), typeName, strings.Join(ids, ", "), quotedList(carried), whichBlock, blk.instances),
+	}
+}
+
+// carriedMarkers is the distinct escaped tofu-address values a set of
+// claimants actually carried, sorted. Usually one; more than one when a
+// moved block's origin and destination spellings are both live at once,
+// which is exactly what an interrupted marker rewrite leaves behind.
+func carriedMarkers(cs []claimant) []string {
+	seen := make(map[string]bool, len(cs))
+	out := make([]string, 0, len(cs))
+	for _, c := range cs {
+		if seen[c.escaped] {
+			continue
+		}
+		seen[c.escaped] = true
+		out = append(out, c.escaped)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// quotedList renders one or more values as an operator would read them:
+// `"a"`, or `"a" and "b"`, or `"a", "b" and "c"`.
+func quotedList(vals []string) string {
+	quoted := make([]string, len(vals))
+	for i, v := range vals {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	switch len(quoted) {
+	case 0:
+		return ""
+	case 1:
+		return quoted[0]
+	default:
+		return strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
+	}
 }
 
 // collisionProblem distinguishes the two ways several live resources come to
@@ -1950,15 +2069,23 @@ func sortedBlockAddrs(m map[string]*declaredBlock) []string {
 	return out
 }
 
+// tfdiagsSeverity is the tfdiags spelling of a [Severity]. Both diagnostic
+// builders in this package ([problemDiag] and [sweepGapDiag]) go through it,
+// so [SeverityForRefusal] is the one place that decides what an operator
+// sees and what live/LIMITATIONS.md says at once.
+func tfdiagsSeverity(s Severity) tfdiags.Severity {
+	if s == SeverityWarning {
+		return tfdiags.Warning
+	}
+	return tfdiags.Error
+}
+
 // problemDiag records a problem on the result and returns the diagnostic
 // that goes with it, so the two can never drift apart.
 func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 	res.Problems = append(res.Problems, p)
 
-	severity := tfdiags.Error
-	if p.Kind.Severity() == SeverityWarning {
-		severity = tfdiags.Warning
-	}
+	severity := tfdiagsSeverity(p.Kind.Severity())
 
 	// Every kind in problemSummaries has a summary of its own, and
 	// TestProblemSummariesCoverKinds keeps it that way.
