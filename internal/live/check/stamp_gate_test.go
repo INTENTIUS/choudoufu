@@ -7,6 +7,7 @@ package check
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -59,14 +60,39 @@ func TestStampGate_UnknownSchemaIsNotRefused(t *testing.T) {
 			t.Fatalf("stamp fabricated a refusal (as a warning) on aws_instance.web with its schema unavailable: %v", f)
 		}
 	}
+
+	// And the other way to get this wrong: reporting nothing at all. The
+	// instrument's whole claim is that it says what it checked, so a
+	// resource it could not check has to appear as a warning rather than
+	// vanish into a pass.
+	assertStampUnknownWarning(t, report, "aws_instance")
+}
+
+// assertStampUnknownWarning finds the "taggability unknown" warning stamping
+// raises for a needs-discovery resource whose type schema this run has not
+// got. See [stamp.SkipReason.Unknown].
+func assertStampUnknownWarning(t *testing.T, report Report, typeName string) {
+	t.Helper()
+
+	for _, f := range report.Warnings {
+		if f.Layer != LayerStamp || f.ID != stamp.SummaryNotStamped {
+			continue
+		}
+		for _, site := range f.Sites {
+			if strings.Contains(site.Detail, "The schema of "+typeName+" is not available") {
+				return
+			}
+		}
+	}
+	t.Errorf("no stamp %q warning names %s's unreadable schema; unknown became silence: %v", stamp.SummaryNotStamped, typeName, report.Warnings)
 }
 
 // TestStampGate_NoSchemasAtAllIsNotRefused is the zero-schema case the old
 // gate (len(actx.Schemas) > 0) handled by never calling stamp.Stamp at all.
-// The fix removes that outer gate in favor of the per-type one inside
-// stampNeedsDiscovery, so this pins that the zero-schema case still produces
-// no fabricated stamp refusal now that stamp.Stamp always runs when identity
-// resolved.
+// The gate is gone in both its forms now - [stamp.SkipReason.Unknown] holds
+// the invariant inside stamp.Stamp instead - so this pins that a run with no
+// schemas whatsoever still produces no fabricated stamp refusal, and still
+// says out loud what it could not check.
 func TestStampGate_NoSchemasAtAllIsNotRefused(t *testing.T) {
 	report := Dir(t.Context(), filepath.Join("testdata", "stamp-schema-gate"), Context{})
 	if !report.Readable() {
@@ -81,6 +107,7 @@ func TestStampGate_NoSchemasAtAllIsNotRefused(t *testing.T) {
 			t.Fatalf("stamp produced a finding with no schemas at all: %v", f)
 		}
 	}
+	assertStampUnknownWarning(t, report, "aws_instance")
 }
 
 // TestStampGate_GenuinelyUntaggableTypeStillRefuses is the mirror check the

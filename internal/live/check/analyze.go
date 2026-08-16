@@ -125,21 +125,19 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// while the AWS schema this run actually needed had failed to acquire.
 	// [stamp.Stamp] then read every AWS needs-discovery resource as
 	// SkipNoSchema, but req.NeedsDiscovery still said "must be stamped" for
-	// each one, unconditionally, so SkipNoSchema escalated into a fabricated
-	// hard error instead of the silent skip it is everywhere else). The gate
-	// that actually matters is per resource TYPE, and it lives inside
-	// [stampNeedsDiscovery] now: a type is only asked to stamp when its own
-	// schema is among actx.Schemas, so a type with no schema at all - the
-	// entire configuration's case when actx.Schemas is empty, or one
-	// provider's case when the rest loaded - reads as SkipNoSchema without
-	// mustStamp ever turning that into a refusal. Unknown must not be
-	// reported as refused.
+	// each one, so SkipNoSchema escalated into a fabricated hard error
+	// instead of the warning it is now). Nothing here has to gate anything:
+	// [stamp.SkipReason.Unknown] holds the invariant inside stamp.Stamp,
+	// where every caller gets it, so a type with no schema of its own -
+	// whether because this whole configuration was analyzed without schemas
+	// or because one provider of several failed - reports "taggability
+	// unknown" as a warning and never as a refusal.
 	if result != nil {
 		stampReq := stamp.Request{
 			Estate:         estateForStamp(ctx, cfg),
 			Config:         cfg,
 			Schemas:        flatSchemas(actx.Schemas),
-			NeedsDiscovery: stampNeedsDiscovery(result, actx.Schemas),
+			NeedsDiscovery: stampNeedsDiscovery(result),
 		}
 		_, stampDiags := stamp.Stamp(ctx, stampReq)
 		for _, diag := range stampDiags {
