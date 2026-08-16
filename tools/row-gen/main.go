@@ -68,6 +68,10 @@ const (
 	convergenceJSONRel   = "live/rowgen-convergence.json"
 )
 
+// Path literals continued: logicalSchemasJSONRel lives beside its own
+// generator in logicalschemas.go, since -logical-schemas is the only mode
+// that writes it and -emit the only one that reads it.
+
 // repoRoot resolves the checkout's root from this file's own location, the
 // same trick survey-gen's, registry-gen's and mapping-gen's repoRoot use, so
 // the tool runs from any directory.
@@ -86,7 +90,17 @@ func main() {
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), instead of printing anything to paste by hand (see emit.go)")
+	logicalSchemas := flag.Bool("logical-schemas", false, "read the record-store effects providers' own schemas and write live/logical-schemas.json, the evidence -emit derives every RecordBacked row from (see logicalschemas.go). Needs -init-bin; every other mode is offline")
+	initBin := flag.String("init-bin", "terraform", "the binary -logical-schemas runs `init` with to install each provider")
 	flag.Parse()
+
+	if *logicalSchemas {
+		if err := runLogicalSchemas(*initBin, os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if *convergence {
 		if err := runConvergence(os.Stdout, os.Stderr); err != nil {

@@ -47,6 +47,21 @@ func loadSurveyForTest(t *testing.T) map[string]surveyEntry {
 	return survey
 }
 
+// loadLogicalSchemasForTest reads live/logical-schemas.json the same way
+// runEmit does, for recordBackedRows' own evidence.
+func loadLogicalSchemasForTest(t *testing.T) logicalSchemas {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("repoRoot: %v", err)
+	}
+	logical, err := loadLogicalSchemas(filepath.Join(root, logicalSchemasJSONRel))
+	if err != nil {
+		t.Fatalf("loadLogicalSchemas: %v", err)
+	}
+	return logical
+}
+
 // loadImportGrammarForTest reads live/import-grammar.json the same way
 // runEmit does, for mergeServerAssigned's own evidence.
 func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
@@ -102,7 +117,7 @@ func TestEmitFilesMatchCommitted(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 	grammar := loadImportGrammarForTest(t)
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -148,7 +163,7 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
+	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -214,9 +229,16 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	for _, row := range art.Types {
 		matched[row.TFType] = row.Matched
 	}
+	// A RecordBacked row is exempt from the gate by derivation, so it is
+	// never a candidate victim - deleting its (now non-existent) ruling
+	// would prove nothing about the gate.
+	recordBacked, err := recordBackedRows(loadLogicalSchemasForTest(t))
+	if err != nil {
+		t.Fatalf("recordBackedRows: %v", err)
+	}
 	victim := ""
 	for _, tf := range identity.AdmittedTypes() {
-		if !matched[tf] {
+		if !matched[tf] && !recordBacked[tf] {
 			victim = tf
 			break
 		}
@@ -232,7 +254,7 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	delete(broken, victim)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t))
+	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err == nil {
 		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
 	}
@@ -252,7 +274,7 @@ func TestEmitRendersValidGo(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t))
+	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

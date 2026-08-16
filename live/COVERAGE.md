@@ -553,6 +553,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_workspacesweb_user_settings_association`, `aws_xray_group`,
   `aws_xray_resource_policy`, `aws_xray_sampling_rule`, `null_resource`,
   `random_id`, `random_integer`, `random_pet`, `random_shuffle`,
+  `random_string`, `random_uuid`, `random_uuid4`, `random_uuid7`,
   `terraform_data`, `time_offset`, `time_rotating`, `time_sleep`, and
   `time_static`<!-- survey-gen:end contract-types -->
 

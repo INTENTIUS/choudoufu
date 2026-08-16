@@ -474,56 +474,6 @@
       "reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token.",
       "evidence": "import-grammar row: example '172.20.0.0/24_ipam-pool-0e634f5a1517cccdc', separator '_'. fresh proposal: bucket needs-hand-separator. ratified row (table_generated.go): ImportSyntax 'CIDR_IPAMPOOLID'.",
       "exit": "The scrape naming a source per segment of the documented example - matching each segment back to an Argument Reference entry, or carrying the Import section's format-string prose - the requirement issue #132's recorded negative result on the Connect family stated. Retire when the composite derivation attributes every segment fail-closed."
-    },
-    "null_resource": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "random_id": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "random_integer": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "random_pet": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "random_shuffle": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "terraform_data": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "time_offset": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "time_rotating": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "time_sleep": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
-    },
-    "time_static": {
-      "reason": "No evidence path reaches this type, by design: it is a RECORD_ADMITTED effects type (issue #73) whose identity is a persisted record, not an observation of AWS. The CFN registry, the provider docs and the identity schemas all have nothing to say about it, so no proposal exists to agree or disagree with.",
-      "evidence": "table_generated.go marks the row RecordBacked with no identity fields; internal/live/lint admits the type only under a declared record_store; the type appears in no live/mapping.json row and no scraped doc page.",
-      "exit": "Nothing to extract from AWS sources: the row is a constant of the record-store design (issue #73). Retire by deriving the RecordBacked rows from the RECORD_ADMITTED effects list inside -emit instead of carrying them as unreproduced table rows."
     }
   }
 }
