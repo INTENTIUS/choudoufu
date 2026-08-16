@@ -97,7 +97,22 @@ type Request struct {
 	// every later plan proposes creating another one, forever (audit finding
 	// C2). The caller knows which instances are which; this package will not
 	// guess it from type names.
-	NeedsDiscovery map[string]bool
+	//
+	// The value is WHY, not merely that. A bool could not tell "the provider
+	// mints this identity and no argument reconstructs it" apart from "this
+	// run was never told which account it is pointed at" or from "the
+	// configuration omitted the name argument", so all three were reported
+	// with the first one's sentence and two of the three had a next step
+	// that was never offered. See [identity.DiscoveryCause], and build this
+	// map with [identity.Result.DiscoveryCausesByBlock] rather than by hand.
+	//
+	// Presence in the map is what makes a resource marker-only; the cause
+	// only decides which sentence is printed. An entry left at the zero
+	// value still escalates - readers use the comma-ok form and
+	// [identity.DiscoveryCause.Normalize] - because the empty string is what
+	// a Go map returns for a key that is not there at all, and "cause not
+	// established" must never be spellable the same way as "not marker-only".
+	NeedsDiscovery map[string]identity.BlockDiscovery
 
 	// PolicyUntag names the resource blocks GitHub issue #67's
 	// declared_tagged = "untag" verb governs, keyed by block address
@@ -816,8 +831,27 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 // by their ownership marker, which is what decides the severity of every
 // failure to write one. See [Request.NeedsDiscovery].
 func (s *stamper) mustStamp(rc *configs.Resource) bool {
+	_, ok := s.discovery(rc)
+	return ok
+}
+
+// discovery is [stamper.mustStamp] with the reason attached: the block's
+// verdict from [Request.NeedsDiscovery], and whether there was one at all.
+//
+// Presence decides severity and the cause decides only wording, which is why
+// the comma-ok form is load-bearing here. [identity.BlockDiscovery]'s zero
+// value carries the empty cause, and a plain map index cannot tell that from
+// a key that is absent - so a caller that built the map without causes would
+// otherwise have every one of its marker-only resources silently downgraded
+// from the error this whole mechanism exists to raise into a warning.
+func (s *stamper) discovery(rc *configs.Resource) (identity.BlockDiscovery, bool) {
 	key := addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}.String()
-	return s.req.NeedsDiscovery[key]
+	got, ok := s.req.NeedsDiscovery[key]
+	if !ok {
+		return identity.BlockDiscovery{}, false
+	}
+	got.Cause = got.Cause.Normalize()
+	return got, true
 }
 
 // unstampable is the diagnostic for a resource that did not get its markers,
@@ -829,7 +863,8 @@ func (s *stamper) unstampable(rc *configs.Resource, detail string) *hcl.Diagnost
 // unstampableAt is [stamper.unstampable] pointing at a range inside the
 // resource rather than at the resource itself.
 func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, detail string) *hcl.Diagnostic {
-	if !s.mustStamp(rc) {
+	disco, ok := s.discovery(rc)
+	if !ok {
 		return &hcl.Diagnostic{
 			Severity: hcl.DiagWarning,
 			Summary:  summary,
@@ -840,17 +875,70 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  SummaryUnmarkedApply,
-		Detail:   detail + " " + unmarkedDiscoveryDetail(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}),
+		Detail:   detail + " " + UnmarkedDiscoveryDetail(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}, disco),
 		Subject:  rng.Ptr(),
 	}
 }
 
-// unmarkedDiscoveryDetail is the sentence that makes an unstamped
+// UnmarkedDiscoveryDetail is the sentence that makes an unstamped
 // marker-discovered resource an error rather than a warning.
-func unmarkedDiscoveryDetail(addr addrs.ConfigResource) string {
+//
+// The severity is the same for every cause and is not this function's to
+// decide: an untaggable resource whose identity this run cannot compute is
+// unfindable afterwards however it got that way. What differs is what the
+// operator can do about it, and that is what the cause selects. Three of the
+// four causes have a next step, and before [identity.DiscoveryCause] existed
+// all four were reported with the first one's sentence - which asserted "the
+// provider assigns this identity at create time" over resources whose table
+// row is not ServerAssigned at all, and offered no step to the two thirds of
+// affected configurations that had one.
+//
+// It is exported because internal/command renders the identical sentence
+// from a [Result.Skipped] entry rather than from a diagnostic this package
+// raised, and the two saying different things is how the fork's own
+// documentation came to describe a guarantee it did not hold (#111).
+func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDiscovery) string {
+	const lost = "Applying it unmarked would create a resource this configuration can never see again, and every later plan would propose creating another one."
+
+	arg := func(i int) string {
+		if i < len(disco.Args) {
+			return disco.Args[i]
+		}
+		return ""
+	}
+
+	switch disco.Cause.Normalize() {
+	case identity.DiscoveryCloudUnknown:
+		prop := identity.CloudValue(arg(0)).Describe()
+		if prop == "" {
+			prop = "a property of the cloud it is pointed at"
+		}
+		return fmt.Sprintf(
+			"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left, so %s",
+			addr, prop, lost)
+
+	case identity.DiscoveryNameOmitted:
+		if name := arg(0); name != "" {
+			return fmt.Sprintf(
+				"%s sets no %s, and the provider invents one at create time when it is omitted, so this run cannot say what the object will be called. The ownership marker is the only handle left. Setting %s to a value this configuration chooses makes the identity computable and needs no marker at all; leaving it out and applying would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				addr, name, name)
+		}
+
+	case identity.DiscoveryNamePrefix:
+		if base, prefix := arg(0), arg(1); base != "" && prefix != "" {
+			return fmt.Sprintf(
+				"%s is named through %s, so the provider appends a random suffix at create time and this run cannot say what the object will be called. The ownership marker is the only handle left. Naming it with %s instead of %s makes the identity computable and needs no marker at all; applying as written would create a resource this configuration can never see again, and every later plan would propose creating another one.",
+				addr, prefix, base, prefix)
+		}
+	}
+
+	// DiscoveryServerAssigned, and every cause whose subjects did not
+	// arrive: the wording every cause carried before they were told apart.
+	// There is no configuration edit that resolves a server-assigned
+	// identity, so this sentence deliberately offers no next step.
 	return fmt.Sprintf(
-		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. Applying it unmarked would create a resource this configuration can never see again, and every later plan would propose creating another one.",
-		addr)
+		"%s has an identity the provider assigns at create time, so the ownership marker is the only thing any later run can find it by. %s",
+		addr, lost)
 }
 
 func (s *stamper) skip(addr addrs.ConfigResource, reason SkipReason, detail string) {

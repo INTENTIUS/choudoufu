@@ -708,6 +708,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			Addr:   addr,
 			Class:  ClassNeedsDiscovery,
 			Reason: entry.Reason,
+			Cause:  DiscoveryServerAssigned,
 		}, true
 	}
 
@@ -731,9 +732,11 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// argument that would have been fine had the account been known.
 	if missing, ok := r.missingCloudValue(entry); ok {
 		return Resolution{
-			Addr:   addr,
-			Class:  ClassNeedsDiscovery,
-			Reason: cloudReason(entry, missing),
+			Addr:      addr,
+			Class:     ClassNeedsDiscovery,
+			Reason:    cloudReason(entry, missing),
+			Cause:     DiscoveryCloudUnknown,
+			CauseArgs: []string{string(missing)},
 		}, true
 	}
 
@@ -814,6 +817,8 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					Reason: fmt.Sprintf(
 						"%s has no value for %s; the provider assigns one automatically when it is omitted, so the value is not known until the object exists.",
 						addr.String(), orList(comp.Attrs)),
+					Cause:     DiscoveryNameOmitted,
+					CauseArgs: append([]string(nil), comp.Attrs...),
 				}, true
 			}
 			if prefixAttr, base := firstPrefixSibling(attrs, comp.Attrs); prefixAttr != nil {
@@ -833,6 +838,8 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					Reason: fmt.Sprintf(
 						"%s is named through %s rather than %q; the provider appends a random suffix to the prefix at create time, so the resulting name is not known until the object exists.",
 						addr.String(), prefixAttr.Name, base),
+					Cause:     DiscoveryNamePrefix,
+					CauseArgs: []string{base, prefixAttr.Name},
 				}, true
 			}
 			r.errorf(rc.DeclRange, "Identity argument not set",
@@ -868,6 +875,8 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					Reason: fmt.Sprintf(
 						"%s is named through %s rather than %q; the provider appends a random suffix to the prefix at create time, so the resulting name is not known until the object exists.",
 						addr.String(), prefixAttr.Name, attr.Name),
+					Cause:     DiscoveryNamePrefix,
+					CauseArgs: []string{attr.Name, prefixAttr.Name},
 				}, true
 			}
 		}

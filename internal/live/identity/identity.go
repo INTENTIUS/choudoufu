@@ -119,6 +119,19 @@ type Resolution struct {
 	// ClassNeedsDiscovery.
 	Reason string
 
+	// Cause is Reason's machine-readable half: which of the structurally
+	// different situations ClassNeedsDiscovery covers this instance is in.
+	// Populated only for ClassNeedsDiscovery, and only by this package's own
+	// walk - see [DiscoveryCause] for why a caller-assembled resolution
+	// carries [DiscoveryCauseUnspecified] instead.
+	Cause DiscoveryCause
+
+	// CauseArgs are the subjects Cause is about, in a cause-specific order
+	// documented on each [DiscoveryCause] constant: the missing cloud
+	// property, the omitted argument's candidate names, or the base and
+	// prefix argument names. Empty for causes that have no subject.
+	CauseArgs []string
+
 	// Undeclared marks a resolution whose resource block is not in the
 	// configuration at all: a live resource this estate owns, found by the
 	// marker sweep, whose block was deleted. It is never produced by

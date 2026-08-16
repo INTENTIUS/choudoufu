@@ -1803,7 +1803,7 @@ func TestStatelessNeedsDiscovery_keyedModuleKeyForm(t *testing.T) {
 	// The positive half: the key the readers will actually build for the
 	// block inside the keyed module has to be present.
 	const want = "module.wrapped.aws_eip.app"
-	if !got[want] {
+	if _, ok := got[want]; !ok {
 		keys := make([]string, 0, len(got))
 		for k := range got {
 			keys = append(keys, k)
@@ -1863,7 +1863,13 @@ func TestStatelessStampGaps_trustedKeyedModuleIsNotAGap(t *testing.T) {
 		Module:   addrs.Module{"wrapped"},
 		Resource: addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "aws_eip", Name: "app"},
 	}
-	needsDiscovery := map[string]bool{addr.String(): true}
+	// The zero BlockDiscovery on purpose: presence in the map is what makes
+	// a resource marker-only, and an entry whose cause was never established
+	// must escalate exactly as one whose cause is known does. A reader that
+	// indexed the map and compared against the zero value instead of using
+	// the comma-ok form would pass every assertion above and silently
+	// downgrade this one.
+	needsDiscovery := map[string]identity.BlockDiscovery{addr.String(): {}}
 
 	t.Run("trusted hand-stamped markers are not a gap", func(t *testing.T) {
 		res := &stamp.Result{Skipped: []stamp.Skip{{
