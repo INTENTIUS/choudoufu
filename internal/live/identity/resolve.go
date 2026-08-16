@@ -640,7 +640,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
 		if comp.SoleElement {
-			narrowed, ok := r.soleElementExpr(expr, attr, ident)
+			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
 			if !ok {
 				return Resolution{}, false
 			}
@@ -798,19 +798,27 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 // the expression a list/set-typed identity argument was written with, it
 // returns the one sub-expression to resolve in its place, or refuses.
 //
-// hcl.ExprList only ever succeeds for a syntactic list/set/tuple
-// CONSTRUCT ("[...]") - never for a variable or function call that merely
-// evaluates to one, which is exactly the "written in configuration, not
-// merely producing one at apply time" bar every other identity component in
-// this package already holds itself to. When it fails, expr is treated as
-// already scalar and returned unchanged, so a Component.Attrs list mixing a
-// collection-typed name with a genuinely scalar one (aws_security_group_rule
-// pairs cidr_blocks/ipv6_cidr_blocks/prefix_list_ids, all lists, with
+// hcl.ExprList succeeds only for a syntactic list/set/tuple CONSTRUCT
+// ("[...]"), so a Component.Attrs list mixing a collection-typed name with a
+// genuinely scalar one (aws_security_group_rule pairs
+// cidr_blocks/ipv6_cidr_blocks/prefix_list_ids, all lists, with
 // source_security_group_id, a plain string) narrows only the members that
-// need it.
-func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool) {
+// need it: it fails harmlessly on the scalar member, which falls through to
+// [resolver.soleElementFromValue] and then, if that finds no collection
+// either, returns unchanged to resolve as a plain scalar.
+//
+// soleElementFromValue is the fallback for the construct not being
+// syntactic: a variable or local typed list(string)/set(string) - a
+// *_cidr_blocks argument declared that way is the common shape - is exactly
+// as "written in configuration, not merely producing one at apply time" as
+// every other identity component in this package already requires; nothing
+// about the one-element rule is specific to how the collection was spelled.
+func (r *resolver) soleElementExpr(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool) {
 	elems, diags := hcl.ExprList(expr)
 	if diags.HasErrors() || elems == nil {
+		if narrowed, ok, applicable := r.soleElementFromValue(expr, scope, attr, ident); applicable {
+			return narrowed, ok
+		}
 		return expr, true
 	}
 	if len(elems) != 1 {
@@ -820,6 +828,55 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, attr *hcl.Attribute, ide
 		return nil, false
 	}
 	return elems[0], true
+}
+
+// soleElementFromValue is [resolver.soleElementExpr]'s fallback when expr is
+// not a syntactic list construct: it evaluates expr the same way
+// [resolver.resolveExpr] eventually would, and applies the one-element rule
+// structurally when - and only when - the result is itself a known
+// list/set/tuple, rather than letting the whole collection reach
+// [resolver.stringValue] and refuse as "Non-string identity argument".
+//
+// applicable is false whenever nothing here applies: expr references a
+// managed resource (isSymbolic, nothing evaluable without the cloud), or
+// evaluation fails for a reason unrelated to being a collection, or it
+// succeeds but is not one. In every applicable=false case, no diagnostic is
+// left behind - the caller's own unchanged-expression path stands, and
+// resolveExpr raises whatever it would have raised for the original
+// expression. When applicable is true, ok carries the same "exactly one
+// element" verdict the syntactic case enforces, and the diagnostic (if any)
+// is already recorded.
+func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool, bool) {
+	if r.isSymbolic(expr, scope) {
+		return nil, false, false
+	}
+	mark := len(r.diags)
+	val, ok := r.evalStatic(expr, scope, ident)
+	if !ok {
+		r.diags = r.diags[:mark]
+		return nil, false, false
+	}
+	ty := val.Type()
+	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
+		return nil, false, false
+	}
+	if val.IsNull() || !val.IsWhollyKnown() {
+		return nil, false, false
+	}
+	n := 0
+	var only cty.Value
+	for it := val.ElementIterator(); it.Next(); {
+		_, v := it.Element()
+		only = v
+		n++
+	}
+	if n != 1 {
+		r.errorf(attr.Range, "Ambiguous list-valued identity argument",
+			"%s has %d elements. This component's identity can only be built when %s carries exactly one value; the AWS API - not this configuration's list order - decides how more than one composes into the real object, so this package will not guess which one to use.",
+			ident.Subject, n, attr.Name)
+		return nil, false, true
+	}
+	return &hclsyntax.LiteralValueExpr{Val: only, SrcRange: attr.Range}, true, true
 }
 
 func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
@@ -873,6 +930,9 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)
 	if diags.HasErrors() {
+		if parts, ok, applicable := r.resolveIndexedTraversal(expr, scope, ident); applicable {
+			return parts, ok
+		}
 		r.errorf(expr.Range(), "Identity not resolvable from configuration",
 			"%s refers to another resource inside an expression that identity resolution cannot follow. "+
 				"A resource reference contributes to an identity only as a whole reference or as an interpolation in a string template; "+
@@ -881,6 +941,110 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		return nil, false
 	}
 	return r.resolveTraversal(trav, scope, ident)
+}
+
+// resolveIndexedTraversal decomposes a reference into another resource
+// selected by a computed index - aws_subnet.this[each.key].id or
+// aws_instance.this[count.index].private_ip - which hcl.AbsTraversalForExpr
+// cannot turn into a traversal because the index is an expression rather
+// than a literal HCL parses directly into a traversal step. The index is
+// evaluated the same way any other identity-argument expression is
+// ([resolver.evalStatic]), against the same per-instance scope that already
+// carries each.key/each.value or count.index ([expansion.scope]) - so this
+// is not new evaluation machinery, only a second way to reach
+// [resolver.parentPart] once the addressed instance is known, alongside the
+// literal-index and bare-reference paths [resolver.resolveTraversal]
+// already has via hcl.AbsTraversalForExpr.
+//
+// applicable is false whenever expr is not this shape at all: not a single
+// attribute step following one index into what turns out to be a bare
+// managed-resource reference. The caller's own "cannot follow" diagnostic
+// stands unreplaced in that case. When applicable is true, ok reports
+// whether resolution succeeded, and a diagnostic has already been recorded
+// in its place when it did not - either by this function directly, or by
+// whatever evaluated the index or the target's own expansion.
+func (r *resolver) resolveIndexedTraversal(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	rel, isRel := expr.(*hclsyntax.RelativeTraversalExpr)
+	if !isRel {
+		return nil, false, false
+	}
+	idx, isIdx := rel.Source.(*hclsyntax.IndexExpr)
+	if !isIdx {
+		return nil, false, false
+	}
+	if len(rel.Traversal) != 1 {
+		return nil, false, false
+	}
+	attrStep, isAttr := rel.Traversal[0].(hcl.TraverseAttr)
+	if !isAttr {
+		return nil, false, false
+	}
+
+	trav, diags := hcl.AbsTraversalForExpr(idx.Collection)
+	if diags.HasErrors() {
+		return nil, false, false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		return nil, false, false
+	}
+	resAddr, isRes := ref.Subject.(addrs.Resource)
+	if !isRes || len(ref.Remaining) > 0 || resAddr.Mode != addrs.ManagedResourceMode {
+		return nil, false, false
+	}
+
+	rc := r.mod.ResourceByAddr(resAddr)
+	if rc == nil {
+		return nil, false, false
+	}
+	exp, expOK := r.expansionFor(rc)
+	if !expOK {
+		// The target's own expansion already failed and already carries a
+		// diagnostic, wherever that first happened - see [resolveResourceRef]
+		// for the same pattern.
+		return nil, false, true
+	}
+
+	keyVal, keyOK := r.evalStatic(idx.Key, scope, ident)
+	if !keyOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	key, keyIsValid := indexKeyValue(keyVal)
+	if !keyIsValid {
+		r.errorf(idx.Key.Range(), "Identity not resolvable from configuration",
+			"%s indexes %s with a value that is not a string or a whole number, so it cannot select one of its instances.",
+			ident.Subject, resAddr.String())
+		return nil, false, true
+	}
+	if !exp.hasKey(key) {
+		r.errorf(idx.SrcRange, "Reference to a resource instance that does not exist",
+			"%s does not exist. %s", resAddr.Instance(key).String(), exp.describe(resAddr))
+		return nil, false, true
+	}
+
+	got, gotOK := r.parentPart(resAddr.Instance(key).Absolute(r.modInst), attrStep.Name, expr.Range(), ident)
+	return got, gotOK, true
+}
+
+// indexKeyValue turns an evaluated index expression into the instance key it
+// names, the same two key kinds every resource expansion in this package
+// already produces ([resolver.countExpansion], [resolver.forEachExpansion]).
+func indexKeyValue(val cty.Value) (addrs.InstanceKey, bool) {
+	if val.IsNull() || !val.IsKnown() || val.IsMarked() {
+		return nil, false
+	}
+	switch {
+	case val.Type() == cty.String:
+		return addrs.StringKey(val.AsString()), true
+	case val.Type() == cty.Number:
+		var n int
+		if err := gocty.FromCtyValue(val, &n); err != nil {
+			return nil, false
+		}
+		return addrs.IntKey(n), true
+	}
+	return nil, false
 }
 
 // resolveTraversal turns a reference to another resource's attribute into a
