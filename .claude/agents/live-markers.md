@@ -172,6 +172,13 @@ must build concurrently work in isolated worktrees.
   a session-start commit and would have reverted a day's work on merge. The fix
   each time is to fetch main into the worktree and rebase or redo before
   validating.
+- **Never use `git stash` here.** The stash stack lives in the shared `.git`
+  and is therefore shared across every worktree. An agent stashed what it
+  believed was its own clean tree and its `pop` landed another agent's
+  scratch program; both entries then vanished when a third worktree popped
+  in the interval. It reported this rather than hiding it, which is the only
+  reason it was recoverable. To take a with/without baseline, copy the file
+  aside or build the comparison in a separate directory.
 - **Never rewrite history while another worktree is live.** A `filter-repo`
   run moves every branch it touches, including the one another agent has
   checked out. That agent's next `git rebase origin/main` then compares a
