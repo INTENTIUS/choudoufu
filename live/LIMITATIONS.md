@@ -1194,13 +1194,13 @@ refused, and each says so in its own entry.
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 51 | 104 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 50 | 349 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 44 | 169 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 45 | 183 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 34 | 271 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 33 | 85 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
-| 22 | 118 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 19 | 60 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 17 | 104 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
@@ -1426,7 +1426,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 44 configurations in the measured corpus, at 169 sites.
+**How often.** Blocked 45 configurations in the measured corpus, at 183 sites.
 
 #### Module output not supported in static context
 
@@ -1444,14 +1444,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 33 configurations in the measured corpus, at 85 sites.
 
-#### Identity not resolvable from configuration
-
-**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 22 configurations in the measured corpus, at 118 sites.
-
 #### Non-static identity argument
 
 **What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
@@ -1467,6 +1459,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 19 configurations in the measured corpus, at 60 sites.
+
+#### Identity not resolvable from configuration
+
+**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 17 configurations in the measured corpus, at 104 sites.
 
 #### Non-static count expression
 

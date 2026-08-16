@@ -8138,7 +8138,7 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
+      "instances": 9,
       "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
@@ -9366,8 +9366,8 @@
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
-      "configs": 44,
-      "sites": 169,
+      "configs": 45,
+      "sites": 183,
       "examples": [
         ".corpus/cool-assessment/operations_routing.tf:21",
         ".corpus/cool-assessment/operations_routing.tf:29",
@@ -9432,24 +9432,6 @@
     },
     {
       "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
-      "raised_by": "internal/live/identity",
-      "configs": 22,
-      "sites": 118,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/cool-assessment/guacamole_route53.tf:24",
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static identity argument",
       "title": "Non-static identity argument",
       "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
@@ -9481,6 +9463,24 @@
         ".corpus/cool-assessment/network_acls.tf:23",
         ".corpus/cool-assessment/operations_acl_rules.tf:8",
         ".corpus/cool-assessment/operations_acl_rules.tf:27"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "raised_by": "internal/live/identity",
+      "configs": 17,
+      "sites": 104,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/cool-assessment/guacamole_route53.tf:24",
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:27"
       ],
       "registered": true
     },
@@ -10770,7 +10770,7 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3625,
+    "instances": 3626,
     "sites": 10046,
     "refusals_fired": 25,
     "refusals_in_set": 125,
@@ -10784,7 +10784,7 @@
       "loaded": 31,
       "blocked": 17,
       "clean": 14,
-      "instances": 732,
+      "instances": 733,
       "sites": 41,
       "reads_as": "ranking"
     },
