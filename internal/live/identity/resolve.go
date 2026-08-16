@@ -1310,6 +1310,18 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 	}
 
 	if !entry.hasIdentityAttr(attrName) {
+		// attrName is not part of parent's cloud identity at all - but it
+		// may still be an ordinary argument parent's own block sets
+		// literally, which is fully static and has nothing to do with
+		// identity (GitHub issue #220): aws_route53_record.mx reading
+		// aws_route53_zone.production.name, where the zone's identity is
+		// zone_id and name is just a plain string the block wrote. See
+		// [resolver.siblingLiteralExpr] for the boundary that makes this
+		// safe.
+		if expr, scope, applicable := r.siblingLiteralExpr(parent, attrName); applicable {
+			return r.resolveExpr(expr, scope, ident)
+		}
+
 		detail := fmt.Sprintf(
 			"%s reads %s.%s, but %q is not an identity attribute of %s. ",
 			ident.Subject, parent.String(), attrName, attrName, parent.Resource.Resource.Type)
@@ -1330,6 +1342,75 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 	return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
 }
 
+// siblingLiteralExpr returns the expression parent's own resource block
+// gives attrName, and the per-instance scope to evaluate it in, when doing
+// so is safe: GitHub issue #220. A sibling's cloud identity
+// ([TypeIdentity.IdentityAttrs]) is one thing; an ordinary argument the
+// block wrote itself is another, and nothing about the second kind depends
+// on the cloud - the value sits in configuration exactly where a plain
+// read of it would find one of this package's own identity components.
+//
+// The boundary is the provider schema's own Computed flag, not a name
+// list: an attribute the schema marks Computed, with or without Optional
+// alongside it, is one the provider can invent or override - S3's
+// Optional+Computed "bucket" argument is the shape this refuses even
+// though most callers set it themselves, because Computed is the schema's
+// own admission that the stored value need not equal what the
+// configuration wrote. Required, and Optional-without-Computed, are the
+// only two flag combinations left, and both mean the provider has no path
+// of its own to a different value - matching the same rule
+// [SynthesizeTypeIdentity]'s locallyDefaultable already applies from the
+// opposite direction, to decide what MAY be missing rather than what is
+// safe to read.
+//
+// applicable is false whenever this rule does not apply at all: no
+// schemas were supplied to this run, the sibling's type has none, attrName
+// names no top-level attribute of it, that attribute is Computed, or the
+// sibling's own block does not set it (an Optional-without-Computed
+// argument left out is simply absent, not a value to resolve). The caller
+// falls back to its own refusal, unchanged, in every such case.
+func (r *resolver) siblingLiteralExpr(parent addrs.AbsResourceInstance, attrName string) (expr hcl.Expression, scope instScope, applicable bool) {
+	if r.schemas == nil {
+		return nil, instScope{}, false
+	}
+	typeSchema, hasSchema := r.schemas[parent.Resource.Resource.Type]
+	if !hasSchema || typeSchema.Block == nil {
+		return nil, instScope{}, false
+	}
+	attrSchema, known := typeSchema.Block.Attributes[attrName]
+	if !known || attrSchema.Computed {
+		return nil, instScope{}, false
+	}
+
+	if !r.enterModuleFor(parent.Module) {
+		return nil, instScope{}, false
+	}
+	rc := r.mod.ResourceByAddr(parent.Resource.Resource)
+	if rc == nil {
+		return nil, instScope{}, false
+	}
+	content, _, diags := rc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: attrName}},
+	})
+	if diags.HasErrors() {
+		return nil, instScope{}, false
+	}
+	attr, set := content.Attributes[attrName]
+	if !set {
+		return nil, instScope{}, false
+	}
+
+	exp, expOK := r.expansionFor(rc)
+	if !expOK || !exp.hasKey(parent.Resource.Key) {
+		// The sibling's own expansion already failed, or (should not
+		// happen: parent is an instance [resolver.instance] already
+		// walked) does not carry this key - either way nothing here can
+		// answer, and no new diagnostic belongs to this attribute read.
+		return nil, instScope{}, false
+	}
+	return attr.Expr, exp.scope(parent.Resource.Key), true
+}
+
 // isSymbolic reports whether an expression references something whose value
 // this package refuses to evaluate and instead handles structurally: a
 // managed resource, or each.value when for_each iterates over a resource.
@@ -1344,6 +1425,17 @@ func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 			// Not symbolic: either statically evaluable or a case
 			// evalStatic will reject with its own message.
 		default:
+			if _, bound := scope.vars[trav.RootName()]; bound {
+				// A for-comprehension's own loop variable (see
+				// [resolver.evalPure]'s identical check), reached here
+				// because a caller evaluates one piece of the
+				// comprehension - a value clause referencing a sibling,
+				// #220's own shape - outside the ForExpr node that would
+				// otherwise scope it for hcl.Expression.Variables(). Not a
+				// resource reference: evalPure already supplies it through
+				// the child EvalContext this same scope builds.
+				continue
+			}
 			// Anything else in a resource argument is a managed resource
 			// reference; whether it is declared is checked later.
 			return true
@@ -2167,6 +2259,20 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 				return got, exOK
 			}
 		}
+		// toset([for x in <static collection> : <expr>]) - a keyless
+		// (tuple-producing) comprehension, the idiomatic way to turn a
+		// for-expression into the set for_each requires. Distinct from the
+		// case just above: there, the collection clause IS the resource
+		// being iterated; here, the collection is ordinary static data and
+		// a sibling reference, if any, lives in the per-element value
+		// clause instead. See [resolver.forEachOverTupleComprehension].
+		if inner, ok := unwrapToSet(expr); ok {
+			if fe, ok := unwrapForExpr(inner); ok && fe.KeyExpr == nil {
+				if got, exOK, applicable := r.forEachOverTupleComprehension(rc, fe); applicable {
+					return got, exOK
+				}
+			}
+		}
 		return r.forEachOverResource(rc)
 	}
 
@@ -2369,14 +2475,25 @@ func (r *resolver) forEachOverComprehension(rc *configs.Resource, fe *hclsyntax.
 		return nil, false, false
 	}
 
-	// The collection clause looks like a plain resource reference, so this
-	// IS the shape from here on: every failure below is this function's to
-	// report, not forEachOverResource's, or the site would be counted (and
-	// diagnosed) twice for the one for_each argument that produced it.
 	addr := rc.Addr()
 	subject := addr.String()
 	rng := rc.ForEach.Range()
 
+	// The collection clause may be a sibling resource's own literal
+	// argument rather than the resource itself - `for domain in
+	// fastly_tls_subscription.subscription.domains : ...` (GitHub issue
+	// #220), as opposed to `for k, v in aws_subnet.this : ...` below. Tried
+	// first because it is the more specific shape: a bare resource
+	// reference has no remaining traversal steps for this to match, so the
+	// two never compete for the same expression.
+	if got, ok, applicable := r.comprehensionOverSiblingAttr(rc, fe, subject, rng); applicable {
+		return got, ok, true
+	}
+
+	// The collection clause looks like a plain resource reference, so this
+	// IS the shape from here on: every failure below is this function's to
+	// report, not forEachOverResource's, or the site would be counted (and
+	// diagnosed) twice for the one for_each argument that produced it.
 	_, parentExp, resolved := r.resolveResourceRef(fe.CollExpr, subject, rng)
 	if !resolved {
 		return nil, false, true
@@ -2435,6 +2552,251 @@ func (r *resolver) forEachOverComprehension(rc *configs.Resource, fe *hclsyntax.
 	}
 	result, checkedOK := r.checkedForEachKeys(rc, built)
 	return result, checkedOK, true
+}
+
+// comprehensionOverSiblingAttr recognizes `for_each = { for x in
+// <sibling>.<attr> : keyExpr => valExpr }`, where <attr> is not the sibling
+// resource itself (that shape is [resolver.forEachOverComprehension]'s own,
+// via [resolver.resolveResourceRef]) but one of the sibling's own literal
+// arguments - GitHub issue #220's fastly_tls_subscription.subscription.domains,
+// where domains is set verbatim from var.domains. The rule that makes
+// reading it safe is [resolver.siblingLiteralExpr]'s: it is the same one
+// [resolver.parentPart] already applies to a single identity component,
+// used here for a for_each's own collection clause instead.
+//
+// Deliberately unconcerned with valExpr: only the key clause and the "if"
+// filter decide which instances exist, the same restriction
+// [resolver.forEachOverComprehension] already enforces for a for_each over
+// a whole resource, and for the identical reason - the value clause is
+// read only through each.value once an instance exists, and this
+// package's own keyOnly expansion already refuses a bare each.value
+// cleanly rather than guess at it (see [expansion.keyOnly]). This is
+// exactly what lets fastly-tls-subscription's own valExpr reach into
+// managed_dns_challenges, a genuinely apply-time attribute, without that
+// blocking the for_each itself.
+//
+// applicable is false whenever the collection clause is not this shape at
+// all: not a single-attribute traversal into a resource, or an attribute
+// [resolver.siblingLiteralExpr] cannot confirm is a plain literal. The
+// caller falls back to [resolver.resolveResourceRef]'s own handling (and
+// its own diagnostic) in that case, unchanged.
+func (r *resolver) comprehensionOverSiblingAttr(rc *configs.Resource, fe *hclsyntax.ForExpr, subject string, rng hcl.Range) (exp *expansion, ok bool, applicable bool) {
+	trav, diags := hcl.AbsTraversalForExpr(fe.CollExpr)
+	if diags.HasErrors() {
+		return nil, false, false
+	}
+	ref, refDiags := addrs.ParseRef(trav)
+	if refDiags.HasErrors() {
+		return nil, false, false
+	}
+	var parentInstAddr addrs.ResourceInstance
+	switch subj := ref.Subject.(type) {
+	case addrs.Resource:
+		parentInstAddr = subj.Instance(addrs.NoKey)
+	case addrs.ResourceInstance:
+		parentInstAddr = subj
+	default:
+		return nil, false, false
+	}
+	if parentInstAddr.Resource.Mode != addrs.ManagedResourceMode || len(ref.Remaining) != 1 {
+		return nil, false, false
+	}
+	attrStep, isAttr := ref.Remaining[0].(hcl.TraverseAttr)
+	if !isAttr {
+		return nil, false, false
+	}
+
+	parent := parentInstAddr.Absolute(r.modInst)
+	collExpr, collScope, exprApplicable := r.siblingLiteralExpr(parent, attrStep.Name)
+	if !exprApplicable {
+		return nil, false, false
+	}
+
+	// This IS the shape from here on: every failure below is this
+	// function's to report.
+	ident := r.moduleIdentifier(subject+" for_each", rng)
+	collVal, collOK := r.evalStatic(collExpr, collScope, ident)
+	if !collOK {
+		return nil, false, true
+	}
+	if !collVal.IsWhollyKnown() || collVal.IsNull() {
+		r.errorf(fe.CollExpr.Range(), "Non-static for_each expression",
+			"The for_each value for %s iterates over %s, which cannot be determined from configuration alone.", subject, traversalString(trav))
+		return nil, false, true
+	}
+	ty := collVal.Type()
+	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() && !ty.IsMapType() && !ty.IsObjectType() {
+		r.errorf(fe.CollExpr.Range(), "Non-static for_each expression",
+			"The for_each value for %s iterates over %s, which is %s, not a collection.", subject, traversalString(trav), ty.FriendlyName())
+		return nil, false, true
+	}
+
+	seen := map[string]bool{}
+	var names []string
+	for it := collVal.ElementIterator(); it.Next(); {
+		_, v := it.Element()
+		scope := instScope{}
+		if fe.ValVar != "" {
+			scope.vars = map[string]cty.Value{fe.ValVar: v}
+		}
+		if fe.CondExpr != nil {
+			condVal, condOK := r.evalStatic(fe.CondExpr, scope, ident)
+			if !condOK {
+				return nil, false, true
+			}
+			include, err := convert.Convert(condVal, cty.Bool)
+			if err != nil || include.IsNull() || !include.IsKnown() {
+				r.errorf(fe.CondExpr.Range(), "Invalid for_each condition",
+					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
+				return nil, false, true
+			}
+			if include.False() {
+				continue
+			}
+		}
+		keyVal, keyOK := r.evalStatic(fe.KeyExpr, scope, ident)
+		if !keyOK {
+			return nil, false, true
+		}
+		ks, err := convert.Convert(keyVal, cty.String)
+		if err != nil || ks.IsNull() || !ks.IsKnown() {
+			r.errorf(fe.KeyExpr.Range(), "Invalid for_each key",
+				"The key clause of %s's for_each comprehension did not evaluate to a known string.", subject)
+			return nil, false, true
+		}
+		name := ks.AsString()
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+
+	sort.Strings(names)
+	built := &expansion{keyOnly: true}
+	for _, n := range names {
+		built.keys = append(built.keys, addrs.StringKey(n))
+	}
+	result, checkedOK := r.checkedForEachKeys(rc, built)
+	return result, checkedOK, true
+}
+
+// forEachOverTupleComprehension recognizes `for_each = toset([for x in
+// <collection> : <expr>])`: a keyless (tuple-producing) for-expression
+// wrapped in toset(), the idiomatic way to turn a for-expression into the
+// set for_each requires - GitHub issue #220's govuk-infrastructure
+// aws_ecr_lifecycle_policy, whose for_each is
+// `toset([for repo in local.lifecycle_policy_repositories :
+// aws_ecr_repository.github_repositories[repo].name])`.
+//
+// Unlike [resolver.comprehensionOverSiblingAttr], the collection here is
+// never a sibling at all: it is ordinary static data (a local, a
+// variable, a literal list) that alone decides how many instances exist.
+// A symbolic reference belongs in the per-element expression instead,
+// exactly where the govuk-infrastructure site puts it, and
+// [resolver.resolveExpr] is what already resolves such a reference for an
+// identity component - reused here unchanged, because indexing into a
+// sibling by the comprehension's own loop variable
+// (aws_ecr_repository.github_repositories[repo]) is the identical shape
+// [resolver.resolveIndexedTraversal] already handles.
+//
+// Every resolved element must still be a plain literal: a for_each key
+// can never wait on an apply-time value, so an element whose resolution
+// comes back parent-derived (the sibling's own argument was itself a
+// reference to something genuinely computed) refuses here rather than
+// silently degrading to a formula no for_each key can be.
+//
+// applicable is false only when the collection clause itself is symbolic
+// - referencing a managed resource - because then the SHAPE of the
+// for_each, not just one string inside it, would depend on a value this
+// package cannot read before the cloud does: the same refusal
+// [resolver.forEachOverResource] already gives a for_each that names a
+// resource directly.
+func (r *resolver) forEachOverTupleComprehension(rc *configs.Resource, fe *hclsyntax.ForExpr) (exp *expansion, ok bool, applicable bool) {
+	if r.isSymbolic(fe.CollExpr, instScope{}) {
+		return nil, false, false
+	}
+
+	addr := rc.Addr()
+	subject := addr.String()
+	rng := rc.ForEach.Range()
+	ident := r.moduleIdentifier(subject+" for_each", rng)
+
+	collVal, collOK := r.evalStatic(fe.CollExpr, instScope{}, ident)
+	if !collOK {
+		return nil, false, true
+	}
+	if !collVal.IsWhollyKnown() || collVal.IsNull() {
+		r.errorf(fe.CollExpr.Range(), "Non-static for_each expression",
+			"The for_each value for %s cannot be determined from configuration alone.", subject)
+		return nil, false, true
+	}
+	ty := collVal.Type()
+	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
+		r.errorf(fe.CollExpr.Range(), "Invalid for_each value",
+			"The for_each value for %s iterates over a value of type %s, not a collection.", subject, ty.FriendlyName())
+		return nil, false, true
+	}
+
+	seen := map[string]bool{}
+	var names []string
+	for it := collVal.ElementIterator(); it.Next(); {
+		_, v := it.Element()
+		scope := instScope{}
+		if fe.ValVar != "" {
+			scope.vars = map[string]cty.Value{fe.ValVar: v}
+		}
+		if fe.CondExpr != nil {
+			condVal, condOK := r.evalStatic(fe.CondExpr, scope, ident)
+			if !condOK {
+				return nil, false, true
+			}
+			include, err := convert.Convert(condVal, cty.Bool)
+			if err != nil || include.IsNull() || !include.IsKnown() {
+				r.errorf(fe.CondExpr.Range(), "Invalid for_each condition",
+					"The if clause of %s's for_each comprehension did not evaluate to a known boolean.", subject)
+				return nil, false, true
+			}
+			if include.False() {
+				continue
+			}
+		}
+		parts, valOK := r.resolveExpr(fe.ValExpr, scope, ident)
+		if !valOK {
+			return nil, false, true
+		}
+		coalesced := coalesce(parts)
+		if len(coalesced) != 1 || coalesced[0].Parent != nil {
+			r.errorf(fe.ValExpr.Range(), "Non-static for_each expression",
+				"The for_each value for %s is a comprehension whose element depends on a value that is not known until apply.", subject)
+			return nil, false, true
+		}
+		name := coalesced[0].Literal
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+
+	sort.Strings(names)
+	built := &expansion{keyOnly: true}
+	for _, n := range names {
+		built.keys = append(built.keys, addrs.StringKey(n))
+	}
+	result, checkedOK := r.checkedForEachKeys(rc, built)
+	return result, checkedOK, true
+}
+
+// unwrapToSet reports whether expr is a call to toset() with exactly one
+// argument, returning that argument - the wrapper
+// [resolver.forEachOverTupleComprehension]'s own shape is written through,
+// since a keyless for-expression produces a tuple and for_each accepts
+// only a map or a set.
+func unwrapToSet(expr hcl.Expression) (hcl.Expression, bool) {
+	call, ok := expr.(*hclsyntax.FunctionCallExpr)
+	if !ok || call.Name != "toset" || len(call.Args) != 1 {
+		return nil, false
+	}
+	return call.Args[0], true
 }
 
 // unwrapForExpr reports whether expr is, ignoring surrounding parentheses, a
