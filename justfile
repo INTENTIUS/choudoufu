@@ -42,6 +42,15 @@ bench-estate:
 demo:
     bash live/e2e/run.sh --expect 5
 
+# Issue #73's record-backed lifecycle end to end: a record_store declared, the
+# four RECORD_ADMITTED types created, re-planned clean, replaced and destroyed.
+# No Docker and no AWS - null, time and random are cloud-free providers, so this
+# runs against a local directory in well under a minute. It is the only
+# end-to-end exercise the record-backed class has, which is why it is a recipe
+# rather than a script you have to know about.
+demo-records:
+    bash live/e2e/record-store/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #

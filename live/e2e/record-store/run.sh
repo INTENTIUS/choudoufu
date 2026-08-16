@@ -52,8 +52,36 @@ cd "$COPY"
 
 RECORDS_DIR="$COPY/.tofu-records"
 
+# The store directory holds two disjoint namespaces, and only one of them is
+# resource records. RecordKeyPrefix (internal/live/projection) puts every
+# resource record under "tofu-records/<estate>/...", while HintKey
+# (internal/live/projection/hint_store.go) puts guided discovery's cached
+# type roster under "tofu-hints/<estate>/guided" - deliberately disjoint, so
+# that orphan discovery listing the record namespace can never mistake the
+# hint for a resource. count_records counts only the first namespace. A
+# whole-directory count used to give the same number and silently stopped
+# doing so once guided discovery started writing its hint into the same
+# store, which is why assert_hint_not_a_record below checks the split rather
+# than leaving it assumed.
 count_records() {
+  find "$RECORDS_DIR/tofu-records" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+}
+
+count_all_store_files() {
   find "$RECORDS_DIR" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+}
+
+# assert_hint_not_a_record proves the namespace split is real rather than
+# assumed: whatever else is in the store, nothing under tofu-hints/ is
+# counted as a resource record, and nothing under tofu-records/ is a hint.
+assert_hint_not_a_record() {
+  local hints resources
+  hints="$(find "$RECORDS_DIR/tofu-hints" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  resources="$(count_records)"
+  if [ "$hints" != "0" ] && [ "$resources" != "$(( $(count_all_store_files) - hints ))" ]; then
+    find "$RECORDS_DIR" -type f
+    fail "the record and hint namespaces overlap: $resources resource records, $hints hints, $(count_all_store_files) files in total"
+  fi
 }
 
 # record_file finds the one persisted record file whose path contains
@@ -61,7 +89,7 @@ count_records() {
 # names each record "<prefix>/<type>/<hash>", so the type name is always a
 # whole path segment.
 record_file() {
-  find "$RECORDS_DIR" -type f -path "*/$1/*" ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | head -n1
+  find "$RECORDS_DIR/tofu-records" -type f -path "*/$1/*" ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | head -n1
 }
 
 # ── 2. init ──────────────────────────────────────────────────────────────
@@ -86,8 +114,9 @@ log "  apply ok: $(printf '%s\n' "$APPLY_OUT" | grep -E 'Apply complete')"
 
 [ -d "$RECORDS_DIR" ] || fail "no .tofu-records directory was written by the apply"
 N="$(count_records)"
-[ "$N" = "4" ] || fail "expected 4 persisted records after create, found $N under $RECORDS_DIR"
-log "  4 records persisted under $RECORDS_DIR"
+[ "$N" = "4" ] || fail "expected 4 persisted records after create, found $N under $RECORDS_DIR/tofu-records"
+assert_hint_not_a_record
+log "  4 records persisted under $RECORDS_DIR/tofu-records ($(count_all_store_files) files in the store in all, the rest being guided discovery's hint)"
 
 PET_FILE1="$(record_file random_pet)"
 TIME_FILE1="$(record_file time_static)"
@@ -192,7 +221,8 @@ printf '%s\n' "$DESTROY_OUT" | grep -q "4 destroyed" || {
 log "  removal apply ok: $(printf '%s\n' "$DESTROY_OUT" | grep -E 'Apply complete')"
 
 N="$(count_records)"
-[ "$N" = "0" ] || fail "expected 0 persisted records after destroy, found $N still under $RECORDS_DIR"
+[ "$N" = "0" ] || fail "expected 0 persisted records after destroy, found $N still under $RECORDS_DIR/tofu-records"
+assert_hint_not_a_record
 log "  all 4 records removed from the store"
 
 log "=== PASS ==="
