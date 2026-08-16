@@ -414,6 +414,18 @@ func TestTaggable(t *testing.T) {
 // same.
 var (
 	taggableAdmittedTypes = []string{
+		// wall/rejected3 admitted 28 more types after verifying 65 against the
+		// v6.59.0 doc cache - a check that caught 22 further bad classifier
+		// proposals. Taggability read from live/survey-full.json signals.taggable
+		// and independently re-verified at merge: 28 checked, 0 mismatches.
+		"aws_appstream_fleet",
+		"aws_appstream_image_builder",
+		"aws_gamelift_game_server_group",
+		"aws_glue_catalog",
+		"aws_glue_dev_endpoint",
+		"aws_networkflowmonitor_monitor",
+		"aws_rds_cluster_endpoint",
+		"aws_shield_protection_group",
 		// Pinned when wall/rejected2 admitted 21 types whose rejections were
 		// re-derived against the v6.59.0 doc cache. Taggability for each was
 		// read from live/survey-full.json's own signals.taggable - the same
@@ -466,6 +478,26 @@ var (
 		"aws_ebs_volume",
 	}
 	untaggableAdmittedTypes = []string{
+		"aws_amplify_domain_association",
+		"aws_backup_restore_testing_selection",
+		"aws_bedrockagentcore_workload_identity",
+		"aws_codebuild_source_credential",
+		"aws_cognito_user_pool_ui_customization",
+		"aws_elasticache_global_replication_group",
+		"aws_emr_studio_session_mapping",
+		"aws_glue_catalog_table_optimizer",
+		"aws_glue_user_defined_function",
+		"aws_lambda_layer_version_permission",
+		"aws_network_interface_sg_attachment",
+		"aws_pinpointsmsvoicev2_resource_policy",
+		"aws_route53_cidr_location",
+		"aws_scheduler_schedule",
+		"aws_service_discovery_instance",
+		"aws_ses_receipt_filter",
+		"aws_ses_receipt_rule",
+		"aws_ses_receipt_rule_set",
+		"aws_ses_template",
+		"aws_vpc_block_public_access_options",
 		// Same batch as the taggable additions above; survey-full.json reports
 		// signals.taggable false for each of these.
 		"aws_devopsguru_notification_channel",
@@ -958,6 +990,34 @@ func testSchemas() Schemas {
 		"aws_lb_target_group":                                taggedSchema("id", "arn", "name", "port", "protocol", "vpc_id"),
 		"aws_lb_listener":                                    taggedSchema("id", "arn", "load_balancer_arn", "port", "protocol"),
 		"aws_alb":                                            taggedSchema("id", "arn", "name", "internal"),
+		"aws_appstream_fleet":                                taggedSchema("id", "arn", "name"),
+		"aws_appstream_image_builder":                        taggedSchema("id", "arn", "name"),
+		"aws_gamelift_game_server_group":                     taggedSchema("id", "arn", "name"),
+		"aws_glue_catalog":                                   taggedSchema("id", "arn", "name"),
+		"aws_glue_dev_endpoint":                              taggedSchema("id", "arn", "name"),
+		"aws_networkflowmonitor_monitor":                     taggedSchema("id", "arn", "name"),
+		"aws_rds_cluster_endpoint":                           taggedSchema("id", "arn", "name"),
+		"aws_shield_protection_group":                        taggedSchema("id", "arn", "name"),
+		"aws_amplify_domain_association":                     untaggedSchema("id"),
+		"aws_backup_restore_testing_selection":               untaggedSchema("id"),
+		"aws_bedrockagentcore_workload_identity":             untaggedSchema("id"),
+		"aws_codebuild_source_credential":                    untaggedSchema("id"),
+		"aws_cognito_user_pool_ui_customization":             untaggedSchema("id"),
+		"aws_elasticache_global_replication_group":           untaggedSchema("id"),
+		"aws_emr_studio_session_mapping":                     untaggedSchema("id"),
+		"aws_glue_catalog_table_optimizer":                   untaggedSchema("id"),
+		"aws_glue_user_defined_function":                     untaggedSchema("id"),
+		"aws_lambda_layer_version_permission":                untaggedSchema("id"),
+		"aws_network_interface_sg_attachment":                untaggedSchema("id"),
+		"aws_pinpointsmsvoicev2_resource_policy":             untaggedSchema("id"),
+		"aws_route53_cidr_location":                          untaggedSchema("id"),
+		"aws_scheduler_schedule":                             untaggedSchema("id"),
+		"aws_service_discovery_instance":                     untaggedSchema("id"),
+		"aws_ses_receipt_filter":                             untaggedSchema("id"),
+		"aws_ses_receipt_rule":                               untaggedSchema("id"),
+		"aws_ses_receipt_rule_set":                           untaggedSchema("id"),
+		"aws_ses_template":                                   untaggedSchema("id"),
+		"aws_vpc_block_public_access_options":                untaggedSchema("id"),
 		"aws_comprehend_entity_recognizer":                   taggedSchema("id", "arn", "name"),
 		"aws_inspector_resource_group":                       taggedSchema("id", "arn"),
 		"aws_iot_ca_certificate":                             taggedSchema("id", "arn"),
