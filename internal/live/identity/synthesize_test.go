@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -23,7 +26,13 @@ import (
 //     configuration can say whether it is a name or a server-assigned ID.
 //   - aws_child_thing: same as aws_thing, and its argument is written as a
 //     reference to another resource, which is how a synthesized entry gets
-//     read as a parent.
+//     read as a parent. It also marks account_id optional-for-import,
+//     absent from its own block same as aws_thing does, so that
+//     [isContextAttr]'s corroboration requirement has two independently
+//     "authored" types to compare account_id against rather than one - the
+//     same shape real provider schemas have (AWS marks account_id
+//     optional-for-import on hundreds of types, never as a block argument
+//     on any of them).
 //   - aws_composite_thing: two required identity attributes, joined into an
 //     import ID by a character no schema carries.
 func fallbackSchemas() map[string]providers.Schema {
@@ -38,7 +47,7 @@ func fallbackSchemas() map[string]providers.Schema {
 		},
 		"aws_child_thing": {
 			args:     map[string]string{"parent": "req", "id": "optcomp"},
-			identity: map[string]string{"parent": "req"},
+			identity: map[string]string{"parent": "req", "account_id": "opt"},
 		},
 		"aws_composite_thing": {
 			args:     map[string]string{"left": "req", "right": "req"},
@@ -279,6 +288,155 @@ func TestSynthesizeTypeIdentityShape(t *testing.T) {
 	}
 	if _, ok := SynthesizeTypeIdentity("aws_thing", nil, signal); ok {
 		t.Error("something was synthesized with no schemas at all")
+	}
+}
+
+// gcpShapedSchemas stands up two unrelated GCP-shaped types the way
+// hashicorp/google actually serves them (verified against the provider
+// directly, not guessed): a required attribute that names the resource, plus
+// "project" optional-for-import and absent from the resource's own block -
+// the GCP analogue of AWS's account_id. Two independently-authored types is
+// what [isContextAttr]'s corroboration bar needs to tell "project" apart
+// from a type-specific default; see #218 and isContextAttr's doc comment.
+func gcpShapedSchemas() map[string]providers.Schema {
+	return fakeProviderSchemas(map[string]fakeType{
+		"google_storage_bucket": {
+			args:     map[string]string{"name": "req"},
+			identity: map[string]string{"name": "req", "project": "opt"},
+		},
+		"google_bigquery_dataset": {
+			args:     map[string]string{"dataset_id": "req"},
+			identity: map[string]string{"dataset_id": "req", "project": "opt"},
+		},
+	})
+}
+
+// TestIsContextAttrCorroboratesAcrossTypes is #218: project is not a fixed
+// name this rule knows in advance, it is context because a second,
+// independently-authored type in the same provider's schemas treats it the
+// same way - absent from that type's own block too. That is the derived
+// signal replacing the old {account_id, region} literal pair.
+func TestIsContextAttrCorroboratesAcrossTypes(t *testing.T) {
+	schemas := gcpShapedSchemas()
+	bucket := schemas["google_storage_bucket"]
+	if !isContextAttr(schemas, bucket, "project") {
+		t.Error("project was not recognized as context even though a second GCP type corroborates it")
+	}
+
+	entry, ok := SynthesizeTypeIdentity("google_storage_bucket", schemas, nil)
+	if !ok {
+		t.Fatal("google_storage_bucket was not synthesized even though its only optional-for-import attribute is corroborated context")
+	}
+	if len(entry.IdentityAttrs) != 1 || entry.IdentityAttrs[0] != "name" {
+		t.Errorf("identity attributes are %v, want [name] - project must not be pulled into the identity", entry.IdentityAttrs)
+	}
+}
+
+// TestIsContextAttrRefusesUncorroboratedName is aws_dynamodb_table_item's
+// shape: range_key_value is Computed in that type's own block and optional
+// for import, and no other type in the (tiny, fake) provider schema set
+// marks the same name the same way. A single type's own schema cannot say
+// whether an optional-for-import name is shared provider infrastructure or
+// a value specific to that one type, so an uncorroborated name is refused -
+// the safe direction, per #218's own instruction.
+func TestIsContextAttrRefusesUncorroboratedName(t *testing.T) {
+	schemas := fakeProviderSchemas(map[string]fakeType{
+		"aws_dynamodb_table_item": {
+			args:     map[string]string{"table_name": "req", "hash_key_value": "req", "range_key_value": "comp"},
+			identity: map[string]string{"table_name": "req", "hash_key_value": "req", "range_key_value": "opt"},
+		},
+	})
+	item := schemas["aws_dynamodb_table_item"]
+	if isContextAttr(schemas, item, "range_key_value") {
+		t.Error("range_key_value was treated as context with no other type in the schema set corroborating it")
+	}
+}
+
+// TestIsContextAttrNestedBlockNeverContext is google_project_iam_member's
+// shape: the identity schema marks "condition_title" optional standing next
+// to three required attributes, but the resource block carries no
+// "condition_title" attribute at all - "title" is a required argument
+// inside a nested "condition" block instead. A member/role/project triple
+// bound with two different conditions is two different IAM bindings, so
+// dropping condition_title as mere context would resolve both to the same
+// synthesized identity. Corroboration from a second type must not override
+// this: the nested match is decisive on its own.
+func TestIsContextAttrNestedBlockNeverContext(t *testing.T) {
+	schemas := fakeProviderSchemas(map[string]fakeType{
+		// A second type that ALSO marks condition_title optional and absent
+		// from its own top-level block, so a rule that only checked
+		// corroboration (and not the nested match) would wrongly admit it.
+		"google_other_iam_member": {
+			args:     map[string]string{"member": "req", "role": "req"},
+			identity: map[string]string{"member": "req", "role": "req", "condition_title": "opt"},
+		},
+	})
+	block := &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"member":  {Type: cty.String, Required: true},
+			"project": {Type: cty.String, Required: true},
+			"role":    {Type: cty.String, Required: true},
+		},
+		BlockTypes: map[string]*configschema.NestedBlock{
+			"condition": {
+				Block: configschema.Block{
+					Attributes: map[string]*configschema.Attribute{
+						"title":      {Type: cty.String, Required: true},
+						"expression": {Type: cty.String, Required: true},
+					},
+				},
+				Nesting: configschema.NestingList,
+			},
+		},
+	}
+	schema := providers.Schema{
+		Block: block,
+		IdentitySchema: &configschema.Object{
+			Nesting: configschema.NestingSingle,
+			Attributes: map[string]*configschema.Attribute{
+				"member":          {Type: cty.String, Required: true},
+				"project":         {Type: cty.String, Required: true},
+				"role":            {Type: cty.String, Required: true},
+				"condition_title": {Type: cty.String, Optional: true},
+			},
+		},
+	}
+	schemas["google_project_iam_member"] = schema
+
+	if isContextAttr(schemas, schema, "condition_title") {
+		t.Error("condition_title was treated as context even though it flattens a required argument of a nested block")
+	}
+	if _, ok := SynthesizeTypeIdentity("google_project_iam_member", schemas, nil); ok {
+		t.Error("google_project_iam_member was synthesized despite condition_title naming a real nested identity component")
+	}
+}
+
+// TestIsContextAttrNameAndIDNeverContext pins the two literal exceptions
+// [isContextAttr] carries: "name" and "id" are never context, even when
+// Optional+Computed and corroborated by a second type, because a resource's
+// own conventional label is exactly as unsafe to drop as its "id" already
+// is (see [TypeIdentity.IdentityAttrs]'s doc comment on why "id" is never
+// handed out). google_colab_runtime_template and
+// google_cloud_quotas_quota_preference are both this shape in the real
+// provider: name is Optional+Computed, and it is also the value that tells
+// two instances apart.
+func TestIsContextAttrNameAndIDNeverContext(t *testing.T) {
+	schemas := fakeProviderSchemas(map[string]fakeType{
+		"google_colab_runtime_template": {
+			args:     map[string]string{"location": "req", "name": "optcomp", "id": "optcomp"},
+			identity: map[string]string{"location": "req", "name": "opt"},
+		},
+		"google_cloud_quotas_quota_preference": {
+			args:     map[string]string{"parent": "req", "name": "optcomp", "id": "optcomp"},
+			identity: map[string]string{"parent": "req", "name": "opt"},
+		},
+	})
+	template := schemas["google_colab_runtime_template"]
+	if isContextAttr(schemas, template, "name") {
+		t.Error("name was treated as context even though it is corroborated and the literal exclusion should have refused it first")
+	}
+	if _, ok := SynthesizeTypeIdentity("google_colab_runtime_template", schemas, nil); ok {
+		t.Error("google_colab_runtime_template was synthesized with its own distinguishing name dropped as context")
 	}
 }
 
