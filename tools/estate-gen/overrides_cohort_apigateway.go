@@ -14,6 +14,19 @@ import (
 // typeOverridesApigateway is the apigateway cohort's slice of [typeOverrides].
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesApigateway = map[string]typeOverride{
+	"aws_api_gateway_base_path_mapping": {
+		Reasons: []string{
+			`domain_name is not a parentRef candidate: it is one of two components of this type's own composite identity (domain_name + base_path, internal/live/identity/table.go), and "domain_name" is one of the argument names more than one admitted type self-identifies by - both API Gateway generations self-identify their own domain name types by it (issue #231) - so parentRef correctly refuses to guess which one this v1 type means, rather than making the same alphabetic-tiebreak mistake aws_apigatewayv2_routing_rule's own override below documents. This type is unambiguously v1 by its own name, unlike routing_rule; wired to the v1 aws_api_gateway_domain_name this cohort renders instead of the generic placeholder the refusal leaves behind, which names no domain aws_api_gateway_base_path_mapping's real API call would find. stage_name is Optional in the wire schema, so the required-only pass never visits it; the seed-derived example reference that used to supply it is skipped once a type carries any override entry (this file's own header comment on seedFromExample's suppression rule), so this override sets it by hand too, matching what the documented example wired it to.`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if domain, ok := g.byType["aws_api_gateway_domain_name"]; ok {
+				body.SetAttributeRaw("domain_name", exprTokens(fmt.Sprintf("%s.domain_name", domain)))
+			}
+			if stage, ok := g.byType["aws_api_gateway_stage"]; ok {
+				body.SetAttributeRaw("stage_name", exprTokens(fmt.Sprintf("%s.stage_name", stage)))
+			}
+		},
+	},
 	"aws_api_gateway_documentation_version": {
 		Reasons: []string{
 			`rest_api_id was mis-wired to aws_api_gateway_rest_api_policy.app (parentRef's only candidate whose identity self-names "rest_api_id" - the real parent, aws_api_gateway_rest_api, is server-assigned and never a parentRef candidate); corrected to the REST API this cohort renders`,
