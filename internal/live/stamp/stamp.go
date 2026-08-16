@@ -1153,7 +1153,11 @@ func mergeEntries(call *hclsyntax.FunctionCallExpr) map[string]hclsyntax.Express
 // stringEntries reads a statically evaluated tags value as plain strings,
 // skipping anything that is not one.
 func stringEntries(val cty.Value) map[string]string {
-	if val.IsNull() || !val.IsKnown() || !val.CanIterateElements() {
+	if val.IsNull() || !val.IsKnown() || val.IsMarked() || !val.CanIterateElements() {
+		// IsMarked before ElementIterator, which panics on a marked value:
+		// a whole tags map read from a sensitive variable is one, and this
+		// function has callers other than [stamper.staticValue], which
+		// refuses one itself.
 		return nil
 	}
 	out := make(map[string]string)
@@ -1387,9 +1391,13 @@ func (s *stamper) splitAddressMarker(ctx context.Context, rc *configs.Resource, 
 
 	if !perInstance {
 		lit, ok := full.(*hclsyntax.LiteralValueExpr)
-		if !ok {
-			// addressExpr's non-perInstance branch always returns a literal;
-			// this is a defensive fallback, not a reachable case.
+		if !ok || lit.Val.IsMarked() {
+			// addressExpr's non-perInstance branch always returns a
+			// literal, and builds it from the resource's own address, so
+			// neither half of this condition is reachable today: it is a
+			// defensive fallback. IsMarked is part of it because AsString
+			// below panics rather than errors on a marked value, and a
+			// stated guard is cheaper than the crash if that ever changes.
 			return []marker{{key: TagAddress, expr: full, want: display}}
 		}
 		return constantAddressMarkers(lit.Val.AsString(), rng)
@@ -1595,6 +1603,13 @@ func (s *stamper) staticForEachKeys(ctx context.Context, rc *configs.Resource) (
 		for it := val.ElementIterator(); it.Next(); {
 			_, v := it.Element()
 			if v.Type() != cty.String || v.IsNull() {
+				return nil, false
+			}
+			// cty hoists a marked element's mark to the containing SET but
+			// not out of a LIST or TUPLE, so the whole-value IsMarked test
+			// above misses `for_each = [var.secret]` and AsString panicked.
+			// Same fix, same reason, as lint's own copy of this function.
+			if v.IsMarked() {
 				return nil, false
 			}
 			keys = append(keys, v.AsString())

@@ -701,7 +701,12 @@ func stepKeyString(step hcl.Traverser) (string, bool) {
 	case hcl.TraverseAttr:
 		return s.Name, true
 	case hcl.TraverseIndex:
-		if s.Key.Type() == cty.String && s.Key.IsKnown() && !s.Key.IsNull() {
+		// IsMarked before AsString, which panics on a marked value. A
+		// traversal step's key is parsed from a source literal today, so
+		// this cannot fire - hcl only builds a TraverseIndex for a constant
+		// index - but the test costs nothing and the alternative is a
+		// crash if that ever stops being true.
+		if s.Key.Type() == cty.String && s.Key.IsKnown() && !s.Key.IsNull() && !s.Key.IsMarked() {
 			return s.Key.AsString(), true
 		}
 	}

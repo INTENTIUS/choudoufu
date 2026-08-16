@@ -474,6 +474,13 @@ func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]ad
 }
 
 func numToInt(num cty.Value, out *int) error {
+	// IsMarked before AsBigFloat, which panics on a marked value. The one
+	// caller today refuses a marked count before converting, so this is the
+	// same answer arrived at one function earlier; it is tested here as
+	// well because the guard that makes it safe is not in this function.
+	if num.IsMarked() {
+		return fmt.Errorf("sensitive")
+	}
 	bf := num.AsBigFloat()
 	i64, acc := bf.Int64()
 	if !bf.IsInt() || acc != 0 {

@@ -249,6 +249,16 @@ func staticForEachKeys(ctx context.Context, mod *configs.Module, expr hcl.Expres
 				// identity resolution says so with its own message.
 				return nil, false
 			}
+			// The whole-value IsMarked test above is not enough here: cty
+			// hoists a marked element's mark to the containing SET, but a
+			// LIST or TUPLE keeps it on the element, so `for_each =
+			// [var.secret]` arrives as an unmarked tuple holding a marked
+			// string and AsString below panicked. Reported "cannot check",
+			// the same answer a marked whole value already gets - the
+			// for_each is refused by identity resolution either way.
+			if v.IsMarked() {
+				return nil, false
+			}
 			keys = append(keys, v.AsString())
 		}
 	default:
