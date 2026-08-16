@@ -110,11 +110,29 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 			return nil, instScope{}, noop, false
 		}
 		parentInst, callInst := r.modInst.CallInstance()
-		savedMod, savedInst, savedEval := r.mod, r.modInst, r.eval
+		// curCfg belongs in this set, not only mod/modInst/eval:
+		// [resolver.enterModuleAt] sets all four together, so a restore
+		// that puts back three leaves the fourth pointing at the module
+		// this hop climbed INTO. The sibling restore in
+		// [resolver.resolveModuleOutput] already put back all four; this
+		// one did
+		// not, and the consequence was silent, because curCfg has exactly
+		// one reader: [resolver.resourceCloudScope], which runs at the end
+		// of resolveOne and asks providerscope which provider
+		// configuration the resource uses. Any resource whose identity
+		// reads a var inside a module therefore had its provider resolved
+		// against the module's PARENT, discarding the call's
+		// `providers = { ... }` mapping - so two calls of one module,
+		// remapped to two different aliased providers, produced identical
+		// cloud scopes and [resolver.checkCollisions] reported them as one
+		// identity. Found in terraform-aws-modules/terraform-aws-lambda's
+		// examples/multiple-regions, which exists to exercise exactly that
+		// shape.
+		savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
 		if !r.enterModuleFor(parentInst) {
 			return nil, instScope{}, noop, false
 		}
-		restore := func() { r.mod, r.modInst, r.eval = savedMod, savedInst, savedEval }
+		restore := func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }
 
 		mc, ok := r.mod.ModuleCalls[callInst.Call.Name]
 		if !ok || mc.Config == nil {
