@@ -19,13 +19,18 @@
 # the index, so reorder or remove an instance and a later instance's marker
 # would point at the wrong live NACL rule. RuleCountIndex
 # (internal/live/lint/count_index.go, checkCountIndex,
-# unsafeCountIndexRanges) still catches this, gated by countIndexScopeForType
+# analyzeCountIndexSafety) still catches this, gated by countIndexScopeForType
 # on whether the argument identity.LookupType names for this type could ever
 # carry it - the identity-relevance test #187 added - and by
-# unsafeCountIndexRanges on whether count.index reaches an IndexExpr's Key
-# position - the indexing test #192 added. Check() reports exactly
-# RuleCountIndex for this directory, asserted by TestLimitsEnforced
-# (internal/live/lint/limits_test.go). See live/LIMITATIONS.md.
+# analyzeCountIndexSafety on whether count.index reaches an IndexExpr's key
+# position, one of the shapes it has never been able to prove injective - the
+# indexing test #192 added, and #217's refuse-by-default inversion (which
+# renamed the analysis from an enumerated-unsafe check, unsafeCountIndexRanges,
+# to today's enumerated-safe one) leaves refused for the same reason: nothing
+# proves an index expression's key position injective, whichever way the
+# check is framed. Check() reports exactly RuleCountIndex for this directory,
+# asserted by TestLimitsEnforced (internal/live/lint/limits_test.go). See
+# live/LIMITATIONS.md.
 
 variable "rule_numbers" {
   type    = list(number)

@@ -293,26 +293,30 @@ rule").
 
 ### child-module
 
-**Construct.** A `module` block, at any depth, expanded with `count`, or
+**Construct.** A `module` block, at any depth, expanded with a `count` that
+is not statically evaluable or whose own arguments read `count.index`, or
 expanded with `for_each` whose keys cannot be enumerated from configuration
-alone. A static module call, and a `for_each` module call whose keys *can*
-be so enumerated, are not this limitation: see below.
+alone. A static module call, a statically-evaluable `count` module call
+whose own arguments do not read `count.index`, and a `for_each` module call
+whose keys *can* be enumerated, are not this limitation: see below.
 
-**Why banned.** Module expansion by `count` renumbers every resource
-address inside the module positionally, on every insertion or removal
-above the changed index, and a `tofu-address` marker records an address,
-not a position. A renumbering that moves addresses out from under their
-markers is not a gap this mode intends to close, so `count`-expanded
-modules are refused permanently. `for_each` on a module block does not
-renumber the way `count` does, because a key is stable under insertion and
-removal, the same reason `RuleForEachKey`-disciplined resource keys are
-admitted, which is the reason to admit it at all (issue #59, phase
-3 / "59c"). What is still refused is a `for_each` whose keys this pass
-cannot compute before anything is read from the cloud: an instance key
-becomes part of every address inside the module, and an address that is
+**Why banned.** `for_each` on a module block is refused only when this pass
+cannot compute its keys before anything is read from the cloud: an instance
+key becomes part of every address inside the module, and an address that is
 not knowable yet cannot become part of a marker yet either, the same reason
 a resource's own non-static `for_each` is refused (by identity resolution,
-not lint. See below.)
+not lint; see below). `count` on a module block is refused in two narrower
+cases (issue #195, which reversed the earlier unconditional ban): a count
+expression this pass cannot statically evaluate, and a statically-evaluable
+count whose own arguments still read `count.index` - the same hazard
+`RuleCountIndex` guards a resource's own body against (issue #192, see
+`count-index-in-tag` below), applied to a module call's arguments instead.
+A plain, static integer count that never leaks
+`count.index` into the call's own arguments is not positionally fragile:
+`module.name[i]` is exactly as stable an address as `resource.name[i]`, and
+shrinking count only ever retires the highest index, never renumbers a
+survivor, which is why that shape is admitted rather than refused
+permanently.
 
 **A static module call is admitted.** As of issue #59, phase 2 ("59b"), the
 five packages downstream of lint (`identity`, `discovery`, `stamp`,
@@ -321,11 +325,24 @@ inside a static module binds by its module-qualified address
 (`module.a.module.b.aws_x.y`) exactly as soundly as a root resource binds by
 its own. `RuleChildModule` reports nothing for a module call that sets
 neither `count` nor `for_each`. A `provider` block declared inside that
-static module is refused in its own right: issue #70's ruling made it a
-lint refusal (`RuleModuleProviderBlock`, see the `module-provider-block`
-entry below), because live mode never consults it and the module's
-resources would silently be served by the root configuration's own provider
-config instead.
+module is a separate question, policed by `RuleModuleProviderBlock` (see
+the `module-provider-block` entry under "Documented, not yet enforced"):
+since issue #201 it is admitted and honoured, not refused, when (as here)
+no call in the chain reaching it uses `count`, `for_each`, `enabled` or
+`depends_on`.
+
+**A statically-evaluable `count` module call with no `count.index` leak is
+admitted.** As of issue #195, a module call's `count` is evaluated the same
+way a resource's own `count` is: a literal, or an expression built from
+variables, locals, `path` and `terraform` values. When the expression is
+statically evaluable and none of the call's own arguments read
+`count.index` (directly, or by indexing a sibling resource's own
+count-expanded collection), `RuleChildModule` reports nothing, and the five
+packages traverse each instance - `module.app[0].aws_x.y` binds exactly as
+soundly as `module.app.aws_x.y` does. A `count` this pass cannot evaluate
+at all is refused as non-static; a statically-evaluable `count` whose own
+arguments do read `count.index` is refused for the leak, worded like a
+resource's own `count.index`-into-identity refusal.
 
 **A statically-keyed `for_each` module call is admitted.** As of issue #59,
 phase 3 ("59c"), a module call's `for_each` is evaluated the same way a
@@ -344,34 +361,41 @@ evaluate at all, meaning a reference to a resource, a data source, or
 anything else outside the static scope, is refused by `RuleChildModule` itself,
 worded like a resource's own non-static `for_each` refusal.
 
-**Forwarding address.** For a `count`-expanded module, or a `for_each`
-module whose keys are not statically knowable: move the module's resources
-into the root module, or give the module an estate of its own, with its own
-directory, its own `live` block, and its own `estate` name. Two estates are
-two independent runs, which is the separation an expanded child module is
-standing in for. For `count` this is the only forwarding address, because there is
-no future traversal to wait for. For a non-static `for_each`, rewriting the
-expression to a literal collection or a value derived from variables,
-locals, `path` or `terraform` is the other way out, the same as it is for a
-resource's own `for_each`.
+**Forwarding address.** For a non-statically-evaluable `count`, or a
+`for_each` module whose keys are not statically knowable: move the
+module's resources into the root module, or give the module an estate of
+its own, with its own directory, its own `live` block, and its own
+`estate` name. Two estates are two independent runs, which is the
+separation an expanded child module is standing in for. Rewriting the
+`count` or `for_each` expression to a literal or a value derived from
+variables, locals, `path` or `terraform` is the other way out, the same as
+it is for a resource's own `count` or `for_each`. For a statically-
+evaluable `count` whose own arguments leak `count.index`: replace
+`count.index` with a value that does not depend on the instance's
+position - a `for_each` key, or an argument that is the same for every
+instance.
 
 **Enforcement.** `RuleChildModule`, `internal/live/lint/child_module.go`
 (`checkChildModules`, detail text chosen by `childModuleDetail`, which
-reports nothing for a static call or a statically-keyed `for_each` call).
-The key evaluation itself is `identity.ChildModuleKeys`
-(`internal/live/identity/modulepath.go`), shared with `resolve.go`'s own
-module walk so that lint's admission verdict and identity resolution's
-traversal never disagree about which keys a module call expands to.
-Fixture at `live/e2e/limits/child-module/`, which is a tree rather than a
-single file and needs `choudoufu get` before the rule can be reached, since
-an uninstalled module block is refused while the configuration is still
-being loaded, earlier than any marker code runs. The fixture carries four
-module calls, a static call ("network", admitted), a statically-keyed
-`for_each` call ("keyed-static", admitted), a `count` call ("counted",
-refused permanently), and a `for_each` call whose keys reference another
-resource ("keyed", refused as non-static), so one load proves both
-admitted forms pass clean while the other two still fail, each for its own
-named reason.
+reports nothing for a static call, a statically-evaluable non-leaking
+`count` call, or a statically-keyed `for_each` call). The `count.index`
+leak check is `moduleCallHasCountIndex`, the module-call analogue of
+`checkCountIndex`'s own body walk. The `for_each` key evaluation itself is
+`identity.ChildModuleKeys` (`internal/live/identity/modulepath.go`), shared
+with `resolve.go`'s own module walk so that lint's admission verdict and
+identity resolution's traversal never disagree about which keys a module
+call expands to. Fixture at `live/e2e/limits/child-module/`, which is a
+tree rather than a single file and needs `choudoufu get` before the rule
+can be reached, since an uninstalled module block is refused while the
+configuration is still being loaded, earlier than any marker code runs.
+The fixture carries five module calls: a static call ("network",
+admitted), a statically-keyed `for_each` call ("keyed-static", admitted), a
+statically-evaluable `count` call with no `count.index` leak ("counted",
+admitted), a statically-evaluable `count` call whose own arguments do read
+`count.index` ("counted-leaking", refused for the leak), and a `for_each`
+call whose keys reference another resource ("keyed", refused as
+non-static), so one load proves all three admitted forms pass clean while
+the two refused forms each fail for their own named reason.
 
 ### backend-block
 
@@ -614,13 +638,34 @@ and bare-comparison shapes #217 added.
 
 ### foreach-invalid-key
 
-**Construct.** A `for_each` key containing a character outside the AWS
-tag-value set (e.g. `"a%b"`).
+**Construct.** A `for_each` key containing one of six characters
+(`markerkey.Excluded`: `"`, `\`, `$`, `%`, `[`, `]`) that collide with a
+rule outside this fork's own control, e.g. `"a%b"`.
 
 **Why banned.** A `for_each` instance key becomes part of the resource's
-`tofu-address` marker, which is written as an AWS resource tag, so a key
-containing anything AWS itself does not allow in a tag value can never be
-carried at all - no escaping rule can fix that.
+`tofu-address` marker, which is written as an AWS resource tag. Before
+issue #210, the marker's own escaping could only carry characters AWS
+itself allows in a tag value, so anything else - `"a (b)"`, say - was
+refused outright, which issue #210 identified as a defect in this fork's
+charset rather than a real limitation: stock OpenTofu accepts any string as
+a `for_each` key. `markerkey.Encode` now carries almost every printable
+character into a marker reversibly, as an `Introducer`-led hex escape, the
+same move issue #178 made for `.` and `:` (below) applied to the rest of
+the printable range.
+
+What #210 leaves refused is a narrower set of six characters that collide
+with a *different*, unrelated escaping rule this package does not own:
+`"`, `\` and every non-printable rune are backslash- or `\u`-escaped by
+`addrs`' `toHCLQuotedString` when OpenTofu itself renders the "declared"
+side of an address comparison, before this package's own escaping ever
+runs; `[` and `]` are the delimiters `internal/live/markers`' scanning uses
+to find an instance key's boundaries inside a full address string; and `$`
+and `%` are doubled by that same `toHCLQuotedString` function when
+immediately followed by `{`, a transformation with no per-rune inverse -
+#210 refuses both unconditionally rather than only in that one shape, since
+the escaping has no way to tell the two cases apart at the point it runs.
+None of the six was ever admitted before #210 either, so this is where the
+boundary now sits, not a new restriction.
 
 Before issue #178, `.` and `:` were banned here too, alongside everything
 truly outside the AWS set: `live/MARKERS.md`'s escaping rule used `.` to
@@ -637,19 +682,25 @@ substituting `.` and `:` for two-character sequences that cannot collide
 with the address's own separators - and reverses the substitution on read,
 so both characters are admitted.
 
-**Forwarding address.** Pick a `for_each` key drawn from the AWS-allowed tag
-character set: letters, digits, space, and `+ - = . _ : / @`. An empty key
-is also rejected, since an escaped address cannot end in a bare separator.
+**Forwarding address.** Drop the six excluded characters from the key, or
+substitute an equivalent that does not collide with the address-rendering
+or address-scanning rules they conflict with. An empty key is also
+rejected, since an escaped address cannot end in a bare separator.
 
 **Enforcement.** `RuleForEachKey`, `internal/live/lint/foreach_key.go`
-(`checkForEachKeys`). For every `for_each` expression it can evaluate
-statically, it rejects any key outside Unicode letters, Unicode digits,
-space, and `+ - = . _ : / @`, including the empty string. The same bound is
-enforced a second time in `internal/live/identity`
-(`checkedForEachKeys` in `foreach_key.go`, which delegates the rune check
-back to lint), so a configuration that reaches identity resolution without
-passing lint still cannot mint a marker nothing can read back. Fixture at
-`live/e2e/limits/foreach-invalid-key/`.
+(`checkForEachKeys`), which delegates the rune check to
+`markerkey.InvalidRune`/`markerkey.Excluded`. For every `for_each`
+expression it can evaluate statically, it rejects any key containing one of
+the six excluded characters, or the empty string. The same bound is
+enforced a second time in `internal/live/identity` (`checkedForEachKeys` in
+`foreach_key.go`, which delegates the rune check back to lint), so a
+configuration that reaches identity resolution without passing lint still
+cannot mint a marker nothing can read back. Fixture at
+`live/e2e/limits/foreach-invalid-key/`, which demonstrates the still-refused
+`"%"` case; `internal/live/lint/testdata/foreach-key-clean/main.tf` and
+`internal/live/lint/testdata/foreach-key/main.tf` pin the much wider
+admission issue #210 opened and the exact six-character residue,
+respectively.
 
 ### overlong-address
 
@@ -764,64 +815,10 @@ admitted. So is `{ myaws = aws }`, where only the child's local name differs.
 default mapping is pinned by `TestModuleProvidersAdmitsTheDefaultMapping`,
 since `TestLimitsEnforced` would pass just as happily if every call were
 refused.
-This is distinct from `module-provider-block` (next entry), which refuses
-provider *blocks* declared inside a child module (GitHub issue #70): a
-module can declare no provider block of its own and still be called with a
-mapping.
-
-### module-provider-block
-
-**Construct.** A `provider` block declared inside a child module:
-
-```hcl
-# inside modules/vpc/main.tf
-provider "aws" {
-  region = "us-east-1"
-}
-```
-
-**Why banned.** Live mode reads provider configurations from the root module
-only. A provider block declared inside a child module is never consulted -
-the module's resources are read, written and swept against whatever the
-root configuration's own provider config names instead, which may be a
-different account or region than the block asks for, with nothing said
-about it. That silent misattribution is what GitHub issue #70 was filed to
-guard against. An interim once-per-run warning held the gap while the
-design question (honour the block, or refuse it) stayed open.
-
-The ruling was measured before it was made, by the maintainer's stated
-decision rule (if it's common, support it, and if it's rare and OpenTofu
-already says don't, side with that). Across the ten most-installed
-terraform-aws-modules repositories, the same repos the third-party corpus
-pins, 740 module-source `.tf` files, and not one declares a provider block
-inside module source, and none uses `configuration_aliases`. Every provider
-block found sits at an example's *root*, the form live mode already
-supports. Upstream's own documentation points the same way: provider
-configurations belong in the root module, and a child module declaring its
-own is legacy practice, because it cannot be used with `count`, `for_each` or
-`depends_on`, and removing the module call orphans its resources. Rare,
-and already discouraged, so this fork refuses it. Full per-module provider
-resolution remains a design the corpus can reopen if in-module blocks ever
-stop being rare.
-
-**Forwarding address.** Move the provider configuration to the root module
-and let the module receive it implicitly. A `providers` mapping on the
-module call remains subject to the `module-providers` rule's admitted
-forms: an unaliased mapping such as `providers = { aws = aws }` is
-admitted, an aliased one is refused.
-
-**What is not refused.** Provider blocks in the root module, aliased or
-not. Those are exactly what live mode consults. And a child module that
-declares no provider block, which is every module in the measured
-ecosystem.
-
-**Enforcement.** `RuleModuleProviderBlock`,
-`internal/live/lint/module_provider_block.go`
-(`checkModuleProviderBlocks`). Fixture at
-`live/e2e/limits/module-provider-block/`. The admitted twin, the same
-provider block declared at root, is pinned by `TestCheck`'s
-`module-provider-root` case. This refusal replaces the interim
-`CheckModuleProviders` warning, which is retired.
+This is distinct from `module-provider-block` (see "Documented, not yet
+enforced" below), which polices provider *blocks* declared inside a child
+module (GitHub issue #70): a module can declare no provider block of its
+own and still be called with a mapping.
 
 ### undeclared-provider-alias
 
@@ -997,6 +994,89 @@ Fixture at `live/e2e/limits/duplicate-identity/`, asserted to produce
 zero *lint* issues by `TestLimitsNotYetEnforced` (a parallel fixture at
 `internal/live/identity/testdata/duplicate-identity/` already exercises
 the resolve-time error itself).
+
+### module-provider-block
+
+**Construct.** A `provider` block declared inside a child module:
+
+```hcl
+# inside modules/vpc/main.tf
+provider "aws" {
+  region = "us-east-1"
+}
+```
+
+**History.** GitHub issue #70 originally refused every in-module provider
+block unconditionally: live mode read provider configurations from the root
+module only, so the block was never consulted and the module's resources
+were silently served by the root's own provider config instead - possibly a
+different account or region than the block asked for, with nothing said
+about it. That ruling was measured before it was made (0 of 740
+module-source `.tf` files across the ten most-installed
+terraform-aws-modules repositories declare an in-module provider block, and
+upstream documents the shape as legacy), but the measurement missed a real
+site the corpus later found using exactly this shape with none of `count`,
+`for_each`, `enabled` or `depends_on` on the call reaching it -
+`simpleinfra/terraform/shared/modules/gha-iam-user/main.tf:10`. Stock
+OpenTofu accepts that shape (`internal/configs/provider_validation.go`'s
+`validateProviderConfigs`, forked verbatim), so refusing it was a parity
+gap, not a correct narrower rule. GitHub issue #201 narrowed
+`RuleModuleProviderBlock` to match: a module-local provider block is refused
+only when the call chain from root down to it passes through a call using
+one of those four meta-arguments, mirroring upstream's own condition
+exactly, and `internal/live/providerscope.Resolve` was taught to walk
+straight to a module's own content-bearing provider block when the chain
+does not block it - honouring the block instead of silently falling back to
+root, which is what closes the original "nothing said about it" risk for
+every shape this fork can still admit.
+
+**Why this is not enforced today.** The one case the rule still refuses -
+a blocked call chain reaching a content-bearing local provider block -
+cannot be produced by any buildable OpenTofu configuration, in this fork or
+in stock OpenTofu: `internal/configs.BuildConfig`'s own
+`validateProviderConfigs` hard-errors on that exact combination before
+`internal/live/lint` ever runs, at every entry point this fork has
+(`internal/live/check.Load`, `internal/configs/configload`, and
+`internal/live/lint`'s own `loadConfigDir`). `internal/configs/testdata/
+config-diagnostics/nested-provider` is upstream's own fixture proving the
+hard error. So `RuleModuleProviderBlock`'s refusal branch is unreachable
+through the ordinary live path today and is kept only as defense in depth
+for a future caller that builds a `*configs.Config` without going through
+`BuildConfig`. This is why the fixture below is classified under
+"documented, not yet enforced" rather than "enforced today": there is
+nothing left for the rule to enforce that upstream itself does not already
+forbid.
+
+**What is admitted, and honoured.** A module-local provider block reached
+by a call chain with none of `count`, `for_each`, `enabled` or
+`depends_on` - the shape #70 originally refused - is legal, and live mode
+now resolves a resource inside that module straight to the block, not to
+the root configuration. Provider blocks in the root module, aliased or
+not, and a child module declaring no provider block of its own (every
+module in the original measured ecosystem), are unaffected either way.
+
+**Forwarding address.** None needed for the admitted shape. For the
+unreachable refused shape: move the provider configuration to the root
+module and let the module receive it implicitly, or drop the meta-argument
+from the call chain. A `providers` mapping on the module call remains
+subject to the `module-providers` rule's admitted forms: an unaliased
+mapping such as `providers = { aws = aws }` is admitted, an aliased one is
+refused.
+
+**Enforcement.** `RuleModuleProviderBlock`,
+`internal/live/lint/module_provider_block.go`
+(`checkModuleProviderBlocks`), gated by `moduleCallBlocksLocalProviders`
+and `configuredProviderBlock`. Fixture at
+`live/e2e/limits/module-provider-block/`, which today demonstrates the
+admitted-and-honoured shape (`CheckContext()` reports nothing for it,
+pinned by `TestLimitsNotYetEnforced`) rather than a refusal. The rule's own
+logic - the meta-argument gate and the empty/configured-block split - is
+pinned directly against synthetic input by
+`internal/live/lint/module_provider_block_test.go`, since no loadable
+configuration can drive the refusal branch through `CheckContext()` at
+all. The admitted root-level twin, the same provider block declared at
+root, is pinned by `TestCheck`'s `module-provider-root` case. This rule
+replaced an interim `CheckModuleProviders` warning, since retired.
 
 ## Attribute-level residue (warned, never refused)
 

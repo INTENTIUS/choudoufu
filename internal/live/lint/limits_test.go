@@ -213,15 +213,19 @@ func TestLogicalLimitsDetailsRender(t *testing.T) {
 // Issue #195 additionally admitted a statically-evaluable count with no
 // count.index leak (see child_module.go's top-of-file comment), so the
 // fixture's "counted" call ("count = 1", a literal, and no count.index
-// anywhere in its body) is now a THIRD admitted shape alongside "network"
-// and "keyed-static", not a refused one - live/e2e/limits/child-module's own
-// comments still describe it as refused permanently, which is now stale
-// prose the fixture's owner should refresh; the assertion below is the
-// actual, verified behavior, not what the comment says. Only "keyed" - a
-// for_each reading another resource's attribute, not knowable from
-// configuration alone - still carries a RuleChildModule issue.
+// anywhere in its body) is a THIRD admitted shape alongside "network" and
+// "keyed-static". The fixture also carries "counted-leaking" - an equally
+// static count whose own arguments index into a collection at count.index
+// (suffix = var.suffixes[count.index]) - which is the case #195 still
+// refuses, and "keyed" - a for_each reading another resource's attribute,
+// not knowable from configuration alone - which was always refused.
+// live/e2e/limits/child-module's own comments were stale after #195 (they
+// used to describe "counted" as refused permanently) and have been
+// refreshed to match the assertions below, which are the actual, verified
+// behavior.
 var childModuleFixtureDetails = map[string]string{
-	"keyed": "statically evaluable",
+	"keyed":           "statically evaluable",
+	"counted-leaking": "count.index",
 }
 
 // childModuleFixtureAdmitted is every module call in the fixture that must
