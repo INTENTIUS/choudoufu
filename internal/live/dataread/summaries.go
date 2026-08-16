@@ -10,6 +10,16 @@ package dataread
 // re-homes identity's data-source refusals under them) must agree on the
 // exact string.
 const (
+	// SummaryCrossStackOutputsUnavailable is tfe_outputs' own failure
+	// class, distinct from the generic provider-not-configurable and
+	// read-failed classes because the cause is almost always the auth
+	// surface rather than the provider block itself: no token argument, no
+	// TFE_TOKEN, and no CLI credentials entry for the host (caught offline,
+	// as part of eligibility - see [analyzer.tfeAuthAvailable]), or the
+	// read itself failing with a workspace-not-found, no-current-state, or
+	// permission error (caught at read time, quoted from the provider).
+	SummaryCrossStackOutputsUnavailable = "Cross-stack outputs unavailable"
+
 	// SummaryNotReadable is eligibility failing: the data source's own
 	// arguments, its count/for_each, or something it depends on cannot be
 	// evaluated before the plan, so there is nothing honest to read.

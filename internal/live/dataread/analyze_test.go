@@ -186,6 +186,92 @@ func TestAnalyzeCycleIsIneligible(t *testing.T) {
 	}
 }
 
+// TestAnalyzeTfeOutputsEligibleWithProviderToken: #179 stage 2's own rule -
+// a tfe_outputs source with a static token argument in its provider block
+// goes through the same eligibility pipeline a same-stack source does, and
+// passes it.
+func TestAnalyzeTfeOutputsEligibleWithProviderToken(t *testing.T) {
+	a := analyzeFixture(t, "tfe-eligible")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "app"))
+	if !ok {
+		t.Fatalf("the demanded tfe_outputs source was not classified at all")
+	}
+	if !src.TfeOutputs {
+		t.Fatalf("a tfe_outputs source was not marked TfeOutputs")
+	}
+	if src.CrossStack {
+		t.Fatalf("a tfe_outputs source was marked CrossStack; only terraform_remote_state should be")
+	}
+	if !src.Eligible {
+		t.Fatalf("a tfe_outputs source with a static token argument classified ineligible: %s", src.ReasonDetail)
+	}
+}
+
+// TestAnalyzeTfeOutputsMissingTokenIsIneligible: the auth-surface rule,
+// checked offline before any provider call is attempted - the shape
+// live-check must be able to report without a network call or a hang.
+func TestAnalyzeTfeOutputsMissingTokenIsIneligible(t *testing.T) {
+	t.Setenv("TFE_TOKEN", "")
+	t.Setenv("HOME", t.TempDir()) // isolate from any real ~/.terraform.d/credentials.tfrc.json
+	t.Setenv("TF_CLI_CONFIG_FILE", "")
+
+	a := analyzeFixture(t, "tfe-missing-token")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "app"))
+	if !ok {
+		t.Fatalf("the demanded tfe_outputs source was not classified at all")
+	}
+	if src.Eligible {
+		t.Fatalf("a tfe_outputs source with no token anywhere classified eligible")
+	}
+	if src.ReasonSummary != SummaryCrossStackOutputsUnavailable {
+		t.Errorf("refused under %q, want %q", src.ReasonSummary, SummaryCrossStackOutputsUnavailable)
+	}
+	for _, part := range []string{"needed to resolve the identity of", "TFE_TOKEN"} {
+		if !strings.Contains(src.ReasonDetail, part) {
+			t.Errorf("the wording lacks %q: %s", part, src.ReasonDetail)
+		}
+	}
+}
+
+// TestAnalyzeTfeOutputsEnvTokenIsEligible: the second auth surface - no
+// provider-block token, but TFE_TOKEN set in the process environment.
+func TestAnalyzeTfeOutputsEnvTokenIsEligible(t *testing.T) {
+	t.Setenv("TFE_TOKEN", "env-test-token")
+
+	a := analyzeFixture(t, "tfe-missing-token")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "app"))
+	if !ok {
+		t.Fatalf("the demanded tfe_outputs source was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("a tfe_outputs source with TFE_TOKEN set classified ineligible: %s", src.ReasonDetail)
+	}
+}
+
+// TestAnalyzeRemoteStateStaysIneligible: stage 2 covers tfe_outputs only -
+// terraform_remote_state must keep exactly the refusal it had before this
+// stage, with no auth rule and no read pipeline applied to it.
+func TestAnalyzeRemoteStateStaysIneligible(t *testing.T) {
+	a := analyzeFixture(t, "remote-state-stays-refused")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("terraform_remote_state", "network"))
+	if !ok {
+		t.Fatalf("the demanded terraform_remote_state source was not classified at all")
+	}
+	if !src.CrossStack {
+		t.Fatalf("a terraform_remote_state source was not marked CrossStack")
+	}
+	if src.TfeOutputs {
+		t.Fatalf("a terraform_remote_state source was marked TfeOutputs")
+	}
+	if src.Eligible {
+		t.Fatalf("a terraform_remote_state source classified eligible; stage 3 has not shipped")
+	}
+}
+
 // TestAnalyzeEmptyForConfigurationsWithoutDataDemand: the phase costs
 // nothing for a configuration that never needed it.
 func TestAnalyzeEmptyForConfigurationsWithoutDataDemand(t *testing.T) {
