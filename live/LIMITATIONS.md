@@ -278,18 +278,55 @@ store, still refused). The admitted path is exercised by
 
 ### moved-block
 
-**Construct.** A `moved` block.
+**Construct.** A `moved` block whose endpoints describe a move an ownership
+marker cannot follow. Most `moved` blocks are not this: they are carried, and
+reported by nobody.
 
-**Why banned.** It rewrites which state entry belongs to which address, and
-there is no state entry to rewrite. Named explicitly in "Banned, and why".
+**What is carried.** A `moved` block relocates a state entry so that the object
+recorded at the old address is planned as the resource declared at the new one.
+Here that record is the resource's own `tofu-address` tag, so the same
+statement reads as "a live resource carrying the old address is the object the
+new address names". `internal/live/discovery` indexes the live resource's
+marker under both addresses, the instance binds to the address that declares it
+now, and the ordinary tags diff rewrites the tag to the new address in place.
+Nothing needs deleting and no separate command is involved. That is what makes
+the `moved` blocks published modules ship permanently work: `terraform-aws-modules`
+writes them under a `Migrations: vX -> vY` header, and a consumer of a pinned
+module cannot delete upstream source. Once the tag has been rewritten the block
+is simply a no-op on every later run, because the old address matches nothing.
 
-**Forwarding address.** `choudoufu live-mv <old-address> <new-address>`,
-the marker rewrite that plays the same role by editing the live
-resource's `tofu-address` tag directly (`live/MARKERS.md`, "The rename
-rule").
+Resource renames, root-to-module refactors, cross-module moves, module renames,
+chains of two or more statements, and destinations expanded with `count` all
+carry. The last matters more than it sounds: `count = var.create ? 1 : 0` is how
+every `terraform-aws-modules` resource is written, so it is what most shipped
+`moved` blocks land on.
+
+**Why the rest are banned.** Three shapes cannot be aliased safely, and the
+danger is one-directional - a block admitted but not aliased leaves the live
+resource reading as an orphan at the old address (the plan proposes destroying
+it) while the new address reads as absent (the plan proposes creating it), which
+is one cloud object and two wrong beliefs:
+
+- The address it moves *from* is still declared. Nothing is vacated, so the live
+  resource stays bound to the old address and the destination is created fresh -
+  the opposite assignment to stock's, over two objects a later change could tell
+  apart. Stock refuses this too, as "Moved object still exists".
+- The two endpoints name different resource types. A marker names the type of
+  the resource it is written on, so an alias across types could never match.
+- An endpoint passes through a `count`-expanded module instance. `count`
+  renumbers every address beneath it, so an alias into one would name addresses
+  that move under their own markers - the same step `choudoufu live-mv` refuses,
+  and the reason "child-module" refuses `count` modules outright.
+
+**Forwarding address.** `choudoufu live-mv <old-address> <new-address>`, the
+marker rewrite that plays the same role by editing the live resource's
+`tofu-address` tag directly (`live/MARKERS.md`, "The rename rule").
 
 **Enforcement.** `RuleMovedBlock`, `internal/live/lint/lint.go`
-(`checkMovedBlocks`). Fixture at `live/e2e/limits/moved-block/`.
+(`checkMovedBlocks`), over the predicate in `internal/live/moved`
+(`Honourable`) that `internal/live/discovery` builds its alias index from - one
+predicate, so lint cannot admit a shape discovery does not alias. Fixture at
+`live/e2e/limits/moved-block/`.
 
 ### child-module
 

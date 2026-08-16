@@ -677,14 +677,14 @@ func fileTaggingCandidate(req Request, decl *declared, typeName string, c tagged
 		noIdentity:   c.importID == "",
 	}
 
-	if entry, ok := decl.types[typeName][escaped]; ok {
+	if entry, ok := decl.entryFor(typeName, escaped); ok {
 		entry.claimants = append(entry.claimants, claim)
 		return diags
 	}
 	if decl.declares(typeName, escaped) {
 		return diags
 	}
-	if cb := countBlockFor(decl.counts[typeName], escaped); cb != nil {
+	if cb := decl.countBlockFor(typeName, escaped); cb != nil {
 		cb.extra = append(cb.extra, claim)
 		return diags
 	}

@@ -49,6 +49,30 @@ type countBlock struct {
 	// address the configuration no longer expands to, which is what a live
 	// member of a shrunken or renumbered set carries.
 	extra []claimant
+
+	// aliases are block addresses a moved block says this block used to
+	// have (GitHub issue #198), in sorted order. A marker naming one of
+	// them names this block, so it counts as block-level everywhere addr
+	// does - see [namesBlock], and bindCountByAddress's tail, which is the
+	// difference between a resource whose block gained count in the same
+	// change that renamed it being refused as an unplaceable member of this
+	// set and being destroyed as an orphan.
+	aliases []string
+}
+
+// namesBlock reports whether an escaped marker value names this block itself
+// rather than one of its instances: its own address, or one a moved block
+// says it used to have.
+func (cb *countBlock) namesBlock(escaped string) bool {
+	if escaped == cb.addr {
+		return true
+	}
+	for _, alias := range cb.aliases {
+		if escaped == alias {
+			return true
+		}
+	}
+	return false
 }
 
 // instanceAddr is the absolute address of one index of this block, including
@@ -200,7 +224,7 @@ func bindCountByAddress(req Request, cb *countBlock, res *Result, bound map[stri
 	// removal planning's business (P5.1) rather than something to bind.
 	var blockLevel []claimant
 	for _, c := range cb.extra {
-		if c.escaped == cb.addr {
+		if cb.namesBlock(c.escaped) {
 			blockLevel = append(blockLevel, c)
 			continue
 		}

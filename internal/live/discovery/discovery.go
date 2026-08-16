@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/registry"
@@ -514,7 +515,23 @@ type declared struct {
 	types  map[string]map[string]*declaredEntry // type -> escaped instance address -> entry
 	blocks map[string]map[string]*declaredBlock // type -> escaped block address -> block
 	counts map[string]map[string]*countBlock    // type -> escaped block address -> count block
-	order  map[string][]string                  // type -> escaped instance addresses, in address order
+
+	// typeAliases is the instance addresses a moved block says a declared
+	// instance used to have (GitHub issue #198), kept out of types for the
+	// same reason countAliases is kept out of counts: indexCountBlocks
+	// enumerates types to hang a count block's declared instances off it,
+	// and an entry reachable under two keys there would be hung on twice -
+	// which made a two-instance set report four declared instances and bind
+	// both live members to index 0. See [declared.entryFor].
+	typeAliases map[string]map[string]*declaredEntry
+
+	// countAliases is the block addresses a moved block says a count block
+	// used to have (GitHub issue #198), kept out of counts on purpose: that
+	// map is enumerated to bind the sets, and a block reachable under two
+	// keys there would be bound once per key. See [declared.countBlockFor].
+	countAliases map[string]map[string]*countBlock
+
+	order map[string][]string // type -> escaped instance addresses, in address order
 
 	// unscanned holds the types whose scan never happened - the provider
 	// cannot list them, or listing errored. Their declared instances are
@@ -552,6 +569,20 @@ func (d *declared) declares(typeName, escaped string) bool {
 	return d.all[typeName][escaped]
 }
 
+// entryFor returns the declared instance a marker value names: the instance
+// whose own escaped address it is, or - for a marker a moved block says now
+// belongs to a different address (GitHub issue #198) - the instance it moved
+// to. The canonical index is consulted first, so a declared address always
+// beats an alias and a moved block can never redirect a live resource away
+// from an instance the configuration still declares.
+func (d *declared) entryFor(typeName, escaped string) (*declaredEntry, bool) {
+	if entry, ok := d.types[typeName][escaped]; ok {
+		return entry, true
+	}
+	entry, ok := d.typeAliases[typeName][escaped]
+	return entry, ok
+}
+
 func (d *declared) typeNames() []string {
 	out := make([]string, 0, len(d.types))
 	for t := range d.types {
@@ -586,13 +617,21 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 	var diags tfdiags.Diagnostics
 
 	d := &declared{
-		types:     make(map[string]map[string]*declaredEntry),
-		blocks:    make(map[string]map[string]*declaredBlock),
-		counts:    make(map[string]map[string]*countBlock),
-		order:     make(map[string][]string),
-		unscanned: make(map[string]bool),
-		all:       make(map[string]map[string]bool, len(req.Resolutions)),
+		types:        make(map[string]map[string]*declaredEntry),
+		blocks:       make(map[string]map[string]*declaredBlock),
+		counts:       make(map[string]map[string]*countBlock),
+		typeAliases:  make(map[string]map[string]*declaredEntry),
+		countAliases: make(map[string]map[string]*countBlock),
+		order:        make(map[string][]string),
+		unscanned:    make(map[string]bool),
+		all:          make(map[string]map[string]bool, len(req.Resolutions)),
 	}
+
+	// The moved blocks this configuration's markers can follow (GitHub issue
+	// #198), computed once. Every alias below is derived from this list, and
+	// internal/live/lint refuses exactly the statements it leaves out, so a
+	// block that passes lint is a block whose old address is indexed here.
+	movedStmts := moved.Honoured(req.Config)
 
 	for _, r := range req.Resolutions {
 		typeName := r.Type()
@@ -602,6 +641,21 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		raw := r.Addr.String()
 		escaped := EscapeAddress(raw)
 		d.all[typeName][escaped] = true
+		for _, origin := range moved.Origins(movedStmts, r.Addr) {
+			// A pending move: this instance's live resource may still be
+			// carrying the address it had before the moved block was
+			// written. Recording it here is what keeps the sweep from
+			// reading that resource as an orphan and planning to destroy
+			// it - the whole reason a rule downgraded without this index
+			// would be unsafe. The type key is checked because a marker
+			// names the type of the resource it is written on: an alias
+			// filed under another type could never match anything and would
+			// only widen what this set claims to know.
+			if origin.Resource.Resource.Type != typeName {
+				continue
+			}
+			d.all[typeName][EscapeAddress(origin.String())] = true
+		}
 		if legacy := LegacyEscapeAddress(raw); legacy != escaped {
 			// A for_each key containing "@" - the one character both the
 			// pre- and post-issue-#178 grammars admit but escape
@@ -707,6 +761,40 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 			}
 		}
 
+		// The addresses a moved block says this instance used to have
+		// (GitHub issue #198). Filing the same entry under each is what
+		// binds a live resource still carrying the old marker to the
+		// instance that declares it now, instead of leaving the old address
+		// an orphan and the new one absent - and, because claimants
+		// accumulate on the entry rather than on the marker string, two live
+		// resources arriving under two different addresses of the same
+		// instance land in one place and come out as the collision they are.
+		//
+		// d.order deliberately does not learn these, exactly as it does not
+		// learn the legacy-grammar alias above: the canonical address is the
+		// only one this run reports or stamps. An alias that would displace
+		// another declared instance's own entry is skipped rather than
+		// overwritten, so a moved block can never redirect a live resource
+		// away from an address the configuration still declares - a shape
+		// moved.Honourable refuses outright, checked again here because a
+		// silent misdirection is the one outcome worth two guards.
+		for _, origin := range moved.Origins(movedStmts, r.Addr) {
+			if origin.Resource.Resource.Type != typeName {
+				continue
+			}
+			alias := EscapeAddress(origin.String())
+			if _, canonical := d.types[typeName][alias]; canonical {
+				continue
+			}
+			if d.typeAliases[typeName] == nil {
+				d.typeAliases[typeName] = make(map[string]*declaredEntry)
+			}
+			if _, taken := d.typeAliases[typeName][alias]; taken {
+				continue
+			}
+			d.typeAliases[typeName][alias] = entry
+		}
+
 		escapedBlock := EscapeAddress(r.Addr.ContainingResource().String())
 		blk := d.blocks[typeName][escapedBlock]
 		if blk == nil {
@@ -717,10 +805,97 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		if r.Addr.Resource.Key != addrs.NoKey {
 			blk.keyed = true
 		}
+
+		// The same alias, one level up (GitHub issue #198): a marker naming
+		// the whole block by a name a moved block says it used to have.
+		// Instance-level markers are covered above; this is the pre-instance-key
+		// spelling, and without it a for_each block renamed in the same change
+		// that gave it for_each would leave its live members as orphans - a
+		// proposed destroy - rather than as the "which instance is which"
+		// question they actually are.
+		for _, origin := range moved.Origins(movedStmts, r.Addr) {
+			if origin.Resource.Resource.Type != typeName {
+				continue
+			}
+			aliasBlock := EscapeAddress(origin.ContainingResource().String())
+			if _, taken := d.blocks[typeName][aliasBlock]; taken {
+				continue
+			}
+			d.blocks[typeName][aliasBlock] = blk
+		}
 	}
 
 	d.indexCountBlocks(ctx, req)
+	d.aliasMovedCountBlocks(movedStmts)
 	return d, diags
+}
+
+// aliasMovedCountBlocks files each count block under the block addresses a
+// moved block says it used to have, so that a marker naming the old block -
+// rather than one of its old instances - still reaches the set it belongs to
+// (GitHub issue #198).
+//
+// The instance aliases in [declaredInstances] cover the ordinary case, where
+// the resource had count on both sides of the move and every live member
+// carries an indexed marker. They do not cover the block that gained count in
+// the same change that renamed it: `moved { from = aws_x.a, to = aws_x.b }`
+// where only b has count leaves a live resource carrying the bare marker
+// "aws_x.a", which matches no instance alias at all and would fall through to
+// being an orphan - a proposed destroy of the very resource the move was
+// about. Parking it on the set is what [countBlockFor] already does for a
+// marker naming a declared count block by its bare address, and this makes
+// the old name one of those. The set matcher then places it by slot, or by
+// address for an estate that predates slots, exactly as it places any other
+// member.
+//
+// It runs after indexCountBlocks because cb.entries is what supplies the
+// declared instance an origin address is computed from, and it never
+// displaces a block address the configuration still declares.
+func (d *declared) aliasMovedCountBlocks(stmts []moved.Statement) {
+	if len(stmts) == 0 {
+		return
+	}
+	for typeName, blocks := range d.counts {
+		names := make([]string, 0, len(blocks))
+		for addr := range blocks {
+			names = append(names, addr)
+		}
+		sort.Strings(names)
+
+		for _, addr := range names {
+			cb := blocks[addr]
+			for _, origin := range moved.Origins(stmts, cb.instanceAddr(0)) {
+				if origin.Resource.Resource.Type != typeName {
+					continue
+				}
+				alias := EscapeAddress(origin.ContainingResource().String())
+				if _, declared := blocks[alias]; declared {
+					continue
+				}
+				if d.countAliases[typeName] == nil {
+					d.countAliases[typeName] = make(map[string]*countBlock)
+				}
+				if _, taken := d.countAliases[typeName][alias]; taken {
+					continue
+				}
+				d.countAliases[typeName][alias] = cb
+				cb.aliases = append(cb.aliases, alias)
+			}
+		}
+	}
+}
+
+// countBlockFor finds the count block a marker value names, whether by the
+// block's own address or by one a moved block says it used to have. The two
+// indexes are deliberately separate: d.counts is the configuration's count
+// blocks, one entry each, and everything that enumerates it - the set matcher
+// above all - would bind a block once per name it answered to if an alias
+// shared that map.
+func (d *declared) countBlockFor(typeName, escaped string) *countBlock {
+	if cb := countBlockFor(d.counts[typeName], escaped); cb != nil {
+		return cb
+	}
+	return countBlockFor(d.countAliases[typeName], escaped)
 }
 
 // indexCountBlocks records the configuration's count blocks and hangs their
@@ -1164,7 +1339,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			noIdentity:   !hasID,
 		}
 
-		if entry, ok := decl.types[typeName][escaped]; ok {
+		if entry, ok := decl.entryFor(typeName, escaped); ok {
 			entry.claimants = append(entry.claimants, c)
 			continue
 		}
@@ -1184,7 +1359,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// question slots answer. Parking it on the block hands it to the set
 		// matcher, which either binds it by slot or - for an estate with no
 		// slots - puts it back where it was.
-		if cb := countBlockFor(decl.counts[typeName], escaped); cb != nil {
+		if cb := decl.countBlockFor(typeName, escaped); cb != nil {
 			cb.extra = append(cb.extra, c)
 			continue
 		}
