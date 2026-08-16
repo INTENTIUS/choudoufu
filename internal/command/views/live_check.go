@@ -147,7 +147,7 @@ var _ LiveCheck = (*LiveCheckHuman)(nil)
 //
 // The last section is not optional and is not conditional on the verdict. It
 // is the one a reader of a clean report most needs, because a clean report
-// covers two of the five live-path stages and would otherwise read as a
+// covers three of the six live-path stages and would otherwise read as a
 // promise about the other three.
 func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	var b strings.Builder

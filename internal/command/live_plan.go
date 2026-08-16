@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -280,6 +281,19 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// than gating on it. See [lint.CheckResidueAttributes].
 	diags = diags.Append(lint.CheckResidueAttributes(config, resourceSchemas))
 
+	// GitHub issue #179's data-read phase, between the subset check and
+	// resolution: when an identity, a count or a for_each needs a data
+	// source's value, read it now, from the same configured provider
+	// instances the projection uses, so resolution works from the
+	// provider's own answer rather than refusing it as dynamic. Free when
+	// nothing is demanded, fatal when a demanded source cannot be read.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	diags = diags.Append(drDiags)
+	if drDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return 1, false, diags
+	}
+
 	// Resolution runs ahead of the providers being configured, as it always
 	// has, and is handed their schemas: a resource type the hand table has
 	// never heard of resolves anyway when the provider's own identity schema
@@ -287,7 +301,8 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// A run whose providers will not start gets no schemas and the hand
 	// table's answers, which is exactly what it got before.
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: resourceSchemas,
+		Schemas:     resourceSchemas,
+		DataResults: dataResults,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
@@ -1602,6 +1617,30 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 	}
 
 	return diags
+}
+
+// statelessDataReads is GitHub issue #179's pre-resolution data-read phase,
+// shared by every command that resolves identity: live-plan, plain
+// plan/apply under a live block (live_mode.go), and live-mv. It analyzes
+// offline which data sources identity resolution demands, and when there
+// are any, reads the eligible ones through the same configured provider
+// instances the projection builder uses. The returned map feeds
+// [identity.Context.DataResults].
+//
+// An error is fatal to the run: either a demanded data source is not
+// readable before the plan (the analysis's class-specific refusal says
+// why), or a read itself failed (the provider's error, quoted). Proceeding
+// past one would just re-refuse the same sites with the generic wording.
+//
+// The common case - a configuration whose identities need no data source -
+// takes the analysis's probe and nothing else: no provider configured, no
+// network call, no behavior change.
+func statelessDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema) (map[string]cty.Value, tfdiags.Diagnostics) {
+	analysis := dataread.Analyze(ctx, config, dataread.Options{Schemas: resourceSchemas})
+	if analysis.Empty() {
+		return nil, nil
+	}
+	return dataread.Read(ctx, config, analysis, provs)
 }
 
 // ---------------------------------------------------------------------------

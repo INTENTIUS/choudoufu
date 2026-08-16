@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
@@ -54,10 +55,22 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 		lintFinding(lint.RuleUnadmittedType, site("aws_ecs_service"), site("aws_ecs_service"), site("aws_lambda_permission")),
 		lintFinding(lint.RuleLogicalResource, site("null_resource")),
 	}})
+	// #179's rung: the admissions set widened by exactly the eligible-read
+	// finding. The phase's own refusals do NOT qualify - the second entry
+	// pins that an ineligible data source keeps its estate on
+	// language-blocked.
+	corpus.Add("data-read-eligible", origin, Report{Load: loaded, Findings: []Finding{
+		lintFinding(lint.RuleStateBackend, site("")),
+		lintFinding(lint.RuleUnadmittedType, site("aws_ecs_service")),
+		{Refusal: Refusal{Layer: LayerDataread, ID: dataread.SummaryEligibleRead}, Sites: []Site{site("")}},
+	}})
 	corpus.Add("language-blocked", origin, Report{Load: loaded, Findings: []Finding{
 		lintFinding(lint.RuleStateBackend, site("")),
 		lintFinding(lint.RuleUnadmittedType, site("aws_ecs_service")),
 		{Refusal: Refusal{Layer: LayerIdentity, ID: "Unresolvable identity"}, Sites: []Site{site("")}},
+	}})
+	corpus.Add("data-read-blocked", origin, Report{Load: loaded, Findings: []Finding{
+		{Refusal: Refusal{Layer: LayerDataread, ID: dataread.SummaryNotReadable}, Sites: []Site{site("")}},
 	}})
 	corpus.Add("unreadable", origin, Report{})
 
@@ -75,6 +88,8 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 		"backend-only":              OnboardingBackendOnly,
 		"backend-plus-remote-state": OnboardingBackendRemoteState,
 		"admissions-only":           OnboardingAdmissionsOnly,
+		"data-read-eligible":        OnboardingDataReadEligible,
+		"data-read-blocked":         OnboardingLanguageBlocked,
 		"language-blocked":          OnboardingLanguageBlocked,
 		"unreadable":                OnboardingUnreadable,
 	}
@@ -119,7 +134,8 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 		OnboardingBackendOnly:        1,
 		OnboardingBackendRemoteState: 1,
 		OnboardingAdmissionsOnly:     1,
-		OnboardingLanguageBlocked:    1,
+		OnboardingDataReadEligible:   1,
+		OnboardingLanguageBlocked:    2,
 		OnboardingUnreadable:         1,
 	}
 	if len(corpus.Ladder.Classes) != len(OnboardingClasses()) {
@@ -131,10 +147,10 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 		}
 	}
 
-	// Demand counts entries, not sites: aws_ecs_service appears at three
-	// sites across two entries and must read 2.
+	// Demand counts entries, not sites: aws_ecs_service appears at five
+	// sites across three entries and must read 3.
 	wantDemand := []TypeDemand{
-		{Type: "aws_ecs_service", Configs: 2},
+		{Type: "aws_ecs_service", Configs: 3},
 		{Type: "aws_lambda_permission", Configs: 1},
 	}
 	if !reflect.DeepEqual(corpus.Ladder.UnadmittedDemand, wantDemand) {
@@ -156,6 +172,14 @@ func TestOnboardingClassDerivesFromRefusalIDsOnly(t *testing.T) {
 		{[]string{string(lint.RuleLogicalResource), string(lint.RuleRemoteState)}, OnboardingAdmissionsOnly},
 		{[]string{string(lint.RuleProvisioner)}, OnboardingLanguageBlocked},
 		{[]string{"Dynamic value in static context"}, OnboardingLanguageBlocked},
+		// #179's rung and its boundaries: the eligible-read finding alone,
+		// or with any admissions-set finding, lands on the new rung; the
+		// data-read pass's own refusals, or any other language finding
+		// beside it, keep the estate language-blocked.
+		{[]string{dataread.SummaryEligibleRead}, OnboardingDataReadEligible},
+		{[]string{string(lint.RuleUnadmittedType), dataread.SummaryEligibleRead}, OnboardingDataReadEligible},
+		{[]string{dataread.SummaryNotReadable}, OnboardingLanguageBlocked},
+		{[]string{dataread.SummaryEligibleRead, "Dynamic value in static context"}, OnboardingLanguageBlocked},
 	}
 	for _, tc := range cases {
 		if got := ClassifyOnboarding(true, tc.ids); got != tc.want {

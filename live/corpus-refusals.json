@@ -57,11 +57,11 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -225,6 +225,14 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Ambiguous list-valued identity argument",
             "sites": 1
@@ -232,10 +240,9 @@
           {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 8,
+            "sites": 7,
             "categories": {
               "cross_stack_data_source": 2,
-              "data_source": 1,
               "managed_resource": 5
             }
           },
@@ -453,14 +460,14 @@
       "instances": 5,
       "sites": 16,
       "unresolved_modules": 0,
-      "unset_variables": 2,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -563,12 +570,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 5,
+            "sites": 4,
             "categories": {
-              "cross_stack_data_source": 4,
-              "data_source": 1
+              "cross_stack_data_source": 4
             }
           },
           {
@@ -721,14 +735,14 @@
       "instances": 0,
       "sites": 24,
       "unresolved_modules": 0,
-      "unset_variables": 6,
+      "unset_variables": 7,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -1494,11 +1508,11 @@
       "unset_variables": 1,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -1844,15 +1858,15 @@
       "instances": 0,
       "sites": 68,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 1,
       "schemas": true,
       "shadowed": 31,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 16,
             "categories": {
               "data_source": 16
@@ -2123,12 +2137,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2,
-              "data_source": 1
+              "cross_stack_data_source": 2
             }
           },
           {
@@ -2446,15 +2467,15 @@
       "instances": 3,
       "sites": 35,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 3,
       "schemas": true,
       "shadowed": 27,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -2512,12 +2533,27 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 2,
+            "categories": {
+              "data_source": 2
+            }
+          },
+          {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 6,
+            "categories": {
+              "data_source": 6
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 29,
+            "sites": 21,
             "categories": {
               "cross_stack_data_source": 20,
-              "data_source": 8,
               "managed_resource": 1
             }
           },
@@ -3259,8 +3295,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -3392,8 +3428,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 17,
             "categories": {
               "data_source": 17
@@ -3462,8 +3498,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -3806,8 +3842,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 9,
             "categories": {
               "data_source": 9
@@ -3845,8 +3881,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 17,
             "categories": {
               "data_source": 17
@@ -4100,14 +4136,14 @@
       "instances": 5,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 5,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4150,14 +4186,14 @@
       "instances": 2,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4179,14 +4215,14 @@
       "instances": 4,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 5,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4229,14 +4265,14 @@
       "instances": 2,
       "sites": 4,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4258,14 +4294,14 @@
       "instances": 31,
       "sites": 20,
       "unresolved_modules": 0,
-      "unset_variables": 21,
+      "unset_variables": 23,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 6,
             "categories": {
               "data_source": 6
@@ -4292,14 +4328,14 @@
       "instances": 8,
       "sites": 7,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4389,14 +4425,14 @@
       "instances": 4,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4442,11 +4478,11 @@
       "unset_variables": 8,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4489,14 +4525,14 @@
       "instances": 2,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4521,11 +4557,11 @@
       "unset_variables": 8,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4547,14 +4583,14 @@
       "instances": 8,
       "sites": 5,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4581,14 +4617,14 @@
       "instances": 7,
       "sites": 5,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4615,14 +4651,14 @@
       "instances": 12,
       "sites": 9,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 5,
             "categories": {
               "data_source": 5
@@ -4675,14 +4711,14 @@
       "instances": 5,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 4,
+      "unset_variables": 6,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4704,14 +4740,14 @@
       "instances": 10,
       "sites": 7,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4738,14 +4774,14 @@
       "instances": 6,
       "sites": 7,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4772,14 +4808,14 @@
       "instances": 2,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4801,14 +4837,14 @@
       "instances": 10,
       "sites": 7,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -4856,14 +4892,14 @@
       "instances": 6,
       "sites": 5,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -4890,14 +4926,14 @@
       "instances": 1,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4940,14 +4976,14 @@
       "instances": 2,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -4969,14 +5005,14 @@
       "instances": 4,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -5019,14 +5055,14 @@
       "instances": 2,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -5090,14 +5126,14 @@
       "instances": 1,
       "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 2,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -5439,11 +5475,11 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -5473,11 +5509,11 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -5506,8 +5542,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -5575,12 +5611,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2,
-              "data_source": 1
+              "cross_stack_data_source": 2
             }
           },
           {
@@ -5649,8 +5692,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 10,
             "categories": {
               "data_source": 10
@@ -5717,11 +5760,11 @@
       "unset_variables": 0,
       "schemas": true,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 5,
             "categories": {
               "data_source": 5
@@ -5755,8 +5798,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 3,
             "categories": {
               "data_source": 3
@@ -5985,12 +6028,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2,
-              "data_source": 1
+              "cross_stack_data_source": 2
             }
           },
           {
@@ -6064,8 +6114,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -6221,8 +6271,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 1,
             "categories": {
               "data_source": 1
@@ -6260,8 +6310,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 2,
             "categories": {
               "data_source": 2
@@ -6300,12 +6350,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Data source not readable before resolution",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 3,
+            "sites": 2,
             "categories": {
-              "cross_stack_data_source": 2,
-              "data_source": 1
+              "cross_stack_data_source": 2
             }
           },
           {
@@ -6375,12 +6432,19 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 4,
+            "categories": {
+              "data_source": 4
+            }
+          },
+          {
             "layer": "identity",
             "id": "Dynamic value in static context",
-            "sites": 5,
+            "sites": 1,
             "categories": {
-              "cross_stack_data_source": 1,
-              "data_source": 4
+              "cross_stack_data_source": 1
             }
           },
           {
@@ -6453,8 +6517,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Dynamic value in static context",
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
             "sites": 4,
             "categories": {
               "data_source": 4
@@ -7135,24 +7199,6 @@
         ".corpus/cool-assessment/backend.tf:2",
         ".corpus/cyhy-amis/terraform/backend.tf:2",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:12"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 127,
-      "sites": 2253,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196"
       ],
       "registered": true
     },
@@ -8046,6 +8092,24 @@
       "registered": true
     },
     {
+      "layer": "dataread",
+      "id": "Resolves at plan time via a data-source read",
+      "title": "Resolves at plan time via a data-source read",
+      "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
+      "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 81,
+      "sites": 1580,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:420",
+        ".corpus/alb/examples/complete-alb/main.tf:425",
+        ".corpus/alb/examples/complete-nlb/main.tf:12",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:151",
+        ".corpus/alb/examples/mutual-auth-alb/main.tf:156"
+      ],
+      "registered": true
+    },
+    {
       "layer": "identity",
       "id": "Unresolvable identity",
       "title": "Unresolvable identity",
@@ -8060,6 +8124,24 @@
         ".corpus/cool-assessment/operations_routing.tf:29",
         ".corpus/cool-assessment/operations_routing.tf:39",
         ".corpus/cool-assessment/route53.tf:51"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 68,
+      "sites": 625,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196"
       ],
       "registered": true
     },
@@ -8424,6 +8506,24 @@
       "registered": true
     },
     {
+      "layer": "dataread",
+      "id": "Data source not readable before resolution",
+      "title": "Data source not readable before resolution",
+      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 6,
+      "sites": 48,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:95",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq_security_groups.tf:106",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118",
+        ".corpus/iam/modules/iam-role-for-service-accounts/main.tf:118"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "module-provider-block",
       "title": "Provider block in a child module is not consulted",
@@ -8559,6 +8659,28 @@
       "examples": [
         ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/security.tf:82"
       ],
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Data source provider not configurable",
+      "title": "Data source provider not configurable",
+      "what": "A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source provider not configurable\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "dataread",
+      "id": "Data source read failed",
+      "title": "Data source read failed",
+      "what": "The provider returned an error for a pre-resolution data-source read, quoted verbatim. Fatal for the run: resolution built on a missing value would plan to create things that exist.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source read failed\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 0,
+      "sites": 0,
       "registered": true
     },
     {
@@ -9289,6 +9411,17 @@
     },
     {
       "layer": "identity",
+      "id": "Unusable data-source result",
+      "title": "Unusable data-source result",
+      "what": "The data-read phase handed resolution a result it cannot index: not an absolute data resource instance address, or one resource's instances mixing key kinds. A caller error, not a configuration one.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unusable data-source result\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Variables not allowed",
       "title": "Variables not allowed",
       "what": "A reference appears where the surrounding context permits no variables at all.",
@@ -9426,8 +9559,8 @@
     "loaded": 249,
     "instances": 2794,
     "sites": 14601,
-    "refusals_fired": 31,
-    "refusals_in_set": 110,
+    "refusals_fired": 33,
+    "refusals_in_set": 115,
     "configs_without_schemas": 0,
     "refusals_unregistered": 0
   },
@@ -9485,8 +9618,12 @@
         "configs": 11
       },
       {
+        "class": "data-read-eligible",
+        "configs": 20
+      },
+      {
         "class": "language-blocked",
-        "configs": 113
+        "configs": 93
       },
       {
         "class": "unreadable",
@@ -10194,7 +10331,8 @@
   },
   "checked_layers": [
     "lint",
-    "identity"
+    "identity",
+    "dataread"
   ],
   "unchecked_layers": [
     "discovery",

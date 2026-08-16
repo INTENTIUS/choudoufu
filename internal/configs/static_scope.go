@@ -133,6 +133,49 @@ var crossStackDataSources = map[string]bool{
 	"tfe_outputs":            true,
 }
 
+// RefusedReference is the structured account of one reference
+// [staticScopeData.StaticValidateReferences] refused, carried in the
+// diagnostic's Extra field. It wraps the [ReferenceCategory] that has ridden
+// there since #178 - tfdiags.ExtraInfo[ReferenceCategory] still finds it,
+// through the unwrap chain - and adds the two facts a consumer needs to act
+// on the refusal rather than merely count it: which object was referenced
+// and in which module. The pre-resolution data-read phase
+// (internal/live/dataread) is the consumer: it derives which data sources
+// identity resolution demands from exactly these refusals.
+type RefusedReference struct {
+	// Category classifies the referenced object. See [ReferenceCategory].
+	Category ReferenceCategory
+
+	// Subject is the referenced object itself, module-relative, exactly as
+	// the reference parser produced it.
+	Subject addrs.Referenceable
+
+	// Module is the module the referencing expression belongs to: the
+	// evaluating module's call path, with no instance keys, because a static
+	// evaluator is shared by every instance of its module.
+	Module addrs.Module
+
+	// NeededBy names the static identifier whose evaluation needed the
+	// refused reference - the top of the evaluation stack, rendered the way
+	// the diagnostic's own text renders it.
+	NeededBy string
+}
+
+// UnwrapDiagnosticExtra keeps tfdiags.ExtraInfo[ReferenceCategory] working:
+// the category used to BE the Extra value, and every consumer of it reads
+// through the standard unwrap chain.
+func (r RefusedReference) UnwrapDiagnosticExtra() interface{} { return r.Category }
+
+// IsCrossStackDataSource reports whether typeName is one of the data source
+// types that read another stack's recorded outputs rather than a live cloud
+// resource. Exported because the data-read phase draws its coverage line
+// exactly here: a same-stack data source is an ordering problem the phase
+// solves, a cross-stack one carries its own auth surface and failure modes
+// and stays refused until its own stage ships (issue #179).
+func IsCrossStackDataSource(typeName string) bool {
+	return crossStackDataSources[typeName]
+}
+
 // categorizeReference derives subject's [ReferenceCategory] from its Go
 // type and, for a data resource, its type name - structural signals
 // available at the raise site, with nothing read from rendered text.
@@ -169,6 +212,14 @@ func categorizeResourceMode(mode addrs.ResourceMode, typeName string) ReferenceC
 func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*addrs.Reference, _ addrs.Referenceable, _ addrs.Referenceable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	top := s.stack[len(s.stack)-1]
+	refused := func(subject addrs.Referenceable) RefusedReference {
+		return RefusedReference{
+			Category: categorizeReference(subject),
+			Subject:  subject,
+			Module:   s.eval.call.addr,
+			NeededBy: top.String(),
+		}
+	}
 	for _, ref := range refs {
 		switch subject := ref.Subject.(type) {
 		case addrs.LocalValue:
@@ -185,7 +236,7 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Module output not supported in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    categorizeReference(subject),
+				Extra:    refused(subject),
 			})
 		case addrs.ProviderFunction:
 			diags = diags.Append(&hcl.Diagnostic{
@@ -193,19 +244,46 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				Summary:  "Provider function in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    categorizeReference(subject),
+				Extra:    refused(subject),
 			})
 		default:
+			// A data-resource reference the evaluator's data lookup covers
+			// is not dynamic anymore: a pre-resolution phase read the value
+			// from the provider itself, and [staticScopeData.GetResource]
+			// answers it below. Only covered references pass - everything
+			// the lookup does not carry keeps refusing, so an evaluator
+			// with no lookup behaves exactly as it always has.
+			if res, ok := dataResourceSubject(subject); ok && s.eval.dataLookup != nil {
+				if _, covered := s.eval.dataLookup(res); covered {
+					continue
+				}
+			}
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Dynamic value in static context",
 				Detail:   fmt.Sprintf("Unable to use %s in static context, which is required by %s", subject.String(), top.String()),
 				Subject:  ref.SourceRange.ToHCL().Ptr(),
-				Extra:    categorizeReference(subject),
+				Extra:    refused(subject),
 			})
 		}
 	}
 	return diags
+}
+
+// dataResourceSubject extracts the containing data-mode resource from a
+// reference subject, when it is one.
+func dataResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
+	switch s := subject.(type) {
+	case addrs.Resource:
+		if s.Mode == addrs.DataResourceMode {
+			return s, true
+		}
+	case addrs.ResourceInstance:
+		if s.Resource.Mode == addrs.DataResourceMode {
+			return s.ContainingResource(), true
+		}
+	}
+	return addrs.Resource{}, false
 }
 
 func (s staticScopeData) GetCountAttr(context.Context, addrs.CountAttr, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
@@ -216,7 +294,18 @@ func (s staticScopeData) GetForEachAttr(context.Context, addrs.ForEachAttr, tfdi
 	panic("Not Available in Static Context")
 }
 
-func (s staticScopeData) GetResource(context.Context, addrs.Resource, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+// GetResource answers a data-mode resource reference from the evaluator's
+// data lookup, when it has one that covers the address.
+// [staticScopeData.StaticValidateReferences] refuses every resource
+// reference the lookup does not cover before evaluation starts, so the
+// panic below is unreachable through this package's own scopes; it stays as
+// the same programming-error backstop the other unavailable getters keep.
+func (s staticScopeData) GetResource(_ context.Context, addr addrs.Resource, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	if addr.Mode == addrs.DataResourceMode && s.eval.dataLookup != nil {
+		if val, ok := s.eval.dataLookup(addr); ok {
+			return val, nil
+		}
+	}
 	panic("Not Available in Static Context")
 }
 

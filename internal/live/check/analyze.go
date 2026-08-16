@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -37,12 +38,12 @@ type Context struct {
 	Schemas map[string]providers.Schema
 }
 
-// Analyze runs both configuration-only passes over one loaded configuration
+// Analyze runs the configuration-only passes over one loaded configuration
 // and returns what refused it.
 //
 // This is the whole of the shared instrument. "choudoufu live-check" renders
 // one of these for a human; tools/corpus-gen folds many into a ranking. Both
-// see the same findings from the same two passes, which is what keeps the
+// see the same findings from the same passes, which is what keeps the
 // project's published compatibility claim and a user's own verdict from
 // drifting apart.
 func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
@@ -76,7 +77,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// Where lint already refused a construct, identity's verdict on the
 	// same construct is not a second refusal to count.
 	//
-	// The two passes ask the same question of some constructs on purpose -
+	// The lint and identity passes ask the same question of some constructs on purpose -
 	// lint's admission check and identity's resolution consult the same
 	// schemas so that "a lint refusal and a resolution refusal never
 	// disagree about the same type". In a live-plan run only one is ever
@@ -98,6 +99,18 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	if result != nil {
 		report.Instances = result.Len()
 	}
+
+	// Issue #179's third checked pass, computed lazily: the eligibility
+	// analysis probes resolution a few more times, and a configuration
+	// whose refusals never name a data source should not pay for it.
+	var dataAnalysis *dataread.Analysis
+	analysis := func() *dataread.Analysis {
+		if dataAnalysis == nil {
+			dataAnalysis = dataread.Analyze(ctx, cfg, dataread.Options{Schemas: actx.Schemas})
+		}
+		return dataAnalysis
+	}
+
 	for _, diag := range diags {
 		desc := diag.Description()
 		site := Site{
@@ -116,6 +129,19 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		case tfdiags.Error:
 			if loc := site.location(); loc != "" && refusedByLint[loc] {
 				report.Shadowed++
+				continue
+			}
+			// A same-stack data-source refusal is re-homed under the
+			// data-read pass's own classification: an eligible site is no
+			// longer a language refusal at all (a live-plan reads the value
+			// before resolution), and an ineligible one gets the
+			// class-specific wording instead of the generic dynamic-value
+			// text. Cross-stack sites keep today's refusal until stages 2
+			// and 3 read them.
+			if layer, id, detail, ok := classifyDataSite(diag, analysis); ok {
+				site.Detail = detail
+				f := findings.get(layer, id)
+				f.add(site)
 				continue
 			}
 			f := findings.get(LayerIdentity, desc.Summary)
@@ -137,6 +163,34 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	return report
 }
 
+// classifyDataSite maps one identity-layer refusal to the data-read pass's
+// verdict on the data source it names, when it names a same-stack one that
+// the analysis classified. ok is false for everything else - non-data
+// refusals, cross-stack references, and references to data sources the
+// module does not declare - and the caller keeps the diagnostic exactly as
+// identity raised it.
+func classifyDataSite(diag tfdiags.Diagnostic, analysis func() *dataread.Analysis) (Layer, string, string, bool) {
+	ref := tfdiags.ExtraInfo[configs.RefusedReference](diag)
+	if ref.Category != configs.CategoryDataSource {
+		return "", "", "", false
+	}
+	res, ok := dataread.DataSubject(ref.Subject)
+	if !ok {
+		return "", "", "", false
+	}
+	src, found := analysis().SourceFor(ref.Module, res)
+	if !found || src.CrossStack {
+		return "", "", "", false
+	}
+	if src.Eligible {
+		detail := fmt.Sprintf(
+			"%s reads %s, which a live-plan resolves by reading the data source from the provider before identity resolution. No configuration edit is needed; the read itself was not performed by this check and can still fail at plan time.",
+			ref.NeededBy, res.String())
+		return LayerDataread, dataread.SummaryEligibleRead, detail, true
+	}
+	return LayerDataread, src.ReasonSummary, src.ReasonDetail, true
+}
+
 // Dir loads one directory and analyzes it: the entry point both front ends
 // call, and the reason they cannot drift.
 //
@@ -154,7 +208,7 @@ func Dir(ctx context.Context, dir string, actx Context) Report {
 // Report is one configuration's verdict.
 type Report struct {
 	// Findings are the refusals that fired, ranked by how many sites each
-	// blocks. Empty means both checked passes accepted the configuration.
+	// blocks. Empty means every checked pass accepted the configuration.
 	Findings []Finding
 
 	// Warnings are the non-fatal diagnostics, ranked the same way. They do
@@ -194,7 +248,7 @@ type Report struct {
 func (r Report) Readable() bool { return r.Load.Config != nil }
 
 // Blocked reports whether this configuration can move under live markers at
-// all, as far as the two checked passes can tell.
+// all, as far as the checked passes can tell.
 //
 // The rule is not this package's opinion: it is what LivePlanCommand already
 // does with the same two results. Any lint issue is fatal there, and any

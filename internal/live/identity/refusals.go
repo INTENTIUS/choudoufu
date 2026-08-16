@@ -128,6 +128,7 @@ var refusals = []Refusal{
 	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", ""},
 	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`},
 	{"Unresolvable identity", "An identity could not be built because a reference it depends on failed; the reference's own error explains why.", ""},
+	{"Unusable data-source result", "The data-read phase handed resolution a result it cannot index: not an absolute data resource instance address, or one resource's instances mixing key kinds. A caller error, not a configuration one.", ""},
 	{"Unsupported each.value reference", "each.value is used as other than each.value.<attr> when for_each iterates over a resource.", ""},
 	{"for_each key cannot be recorded as a marker", "A for_each key contains a character the tofu-address marker cannot carry.", `live/MARKERS.md, "Ownership semantics"`},
 	{"for_each over a resource that is not keyed", "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.", ""},

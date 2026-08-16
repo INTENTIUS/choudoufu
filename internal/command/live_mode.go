@@ -429,12 +429,24 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		r.mgr.EnableHint(store, estate, time.Now)
 	}
 
+	// GitHub issue #179's data-read phase, exactly as live-plan runs it:
+	// data-source values that identity resolution demands are read now,
+	// from the same configured provider instances the projection uses.
+	// Fatal when a demanded source cannot be read; free when none is.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	diags = diags.Append(drDiags)
+	if drDiags.HasErrors() {
+		diags = diags.Append(provs.close(ctx))
+		return nil, diags
+	}
+
 	// Resolution runs ahead of the providers being configured and is handed
 	// their schemas, so that a type with no hand-written table row resolves
 	// when the provider's own identity schema describes it completely enough.
 	// See [identity.SynthesizeTypeIdentity].
 	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas: resourceSchemas,
+		Schemas:     resourceSchemas,
+		DataResults: dataResults,
 	})
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {

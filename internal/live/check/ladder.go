@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
@@ -38,6 +39,12 @@ import (
 //     remote-state, unadmitted-type, logical-resource}, and no higher rung
 //     applies. Ratifying the types it declares (or, for a logical type,
 //     declaring a record_store) is all that stands in the way.
+//   - data-read-eligible (issue #179): findings are a subset of the
+//     admissions set plus the data-read pass's eligible-read finding, at
+//     least one of which fired, and no higher rung applies. Not clean - a
+//     read can still fail at plan time, and this instrument did not
+//     perform it - and no longer language-blocked: no edit to the
+//     configuration is needed, a live-plan reads the values itself.
 //   - language-blocked: anything else fired - at least one
 //     static-evaluability or structural refusal, the frontier the
 //     operational brief names as binding.
@@ -54,6 +61,7 @@ const (
 	OnboardingBackendOnly        OnboardingClass = "backend-only"
 	OnboardingBackendRemoteState OnboardingClass = "backend-plus-remote-state"
 	OnboardingAdmissionsOnly     OnboardingClass = "admissions-only"
+	OnboardingDataReadEligible   OnboardingClass = "data-read-eligible"
 	OnboardingLanguageBlocked    OnboardingClass = "language-blocked"
 	OnboardingUnreadable         OnboardingClass = "unreadable"
 )
@@ -67,6 +75,7 @@ func OnboardingClasses() []OnboardingClass {
 		OnboardingBackendOnly,
 		OnboardingBackendRemoteState,
 		OnboardingAdmissionsOnly,
+		OnboardingDataReadEligible,
 		OnboardingLanguageBlocked,
 		OnboardingUnreadable,
 	}
@@ -85,7 +94,7 @@ func ClassifyOnboarding(loaded bool, ids []string) OnboardingClass {
 		return OnboardingClean
 	}
 
-	backendOnly, backendRemote, admissionsOnly := true, true, true
+	backendOnly, backendRemote, admissionsOnly, dataReadEligible := true, true, true, true
 	for _, id := range ids {
 		if id != string(lint.RuleStateBackend) {
 			backendOnly = false
@@ -98,6 +107,13 @@ func ClassifyOnboarding(loaded bool, ids []string) OnboardingClass {
 			string(lint.RuleUnadmittedType), string(lint.RuleLogicalResource):
 		default:
 			admissionsOnly = false
+			// The data-read rung is the admissions set widened by exactly
+			// one finding: an eligible pre-plan read (#179). Any other ID -
+			// including the data-read pass's own refusals, which do need a
+			// configuration edit - keeps the estate on language-blocked.
+			if id != dataread.SummaryEligibleRead {
+				dataReadEligible = false
+			}
 		}
 	}
 	switch {
@@ -107,6 +123,8 @@ func ClassifyOnboarding(loaded bool, ids []string) OnboardingClass {
 		return OnboardingBackendRemoteState
 	case admissionsOnly:
 		return OnboardingAdmissionsOnly
+	case dataReadEligible:
+		return OnboardingDataReadEligible
 	}
 	return OnboardingLanguageBlocked
 }

@@ -85,6 +85,41 @@ type StaticEvaluator struct {
 	// pureOnly makes every scope this evaluator builds refuse to produce a
 	// value from an impure function. See [StaticEvaluator.Pure].
 	pureOnly bool
+
+	// dataLookup, when non-nil, answers data-resource references from values
+	// a caller read before evaluation began. See
+	// [StaticEvaluator.WithDataResults].
+	dataLookup StaticDataLookup
+}
+
+// StaticDataLookup answers a data-resource reference with a value read ahead
+// of static evaluation, or reports that it has none. The address is the
+// module-relative resource ([addrs.Resource] with
+// [addrs.DataResourceMode]); the value is the whole resource's: the single
+// instance's object for an unexpanded block, a tuple for count, an object
+// keyed by string for for_each, matching how the plan-time evaluator shapes
+// a resource reference so that instance indexing works unchanged.
+type StaticDataLookup func(addr addrs.Resource) (cty.Value, bool)
+
+// WithDataResults returns a copy of the evaluator whose scopes answer
+// data-resource references through the given lookup instead of refusing them
+// as dynamic values.
+//
+// The base evaluator refuses every resource reference, because static
+// evaluation runs before anything has been read and inventing a value here
+// would be a guess a later phase treats as fact. A caller that HAS performed
+// reads - the pre-resolution data-read phase - hands the results in through
+// this seam, and only references the lookup actually covers are permitted;
+// everything else keeps refusing exactly as before. Managed-mode references
+// are never answered this way: there is nothing a pre-plan read could
+// honestly say about an object the plan may be about to change.
+func (s *StaticEvaluator) WithDataResults(lookup StaticDataLookup) *StaticEvaluator {
+	if s == nil || lookup == nil {
+		return s
+	}
+	dup := *s
+	dup.dataLookup = lookup
+	return &dup
 }
 
 // Creates a static evaluator based from the given module and module call
