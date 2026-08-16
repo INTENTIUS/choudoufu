@@ -632,6 +632,25 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
 				continue
 			}
+			if prefixAttr, base := firstPrefixSibling(attrs, comp.Attrs); prefixAttr != nil {
+				// The block names the object through "<base>_prefix", not
+				// "<base>" - a convention the provider documents across
+				// dozens of types (aws_db_parameter_group, aws_iam_role,
+				// aws_s3_bucket, aws_cloudwatch_log_group, and more) to mean
+				// "assign a random suffix to this prefix at create time".
+				// That is not a missing argument, the way this error reads
+				// for every other component: it is a name this run cannot
+				// compute before the object exists, the identical situation
+				// [TypeIdentity.ServerAssigned] already gives its own
+				// resolution class to at the whole-type level. See #190.
+				return Resolution{
+					Addr:  addr,
+					Class: ClassNeedsDiscovery,
+					Reason: fmt.Sprintf(
+						"%s is named through %s rather than %q; the provider appends a random suffix to the prefix at create time, so the resulting name is not known until the object exists.",
+						addr.String(), prefixAttr.Name, base),
+				}, true
+			}
 			r.errorf(rc.DeclRange, "Identity argument not set",
 				"%s has no value for %s, so its import identity (%s) cannot be built.",
 				addr.String(), orList(comp.Attrs), entry.ImportSyntax)
@@ -770,11 +789,28 @@ func cloudReason(entry TypeIdentity, missing CloudValue) string {
 func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.Attributes, bool) {
 	var names []string
 	seen := make(map[string]bool)
+	add := func(n string) {
+		if !seen[n] {
+			seen[n] = true
+			names = append(names, n)
+		}
+	}
 	for _, comp := range entry.Components {
 		for _, n := range comp.Attrs {
-			if !seen[n] {
-				seen[n] = true
-				names = append(names, n)
+			add(n)
+			// Every provider that names an object through one of these
+			// arguments also offers the "<name>_prefix" sibling documented
+			// to make the provider assign a random suffix at create time
+			// (aws_db_parameter_group's name/name_prefix, aws_iam_role's
+			// name/name_prefix, and so on across the provider - #190). It is
+			// never this component's own identity value, so it is pulled
+			// only to let [resolver.resolveInstance] tell "nothing named
+			// this object" apart from "named it in a way that is not known
+			// until the object exists" - the same distinction
+			// [TypeIdentity.ServerAssigned] already draws at the whole-type
+			// level, drawn here per instance instead.
+			if !strings.HasSuffix(n, "_prefix") {
+				add(n + "_prefix")
 			}
 		}
 	}
@@ -2029,6 +2065,19 @@ func firstPresent(attrs hcl.Attributes, names []string) *hcl.Attribute {
 		}
 	}
 	return nil
+}
+
+// firstPrefixSibling is [firstPresent] for the "<name>_prefix" convention
+// [resolver.identityArgs] pulls alongside every plain name: it reports the
+// first one actually set in the resource body, and which of names it is a
+// sibling of, so the caller can name the base argument in its own message.
+func firstPrefixSibling(attrs hcl.Attributes, names []string) (attr *hcl.Attribute, base string) {
+	for _, n := range names {
+		if a, ok := attrs[n+"_prefix"]; ok {
+			return a, n
+		}
+	}
+	return nil, ""
 }
 
 // coalesce merges adjacent literal parts, so that a formula's parts
