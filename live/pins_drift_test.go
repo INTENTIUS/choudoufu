@@ -32,15 +32,37 @@ func TestMeasurementArtifactsShareTheProviderPin(t *testing.T) {
 			survey.ProviderVersion, pins.AWSProviderVersion)
 	}
 
+	// #211: the artifact now records one row per provider any corpus entry
+	// actually needed, not a single global provider - so the pin check
+	// looks for the one row marked "pinned" (see
+	// tools/corpus-gen's schemaAcquirer and its package doc comment for why
+	// exactly one provider, matched by -provider-source/-provider-version
+	// rather than by name in any control flow, still keeps an exact pin)
+	// instead of reading a single top-level version string.
 	var corpus struct {
 		Schemas struct {
-			Version string `json:"version"`
+			Providers []struct {
+				Provider string `json:"provider"`
+				Version  string `json:"version"`
+				Pinned   bool   `json:"pinned"`
+			} `json:"providers"`
 		} `json:"schemas"`
 	}
 	decodeInto(t, "corpus-refusals.json", &corpus)
-	if corpus.Schemas.Version != pins.AWSProviderVersion {
-		t.Errorf("live/corpus-refusals.json records provider %q; pins.AWSProviderVersion is %q - rerun `just corpus`",
-			corpus.Schemas.Version, pins.AWSProviderVersion)
+	var pinnedVersion string
+	var found bool
+	for _, p := range corpus.Schemas.Providers {
+		if p.Pinned {
+			pinnedVersion = p.Version
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("live/corpus-refusals.json records no pinned provider - rerun `just corpus`")
+	} else if pinnedVersion != pins.AWSProviderVersion {
+		t.Errorf("live/corpus-refusals.json records the pinned provider at %q; pins.AWSProviderVersion is %q - rerun `just corpus`",
+			pinnedVersion, pins.AWSProviderVersion)
 	}
 }
 

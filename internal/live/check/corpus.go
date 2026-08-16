@@ -109,6 +109,45 @@ type CorpusEntry struct {
 	// and module examples, and a per-entry profile over them would measure
 	// the fixtures.
 	Profile *EntryProfile `json:"profile,omitempty"`
+
+	// ProviderSchemas is the schema-acquisition status for every provider
+	// this entry's own configuration declared or implied (#211's fix: a
+	// corpus run used to acquire hashicorp/aws schemas alone and hand every
+	// entry that same map regardless of what it actually required, so a
+	// google_* or tfe_* type read as unadmitted for a reason belonging to
+	// the run rather than to the corpus - the schema fallback
+	// (identity.SynthesizeTypeIdentity) never got a chance to run for it.
+	// One row per provider [configs.Config.ProviderRequirements] resolved
+	// for this entry (built-in providers excluded - they need no schema
+	// fetch), Present true when the fallback actually had that provider's
+	// schemas available. Empty when the run carried no schemas at all - see
+	// the artifact-level schema note for that case instead of a blank row
+	// repeated on every entry.
+	ProviderSchemas []EntryProviderSchema `json:"provider_schemas,omitempty"`
+}
+
+// EntryProviderSchema is one provider's schema-acquisition status for a
+// single corpus entry (#211) - the honest, per-entry answer to "did the
+// schema fallback get a chance to run for what THIS configuration actually
+// declares", as opposed to a single global note that cannot tell a type the
+// fallback tried and lost apart from a type the fallback was never given a
+// provider to try against.
+type EntryProviderSchema struct {
+	// Provider is the FQN this entry's own configuration resolved to, for
+	// display ("hashicorp/google" - the default registry's hostname is
+	// omitted the same way [addrs.Provider.ForDisplay] omits it).
+	Provider string `json:"provider"`
+
+	// Present is whether this entry's report actually received this
+	// provider's resource type schemas.
+	Present bool `json:"present"`
+
+	// Error is why not, when Present is false and a fetch was genuinely
+	// attempted for this provider and failed - the third state #211 asks
+	// for, distinct from "schemas were off for the whole run" (Error empty)
+	// and from "the fallback ran and the type still isn't admitted" (Present
+	// true, and the type shows up in unadmitted_types anyway).
+	Error string `json:"error,omitempty"`
 }
 
 // CorpusRefusal is one refusal's row in the ranked table.
@@ -274,6 +313,20 @@ func (c *Corpus) Add(name, origin string, report Report, varFiles ...string) {
 			row.Examples = append(row.Examples, site.location())
 		}
 	}
+}
+
+// LastEntry returns a pointer to the most recently [Corpus.Add]ed entry, for
+// a caller that needs to attach something computed after Add's own
+// bookkeeping - tools/corpus-gen's per-provider schema status (#211), known
+// only once Add has already turned the report into a row. The pointer is
+// only valid until the next Add call, which may grow Entries' backing array
+// and leave it pointing at a stale copy; a caller wanting more than one
+// entry's worth must use it before adding the next.
+func (c *Corpus) LastEntry() *CorpusEntry {
+	if len(c.Entries) == 0 {
+		return nil
+	}
+	return &c.Entries[len(c.Entries)-1]
 }
 
 // row finds or creates the table row for one refusal. A refusal fired but

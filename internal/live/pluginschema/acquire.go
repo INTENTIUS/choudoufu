@@ -55,9 +55,20 @@ type Request struct {
 	WorkDir string
 
 	// Source and Version pin the provider, as a registry source address
-	// and an exact version.
+	// and an exact version. Version wins when both it and Constraint are
+	// set.
 	Source  string
 	Version string
+
+	// Constraint is a raw version constraint expression, written verbatim
+	// into the fixture's "version" argument exactly as a required_providers
+	// block would carry it (e.g. "~> 5.0", ">= 3.0, < 4.0"). It exists for
+	// a caller that knows what a configuration under measurement declared
+	// but not which exact release satisfies it - init resolves that itself,
+	// the same way it would for the configuration's own author. Empty means
+	// no constraint at all: any published version is acceptable, and init
+	// picks the latest. Ignored when Version is set.
+	Constraint string
 
 	// Provider is the address the schemas come back under. It must be the
 	// provider Source names.
@@ -90,20 +101,33 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 		log = io.Discard
 	}
 
+	versionLine := ""
+	switch {
+	case req.Version != "":
+		versionLine = fmt.Sprintf("\n      version = \"= %s\"", req.Version)
+	case req.Constraint != "":
+		versionLine = fmt.Sprintf("\n      version = %q", req.Constraint)
+	}
 	fixture := fmt.Sprintf(`terraform {
   required_providers {
     %s = {
-      source  = %q
-      version = "= %s"
+      source  = %q%s
     }
   }
 }
-`, req.Provider.Type, req.Source, req.Version)
+`, req.Provider.Type, req.Source, versionLine)
 	if err := os.WriteFile(filepath.Join(req.WorkDir, "main.tf"), []byte(fixture), 0o600); err != nil {
 		return none, err
 	}
 
-	fmt.Fprintf(log, "pluginschema: %s init (downloading %s %s if not cached)\n", req.InitBin, req.Source, req.Version)
+	wantVersion := req.Version
+	if wantVersion == "" {
+		wantVersion = req.Constraint
+	}
+	if wantVersion == "" {
+		wantVersion = "latest"
+	}
+	fmt.Fprintf(log, "pluginschema: %s init (downloading %s %s if not cached)\n", req.InitBin, req.Source, wantVersion)
 	cmd := exec.CommandContext(ctx, req.InitBin, "init", "-backend=false", "-input=false", "-no-color")
 	cmd.Dir = req.WorkDir
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -132,6 +156,36 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 	fmt.Fprintf(log, "pluginschema: %d resource types, %d list resource types\n",
 		len(schema.ResourceTypes), len(schema.ListResourceTypes))
 	return schema, nil
+}
+
+// InstalledVersion reports the exact version init resolved for provider
+// inside workDir, when a caller acquired schemas without pinning an exact
+// version (an empty [Request.Version], a [Request.Constraint] or neither -
+// #211's per-provider acquisition, which cannot know in advance which
+// release satisfies an unconstrained or ranged requirement the way a
+// hardcoded pin can).
+//
+// The answer is read from the unpacked layout itself -
+// workDir/.terraform/providers/<host>/<namespace>/<type>/<version>/<os_arch>/<binary>
+// - via the same symlink-following walk [Acquire] needed to find the
+// plugin executable in the first place ([findProviderBinary]'s doc comment
+// explains why a plain walk cannot see it under TF_PLUGIN_CACHE_DIR), so
+// this only ever disagrees with what Acquire itself launched if the layout
+// changes out from under both.
+//
+// ok is false when no provider plugin is present, which after a successful
+// Acquire call should not happen; a caller more interested in "was this
+// acquired at all" should be checking Acquire's own error instead.
+func InstalledVersion(workDir string, provider addrs.Provider) (string, bool) {
+	exe, err := findProviderBinary(workDir, provider.Type)
+	if err != nil {
+		return "", false
+	}
+	version := filepath.Base(filepath.Dir(filepath.Dir(exe)))
+	if version == "" || version == "." || version == string(filepath.Separator) {
+		return "", false
+	}
+	return version, true
 }
 
 // findProviderBinary locates the plugin executable init unpacked under the
