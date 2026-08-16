@@ -1884,15 +1884,7 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 				continue
 			}
 			reported[blk] = true
-			diags = diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemNeedsSlotMarkers,
-				TypeName: typeName,
-				Marker:   blk.addr,
-				LiveIDs:  claimantIDs(blk.claimants),
-				Detail: fmt.Sprintf(
-					"%d live %s resource(s) carry the marker %q, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. Nothing distinguishes which live resource is which instance. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
-					len(blk.claimants), typeName, blk.addr, blk.instances),
-			}))
+			diags = diags.Append(problemDiag(res, blockLevelMarkerProblem(typeName, blk)))
 		}
 	}
 
@@ -1936,6 +1928,93 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 		})
 	}
 	return diags
+}
+
+// blockLevelMarkerProblem is the [ProblemNeedsSlotMarkers] a for_each block
+// gets when live resources carry the block's own address rather than one of
+// its instance keys.
+//
+// It names the markers the claimants actually carried, which is GitHub issue
+// #248. Since #198 a *declaredBlock also answers to every address a moved
+// block says it used to have, so a claimant can reach this block under a
+// name that is not blk.addr - and blk.addr is what the message used to
+// print. An operator following a moved block holds the origin address and
+// was handed the destination: greping their cloud tags for it finds nothing,
+// and the remedy ("rewrite each resource's tofu-address") gave them no way
+// to locate the resource it was about. Problem.Marker carried the same wrong
+// value, against its own field documentation - "the tofu-address value
+// involved, escaped as compared" is claimant.escaped, never the block's
+// canonical name.
+//
+// The live IDs go into the sentence for the same reason (#248's third
+// option, taken as well as the first rather than instead of it): they are
+// what an operator can act on directly, and they were already on the Problem
+// without ever appearing in the text.
+//
+// A claimant that carried the block's own address gets today's wording
+// unchanged - that is the overwhelmingly common case and it was never wrong.
+func blockLevelMarkerProblem(typeName string, blk *declaredBlock) Problem {
+	carried := carriedMarkers(blk.claimants)
+	ids := claimantIDs(blk.claimants)
+
+	// Marker holds the value compared when there is one of them. Several
+	// claimants carrying several spellings of one block have no single such
+	// value, so the block's own address stands in and the sentence names
+	// every spelling.
+	marker := blk.addr
+	if len(carried) == 1 {
+		marker = carried[0]
+	}
+
+	var whichBlock string
+	if len(carried) != 1 || carried[0] != blk.addr {
+		whichBlock = fmt.Sprintf(", which this configuration now declares as %q", blk.addr)
+	}
+
+	return Problem{
+		Kind:     ProblemNeedsSlotMarkers,
+		TypeName: typeName,
+		Marker:   marker,
+		LiveIDs:  ids,
+		Detail: fmt.Sprintf(
+			"%d live %s resource(s) (%s) carry the marker %s%s, which is the address of a for_each block with %d expanded instances rather than the address of any one of them. Nothing distinguishes which live resource is which instance. Rewrite each resource's tofu-address to the keyed address it belongs to; until then these instances stay unbound.",
+			len(blk.claimants), typeName, strings.Join(ids, ", "), quotedList(carried), whichBlock, blk.instances),
+	}
+}
+
+// carriedMarkers is the distinct escaped tofu-address values a set of
+// claimants actually carried, sorted. Usually one; more than one when a
+// moved block's origin and destination spellings are both live at once,
+// which is exactly what an interrupted marker rewrite leaves behind.
+func carriedMarkers(cs []claimant) []string {
+	seen := make(map[string]bool, len(cs))
+	out := make([]string, 0, len(cs))
+	for _, c := range cs {
+		if seen[c.escaped] {
+			continue
+		}
+		seen[c.escaped] = true
+		out = append(out, c.escaped)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// quotedList renders one or more values as an operator would read them:
+// `"a"`, or `"a" and "b"`, or `"a", "b" and "c"`.
+func quotedList(vals []string) string {
+	quoted := make([]string, len(vals))
+	for i, v := range vals {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	switch len(quoted) {
+	case 0:
+		return ""
+	case 1:
+		return quoted[0]
+	default:
+		return strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
+	}
 }
 
 // collisionProblem distinguishes the two ways several live resources come to

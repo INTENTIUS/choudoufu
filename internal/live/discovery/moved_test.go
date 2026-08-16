@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -300,4 +301,92 @@ func TestDiscoverMovedBlockLevelMarkerReportsOnce(t *testing.T) {
 			"d.blocks is enumerated, and a moved block files one block under several names.\n%v",
 			len(slotProblems), slotProblems)
 	}
+}
+
+// TestBlockLevelMarkerNamesTheMarkerCarried is GitHub issue #248. Since #198
+// a *declaredBlock answers to every address a moved block says it used to
+// have, and a claimant can arrive under one of those. The NEEDS_SLOT_MARKERS
+// message named blk.addr - the block's current, canonical address - so an
+// operator following a moved block was told to look for the destination
+// address while holding the origin. Greping their cloud tags for it finds
+// nothing.
+func TestBlockLevelMarkerNamesTheMarkerCarried(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_subnet", "subnet-blocklevel", `aws_subnet.pair_old`)
+
+	res, _ := Discover(context.Background(), movedRenameRequest(t, cloud))
+
+	p := onlySlotProblem(t, res)
+	if p.Marker != `aws_subnet.pair_old` {
+		t.Errorf("Problem.Marker = %q, want the marker the resource carried (aws_subnet.pair_old).\n"+
+			"Marker is documented as \"the tofu-address value involved, escaped as compared\".", p.Marker)
+	}
+	if !strings.Contains(p.Detail, `"aws_subnet.pair_old"`) {
+		t.Errorf("the detail does not name the marker the resource carries:\n%s", p.Detail)
+	}
+	if !strings.Contains(p.Detail, `"aws_subnet.pair"`) {
+		t.Errorf("the detail does not name the block the configuration now declares:\n%s", p.Detail)
+	}
+	if !strings.Contains(p.Detail, "subnet-blocklevel") {
+		t.Errorf("the detail does not name the live resource an operator can act on:\n%s", p.Detail)
+	}
+}
+
+// TestBlockLevelMarkerOnTheCanonicalAddress is the common case, unchanged: a
+// marker naming the block's own address is named as itself and picks up no
+// "which this configuration now declares as" clause, because there is no
+// second spelling to disambiguate.
+func TestBlockLevelMarkerOnTheCanonicalAddress(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_subnet", "subnet-canonical", `aws_subnet.pair`)
+
+	res, _ := Discover(context.Background(), movedRenameRequest(t, cloud))
+
+	p := onlySlotProblem(t, res)
+	if p.Marker != `aws_subnet.pair` {
+		t.Errorf("Problem.Marker = %q, want aws_subnet.pair", p.Marker)
+	}
+	if strings.Contains(p.Detail, "now declares as") {
+		t.Errorf("a marker on the block's own address was described as a rename:\n%s", p.Detail)
+	}
+	if !strings.Contains(p.Detail, "subnet-canonical") {
+		t.Errorf("the detail does not name the live resource:\n%s", p.Detail)
+	}
+}
+
+// TestBlockLevelMarkerNamesEverySpellingCarried: an interrupted marker
+// rewrite leaves some live resources on the origin spelling and some on the
+// destination. Both reach one *declaredBlock, so it is one problem - the
+// remedy is identical - but the message names both spellings rather than
+// picking one and leaving the other operator with nothing to grep for.
+func TestBlockLevelMarkerNamesEverySpellingCarried(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_subnet", "subnet-old", `aws_subnet.pair_old`)
+	cloud.own("aws_subnet", "subnet-new", `aws_subnet.pair`)
+
+	res, _ := Discover(context.Background(), movedRenameRequest(t, cloud))
+
+	p := onlySlotProblem(t, res)
+	for _, want := range []string{`"aws_subnet.pair_old"`, `"aws_subnet.pair"`, "subnet-old", "subnet-new"} {
+		if !strings.Contains(p.Detail, want) {
+			t.Errorf("the detail does not mention %s:\n%s", want, p.Detail)
+		}
+	}
+	if len(p.LiveIDs) != 2 {
+		t.Errorf("LiveIDs = %v, want both live resources", p.LiveIDs)
+	}
+}
+
+func onlySlotProblem(t *testing.T, res *Result) Problem {
+	t.Helper()
+	var out []Problem
+	for _, p := range res.Problems {
+		if p.Kind == ProblemNeedsSlotMarkers {
+			out = append(out, p)
+		}
+	}
+	if len(out) != 1 {
+		t.Fatalf("want exactly one %s problem, got %d:\n%s", ProblemNeedsSlotMarkers, len(out), res)
+	}
+	return out[0]
 }
