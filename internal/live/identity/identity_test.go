@@ -712,8 +712,19 @@ func TestTableEntriesWellFormed(t *testing.T) {
 				if comp.Cloud != CloudAccountID && comp.Cloud != CloudRegion {
 					t.Errorf("%s: component %d names the unknown cloud value %q", typeName, i, comp.Cloud)
 				}
-				if len(comp.Attrs) != 0 || comp.Literal != "" {
-					t.Errorf("%s: component %d is a cloud value and also carries an argument or a separator", typeName, i)
+				if comp.Literal != "" {
+					t.Errorf("%s: component %d is a cloud value and also carries a separator", typeName, i)
+				}
+				// Attrs alongside Cloud is the documented cloud-default
+				// shape (#241): the provider's own Argument Reference says
+				// omitting the argument selects this cloud property. What
+				// must not happen is Attrs naming more than one argument -
+				// the fallback is a single documented default, not a
+				// preference list - so the per-instance choice in
+				// resolver.cloudComponentAttr is between exactly two
+				// sources.
+				if len(comp.Attrs) > 1 {
+					t.Errorf("%s: component %d is a cloud value with %d alternative arguments, want at most 1", typeName, i, len(comp.Attrs))
 				}
 			case len(comp.Attrs) == 0 && comp.Literal == "":
 				t.Errorf("%s: component %d is neither an argument, a separator, nor a cloud value", typeName, i)
@@ -738,7 +749,7 @@ func TestCloudComponentsHaveAnEmptyContextAnswer(t *testing.T) {
 			if _, ok := empty.value(comp.Cloud); ok {
 				t.Errorf("%s: the zero CloudContext claims to know its %s", typeName, comp.Cloud)
 			}
-			if missing, ok := (&resolver{}).missingCloudValue(entry); !ok || missing == CloudNone {
+			if missing, ok := (&resolver{}).missingCloudValue(entry, nil, instScope{}, addrs.AbsResourceInstance{}); !ok || missing == CloudNone {
 				t.Errorf("%s: an empty context does not report a missing cloud value", typeName)
 			}
 			if reason := cloudReason(entry, comp.Cloud); !strings.Contains(reason, entry.ImportSyntax) {

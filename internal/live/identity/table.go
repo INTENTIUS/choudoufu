@@ -152,6 +152,18 @@ type Component struct {
 	// that embeds the account is not computable from configuration alone,
 	// and this package will not read it from anywhere: it is handed the
 	// values or it says it does not have them. See [ResolveIn].
+	//
+	// Cloud and Attrs are not exclusive, and a component setting both is the
+	// ordinary case rather than a contradiction: the provider documents an
+	// argument whose omission means "this cloud property" and whose presence
+	// means something else entirely ("If omitted, this defaults to the AWS
+	// Account ID" on a Glue catalog_id, which is how a configuration points
+	// at another account's Data Catalog). Attrs then wins whenever the
+	// configuration sets it and Cloud is the fallback, decided per instance
+	// by [resolver.cloudComponentAttr]. The field is filled in by
+	// tools/row-gen's mergeCloudDefault from the provider's own Argument
+	// Reference rather than ratified by hand, the same way
+	// ServerAssignedIfAbsent is.
 	Cloud CloudValue
 
 	// IdentityAttr names the attribute of the provider's resource identity

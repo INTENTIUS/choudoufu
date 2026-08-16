@@ -242,6 +242,18 @@ func checkArguments(entry TypeIdentity, schema providers.Schema) []Finding {
 		if len(c.Attrs) == 0 {
 			continue
 		}
+		if c.Cloud != CloudNone {
+			// The argument on a cloud-bearing component is the provider's
+			// own documented override for a value this component already
+			// has another source for (#241, [Component.Cloud]). "No
+			// instance of this type can resolve" is simply untrue when the
+			// provider drops the argument: every instance resolves from the
+			// cloud value exactly as it did before the argument existed.
+			// The AWS provider added its per-resource region override in
+			// v6 and can withdraw it per type, so a missing one is a
+			// version fact about an override, not a broken table.
+			continue
+		}
 		if hasAny(schema.Block, c.Attrs) {
 			continue
 		}

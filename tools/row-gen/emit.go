@@ -44,15 +44,17 @@ import (
 // Once the fragments are gone that ground truth is this mode's own previous
 // output, which makes -emit a fixed point: running it twice changes nothing.
 //
-// Two fields are the deliberate exceptions, both recomputed by
+// Three fields are the deliberate exceptions, all recomputed by
 // renderIdentityFile on every run rather than copied, because nothing ever
-// ratifies either by hand - the provider's own documentation or schema
+// ratifies any of them by hand - the provider's own documentation or schema
 // states them. mergeServerAssigned recomputes
 // [identity.Component.ServerAssignedIfAbsent] from live/import-grammar.json,
-// and mergeIdentityAttrs recomputes a server-assigned row's
+// mergeCloudDefault recomputes [identity.Component.Attrs] on a cloud-bearing
+// component from the same file's CloudDefault evidence, and
+// mergeIdentityAttrs recomputes a server-assigned row's
 // [identity.TypeIdentity.IdentityAttrs] from live/survey-full.json's
 // identity schema (see serverassignedattrs.go). See renderIdentityFile's doc
-// comment for why both are still the fixed point this comment describes
+// comment for why all three are still the fixed point this comment describes
 // (idempotent once the field is set, changing only when the evidence does),
 // not a hole in the byte-identity bar above.
 //
@@ -249,13 +251,15 @@ func admittedNonRecordBacked() []string {
 // Every field but two is copied verbatim from the currently-compiled
 // [identity.DefaultTable], as this file's own doc comment has always
 // promised. The exceptions are mergeServerAssigned's own field,
-// [identity.Component.ServerAssignedIfAbsent] (#190), and mergeIdentityAttrs'
+// [identity.Component.ServerAssignedIfAbsent] (#190), mergeCloudDefault's
+// [identity.Component.Attrs] on a component that also names a cloud property
+// (#241), and mergeIdentityAttrs'
 // [identity.TypeIdentity.IdentityAttrs] on a server-assigned row (#197):
-// unlike every other field here, nothing ever ratifies either value by hand -
+// unlike every other field here, nothing ever ratifies these values by hand -
 // a human choosing one per row would be re-deciding a fact the provider's
 // docs or its own identity schema already state, the same reasoning that
 // keeps OmittedFallbacks's Default values (and, before this, ForceNew and
-// Required) out of hand-ratification too. So neither field is read from
+// Required) out of hand-ratification too. So none of them is read from
 // DefaultTable at all; they are recomputed from live/import-grammar.json and
 // live/survey-full.json on every run, over an otherwise-verbatim copy of
 // every ratified row. A row a human ratified before either rule existed
@@ -272,7 +276,7 @@ func renderIdentityFile(types []string, grammar map[string]importGrammarRow, sur
 	b.WriteString(defaultTableDoc)
 	b.WriteString("var DefaultTable = map[string]TypeIdentity{\n")
 	for _, t := range types {
-		entry := mergeIdentityAttrs(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), survey[t])
+		entry := mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), grammar[t]), survey[t])
 		fmt.Fprintf(&b, "%q: %s,\n", t, renderStruct(reflect.ValueOf(entry)))
 	}
 	b.WriteString("}\n")
@@ -317,6 +321,66 @@ func mergeServerAssigned(entry identity.TypeIdentity, row importGrammarRow) iden
 				break
 			}
 		}
+	}
+	if !changed {
+		return entry
+	}
+	entry.Components = comps
+	return entry
+}
+
+// mergeCloudDefault is mergeServerAssigned's sibling for the other direction
+// of the same evidence: where that one records that omitting an argument
+// means "the provider will make one up", this one records that omitting it
+// means "the cloud property this component already names"
+// (tools/importdocs-gen's ArgumentRefEntry.CloudDefault - "If omitted, this
+// defaults to the AWS Account ID", "Defaults to the Region set in the
+// provider configuration"). It fills in [identity.Component.Attrs] on a
+// component that already carries a matching [identity.Component.Cloud] and
+// no Attrs of its own, which is what lets the resolver prefer the value the
+// configuration stated over the one it was never told - see
+// [identity.Component.Cloud]'s doc comment and the resolver's
+// cloudComponentAttr.
+//
+// Like mergeServerAssigned it names no resource type: the only inputs are
+// the component's own Cloud value and row's own per-argument evidence, and
+// the match is that the two agree on which cloud property is at stake. A
+// component whose Cloud is the account is never given a region-defaulting
+// argument, and neither is ever given an argument the docs say nothing about.
+// A component that already carries Attrs is left alone, so a row a human
+// ratified with both halves stays exactly as ratified.
+func mergeCloudDefault(entry identity.TypeIdentity, row importGrammarRow) identity.TypeIdentity {
+	if len(row.ArgumentReference) == 0 || len(entry.Components) == 0 {
+		return entry
+	}
+	// First bullet wins per cloud property, matching the doc order the
+	// scrape preserves; in v6.59.0 no type documents two arguments as
+	// defaulting to the same property anyway.
+	byCloud := make(map[string]string, 2)
+	for _, a := range row.ArgumentReference {
+		if a.CloudDefault == "" {
+			continue
+		}
+		if _, seen := byCloud[a.CloudDefault]; !seen {
+			byCloud[a.CloudDefault] = a.Name
+		}
+	}
+	if len(byCloud) == 0 {
+		return entry
+	}
+	changed := false
+	comps := append([]identity.Component(nil), entry.Components...)
+	for i, c := range comps {
+		if c.Cloud == identity.CloudNone || len(c.Attrs) > 0 {
+			continue
+		}
+		name, ok := byCloud[string(c.Cloud)]
+		if !ok {
+			continue
+		}
+		c.Attrs = []string{name}
+		comps[i] = c
+		changed = true
 	}
 	if !changed {
 		return entry
