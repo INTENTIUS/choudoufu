@@ -271,10 +271,15 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// schema describes it completely enough, and a type schemas do refuse is
 	// explained in the identity layer's own words rather than only "not in
 	// the table". See [lint.CheckWith].
+	// Warning-severity issues (GitHub issue #210: [lint.RuleStateBackend] is
+	// the first) are rendered but do not stop the run - only an error-
+	// severity issue does, via [lint.HasErrors] rather than a bare len check.
 	if issues := lint.CheckWith(ctx, config, lint.Context{Schemas: resourceSchemas}); len(issues) > 0 {
 		diags = diags.Append(lint.Diagnostics(issues))
-		diags = diags.Append(provs.close(ctx))
-		return 1, false, diags
+		if lint.HasErrors(issues) {
+			diags = diags.Append(provs.close(ctx))
+			return 1, false, diags
+		}
 	}
 	// GitHub issue #126's ruling: setting a write-only or sensitive argument
 	// warns, never refuses, so it rides alongside the subset check rather

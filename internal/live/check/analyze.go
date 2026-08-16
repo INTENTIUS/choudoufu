@@ -59,8 +59,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	findings := findingMap{}
 
 	for _, issue := range lint.CheckWith(ctx, cfg, lint.Context{Schemas: actx.Schemas}) {
-		f := findings.get(LayerLint, string(issue.Rule))
-		f.add(Site{
+		site := Site{
 			Address: issue.Construct,
 			Type:    issue.Type,
 			Module:  issue.Module.String(),
@@ -71,7 +70,19 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 
 			StartByte: issue.Subject.Start.Byte,
 			EndByte:   issue.Subject.End.Byte,
-		})
+		}
+		// A warning-severity rule (GitHub issue #210: [lint.RuleStateBackend]
+		// is the first) is not a blocking finding: it goes to Warnings, the
+		// same non-fatal channel identity's schema-disagreement diagnostics
+		// already use below, so that [Report.Blocked] and the onboarding
+		// ladder (ClassifyOnboarding, which reads Findings only) see it the
+		// same way they see every other non-fatal signal.
+		if issue.Rule.Severity() == lint.SeverityWarning {
+			report.addWarning(LayerLint, string(issue.Rule), site)
+			continue
+		}
+		f := findings.get(LayerLint, string(issue.Rule))
+		f.add(site)
 	}
 
 	// Where lint already refused a construct, identity's verdict on the
@@ -150,7 +161,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			// identity's schema-disagreement refusal is the population
 			// here, and it means provider-version skew rather than a
 			// configuration this mode cannot move.
-			report.addWarning(desc.Summary, site)
+			report.addWarning(LayerIdentity, desc.Summary, site)
 		}
 	}
 
@@ -257,9 +268,12 @@ func (r Report) Readable() bool { return r.Load.Config != nil }
 // all, as far as the checked passes can tell.
 //
 // The rule is not this package's opinion: it is what LivePlanCommand already
-// does with the same two results. Any lint issue is fatal there, and any
-// identity error diagnostic is fatal there, because a partial identity map
-// makes the plan propose creating objects that already exist.
+// does with the same two results. Any error-severity lint issue is fatal
+// there (via [lint.HasErrors], GitHub issue #210 - a warning-severity one,
+// such as [lint.RuleStateBackend], is rendered and does not stop the run,
+// and lands in [Report.Warnings] rather than here), and any identity error
+// diagnostic is fatal there, because a partial identity map makes the plan
+// propose creating objects that already exist.
 func (r Report) Blocked() bool { return len(r.Findings) > 0 }
 
 // Sites is the total number of refused sites across every finding.
@@ -433,14 +447,18 @@ func (f *Finding) add(site Site) {
 	f.Sites = append(f.Sites, site)
 }
 
-func (r *Report) addWarning(summary string, site Site) {
+// addWarning records one non-fatal site under its layer and ID, the same
+// (layer, id) identity [findingMap.get] keys Findings by - a lint rule's ID
+// is its [lint.Rule] string, an identity or pass-through diagnostic's is its
+// Summary, and neither ever collides with the other's layer.
+func (r *Report) addWarning(layer Layer, id string, site Site) {
 	for i := range r.Warnings {
-		if r.Warnings[i].ID == summary {
+		if r.Warnings[i].Layer == layer && r.Warnings[i].ID == id {
 			r.Warnings[i].Sites = append(r.Warnings[i].Sites, site)
 			return
 		}
 	}
-	refusal, registered := lookup(LayerIdentity, summary)
+	refusal, registered := lookup(layer, id)
 	r.Warnings = append(r.Warnings, Finding{
 		Refusal:    refusal,
 		Sites:      []Site{site},
