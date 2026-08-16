@@ -122,11 +122,12 @@ func (a *manifestArtifact) allKnownServices() map[string]bool {
 
 // replaceMechanism drops every existing row under this image whose
 // Mechanism equals mechanism and appends rows in their place - the merge
-// rule that keeps -mode=cloudcontrol's own regenerated rows from
-// duplicating or stranding a stale row for a type this run no longer
-// checked (e.g. a type the admission table dropped since the last probe).
-// Rows under every other mechanism (mechanism="" and "tagging-sweep" today,
-// both hand-curated) are left exactly as they were.
+// rule that keeps -mode=cloudcontrol's (or -mode=tagging's) own regenerated
+// rows from duplicating or stranding a stale row for a type this run no
+// longer checked (e.g. a type the admission table dropped since the last
+// probe, or a tagging recipe removed from tagging.go). Rows under every
+// other mechanism (mechanism="" today - the create/read path, still
+// hand-curated) are left exactly as they were.
 func (img *imageArtifact) replaceMechanism(mechanism string, rows []typeRow) {
 	var kept []typeRow
 	for _, row := range img.Types {
