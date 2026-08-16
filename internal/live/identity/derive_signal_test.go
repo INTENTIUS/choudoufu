@@ -224,7 +224,7 @@ func TestCohortAttrs(t *testing.T) {
 		"mixed":        {"cluster", "name"},
 	}
 	for typeName, schema := range schemas {
-		attrs, ok := cohortAttrs(schema)
+		attrs, _, ok := cohortAttrs(schemas, typeName, schema)
 		expect, inCohort := want[typeName]
 		if ok != inCohort {
 			t.Errorf("%s: in the cohort = %v, want %v (%v)", typeName, ok, inCohort, attrs)

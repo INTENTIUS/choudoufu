@@ -30,29 +30,30 @@ import (
 // The rule is the strict one, and it is narrower than [DerivableWith]'s on
 // purpose:
 //
-//   - The type has to be admitted by [DerivableWith] over its own schema,
-//     either because every attribute the provider requires for import is a
+//   - The type has to be admitted by [derivableOne] over its own schema,
+//     either because every attribute that identifies an instance is a
 //     required argument ([AdmitSchema]) or because this configuration sets
 //     every one of them on every instance ([AdmitConfigSignal]). That is the
 //     same verdict the report and the survey use; nothing new is decided
-//     here.
-//   - The identity has to be a *single* attribute. A composite identity is
-//     two or more values joined by a separator character that no schema
-//     carries - "_" for aws_route, "/" for an IAM attachment, "," for a
-//     target group attachment - and guessing one would produce an import ID
-//     that addresses nothing. Composites stay in the hand table, which is
-//     where that inference is written down and checked (see
-//     [VerifyTable]).
-//   - The required attribute has to be the *whole* identity. If the schema
-//     also marks something other than the context pair (account_id,
-//     region) optional for import, the required attribute names only part
-//     of what identifies an instance. aws_route is exactly this shape:
-//     route_table_id is the only required identity attribute, and the
-//     schema also lists the three destination_* arguments as
-//     optional-for-import alternatives - so a synthesized entry keyed on
-//     route_table_id alone would name a route table, not a route. See
-//     [checkIdentity] in schema_verify.go for the same asymmetry, read
-//     from the table-checking side.
+//     here. Which attributes those are is [identityCandidates]' question,
+//     and it has one extra answer for a type whose identity schema requires
+//     nothing for import.
+//   - A composite identity - two or more attributes, joined into a legacy
+//     import ID by a separator character no schema carries - is admitted
+//     and marked [TypeIdentity.IdentityObjectOnly] (#105). It imports by
+//     identity object, and the separator it cannot know stays uninvented
+//     rather than being guessed. This bullet used to say the opposite and
+//     the refusal message below outlived the rule by longer still; see
+//     [synthesizeTypeIdentity].
+//   - The identifying attributes have to be the *whole* identity. If the
+//     schema also marks something that is not context optional for import,
+//     they name only part of what identifies an instance. aws_route is
+//     exactly this shape: route_table_id is the only required identity
+//     attribute, and the schema also lists the three destination_*
+//     arguments as optional-for-import alternatives - so a synthesized
+//     entry keyed on route_table_id alone would name a route table, not a
+//     route. See [checkIdentity] in schema_verify.go for the same
+//     asymmetry, read from the table-checking side.
 //
 // The synthesized entry names exactly one attribute on each side: the
 // argument the identity is read from, and the attribute another resource may
@@ -66,33 +67,76 @@ import (
 // A nil or empty schema map, or a type the provider does not serve, returns
 // false and leaves the caller with today's behaviour exactly.
 func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema, signal *ConfigSignal) (TypeIdentity, bool) {
+	ti, refusal := synthesizeTypeIdentity(typeName, schemas, signal)
+	return ti, refusal == ""
+}
+
+// synthesizeTypeIdentity is [SynthesizeTypeIdentity] and [SchemaRefusal] in
+// one function, returning either the entry or the clause saying why there
+// is none - never both, never neither.
+//
+// Splitting them was the defect. [SchemaRefusal] used to re-derive the
+// answer from its own reading of the schemas and then name a cause from a
+// list of causes it kept separately, and the list had gone stale: its final
+// clause said "the identity schema is a composite of X, and the character
+// that joins them into an import ID is in no schema", which stopped being a
+// refusal at all once [TypeIdentity.IdentityObjectOnly] gave a composite
+// identity somewhere to go. Every reader of that clause was sent after a
+// missing separator, and the gate that had actually fired was
+// [onlyContext] - a completely different problem with a completely
+// different fix. Measured at hashicorp/aws 6.59.0 and hashicorp/google
+// 7.44.0, the clause was reached 6 and 214 times respectively and was wrong
+// about the cause every single time, aws_route among them - the very type
+// this file's own doc comment uses to explain the [onlyContext] gate.
+//
+// One function cannot drift from itself, so the refusal a caller reads is
+// now produced at the point the refusal happens, by the code that refuses.
+func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema, signal *ConfigSignal) (TypeIdentity, string) {
 	if len(schemas) == 0 {
-		return TypeIdentity{}, false
+		return TypeIdentity{}, noSchemasRefusal
 	}
 	schema, served := schemas[typeName]
-	if !served || schema.Block == nil || schema.IdentitySchema == nil {
-		return TypeIdentity{}, false
+	switch {
+	case !served:
+		return TypeIdentity{}, fmt.Sprintf(" The provider serves no %s at all.", typeName)
+	case schema.IdentitySchema == nil:
+		return TypeIdentity{}, fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
+	case schema.Block == nil:
+		return TypeIdentity{}, fmt.Sprintf(" The provider serves no configuration schema for %s, so nothing says which of its arguments an identity attribute is read from.", typeName)
 	}
 
-	admitted := DerivableWith(map[string]providers.Schema{typeName: schema}, signal)
-	if len(admitted) == 0 {
-		return TypeIdentity{}, false
+	d, admitted := derivableOne(schemas, typeName, schema, signal)
+	if !admitted || len(d.IdentityAttrs) == 0 {
+		candidates, _ := identityCandidates(schemas, typeName, schema)
+		required, _ := identityAttrs(schema.IdentitySchema)
+		switch {
+		case len(candidates) == 0:
+			return TypeIdentity{}, fmt.Sprintf(
+				" The provider's identity schema for %s requires nothing for import and marks nothing but context optional for import, so it names no value that would tell one instance from another: an object this run cannot name is one only marker discovery finds.",
+				typeName)
+		case len(required) == 0:
+			return TypeIdentity{}, fmt.Sprintf(
+				" The provider's identity schema for %s requires nothing for import, so the only value it offers that would tell one instance from another is %s, and neither the schema nor this configuration says the configuration supplies %s on every instance: an object this run cannot name is one only marker discovery finds.",
+				typeName, orList(candidates), pluralThem(len(candidates)))
+		default:
+			return TypeIdentity{}, fmt.Sprintf(
+				" The provider's identity schema for %s requires %s, and neither the schema nor this configuration says the configuration supplies %s: an object this run cannot name is one only marker discovery finds.",
+				typeName, orList(candidates), pluralThem(len(candidates)))
+		}
 	}
-	d := admitted[0]
-	if len(d.IdentityAttrs) == 0 {
-		return TypeIdentity{}, false
-	}
-	if !onlyContext(schemas, typeName, schema, d.Context) {
-		// The one required attribute is not the whole identity: the schema
-		// also marks something other than the context pair optional for
-		// import. aws_route is exactly this shape - route_table_id is the
-		// only required identity attribute, but the schema also lists the
-		// three destination_* arguments as optional-for-import
-		// alternatives, and a route table's ID is not a route's identity.
-		// [checkIdentity] in schema_verify.go documents the same
-		// asymmetry from the table-checking side; this is the synthesis
-		// side of it.
-		return TypeIdentity{}, false
+	if extra := notContext(schemas, typeName, schema, d.Context); len(extra) > 0 {
+		// The attributes that identify an instance are not the whole
+		// identity: the schema also marks something that is not context
+		// optional for import. aws_route is exactly this shape -
+		// route_table_id is the only required identity attribute, but the
+		// schema also lists the three destination_* arguments as
+		// optional-for-import alternatives, and a route table's ID is not
+		// a route's identity. [checkIdentity] in schema_verify.go
+		// documents the same asymmetry from the table-checking side; this
+		// is the synthesis side of it.
+		return TypeIdentity{}, fmt.Sprintf(
+			" The provider's identity schema for %s also marks %s optional for import, and %s not something the provider fills in from its own configuration the way an account or a region is, so %s %s only part of what tells one instance from another: which part the rest supplies is an inference no schema carries, and it has to be written down in the table.",
+			typeName, orList(extra), pluralIs(len(extra)), orList(d.IdentityAttrs), namesVerb(len(d.IdentityAttrs)))
 	}
 
 	names := append([]string(nil), d.IdentityAttrs...)
@@ -105,7 +149,9 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 			// entry that reads an argument the type does not have would fail
 			// at resolution with a message about the configuration rather
 			// than about the schema.
-			return TypeIdentity{}, false
+			return TypeIdentity{}, fmt.Sprintf(
+				" The provider's identity schema for %s names %q, and the type's own configuration schema has no argument by that name, so nothing in this configuration can supply it.",
+				typeName, name)
 		}
 		components = append(components, Component{
 			Attrs:        []string{name},
@@ -139,7 +185,7 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 			IdentityAttrs: names,
 			Synthesized:   true,
 			Admits:        d.Admits,
-		}, true
+		}, ""
 	}
 
 	return TypeIdentity{
@@ -153,8 +199,16 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		IdentityObjectOnly: true,
 		Synthesized:        true,
 		Admits:             d.Admits,
-	}, true
+	}, ""
 }
+
+// noSchemasRefusal is the reason [synthesizeTypeIdentity] gives when it was
+// handed no schemas at all. [SchemaRefusal] never returns it - a caller
+// that offered no schemas gets the same silence [Resolve] gives - but the
+// synthesis side still has to distinguish "refused" from "admitted", so
+// the reason exists rather than being an empty string that would read as
+// success.
+const noSchemasRefusal = " No provider schemas were read, so nothing but a table entry can say what identifies one."
 
 // SchemaRefusal is the clause the "outside the subset" error adds when the
 // caller did have the provider's schemas and the fallback still refused the
@@ -172,24 +226,8 @@ func SchemaRefusal(typeName string, schemas map[string]providers.Schema, signal 
 	if len(schemas) == 0 {
 		return ""
 	}
-	schema, served := schemas[typeName]
-	switch {
-	case !served:
-		return fmt.Sprintf(" The provider serves no %s at all.", typeName)
-	case schema.IdentitySchema == nil:
-		return fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
-	}
-
-	admitted := DerivableWith(map[string]providers.Schema{typeName: schema}, signal)
-	if len(admitted) == 0 {
-		required, _ := identityAttrs(schema.IdentitySchema)
-		return fmt.Sprintf(
-			" The provider's identity schema for %s requires %s, and neither the schema nor this configuration says the configuration supplies %s: an object this run cannot name is one only marker discovery finds.",
-			typeName, orList(required), pluralThem(len(required)))
-	}
-	return fmt.Sprintf(
-		" The provider's identity schema for %s is a composite of %s, and the character that joins them into an import ID is in no schema, so that inference has to be written down in the table.",
-		typeName, orList(admitted[0].IdentityAttrs))
+	_, refusal := synthesizeTypeIdentity(typeName, schemas, signal)
+	return refusal
 }
 
 // schemaRefusal is [SchemaRefusal] read off the resolver's own schemas and
@@ -209,12 +247,21 @@ func (r *resolver) schemaRefusal(typeName string) string {
 // corroboration count. See that function's doc comment for why the count
 // has to exclude it rather than merely include it once for free.
 func onlyContext(schemas map[string]providers.Schema, typeName string, schema providers.Schema, names []string) bool {
+	return len(notContext(schemas, typeName, schema, names)) == 0
+}
+
+// notContext is [onlyContext]'s answer with the evidence kept: the names
+// that are not context, in the order given. A refusal that has to say why
+// needs these, and deriving them twice - once to decide and once to
+// explain - is how the two got to disagree in the first place.
+func notContext(schemas map[string]providers.Schema, typeName string, schema providers.Schema, names []string) []string {
+	var out []string
 	for _, name := range names {
 		if !isContextAttr(schemas, typeName, schema, name) {
-			return false
+			out = append(out, name)
 		}
 	}
-	return true
+	return out
 }
 
 // isContextAttr reports whether one optional-for-import identity attribute
@@ -396,4 +443,18 @@ func pluralThem(n int) string {
 		return "it"
 	}
 	return "all of them"
+}
+
+func pluralIs(n int) string {
+	if n == 1 {
+		return "it is"
+	}
+	return "they are"
+}
+
+func namesVerb(n int) string {
+	if n == 1 {
+		return "names"
+	}
+	return "name"
 }
