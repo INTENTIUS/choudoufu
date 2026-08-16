@@ -1309,21 +1309,21 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 111 | 1314 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 107 | 2410 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 70 | 3279 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 99 | 2295 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 51 | 355 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 51 | 104 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 63 | 2982 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 47 | 339 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 37 | 135 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 23 | 210 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 317 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 13 | 32 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
-| 9 | 37 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 10 | 38 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 4 | 13 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 5 | 14 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 35 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
@@ -1515,7 +1515,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 107 configurations in the measured corpus, at 2410 sites.
+**How often.** Blocked 99 configurations in the measured corpus, at 2295 sites.
 
 #### Unable to compute static value
 
@@ -1523,15 +1523,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 70 configurations in the measured corpus, at 3279 sites.
-
-#### Dynamic value in static context
-
-**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 51 configurations in the measured corpus, at 355 sites.
+**How often.** Blocked 63 configurations in the measured corpus, at 2982 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1539,7 +1531,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Blocked 51 configurations in the measured corpus, at 104 sites.
+**How often.** Blocked 53 configurations in the measured corpus, at 110 sites.
+
+#### Dynamic value in static context
+
+**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 47 configurations in the measured corpus, at 339 sites.
 
 #### Unresolvable identity
 
@@ -1549,14 +1549,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 37 configurations in the measured corpus, at 135 sites.
 
-#### Module output not supported in static context
-
-**What.** An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 23 configurations in the measured corpus, at 210 sites.
-
 #### Non-static identity argument
 
 **What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
@@ -1564,6 +1556,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 20 configurations in the measured corpus, at 74 sites.
+
+#### Module output not supported in static context
+
+**What.** An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 18 configurations in the measured corpus, at 166 sites.
 
 #### Non-static for_each expression
 
@@ -1595,7 +1595,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 9 configurations in the measured corpus, at 37 sites.
+**How often.** Blocked 10 configurations in the measured corpus, at 38 sites.
 
 #### Data source not readable before resolution
 
@@ -1603,7 +1603,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 4 configurations in the measured corpus, at 13 sites.
+**How often.** Blocked 5 configurations in the measured corpus, at 14 sites.
 
 #### Identity argument not set
 
