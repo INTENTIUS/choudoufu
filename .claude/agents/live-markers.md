@@ -311,13 +311,27 @@ one to three times. Two of those were buying nothing, so:
   numbers are never the measurement; and its result arrives too late in an
   agent's turn to change any decision.
 
-  **Measure with a targeted probe instead.** The agents that produced the
-  best numbers this session did not run the generator — they called
-  `check.Dir`, `identity.ResolveWith`, `stamp.Stamp` or `SynthesizeTypeIdentity`
-  directly against the specific fixtures in question, with real schemas from
-  the warm plugin cache. That is faster, uncontended, and answers the question
-  the generator only answers by side effect. Build the probe in your scratch
-  directory and delete it before committing.
+  **Use `tools/refusal-probe`. Do not build your own.** A dozen agents each
+  wrote this same throwaway program before starting real work; it now exists.
+
+      go run ./tools/refusal-probe -out before.json    # 19.6s, all 250 entries
+      ... your change ...
+      go run ./tools/refusal-probe -out after.json
+      go run ./tools/refusal-probe -diff before.json,after.json
+      go run ./tools/refusal-probe -entry .corpus/vpc -v
+
+  It writes where you point it, so several agents can measure concurrently in
+  one tree — which `just corpus` cannot. It reports per-entry and per-refusal-ID
+  deltas, and flags entries that got **worse**, which an aggregate hides.
+
+  Then verify the handful of entries you actually care about with real
+  schemas from the warm plugin cache, by calling `check.Dir`,
+  `identity.ResolveWith`, `stamp.Stamp` or `SynthesizeTypeIdentity` directly.
+  The probe is schema-less: it undercounts refusals and **overcounts what a
+  fix clears**, because clearing one refusal often reveals another underneath
+  that only schemas can see. One fix measured 11 sites cleared and delivered
+  10046 → 10046. Another measured 60 and delivered exactly 60 — the second
+  agent had checked, per entry, that no other refusal count moved.
 
   If you genuinely need a corpus number, say what you would expect it to show
   and let the orchestrator compute it on the merged tree.
@@ -325,6 +339,34 @@ one to three times. Two of those were buying nothing, so:
 Read-only auditors finished in 6 to 15 minutes against 25 to 47 for
 implementers, entirely because they run no generators. If a task does not
 need to write, it should not be paying generator time.
+
+## If your task looks like more than ~30 minutes, split it and say so
+
+Measured across twenty-odd agents: the ones that ran 40+ minutes were not
+doing harder work, they were doing **two jobs in one slot**. Almost always
+the same two.
+
+**Scouting is a separate job from fixing.** Re-verifying a closure, bucketing
+sites by cause, and reading the actual HCL is 5 to 15 minutes, and it very
+often changes what the fix should be — five briefs this session were
+materially wrong and the agent found out only after committing to an
+approach. Do the scouting, report it, and let the next slot start from a
+correct brief instead of a stale one. A report with no commit is a good
+outcome, not a wasted slot.
+
+**Building the measurement is a separate job from making the change.** That
+one is now solved: use `tools/refusal-probe`.
+
+So when a brief hands you "verify the closure, bucket the sites, then fix the
+largest bucket" — that is two slots. Do the first half well, hand back the
+bucket distribution, and say plainly that the fix is the next slot's work.
+Do not silently narrow the scope instead; say which half you did.
+
+The same applies mid-task. If you discover the real fix lives in a file
+another agent holds, or needs a design decision, or turns out to be three
+buckets rather than one: **stop and report**, do not push on. The orchestrator
+can start a correctly-scoped agent immediately, which is faster than you
+finishing a wrong one.
 
 ## Tests here are a regression gate, not a defect-finder
 
