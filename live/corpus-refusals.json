@@ -779,26 +779,20 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 0,
-      "sites": 4,
+      "instances": 4,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 6,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 4
+            "layer": "identity",
+            "id": "Non-static identity argument",
+            "sites": 2,
+            "unset_var_only": true
           }
-        ],
-        "unadmitted_types": [
-          "aws_docdb_cluster",
-          "aws_docdb_cluster_instance",
-          "aws_docdb_cluster_parameter_group",
-          "aws_docdb_subnet_group"
         ]
       },
       "provider_schemas": [
@@ -2781,12 +2775,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 204,
-      "sites": 229,
+      "instances": 217,
+      "sites": 217,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
-      "shadowed": 32,
+      "shadowed": 19,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/govuk-publishing-infrastructure.tfvars"
@@ -2861,27 +2855,18 @@
           },
           {
             "layer": "lint",
-            "id": "count-index",
-            "sites": 1
-          },
-          {
-            "layer": "lint",
             "id": "logical-resource",
             "sites": 5
           },
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 19
+            "sites": 8
           }
         ],
         "unadmitted_types": [
           "aws_api_gateway_deployment",
           "aws_api_gateway_resource",
-          "aws_docdb_cluster",
-          "aws_docdb_cluster_instance",
-          "aws_docdb_cluster_parameter_group",
-          "aws_docdb_subnet_group",
           "aws_kms_key_policy",
           "aws_lambda_invocation",
           "aws_secretsmanager_secret_version",
@@ -8248,8 +8233,8 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 111,
-      "sites": 1314,
+      "configs": 110,
+      "sites": 1299,
       "types": [
         {
           "type": "google_bigquery_table",
@@ -8512,18 +8497,6 @@
           "sites": 5
         },
         {
-          "type": "aws_docdb_cluster",
-          "sites": 4
-        },
-        {
-          "type": "aws_docdb_cluster_instance",
-          "sites": 4
-        },
-        {
-          "type": "aws_docdb_cluster_parameter_group",
-          "sites": 4
-        },
-        {
           "type": "aws_elasticsearch_domain_policy",
           "sites": 4
         },
@@ -8577,10 +8550,6 @@
         },
         {
           "type": "aws_db_instance_automated_backups_replication",
-          "sites": 3
-        },
-        {
-          "type": "aws_docdb_subnet_group",
           "sites": 3
         },
         {
@@ -9245,31 +9214,14 @@
       "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
       "raised_by": "internal/live/identity",
-      "configs": 20,
-      "sites": 74,
+      "configs": 21,
+      "sites": 76,
       "examples": [
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:65",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:70",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:75",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:91",
         ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:173"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "count-index",
-      "title": "count.index is not available in resource arguments",
-      "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
-      "raised_by": "internal/live/lint",
-      "configs": 18,
-      "sites": 317,
-      "examples": [
-        ".corpus/cool-assessment/gophish_iam.tf:73",
-        ".corpus/cool-assessment/teamserver_iam.tf:73",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:142",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:143",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_route53.tf:7"
       ],
       "registered": true
     },
@@ -9306,6 +9258,23 @@
         ".corpus/cool-assessment/network_acls.tf:23",
         ".corpus/cool-assessment/operations_acl_rules.tf:8",
         ".corpus/cool-assessment/operations_acl_rules.tf:27"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "count-index",
+      "title": "count.index is not available in resource arguments",
+      "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+      "raised_by": "internal/live/lint",
+      "configs": 17,
+      "sites": 316,
+      "examples": [
+        ".corpus/cool-assessment/gophish_iam.tf:73",
+        ".corpus/cool-assessment/teamserver_iam.tf:73",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:142",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:143",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_route53.tf:7"
       ],
       "registered": true
     },
@@ -10624,8 +10593,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3866,
-    "sites": 8476,
+    "instances": 3883,
+    "sites": 8462,
     "refusals_fired": 24,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
@@ -10648,8 +10617,8 @@
       "loaded": 144,
       "blocked": 118,
       "clean": 26,
-      "instances": 2385,
-      "sites": 2336,
+      "instances": 2402,
+      "sites": 2322,
       "reads_as": "rate"
     },
     {
@@ -10678,7 +10647,7 @@
       },
       {
         "class": "admissions-only",
-        "configs": 23
+        "configs": 22
       },
       {
         "class": "data-read-eligible",
@@ -10686,7 +10655,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 60
+        "configs": 61
       },
       {
         "class": "unreadable",
@@ -10768,22 +10737,6 @@
       },
       {
         "type": "aws_default_route_table",
-        "configs": 2
-      },
-      {
-        "type": "aws_docdb_cluster",
-        "configs": 2
-      },
-      {
-        "type": "aws_docdb_cluster_instance",
-        "configs": 2
-      },
-      {
-        "type": "aws_docdb_cluster_parameter_group",
-        "configs": 2
-      },
-      {
-        "type": "aws_docdb_subnet_group",
         "configs": 2
       },
       {
