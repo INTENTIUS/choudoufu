@@ -294,12 +294,13 @@ func (r *resolver) checkCollisions(result *Result) {
 	// direction - see regionsDistinguish's doc comment).
 	seen := make(map[string][]Resolution)
 	for _, res := range result.All() {
-		var ident string
+		var ident, shown string
 		switch res.Class {
 		case ClassConcrete:
-			ident = res.ImportID
+			ident, shown = concreteIdentityKey(res)
 		case ClassParentDerived:
 			ident = res.Formula.String()
+			shown = ident
 		default:
 			continue
 		}
@@ -326,8 +327,68 @@ func (r *resolver) checkCollisions(result *Result) {
 		}
 		r.errorf(rng, "Two resources with the same identity",
 			"%s and %s both resolve to the identity %q. Both would bind to the same live resource, so one of them has to change: an identity is what tells a live-markers run which cloud object a configuration block owns.",
-			collidesWith.Addr.String(), res.Addr.String(), ident)
+			collidesWith.Addr.String(), res.Addr.String(), shown)
 	}
+}
+
+// concreteIdentityKey is what [resolver.checkCollisions] compares two
+// concrete resolutions by: the identity the configuration actually supplies.
+//
+// It reads [Resolution.IdentityValues] first because [Resolution.ImportID]
+// is not always the identity. For a type whose entry is
+// [TypeIdentity.IdentityObjectOnly] - several identity attributes and no
+// separator any schema documents to join them with - [classify] sets
+// ImportID to the empty string DELIBERATELY, so that the projection imports
+// by identity object instead of inventing a grammar. Keying a collision
+// check on that string makes every such instance of the type look identical
+// to every other, and the check refuses a configuration whose resources have
+// perfectly distinct identities. Measured: three aws_autoscaling_schedule
+// instances in terraform-aws-modules/autoscaling's complete example, whose
+// scheduled_action_name values are "morning", "night" and
+// "go-offline-to-celebrate-new-year", were reported as three resources with
+// the identity "".
+//
+// Where both are populated they carry the same information - IdentityValues
+// is the same parts, split per attribute rather than concatenated - so
+// preferring the split loses nothing. It can only ever be MORE precise:
+// {"a": "x", "b": "y"} and {"a": "xy", "b": ""} concatenate to the same
+// string and are two different live objects, which the string alone would
+// have reported as one.
+//
+// ImportID remains the answer for a type whose entry does not say which
+// identity attribute each component supplies (aws_route_table_association is
+// the documented case), where IdentityValues is nil - see its doc comment.
+//
+// shown is the same identity rendered for the operator who reads the
+// refusal. It stays the import ID wherever there is one, because that is the
+// string every other operator-facing line in this package prints; only the
+// identity-object case, which has no such string, renders the attributes.
+func concreteIdentityKey(res Resolution) (key, shown string) {
+	if len(res.IdentityValues) == 0 {
+		return res.ImportID, res.ImportID
+	}
+	names := make([]string, 0, len(res.IdentityValues))
+	for name := range res.IdentityValues {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var buf, disp strings.Builder
+	for i, name := range names {
+		buf.WriteString(name)
+		buf.WriteByte(0)
+		buf.WriteString(res.IdentityValues[name])
+		buf.WriteByte(0)
+
+		if i > 0 {
+			disp.WriteString(", ")
+		}
+		fmt.Fprintf(&disp, "%s=%s", name, res.IdentityValues[name])
+	}
+	if res.ImportID != "" {
+		return buf.String(), res.ImportID
+	}
+	return buf.String(), disp.String()
 }
 
 // regionsDistinguish is the only way two [cloudScopeKey] values sharing the
@@ -1131,6 +1192,12 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		// any other call, which falls out of the switch to the generic
 		// "cannot be passed through functions or operators" refusal below.
 		if parts, ok, applicable := r.resolveArityCollapse(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// try(A, B, ...) resolved to whichever argument the language selects,
+		// when resource expansion settles which arguments raise an error -
+		// see fallback.go. Same not-applicable contract as above.
+		if parts, ok, applicable := r.resolveFallbackChain(e, scope, ident); applicable {
 			return parts, ok
 		}
 	}
