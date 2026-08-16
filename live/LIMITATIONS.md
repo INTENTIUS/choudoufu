@@ -1109,33 +1109,33 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 112 | 1357 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 101 | 2057 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 73 | 3509 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 106 | 2362 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 73 | 3613 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 58 | 226 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 53 | 544 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 53 | 590 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 49 | 200 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 43 | 1130 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
-| 33 | 256 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
-| 33 | 100 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
-| 24 | 77 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
+| 35 | 108 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 34 | 263 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
+| 24 | 78 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
+| 22 | 112 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 21 | 63 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
-| 18 | 63 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
-| 15 | 68 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
+| 7 | 50 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
-| 6 | 48 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 2 | 4 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
+| 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
 | 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 1 | 4 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
+| 1 | 1 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 1 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | error | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | dataread | Cross-stack outputs unavailable | error | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 0 | 0 | dataread | Cross-stack state unavailable | error | `internal/live/dataread` | "Cross-stack state unavailable" |
-| 0 | 0 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
@@ -1314,7 +1314,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 101 configurations in the measured corpus, at 2057 sites.
+**How often.** Blocked 106 configurations in the measured corpus, at 2362 sites.
 
 #### Unable to compute static value
 
@@ -1322,15 +1322,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 73 configurations in the measured corpus, at 3509 sites.
-
-#### Unresolvable identity
-
-**What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 58 configurations in the measured corpus, at 226 sites.
+**How often.** Blocked 73 configurations in the measured corpus, at 3613 sites.
 
 #### Dynamic value in static context
 
@@ -1338,15 +1330,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 53 configurations in the measured corpus, at 544 sites.
+**How often.** Blocked 53 configurations in the measured corpus, at 590 sites.
 
-#### Module output not supported in static context
+#### Unresolvable identity
 
-**What.** An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.
+**What.** An identity could not be built because a reference it depends on failed; the reference's own error explains why.
 
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+**Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 256 sites.
+**How often.** Blocked 49 configurations in the measured corpus, at 200 sites.
 
 #### Not an identity attribute
 
@@ -1354,7 +1346,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 100 sites.
+**How often.** Blocked 35 configurations in the measured corpus, at 108 sites.
+
+#### Module output not supported in static context
+
+**What.** An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 34 configurations in the measured corpus, at 263 sites.
 
 #### Null identity argument
 
@@ -1362,7 +1362,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 24 configurations in the measured corpus, at 77 sites.
+**How often.** Blocked 24 configurations in the measured corpus, at 78 sites.
+
+#### Identity not resolvable from configuration
+
+**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 22 configurations in the measured corpus, at 112 sites.
 
 #### Non-static for_each expression
 
@@ -1378,15 +1386,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 18 configurations in the measured corpus, at 63 sites.
-
-#### Identity not resolvable from configuration
-
-**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 15 configurations in the measured corpus, at 68 sites.
+**How often.** Blocked 20 configurations in the measured corpus, at 74 sites.
 
 #### Non-static count expression
 
@@ -1402,7 +1402,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 6 configurations in the measured corpus, at 48 sites.
+**How often.** Blocked 7 configurations in the measured corpus, at 50 sites.
 
 #### Identity argument not set
 
@@ -1410,7 +1410,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 2 configurations in the measured corpus, at 4 sites.
+**How often.** Blocked 3 configurations in the measured corpus, at 5 sites.
 
 #### Attempt to get attribute from null value
 
@@ -1427,6 +1427,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
+
+#### Data source provider not configurable
+
+**What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Blocked 1 configuration in the measured corpus, at 1 site.
 
 #### Ambiguous list-valued identity argument
 
@@ -1447,14 +1455,6 @@ reserved for the limits wing's fixture directories, and
 #### Cross-stack state unavailable
 
 **What.** A terraform_remote_state value the phase must read could not be read from its backend: the backend type is not one this binary links, the backend could not be configured or reached, no state exists for the named key or workspace, or the state snapshot could not be decoded (a newer format, or encryption this fork cannot open) - quoted from the backend at read time.
-
-**Where.** The dataread pass, raised by `internal/live/dataread`.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### Data source provider not configurable
-
-**What.** A data source the phase must read belongs to a provider configuration that cannot be built before the plan: its provider block needs full evaluation, or the provider's own configure call refused - bad or missing credentials land here, quoted.
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
