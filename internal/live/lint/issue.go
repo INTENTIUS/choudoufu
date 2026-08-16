@@ -279,7 +279,7 @@ var ruleInfo = map[Rule]struct {
 		docsRef: `live/LIMITATIONS.md, "undeclared-provider-alias"`,
 	},
 	RuleModuleProviderBlock: {
-		summary: "Provider block in a child module is not consulted",
+		summary: "Provider block in a child module needs count, for_each, enabled or depends_on removed from its call chain",
 		docsRef: `live/LIMITATIONS.md, "module-provider-block"`,
 	},
 }

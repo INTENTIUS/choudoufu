@@ -1692,13 +1692,28 @@ type statelessProviders struct {
 var _ projection.Providers = (*statelessProviders)(nil)
 
 // providerCacheKey is what a configured provider instance is cached and
-// looked up under: the provider and its alias, deliberately not the module
-// path a caller's [addrs.AbsProviderConfig] carries. See
-// [statelessProviders.ConfiguredProvider]'s own comment for why a static
-// module's resources correctly share the root's configured instance rather
-// than each module getting - or needing - one of its own.
+// looked up under: the provider, its alias, AND the module
+// [providerscope.Resolve] settled on - addr.Module.String(), empty for
+// root. GitHub issue #201: before it, [providerscope.Resolve] returned
+// addrs.RootModule on every path, so the module dimension was redundant
+// (always "") and omitting it changed nothing; now that Resolve can
+// terminate at a non-root module's own local provider block (see its own
+// doc comment), two AbsProviderConfig values with the same provider and
+// alias but different modules are genuinely different configurations - a
+// root default aws config and module.compute's own local aws block both key
+// as (aws, "") without the module dimension, and the second lookup would
+// silently reuse the first's already-configured instance: whichever
+// resource asked first would decide the account and region for every
+// resource in both modules, no diagnostic, no cache miss. Two distinct
+// provider scopes cannot collide here because addrs.Module.String() is
+// exactly the dotted "module.a.module.b" path [providerscope.Resolve]
+// returned, unique per module node, and this key changes for root
+// (addr.Module.String() == "") only in that it now carries one more
+// trailing separator - every existing root-only cache entry still lands on
+// a distinct key from any non-root one, never a different key from its own
+// previous root-only self.
 func providerCacheKey(addr addrs.AbsProviderConfig) string {
-	return addr.Provider.String() + "\x00" + addr.Alias
+	return addr.Provider.String() + "\x00" + addr.Alias + "\x00" + addr.Module.String()
 }
 
 func newStatelessProviders(config *configs.Config, lib plugins.Library) *statelessProviders {
@@ -1819,19 +1834,21 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// The cache and every lookup below key on the provider and its alias
-	// alone, not on addr.Module: a static module call with no provider
-	// block of its own inherits the root's default (unaliased)
-	// configuration for its implied provider, which is the only shape a
-	// static module's resources ever need (RuleChildModule refuses a
-	// module block's own count/for_each, not a provider block inside one,
-	// but nothing this fork generates or admits declares a provider inside
-	// a child module either). One configured instance per provider+alias
-	// is therefore correct root or not, and
-	// [statelessProviders.providerConfigValue] already reads the provider
-	// block from the root module unconditionally - addr.Module was never
-	// consulted there even when this guard refused every non-root value
-	// outright.
+	// The cache and every lookup below key on addr.Module too, not just the
+	// provider and its alias (see [providerCacheKey]'s own comment for why:
+	// GitHub issue #201). The overwhelmingly common case is still one
+	// configured instance per provider+alias regardless of which module a
+	// resource sits in: a static module call with no provider block of its
+	// own inherits the root's default (unaliased) configuration for its
+	// implied provider, and [providerscope.Resolve] returns
+	// addrs.RootModule for every one of those, so they all still land on
+	// the same key. The exception is a module that declares its own
+	// content-bearing provider block, admitted now that
+	// [internal/live/lint.checkModuleProviderBlocks] refuses it only when
+	// the call chain reaching it uses count, for_each, enabled or
+	// depends_on: Resolve returns that module's own path for those, and
+	// [statelessProviders.providerConfigValue] below reads addr.Module's
+	// own provider block rather than the root's unconditionally.
 	key := providerCacheKey(addr)
 	if provider, ok := p.cache[key]; ok {
 		return provider, nil
@@ -1877,23 +1894,55 @@ func (p *statelessProviders) ConfiguredProvider(ctx context.Context, addr addrs.
 // value that an absent provider block implies, which is how a provider that
 // takes everything from the environment is configured.
 //
-// An ALIASED address with no root provider block is an error, never an empty
-// body. GitHub issue #123: the fallback used to cover that miss too, so a
-// root resource with provider = aws.nope - which stock OpenTofu's graph
-// refuses outright - had its provider configured from the environment alone,
-// silently, and discovery read the live system through it.
-// lint.RuleUndeclaredProviderAlias refuses the root-resource route before any
-// cloud read and checkModuleProviderMapping the module-mapping one, so this
-// diagnostic is the backstop for any address those rules did not see, not a
-// message a user is expected to reach.
+// addr.Module names which module's own provider blocks to search - almost
+// always addrs.RootModule, since [providerscope.Resolve] only ever returns a
+// non-root module when that module declares its own content-bearing
+// provider block (GitHub issue #201; [checkModuleProviderBlocks] in
+// internal/live/lint is what admits that shape, and only when no call in
+// the chain reaching it uses count, for_each, enabled or depends_on). The
+// evaluator used below is addr.Module's own, not the root's: a non-root
+// block's expressions - simpleinfra/terraform/shared/modules/gha-iam-user's
+// `provider "github" { owner = var.org }` is the corpus site that drove
+// this - reference that module's own variables, which only its own
+// configs.Module.StaticEvaluator has bound to the values its caller passed,
+// not the root's.
+//
+// An ALIASED address with no matching provider block in that module is an
+// error, never an empty body. GitHub issue #123: the fallback used to cover
+// that miss too, so a root resource with provider = aws.nope - which stock
+// OpenTofu's graph refuses outright - had its provider configured from the
+// environment alone, silently, and discovery read the live system through
+// it. lint.RuleUndeclaredProviderAlias refuses the root-resource route
+// before any cloud read and checkModuleProviderMapping the module-mapping
+// one, so this diagnostic is the backstop for any address those rules did
+// not see, not a message a user is expected to reach.
 func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs.AbsProviderConfig, spec hcldec.Spec) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	mod := p.config.Module
+	cfg := p.config
+	moduleText := "the root module"
+	if !addr.Module.IsRoot() {
+		moduleText = addr.Module.String()
+		if c := p.config.Descendent(addr.Module); c != nil && c.Module != nil {
+			cfg = c
+		}
+		// A miss here means addr names a module this configuration tree
+		// does not have - [providerscope.Resolve] was given a *configs.Config
+		// from some other tree, or the tree changed between resolution and
+		// this call. Falling back to cfg = p.config (root) rather than
+		// returning early keeps the found/not-found logic below as the one
+		// place that decides between a real block, the environment
+		// fallback, and the "not declared" diagnostic, instead of adding a
+		// second, differently-worded error path for what is already an
+		// internal inconsistency the diagnostic below still reports
+		// correctly (as "not declared in <module>", just checked against
+		// the wrong module's blocks).
+	}
+	mod := cfg.Module
 
-	// Find the root provider block for this address by resolving each
-	// block's own local name to a provider FQN, not by round-tripping the
-	// FQN through LocalNameForProvider: when required_providers gives one
+	// Find the provider block for this address by resolving each block's
+	// own local name to a provider FQN, not by round-tripping the FQN
+	// through LocalNameForProvider: when required_providers gives one
 	// provider two local names, ProviderLocalNames holds one winner chosen
 	// by Go map order, and the first version of this lookup refused a
 	// configuration stock terraform accepts - at random, one parse in a
@@ -1926,7 +1975,7 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 
 	body := hcl.EmptyBody()
 	ident := configs.StaticIdentifier{
-		Module:  addrs.RootModule,
+		Module:  addr.Module,
 		Subject: fmt.Sprintf("provider.%s", displayName),
 	}
 	switch {
@@ -1943,11 +1992,11 @@ func (p *statelessProviders) providerConfigValue(ctx context.Context, addr addrs
 			tfdiags.Error,
 			"Provider configuration is not declared",
 			fmt.Sprintf(
-				"This run needs the provider configuration %q, and the root module declares no such provider block. "+
+				"This run needs the provider configuration %q, and %s declares no such provider block. "+
 					"Configuring it from the environment instead would read and write the live system against whatever "+
 					"account and region the environment names, which is not what the configuration says. Declare "+
 					"provider %q with that alias, or remove the reference to it.",
-				displayName, mod.LocalNameForProvider(addr.Provider),
+				displayName, moduleText, mod.LocalNameForProvider(addr.Provider),
 			),
 		))
 		return cty.NilVal, diags

@@ -22,6 +22,8 @@
 package providerscope
 
 import (
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 )
@@ -107,6 +109,39 @@ func Resolve(cfg *configs.Config, local addrs.LocalProviderConfig) addrs.AbsProv
 	alias := local.Alias
 
 	for cur != nil && cur.Module != nil && !cur.Path.IsRoot() {
+		// A module that declares its own local `provider` block for this
+		// (name, alias) pair, WITH REAL CONTENT, is served by that block
+		// directly - never by climbing further toward root. GitHub issue
+		// #201: [checkModuleProviderBlocks] in internal/live/lint admits a
+		// non-root local block only when no call in the chain down to it
+		// used count, for_each, enabled or depends_on (mirroring
+		// internal/configs/provider_validation.go's own condition), so this
+		// is the only shape a module tree can reach here with a
+		// content-bearing non-root block at all. A resource in that module
+		// resolves to it directly, the same way stock OpenTofu's
+		// ProviderConfigTransformer wires a resource straight to its own
+		// module's provider node when one exists, without ever considering
+		// a parent's mapping.
+		//
+		// An EMPTY block (`provider "aws" {}`, no attributes, no version
+		// constraint) does not terminate the walk: it is
+		// provider_validation.go's own "could be a proxy configuration"
+		// shape (emptyConfigs, never added to configured - see
+		// [configuredProviderBlock]'s doc comment), legal even under a
+		// blocked call chain precisely because it carries no settings of
+		// its own. Resolving it as if it were authoritative would silently
+		// substitute an empty configuration for whatever the call chain
+		// actually supplies - inherited from a parent's mapping or from
+		// root - so it falls through to the ordinary walk below instead,
+		// unchanged.
+		if pc, ok := cur.Module.GetProviderConfig(name, alias); ok && configuredProviderBlock(pc) {
+			return addrs.AbsProviderConfig{
+				Module:   cur.Path,
+				Provider: cur.Module.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: name}),
+				Alias:    alias,
+			}
+		}
+
 		parent := cur.Parent
 		if parent == nil || parent.Module == nil {
 			break
@@ -165,6 +200,19 @@ func Resolve(cfg *configs.Config, local addrs.LocalProviderConfig) addrs.AbsProv
 // type-implied default when it names none), in the module cfg represents.
 func ResolveResource(cfg *configs.Config, rc *configs.Resource) addrs.AbsProviderConfig {
 	return Resolve(cfg, rc.ProviderConfigAddr())
+}
+
+// configuredProviderBlock reports whether pc carries real configuration - at
+// least one attribute or nested block, or a version constraint - rather than
+// being an empty declaration such as `provider "aws" {}`. This is exactly
+// internal/configs/provider_validation.go:340-351's own configured/
+// emptyConfigs split, duplicated here (and in
+// internal/live/lint/module_provider_block.go, which has the identical copy
+// and the identical reason for it) because that function's sets are
+// unexported and local to one validation pass.
+func configuredProviderBlock(pc *configs.Provider) bool {
+	_, contentDiags := pc.Config.Content(&hcl.BodySchema{})
+	return contentDiags.HasErrors() || pc.Version.Required != nil
 }
 
 // passedFor finds the entry in a module call's providers mapping whose

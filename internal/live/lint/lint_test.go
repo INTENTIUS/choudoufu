@@ -474,34 +474,31 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{
-			// GitHub issue #70's ruling: a provider block declared inside a
-			// child module is refused, not warned about. Live mode never
-			// consults it; the module's resources are served by the root
-			// configuration's provider config instead.
-			name: "default provider block in a child module",
+			// GitHub issue #201's parity fix to #70's original ruling: a
+			// provider block declared inside a child module is legal to
+			// stock OpenTofu as long as no call in the chain reaching it
+			// uses count, for_each, enabled or depends_on
+			// (internal/configs/provider_validation.go:298-312, :592-607,
+			// the code this fork forked verbatim). This call names none of
+			// the four, so nothing here is refused - a fixture combining a
+			// content-bearing local block with one of them cannot even be
+			// built (that combination hard-errors inside
+			// internal/configs.BuildConfig itself, before
+			// internal/live/lint ever runs; internal/configs' own
+			// testdata/config-diagnostics/nested-provider already covers
+			// upstream's, forked, enforcement of it, and
+			// TestModuleCallBlocksLocalProviders in
+			// module_provider_block_test.go covers this rule's own
+			// per-call classification directly).
+			name: "default provider block in a child module, no restricting meta-argument",
 			dir:  "testdata/module-provider-default",
-			want: []wantIssue{
-				{
-					rule:      RuleModuleProviderBlock,
-					construct: `provider "aws"`,
-					module:    "module.compute",
-					file:      "testdata/module-provider-default/child/main.tf",
-					line:      1,
-				},
-			},
+			want: nil,
 		},
 		{
-			name: "aliased provider block in a child module",
+			// Same admitted shape, the aliased local name.
+			name: "aliased provider block in a child module, no restricting meta-argument",
 			dir:  "testdata/module-provider-aliased",
-			want: []wantIssue{
-				{
-					rule:      RuleModuleProviderBlock,
-					construct: `provider "aws", alias "east"`,
-					module:    "module.compute",
-					file:      "testdata/module-provider-aliased/child/main.tf",
-					line:      1,
-				},
-			},
+			want: nil,
 		},
 		{
 			// The admitted twin: the provider block lives at root, which is
@@ -509,6 +506,31 @@ func TestCheck(t *testing.T) {
 			// child module declares none of its own.
 			name: "provider block at root, child module clean",
 			dir:  "testdata/module-provider-root",
+			want: nil,
+		},
+		{
+			// GitHub issue #201: the actual corpus shape. A plain, static
+			// module call - none of count, for_each, enabled or depends_on -
+			// into a module that declares its own provider block, reading a
+			// variable the call passes it. Stock OpenTofu accepts this, so
+			// nothing here is refused.
+			name: "provider block in a child module called with no restricting meta-argument, reads a var",
+			dir:  "testdata/module-provider-unrestricted",
+			want: nil,
+		},
+		{
+			// The other admitted shape this fix uncovered: the call DOES
+			// use count, but the child module's local block is EMPTY -
+			// `provider "aws" {}` - internal/configs/provider_validation.go's
+			// own "could be a proxy configuration" shape (emptyConfigs,
+			// provider_validation.go:320-322,340-351), which its own
+			// count/for_each/enabled/depends_on check never counts against
+			// (len(configured), not len(mod.ProviderConfigs)). Stock
+			// OpenTofu builds this without complaint, so refusing it here
+			// would refuse a configuration upstream's own loader already
+			// accepted.
+			name: "empty provider block in a child module called with count",
+			dir:  "testdata/module-provider-empty-proxy",
 			want: nil,
 		},
 	}
