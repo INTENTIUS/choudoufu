@@ -82,7 +82,7 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	if len(d.IdentityAttrs) == 0 {
 		return TypeIdentity{}, false
 	}
-	if !onlyContext(schemas, schema, d.Context) {
+	if !onlyContext(schemas, typeName, schema, d.Context) {
 		// The one required attribute is not the whole identity: the schema
 		// also marks something other than the context pair optional for
 		// import. aws_route is exactly this shape - route_table_id is the
@@ -203,9 +203,14 @@ func (r *resolver) schemaRefusal(typeName string) string {
 // itself rather than something this type's own configuration supplies to
 // narrow which instance is meant. See [isContextAttr] for the rule and for
 // why it is derived from the schema rather than a fixed pair of names.
-func onlyContext(schemas map[string]providers.Schema, schema providers.Schema, names []string) bool {
+//
+// typeName is schema's own key in schemas, passed through so
+// [isContextAttr] can leave the type under test out of its own
+// corroboration count. See that function's doc comment for why the count
+// has to exclude it rather than merely include it once for free.
+func onlyContext(schemas map[string]providers.Schema, typeName string, schema providers.Schema, names []string) bool {
 	for _, name := range names {
-		if !isContextAttr(schemas, schema, name) {
+		if !isContextAttr(schemas, typeName, schema, name) {
 			return false
 		}
 	}
@@ -285,12 +290,31 @@ func onlyContext(schemas map[string]providers.Schema, schema providers.Schema, n
 //     its own; requiring at least one other corroborating type is what
 //     keeps a provider-wide scoping value in and a type-specific default
 //     out without naming either kind.
-func isContextAttr(schemas map[string]providers.Schema, schema providers.Schema, name string) bool {
+//
+// "At least one other" means the type under test does not count toward its
+// own corroboration (#228). schemas is the caller's whole provider schema
+// set, and typeName's own entry is in it - schema is schemas[typeName] -
+// so without the exclusion below, the loop would always find schema itself
+// a match: name is optional-for-import in schema's own IdentitySchema by
+// construction (every name this is ever called with comes from a type's own
+// Context, see [SynthesizeTypeIdentity]), and schema already cleared
+// [locallyDefaultable] in the guard above, which is the same test the loop
+// applies to every other candidate. That free match would let a provider
+// with as few as two resource types clear a ">= 2 other types" bar with
+// zero real corroboration, on any name they happen to share - coincidence
+// standing in for the provider-wide convention the rule exists to detect.
+// Excluding typeName's own key keeps the threshold counting what its name
+// says it counts: independently-authored types, not the type asking the
+// question.
+func isContextAttr(schemas map[string]providers.Schema, typeName string, schema providers.Schema, name string) bool {
 	if !locallyDefaultable(schema, name) {
 		return false
 	}
 	corroborated := 0
-	for _, other := range schemas {
+	for otherName, other := range schemas {
+		if otherName == typeName {
+			continue
+		}
 		if other.IdentitySchema == nil || other.Block == nil {
 			continue
 		}
@@ -301,11 +325,11 @@ func isContextAttr(schemas map[string]providers.Schema, schema providers.Schema,
 				break
 			}
 		}
-		if corroborated >= 2 {
+		if corroborated >= 1 {
 			break
 		}
 	}
-	return corroborated >= 2
+	return corroborated >= 1
 }
 
 // locallyDefaultable is [isContextAttr]'s per-type half: whether name, in
