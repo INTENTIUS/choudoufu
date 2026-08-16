@@ -262,6 +262,18 @@ it. Do not end your turn expecting to be woken. Do not set up a watcher, a
 monitor, or a polling loop and stop. Your final report is the only artifact
 that survives your turn.
 
+**Prevention beats the rule, because by the time you have read this you may
+already have started the job.** So: do not background a long-running command
+at all. Run it in the foreground with an explicit timeout and let it block
+you. `just corpus` is about two minutes warm; `just ci` about three; the e2e
+demo several. All of them fit inside a foreground call. A backgrounded run
+buys you nothing — you cannot do anything useful while it runs anyway,
+because its result is what you need next — and it costs you the entire
+session when you stop to wait for it.
+
+If a command genuinely cannot finish in the foreground, that is your report:
+say what you started, where its log is, and what remains unknown.
+
 If something you started is still running when you are ready to report: check
 its state directly, read whatever log it has written, and report how far it
 got. **A partial result reported honestly is worth far more than a guess, and
