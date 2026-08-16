@@ -49,10 +49,15 @@ var typeOverridesLambda = map[string]typeOverride{
 	},
 	"aws_lambda_layer_version": {
 		Reasons: []string{
-			`schema requires only layer_name; the provider also requires one of filename/s3_bucket (validate: "one of ... must be specified"), and s3_bucket requires s3_key; compatible_runtimes is optional in the schema but left empty renders a layer no function could ever reference`,
+			`schema requires only layer_name; the provider also requires one of filename/s3_bucket (validate: "one of ... must be specified"), and s3_bucket requires s3_key; compatible_runtimes is optional in the schema but left empty renders a layer no function could ever reference. s3_bucket named a bucket no fixture resource created (#150's fixture-debt ledger: "PublishLayerVersion fails exactly as real AWS would") - a supporting aws_s3_bucket is generated instead (NeedsSupporting), the same real-sibling shape aws_ecs_cluster_capacity_providers' cluster_name takes above. s3_key stays a literal: the object it would need to name is aws_s3_object's job, and aws_s3_object is "cfn-unmodeled" (live/mapping.json - no AWS::S3::Object type; S3's CFN-modeled types are AccessGrant/AccessGrantsInstance/AccessGrantsLocation/AccessPoint/Bucket/BucketPolicy/MultiRegionAccessPoint/MultiRegionAccessPointPolicy/StorageLens/StorageLensGroup only) and absent from internal/live/identity's DefaultTable - admitting it is identity/row-gen work this generator cannot do from its own surface, and rendering it unadmitted-but-tagged would put a live marker on a type table.go's own resolve gate hard-refuses, the one rendered-type invariant every other committed cohort still holds (measured: zero unadmitted types among the 689 aws_* types every cohort renders today)`,
 		},
+		NeedsSupporting: []string{"aws_s3_bucket"},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
-			body.SetAttributeRaw("s3_bucket", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-artifacts"`, g.cohort)))
+			if bucket, ok := g.byType["aws_s3_bucket"]; ok {
+				body.SetAttributeRaw("s3_bucket", exprTokens(bucket.Type+"."+bucket.Label+".bucket"))
+			} else {
+				body.SetAttributeRaw("s3_bucket", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-artifacts"`, g.cohort)))
+			}
 			body.SetAttributeRaw("s3_key", exprTokens(`"layers/app.zip"`))
 			body.SetAttributeRaw("compatible_runtimes", exprTokens(`["python3.13"]`))
 		},
