@@ -59,13 +59,24 @@
 // them, whatever [getproviders.Requirements] resolves is what gets tried -
 // is acquired using its own configuration's version constraint, or with no
 // constraint at all when the configuration named none, exactly the choice
-// "tofu init" would make for that same operator.
+// "tofu init" would make for that same operator - the FIRST time this
+// program ever sees that (provider, constraint) pair. #222: whatever
+// version that resolves to is then locked into
+// live/corpus-provider-pins.json (see [providerPin]), and every later run
+// requests that exact version instead of asking the registry to resolve
+// "latest" again, so the corpus a person reads today does not silently
+// become a blend of however many releases happened to be current on
+// whatever day each entry's schemas were last fetched. Updating a lock -
+// deliberately picking up a new release - means editing or deleting that
+// provider's entry in the pins file, the same deliberateness a bump to the
+// AWS pin's own version already requires.
 //
 // A provider that cannot be fetched (no network, unpublished, a private
 // registry) is recorded as a third state, per entry, in
 // [check.CorpusEntry.ProviderSchemas]: distinct from both "schemas were off
 // for the whole run" and "the fallback ran and lost" - see
-// [check.EntryProviderSchema].
+// [check.EntryProviderSchema]. It is locked too, by its error text rather
+// than a version it never successfully resolved.
 //
 // # What the corpus is, and what it is not
 //
@@ -114,6 +125,7 @@ func run() error {
 		initBin      = flag.String("init-bin", "", "binary used to install providers for schema reading; empty runs without schemas")
 		pinSource    = flag.String("provider-source", "hashicorp/aws", "the one provider pinned to an exact version (see -provider-version) rather than acquired at whatever version each entry's own configuration constrains it to (#211); every other provider any entry declares or implies is still acquired, generically, from that entry's own required_providers")
 		pinVersion   = flag.String("provider-version", pins.AWSProviderVersion, "exact version pinned for -provider-source (default: internal/live/pins.AWSProviderVersion, the same pin survey-gen builds the admission evidence from - #117)")
+		pinsPath     = flag.String("provider-pins", "live/corpus-provider-pins.json", "checked-in lock file (#222): every other provider's resolved version is read from here when present, instead of floating to whatever its own constraint resolves to today; a (provider, constraint) pair seen for the first time is acquired at its own constraint and appended here")
 		noSchemas    = flag.Bool("no-schemas", false, "run without provider schemas, and say so in the artifact")
 		quiet        = flag.Bool("quiet", false, "suppress the progress log")
 	)
@@ -145,7 +157,12 @@ func run() error {
 		}
 		pinned = p
 	}
-	acquirer := newSchemaAcquirer(*initBin, *noSchemas, pinned, *pinVersion, logOut)
+	pinsFile := underRoot(*root, *pinsPath)
+	basePins, err := loadProviderPins(pinsFile)
+	if err != nil {
+		return err
+	}
+	acquirer := newSchemaAcquirer(*initBin, *noSchemas, pinned, *pinVersion, basePins, logOut)
 
 	ctx := context.Background()
 	corpus := check.NewCorpus()
@@ -197,6 +214,14 @@ func run() error {
 		return err
 	}
 	logf(logOut, "corpus-gen: wrote %s\n", out)
+
+	if !*noSchemas && *initBin != "" {
+		newPins := acquirer.mergedPins(basePins)
+		if err := writeProviderPins(pinsFile, newPins); err != nil {
+			return err
+		}
+		logf(logOut, "corpus-gen: wrote %s (%d locked)\n", pinsFile, len(newPins))
+	}
 
 	fmt.Print(renderTable(artifact))
 	return nil
@@ -282,6 +307,16 @@ type ProviderSchemaResult struct {
 	// produces a row here at all: see [SchemaNote.Present]) and from "the
 	// fallback ran and the type still isn't admitted" (Available true).
 	Error string `json:"error,omitempty"`
+
+	// Locked is true when (Provider, Constraint) was already present in
+	// live/corpus-provider-pins.json before this run started, so
+	// acquisition used that checked-in outcome instead of resolving the
+	// requirement fresh (#222). False marks a (provider, constraint) pair
+	// this run saw for the first time: it floated to whatever "latest"
+	// (or the matching release for a ranged constraint) resolves to today,
+	// and got appended to the pins file for every run after this one to
+	// lock to - see the package doc comment on [providerPin].
+	Locked bool `json:"locked"`
 }
 
 // OriginCount is one origin's share of the corpus.
@@ -363,10 +398,19 @@ func originRows(counts map[string]int) []OriginCount {
 // writeArtifact writes the JSON. Sorted lists, no timestamps: the same
 // corpus and the same provider releases must produce a byte-identical file
 // given the same acquisition results, the property every other generated
-// artifact in live/ holds. Unlike the fully derived artifacts under
-// live/tables, this one's own inputs (whatever version each unconstrained
-// provider resolves to "latest" as) can move between runs by design - see
-// the package doc comment - so byte-identity is not asserted by any test.
+// artifact in live/ holds.
+//
+// Before #222 this was true in theory but not in practice: every provider
+// except the one flag-pinned by -provider-source/-provider-version could
+// float to whatever "latest" resolved to on the day of the run, so two
+// runs on an otherwise unchanged tree, days apart, could disagree with no
+// code change and no test failure. live/corpus-provider-pins.json (see
+// [providerPin]) closes that: once a (provider, constraint) pair has been
+// acquired once, every later run requests that exact recorded version
+// instead of letting it float, so a corpus regenerated on an unchanged
+// tree - including an unchanged pins file - now reproduces byte-for-byte,
+// and [TestEveryAcquiredProviderIsLocked] in live/pins_drift_test.go
+// checks it against that checked-in file rather than against itself.
 func writeArtifact(path string, artifact Artifact) error {
 	encoded, err := json.MarshalIndent(artifact, "", "  ")
 	if err != nil {
@@ -479,6 +523,14 @@ type schemaAcquirer struct {
 	pinned        addrs.Provider
 	pinnedVersion string
 
+	// pins is the checked-in lock table (#222, live/corpus-provider-pins.json)
+	// loaded once before the run starts. acquire consults it, by
+	// (provider, constraint) rather than by any name in control flow, for
+	// every requirement the flag pin above does not already cover; it is
+	// never mutated during the run; see [schemaAcquirer.mergedPins] for how
+	// a first-seen requirement gets added to the file afterward.
+	pins providerPins
+
 	logOut *os.File
 
 	cache map[string]acquireResult
@@ -492,17 +544,22 @@ type acquireResult struct {
 	Version    string
 	Types      int
 	Pinned     bool
+	Locked     bool
 	Available  bool
 	Error      string
 	Schemas    map[string]providers.Schema
 }
 
-func newSchemaAcquirer(initBin string, disabled bool, pinned addrs.Provider, pinnedVersion string, logOut *os.File) *schemaAcquirer {
+func newSchemaAcquirer(initBin string, disabled bool, pinned addrs.Provider, pinnedVersion string, pins providerPins, logOut *os.File) *schemaAcquirer {
+	if pins == nil {
+		pins = providerPins{}
+	}
 	return &schemaAcquirer{
 		initBin:       initBin,
 		disabled:      disabled,
 		pinned:        pinned,
 		pinnedVersion: pinnedVersion,
+		pins:          pins,
 		logOut:        logOut,
 		cache:         map[string]acquireResult{},
 	}
@@ -550,7 +607,11 @@ func (a *schemaAcquirer) schemasFor(needs []providerNeed) (map[string]providers.
 // not fragment into separate acquisitions (and separate "tofu init" runs)
 // just because their own constraint text differs. Every other provider
 // keeps its own entry's constraint as part of the key, since those really
-// can resolve to different releases.
+// can resolve to different releases - unless [schemaAcquirer.pins] (#222)
+// already recorded what that constraint resolved to on a previous run, in
+// which case that recorded version is requested exactly, the same way the
+// flag pin forces one, so a floating or unconstrained requirement stops
+// floating the moment it has been seen once.
 func (a *schemaAcquirer) acquire(need providerNeed) acquireResult {
 	pinned := a.pinnedVersion != "" && need.Provider == a.pinned
 	if pinned {
@@ -575,9 +636,23 @@ func (a *schemaAcquirer) acquire(need providerNeed) acquireResult {
 		Provider:   need.Provider,
 		Log:        a.logOut,
 	}
-	if pinned {
+	switch {
+	case pinned:
 		req.Version = a.pinnedVersion
 		req.Constraint = ""
+	default:
+		if lock, ok := a.pins[pinKey(res.Provider, res.Constraint)]; ok {
+			res.Locked = true
+			if lock.Available && lock.Version != "" {
+				req.Version = lock.Version
+				req.Constraint = ""
+			}
+			// lock.Available == false: no version was ever successfully
+			// resolved to lock to. Retry at the original constraint and
+			// expect the same deterministic failure (see the doc comment
+			// on [providerPin]) - the drift test compares the error text,
+			// not a version, for this case.
+		}
 	}
 
 	workdir, err := os.MkdirTemp("", "corpus-gen-schemas")
@@ -627,6 +702,7 @@ func (a *schemaAcquirer) note(noSchemas bool, initBin string) SchemaNote {
 			Version:    res.Version,
 			Types:      res.Types,
 			Pinned:     res.Pinned,
+			Locked:     res.Locked,
 			Available:  res.Available,
 			Error:      res.Error,
 		})
@@ -645,4 +721,32 @@ func (a *schemaAcquirer) note(noSchemas bool, initBin string) SchemaNote {
 		note.Caveat = "No corpus entry declared or implied any provider, so nothing was acquired."
 	}
 	return note
+}
+
+// mergedPins returns the pins file this run should write: base plus one
+// new entry for every (provider, constraint) pair this run acquired that
+// base did not already have (#222). An existing entry is never overwritten
+// - if this run's result for an already-locked key disagrees with base
+// (the locked version stopped resolving, a previously broken platform
+// build now exists), that disagreement is left for the drift test to
+// catch, not silently absorbed here.
+func (a *schemaAcquirer) mergedPins(base providerPins) providerPins {
+	merged := make(providerPins, len(base)+len(a.cache))
+	for k, v := range base {
+		merged[k] = v
+	}
+	for _, res := range a.cache {
+		key := pinKey(res.Provider, res.Constraint)
+		if _, exists := merged[key]; exists {
+			continue
+		}
+		merged[key] = providerPin{
+			Provider:   res.Provider,
+			Constraint: res.Constraint,
+			Available:  res.Available,
+			Version:    res.Version,
+			Error:      res.Error,
+		}
+	}
+	return merged
 }

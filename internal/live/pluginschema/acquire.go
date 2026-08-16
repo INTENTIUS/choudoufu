@@ -33,6 +33,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	goPlugin "github.com/hashicorp/go-plugin"
 
@@ -42,6 +43,7 @@ import (
 	tfplugin6 "github.com/intentius/choudoufu/internal/plugin6"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Request is one provider to read schemas from.
@@ -149,13 +151,55 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 		goPlugin.CleanupClients()
 	}()
 
-	schema, diags := mgr.GetProviderSchema(ctx, req.Provider)
+	// The launch is retried a bounded number of times on go-plugin's own
+	// transient handshake failure, generic to ANY provider rather than
+	// matched by name: a corpus-gen run over ~75 distinct providers
+	// launches that many short-lived subprocesses in quick succession, and
+	// under load the go-plugin handshake occasionally comes back empty
+	// ("Failed to read any lines from plugin's stdout") with no fault in
+	// the provider binary itself - a repeat launch of the identical binary
+	// the very next moment ordinarily succeeds. Left unretried, this is a
+	// second, version-independent source of the exact symptom #222 exists
+	// to close: two runs over an unchanged tree at the identical locked
+	// version disagreeing anyway, because the schema fallback silently had
+	// a provider's schema on one run and not the other.
+	//
+	// [plugins.providerManager.GetProviderSchema] already anticipates
+	// this - its own comment on the launch failure path reads "Might be a
+	// transient error. Don't memoize this result" - so calling it again
+	// on the same manager re-invokes the provider factory and spawns a
+	// fresh subprocess rather than replaying a cached failure.
+	const maxAttempts = 4
+	var schema providers.GetProviderSchemaResponse
+	var diags tfdiags.Diagnostics
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		schema, diags = mgr.GetProviderSchema(ctx, req.Provider)
+		if !diags.HasErrors() || !isTransientLaunchError(diags.Err()) {
+			break
+		}
+		fmt.Fprintf(log, "pluginschema: transient launch failure for %s (attempt %d/%d), retrying: %v\n",
+			req.Provider, attempt, maxAttempts, diags.Err())
+		time.Sleep(time.Duration(attempt) * 250 * time.Millisecond)
+	}
 	if diags.HasErrors() {
 		return none, fmt.Errorf("reading the provider schema: %w", diags.Err())
 	}
 	fmt.Fprintf(log, "pluginschema: %d resource types, %d list resource types\n",
 		len(schema.ResourceTypes), len(schema.ListResourceTypes))
 	return schema, nil
+}
+
+// isTransientLaunchError reports whether err is go-plugin's own handshake
+// failure signature - "Failed to read any lines from plugin's stdout",
+// with no provider name anywhere in the match - rather than a genuine
+// schema error the provider itself returned. See the retry loop in
+// [Acquire] for why this, specifically, is worth one more try instead of
+// being reported as this provider's real outcome.
+func isTransientLaunchError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "Failed to read any lines from plugin's stdout")
 }
 
 // InstalledVersion reports the exact version init resolved for provider

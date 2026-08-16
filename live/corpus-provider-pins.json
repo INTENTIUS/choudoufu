@@ -1,0 +1,441 @@
+{
+  "alekc/kubectl@3.0.0-beta3": {
+    "provider": "alekc/kubectl",
+    "constraint": "3.0.0-beta3",
+    "available": true,
+    "version": "3.0.0-beta3"
+  },
+  "auth0/auth0@1.10.0": {
+    "provider": "auth0/auth0",
+    "constraint": "1.10.0",
+    "available": true,
+    "version": "1.10.0"
+  },
+  "cyrilgdn/postgresql@~\u003e 1.22": {
+    "provider": "cyrilgdn/postgresql",
+    "constraint": "~\u003e 1.22",
+    "available": true,
+    "version": "1.27.0"
+  },
+  "datadog/datadog@4.1.0": {
+    "provider": "datadog/datadog",
+    "constraint": "4.1.0",
+    "available": true,
+    "version": "4.1.0"
+  },
+  "fastly/fastly@8.7.2": {
+    "provider": "fastly/fastly",
+    "constraint": "8.7.2",
+    "available": true,
+    "version": "8.7.2"
+  },
+  "fastly/fastly@~\u003e 5.0": {
+    "provider": "fastly/fastly",
+    "constraint": "~\u003e 5.0",
+    "available": true,
+    "version": "5.17.0"
+  },
+  "fastly/fastly@~\u003e 9.0": {
+    "provider": "fastly/fastly",
+    "constraint": "~\u003e 9.0",
+    "available": true,
+    "version": "9.6.0"
+  },
+  "fastly/fastly@~\u003e 9.5": {
+    "provider": "fastly/fastly",
+    "constraint": "~\u003e 9.5",
+    "available": true,
+    "version": "9.6.0"
+  },
+  "hashicorp/archive@": {
+    "provider": "hashicorp/archive",
+    "available": true,
+    "version": "2.8.0"
+  },
+  "hashicorp/archive@~\u003e 1.3": {
+    "provider": "hashicorp/archive",
+    "constraint": "~\u003e 1.3",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/archive versions matching \"~\u003e 1.3\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/archive v1.3.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/archive@~\u003e 2.4": {
+    "provider": "hashicorp/archive",
+    "constraint": "~\u003e 2.4",
+    "available": true,
+    "version": "2.8.0"
+  },
+  "hashicorp/archive@~\u003e 2.7": {
+    "provider": "hashicorp/archive",
+    "constraint": "~\u003e 2.7",
+    "available": true,
+    "version": "2.8.0"
+  },
+  "hashicorp/archive@~\u003e 2.8.0": {
+    "provider": "hashicorp/archive",
+    "constraint": "~\u003e 2.8.0",
+    "available": true,
+    "version": "2.8.0"
+  },
+  "hashicorp/aws@": {
+    "provider": "hashicorp/aws",
+    "available": true,
+    "version": "6.59.0"
+  },
+  "hashicorp/cloudinit@~\u003e 2.0": {
+    "provider": "hashicorp/cloudinit",
+    "constraint": "~\u003e 2.0",
+    "available": true,
+    "version": "2.4.0"
+  },
+  "hashicorp/dns@": {
+    "provider": "hashicorp/dns",
+    "available": true,
+    "version": "3.6.1"
+  },
+  "hashicorp/dns@~\u003e 3.4": {
+    "provider": "hashicorp/dns",
+    "constraint": "~\u003e 3.4",
+    "available": true,
+    "version": "3.6.1"
+  },
+  "hashicorp/dns@~\u003e 3.4.1": {
+    "provider": "hashicorp/dns",
+    "constraint": "~\u003e 3.4.1",
+    "available": true,
+    "version": "3.4.3"
+  },
+  "hashicorp/external@": {
+    "provider": "hashicorp/external",
+    "available": true,
+    "version": "2.4.1"
+  },
+  "hashicorp/external@2.3.4": {
+    "provider": "hashicorp/external",
+    "constraint": "2.3.4",
+    "available": true,
+    "version": "2.3.4"
+  },
+  "hashicorp/external@\u003e= 1.0.0": {
+    "provider": "hashicorp/external",
+    "constraint": "\u003e= 1.0.0",
+    "available": true,
+    "version": "2.4.1"
+  },
+  "hashicorp/external@~\u003e 2.3.3": {
+    "provider": "hashicorp/external",
+    "constraint": "~\u003e 2.3.3",
+    "available": true,
+    "version": "2.3.5"
+  },
+  "hashicorp/google-beta@": {
+    "provider": "hashicorp/google-beta",
+    "available": true,
+    "version": "7.44.0"
+  },
+  "hashicorp/google@": {
+    "provider": "hashicorp/google",
+    "available": true,
+    "version": "7.44.0"
+  },
+  "hashicorp/google@2.4.1": {
+    "provider": "hashicorp/google",
+    "constraint": "2.4.1",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/google@6.50.0": {
+    "provider": "hashicorp/google",
+    "constraint": "6.50.0",
+    "available": true,
+    "version": "6.50.0"
+  },
+  "hashicorp/google@~\u003e 6.0.1": {
+    "provider": "hashicorp/google",
+    "constraint": "~\u003e 6.0.1",
+    "available": true,
+    "version": "6.0.1"
+  },
+  "hashicorp/google@~\u003e 7.0": {
+    "provider": "hashicorp/google",
+    "constraint": "~\u003e 7.0",
+    "available": true,
+    "version": "7.44.0"
+  },
+  "hashicorp/google@~\u003e 7.3": {
+    "provider": "hashicorp/google",
+    "constraint": "~\u003e 7.3",
+    "available": true,
+    "version": "7.44.0"
+  },
+  "hashicorp/google@~\u003e 7.43.0": {
+    "provider": "hashicorp/google",
+    "constraint": "~\u003e 7.43.0",
+    "available": true,
+    "version": "7.43.0"
+  },
+  "hashicorp/helm@~\u003e 3.1": {
+    "provider": "hashicorp/helm",
+    "constraint": "~\u003e 3.1",
+    "available": true,
+    "version": "3.2.0"
+  },
+  "hashicorp/http@\u003e= 3.0.0": {
+    "provider": "hashicorp/http",
+    "constraint": "\u003e= 3.0.0",
+    "available": true,
+    "version": "3.6.1"
+  },
+  "hashicorp/kubernetes@\u003e= 1.6.2, 1.10.0": {
+    "provider": "hashicorp/kubernetes",
+    "constraint": "\u003e= 1.6.2, 1.10.0",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/kubernetes@~\u003e 2.38.0": {
+    "provider": "hashicorp/kubernetes",
+    "constraint": "~\u003e 2.38.0",
+    "available": true,
+    "version": "2.38.0"
+  },
+  "hashicorp/kubernetes@~\u003e 3.0": {
+    "provider": "hashicorp/kubernetes",
+    "constraint": "~\u003e 3.0",
+    "available": true,
+    "version": "3.2.1"
+  },
+  "hashicorp/kubernetes@~\u003e 3.1": {
+    "provider": "hashicorp/kubernetes",
+    "constraint": "~\u003e 3.1",
+    "available": true,
+    "version": "3.2.1"
+  },
+  "hashicorp/local@\u003e= 1.0.0": {
+    "provider": "hashicorp/local",
+    "constraint": "\u003e= 1.0.0",
+    "available": true,
+    "version": "2.9.0"
+  },
+  "hashicorp/local@\u003e= 1.2.0, ~\u003e 1.2": {
+    "provider": "hashicorp/local",
+    "constraint": "\u003e= 1.2.0, ~\u003e 1.2",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/local@~\u003e 2.5": {
+    "provider": "hashicorp/local",
+    "constraint": "~\u003e 2.5",
+    "available": true,
+    "version": "2.9.0"
+  },
+  "hashicorp/null@": {
+    "provider": "hashicorp/null",
+    "available": true,
+    "version": "3.3.1"
+  },
+  "hashicorp/null@\u003e= 2.0.0": {
+    "provider": "hashicorp/null",
+    "constraint": "\u003e= 2.0.0",
+    "available": true,
+    "version": "3.3.1"
+  },
+  "hashicorp/null@\u003e= 2.1.0, ~\u003e 2.1": {
+    "provider": "hashicorp/null",
+    "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/null@\u003e= 3.2.0": {
+    "provider": "hashicorp/null",
+    "constraint": "\u003e= 3.2.0",
+    "available": true,
+    "version": "3.3.1"
+  },
+  "hashicorp/null@~\u003e 3.0": {
+    "provider": "hashicorp/null",
+    "constraint": "~\u003e 3.0",
+    "available": true,
+    "version": "3.3.1"
+  },
+  "hashicorp/null@~\u003e 3.2": {
+    "provider": "hashicorp/null",
+    "constraint": "~\u003e 3.2",
+    "available": true,
+    "version": "3.3.1"
+  },
+  "hashicorp/random@": {
+    "provider": "hashicorp/random",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 2.0.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 2.0.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 2.1.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 2.1.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 2.1.0, ~\u003e 2.1": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/random@\u003e= 3.0.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 3.0.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 3.1.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 3.1.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 3.4.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 3.4.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@\u003e= 3.7.0": {
+    "provider": "hashicorp/random",
+    "constraint": "\u003e= 3.7.0",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@~\u003e 3.6": {
+    "provider": "hashicorp/random",
+    "constraint": "~\u003e 3.6",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/random@~\u003e 3.6.2": {
+    "provider": "hashicorp/random",
+    "constraint": "~\u003e 3.6.2",
+    "available": true,
+    "version": "3.6.3"
+  },
+  "hashicorp/random@~\u003e 3.8": {
+    "provider": "hashicorp/random",
+    "constraint": "~\u003e 3.8",
+    "available": true,
+    "version": "3.9.0"
+  },
+  "hashicorp/template@": {
+    "provider": "hashicorp/template",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/template@\u003e= 2.1.0, ~\u003e 2.1": {
+    "provider": "hashicorp/template",
+    "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
+    "available": false,
+    "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/tfe@": {
+    "provider": "hashicorp/tfe",
+    "available": true,
+    "version": "0.80.0"
+  },
+  "hashicorp/tfe@0.78.0": {
+    "provider": "hashicorp/tfe",
+    "constraint": "0.78.0",
+    "available": true,
+    "version": "0.78.0"
+  },
+  "hashicorp/tfe@~\u003e 0.78": {
+    "provider": "hashicorp/tfe",
+    "constraint": "~\u003e 0.78",
+    "available": true,
+    "version": "0.80.0"
+  },
+  "hashicorp/tfe@~\u003e 0.78.0": {
+    "provider": "hashicorp/tfe",
+    "constraint": "~\u003e 0.78.0",
+    "available": true,
+    "version": "0.78.0"
+  },
+  "hashicorp/time@0.14.0": {
+    "provider": "hashicorp/time",
+    "constraint": "0.14.0",
+    "available": true,
+    "version": "0.14.0"
+  },
+  "hashicorp/time@\u003e= 0.13.0": {
+    "provider": "hashicorp/time",
+    "constraint": "\u003e= 0.13.0",
+    "available": true,
+    "version": "0.14.1"
+  },
+  "hashicorp/tls@": {
+    "provider": "hashicorp/tls",
+    "available": true,
+    "version": "4.3.0"
+  },
+  "hashicorp/tls@4.0.5": {
+    "provider": "hashicorp/tls",
+    "constraint": "4.0.5",
+    "available": true,
+    "version": "4.0.5"
+  },
+  "hashicorp/tls@\u003e= 3.0.0": {
+    "provider": "hashicorp/tls",
+    "constraint": "\u003e= 3.0.0",
+    "available": true,
+    "version": "4.3.0"
+  },
+  "hashicorp/tls@\u003e= 4.0.0": {
+    "provider": "hashicorp/tls",
+    "constraint": "\u003e= 4.0.0",
+    "available": true,
+    "version": "4.3.0"
+  },
+  "hashicorp/tls@~\u003e 4.1": {
+    "provider": "hashicorp/tls",
+    "constraint": "~\u003e 4.1",
+    "available": true,
+    "version": "4.3.0"
+  },
+  "integrations/github@~\u003e 6.10": {
+    "provider": "integrations/github",
+    "constraint": "~\u003e 6.10",
+    "available": true,
+    "version": "6.13.0"
+  },
+  "integrations/github@~\u003e 6.2.3": {
+    "provider": "integrations/github",
+    "constraint": "~\u003e 6.2.3",
+    "available": true,
+    "version": "6.2.3"
+  },
+  "jianyuan/sentry@0.15.4": {
+    "provider": "jianyuan/sentry",
+    "constraint": "0.15.4",
+    "available": true,
+    "version": "0.15.4"
+  },
+  "kreuzwerker/docker@\u003e= 3.0.0, \u003e= 3.5.0": {
+    "provider": "kreuzwerker/docker",
+    "constraint": "\u003e= 3.0.0, \u003e= 3.5.0",
+    "available": true,
+    "version": "4.5.0"
+  },
+  "mastercard/restapi@~\u003e 3.0.0": {
+    "provider": "mastercard/restapi",
+    "constraint": "~\u003e 3.0.0",
+    "available": true,
+    "version": "3.0.0"
+  },
+  "phillbaker/elasticsearch@2.0.7": {
+    "provider": "phillbaker/elasticsearch",
+    "constraint": "2.0.7",
+    "available": true,
+    "version": "2.0.7"
+  }
+}

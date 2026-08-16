@@ -11410,502 +11410,577 @@
         "constraint": "3.0.0-beta3",
         "version": "3.0.0-beta3",
         "resource_types": 2,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "auth0/auth0",
         "constraint": "1.10.0",
         "version": "1.10.0",
         "resource_types": 55,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "cyrilgdn/postgresql",
         "constraint": "~\u003e 1.22",
         "version": "1.27.0",
         "resource_types": 15,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "datadog/datadog",
         "constraint": "4.1.0",
         "version": "4.1.0",
         "resource_types": 126,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "fastly/fastly",
         "constraint": "8.7.2",
         "version": "8.7.2",
         "resource_types": 46,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "fastly/fastly",
         "constraint": "~\u003e 5.0",
         "version": "5.17.0",
         "resource_types": 23,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "fastly/fastly",
         "constraint": "~\u003e 9.0",
         "version": "9.6.0",
         "resource_types": 51,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "fastly/fastly",
         "constraint": "~\u003e 9.5",
         "version": "9.6.0",
         "resource_types": 51,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/archive",
         "version": "2.8.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/archive",
         "constraint": "~\u003e 2.4",
         "version": "2.8.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/archive",
         "constraint": "~\u003e 2.7",
         "version": "2.8.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/archive",
         "constraint": "~\u003e 2.8.0",
         "version": "2.8.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/aws",
         "version": "6.59.0",
         "resource_types": 1699,
         "pinned": true,
-        "available": true
+        "available": true,
+        "locked": false
       },
       {
         "provider": "hashicorp/cloudinit",
         "constraint": "~\u003e 2.0",
         "version": "2.4.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/dns",
         "version": "3.6.1",
         "resource_types": 8,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/dns",
         "constraint": "~\u003e 3.4",
         "version": "3.6.1",
         "resource_types": 8,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/dns",
         "constraint": "~\u003e 3.4.1",
         "version": "3.4.3",
         "resource_types": 8,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/external",
         "version": "2.4.1",
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/external",
         "constraint": "2.3.4",
         "version": "2.3.4",
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/external",
         "constraint": "\u003e= 1.0.0",
         "version": "2.4.1",
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/external",
         "constraint": "~\u003e 2.3.3",
         "version": "2.3.5",
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "version": "7.44.0",
         "resource_types": 1342,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "6.50.0",
         "version": "6.50.0",
         "resource_types": 1096,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "~\u003e 6.0.1",
         "version": "6.0.1",
         "resource_types": 861,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "~\u003e 7.0",
         "version": "7.44.0",
         "resource_types": 1342,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "~\u003e 7.3",
         "version": "7.44.0",
         "resource_types": 1342,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "~\u003e 7.43.0",
         "version": "7.43.0",
         "resource_types": 1333,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/google-beta",
         "version": "7.44.0",
         "resource_types": 1470,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/helm",
         "constraint": "~\u003e 3.1",
         "version": "3.2.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/http",
         "constraint": "\u003e= 3.0.0",
         "version": "3.6.1",
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
         "constraint": "~\u003e 2.38.0",
         "version": "2.38.0",
         "resource_types": 82,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
         "constraint": "~\u003e 3.0",
         "version": "3.2.1",
         "resource_types": 81,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
         "constraint": "~\u003e 3.1",
         "version": "3.2.1",
         "resource_types": 81,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/local",
         "constraint": "\u003e= 1.0.0",
         "version": "2.9.0",
         "resource_types": 2,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/local",
         "constraint": "~\u003e 2.5",
         "version": "2.9.0",
         "resource_types": 2,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "version": "3.3.1",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "constraint": "\u003e= 2.0.0",
         "version": "3.3.1",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "constraint": "\u003e= 3.2.0",
         "version": "3.3.1",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "constraint": "~\u003e 3.0",
         "version": "3.3.1",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "constraint": "~\u003e 3.2",
         "version": "3.3.1",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 2.0.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 2.1.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 3.0.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 3.1.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 3.4.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 3.7.0",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "~\u003e 3.6",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "~\u003e 3.6.2",
         "version": "3.6.3",
         "resource_types": 8,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "~\u003e 3.8",
         "version": "3.9.0",
         "resource_types": 10,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
         "version": "0.80.0",
         "resource_types": 72,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
         "constraint": "0.78.0",
         "version": "0.78.0",
         "resource_types": 70,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
         "constraint": "~\u003e 0.78",
         "version": "0.80.0",
         "resource_types": 72,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
         "constraint": "~\u003e 0.78.0",
         "version": "0.78.0",
         "resource_types": 70,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/time",
         "constraint": "0.14.0",
         "version": "0.14.0",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/time",
         "constraint": "\u003e= 0.13.0",
         "version": "0.14.1",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",
         "version": "4.3.0",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",
         "constraint": "4.0.5",
         "version": "4.0.5",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",
         "constraint": "\u003e= 3.0.0",
         "version": "4.3.0",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",
         "constraint": "\u003e= 4.0.0",
         "version": "4.3.0",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",
         "constraint": "~\u003e 4.1",
         "version": "4.3.0",
         "resource_types": 4,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "integrations/github",
         "constraint": "~\u003e 6.10",
         "version": "6.13.0",
         "resource_types": 88,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "integrations/github",
         "constraint": "~\u003e 6.2.3",
         "version": "6.2.3",
         "resource_types": 70,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "jianyuan/sentry",
         "constraint": "0.15.4",
         "version": "0.15.4",
         "resource_types": 24,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "kreuzwerker/docker",
         "constraint": "\u003e= 3.0.0, \u003e= 3.5.0",
         "version": "4.5.0",
         "resource_types": 12,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "mastercard/restapi",
         "constraint": "~\u003e 3.0.0",
         "version": "3.0.0",
         "resource_types": 1,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "phillbaker/elasticsearch",
         "constraint": "2.0.7",
         "version": "2.0.7",
         "resource_types": 35,
-        "available": true
+        "available": true,
+        "locked": true
       },
       {
         "provider": "hashicorp/archive",
         "constraint": "~\u003e 1.3",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/archive versions matching \"~\u003e 1.3\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/archive v1.3.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/archive versions matching \"~\u003e 1.3\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/archive v1.3.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
         "constraint": "2.4.1",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
         "constraint": "\u003e= 1.6.2, 1.10.0",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/local",
         "constraint": "\u003e= 1.2.0, ~\u003e 1.2",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/local versions matching \"\u003e= 1.2.0, ~\u003e 1.2\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/local v1.4.0 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
         "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/random",
         "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/random versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/random v2.3.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/template",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding latest version of hashicorp/template...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       },
       {
         "provider": "hashicorp/template",
         "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
         "available": false,
-        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+        "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/template versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/template v2.2.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n",
+        "locked": true
       }
     ]
   },
