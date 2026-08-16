@@ -105,11 +105,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 219,
-      "sites": 189,
+      "sites": 177,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -138,7 +138,7 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 2
+            "sites": 4
           },
           {
             "layer": "identity",
@@ -158,7 +158,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 26
+            "sites": 12
           },
           {
             "layer": "lint",
@@ -187,11 +187,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 241,
-      "sites": 184,
+      "sites": 166,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 6,
+      "shadowed": 5,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -236,7 +236,7 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 30
+            "sites": 31
           },
           {
             "layer": "identity",
@@ -251,7 +251,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 83
+            "sites": 64
           },
           {
             "layer": "lint",
@@ -454,19 +454,14 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 5,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
       "shadowed": 6,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2012,7 +2007,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 203,
-      "sites": 138,
+      "sites": 135,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2086,7 +2081,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 6
+            "sites": 3
           },
           {
             "layer": "lint",
@@ -3147,7 +3142,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 42,
+      "sites": 41,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3159,7 +3154,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3171,7 +3166,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 62,
-      "sites": 326,
+      "sites": 297,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3183,7 +3178,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 21,
+      "sites": 20,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3195,7 +3190,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 25,
-      "sites": 249,
+      "sites": 235,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3207,7 +3202,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 46,
+      "sites": 44,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3219,7 +3214,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 28,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3231,7 +3226,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 46,
+      "sites": 45,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3243,7 +3238,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 47,
+      "sites": 45,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3255,7 +3250,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 65,
+      "sites": 61,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3267,7 +3262,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 18,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3279,7 +3274,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 18,
+      "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3291,7 +3286,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 23,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true
@@ -3302,7 +3297,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3314,7 +3309,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -3326,7 +3321,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -3338,7 +3333,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 61,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 15,
       "schemas": true,
@@ -3349,11 +3344,6 @@
             "layer": "identity",
             "id": "Not an identity attribute",
             "sites": 2
-          },
-          {
-            "layer": "lint",
-            "id": "count-index",
-            "sites": 1
           }
         ]
       }
@@ -4344,7 +4334,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -6923,14 +6913,14 @@
       "title": "count.index is not available in resource arguments",
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
       "raised_by": "internal/live/lint",
-      "configs": 46,
-      "sites": 1230,
+      "configs": 43,
+      "sites": 1129,
       "examples": [
-        ".corpus/cool-assessment/debiandesktop_route53.tf:6",
-        ".corpus/cool-assessment/egressassess_route53.tf:6",
         ".corpus/cool-assessment/gophish_ec2.tf:133",
         ".corpus/cool-assessment/gophish_ec2.tf:135",
-        ".corpus/cool-assessment/gophish_iam.tf:10"
+        ".corpus/cool-assessment/gophish_iam.tf:31",
+        ".corpus/cool-assessment/gophish_iam.tf:41",
+        ".corpus/cool-assessment/gophish_iam.tf:51"
       ],
       "registered": true
     },
@@ -6960,13 +6950,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
       "raised_by": "internal/live/identity",
       "configs": 33,
-      "sites": 97,
+      "sites": 100,
       "examples": [
         ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/kali_route53.tf:6",
         ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
-        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
+        ".corpus/cool-assessment/windows_route53.tf:6",
+        ".corpus/cyhy-amis/terraform/bod_bastion_route53.tf:17"
       ],
       "registered": true
     },
@@ -8265,7 +8255,7 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3395,
-    "sites": 10289,
+    "sites": 10191,
     "refusals_fired": 28,
     "refusals_in_set": 118,
     "configs_without_schemas": 0,
@@ -8289,7 +8279,7 @@
       "blocked": 118,
       "clean": 26,
       "instances": 2219,
-      "sites": 2325,
+      "sites": 2290,
       "reads_as": "rate"
     },
     {
@@ -8299,7 +8289,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 445,
-      "sites": 7956,
+      "sites": 7893,
       "reads_as": "ranking"
     }
   ],
@@ -8318,7 +8308,7 @@
       },
       {
         "class": "admissions-only",
-        "configs": 19
+        "configs": 20
       },
       {
         "class": "data-read-eligible",
@@ -8326,7 +8316,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 71
+        "configs": 70
       },
       {
         "class": "unreadable",

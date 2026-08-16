@@ -476,12 +476,10 @@ types the rule excludes: the lifecycle layer, per their entries in
 
 ### count-index-in-tag
 
-**Construct.** `count.index` reaching an argument that helps build a
-resource's live identity - the original motivating case was a tag
-(`tags = { Name = "vpc-${count.index}" }`), and the rule still catches that
-shape, but the construct is broader: any argument a resource type's own
-import identity is built from, however count.index reaches it (a direct
-reference, a template, a conditional).
+**Construct.** `count.index` used to *select* something, in an argument that
+helps build a resource's live identity. The original motivating case was a
+tag (`tags = { Name = "vpc-${count.index}" }`), and that shape is no longer
+refused: see "What is safe" below.
 
 **Why banned.** Per "Banned, and why", `count.index` in an identity-bearing
 property is banned, because a marker written from an index has no
@@ -495,6 +493,29 @@ tag ever feeds import identity at all, so `count.index` in an ordinary tag,
 description, or other non-identity property is no longer refused. What is
 still refused is `count.index` in one of the specific arguments a type's own
 identity is built from - see "Scope" below.
+
+**What is safe, and why.** A value built from the index *alone* - a bare
+argument, a template, arithmetic - is a pure injective function of the
+index. OpenTofu retires the highest `count` index first, so for any index
+that survives a scale-down the value is unchanged, and no two live indices
+can compute the same one. Those are not refused.
+
+Three shapes break that guarantee and are refused:
+
+- Indexing a collection: `count.index` in the key position of an index
+  expression (`var.list[count.index]`, `aws_subnet.this[count.index].id`).
+  The value consults something outside the index, so removing a higher
+  instance can change what a lower one names.
+- The same thing through a function: any argument to `element`, `lookup`,
+  `slice` or `chunklist`. These are collection accessors with no index
+  expression in the syntax tree, and treating them as safe was a real hole -
+  `element(aws_lb_listener.listener.*.arn, count.index)` and
+  `lookup(var.instance_types, tostring(count.index), ...)` are live in the
+  corpus.
+- A conditional whose own *condition* reads `count.index`
+  (`count.index == 0 ? a : b`). It selects one of two outcomes however large
+  `count` grows, so it stops being injective at `count > 2` and two
+  instances collide. The result branches are still walked on their own.
 
 **Forwarding address.** `for_each`. Key the resource by a stable string
 instead of a positional index.
@@ -530,9 +551,10 @@ specified job rather than leaking into an identity-bearing property.
 `tofu-slot` is deliberately not among the exempted keys.
 
 **Enforcement.** `RuleCountIndex`, `internal/live/lint/count_index.go`
-(`checkCountIndex`, `countIndexScopeForType`). It rejects `count.index`
-wherever it is reachable, however indirectly, from an argument in scope for
-the resource's type. The count expression itself and the other
+(`checkCountIndex`, `countIndexScopeForType`, `unsafeCountIndexRanges`,
+`countIndexAccessorFunctions`). Within an argument in scope for the
+resource's type, it walks the expression and rejects only the three
+selecting shapes above. The count expression itself and the other
 meta-argument positions are out of scope by construction, for every type
 (see `internal/live/lint/doc.go`, "Scope of the count.index rule"). Fixture
 at `live/e2e/limits/count-index-in-tag/`.
@@ -1039,9 +1061,9 @@ refused, and each says so in its own entry.
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 62 | 402 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 53 | 543 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 46 | 1230 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 43 | 1129 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 33 | 256 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
-| 33 | 97 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 33 | 100 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 24 | 77 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
 | 21 | 63 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 18 | 63 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
@@ -1279,7 +1301,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 97 sites.
+**How often.** Blocked 33 configurations in the measured corpus, at 100 sites.
 
 #### Null identity argument
 
