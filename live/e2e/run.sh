@@ -374,8 +374,17 @@ comment_out_resource() {
 # value, version, ...). Empty (nothing printed) if the address has no diff at
 # all.
 plan_block() {
-  local out="$1" addr="$2" start
-  start="$(grep -n -F -- "# $addr will be" <<< "$out" | head -n1 | cut -d: -f1)"
+  local out="$1" addr="$2" start matches
+  # Two steps, not "grep ... | head -n1 | cut -d: -f1": that pipes grep's
+  # output straight into a live process (head) that closes its stdin after
+  # the first line. If the header matches more than once (an adversarial or
+  # just very large plan), head's early exit signals grep with SIGPIPE while
+  # grep still has output queued, and the pipeline dies at exit 141 under
+  # pipefail (#232). Command substitution below reads grep to EOF with no
+  # consumer able to close it early, so the herestring-fed head after it has
+  # no upstream process left to kill.
+  matches="$(grep -n -F -- "# $addr will be" <<< "$out")"
+  start="$(head -n1 <<< "$matches" | cut -d: -f1)"
   [ -n "$start" ] || return 0
   tail -n "+$start" <<< "$out" | awk '
     NR == 1 { print; next }
@@ -705,11 +714,28 @@ echo "  LIVE_E2E_EXACTNESS: $LIVE_E2E_EXACTNESS"
 echo "=== 1. Floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "floci" "docker run for $FLOCI_NAME failed"
+# Captured before grep, not "curl | grep -q": grep -q exits (and closes its
+# stdin) the instant it finds a match, same early-exit-consumer shape as the
+# head/awk sites in #232, so a large enough health response could SIGPIPE
+# curl. The response here is a small fixed JSON object well under one pipe
+# buffer in practice, but capturing it first costs nothing and removes the
+# live pipe entirely.
+#
+# "|| true" on the capture, not bare "HEALTH=$(curl ...)": under set -e, a
+# plain assignment command substitution's own exit status DOES trigger
+# errexit when it fails -- unlike the old "curl | grep -q ... && break",
+# which was exempt from -e as a non-final member of a "&&" list. Floci is
+# not up yet for most of this loop's early iterations (connection refused,
+# or a reset mid-response -- curl exit 56), and without "|| true" the very
+# first failed attempt killed the whole harness before the retry loop ever
+# got to retry (caught live: reproducible exit 56 at this exact step).
 for _ in $(seq 1 45); do
-  curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null | grep -q '"ec2"' && break
+  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"ec2"' <<< "$HEALTH" && break
   sleep 2
 done
-curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null | grep -q '"ec2"' \
+HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+grep -q '"ec2"' <<< "$HEALTH" \
   || fail "floci" "floci did not come up healthy (ec2) at $ENDPOINT"
 
 export AWS_ENDPOINT_URL="$ENDPOINT"
@@ -800,7 +826,13 @@ else
     grep -q "will be destroyed" <<< "$BLOCK" \
       && fail "slot-migration" "$ADDR is proposed as a destroy: $BLOCK"
 
-    SLOT="$(grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' <<< "$BLOCK" | head -n1 | grep -oE '[0-9]+')"
+    # Same two-step shape as plan_block above and for the same reason
+    # (#232): the first grep can match more than once inside a resource
+    # block, so piping it straight into "head -n1 | grep ..." risks SIGPIPE
+    # on that first grep once head closes early. Capture its full output via
+    # command substitution first, then feed head/grep from a herestring.
+    SLOT_MATCHES="$(grep -oE '"tofu-slot"[[:space:]]*=[[:space:]]*"[0-9]+"' <<< "$BLOCK")"
+    SLOT="$(head -n1 <<< "$SLOT_MATCHES" | grep -oE '[0-9]+')"
     [ -n "$SLOT" ] || fail "slot-migration" "$ADDR's diff proposes no tofu-slot tag: $BLOCK"
 
     ALLOC_ID="$(awk -v est="stateless-e2e" -v want="aws_eip.pool:$i" '$2==est && $3==want {print $1; exit}' <<< "$LIVE_EIPS")"
@@ -2187,15 +2219,22 @@ fi
 # The unit suite calls Check() directly. This step is the black-box half, and
 # it is a different claim: that the SHIPPED BINARY refuses the configuration,
 # with the rule named in what an operator actually reads. Lint runs before
-# anything touches a provider or a cloud, so each case is a bare directory and
-# a single command — no init, no floci, no credentials.
+# anything touches a cloud, so each case is a bare directory and a single
+# command — no floci, no credentials. Most need no init either; the
+# exceptions (a module to install, or a provider to resolve because the
+# fixture pins one explicitly) are called out at their own call sites below.
 #
-# Two tables, and every directory must be in exactly one of them. The second
-# is the honest one: PE.1 asked for constructs with no rule yet to be
+# Three tables, and every directory must be in exactly one of them. The
+# second is the honest one: PE.1 asked for constructs with no rule yet to be
 # ASSERTED as unenforced rather than quietly skipped, so an enforcement gap is
 # visible in the harness output instead of hidden by omission. The day a rule
 # lands for one of these, this step fails and the fix is to move the entry, not
-# to relax the assertion.
+# to relax the assertion. The third exists because one rule (RuleStateBackend,
+# GitHub issue #210) was deliberately demoted from fatal to advisory: it fires
+# and names itself same as any other rule, but live-plan still succeeds. That
+# is neither "refused" nor "nothing catches it", so folding it into either of
+# the other two tables would assert something false about what actually
+# happens — this table says so honestly instead.
 echo "=== 14. lint-rejects — every limits fixture is refused by its own named rule ==="
 if [ "$HAVE_LIVE_PLAN" -eq 0 ]; then
   not_implemented "lint-rejects" 1 "choudoufu live-plan does not exist yet (P1.4), and lint runs inside it"
@@ -2205,29 +2244,60 @@ else
 
   # dir:rule, one pair per line. The rule is the value Issue.Rule renders
   # into the diagnostic's "Rule: <rule>." line, not a prose fragment.
+  # remote-state:remote-state named a live/e2e/limits/remote-state directory
+  # that no longer exists — #181/#182 built the remote_state read path and
+  # retired the ban, per the load-bearing internal/live/lint/limits_test.go
+  # table (enforcedLimits/notYetEnforcedLimits), which this table otherwise
+  # mirrors. This step never having run before is exactly how a stale entry
+  # like that survives: nothing checked the directory was still there.
   LINT_ENFORCED="local-exec:provisioner
 remote-exec:provisioner
 null-resource:logical-resource
+terraform-data:logical-resource
 local-file:logical-resource
 random-password:logical-resource
 time-sleep:logical-resource
-remote-state:remote-state
 moved-block:moved-block
 child-module:child-module
-backend-block:state-backend
-cloud-block:state-backend
 unadmitted-type:unadmitted-type
 count-index-in-tag:count-index
 foreach-invalid-key:for-each-key
-overlong-address:overlong-address"
+overlong-address:overlong-address
+ignore-changes:ignore-changes
+module-providers:module-providers
+undeclared-provider-alias:undeclared-provider-alias
+child-live-config:child-live-config
+policy-verb:policy-verb
+policy-scope:policy-scope
+policy-threshold:policy-threshold"
 
   # Directories no LINT rule catches. Each still has to be REFUSED — by
   # something — and each is asserted to produce no "Rule:" line, which is
   # what makes the gap visible rather than assumed.
-  #   duplicate-identity  rejected at identity resolution
-  #                       (internal/live/identity), not by lint. The
-  #                       named error is asserted below.
-  LINT_TODO="duplicate-identity"
+  #   duplicate-identity       rejected at identity resolution
+  #                            (internal/live/identity), not by lint. The
+  #                            named error is asserted below.
+  #   module-provider-block    GitHub issue #201: admitted at lint (parity
+  #                            with stock OpenTofu's own module-provider
+  #                            validation, forked verbatim) — CheckContext()
+  #                            reports nothing for it, same claim
+  #                            internal/live/lint/limits_test.go's
+  #                            notYetEnforcedLimits makes. live-plan still
+  #                            fails past lint (no live floci/cloud access
+  #                            reachable from configuration alone here), so
+  #                            the generic "refused for another reason" case
+  #                            below covers it.
+  LINT_TODO="duplicate-identity module-provider-block"
+
+  # dir:rule, same shape as LINT_ENFORCED, but for rules whose Severity is
+  # SeverityWarning (internal/live/lint/issue.go): the rule fires and names
+  # itself in a "Warning:" line, not an "Error:" one, and live-plan exits 0
+  # — RuleStateBackend is the only one registered today (#210: the live path
+  # never reads mod.Backend or mod.CloudConfig, so the block is inert rather
+  # than merely unwise, and gating a clean verdict on deleting it serves no
+  # purpose). backend-block and cloud-block are its two fixtures.
+  LINT_WARNED="backend-block:state-backend
+cloud-block:state-backend"
 
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently
@@ -2238,10 +2308,14 @@ overlong-address:overlong-address"
     LINT_LISTED="$LINT_LISTED $LDIR"
   done <<< "$LINT_ENFORCED"
   LINT_LISTED="$LINT_LISTED $LINT_TODO"
+  while IFS=: read -r LDIR _; do
+    [ -n "$LDIR" ] || continue
+    LINT_LISTED="$LINT_LISTED $LDIR"
+  done <<< "$LINT_WARNED"
   for LPATH in "$LIMITS_DIR"/*/; do
     LDIR="$(basename "$LPATH")"
     in_list "$LDIR" "$LINT_LISTED" \
-      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, or to LINT_TODO with why nothing catches it yet"
+      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, to LINT_WARNED if the rule is advisory-only (#210), or to LINT_TODO with why nothing catches it yet"
   done
   for LDIR in $LINT_LISTED; do
     [ -d "$LIMITS_DIR/$LDIR" ] \
@@ -2262,15 +2336,32 @@ overlong-address:overlong-address"
     cp -R "$LIMITS_DIR/$LDIR"/. "$LINT_WORK/" \
       || fail "lint-rejects" "$LDIR: could not copy the fixture"
 
-    # The one fixture that needs anything before live-plan. A module block
-    # has to be installed before the configuration loads at all, so without
-    # this the refusal would be "Module not installed" rather than the rule.
-    # "choudoufu get" installs local module sources and touches no network,
-    # no provider and no backend.
-    if [ "$LDIR" = "child-module" ]; then
-      run_tf "$LINT_WORK" get -no-color
+    # Fixtures whose module block has to be installed before the
+    # configuration loads at all — without this the refusal would be
+    # "Module not installed" rather than the rule. "choudoufu get" installs
+    # local module sources and touches no network, no provider and no
+    # backend.
+    case "$LDIR" in
+      child-module|module-providers|module-provider-block)
+        run_tf "$LINT_WORK" get -no-color
+        [ "$TF_RC" -eq 0 ] \
+          || fail "lint-rejects" "$LDIR: choudoufu get could not install the local module: $TF_OUT"
+        ;;
+    esac
+
+    # child-live-config is the one fixture whose own root declares an
+    # explicit required_providers source: with only "get" (no provider
+    # resolved), live-plan refuses earlier and differently -- "Inconsistent
+    # dependency lock file" -- before it ever reaches RuleChildLiveConfig,
+    # because that check runs after provider requirements are settled. None
+    # of the other module-carrying fixtures pin a provider source, so "get"
+    # alone is enough for them. Full "init" resolves providers from the
+    # registry (the same network access step 2's stock init+apply already
+    # requires) and installs the module in one pass.
+    if [ "$LDIR" = "child-live-config" ]; then
+      run_tf "$LINT_WORK" init -input=false -no-color
       [ "$TF_RC" -eq 0 ] \
-        || fail "lint-rejects" "$LDIR: choudoufu get could not install the local module: $TF_OUT"
+        || fail "lint-rejects" "$LDIR: choudoufu init could not resolve providers/modules: $TF_OUT"
     fi
 
     run_tf "$LINT_WORK" live-plan -input=false -no-color
@@ -2313,9 +2404,35 @@ overlong-address:overlong-address"
         echo "  $LDIR -> TODO (documented, not yet enforced by any rule; refused for another reason)" ;;
     esac
   done
+
+  while IFS=: read -r LDIR LRULE; do
+    [ -n "$LDIR" ] || continue
+    rm -rf "$LINT_WORK"
+    mkdir -p "$LINT_WORK"
+    cp -R "$LIMITS_DIR/$LDIR"/. "$LINT_WORK/" \
+      || fail "lint-rejects" "$LDIR: could not copy the fixture"
+
+    run_tf "$LINT_WORK" live-plan -input=false -no-color
+    # The inverse of LINT_ENFORCED's exit check: a SeverityWarning rule does
+    # not refuse, so live-plan is expected to SUCCEED despite firing. A
+    # nonzero exit here means the rule (or something else) escalated to
+    # fatal and this entry belongs in LINT_ENFORCED now, not here.
+    [ "$TF_RC" -eq 0 ] \
+      || fail "lint-rejects" "$LDIR: live-plan exited $TF_RC — rule '$LRULE' is registered SeverityWarning (advisory only); if it now blocks the plan, move this entry into LINT_ENFORCED: $TF_OUT"
+    LINT_RULES="$(echo "$TF_OUT" | sed -n 's/^Rule: \([a-z-]*\)\..*$/\1/p' | sort -u | tr '\n' ' ')"
+    LINT_RULES="${LINT_RULES% }"
+    [ "$LINT_RULES" = "$LRULE" ] \
+      || fail "lint-rejects" "$LDIR: expected exactly rule '$LRULE' and no other, got [$LINT_RULES]: $TF_OUT"
+    grep -qE '^Warning: ' <<< "$TF_OUT" \
+      || fail "lint-rejects" "$LDIR: rule '$LRULE' fired but nothing was reported as a Warning: $TF_OUT"
+    grep -qE '^Error: ' <<< "$TF_OUT" \
+      && fail "lint-rejects" "$LDIR: rule '$LRULE' fired as an Error, not just a Warning — SeverityWarning no longer holds for it, move this entry into LINT_ENFORCED: $TF_OUT"
+
+    echo "  $LDIR -> $LRULE WARN (advisory, plan still succeeds)"
+  done <<< "$LINT_WARNED"
   rm -rf "$LINT_WORK"
 
-  echo "  $LINT_N limits fixtures refused by exactly their named rule; $(echo "$LINT_TODO" | wc -w | tr -d ' ') asserted as not-yet-enforced"
+  echo "  $LINT_N limits fixtures refused by exactly their named rule; $(echo "$LINT_TODO" | wc -w | tr -d ' ') asserted as not-yet-enforced; $(echo "$LINT_WARNED" | wc -l | tr -d ' ') asserted as advisory-only"
   record_step "lint-rejects" pass
 fi
 
