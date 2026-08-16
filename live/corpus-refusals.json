@@ -252,7 +252,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 16
+            "sites": 16,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -615,7 +616,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 2
+            "sites": 2,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -671,7 +673,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 9
+            "sites": 9,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -744,7 +747,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 10
+            "sites": 10,
+            "unset_var_only": true
           },
           {
             "layer": "lint",
@@ -1094,7 +1098,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 2
+            "sites": 2,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -1313,7 +1318,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 11
+            "sites": 11,
+            "unset_var_only": true
           },
           {
             "layer": "lint",
@@ -1416,7 +1422,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 3
+            "sites": 3,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -1583,7 +1590,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 3
+            "sites": 3,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -1772,7 +1780,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 7
+            "sites": 7,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -1989,7 +1998,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 1
+            "sites": 1,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2072,7 +2082,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 5
+            "sites": 5,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2123,12 +2134,14 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 2
+            "sites": 2,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 5
+            "sites": 5,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2257,7 +2270,8 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "unset_var_only": true
           },
           {
             "layer": "lint",
@@ -2518,12 +2532,14 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 4
+            "sites": 4,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 24
+            "sites": 24,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2641,12 +2657,14 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 2
+            "sites": 2,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1
+            "sites": 1,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2686,7 +2704,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 1
+            "sites": 1,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2717,7 +2736,8 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 9
+            "sites": 9,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2764,7 +2784,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 1
+            "sites": 1,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2775,7 +2796,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 3
+            "sites": 3,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -2965,7 +2987,8 @@
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 3
+            "sites": 3,
+            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -3683,7 +3706,8 @@
           {
             "layer": "identity",
             "id": "Non-static count expression",
-            "sites": 3
+            "sites": 3,
+            "unset_var_only": true
           },
           {
             "layer": "lint",

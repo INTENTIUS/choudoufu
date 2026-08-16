@@ -18,7 +18,11 @@ func analyzeDir(t *testing.T, files map[string]string) Report {
 	t.Helper()
 	dir := t.TempDir()
 	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir for %s: %v", name, err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatalf("writing %s: %v", name, err)
 		}
 	}
@@ -198,6 +202,56 @@ resource "aws_s3_bucket" "impure" {
 	})
 	if n := rep.AttributeUnsetVariables(rep.Load.UnsetVariables(), rep.Load.Sources()); n != 0 {
 		t.Errorf("marked %d site(s) with every variable supplied", n)
+	}
+}
+
+// TestAttributionFollowsModuleBoundary is #178's "unresolvable identity"
+// scoping counterexample: a child module's site reads its OWN declared
+// variable (var.name), whose value arrives from the parent's module call
+// argument, which is itself a local, which reads the root variable that is
+// actually unset. Matching the site's own text against the root unset set
+// finds nothing; the walk this test exercises must find the root variable
+// three hops up.
+func TestAttributionFollowsModuleBoundary(t *testing.T) {
+	rep := analyzeDir(t, map[string]string{
+		"main.tf": `
+variable "govuk_environment" { type = string }
+
+locals {
+  govuk_environment_alias = var.govuk_environment
+}
+
+locals {
+  bucket_env = local.govuk_environment_alias
+}
+
+module "mobile_backend" {
+  source = "./modules/backend"
+  name   = local.bucket_env
+}
+`,
+		"modules/backend/main.tf": `
+variable "name" { type = string }
+
+resource "aws_s3_bucket" "dist" {
+  bucket = var.name
+}
+`,
+	})
+
+	requireUnset(t, rep, "govuk_environment")
+
+	f := findingByTitle(rep, "Non-static identity argument")
+	if f == nil {
+		t.Fatalf("expected a non-static identity refusal on the child module's site; findings were %v", titles(rep))
+	}
+	if f.UnsetVarSites != len(f.Sites) {
+		t.Errorf("marked %d of %d sites; the one site here (modules/backend's var.name) chains to "+
+			"govuk_environment through the module call argument and two locals", f.UnsetVarSites, len(f.Sites))
+	}
+	if len(f.UnsetVarRefs) != 1 || f.UnsetVarRefs[0] != "govuk_environment" {
+		t.Errorf("UnsetVarRefs = %v, want [govuk_environment] - the site's own text reads var.name, "+
+			"a child-module variable, not the root variable this should chase to", f.UnsetVarRefs)
 	}
 }
 
