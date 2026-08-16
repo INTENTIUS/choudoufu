@@ -447,3 +447,48 @@ func (res *Result) NeedsDiscovery() []Resolution {
 func (res *Result) RecordBacked() []Resolution {
 	return res.OfClass(ClassRecordBacked)
 }
+
+// InstanceFailure is carried in the Extra field of every error diagnostic
+// [ResolveWith] raises while building one resource instance's identity -
+// whether the failure is that instance's own (a required argument with no
+// value, an unsupported expression shape) or cascades from a parent
+// instance whose own identity could not be resolved ([resolver.parentPart]'s
+// "Unresolvable identity"). It names which instance the diagnostic is
+// about, structurally, so a caller can group every diagnostic belonging to
+// one instance without parsing Detail text.
+//
+// This is GitHub issue #221's fix. Before it, resolveInstance returned at
+// the first failing component of a type's identity, so an instance with two
+// independently-failing components produced only one diagnostic - and if
+// that one happened to be a cascade onto an eligible data read, a caller
+// could reclassify the whole instance as fine while a second, wholly
+// unrelated failure stayed invisible. resolveInstance now evaluates every
+// component and lets every failure raise its own diagnostic; InstanceFailure
+// is what lets internal/live/check tell, for one instance, whether ALL of
+// its failures trace back to an eligible read or whether at least one does
+// not - the fixpoint in internal/live/check/analyze.go only ever
+// reclassifies the former.
+//
+// A diagnostic that already carries other Extra info - a data-source
+// reference's [configs.RefusedReference], say - keeps it: InstanceFailure
+// wraps rather than replaces it (see [resolver.appendDiags]), reachable
+// through the same [tfdiags.ExtraInfo] unwrap chain RefusedReference itself
+// documents for [ReferenceCategory].
+type InstanceFailure struct {
+	// Addr is the resource instance this diagnostic concerns, in
+	// [addrs.AbsResourceInstance.String] form.
+	Addr string
+
+	// inner is whatever Extra value this diagnostic already carried before
+	// InstanceFailure was attached, or nil. Unexported: a caller reads it
+	// only indirectly, through [tfdiags.ExtraInfo]'s unwrap chain via
+	// UnwrapDiagnosticExtra below, never by naming InstanceFailure.inner
+	// itself.
+	inner interface{}
+}
+
+// UnwrapDiagnosticExtra exposes whatever Extra value this diagnostic
+// carried before InstanceFailure was attached, so a caller reading for a
+// different type - [configs.RefusedReference], for instance - still finds
+// it. See [tfdiags.ExtraInfoNext].
+func (f InstanceFailure) UnwrapDiagnosticExtra() interface{} { return f.inner }

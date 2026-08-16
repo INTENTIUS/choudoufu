@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -140,18 +139,25 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// finding order never matters.
 	var cascades []cascadeSite
 
-	// signal is collected once, over the whole configuration, the same way
-	// lint.go collects it before calling admitted(): a schema-fallback
-	// verdict for a type depends on what the whole configuration sets for
-	// it, not on how much of this loop has run by the time a given cascade
-	// asks. Left nil when there are no schemas to fall back to -
-	// [identity.SynthesizeTypeIdentity] refuses immediately in that case
-	// and never consults it - so a signal computed for nothing is never a
-	// static-evaluator walk this run does not need.
-	var signal *identity.ConfigSignal
-	if len(actx.Schemas) > 0 {
-		signal, _ = identity.ScanConfig(ctx, cfg)
-	}
+	// hardFailureAddrs is every resource-instance address (in
+	// [addrs.AbsResourceInstance.String] form) that this pass saw an error
+	// diagnostic for that is NEITHER a data-read-eligible site NOR a
+	// cascade onto one - a component failing for its own reason, or one
+	// that cascades onto something other than an eligible read. GitHub
+	// issue #221: identity.ResolveWith now evaluates every component of an
+	// instance rather than stopping at the first failure
+	// (internal/live/identity/resolve.go's resolveInstance), so an instance
+	// with both an eligible cascade AND an independent hard failure raises
+	// a diagnostic for each - this set is what lets the fixpoint below tell
+	// them apart and refuse to reclassify the former when the latter is
+	// also present. Populated from [identity.InstanceFailure], the
+	// structured tag resolveInstance attaches to every diagnostic it or a
+	// callee raises, rather than by parsing Detail text: a hard failure's
+	// wording varies by branch (some put the instance's address at the
+	// start of Detail, some in the middle), so no single text position
+	// recovers it the way [parseCascadeDetail] recovers a cascade's fixed
+	// format.
+	hardFailureAddrs := map[string]bool{}
 
 	for _, diag := range diags {
 		desc := diag.Description()
@@ -201,12 +207,21 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 			// fixpoint pass below instead of being resolved now.
 			if child, parent, ok := parseCascadeDetail(desc.Summary, desc.Detail); ok {
 				cascades = append(cascades, cascadeSite{
-					site:   site,
-					child:  child,
-					parent: parent,
-					safe:   dependentSafeToReclassify(stripAttrSuffix(child), actx.Schemas, signal),
+					site:      site,
+					child:     child,
+					childAddr: instanceFailureAddr(diag, child),
+					parent:    parent,
 				})
 				continue
+			}
+			// Not a data-read-eligible site and not a cascade: an
+			// independent failure. If it carries an [identity.InstanceFailure]
+			// tag (it always does when it came from resolveInstance or a
+			// callee; see [instanceFailureAddr]), record its instance so the
+			// fixpoint below never reclassifies a cascade sharing that same
+			// instance - see #221 and [hardFailureAddrs].
+			if addr := instanceFailureAddr(diag, ""); addr != "" {
+				hardFailureAddrs[addr] = true
 			}
 			f := findings.get(LayerIdentity, desc.Summary)
 			f.add(site)
@@ -219,50 +234,62 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		}
 	}
 
-	// Fixpoint: an instance whose only failure is depending on an
-	// eligible instance is itself eligible, and that makes anything
-	// depending on IT eligible too, transitively. Bounded by len(cascades)
-	// rounds - the underlying dependency graph is acyclic (identity
-	// refuses a real cycle as its own diagnostic, "Circular identity
-	// reference", which never matches parseCascadeDetail) - so this
-	// always terminates without needing a visited set.
+	// childCascades groups cascade indices by the dependent instance they
+	// concern. GitHub issue #221: resolveInstance now evaluates every
+	// component of an instance's identity rather than stopping at the
+	// first failure, so a dependent whose identity has more than one
+	// component that cascades - each onto a DIFFERENT parent - produces
+	// one cascadeSite per component, not one. All of them, not just one,
+	// must trace to an eligible read before the instance as a whole can be
+	// called eligible: resolving only the first would tell the operator
+	// "no configuration edit is needed" while a sibling component's own
+	// cascade might trace to a parent that never becomes eligible - the
+	// same false assurance #221 reported, just spread across two cascades
+	// instead of hidden behind a short-circuit. An entry with an empty
+	// childAddr (defensive only - see [instanceFailureAddr]) is excluded
+	// on purpose, so it can never resolve: an unproven address must default
+	// to unsafe, not safe.
+	childCascades := map[string][]int{}
+	for i, c := range cascades {
+		if c.childAddr == "" {
+			continue
+		}
+		childCascades[c.childAddr] = append(childCascades[c.childAddr], i)
+	}
+
+	// Fixpoint: a dependent whose every failure traces to an eligible
+	// instance is itself eligible, and that makes anything depending on IT
+	// eligible too, transitively. Bounded by len(cascades) rounds - the
+	// underlying dependency graph is acyclic (identity refuses a real
+	// cycle as its own diagnostic, "Circular identity reference", which
+	// never matches parseCascadeDetail) - so this always terminates
+	// without needing a visited set. Iterating childCascades in Go's
+	// randomized map order is safe here specifically because eligibility
+	// is monotone (only ever set, never cleared) and every group is
+	// re-examined every pass regardless of order, so the set this loop
+	// converges to does not depend on which order the passes visit
+	// groups in - only the number of passes needed to reach it does, and
+	// len(cascades)+1 bounds that regardless.
 	resolved := make([]bool, len(cascades))
 	for pass := 0; pass < len(cascades)+1; pass++ {
 		changed := false
-		for i, c := range cascades {
-			if resolved[i] || !eligibleAddrs[c.parent] {
+		for childAddr, idxs := range childCascades {
+			if resolved[idxs[0]] || hardFailureAddrs[childAddr] {
 				continue
 			}
-			if !c.safe {
-				// GitHub issue #221: resolveInstance
-				// (internal/live/identity/resolve.go) returns at the FIRST
-				// failing component of entry.Components, so when the
-				// dependent's own type has a second real component this
-				// diagnostic's parent trace proves nothing about it - it
-				// was never reached, let alone checked. Reclassifying here
-				// would tell the operator "no configuration edit is
-				// needed" while a second, wholly unrelated required
-				// argument might have no value at all. Leaving resolved[i]
-				// false keeps it on the default hard-refusal path below,
-				// and also withholds eligibility from anything that in
-				// turn depends on THIS instance's identity, so the
-				// conservatism propagates rather than stopping at one hop.
+			allEligible := true
+			for _, i := range idxs {
+				if !eligibleAddrs[cascades[i].parent] {
+					allEligible = false
+					break
+				}
+			}
+			if !allEligible {
 				continue
 			}
-			resolved[i] = true
-			// c.child is [configs.StaticIdentifier.Subject] - the
-			// resource-instance address plus ".<attribute>", the same
-			// shape [neededByResourceAddr] strips down from NeededBy - so
-			// a THIRD instance that depends on THIS one's identity
-			// attribute (a chain more than one hop deep, e.g. a scaling
-			// policy that names a scaling target that names a service
-			// that reads a data source) can match it as a parent on the
-			// next round. Without stripping the attribute here, this key
-			// would carry ".<attribute>" while every [cascadeSite.parent]
-			// never does, and the two would never compare equal - the
-			// chain would stop propagating after exactly one hop.
-			if addr := stripAttrSuffix(c.child); addr != "" {
-				eligibleAddrs[addr] = true
+			eligibleAddrs[childAddr] = true
+			for _, i := range idxs {
+				resolved[i] = true
 			}
 			changed = true
 		}
@@ -302,14 +329,22 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 // [parseCascadeDetail] recovers and the fixpoint loop in [Analyze]
 // consumes.
 type cascadeSite struct {
-	site   Site
+	site Site
+
+	// child is [configs.StaticIdentifier.Subject] verbatim - the
+	// resource-instance address plus ".<attribute>" - exactly as
+	// [parseCascadeDetail] recovered it from the diagnostic text.
 	child  string
 	parent string
 
-	// safe is [dependentSafeToReclassify]'s verdict on the child, computed
-	// once at construction (the child string, and therefore its type,
-	// never changes across the fixpoint's rounds). See #221.
-	safe bool
+	// childAddr is child with its trailing ".<attribute>" resolved away -
+	// the bare resource-instance address the fixpoint groups and gates on
+	// (see [Analyze]'s childCascades and hardFailureAddrs). Computed once
+	// at construction by [instanceFailureAddr], preferring the diagnostic's
+	// own [identity.InstanceFailure] tag over text-parsing child. Empty
+	// when neither source could recover it, which the fixpoint treats as
+	// unsafe rather than guessing - see #221.
+	childAddr string
 }
 
 // cascadeMiddle and cascadeSuffix bracket the one place
@@ -389,96 +424,27 @@ func stripAttrSuffix(subject string) string {
 	return subject[:idx]
 }
 
-// childType recovers a cascade dependent's resource type from its bare
-// resource-instance address (child with the ".<attribute>" suffix already
-// stripped by [stripAttrSuffix]) - exactly the string
-// [addrs.AbsResourceInstance.String] produces, since
-// internal/live/identity/resolve.go's resolver.identifier builds
-// [configs.StaticIdentifier.Subject] as addr.String()+"."+attrName. ok is
-// false when the address does not parse as one, which the caller must treat
-// as "type unknown" rather than guess at.
-func childType(addr string) (string, bool) {
-	parsed, diags := addrs.ParseAbsResourceInstanceStr(addr)
-	if diags.HasErrors() {
-		return "", false
-	}
-	return parsed.Resource.Resource.Type, true
-}
-
-// dependentSafeToReclassify is GitHub issue #221's conservative interim
-// fix: whether a cascade's dependent instance (addr, already stripped of
-// its trailing attribute) is provably safe to reclassify as
-// data-read-eligible.
+// instanceFailureAddr recovers the bare resource-instance address one error
+// diagnostic from [identity.ResolveWith] concerns, preferring the
+// structured [identity.InstanceFailure] tag resolveInstance attaches to
+// every diagnostic it or a callee raises (GitHub issue #221) over text
+// parsing.
 //
-// resolveInstance (internal/live/identity/resolve.go:648-714) walks
-// entry.Components in order and returns at the FIRST failing one - a
-// short-circuit that predates this fix. When the failing component traces
-// back to an eligible data read, that says nothing about any OTHER real
-// component of the same type: it was never reached, let alone evaluated,
-// so a second, independently broken required argument produces no
-// diagnostic anywhere. Reclassifying such a cascade as "no configuration
-// edit is needed" would be exactly that false assurance.
-//
-// entry is looked up the same two-step way
-// internal/live/identity/resolve.go's resolver.lookupType does - the hand
-// table first, [identity.SynthesizeTypeIdentity]'s schema fallback second -
-// because a type this instrument only knows about through the fallback
-// (e.g. an aws_s3_bucket_acl-shaped type whose identity is one required
-// attribute the schema names directly) is exactly as real a dependent as
-// one the hand table covers, and synthesis is not always single-component:
-// an [identity.TypeIdentity.IdentityObjectOnly] entry can carry two or more
-// attribute-bearing components joined by no separator at all
-// (synthesize.go's names loop). Skipping the fallback here would call such
-// a type "unknown" and refuse to reclassify it unconditionally - safe, but
-// a needless loss for the single-component majority the fallback actually
-// produces.
-//
-// A "real component" is derived from [identity.TypeIdentity.Components],
-// never from a resource type name: a [identity.Component] whose Attrs is
-// non-empty is the one shape resolveInstance actually reads out of the
-// resource body inside the per-component loop and can fail on
-// independently (identity/resolve.go:663-713). A Literal-only component
-// (Attrs empty, Cloud unset) is a fixed separator between two real ones and
-// can never fail. A Cloud-sourced component (aws_*'s account ID, region) is
-// checked once for the whole entry by missingCloudValue before the
-// per-component loop even starts (identity/resolve.go:616-622) - never
-// hidden by a short-circuit inside a loop it precedes.
-//
-// This is safe with at most one real component: either it is the one
-// already diagnosed by the cascade (nothing else to hide), or the type
-// carries no configuration-driven component at all (nothing the resolver
-// could have failed on independently, e.g. its whole identity comes from a
-// literal, from the cloud context, or the type resolves at a shallower
-// check before the components loop runs at all - ServerAssigned or
-// RecordBacked). Two or more real components are unsafe, because the
-// second one was never reached.
-//
-// Anything this cannot prove single-real-component - the address failing
-// to parse, or the type settled by neither the hand table nor the schema
-// fallback (no schemas offered, the provider does not serve the type, or
-// its identity schema does not clear [identity.DerivableWith]'s bar) -
-// refuses to reclassify. An unproven case must default to false: "no
-// configuration edit is needed" is the one claim this whole mechanism
-// cannot afford to make on a guess.
-func dependentSafeToReclassify(addr string, schemas map[string]providers.Schema, signal *identity.ConfigSignal) bool {
-	typeName, ok := childType(addr)
-	if !ok {
-		return false
+// fallbackSubject, when non-empty, is a [configs.StaticIdentifier.Subject]-
+// shaped string ("<instance>.<attribute>") to fall back to via
+// [stripAttrSuffix] when the diagnostic carries no InstanceFailure -
+// defensive only, since every diagnostic resolveInstance or a callee raises
+// does carry one; a diagnostic that predates #221's tagging or comes from
+// somewhere else entirely is the only way this branch is reached. Passing
+// "" (the hard-failure call site, which has no cascade-parsed subject to
+// fall back to) simply means an untagged diagnostic recovers no address at
+// all, which the caller must treat as "unknown", never as "this instance
+// has no other failures" - see hardFailureAddrs's construction in [Analyze].
+func instanceFailureAddr(diag tfdiags.Diagnostic, fallbackSubject string) string {
+	if f := tfdiags.ExtraInfo[identity.InstanceFailure](diag); f.Addr != "" {
+		return f.Addr
 	}
-	entry, ok := identity.LookupType(typeName)
-	if !ok {
-		entry, ok = identity.SynthesizeTypeIdentity(typeName, schemas, signal)
-	}
-	if !ok {
-		return false
-	}
-	real := 0
-	for _, comp := range entry.Components {
-		if len(comp.Attrs) > 0 {
-			real++
-		}
-	}
-	return real <= 1
+	return stripAttrSuffix(fallbackSubject)
 }
 
 // classifyDataSite maps one identity-layer refusal to the data-read pass's

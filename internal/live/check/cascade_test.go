@@ -142,29 +142,36 @@ func TestAnalyzeDoesNotCascadeAnUnrelatedFailure(t *testing.T) {
 }
 
 // TestAnalyzeDoesNotReclassifyMultiComponentCascade is GitHub issue #221's
-// regression guard: it is the audit's own repro, reproduced with a built
-// binary before this fix existed. aws_cloudwatch_log_stream's identity has
-// TWO real components (log_group_name, name); log_group_name cascades from
-// the log group's eligible data-source read, but "name" has no value at
-// all - a second, wholly independent failure resolveInstance's
-// first-failing-component short-circuit never reaches, so it raises no
-// diagnostic of its own anywhere in this configuration.
+// regression guard: the audit's own repro, reproduced with a built binary
+// before either fix existed. aws_cloudwatch_log_stream's identity has TWO
+// real components (log_group_name, name); log_group_name cascades from the
+// log group's eligible data-source read, but "name" has no value at all - a
+// second, wholly independent failure.
 //
-// Before #221, the cascade fixpoint saw only that the first component
-// traced to an eligible read and reclassified the whole instance as "no
-// configuration edit is needed" - which is false; plain "tofu validate"
-// refuses this configuration. dependentSafeToReclassify must refuse to
-// reclassify here, leaving the log stream's cascade a hard "Unresolvable
-// identity" refusal so the estate is not told it is fine when it is not.
+// Before #221's interim fix, resolveInstance's first-failing-component
+// short-circuit never reached "name", so it raised no diagnostic of its own
+// anywhere in this configuration, and the cascade fixpoint reclassified the
+// whole instance as "no configuration edit is needed" from log_group_name
+// alone - which was false; plain "tofu validate" refuses this
+// configuration.
+//
+// After #221's proper fix, resolveInstance evaluates every component: both
+// failures now raise their own diagnostic, so "name" is visible as its own
+// hard "Identity argument not set" refusal alongside the log_group_name
+// cascade - and the fixpoint's hardFailureAddrs gate refuses to reclassify
+// a cascade sharing that same instance address, leaving the cascade itself
+// a hard "Unresolvable identity" refusal too, so neither reads as fine.
 func TestAnalyzeDoesNotReclassifyMultiComponentCascade(t *testing.T) {
 	report := analyzeFixtureDir(t, "cascade-multicomponent-blocked")
 
 	var identityCount, datareadCount int
+	identityIDs := map[string]int{}
 	for _, f := range report.Findings {
 		switch f.Layer {
 		case LayerIdentity:
 			identityCount += len(f.Sites)
-			if f.ID != "Unresolvable identity" {
+			identityIDs[f.ID] += len(f.Sites)
+			if f.ID != "Identity argument not set" && f.ID != "Unresolvable identity" {
 				t.Errorf("unexpected identity finding %s", f.ID)
 			}
 		case LayerDataread:
@@ -177,10 +184,180 @@ func TestAnalyzeDoesNotReclassifyMultiComponentCascade(t *testing.T) {
 	if datareadCount != 1 {
 		t.Errorf("want one data-read-eligible site (the log group's own read), got %d: %+v", datareadCount, report.Findings)
 	}
-	if identityCount != 1 {
-		t.Fatalf("want one identity-layer site (the log stream's cascade, held hard-refused), got %d: %+v", identityCount, report.Findings)
+	// Two identity-layer sites now, not one: "name"'s own failure is no
+	// longer invisible, and the log stream's cascade stays held back
+	// because that sibling failure exists - both visible, both refused.
+	if identityCount != 2 {
+		t.Fatalf("want two identity-layer sites (the log stream's own \"name\" failure and its log_group_name cascade, both held hard-refused), got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Identity argument not set\" site and one \"Unresolvable identity\" site, got %+v", identityIDs)
 	}
 
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeReclassifiesEveryComponentOfAMultiComponentCascade is GitHub
+// issue #221's proper fix, positive case (the audit's second adversarial
+// question: "a dependent whose failures are all eligible-traceable across
+// three components"). aws_route53_record has THREE real components
+// (zone_id, name, type), each cascading onto a DIFFERENT resource whose own
+// identity, in turn, reads the same eligible data source.
+//
+// #221's interim fix would have refused this outright - it refused any
+// cascade whose dependent type carried more than one real component,
+// unconditionally, regardless of whether every one of them was actually
+// fine. The proper fix evaluates every component, sees that all three
+// failures trace back to an eligible read, and reclassifies the whole
+// instance - proving the interim fix was not merely conservative but
+// strictly worse here: it would have blocked a configuration nothing here
+// actually blocks.
+func TestAnalyzeReclassifiesEveryComponentOfAMultiComponentCascade(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-multicomponent-eligible")
+
+	if len(report.Findings) != 1 {
+		t.Fatalf("want exactly one finding, got %d: %+v", len(report.Findings), report.Findings)
+	}
+	f := report.Findings[0]
+	if f.Layer != LayerDataread || f.ID != dataread.SummaryEligibleRead {
+		t.Fatalf("finding is %s/%s, want %s/%s", f.Layer, f.ID, LayerDataread, dataread.SummaryEligibleRead)
+	}
+	// Three buckets' own reads, plus the record's three cascaded
+	// components (zone_id, name, type) - all six sites, none held back.
+	if len(f.Sites) != 6 {
+		t.Fatalf("want six sites, got %d: %+v", len(f.Sites), f.Sites)
+	}
+	var cascadeCount int
+	for _, site := range f.Sites {
+		if strings.Contains(site.Detail, "depends on the identity of") {
+			cascadeCount++
+		}
+	}
+	if cascadeCount != 3 {
+		t.Errorf("want three cascaded sites (zone_id, name, type), got %d: %+v", cascadeCount, f.Sites)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingDataReadEligible {
+		t.Errorf("classified %q, want %q", got, OnboardingDataReadEligible)
+	}
+}
+
+// TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop is GitHub
+// issue #221's proper fix, chain case (the audit's third adversarial
+// question: "a chain where an intermediate hop has a mixed failure set").
+//
+// aws_cloudwatch_log_stream.child is a mixed intermediate hop: its
+// log_group_name cascades from the log group's eligible read, but its
+// "name" has no value at all - an independent hard failure, so child stays
+// hard-refused (same shape as
+// TestAnalyzeDoesNotReclassifyMultiComponentCascade).
+// aws_cloudwatch_log_subscription_filter.grandchild then references
+// child's own log_group_name attribute, one hop further down the chain.
+//
+// The danger this pins: if child's OWN cascade (log_group_name) were
+// allowed to add child to eligibleAddrs on its own - ignoring that child
+// also has an unrelated hard failure - grandchild's cascade onto child
+// would read "no configuration edit is needed" for an instance whose
+// identity can never actually be built. child must never enter
+// eligibleAddrs, so grandchild's cascade must stay hard-refused too.
+func TestAnalyzeDoesNotPoisonAChainThroughAMixedIntermediateHop(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-chain-mixed-intermediate")
+
+	var identityCount, datareadCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			identityIDs[f.ID] += len(f.Sites)
+		case LayerDataread:
+			datareadCount += len(f.Sites)
+			for _, site := range f.Sites {
+				if strings.Contains(site.Detail, "grandchild") {
+					t.Errorf("grandchild's cascade onto the mixed intermediate hop was reclassified as eligible: %s", site.Detail)
+				}
+			}
+		}
+	}
+	// The log group's own read: still eligible on its own terms.
+	if datareadCount != 1 {
+		t.Errorf("want one data-read-eligible site (the log group's own read), got %d: %+v", datareadCount, report.Findings)
+	}
+	// child's own "name" failure, child's log_group_name cascade, and
+	// grandchild's cascade onto child - three sites, all held back.
+	if identityCount != 3 {
+		t.Fatalf("want three identity-layer sites, got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Identity argument not set"] != 1 || identityIDs["Unresolvable identity"] != 2 {
+		t.Errorf("want one \"Identity argument not set\" site and two \"Unresolvable identity\" sites (child's own cascade and grandchild's), got %+v", identityIDs)
+	}
+
+	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
+	}
+}
+
+// TestAnalyzeCascadesPerForEachKeyEvenWhenOneKeyIsMixed is GitHub issue
+// #221's proper fix, for_each case (the audit's fourth adversarial
+// question: "a for_each/count expanded dependent where only some instances
+// have the mixed set").
+//
+// aws_cloudwatch_log_stream.child is for_each'd over two keys. Both
+// instances' log_group_name cascades from the same log group's eligible
+// read. Only key "b"'s "name" evaluates to null - a per-instance,
+// independent hard failure ("Null identity argument"); key "a"'s "name" is
+// an ordinary literal and never fails.
+//
+// hardFailureAddrs and eligibleAddrs are keyed by the full instance
+// address, key included, so the two keys of one resource block must not
+// share a verdict: child["a"] reclassifies, child["b"] stays hard-refused.
+func TestAnalyzeCascadesPerForEachKeyEvenWhenOneKeyIsMixed(t *testing.T) {
+	report := analyzeFixtureDir(t, "cascade-mixed-per-foreach-key")
+
+	var eligibleSites []string
+	var identityCount int
+	identityIDs := map[string]int{}
+	for _, f := range report.Findings {
+		switch f.Layer {
+		case LayerDataread:
+			for _, site := range f.Sites {
+				eligibleSites = append(eligibleSites, site.Detail)
+			}
+		case LayerIdentity:
+			identityCount += len(f.Sites)
+			identityIDs[f.ID] += len(f.Sites)
+		}
+	}
+	// The log group's own read, plus child["a"]'s cascade - and nothing
+	// naming child["b"].
+	if len(eligibleSites) != 2 {
+		t.Fatalf("want two data-read-eligible sites, got %d: %+v", len(eligibleSites), eligibleSites)
+	}
+	var sawKeyA bool
+	for _, detail := range eligibleSites {
+		if strings.Contains(detail, `child["b"]`) {
+			t.Errorf("child[\"b\"] (the mixed key) was reclassified as eligible: %s", detail)
+		}
+		if strings.Contains(detail, `child["a"]`) {
+			sawKeyA = true
+		}
+	}
+	if !sawKeyA {
+		t.Errorf("child[\"a\"] (the clean key) was not reclassified as eligible: %+v", eligibleSites)
+	}
+	// child["b"]'s own "Null identity argument" plus its log_group_name
+	// cascade - both held back, and nothing from child["a"].
+	if identityCount != 2 {
+		t.Fatalf("want two identity-layer sites (both from child[\"b\"]), got %d: %+v", identityCount, report.Findings)
+	}
+	if identityIDs["Null identity argument"] != 1 || identityIDs["Unresolvable identity"] != 1 {
+		t.Errorf("want one \"Null identity argument\" site and one \"Unresolvable identity\" site, got %+v", identityIDs)
+	}
+
+	// The estate as a whole stays blocked - child["b"] alone keeps it there
+	// even though child["a"] is individually fine.
 	if got := ClassifyOnboarding(true, refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
 		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
 	}
