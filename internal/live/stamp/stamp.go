@@ -914,7 +914,7 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 			prop = "a property of the cloud it is pointed at"
 		}
 		return fmt.Sprintf(
-			"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left, so %s",
+			"%s has an identity this configuration would determine on its own except for the %s, which is a property of the cloud this run is pointed at and which nothing has told this run. The ownership marker is the only handle left. %s",
 			addr, prop, lost)
 
 	case identity.DiscoveryNameOmitted:
