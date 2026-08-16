@@ -442,6 +442,9 @@ func DeclaredDiagnostics(ctx context.Context, req Request) tfdiags.Diagnostics {
 // "the types recorded as belonging to this estate" is the design that cannot
 // exist here: the recording of it would be a store, which is exactly the
 // thing whose absence is the point.
+//
+// One class of admitted type is excluded outright: a record-backed one
+// ([identity.TypeIdentity.RecordBacked]). See [cloudObservable].
 func sweepTypes(req Request, decl *declared) []string {
 	universe := req.SweepTypes
 	if len(universe) == 0 {
@@ -452,10 +455,47 @@ func sweepTypes(req Request, decl *declared) []string {
 		if decl.types[t] != nil {
 			continue
 		}
+		if !cloudObservable(t) {
+			continue
+		}
 		out = append(out, t)
 	}
 	sort.Strings(out)
 	return out
+}
+
+// cloudObservable reports whether a resource type can have a live cloud
+// object at all, which is the precondition for asking a provider to list it.
+//
+// It is false for exactly the record-backed types (GitHub issue #73's
+// RECORD_ADMITTED logical types: null_resource, terraform_data, and the
+// random_* and time_* families). Those have no cloud counterpart by
+// construction - choudoufu persists them itself, per estate, and
+// internal/live/projection materializes an instance from that record without
+// any cloud read at all ([identity.ClassRecordBacked], build.go's
+// materializeRecord). Listing one is asking the account about something that
+// was never there, and the provider handle discovery lists through has no
+// list resource for it either way, so every such request came back as a
+// [SweepGapNotListable] gap: fourteen of them on every swept plan, each one
+// telling an operator that removal coverage has a hole where no coverage was
+// ever possible or needed. A deleted null_resource block is the record
+// store's business, never the sweep's.
+//
+// The rule is read off the admission table rather than named type by type,
+// so a row row-gen marks RecordBacked later is excluded the day it lands.
+// The universe is filtered whoever asked for it, including an explicit
+// [Request.SweepTypes]: "has no cloud object" is a property of the type, not
+// of the caller.
+func cloudObservable(typeName string) bool {
+	entry, ok := identity.LookupType(typeName)
+	if !ok {
+		// Outside the table entirely. sweepTypes' own universe cannot
+		// contain such a type, but an explicit Request.SweepTypes can, and
+		// "unknown" is not "record-backed" - leave it to the scan, which
+		// reports what it finds.
+		return true
+	}
+	return !entry.RecordBacked
 }
 
 // ---------------------------------------------------------------------------
