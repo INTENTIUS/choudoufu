@@ -66,6 +66,53 @@ var measuredSensitivity = map[string][]string{
 	"tls_self_signed_cert":    {"private_key_pem"},
 }
 
+// measuredDeprecated is every attribute the same five providers mark
+// Deprecated, across all twenty-one types - the complete list, not a
+// selection. Measured the same way and at the same time as
+// [measuredSensitivity], from each Attribute's Deprecated flag, with the
+// provider's own DeprecationMessage quoted.
+//
+// It exists because the derivation in
+// [TestLogicalClassAgreesWithProviderSensitivity] reads "a sensitive
+// attribute means this type handles secret material", and a deprecated
+// attribute does not support that reading. local_file.sensitive_content is
+// the case that forces the point: hashicorp/local deprecated it *in order
+// to* move the sensitive case out into its own resource type, so the one
+// attribute that would classify local_file as a secret-handling type is
+// the one the provider tells you not to use, and its replacement is a
+// different type that this table classifies separately. Counting it would
+// have local_file classified by an attribute whose whole purpose is to no
+// longer be local_file's.
+//
+// Only local_file.sensitive_content is both sensitive and deprecated, so
+// subtracting this map moves exactly one of the twenty-one types and no
+// [logicalTypes] row at all.
+var measuredDeprecated = map[string][]string{
+	// "Use the `local_sensitive_file` resource instead"
+	"local_file": {"sensitive_content"},
+	// "**NOTE**: This is deprecated, use `numeric` instead." - not sensitive
+	// in either type, recorded so this map is the complete measurement
+	// rather than only the part that changes an answer.
+	"random_password": {"number"},
+	"random_string":   {"number"},
+}
+
+// liveSensitiveAttrs is typ's sensitive attributes with its deprecated ones
+// removed: the input to the classification rule below.
+func liveSensitiveAttrs(typ string) []string {
+	deprecated := make(map[string]bool, len(measuredDeprecated[typ]))
+	for _, name := range measuredDeprecated[typ] {
+		deprecated[name] = true
+	}
+	var live []string
+	for _, name := range measuredSensitivity[typ] {
+		if !deprecated[name] {
+			live = append(live, name)
+		}
+	}
+	return live
+}
+
 // TestLogicalClassAgreesWithProviderSensitivity checks every [logicalTypes]
 // row against the provider's own sensitivity markings.
 //
@@ -74,14 +121,20 @@ var measuredSensitivity = map[string][]string{
 // material", and the tls_self_signed_cert row makes the marked-anywhere
 // reading explicit by refusing a type whose own cert_pem output is not
 // secret, on the strength of a sensitive private_key_pem *argument*. So the
-// mechanical form of that argument is: sensitive attribute anywhere in the
-// schema => SECRET_REFUSED, none => RECORD_ADMITTED. Applied to the
-// measured data it reproduces all fifteen provider-backed rows, and this
-// test is what keeps that true.
+// mechanical form of that argument is: a live (non-deprecated) sensitive
+// attribute anywhere in the schema => SECRET_REFUSED, none =>
+// RECORD_ADMITTED. Applied to the measured data it reproduces all fifteen
+// provider-backed rows, and this test is what keeps that true.
+//
+// The deprecation clause is [measuredDeprecated]'s doc comment; it changes
+// no row here, and is stated as part of the rule rather than as a special
+// case so that the rule can be applied to a type this table has no row for
+// without reaching a conclusion the provider disowns.
 func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 	covered := 0
 	for typ, lt := range logicalTypes {
-		sensitive, measured := measuredSensitivity[typ]
+		_, measured := measuredSensitivity[typ]
+		sensitive := liveSensitiveAttrs(typ)
 		if !measured {
 			// terraform_data is a language built-in; no provider publishes a
 			// schema for it, so it is the one row this check cannot cover.
@@ -108,6 +161,42 @@ func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 	}
 }
 
+// TestDeprecationClauseMovesOnlyLocalFile bounds the clause the rule above
+// applies, so that widening it later is a deliberate act with a visible
+// diff rather than a quiet reclassification.
+//
+// It recomputes, rather than restates, both halves: which types
+// [measuredDeprecated] names attributes for that [measuredSensitivity] does
+// not mark sensitive (so the clause cannot reach them), and which types the
+// clause actually changes the derived class of. The audit shape this exists
+// for is "a mask wider than its label" - a subtraction that looks like it
+// touches one type and in fact suppresses evidence on several.
+func TestDeprecationClauseMovesOnlyLocalFile(t *testing.T) {
+	var moved []string
+	for typ := range measuredSensitivity {
+		before := len(measuredSensitivity[typ]) > 0
+		after := len(liveSensitiveAttrs(typ)) > 0
+		if before != after {
+			moved = append(moved, typ)
+		}
+	}
+	sort.Strings(moved)
+
+	want := []string{"local_file"}
+	if len(moved) != len(want) || (len(moved) == 1 && moved[0] != want[0]) {
+		t.Errorf("the deprecation clause changes the derived class of %v, want %v - "+
+			"re-read measuredDeprecated's doc comment before widening this", moved, want)
+	}
+
+	// Every type measuredDeprecated names must be one measuredSensitivity
+	// covers, or the two measurements are of different provider versions.
+	for typ := range measuredDeprecated {
+		if _, ok := measuredSensitivity[typ]; !ok {
+			t.Errorf("measuredDeprecated names %q, which measuredSensitivity does not cover", typ)
+		}
+	}
+}
+
 // unclassifiedFamilyMembers are the resource types in the five
 // [logicalFamilyPrefixes] families that [logicalTypes] has no hand-written
 // row for, so they classify [ClassOtherRefused] by default (except the tls_
@@ -126,10 +215,41 @@ func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 //     random_uuid7 shipped in random 3.9.0, after this table was written:
 //     the table cannot grow a row for a type released after it, which is why
 //     the classification wants deriving rather than listing.
-//   - local_file, local_sensitive_file: sensitive attributes, so
-//     SECRET_REFUSED - though neither wording fits a resource whose side
-//     effect is a file on local disk, which no record and no cloud marker
-//     describes.
+//
+//     The four agree with the provider's own prose, read out of the same
+//     schema response as the sensitivity flags (every Attribute and Block
+//     carries a Description the provider ships in its binary, so this needs
+//     no doc cache and no network). random_uuid, random_uuid4 and
+//     random_uuid7 are each described as generating a value "intended to be
+//     used as a unique identifier for other resources" - word for word what
+//     random_pet's description says, and random_pet is RECORD_ADMITTED.
+//     random_string's is the explicit one: "For unique ids please use
+//     random_id, for sensitive random values please use random_password",
+//     and random_password's own description reads "Identical to
+//     random_string with the exception that the result is treated as
+//     sensitive". The provider documents the pair as the non-sensitive and
+//     sensitive halves of one resource, and puts random_string on the
+//     non-sensitive half.
+//
+//   - local_file: its ONLY sensitive attribute is sensitive_content, which
+//     is deprecated with the message "Use the `local_sensitive_file`
+//     resource instead" - so once the deprecation clause above applies, it
+//     derives RECORD_ADMITTED, not SECRET_REFUSED.
+//   - local_sensitive_file: content and content_base64 are sensitive and
+//     settable, and projection's recordPayload stores the whole object
+//     value (internal/live/projection/record.go), so a record for one would
+//     carry that content. SECRET_REFUSED on the rule and on the mechanism.
+//
+//     Neither wording fits either type, for a reason the rule cannot see.
+//     Measured against hashicorp/local 2.9.0: delete the file and the
+//     provider drops the resource from state, so the next plan proposes a
+//     create; change its content and the same thing happens, because id is
+//     documented as (and measured to be) the SHA1 of the content. Both
+//     types read their file back. OTHER_REFUSED's Detail tells the author
+//     "there is no live system holding it", which for these two is false:
+//     the local filesystem is holding it, and every attribute of both types
+//     is a function of configuration plus that file. What they lack is not
+//     a value to recover but an estate to belong to.
 //
 // See the tracker issue this list cites for the work that would empty it.
 var unclassifiedFamilyMembers = []string{
@@ -163,6 +283,40 @@ func TestUnclassifiedFamilyMembersAreExactlyTheKnownGap(t *testing.T) {
 	for i := range got {
 		if got[i] != want[i] {
 			t.Fatalf("family members with no logicalTypes row = %v, want %v", got, want)
+		}
+	}
+}
+
+// TestLocalFileKeepsItsCountIndexCheck guards the second thing that would
+// break if local_file were promoted to RECORD_ADMITTED on the strength of
+// the derivation above, which is not a lint message but a silenced check.
+//
+// countIndexScopeForType (count_index.go) returns skip:true for a
+// RECORD_ADMITTED type, on the stated ground that such a type's identity is
+// "the persisted record addressed by the resource's own instance address,
+// never by any argument value". That holds for all ten current members -
+// null_resource, terraform_data, random_*, time_* have no argument naming
+// anything outside the record. It does not hold for local_file, whose
+// filename argument names a real file, and two instances at distinct
+// addresses with distinct records still collide on one path.
+//
+// Measured against hashicorp/local 2.9.0 under stock Terraform: four
+// instances of count = 4 with filename = "c-${count.index % 2}.txt" apply
+// cleanly ("5 added"), leave two files holding instances 2 and 3, and the
+// very next plan reports "2 to add" - it never converges, under stock
+// OpenTofu semantics, with a state file present. So filename is genuinely
+// identity-bearing and the count-index walk over it is doing real work.
+//
+// This is the "did this change turn any warning into silence?" shape: the
+// promotion looks like a wording improvement and would also delete a check
+// on a configuration stock OpenTofu itself cannot settle.
+func TestLocalFileKeepsItsCountIndexCheck(t *testing.T) {
+	for _, typ := range []string{"local_file", "local_sensitive_file"} {
+		lt, isLogical := ClassifyLogicalType(typ)
+		if scope := countIndexScopeForType(typ, lt, isLogical); scope.skip {
+			t.Errorf("countIndexScopeForType(%q) skips the count.index walk, but %q's "+
+				"filename argument names the file itself - two instances can collide on "+
+				"one path, which stock OpenTofu does not converge either", typ, typ)
 		}
 	}
 }
