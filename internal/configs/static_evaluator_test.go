@@ -143,7 +143,6 @@ resource "foo" "bar" {}
 			{"static", "static"},
 			{"static_ref", "static"},
 			{"static_fn", "a81259cef8e959c624df1d456e5d3297"},
-			{"path_root", "dir"},
 			{"path_module", "."},
 		}
 		for _, local := range locals {
@@ -157,6 +156,24 @@ resource "foo" "bar" {}
 				}
 			})
 		}
+
+		// path.root is rootDir()'s value now (issue #226) - the absolute
+		// form of rootPath, not the raw "dir" string - so it is asserted
+		// separately against filepath.Abs("dir") rather than folded into
+		// the table above.
+		t.Run("path_root", func(t *testing.T) {
+			want, err := filepath.Abs("dir")
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, diags := eval.Evaluate(t.Context(), mod.Locals["path_root"].Expr, dummyIdentifier)
+			if diags.HasErrors() {
+				t.Error(diags)
+			}
+			if got := value.AsString(); got != filepath.ToSlash(want) {
+				t.Errorf("Expected %s got %s", filepath.ToSlash(want), got)
+			}
+		})
 	})
 
 	t.Run("Valid Variables", func(t *testing.T) {
@@ -609,6 +626,77 @@ func TestStaticEvaluator_modulePath(t *testing.T) {
 	}
 }
 
+// TestStaticEvaluator_rootDir exercises [StaticEvaluator.rootDir] directly:
+// path.root's value (issue #226). Every case's want is computed with
+// filepath.Abs on baseDir()'s own answer, not a literal string, because
+// rootDir's whole point is to be that value made absolute - asserting
+// against a hand-written absolute string would make the test pass by
+// coincidence on whatever machine wrote it and fail on every other one.
+func TestStaticEvaluator_rootDir(t *testing.T) {
+	abs := func(t *testing.T, dir string) string {
+		t.Helper()
+		a, err := filepath.Abs(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.ToSlash(a)
+	}
+
+	cases := []struct {
+		name string
+		eval *StaticEvaluator
+		dir  string // fed through abs() for want, and through baseDir()'s own chain for got
+	}{
+		{
+			name: "rootPath set - the ordinary case for every real construction site",
+			eval: &StaticEvaluator{
+				call: NewStaticModuleCall(nil, hcl.Range{}, nil, "deployments/github", ""),
+				cfg:  &Module{SourceDir: "deployments/github"},
+			},
+			dir: "deployments/github",
+		},
+		{
+			name: "rootPath already absolute (internal/command's usual case) stays the same absolute path",
+			eval: &StaticEvaluator{
+				call: NewStaticModuleCall(nil, hcl.Range{}, nil, "/repo/deployments/github", ""),
+				cfg:  &Module{SourceDir: "/repo/deployments/github"},
+			},
+			dir: "/repo/deployments/github",
+		},
+		{
+			name: "rootPath empty, cfg.SourceDir set - baseDir()'s own fallback chain applies here too",
+			eval: &StaticEvaluator{
+				call: StaticModuleCall{},
+				cfg:  &Module{SourceDir: "some/dir"},
+			},
+			dir: "some/dir",
+		},
+		{
+			name: "rootPath and cfg both empty falls back to baseDir()'s '.'",
+			eval: &StaticEvaluator{
+				call: StaticModuleCall{},
+			},
+			dir: ".",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := abs(t, tc.dir)
+			if got := tc.eval.rootDir(); got != want {
+				t.Errorf("rootDir() = %q, want %q", got, want)
+			}
+		})
+	}
+
+	t.Run("nil evaluator falls back to baseDir()'s '.', made absolute", func(t *testing.T) {
+		var eval *StaticEvaluator
+		want := abs(t, ".")
+		if got := eval.rootDir(); got != want {
+			t.Errorf("rootDir() = %q, want %q", got, want)
+		}
+	})
+}
+
 // writeRealModule plants a real .tf file (plus whatever other real files
 // the caller wants) under dir, on the actual OS filesystem - file() and its
 // relatives read through os.Open, never through the in-memory afero
@@ -745,6 +833,103 @@ func TestStaticEvaluator_PathModulePrefixedFileDoesNotDouble(t *testing.T) {
 				t.Errorf("file() read %q, want %q (reading %q means the base directory got doubled and a DIFFERENT real file was silently read)", got, want, "doubled")
 			}
 		})
+	}
+}
+
+// TestStaticEvaluator_PathRootPrefixedFileDoesNotDouble is #226's end-to-end
+// proof, mirroring TestStaticEvaluator_PathModulePrefixedFileDoesNotDouble
+// above but for path.root rather than path.module: before rootDir's fix,
+// file("${path.root}/x") doubled the exact same way
+// file("${path.module}/x") did before #205's second pass - path.root's
+// value WAS call.rootPath verbatim, the same string baseDir() resolves
+// bare arguments against, so the argument "rootPath/data.txt" got joined
+// onto baseDir=rootPath a second time.
+//
+// This plants a file at both the correct location and the doubled one,
+// with different content, so a regression reads "doubled" instead of
+// "single" - a silently wrong file, not a refusal - exactly the risk this
+// class of fix always carries.
+func TestStaticEvaluator_PathRootPrefixedFileDoesNotDouble(t *testing.T) {
+	repoRoot := t.TempDir()
+	entryDir := filepath.Join(repoRoot, "deployments", "github")
+	if err := os.MkdirAll(entryDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(entryDir, "data.txt"), []byte("single"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The doubled path a pre-fix path.root would have produced:
+	// Join(rootPath, rootPath+"/data.txt") when rootPath is
+	// "deployments/github".
+	doubled := filepath.Join(entryDir, "deployments", "github")
+	if err := os.MkdirAll(doubled, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(doubled, "data.txt"), []byte("doubled"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeRealModule(t, entryDir,
+		`locals {
+  prefixed = file("${path.root}/data.txt")
+}
+`,
+		nil)
+
+	t.Chdir(repoRoot)
+	relDir := filepath.Join("deployments", "github")
+
+	parser := NewParser(nil)
+	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
+	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	if diags.HasErrors() {
+		t.Fatalf("load: %s", diags)
+	}
+
+	id := StaticIdentifier{Subject: "local.prefixed"}
+	val, evalDiags := mod.StaticEvaluator.Evaluate(t.Context(), mod.Locals["prefixed"].Expr, id)
+	if evalDiags.HasErrors() {
+		t.Fatalf("file() failed: %s", evalDiags)
+	}
+	if got, want := val.AsString(), "single"; got != want {
+		t.Errorf("file() read %q, want %q (reading %q means path.root got doubled against baseDir and a DIFFERENT real file was silently read)", got, want, "doubled")
+	}
+}
+
+// TestStaticEvaluator_PathRootBasenameAbspathSurvives guards the constraint
+// rootDir's fix must not break: this fork's own corpus uses
+// basename(abspath(path.root)) at 25+ sites across govuk-infrastructure and
+// govuk-aws to recover the deployment directory's own name for a tag
+// value. rootDir now returns an absolute path rather than call.rootPath's
+// raw (often relative) string, so this proves the idiom still answers with
+// the real directory name, not something abspath() or basename() trips
+// over by being handed an already-absolute path.
+func TestStaticEvaluator_PathRootBasenameAbspathSurvives(t *testing.T) {
+	repoRoot := t.TempDir()
+	entryDir := filepath.Join(repoRoot, "deployments", "github")
+	writeRealModule(t, entryDir,
+		`locals {
+  deployment = basename(abspath(path.root))
+}
+`,
+		nil)
+
+	t.Chdir(repoRoot)
+	relDir := filepath.Join("deployments", "github")
+
+	parser := NewParser(nil)
+	rootCall := NewStaticModuleCall(nil, hcl.Range{}, nil, relDir, "")
+	mod, diags := parser.LoadConfigDir(relDir, rootCall)
+	if diags.HasErrors() {
+		t.Fatalf("load: %s", diags)
+	}
+
+	id := StaticIdentifier{Subject: "local.deployment"}
+	val, evalDiags := mod.StaticEvaluator.Evaluate(t.Context(), mod.Locals["deployment"].Expr, id)
+	if evalDiags.HasErrors() {
+		t.Fatalf("basename(abspath(path.root)) failed: %s", evalDiags)
+	}
+	if got, want := val.AsString(), "github"; got != want {
+		t.Errorf("basename(abspath(path.root)) = %q, want %q", got, want)
 	}
 }
 
