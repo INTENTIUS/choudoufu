@@ -90,27 +90,43 @@ const maxStaticDecomposeDepth = 16
 // defer, immediately after a successful call. It is a no-op when no switch
 // was needed.
 //
+// decl is the "variable" block the returned expression is the argument FOR,
+// and is nil for a local (a local has no declared type) and nil for a "var"
+// whose declaration this module does not hold. It is what makes the returned
+// expression's value usable: OpenTofu never uses a module call's argument
+// value as written, it converts that value to the variable's declared type
+// first, in prepareFinalInputVariableValue (internal/tofu/eval_variable.go).
+// Anything reading a value out of the returned expression therefore owes that
+// conversion, which is what [varConvertedElems] applies. Carrying the
+// declaration rather than only the type keeps the whole of that function's
+// input here - the optional-attribute defaults it applies BEFORE converting
+// are as load-bearing as the constraint itself.
+//
 // ok is false whenever there is nothing to chase: an undeclared local, a
 // variable at the root module (root variables come from the CLI or tfvars,
 // never from another resource, so evalStatic's ordinary handling of them
 // was already correct), or a variable the caller left to its declared
 // default (a default is always configuration-authored, never a resource
 // reference, for the same reason).
-func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression, instScope, func(), bool) {
+func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression, instScope, *configs.Variable, func(), bool) {
 	noop := func() {}
 
 	switch root {
 	case "local":
 		local, ok := r.mod.Locals[name]
 		if !ok {
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
-		return local.Expr, scope, noop, true
+		return local.Expr, scope, nil, noop, true
 
 	case "var":
 		if len(r.modInst) == 0 {
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
+		// Read before enterModuleFor switches r.mod: the "variable" block is
+		// declared in THIS module, the one being resolved, while the argument
+		// expression the switch goes to fetch lives in its caller.
+		decl := r.mod.Variables[name]
 		parentInst, callInst := r.modInst.CallInstance()
 		// curCfg belongs in this set, not only mod/modInst/eval:
 		// [resolver.enterModuleAt] sets all four together, so a restore
@@ -132,14 +148,14 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 		// shape.
 		savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
 		if !r.enterModuleFor(parentInst) {
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
 		restore := func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }
 
 		mc, ok := r.mod.ModuleCalls[callInst.Call.Name]
 		if !ok || mc.Config == nil {
 			restore()
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
 		defScope := instScope{}
 		if mc.Count != nil || mc.ForEach != nil {
@@ -179,23 +195,23 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 			rd, ok := ChildModuleRepetitionData(r.ctx, r.mod, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
 			if !ok {
 				restore()
-				return nil, instScope{}, noop, false
+				return nil, instScope{}, nil, noop, false
 			}
 			defScope = instScope{repetition: rd}
 		}
 		attrs, diags := mc.Config.JustAttributes()
 		if diags.HasErrors() {
 			restore()
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
 		attr, ok := attrs[name]
 		if !ok {
 			restore()
-			return nil, instScope{}, noop, false
+			return nil, instScope{}, nil, noop, false
 		}
-		return attr.Expr, defScope, restore, true
+		return attr.Expr, defScope, decl, restore, true
 	}
-	return nil, instScope{}, noop, false
+	return nil, instScope{}, nil, noop, false
 }
 
 // ---- the key-set fix ---------------------------------------------------
@@ -346,13 +362,27 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) == 2 {
 		if root := trav.RootName(); root == "local" || root == "var" {
 			if nameStep, ok := trav[1].(hcl.TraverseAttr); ok {
-				defExpr, _, restore, defOk := r.namedDef(root, nameStep.Name, instScope{})
+				defExpr, _, decl, restore, defOk := r.namedDef(root, nameStep.Name, instScope{})
 				if defOk {
 					defer restore()
 					// tupleIsArgs propagates through the alias: the corpus
 					// shape is merge(local.teams...), where the splatted
 					// argument is a local naming the list.
-					return r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
+					keys, vals, ok := r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
+					if !ok {
+						return nil, nil, false
+					}
+					// #251: what the chase just read is the module CALL's
+					// argument, and no value inside a module is ever the one
+					// the call wrote - OpenTofu converts to the variable's
+					// declared type first. decl is nil for a local, where
+					// there is no declared type and nothing to apply; for a
+					// variable it is applied here, at the hop, so a chain of
+					// hops converts once per hop exactly as OpenTofu does.
+					// Keys are deliberately left alone: they are converted to
+					// strings on both sides already, which is why the key set
+					// has been right through this hop all along.
+					return keys, varConvertedElems(decl, keys, vals), true
 				}
 			}
 		}
@@ -973,7 +1003,15 @@ func (r *resolver) resolveModuleOutput(callName string, rest []hcl.Traverser, id
 // says the definition must be evaluated in, which for "var" is the module
 // CALL's own repetition, not scope (the caller's).
 func (r *resolver) resolveNamed(root, name string, rest []hcl.Traverser, scope instScope, ident configs.StaticIdentifier) ([]Part, bool, bool) {
-	defExpr, defScope, restore, ok := r.namedDef(root, name, scope)
+	// The declaration is deliberately dropped here and read only by
+	// [resolver.staticCollElems]'s hop. This path renders a value into an
+	// identity PART, not into a bound each.value, and a part may be a
+	// symbolic Formula over a resource attribute that no cty conversion can
+	// be applied to at all - so #251's conversion does not compose with it
+	// without first deciding what the declared type means for the symbolic
+	// half. That is tracked separately; see [varConvertedElems]'s closing
+	// note for the shape it leaves open.
+	defExpr, defScope, _, restore, ok := r.namedDef(root, name, scope)
 	if !ok {
 		return nil, false, false
 	}
