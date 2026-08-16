@@ -52,21 +52,26 @@ type Source struct {
 	// source for a transitive dependency.
 	NeededBy string
 
-	// CrossStack marks terraform_remote_state, the one cross-stack flavor
-	// this stage still does not cover: it keeps exactly the refusal it has
-	// today, and this record only says the demand exists. tfe_outputs used
-	// to set this too; #179 stage 2 gives it the standard pipeline instead
-	// and marks it with [Source.TfeOutputs].
-	CrossStack bool
-
 	// TfeOutputs marks a tfe_outputs source. It goes through the same
-	// eligibility pipeline as a same-stack source, plus one extra rule: the
-	// tfe provider's auth surface (a token argument, TFE_TOKEN, or a CLI
-	// credentials entry) must be available, checked offline the same way
-	// eligibility rule 3 checks provider-configurability. An ineligible
-	// tfe_outputs source refuses under [SummaryCrossStackOutputsUnavailable]
-	// rather than the generic classes same-stack sources use.
+	// eligibility pipeline as a same-stack source. Credential presence
+	// itself is not an eligibility question - the maintainer's ruling on
+	// #181 (eligibility models the owner, consistent with stage 1's
+	// treatment of the aws provider block): a token argument, TFE_TOKEN, or
+	// a CLI credentials entry is assumed to exist for the owner running
+	// this, and its actual absence surfaces as a read-time refusal under
+	// [SummaryCrossStackOutputsUnavailable] instead (see [reader.readSource]
+	// in read.go).
 	TfeOutputs bool
+
+	// RemoteState marks a terraform_remote_state source. #179 stage 3 gives
+	// it the same eligibility pipeline a same-stack source gets: its own
+	// arguments (the backend type, its config object, the workspace) must
+	// be statically evaluable, the same rules 1/2/4 any data source draws.
+	// Backend credentials are assumed present for eligibility, the same
+	// ruling [Source.TfeOutputs] documents; an absent, unreachable, or
+	// undecodable backend refuses honestly at read time under
+	// [SummaryCrossStackStateUnavailable].
+	RemoteState bool
 
 	// Eligible reports that the phase can read this source before the plan:
 	// static arguments and count/for_each, a statically configurable
@@ -227,16 +232,14 @@ func DataSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
 	return addrs.Resource{}, false
 }
 
-// extendPlaceholders covers every classified same-stack source with an
+// extendPlaceholders covers every classified source - same-stack or either
+// cross-stack flavor, both now carried through the same pipeline - with an
 // unknown placeholder value in every instance of its module, so the next
 // probe round evaluates past it and reveals what its coverage unblocks. It
 // reports whether coverage grew.
 func (an *analyzer) extendPlaceholders(placeholders map[string]cty.Value) bool {
 	grew := false
 	for _, src := range an.analysis.order {
-		if src.CrossStack {
-			continue
-		}
 		for _, modInst := range an.moduleInstancesOf(src.Module) {
 			key := src.Resource.Instance(addrs.NoKey).Absolute(modInst).String()
 			if _, ok := placeholders[key]; !ok {
@@ -316,16 +319,15 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 
 	src := &Source{Module: module, Resource: res, Config: rc, NeededBy: neededBy}
 	if configs.IsRemoteState(res.Type) {
-		// Stage 3's flavor: stays exactly as refused as it is today.
-		src.CrossStack = true
-		an.analysis.sources[key] = src
-		an.analysis.order = append(an.analysis.order, src)
-		return src
+		// Stage 3: terraform_remote_state goes through the same eligibility
+		// pipeline a same-stack source does, below - credentials assumed
+		// present per the ruling [Source.RemoteState] documents.
+		src.RemoteState = true
 	}
 	if configs.IsTfeOutputs(res.Type) {
 		// Stage 2: tfe_outputs goes through the same eligibility pipeline a
-		// same-stack source does, below, plus the auth-surface rule after
-		// rule 3.
+		// same-stack source does, below - credentials assumed present per
+		// the ruling [Source.TfeOutputs] documents.
 		src.TfeOutputs = true
 	}
 
@@ -391,27 +393,18 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	// Rule 3: the provider must be configurable the way the projection
 	// builder configures one - by statically evaluating its root provider
 	// block. The exact line ConfiguredProvider already draws.
-	var providerCfg *configs.Provider
+	//
+	// Credential presence itself is not drawn here: the maintainer's ruling
+	// on #181 moves that check to read time for both cross-stack flavors
+	// (tfeAuthAvailable, consulted from [reader.readSource] in read.go, and
+	// the builtin terraform provider's own backend-configure call for
+	// terraform_remote_state), so that eligibility models what an owner
+	// running this configuration actually has, the same treatment stage 1
+	// gives the aws provider block.
 	if src.ReasonSummary == "" {
-		var ok bool
-		var detail string
-		ok, detail, providerCfg = an.providerConfigurable(node, rc)
+		ok, detail, _ := an.providerConfigurable(node, rc)
 		if !ok {
 			src.ReasonSummary = SummaryProviderNotConfigurable
-			src.ReasonDetail = fmt.Sprintf(
-				"%s's value is needed to resolve the identity of %s, but %s.",
-				res.String(), neededBy, detail)
-		}
-	}
-
-	// tfe_outputs' own eligibility rule, checked the same way rule 3 is -
-	// offline, from the provider block and the process environment, before
-	// any read is attempted: the tfe provider's auth surface must be
-	// present, or there is nothing honest to read and no reason to risk a
-	// read call that will only fail (or, worse, block) on a missing token.
-	if src.ReasonSummary == "" && src.TfeOutputs {
-		if ok, detail := an.tfeAuthAvailable(providerCfg); !ok {
-			src.ReasonSummary = SummaryCrossStackOutputsUnavailable
 			src.ReasonDetail = fmt.Sprintf(
 				"%s's value is needed to resolve the identity of %s, but %s.",
 				res.String(), neededBy, detail)
@@ -433,8 +426,6 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		switch {
 		case depSrc == nil:
 			refuse(fmt.Sprintf("it references %s, which this module does not declare", dep.String()))
-		case depSrc.CrossStack:
-			refuse(fmt.Sprintf("it depends on %s, a cross-stack data source this stage does not read", dep.String()))
 		case depSrc.ReasonSummary != "":
 			refuse(fmt.Sprintf("it depends on %s, which cannot be read before the plan (%s)", dep.String(), depSrc.ReasonDetail))
 		}
@@ -530,11 +521,11 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 
 	eval := node.Module.StaticEvaluator.Pure().WithDataResults(func(addr addrs.Resource) (cty.Value, bool) {
 		dep := node.Module.DataResources[addr.String()]
-		// terraform_remote_state is the one flavor still not covered: a
-		// reference to it is an ineligibility, not an ordering edge.
-		// tfe_outputs is covered exactly like a same-stack source - stage
-		// 2 gives it the same pipeline, recorded as a dependency below.
-		if dep == nil || configs.IsRemoteState(addr.Type) {
+		// Both cross-stack flavors are covered exactly like a same-stack
+		// source now - stage 2 (tfe_outputs) and stage 3
+		// (terraform_remote_state) give them the same pipeline, recorded as
+		// a dependency below.
+		if dep == nil {
 			return cty.NilVal, false
 		}
 		record(addr)
@@ -605,8 +596,8 @@ func (an *analyzer) findProviderConfig(node *configs.Config, rc *configs.Resourc
 // at read time. An absent block for the default configuration is fine - the
 // provider configures itself from the process environment - while an absent
 // block for an aliased configuration is not. The found provider block (nil
-// for the default configuration) is returned too, for the tfe auth-surface
-// rule that runs right after this one.
+// for the default configuration) is returned too, for [reader.readSource] in
+// read.go to reuse when it draws tfe_outputs' read-time auth check.
 func (an *analyzer) providerConfigurable(node *configs.Config, rc *configs.Resource) (bool, string, *configs.Provider) {
 	pcAddr, found := an.findProviderConfig(node, rc)
 	if found == nil {

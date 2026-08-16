@@ -24,11 +24,24 @@ import (
 // when the provider block does not set one.
 const defaultTfeHostname = "app.terraform.io"
 
-// tfeAuthAvailable draws tfe_outputs' own eligibility rule, checked offline
-// the same way rule 3 checks provider-configurability: from the provider
-// block (already proven statically evaluable by the time this runs) and the
-// process environment, never by starting the provider. Three surfaces, in
-// the order the tfe provider itself documents checking them:
+// tfeAuthAvailable draws tfe_outputs' own read-time auth check, consulted by
+// [reader.readSource] in read.go right before it would otherwise attempt a
+// read. It runs offline, the same way eligibility rule 3 checks
+// provider-configurability: from the provider block (already proven
+// statically evaluable by the time this runs) and the process environment,
+// never by starting the provider.
+//
+// This is deliberately not an eligibility rule. The maintainer's ruling on
+// #181: eligibility models the owner running the configuration, and an
+// owner running tfe_outputs has a token by construction - the same
+// reasoning stage 1 already applies to the aws provider block, which is
+// treated as statically configurable without live credentials. Token
+// absence is a fact about THIS run's environment, not about whether the
+// configuration itself is expressible, and it surfaces as a read-time
+// refusal like any other credential failure would.
+//
+// Three surfaces, in the order the tfe provider itself documents checking
+// them:
 //
 //  1. an explicit token argument in the provider block;
 //  2. the TFE_TOKEN environment variable;

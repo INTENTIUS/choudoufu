@@ -46,10 +46,6 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 	corpus.Add("backend-only", origin, Report{Load: loaded, Findings: []Finding{
 		lintFinding(lint.RuleStateBackend, site("")),
 	}})
-	corpus.Add("backend-plus-remote-state", origin, Report{Load: loaded, Findings: []Finding{
-		lintFinding(lint.RuleStateBackend, site("")),
-		lintFinding(lint.RuleRemoteState, site("")),
-	}})
 	corpus.Add("admissions-only", origin, Report{Load: loaded, Findings: []Finding{
 		lintFinding(lint.RuleStateBackend, site("")),
 		lintFinding(lint.RuleUnadmittedType, site("aws_ecs_service"), site("aws_ecs_service"), site("aws_lambda_permission")),
@@ -84,14 +80,13 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 	corpus.Finish()
 
 	wantClass := map[string]OnboardingClass{
-		"clean":                     OnboardingClean,
-		"backend-only":              OnboardingBackendOnly,
-		"backend-plus-remote-state": OnboardingBackendRemoteState,
-		"admissions-only":           OnboardingAdmissionsOnly,
-		"data-read-eligible":        OnboardingDataReadEligible,
-		"data-read-blocked":         OnboardingLanguageBlocked,
-		"language-blocked":          OnboardingLanguageBlocked,
-		"unreadable":                OnboardingUnreadable,
+		"clean":              OnboardingClean,
+		"backend-only":       OnboardingBackendOnly,
+		"admissions-only":    OnboardingAdmissionsOnly,
+		"data-read-eligible": OnboardingDataReadEligible,
+		"data-read-blocked":  OnboardingLanguageBlocked,
+		"language-blocked":   OnboardingLanguageBlocked,
+		"unreadable":         OnboardingUnreadable,
 	}
 	for _, entry := range corpus.Entries {
 		if entry.Origin != origin {
@@ -130,13 +125,12 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 		t.Errorf("ladder origins = %v, want %v", corpus.Ladder.Origins, want)
 	}
 	wantCounts := map[OnboardingClass]int{
-		OnboardingClean:              1,
-		OnboardingBackendOnly:        1,
-		OnboardingBackendRemoteState: 1,
-		OnboardingAdmissionsOnly:     1,
-		OnboardingDataReadEligible:   1,
-		OnboardingLanguageBlocked:    2,
-		OnboardingUnreadable:         1,
+		OnboardingClean:            1,
+		OnboardingBackendOnly:      1,
+		OnboardingAdmissionsOnly:   1,
+		OnboardingDataReadEligible: 1,
+		OnboardingLanguageBlocked:  2,
+		OnboardingUnreadable:       1,
 	}
 	if len(corpus.Ladder.Classes) != len(OnboardingClasses()) {
 		t.Fatalf("ladder carries %d class rows, want %d (zeros included)", len(corpus.Ladder.Classes), len(OnboardingClasses()))
@@ -158,18 +152,17 @@ func TestOnboardingLadderPinsEachClass(t *testing.T) {
 	}
 }
 
-// TestOnboardingClassDerivesFromRefusalIDsOnly is the remote-state-without-
-// a-backend edge the rung table does not show: the subset rule, not rung
-// prose, is the classifier. A profile with only remote-state (or only
-// unadmitted-type) still lands on the rung whose edits fix it.
+// TestOnboardingClassDerivesFromRefusalIDsOnly is the edge the rung table
+// does not show: the subset rule, not rung prose, is the classifier. A
+// profile with only unadmitted-type (or that plus logical-resource) still
+// lands on the rung whose edits fix it.
 func TestOnboardingClassDerivesFromRefusalIDsOnly(t *testing.T) {
 	cases := []struct {
 		ids  []string
 		want OnboardingClass
 	}{
-		{[]string{string(lint.RuleRemoteState)}, OnboardingBackendRemoteState},
 		{[]string{string(lint.RuleUnadmittedType)}, OnboardingAdmissionsOnly},
-		{[]string{string(lint.RuleLogicalResource), string(lint.RuleRemoteState)}, OnboardingAdmissionsOnly},
+		{[]string{string(lint.RuleLogicalResource), string(lint.RuleUnadmittedType)}, OnboardingAdmissionsOnly},
 		{[]string{string(lint.RuleProvisioner)}, OnboardingLanguageBlocked},
 		{[]string{"Dynamic value in static context"}, OnboardingLanguageBlocked},
 		// #179's rung and its boundaries: the eligible-read finding alone,

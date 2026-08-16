@@ -3,8 +3,9 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// Package dataread is issue #179's pre-resolution data-read phase, stage 1:
-// same-stack provider data sources whose values identity resolution needs.
+// Package dataread is issue #179's pre-resolution data-read phase: provider
+// data sources whose values identity resolution needs, read before
+// resolution runs instead of refused as non-static.
 //
 // The gap it closes is ordering, not evaluation. Stock OpenTofu reads data
 // sources during the plan walk and has the value before it needs any
@@ -41,8 +42,13 @@
 // value here becomes a wrong marker - the data-loss shape - so every run
 // reads live, the same price stock OpenTofu pays every plan.
 //
-// The cross-stack flavors (terraform_remote_state, tfe_outputs) are
-// mechanically provider data sources too, but they carry their own auth
-// surfaces and failure modes and land as stages 2 and 3; this package
-// leaves them exactly as refused as they were.
+// The cross-stack flavors (tfe_outputs, terraform_remote_state) are
+// mechanically provider data sources too, and go through this same
+// eligibility and read pipeline (stages 2 and 3), plus their own auth
+// surface and failure classes: [SummaryCrossStackOutputsUnavailable] and
+// [SummaryCrossStackStateUnavailable]. Credential presence itself is never
+// an eligibility question for either flavor - the maintainer's ruling on
+// #181 models the owner (consistent with stage 1's treatment of the aws
+// provider block: eligibility assumes the owner's credentials exist), and
+// their actual absence surfaces honestly at read time instead.
 package dataread

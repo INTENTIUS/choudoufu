@@ -70,18 +70,6 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "terraform_remote_state data source",
-			dir:  "testdata/remote-state",
-			want: []wantIssue{
-				{
-					rule:      RuleRemoteState,
-					construct: "data.terraform_remote_state.network",
-					file:      "testdata/remote-state/main.tf",
-					line:      3,
-				},
-			},
-		},
-		{
 			name: "moved block",
 			dir:  "testdata/moved",
 			want: []wantIssue{
@@ -308,16 +296,10 @@ func TestCheck(t *testing.T) {
 					line:      19,
 				},
 				{
-					rule:      RuleRemoteState,
-					construct: "data.terraform_remote_state.network",
-					file:      "testdata/multiple/main.tf",
-					line:      22,
-				},
-				{
 					rule:      RuleMovedBlock,
 					construct: "moved block",
 					file:      "testdata/multiple/main.tf",
-					line:      26,
+					line:      22,
 				},
 			},
 		},

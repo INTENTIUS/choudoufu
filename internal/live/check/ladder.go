@@ -32,13 +32,10 @@ import (
 //   - clean: the configuration loaded and nothing refused it.
 //   - backend-only: every finding is state-backend - the documented
 //     one-line onboarding edit.
-//   - backend-plus-remote-state: findings are a subset of
-//     {state-backend, remote-state}, and it is not backend-only. The estate
-//     also reads another stack's outputs through terraform_remote_state.
 //   - admissions-only: findings are a subset of {state-backend,
-//     remote-state, unadmitted-type, logical-resource}, and no higher rung
-//     applies. Ratifying the types it declares (or, for a logical type,
-//     declaring a record_store) is all that stands in the way.
+//     unadmitted-type, logical-resource}, and no higher rung applies.
+//     Ratifying the types it declares (or, for a logical type, declaring a
+//     record_store) is all that stands in the way.
 //   - data-read-eligible (issue #179): findings are a subset of the
 //     admissions set plus the data-read pass's eligible-read finding, at
 //     least one of which fired, and no higher rung applies. Not clean - a
@@ -54,16 +51,29 @@ import (
 // findings to classify, and calling it clean would read "nothing could be
 // read" as "nothing refused this" - the exact confusion [Report.Readable]
 // exists to prevent.
+//
+// A sixth rung, backend-plus-remote-state, existed before #179 stage 3:
+// findings that were a subset of {state-backend, remote-state} and not
+// backend-only, for an estate reading another stack's outputs through
+// terraform_remote_state while lint's RuleRemoteState still banned the
+// construct outright. Stage 3 gave terraform_remote_state the same
+// eligibility and read pipeline every other data source has and retired
+// RuleRemoteState, so lint can no longer produce a "remote-state" finding
+// for this rule to key on - the rung's condition became unreachable, not
+// merely rarer, and it folds away rather than staying as a rung nothing can
+// land on. What a remote-state reference now produces instead is either
+// nothing (an eligible read resolves silently, same as any other data
+// source) or a data-read finding, both already covered by the
+// data-read-eligible and language-blocked rungs below.
 type OnboardingClass string
 
 const (
-	OnboardingClean              OnboardingClass = "clean"
-	OnboardingBackendOnly        OnboardingClass = "backend-only"
-	OnboardingBackendRemoteState OnboardingClass = "backend-plus-remote-state"
-	OnboardingAdmissionsOnly     OnboardingClass = "admissions-only"
-	OnboardingDataReadEligible   OnboardingClass = "data-read-eligible"
-	OnboardingLanguageBlocked    OnboardingClass = "language-blocked"
-	OnboardingUnreadable         OnboardingClass = "unreadable"
+	OnboardingClean            OnboardingClass = "clean"
+	OnboardingBackendOnly      OnboardingClass = "backend-only"
+	OnboardingAdmissionsOnly   OnboardingClass = "admissions-only"
+	OnboardingDataReadEligible OnboardingClass = "data-read-eligible"
+	OnboardingLanguageBlocked  OnboardingClass = "language-blocked"
+	OnboardingUnreadable       OnboardingClass = "unreadable"
 )
 
 // OnboardingClasses is every class in rung order, the order the summary
@@ -73,7 +83,6 @@ func OnboardingClasses() []OnboardingClass {
 	return []OnboardingClass{
 		OnboardingClean,
 		OnboardingBackendOnly,
-		OnboardingBackendRemoteState,
 		OnboardingAdmissionsOnly,
 		OnboardingDataReadEligible,
 		OnboardingLanguageBlocked,
@@ -94,21 +103,20 @@ func ClassifyOnboarding(loaded bool, ids []string) OnboardingClass {
 		return OnboardingClean
 	}
 
-	backendOnly, backendRemote, admissionsOnly, dataReadEligible := true, true, true, true
+	backendOnly, admissionsOnly, dataReadEligible := true, true, true
 	for _, id := range ids {
 		if id != string(lint.RuleStateBackend) {
 			backendOnly = false
 		}
-		if id != string(lint.RuleStateBackend) && id != string(lint.RuleRemoteState) {
-			backendRemote = false
-		}
 		switch id {
-		case string(lint.RuleStateBackend), string(lint.RuleRemoteState),
+		case string(lint.RuleStateBackend),
 			string(lint.RuleUnadmittedType), string(lint.RuleLogicalResource):
 		default:
 			admissionsOnly = false
 			// The data-read rung is the admissions set widened by exactly
-			// one finding: an eligible pre-plan read (#179). Any other ID -
+			// one finding: an eligible pre-plan read (#179, both same-stack
+			// data sources and the tfe_outputs/terraform_remote_state
+			// cross-stack flavors stage 3 folds in). Any other ID -
 			// including the data-read pass's own refusals, which do need a
 			// configuration edit - keeps the estate on language-blocked.
 			if id != dataread.SummaryEligibleRead {
@@ -119,8 +127,6 @@ func ClassifyOnboarding(loaded bool, ids []string) OnboardingClass {
 	switch {
 	case backendOnly:
 		return OnboardingBackendOnly
-	case backendRemote:
-		return OnboardingBackendRemoteState
 	case admissionsOnly:
 		return OnboardingAdmissionsOnly
 	case dataReadEligible:

@@ -24,9 +24,6 @@ const (
 	// configure them, on any resource of any type.
 	RuleProvisioner Rule = "provisioner"
 
-	// RuleRemoteState covers the terraform_remote_state data source.
-	RuleRemoteState Rule = "remote-state"
-
 	// RuleMovedBlock covers moved blocks.
 	RuleMovedBlock Rule = "moved-block"
 
@@ -143,10 +140,6 @@ var ruleInfo = map[Rule]struct {
 	RuleProvisioner: {
 		summary: "Provisioners are not available under live resource markers",
 		docsRef: `live/LIMITATIONS.md, "local-exec" / "remote-exec"`,
-	},
-	RuleRemoteState: {
-		summary: "terraform_remote_state is not available under live resource markers",
-		docsRef: `live/LIMITATIONS.md, "remote-state"`,
 	},
 	RuleMovedBlock: {
 		summary: "moved blocks are not available under live resource markers",

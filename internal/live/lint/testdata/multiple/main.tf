@@ -19,10 +19,6 @@ resource "aws_accessanalyzer_analyzer" "web" {
 resource "null_resource" "trigger" {
 }
 
-data "terraform_remote_state" "network" {
-  backend = "local"
-}
-
 moved {
   from = aws_s3_bucket.old
   to   = aws_s3_bucket.new

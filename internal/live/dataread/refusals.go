@@ -39,7 +39,11 @@ func (r Refusal) DocsRef() string {
 var refusals = []Refusal{
 	{
 		Summary: SummaryCrossStackOutputsUnavailable,
-		What:    "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
+		What:    "A tfe_outputs value the phase must read has no auth surface available: no token argument, no TFE_TOKEN environment variable, and no credentials entry for its host in the CLI configuration (checked offline, at read time, before any read is attempted); or the read itself failed - workspace not found, no current state version, insufficient permissions - quoted from the provider.",
+	},
+	{
+		Summary: SummaryCrossStackStateUnavailable,
+		What:    "A terraform_remote_state value the phase must read could not be read from its backend: the backend type is not one this binary links, the backend could not be configured or reached, no state exists for the named key or workspace, or the state snapshot could not be decoded (a newer format, or encryption this fork cannot open) - quoted from the backend at read time.",
 	},
 	{
 		Summary: SummaryNotReadable,
