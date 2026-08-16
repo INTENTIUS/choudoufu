@@ -821,11 +821,21 @@ func TestClassifyLogicalType(t *testing.T) {
 		wantClass    LogicalClass
 		wantPrefix   string
 	}{
-		// RECORD_ADMITTED: verified against provider docs, per logicalTypes.
+		// RECORD_ADMITTED: derived from the provider's own schema, per
+		// logicalTypes (logical_type_generated.go).
 		{"random_pet", true, ClassRecordAdmitted, "random_"},
 		{"random_id", true, ClassRecordAdmitted, "random_"},
 		{"random_shuffle", true, ClassRecordAdmitted, "random_"},
 		{"random_integer", true, ClassRecordAdmitted, "random_"},
+		// The four the hand-written table never had a row for, and which
+		// identity.DefaultTable marked RecordBacked while lint refused them
+		// outright. random_uuid4 and random_uuid7 shipped in hashicorp/random
+		// 3.9.0, after that table was written - the case a hand table cannot
+		// answer and the derivation does.
+		{"random_string", true, ClassRecordAdmitted, "random_"},
+		{"random_uuid", true, ClassRecordAdmitted, "random_"},
+		{"random_uuid4", true, ClassRecordAdmitted, "random_"},
+		{"random_uuid7", true, ClassRecordAdmitted, "random_"},
 		{"time_sleep", true, ClassRecordAdmitted, "time_"},
 		{"time_static", true, ClassRecordAdmitted, "time_"},
 		{"time_offset", true, ClassRecordAdmitted, "time_"},
@@ -848,11 +858,11 @@ func TestClassifyLogicalType(t *testing.T) {
 		// uniform enough to extend to a type nobody has reviewed yet.
 		{"tls_hypothetical_new_type", true, ClassSecretRefused, "tls_"},
 
-		// OTHER_REFUSED: local_* (current wording family) and any other
-		// family member this table has no specific opinion about.
+		// OTHER_REFUSED: local_*, whose provider is not store-only, and any
+		// other family member the table has no row for.
 		{"local_file", true, ClassOtherRefused, "local_"},
 		{"local_sensitive_file", true, ClassOtherRefused, "local_"},
-		{"random_string", true, ClassOtherRefused, "random_"},
+		{"random_hypothetical_new_type", true, ClassOtherRefused, "random_"},
 
 		// Not logical at all.
 		{"aws_vpc", false, "", ""},
@@ -1061,6 +1071,91 @@ resource "random_password" "secret" {
 	}
 	if !strings.Contains(logicalIssues[0].Detail, "SECRET_REFUSED") {
 		t.Errorf("random_password.secret's Detail = %q, want it to still say SECRET_REFUSED", logicalIssues[0].Detail)
+	}
+}
+
+// TestRecordStoreAdmitsTheDerivedRandomTypes is the regression gate for the
+// skew this package shipped with for part of a day.
+//
+// row-gen's recordBackedRows derivation marked random_string, random_uuid,
+// random_uuid4 and random_uuid7 RecordBacked, so identity resolution would
+// have held a record for any of them - but lint's logicalTypes was still a
+// hand-written table with no row for any of the four, so ClassifyLogicalType
+// returned ClassOtherRefused on the random_ prefix and checkManagedResources
+// never took its record_store branch. A configuration that had done
+// everything right, record_store included, was told its resource type was a
+// logical resource nothing could recover, with no remedy offered.
+//
+// The four are checked together with null_resource rather than alone, so a
+// regression that broke the whole branch and one that dropped only the
+// derived types are distinguishable in the output. random_password stays in
+// as the negative control: the store flips RECORD_ADMITTED and never the
+// no-secrets rule.
+func TestRecordStoreAdmitsTheDerivedRandomTypes(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+resource "null_resource" "trigger" {}
+
+resource "random_string" "name_suffix" {
+  length  = 8
+  special = false
+}
+
+resource "random_uuid" "one" {}
+
+resource "random_uuid4" "four" {}
+
+resource "random_uuid7" "seven" {}
+
+resource "random_password" "secret" {
+  length = 16
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	cfg := loadConfigDir(t, dir)
+
+	// Every issue, not only RuleLogicalResource: a type that stops being
+	// refused as a logical resource and starts being refused as an unadmitted
+	// one has not been admitted, it has been moved to a different refusal -
+	// which is the exact failure mode an earlier attempt at this fix produced
+	// by deriving the class in lint alone.
+	byConstruct := map[string][]Issue{}
+	for _, issue := range CheckContext(t.Context(), cfg) {
+		byConstruct[issue.Construct] = append(byConstruct[issue.Construct], issue)
+	}
+
+	admitted := []string{
+		"null_resource.trigger",
+		"random_string.name_suffix",
+		"random_uuid.one",
+		"random_uuid4.four",
+		"random_uuid7.seven",
+	}
+	for _, addr := range admitted {
+		if got := byConstruct[addr]; len(got) != 0 {
+			t.Errorf("%s is RECORD_ADMITTED with a record_store configured, so lint must raise nothing "+
+				"for it; got %d issue(s): %v", addr, len(got), got)
+		}
+	}
+
+	secret := byConstruct["random_password.secret"]
+	if len(secret) != 1 || secret[0].Rule != RuleLogicalResource {
+		t.Fatalf("random_password.secret got %v, want exactly one RuleLogicalResource issue", secret)
+	}
+	if !strings.Contains(secret[0].Detail, "SECRET_REFUSED") {
+		t.Errorf("random_password.secret's Detail = %q, want it to still say SECRET_REFUSED", secret[0].Detail)
 	}
 }
 

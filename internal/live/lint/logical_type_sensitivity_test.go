@@ -198,68 +198,49 @@ func TestDeprecationClauseMovesOnlyLocalFile(t *testing.T) {
 }
 
 // unclassifiedFamilyMembers are the resource types in the five
-// [logicalFamilyPrefixes] families that [logicalTypes] has no hand-written
-// row for, so they classify [ClassOtherRefused] by default (except the tls_
-// family, which has none left uncovered).
+// [logicalFamilyPrefixes] families that [logicalTypes] has no row for, so
+// they classify [ClassOtherRefused] by default.
 //
 // This is not a permitted-exceptions list. It is a measured gap, pinned so
-// that it cannot grow or shrink silently, with what
-// [measuredSensitivity] says each one would classify as if the derivation
-// above were applied to it:
+// that it cannot grow or shrink silently.
 //
-//   - random_string, random_uuid, random_uuid4, random_uuid7: no sensitive
-//     attribute, so RECORD_ADMITTED - but they get OTHER_REFUSED's wording,
-//     which offers no remedy, and neither
-//     [identity.DefaultTable] nor lint's record_store branch covers them, so
-//     a record_store does not in fact admit them. random_uuid4 and
-//     random_uuid7 shipped in random 3.9.0, after this table was written:
-//     the table cannot grow a row for a type released after it, which is why
-//     the classification wants deriving rather than listing.
+// It used to hold six. The other four - random_string, random_uuid,
+// random_uuid4 and random_uuid7 - were the hand-written table's blind spot,
+// and their entry here recorded that a record_store did not in fact admit
+// them. Once row-gen derived [logicalTypes] from live/logical-schemas.json
+// (tools/row-gen/logicalschemas.go), the same rule that admitted them to
+// [identity.DefaultTable] admitted them here, and all four left this list.
 //
-//     The four agree with the provider's own prose, read out of the same
-//     schema response as the sensitivity flags (every Attribute and Block
-//     carries a Description the provider ships in its binary, so this needs
-//     no doc cache and no network). random_uuid, random_uuid4 and
-//     random_uuid7 are each described as generating a value "intended to be
-//     used as a unique identifier for other resources" - word for word what
-//     random_pet's description says, and random_pet is RECORD_ADMITTED.
-//     random_string's is the explicit one: "For unique ids please use
-//     random_id, for sensitive random values please use random_password",
-//     and random_password's own description reads "Identical to
-//     random_string with the exception that the result is treated as
-//     sensitive". The provider documents the pair as the non-sensitive and
-//     sensitive halves of one resource, and puts random_string on the
-//     non-sensitive half.
+// The two that remain are hashicorp/local's, and they are not an
+// unreviewed remainder: the derivation excludes them deliberately, because
+// hashicorp/local is the one input provider whose StoreOnly is false.
 //
 //   - local_file: its ONLY sensitive attribute is sensitive_content, which
 //     is deprecated with the message "Use the `local_sensitive_file`
-//     resource instead" - so once the deprecation clause above applies, it
-//     derives RECORD_ADMITTED, not SECRET_REFUSED.
+//     resource instead" - so the sensitivity rule alone would derive
+//     RECORD_ADMITTED for it, and that would be wrong for a reason the rule
+//     cannot see. Measured against hashicorp/local 2.9.0: delete the file
+//     and the provider drops the resource from state, so the next plan
+//     proposes a create; change its content and the same happens, because
+//     id is the SHA1 of the content. Its identity is the filename, not the
+//     record, which is what [TestLocalFileKeepsItsCountIndexCheck] pins
+//     from the other side.
 //
 //   - local_sensitive_file: content and content_base64 are sensitive and
 //     settable, and projection's recordPayload stores the whole object
 //     value (internal/live/projection/record.go), so a record for one would
-//     carry that content. SECRET_REFUSED on the rule and on the mechanism.
+//     carry that content. Out on the rule and on the mechanism both.
 //
-//     Neither wording fits either type, for a reason the rule cannot see.
-//     Measured against hashicorp/local 2.9.0: delete the file and the
-//     provider drops the resource from state, so the next plan proposes a
-//     create; change its content and the same thing happens, because id is
-//     documented as (and measured to be) the SHA1 of the content. Both
-//     types read their file back. OTHER_REFUSED's Detail tells the author
-//     "there is no live system holding it", which for these two is false:
-//     the local filesystem is holding it, and every attribute of both types
-//     is a function of configuration plus that file. What they lack is not
-//     a value to recover but an estate to belong to.
+//     OTHER_REFUSED's Detail is still an imperfect fit for either: it tells
+//     the author "there is no live system holding it", which for these two
+//     is false - the local filesystem is holding it, and every attribute of
+//     both types is a function of configuration plus that file. What they
+//     lack is not a value to recover but an estate to belong to.
 //
 // See the tracker issue this list cites for the work that would empty it.
 var unclassifiedFamilyMembers = []string{
 	"local_file",
 	"local_sensitive_file",
-	"random_string",
-	"random_uuid",
-	"random_uuid4",
-	"random_uuid7",
 }
 
 // TestUnclassifiedFamilyMembersAreExactlyTheKnownGap pins that list against
@@ -329,9 +310,21 @@ func TestLocalFileKeepsItsCountIndexCheck(t *testing.T) {
 // live-markers subset". A RECORD_ADMITTED class with no identity row is a
 // lint that promises an admission resolution does not honour.
 //
-// It also bounds the other direction: every RecordBacked identity row must
-// be a type lint classifies RECORD_ADMITTED, or resolution would carry a
-// record for something lint never let through.
+// It also bounds the other direction: every RecordBacked identity row must be
+// a type lint classifies RECORD_ADMITTED, or resolution would carry a record
+// for something lint never let through.
+//
+// That second direction used to be asserted only by this comment. The loop
+// ran over [logicalTypes] alone, so it could see a lint row whose identity row
+// was missing and never the reverse - and the reverse is exactly what
+// happened. When row-gen's recordBackedRows derivation landed it marked
+// random_string, random_uuid, random_uuid4 and random_uuid7 RecordBacked;
+// none of the four had a [logicalTypes] row, so none was reachable from this
+// loop, and the check stayed green while lint refused all four outright under
+// a configured record_store. The audit shape is "a completeness test that
+// could see almost nothing": a cross-layer check keyed on one layer's key set
+// cannot report what only the other layer knows about. The second loop below
+// is keyed on identity's.
 func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 	for typ, lt := range logicalTypes {
 		entry, ok := identity.LookupType(typ)
@@ -346,6 +339,24 @@ func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 			t.Errorf("logicalTypes[%q] is RECORD_ADMITTED, so lint admits it under a record_store, "+
 				"but identity.DefaultTable has no RecordBacked row for it - resolution would refuse "+
 				"what lint just promised", typ)
+		}
+	}
+
+	for typ, entry := range identity.DefaultTable {
+		if !entry.RecordBacked {
+			continue
+		}
+		lt, ok := ClassifyLogicalType(typ)
+		if !ok {
+			t.Errorf("identity.DefaultTable marks %q RecordBacked, but ClassifyLogicalType does not "+
+				"recognise it as a logical type at all - lint would send it to the admission table, "+
+				"which by construction does not list a RecordBacked type", typ)
+			continue
+		}
+		if lt.Class != ClassRecordAdmitted {
+			t.Errorf("identity.DefaultTable marks %q RecordBacked, so resolution holds its whole value "+
+				"in a record, but lint classifies it %s and refuses it before resolution ever runs - "+
+				"a record_store cannot admit what lint has already rejected", typ, lt.Class)
 		}
 	}
 }
