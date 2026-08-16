@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 959 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 963 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 578, client-named 474, composite 152, assembled 10) | 1214 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 335 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-959<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+963<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
@@ -182,10 +182,11 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_dlm_lifecycle_policy`, `aws_dms_certificate`, `aws_dms_endpoint`,
   `aws_dms_event_subscription`, `aws_dms_replication_config`,
   `aws_dms_replication_instance`, `aws_dms_replication_subnet_group`,
-  `aws_dms_replication_task`, `aws_dms_s3_endpoint`,
-  `aws_docdb_event_subscription`, `aws_docdbelastic_cluster`,
-  `aws_dsql_cluster`, `aws_dx_connection`, `aws_dx_gateway`,
-  `aws_dx_hosted_private_virtual_interface`,
+  `aws_dms_replication_task`, `aws_dms_s3_endpoint`, `aws_docdb_cluster`,
+  `aws_docdb_cluster_instance`, `aws_docdb_cluster_parameter_group`,
+  `aws_docdb_event_subscription`, `aws_docdb_subnet_group`,
+  `aws_docdbelastic_cluster`, `aws_dsql_cluster`, `aws_dx_connection`,
+  `aws_dx_gateway`, `aws_dx_hosted_private_virtual_interface`,
   `aws_dx_hosted_public_virtual_interface`,
   `aws_dx_hosted_transit_virtual_interface`, `aws_dx_lag`,
   `aws_dx_private_virtual_interface`, `aws_dx_public_virtual_interface`,

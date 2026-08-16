@@ -31,6 +31,13 @@ var taggableDatabases = []string{
 	"aws_neptune_subnet_group",
 	"aws_docdb_event_subscription",
 	"aws_docdbelastic_cluster",
+	// DocDB family batch, 2026-08-16: taggability per the provider schema
+	// survey (live/survey-full.json, v6.59.0 signals.taggable), all four
+	// true, and each doc's own Attribute Reference exports arn and tags_all.
+	"aws_docdb_cluster",
+	"aws_docdb_cluster_instance",
+	"aws_docdb_cluster_parameter_group",
+	"aws_docdb_subnet_group",
 	"aws_timestreamwrite_database",
 	"aws_timestreamwrite_table",
 	"aws_timestreaminfluxdb_db_cluster",
@@ -109,6 +116,13 @@ func init() {
 			"aws_keyspaces_table":                       taggedSchema("id", "arn", "keyspace_name", "table_name"),
 			// #175 ratification batch (PROPOSE, issue #65), 2026-08-15.
 			"aws_redshift_endpoint_access": untaggedSchema("id", "endpoint_name", "address"),
+			// DocDB family batch, 2026-08-16. aws_docdb_cluster_instance's
+			// own doc exports no id at all, only arn - so its caricature
+			// carries the identity argument and arn, nothing more.
+			"aws_docdb_cluster":                 taggedSchema("id", "arn", "cluster_identifier"),
+			"aws_docdb_cluster_instance":        taggedSchema("arn", "identifier"),
+			"aws_docdb_cluster_parameter_group": taggedSchema("id", "arn", "name"),
+			"aws_docdb_subnet_group":            taggedSchema("id", "arn", "name"),
 		})
 	})
 }

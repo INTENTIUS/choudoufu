@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 959,
-    "compared": 949,
+    "admitted_total": 963,
+    "compared": 953,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 854,
-    "adopted_unchanged_pct": 89.99,
+    "adopted_unchanged": 858,
+    "adopted_unchanged_pct": 90.03,
     "genuine_mismatches": 95,
     "annotated": 95,
     "unannotated_mismatches": 0,
@@ -308,8 +308,8 @@
       "adopted_unchanged_pct": 44.44
     },
     "DocDB": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "DocDBElastic": {
@@ -3909,10 +3909,54 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_docdb_cluster",
+      "service": "DocDB",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_cluster_instance",
+      "service": "DocDB",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_cluster_parameter_group",
+      "service": "DocDB",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_docdb_event_subscription",
       "service": "DocDB",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_docdb_subnet_group",
+      "service": "DocDB",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
