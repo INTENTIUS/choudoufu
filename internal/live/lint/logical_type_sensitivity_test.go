@@ -235,6 +235,7 @@ func TestDeprecationClauseMovesOnlyLocalFile(t *testing.T) {
 //     is deprecated with the message "Use the `local_sensitive_file`
 //     resource instead" - so once the deprecation clause above applies, it
 //     derives RECORD_ADMITTED, not SECRET_REFUSED.
+//
 //   - local_sensitive_file: content and content_base64 are sensitive and
 //     settable, and projection's recordPayload stores the whole object
 //     value (internal/live/projection/record.go), so a record for one would
