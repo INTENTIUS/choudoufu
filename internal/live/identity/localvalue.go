@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 	"github.com/zclconf/go-cty/cty/gocty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 )
 
@@ -408,14 +409,135 @@ func (r *resolver) namedLeaf(expr hcl.Expression, scope instScope, ident configs
 		return nil, false, false
 	}
 	root := trav.RootName()
-	if root != "local" && root != "var" {
+	if root != "local" && root != "var" && root != "module" {
 		return nil, false, false
 	}
 	nameStep, ok := trav[1].(hcl.TraverseAttr)
 	if !ok {
 		return nil, false, false
 	}
+	if root == "module" {
+		return r.resolveModuleOutput(nameStep.Name, trav[2:], ident)
+	}
 	return r.resolveNamed(root, nameStep.Name, trav[2:], scope, ident)
+}
+
+// resolveModuleOutput resolves a reference into a child module's output:
+// "module.<call>.<output>", or "module.<call>[<key>].<output>", with any
+// further steps selected out of whatever the output is defined as.
+//
+// A module output is not a value that has to wait for the module to be
+// evaluated. It is an expression written in the child module, and the child
+// module's scope is one this resolver can already enter and evaluate in:
+// [resolver.namedDef]'s "var" case walks the very same call edge in the
+// opposite direction, from a child module's variable back up to the
+// argument the call sets it from. Reading the output's own expression here
+// is therefore not a new claim about anything - a literal is the literal
+// the child wrote, and a resource reference inside the output resolves
+// through parentPart under exactly the identity-attribute restriction a
+// direct reference to that same resource would face. The only thing that
+// changes is that a module boundary no longer stops the walk.
+//
+// This is the boundary [configs.StaticValidateReferences] refuses with
+// "Module output not supported in static context" (internal/configs's
+// static_scope.go), and that refusal is correct for what it guards: a
+// static context there is one that must be resolved before the module tree
+// is even built - a module source, a backend, an encryption block - where
+// there is no child module to enter yet. An identity argument is not that
+// context. The whole configuration is loaded by the time this runs, so the
+// question "what is this output defined as" has an answer, and refusing it
+// unresolved refuses configurations stock OpenTofu evaluates without
+// complaint.
+//
+// The three results are [resolver.namedLeaf]'s: the parts, whether they
+// resolved, and whether this shape is one this function handles at all. A
+// shape it does not handle returns applicable=false, which leaves the
+// refusal internal/configs already raised standing - never a quieter
+// message in place of a real one.
+func (r *resolver) resolveModuleOutput(callName string, rest []hcl.Traverser, ident configs.StaticIdentifier) ([]Part, bool, bool) {
+	mc, ok := r.mod.ModuleCalls[callName]
+	if !ok || mc.Config == nil {
+		return nil, false, false
+	}
+
+	// An indexed reference supplies the instance key; an unindexed one is
+	// only meaningful when the call has no repetition at all. Both
+	// mismatched pairings are left to the existing refusal rather than
+	// guessed at: "module.foo.bar" on a call with count or for_each names
+	// a tuple or an object holding every instance's value, which is not a
+	// single identity part, and "module.foo[0].bar" on a call with neither
+	// names an instance that does not exist.
+	//
+	// The whole-module half of that is belt and braces: the expansion
+	// check below rejects it too, because addrs.NoKey is never among a
+	// repeated call's keys. It is written out anyway because it refuses
+	// for the reason a reader would give, one step earlier, and because it
+	// does not depend on NoKey's relationship to the key set staying what
+	// it is. Only the indexed-on-an-unrepeated-call half and the
+	// expansion check itself are independently load-bearing; see
+	// TestModuleOutputRefusesWhatItCannotName, whose fixtures isolate each
+	// with a literal-valued output so that nothing downstream of the
+	// module hop can mask a missing guard.
+	repeated := mc.Count != nil || mc.ForEach != nil
+	key := addrs.InstanceKey(addrs.NoKey)
+	if len(rest) > 0 {
+		if idx, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
+			if !repeated {
+				return nil, false, false
+			}
+			k, ok := indexKeyValue(idx.Key)
+			if !ok {
+				return nil, false, false
+			}
+			key = k
+			rest = rest[1:]
+		} else if repeated {
+			return nil, false, false
+		}
+	} else if repeated {
+		return nil, false, false
+	}
+
+	// The key has to be one the call actually expands to. Without this a
+	// reference to module.foo[7] on a three-instance call would enter the
+	// child module anyway - [addrs.ModuleInstance.Child] builds any step
+	// asked of it, and ConfigForModule resolves by name - and resolve an
+	// identity for an instance that will never exist.
+	if repeated {
+		subject := "module." + callName
+		if _, ok := ChildModuleRepetitionData(r.ctx, r.mod, subject, mc.Count, mc.ForEach, key); !ok {
+			return nil, false, false
+		}
+	}
+
+	if len(rest) == 0 {
+		// "module.foo" with no output named: a whole-module reference,
+		// which is an object of every output rather than one value.
+		return nil, false, false
+	}
+	outStep, isAttr := rest[0].(hcl.TraverseAttr)
+	if !isAttr {
+		return nil, false, false
+	}
+	rest = rest[1:]
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(r.modInst.Child(callName, key)) {
+		return nil, false, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	out, ok := r.mod.Outputs[outStep.Name]
+	if !ok || out.Expr == nil {
+		return nil, false, false
+	}
+
+	// A fresh scope, not the caller's: the output's expression is written
+	// in the child module, where the referring resource's own count.index,
+	// each.key and for-comprehension variables do not exist. Carrying the
+	// caller's scope across the boundary would let a name bound out here
+	// silently satisfy a reference in there.
+	return r.selectStatic(out.Expr, rest, instScope{}, ident, 0)
 }
 
 // resolveNamed resolves "local.name<rest>" or "var.name<rest>": it looks up
@@ -459,11 +581,21 @@ func (r *resolver) selectStatic(expr hcl.Expression, rest []hcl.Traverser, scope
 	// container shape, so a chain of plain references composes the way a
 	// chain of direct resource references already does.
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) >= 2 {
-		if root := trav.RootName(); root == "local" || root == "var" {
+		if root := trav.RootName(); root == "local" || root == "var" || root == "module" {
 			if nameStep, ok := trav[1].(hcl.TraverseAttr); ok {
 				combined := make([]hcl.Traverser, 0, len(trav)-2+len(rest))
 				combined = append(combined, trav[2:]...)
 				combined = append(combined, rest...)
+				// A module output reached through a local, a module
+				// argument, or another module's output: the steps this
+				// reference already carries are prepended to the ones
+				// still owed, exactly as for a local aliasing a local, so
+				// "local.name = module.vpc.id" selected with ".foo"
+				// arrives as module.vpc.id.foo rather than losing either
+				// half. See [resolver.resolveModuleOutput].
+				if root == "module" {
+					return r.resolveModuleOutput(nameStep.Name, combined, ident)
+				}
 				return r.resolveNamed(root, nameStep.Name, combined, scope, ident)
 			}
 		}
