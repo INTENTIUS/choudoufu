@@ -1815,6 +1815,21 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		return r.checkedForEachKeys(rc, exp)
 
 	case ty.IsSetType():
+		// An empty set built from a for-expression with no matching source
+		// elements - toset([for x in var.y : x if <false for everything>]),
+		// the shape a filtered comprehension produces whenever nothing
+		// passes the filter - carries cty.DynamicPseudoType as its element
+		// type, because cty has nothing to infer a concrete one from. Stock
+		// OpenTofu's own for_each validation accepts that element type
+		// alongside cty.String (internal/lang/evalchecks/eval_for_each.go's
+		// performSetTypeChecks); this package's own check did not, so an
+		// empty for_each set refused here even though OpenTofu itself
+		// accepts it downstream. Checked as emptiness rather than the type
+		// directly, since a zero-length set has no keys to enumerate either
+		// way and the distinction does not matter to this package.
+		if val.LengthInt() == 0 {
+			return r.checkedForEachKeys(rc, exp)
+		}
 		if ty.ElementType() != cty.String {
 			r.errorf(expr.Range(), "Invalid for_each set",
 				"The for_each value for %s is a set of %s. Only a set of strings can produce instance keys.", addr.String(), ty.ElementType().FriendlyName())
