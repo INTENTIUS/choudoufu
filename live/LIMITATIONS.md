@@ -203,6 +203,55 @@ unlike this family's `RECORD_ADMITTED` neighbors, because configuring a
 (`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
 `live/e2e/limits/random-password/`.
 
+**The same problem returns, permanently, wherever ANY `random_*` resource's
+generated attribute is built into a sibling's identity.** This is not the
+`random_password` case above by another name; it is the same architectural
+fact reached through a second door. `random_pet`, `random_id`,
+`random_shuffle`, `random_integer` and the rest of the `random_*` family are
+`RECORD_ADMITTED` (see "Logical resources: a three-way classification"
+above) because none of them generates secret material - configured with a
+`record_store`, they run through the stock provider lifecycle just fine on
+their own. But a value one of them generates still only exists because it
+was generated once and remembered; nothing in the live cloud can be read
+back to reproduce it. Ordinarily that is fine, because nothing downstream
+needs to reproduce it. It stops being fine the moment another resource's
+identity-bearing argument is BUILT from that value - `bucket =
+"${random_pet.suffix.id}-image-layers"` is a real example, not a
+constructed one (`k8s-io/infra/aws/terraform/registry-sandbox-k8s-io-image-layers`,
+`s3-origin.tf`) - because then the sibling's own cloud identity depends on a
+value a fresh run cannot regenerate, exactly `random_password`'s problem,
+now on the consuming resource rather than the generating one.
+
+**Where it surfaces.** Not a new refusal: the identity pass already refuses
+this, because a `random_*` type carries no identity-bearing attribute for a
+reference to resolve against. The sibling resource's identity argument (here,
+`aws_s3_bucket.bucket`'s `bucket` attribute) is refused as "Not an identity
+attribute" at its own site, and every resource whose identity is built from
+*that* resource's then cascades to "Unresolvable identity" - the same
+one-raise-site cascade #178's "unresolvable identity" scoping traced for
+every other root cause on this rule. registry-sandbox-k8s-io-image-layers is
+the worked example: 1 site raises "Not an identity attribute" directly on
+`random_pet.bucket.id`'s use in the bucket name, and 11 more cascade from it
+as "Unresolvable identity" - the estate's whole language-blocked count, net
+of its unrelated `logical-resource` and `state-backend` findings.
+
+**Forwarding address.** None, and none is coming: the fix is in the
+configuration, not in this fork. Generate the value once, outside OpenTofu's
+model (a secret-store Op, a fixed literal chosen by a human, or a value
+compiled into the pipeline that provisions the estate), and have the
+sibling's identity argument reference that fixed value instead of a
+`random_*` resource's attribute. `random_*` resources remain fully usable
+for what they were before this ever mattered - a suffix on a scratch
+resource nothing else's identity depends on - which is why the type stays
+`RECORD_ADMITTED` rather than moving to `SECRET_REFUSED`: the limitation is
+in how the VALUE is used, not in the type itself.
+
+**Enforcement.** No dedicated rule - the identity pass's ordinary "Not an
+identity attribute" / "Unresolvable identity" refusals
+(`internal/live/identity`), permanent for the same reason `random_password`
+above is permanent. See "Not an identity attribute" and "Unresolvable
+identity" in "Every refusal, enumerated" for the catalog entries.
+
 ### time-sleep
 
 **Construct.** `time_sleep`.
