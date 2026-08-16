@@ -317,8 +317,8 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			// answers it below. Only covered references pass - everything
 			// the lookup does not carry keeps refusing, so an evaluator
 			// with no lookup behaves exactly as it always has.
-			if res, ok := dataResourceSubject(subject); ok && s.eval.dataLookup != nil {
-				if _, covered := s.eval.dataLookup(res); covered {
+			if res, ok := anyResourceSubject(subject); ok && s.eval.dataLookup != nil {
+				if val, covered := s.eval.dataLookup(res); covered && lookupCoversTraversal(val, ref.Remaining) {
 					continue
 				}
 			}
@@ -332,6 +332,52 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 		}
 	}
 	return diags
+}
+
+// lookupCoversTraversal reports whether the value a [StaticDataLookup]
+// answered with actually carries the attribute the reference goes on to
+// read. A lookup answering with an unknown value of unknown type - which is
+// what the data-read phase's coverage probe returns, since it needs
+// coverage rather than a value - carries everything, so this is only ever
+// restrictive for a lookup that answered with a concrete object type. It
+// exists so that a partially-covering answer refuses at the same place, and
+// in the same words, as no answer at all, instead of surfacing an HCL
+// "this object does not have an attribute named ..." error several layers
+// down.
+func lookupCoversTraversal(val cty.Value, remaining hcl.Traversal) bool {
+	if val == cty.NilVal || !val.Type().IsObjectType() {
+		return true
+	}
+	for _, step := range remaining {
+		switch ts := step.(type) {
+		case hcl.TraverseAttr:
+			return val.Type().HasAttribute(ts.Name)
+		case hcl.TraverseIndex:
+			// An instance key: the element type is what carries the
+			// attribute, and this lookup shape does not model expansion.
+			return true
+		default:
+			return true
+		}
+	}
+	return true
+}
+
+// anyResourceSubject extracts the containing resource of EITHER mode from a
+// reference subject. The mode gate used to live here, refusing every managed
+// reference before the lookup could be asked; it now lives in the lookup
+// itself, which is the only place that knows whether it has an answer. A
+// lookup that answers nothing for managed mode - which is every lookup in
+// this repository unless dataread.Options.ProjectManagedArguments is set -
+// leaves behaviour identical.
+func anyResourceSubject(subject addrs.Referenceable) (addrs.Resource, bool) {
+	switch s := subject.(type) {
+	case addrs.Resource:
+		return s, true
+	case addrs.ResourceInstance:
+		return s.ContainingResource(), true
+	}
+	return addrs.Resource{}, false
 }
 
 // dataResourceSubject extracts the containing data-mode resource from a
@@ -382,7 +428,7 @@ func (s staticScopeData) GetForEachAttr(_ context.Context, addr addrs.ForEachAtt
 // panic below is unreachable through this package's own scopes; it stays as
 // the same programming-error backstop the other unavailable getters keep.
 func (s staticScopeData) GetResource(_ context.Context, addr addrs.Resource, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	if addr.Mode == addrs.DataResourceMode && s.eval.dataLookup != nil {
+	if s.eval.dataLookup != nil {
 		if val, ok := s.eval.dataLookup(addr); ok {
 			return val, nil
 		}

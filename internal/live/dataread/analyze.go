@@ -33,6 +33,14 @@ type Options struct {
 	// resolution will, or a type the schemas admit would hide the demand
 	// behind its own refusal.
 	Schemas map[string]providers.Schema
+
+	// ProjectManagedArguments is issue #193's fix class (c), PROTOTYPE and
+	// OFF by default: answer a managed resource attribute reference from
+	// the resource block's own configuration argument, offline, instead of
+	// refusing it as dynamic. Off, this package behaves exactly as it did
+	// before the option existed. See managedproj.go for what is and is not
+	// built.
+	ProjectManagedArguments bool
 }
 
 // Source is one data resource block the analysis classified: demanded by an
@@ -352,7 +360,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
 	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil {
 		return a
 	}
-	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, visiting: make(map[string]bool)}
+	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, projectManaged: opts.ProjectManagedArguments, visiting: make(map[string]bool), managedCache: make(map[string]managedProj)}
 
 	// #209: a data source reference nested inside a for_each meta-argument's
 	// own map-value literal never surfaces in a probe round's diagnostics at
@@ -396,6 +404,12 @@ type analyzer struct {
 	analysis *Analysis
 	schemas  map[string]providers.Schema
 	visiting map[string]bool
+
+	// projectManaged is [Options.ProjectManagedArguments].
+	projectManaged bool
+
+	// managedCache is #193's PROTOTYPE fix class (c) memo.
+	managedCache map[string]managedProj
 }
 
 type demandRoot struct {
@@ -906,27 +920,7 @@ func (an *analyzer) evalRecorded(module addrs.Module, res addrs.Resource, rc *co
 		}
 	}()
 
-	eval := liveModuleEvaluator(an.ctx, an.cfg, module, func(m addrs.Module) configs.StaticDataLookup {
-		return func(addr addrs.Resource) (cty.Value, bool) {
-			depNode := an.cfg.Descendent(m)
-			if depNode == nil || depNode.Module == nil {
-				return cty.NilVal, false
-			}
-			dep := depNode.Module.DataResources[addr.String()]
-			// Both cross-stack flavors are covered exactly like a same-stack
-			// source now - stage 2 (tfe_outputs) and stage 3
-			// (terraform_remote_state) give them the same pipeline, recorded
-			// as a dependency below. m is exactly the module this closure
-			// was built for - never the module that happened to trigger the
-			// lookup - so a same-named data source declared in a different
-			// module never answers here.
-			if dep == nil {
-				return cty.NilVal, false
-			}
-			record(m, addr)
-			return cty.DynamicVal, true
-		}
-	})
+	eval := liveModuleEvaluator(an.ctx, an.cfg, module, an.lookupFactory(record))
 	if eval == nil {
 		return "its own module is no longer in the configuration tree; this is a defect in the calling code", configs.CategoryOther, false, false
 	}
