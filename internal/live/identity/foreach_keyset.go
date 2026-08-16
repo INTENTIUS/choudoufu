@@ -172,6 +172,20 @@ func collectStaticForEachKeys(ctx context.Context, mod *configs.Module, subject 
 // by its elements. Any other type is not a for_each collection at all, and
 // the caller's own invalid-for_each diagnostic covers it.
 func collectionKeyNames(val cty.Value) ([]string, bool) {
+	// ContainsMarked rather than IsMarked, because a mark on an ELEMENT
+	// hoists to the whole value only for a set - a marked string inside a
+	// list, map, object or tuple leaves the outer value unmarked, and the
+	// reads below would then panic on it. That asymmetry is cty's, is
+	// asserted in internal/live/marksafe's TestOnlySetsHoistElementMarks,
+	// and is what made six sites in this package crash the run.
+	//
+	// Refusing rather than unmarking: these names become for_each keys,
+	// which become part of the address, which becomes the tofu-address
+	// marker written to a cloud tag in plaintext. A sensitive value must
+	// not travel that path.
+	if val.ContainsMarked() {
+		return nil, false
+	}
 	ty := val.Type()
 	switch {
 	case ty.IsMapType(), ty.IsObjectType():
@@ -191,7 +205,14 @@ func collectionKeyNames(val cty.Value) ([]string, bool) {
 		names := make([]string, 0, val.LengthInt())
 		for it := val.ElementIterator(); it.Next(); {
 			_, v := it.Element()
-			if v.IsNull() || !v.IsKnown() {
+			// IsMarked on the element as well as ContainsMarked on the
+			// collection above. The outer guard already makes this
+			// unreachable, but marksafe proves each receiver where it is
+			// read rather than reasoning across an iterator - the key half
+			// of it.Element() carries a proof and the value half does not,
+			// which is exactly the distinction the eighth panic site turned
+			// on. A redundant guard is cheaper than an argument.
+			if v.IsMarked() || v.IsNull() || !v.IsKnown() {
 				return nil, false
 			}
 			names = append(names, v.AsString())
