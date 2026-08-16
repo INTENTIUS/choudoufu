@@ -882,8 +882,23 @@ func (g *generator) parentRef(selfType, argName string) (parent resourceAddr, at
 // shape 1; the plural form is the same convention pluralized - see
 // siblingRef, which is what actually decides whether a rendered sibling
 // answers it, and whether the schema backs the plural reading up).
+//
+// "_name" is a third suffix, deliberately unioned with "id"/"arn" here
+// rather than kept as its own case: aws_eks_access_entry's "cluster_name"
+// is the same shape ("<base>_id" naming a sibling by its exported handle)
+// with "name" as the handle instead of "id"/"arn" - eksClusterNameRef and
+// cognitoUserGroupNameRef were both hand-written for exactly this gap
+// (issue #136). Unlike "id"/"arn", a "_name" suffix is not always a
+// reference - "domain_name" often names a literal DNS string, not a
+// sibling - so siblingRef gates the "name" suffix on the argument being
+// one of selfType's OWN identity components (identityComponentAttr), the
+// same restriction the bare (unsuffixed) shape already carries. That
+// keeps the blast radius to the cases with the highest correctness stakes
+// (an identity-bearing argument feeding a live marker) rather than every
+// "_name"-suffixed argument in the schema, most of which are not
+// references at all.
 func refArgSuffix(argName string) (base, suffix string, plural bool) {
-	for _, s := range []string{"id", "arn"} {
+	for _, s := range []string{"id", "arn", "name"} {
 		if b, ok := strings.CutSuffix(argName, "_"+s); ok && b != "" {
 			return b, s, false
 		}
@@ -1156,6 +1171,16 @@ func isStringListArg(schemas providers.GetProviderSchemaResponse, selfType, argN
 func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, attrName string, plural bool, ok bool) {
 	base, suffix, isPlural := refArgSuffix(argName)
 	if base != "" {
+		identityBound := identityComponentAttr(selfType, argName)
+		if suffix == "name" && !identityBound {
+			// "_name" is not always a reference the way "_id"/"_arn" are
+			// (refArgSuffix's own doc comment): scoped to the argument
+			// being one of selfType's own identity components, so this
+			// only fires for the highest-stakes case (eksClusterNameRef's
+			// shape) rather than every "_name"-suffixed argument in the
+			// schema.
+			return resourceAddr{}, "", false, false
+		}
 		if isPlural && !isStringListArg(g.schemas, selfType, argName) {
 			return resourceAddr{}, "", false, false
 		}
@@ -1166,7 +1191,7 @@ func (g *generator) siblingRef(selfType, argName string) (parent resourceAddr, a
 		if selfIdArg, owns := identityArgName(selfType); owns && selfIdArg == argName && !strings.HasPrefix(selfType, t+"_") {
 			return resourceAddr{}, "", false, false
 		}
-		attr, found := g.refAttr(t, argName, suffix, identityComponentAttr(selfType, argName))
+		attr, found := g.refAttr(t, argName, suffix, identityBound)
 		if !found {
 			return resourceAddr{}, "", false, false
 		}
