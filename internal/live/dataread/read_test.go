@@ -8,6 +8,7 @@ package dataread
 import (
 	"context"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -334,6 +335,75 @@ func TestReadExpansionFromDependency(t *testing.T) {
 	for _, key := range []string{"data.test_record.b[0]", "data.test_record.b[1]"} {
 		if _, ok := results[key]; !ok {
 			t.Errorf("no result under %s; keys: %v", key, keysOf(results))
+		}
+	}
+
+	res, resDiags := identity.ResolveWith(context.Background(), cfg, identity.Context{DataResults: results})
+	if resDiags.HasErrors() {
+		t.Fatalf("resolution over the read results failed: %s", resDiags.Err())
+	}
+	if got := res.Len(); got != 2 {
+		t.Fatalf("%d instances resolved, want 2", got)
+	}
+}
+
+// TestReadPerInstanceBindsRepetitionValues: a for_each-expanded data source
+// whose own argument reads each.value gets one provider call per instance,
+// each with that instance's own each.value bound - not one shared answer
+// across instances whose arguments genuinely differ (#193). This is the
+// per-instance shape stock OpenTofu's own plan-time data-source read has
+// (internal/tofu/node_resource_abstract_instance.go's readDataSource, fed
+// by evaluationStateData.GetForEachAttr in internal/tofu/evaluate.go).
+func TestReadPerInstanceBindsRepetitionValues(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "read-per-instance"), nil)
+	analysis := Analyze(context.Background(), cfg, Options{})
+	if got := len(analysis.Demanded()); got != 1 {
+		t.Fatalf("demanded %d sources, want 1", got)
+	}
+	src := analysis.Demanded()[0]
+	if !src.Eligible {
+		t.Fatalf("data.test_zone.z classified ineligible: %s", src.ReasonDetail)
+	}
+	if !src.PerInstance {
+		t.Fatalf("data.test_zone.z not marked PerInstance, despite reading its own each.value")
+	}
+
+	var namesRead []string
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: testProviderSchema(),
+		ConfigureProviderCalled:   true,
+		ReadDataSourceFn: func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+			name := req.Config.GetAttr("name").AsString()
+			namesRead = append(namesRead, name)
+			return providers.ReadDataSourceResponse{State: cty.ObjectVal(map[string]cty.Value{
+				"name":    req.Config.GetAttr("name"),
+				"zone_id": cty.StringVal("Z-" + name),
+			})}
+		},
+	}
+	results, diags := Read(context.Background(), cfg, analysis, &fakeProviders{provider: mock})
+	if diags.HasErrors() {
+		t.Fatalf("read failed: %s", diags.Err())
+	}
+
+	// One call per instance, each with its own each.value - not one shared
+	// call reused across both.
+	sort.Strings(namesRead)
+	wantNames := []string{"a.example.com.", "b.example.com."}
+	if len(namesRead) != len(wantNames) || namesRead[0] != wantNames[0] || namesRead[1] != wantNames[1] {
+		t.Fatalf("provider was read with names %v, want %v", namesRead, wantNames)
+	}
+
+	for key, wantZoneID := range map[string]string{
+		`data.test_zone.z["a.example.com."]`: "Z-a.example.com.",
+		`data.test_zone.z["b.example.com."]`: "Z-b.example.com.",
+	} {
+		val, ok := results[key]
+		if !ok {
+			t.Fatalf("no result under %s; keys: %v", key, keysOf(results))
+		}
+		if got := val.GetAttr("zone_id").AsString(); got != wantZoneID {
+			t.Errorf("%s's zone_id = %q, want %q - instances must not share one answer", key, got, wantZoneID)
 		}
 	}
 
