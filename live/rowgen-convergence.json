@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 879,
-    "compared": 869,
+    "admitted_total": 880,
+    "compared": 870,
     "not_in_mapped_set": 10,
-    "adopted_unchanged": 759,
-    "adopted_unchanged_pct": 87.34,
+    "adopted_unchanged": 760,
+    "adopted_unchanged_pct": 87.36,
     "genuine_mismatches": 110,
     "annotated": 110,
     "unannotated_mismatches": 0,
@@ -333,8 +333,8 @@
       "adopted_unchanged_pct": 100
     },
     "ECS": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "EFS": {
@@ -4363,6 +4363,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ecs_capacity_provider",
+      "service": "ECS",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ecs_cluster",
       "service": "ECS",
       "proposed_bucket": "client-named",
@@ -4402,6 +4413,9 @@
       "service": "ECS",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
       "matched": true,
       "annotated": false
     },

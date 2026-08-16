@@ -16,9 +16,11 @@ Regenerate the generator's own output with:
 
 ```
 go run ./tools/estate-gen -cohort ecs-eks \
-  -types aws_ecs_cluster_capacity_providers,aws_ecs_daemon,aws_eks_access_entry,aws_eks_access_policy_association,aws_eks_addon,aws_eks_capability,aws_eks_cluster,aws_eks_fargate_profile,aws_eks_node_group \
+  -types aws_appautoscaling_target,aws_ecs_capacity_provider,aws_ecs_cluster_capacity_providers,aws_ecs_daemon,aws_ecs_daemon_task_definition,aws_ecs_service,aws_eks_access_entry,aws_eks_access_policy_association,aws_eks_addon,aws_eks_capability,aws_eks_cluster,aws_eks_fargate_profile,aws_eks_node_group \
   -out live/e2e/estates/ecs-eks
 ```
+
+(`aws_appautoscaling_target` and `aws_ecs_service` were added by the 2026-08-15 #175 reversal batch; `aws_ecs_capacity_provider` and `aws_ecs_daemon_task_definition` by the 2026-08-15 #150 veto reversal below. This command supersedes the nine-type one this section originally documented — the coverage map and "Rejected" section below are updated accordingly.)
 
 `-types` is explicit because `defaultCohortTypes` derives a cohort's roster
 from a single `live/mapping.json` CFN service name, and this cohort spans
@@ -32,6 +34,7 @@ see "Hand adjustments beyond overrides.go".
 | Coverage row | Resource block | Why it lands there |
 |---|---|---|
 | Client-named path, docs tier | `aws_ecs_cluster_capacity_providers.app` | Identity is the `cluster_name` argument, already in config. v6.58.0 ships this type with no identity schema at all; the evidence is the documented import command (`terraform import ... my-cluster`) and the Attribute Reference ("id - Same as cluster_name"), the same docs-tier shape `aws_ecs_cluster` itself already carries. Untaggable — a named singleton child of the cluster, the same shape as `aws_s3_bucket_policy`. |
+| Marker path, assembled ARN template | `aws_ecs_capacity_provider.app` | ECS mints the capacity provider's own ARN at create time (`arn:aws:ecs:REGION:ACCOUNT:capacity-provider/NAME`); the provider's own Identity Schema requires the server-assigned `arn`, confirmed against `ecs_capacity_provider.html.markdown`'s Identity Schema block and Import section. Admitted 2026-08-15 (issue #150) by reversing this cohort's own original veto below — see "Reversed" for both grounds and what resolved them. `IdentityAttrs: ["arn"]` only (no `id`): the provider's own Attribute Reference lists only `arn` and `tags_all`, no `id` line, unlike the seven other assembled-ARN rows this table already carries (`aws_codebuild_report_group` and friends), whose docs all state `id - The ARN of ...` explicitly. |
 | Marker path | `aws_ecs_daemon.app` | ECS mints the daemon's ARN at create time (`arn:aws:ecs:REGION:ACCOUNT:daemon/CLUSTER/NAME`); the `name` argument is client-chosen but is not the import identity. Taggable, and v6.58.0 ships a native list resource for it — the marker path's two requirements, both met. |
 | Client-named path | `aws_eks_access_entry.app` | Identity is `cluster_name` + `principal_arn`, colon-joined, both required arguments per the provider's own Identity Schema — confirmed against `live/import-grammar.json`'s separator and the documented import command. |
 | Client-named path, untaggable | `aws_eks_access_policy_association.app` | Identity is `cluster_name` + `principal_arn` + `policy_arn`, octothorp-joined, all three required. Carries no `tags` argument at all — see "Untaggable types" below. |
@@ -40,29 +43,77 @@ see "Hand adjustments beyond overrides.go".
 | Client-named path | `aws_eks_cluster.app` | Identity is the `name` argument, already in config — the provider's own Attribute Reference says `id` equals it. `live/SURVEY.md`'s curated-68 row already reached "client-named" by hand; its status moves from `blocked-emulator` to `wired` in this batch (the identity was always sound; the floci gap is documented, not blocking — see "Verifying by hand"). |
 | Client-named path | `aws_eks_fargate_profile.app` | Identity is `cluster_name` + `fargate_profile_name`, colon-joined, both required, `id` documented as the same pair. |
 | Client-named path (name-generation idiom) | `aws_eks_node_group.app` | Identity is `cluster_name` + `node_group_name`, colon-joined. `node_group_name` is Optional+Computed — Terraform assigns a random name when omitted, the same idiom `aws_iam_role`'s own name/name_prefix pair already carries — so `live/SURVEY.md`'s curated-68 row classes it client-named by hand rather than by the strict schema rule, and this entry follows that judgment (see `tools/survey-gen/admission_evidence_test.go`'s `admissionEvidenceExceptions` entry). |
+| Marker path | `aws_ecs_daemon_task_definition.app` | ECS mints the daemon task definition's own ARN at create time; the provider's own Identity Schema requires the server-assigned `arn` alone (not `family`+`revision` the way the ordinary `aws_ecs_task_definition` does — see "Reversed" below for why the two types are NOT the same shape, despite this cohort's own original veto prose treating them as one). `IdentityAttrs: ["arn"]` only, same no-`id`-documented basis as `aws_ecs_capacity_provider` above. This row was already admitted (via the REMAINDER batch, same day as this cohort's own ratification, before this batch's veto prose was written) — issue #150 only added the missing `IdentityAttrs`. |
+
+## Reversed (2026-08-15, issue #150)
+
+`aws_ecs_capacity_provider` and `aws_ecs_daemon_task_definition` are now
+admitted, above. Issue #150's fixture-debt ledger traced this cohort's
+placeholder ARNs (`aws_ecs_daemon.app`'s `capacity_provider_arns` and
+`daemon_task_definition_arn`) to these two rejections and asked for the
+underlying identity gap to be built, not hand-overridden. What that work
+found, checked against the four premises the ledger's own instructions
+required verifying first:
+
+- **`aws_ecs_capacity_provider`'s two original grounds, each checked
+  separately.** Ground 1 (row-gen proposed it client-named from
+  `createOnlyProperties`) is resolved: issue #172's assembled-ARN-template
+  extraction, which did not exist when this cohort's veto prose was
+  written, now derives this exact type as a six-component ARN template
+  (`arn:aws:ecs:` + region + `:` + account + `:capacity-provider/` +
+  `name`) directly from `live/import-grammar.json`'s scraped template,
+  matching the provider's own Identity Schema. Ground 2 (no native list
+  resource, "the same gap that keeps `aws_efs_file_system` out") does not
+  hold on its own terms: `tools/survey-gen/classify.go`'s own
+  strongest-path rule checks `signals.taggable` BEFORE `signals.list_resource`
+  — a taggable type takes the marker path regardless, because this fork's
+  own discovery (`internal/live/discovery/tagging.go`) enumerates by the AWS
+  Resource Groups Tagging API's `GetResources`, not by any Terraform-side
+  list resource (that signal is `GetProviderSchemaResponse.ListResourceTypes`,
+  the unrelated OpenTofu 1.10+ query/list-block feature). `aws_ecs_capacity_provider`
+  is taggable (`live/survey-full.json`), so it was never actually blocked
+  by this; the `aws_efs_file_system` analogy itself no longer holds either —
+  that type's current survey row shows `identity_schema: false`, not
+  `list_resource: false`, as the operative gap.
+- **`aws_ecs_daemon_task_definition` was never actually vetoed in code.**
+  This cohort's own veto prose (written 09:26, 2026-08-13) claimed it
+  shared `aws_ecs_task_definition`'s family+revision shape and was
+  "rejected for the same reason", but the REMAINDER batch (written 13:42
+  the same day, after this cohort's) admitted it as a plain server-assigned
+  type — `internal/live/identity/table_cohort_remainder.go`'s own
+  `serverAssigned("aws_ecs_daemon_task_definition", ...)` call, which
+  #96 folded into `table_generated.go` and which has shipped, unbroken,
+  ever since. The provider's own Identity Schema requires `arn` alone for
+  this type (`live/import-grammar.json`), not `family`+`revision` the way
+  `aws_ecs_task_definition` genuinely does — the two types are not the same
+  shape, and this cohort's veto prose was simply wrong, superseded the same
+  day it was written. `tools/row-gen/rejected.json` never carried an entry
+  for it (issue #131's ledger-disjointness invariant would have refused one
+  against an already-admitted type), which is why its absence from that
+  ledger was a correct, not a lost, fact.
+- **What issue #150 actually built.** Both rows were missing
+  `IdentityAttrs` — `aws_ecs_capacity_provider` because it was never
+  admitted at all, `aws_ecs_daemon_task_definition` because no correction
+  rule populates a server-assigned proposal's `IdentityAttrs` from a
+  widened-scrape Identity Schema when no earlier rule had already guessed
+  one (`tools/row-gen/importprecedence.go`'s `applyIdentitySchemaAttrsCorrection`
+  only ever corrects an existing guess). Both rows now carry
+  `IdentityAttrs: ["arn"]`, read directly off each type's own documented
+  Attribute Reference (`arn` only, no `id`) rather than the id-alias
+  inference issue #44 keeps as a human call. That is what let
+  `overrides_cohort_ecs_eks.go`'s `aws_ecs_daemon` entry drop its two
+  placeholder ARNs for real sibling references.
 
 ## Rejected
 
 `tools/row-gen`'s ECS and EKS service sections proposed nine types each
-(eighteen total) in this batch's scope. Nine are ratified above (plus
-`aws_ecs_cluster`, already admitted before this batch). Eight are rejected,
-on independent verification against the provider's documented Argument
-Reference, Attribute Reference and Import section — not against the
-registry's own classification:
+(eighteen total) in this batch's scope. Eleven are now admitted (the nine
+originally ratified, plus `aws_ecs_cluster` already admitted before this
+batch, plus the two reversed above). Six remain rejected, on independent
+verification against the provider's documented Argument Reference,
+Attribute Reference and Import section — not against the registry's own
+classification:
 
-- `aws_ecs_capacity_provider` — row-gen proposed client-named via the
-  registry's createOnlyProperties `Name`. The provider disagrees: its own
-  Identity Schema requires the server-assigned `arn`
-  (`arn:aws:ecs:REGION:ACCOUNT:capacity-provider/NAME`), not `name` — the
-  same registry-says-client-named-but-the-provider-disagrees shape the
-  Lambda and IAM/ECR batches' own rejections established. Even granting
-  server-assigned status, v6.58.0 ships this type with no native list
-  resource, the same gap that keeps `aws_efs_file_system` out of the marker
-  cohort in `internal/live/lint/admission.go`: nothing enumerates it.
-- `aws_ecs_daemon_task_definition` — the same family+server-assigned-revision
-  shape as `aws_ecs_task_definition` below (ECS's new daemon-scheduling
-  sibling of the ordinary task definition, added in the same provider
-  release). Rejected for the same reason.
 - `aws_ecs_express_gateway_service` — v6.58.0 ships this type with no
   identity schema at all, its `service_name` argument is Optional and
   Terraform-generated when omitted, and row-gen's own enumeration story
@@ -113,9 +164,13 @@ registry's own classification:
 - `aws_eks_pod_identity_association` — the identity requires `cluster_name`
   plus `association_id`, which is not a configuration argument at all — the
   provider mints it, documented "The ID of the association", read-only.
-  Server-assigned, so this needs the marker path; the type is taggable, but
-  v6.58.0 ships it with no native list resource, the same
-  `aws_ecs_capacity_provider` gap above: nothing enumerates it.
+  Server-assigned, so this needs the marker path; the type is taggable.
+  (This bullet originally also cited "no native list resource" as a second,
+  independent ground, the same claim the Reversed section above found does
+  not actually gate the marker path — `signals.taggable` alone does. Left
+  rejected here on the `association_id` ground alone, which this batch did
+  not re-verify; a future pass should re-check it on its own rather than by
+  this stale analogy.)
 
 ## A note on floci, not on any of the rejections above
 
@@ -149,7 +204,7 @@ rather than registry tier.
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — `"ecs-eks-cohort"`, distinct from every other cohort's own tag. |
-| `ecs-eks.tf` | The nine ratified types. |
+| `ecs-eks.tf` | The thirteen ratified types (nine from this cohort's original batch, `aws_appautoscaling_target` and `aws_ecs_service` from #175's reversal batch, `aws_ecs_capacity_provider` and `aws_ecs_daemon_task_definition` from #150's veto reversal). |
 | `supporting.tf` | `aws_iam_role.ecs-eks` (estate-gen's own addition, for the four `*_role_arn` arguments) plus `aws_ecs_cluster.ecs-eks` (hand-added — see below) — neither is a coverage row; `aws_iam_role` and `aws_ecs_cluster` are already covered elsewhere. |
 
 ## Hand adjustments beyond overrides.go

@@ -25,6 +25,9 @@ var taggableEcsEks = []string{
 	// #175 reversal batch, 2026-08-15: taggability per the provider
 	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
 	"aws_ecs_service",
+	// #150 veto reversal, 2026-08-15: taggability per the provider schema
+	// survey (live/survey-full.json, v6.59.0 signals.taggable).
+	"aws_ecs_capacity_provider",
 }
 
 var untaggableEcsEks = []string{
@@ -48,6 +51,10 @@ func init() {
 			"aws_appautoscaling_target": taggedSchema("id", "arn", "service_namespace", "resource_id", "scalable_dimension"),
 			// #175 reversal batch, 2026-08-15.
 			"aws_ecs_service": taggedSchema("id", "arn", "cluster", "name"),
+			// #150 veto reversal, 2026-08-15: the provider's own Attribute
+			// Reference (ecs_capacity_provider.html.markdown) documents only
+			// arn and tags_all, no id.
+			"aws_ecs_capacity_provider": taggedSchema("arn", "name"),
 		})
 	})
 }

@@ -98,16 +98,26 @@ var typeOverridesEcsEks = map[string]typeOverride{
 			}
 		},
 	},
+	"aws_ecs_capacity_provider": {
+		Reasons: []string{
+			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_ecs_cluster (an unrelated ECS type whose single-component identity also happens to be named "name"; identityArgName only fires that tiebreaker for a single-Component type, and this type's identity is the six-Component assembled ARN template, so parentRef never sees it as owning "name" itself) - overridden back to a deterministic placeholder, the same shape aws_ecs_daemon's own "name" override below uses. The provider requires exactly one of auto_scaling_group_provider or managed_instances_provider (the doc's own NOTE), a "one of" the wire schema encodes as two Optional blocks rather than either being Required, so the generic required-block pass emits neither. auto_scaling_group_provider is the shallower shape - only auto_scaling_group_arn is Required inside it, where managed_instances_provider nests three further Required fields (instance_launch_template.ec2_instance_profile_arn, instance_launch_template.network_configuration.subnets, instance_requirements.memory_mib) - so that block is added here with a well-formed placeholder ARN: no aws_autoscaling_group resource exists in this cohort's own requested types to reference (that type belongs to the ec2-core cohort), the same "no admitted type exists in this cohort to reference" shape aws_eks_access_policy_association's access_scope.type placeholder above already uses`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-capacity-provider"`, g.cohort)))
+			blk := body.AppendNewBlock("auto_scaling_group_provider", nil)
+			blk.Body().SetAttributeRaw("auto_scaling_group_arn", exprTokens(fmt.Sprintf(
+				`"arn:aws:autoscaling:us-east-1:000000000000:autoScalingGroup:00000000-0000-0000-0000-000000000000:autoScalingGroupName/tofu-%s-cohort-asg"`, g.cohort)))
+		},
+	},
 	"aws_ecs_daemon": {
 		Reasons: []string{
-			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_eks_cluster (an unrelated EKS type whose single-component identity also happens to be named "name"), producing a cross-service reference where a plain placeholder string belongs; overridden back to a placeholder. capacity_provider_arns and daemon_task_definition_arn are required arguments the provider validates as well-formed ARNs (validate: "cannot be parsed as an ARN"); this batch rejected both aws_ecs_capacity_provider and aws_ecs_daemon_task_definition (see internal/live/identity/table.go), so no real sibling resource supplies either, and both are set to well-formed placeholder ARNs instead`,
+			`the generic pass's same-name parent search matches this type's own client-chosen "name" argument against aws_eks_cluster (an unrelated EKS type whose single-component identity also happens to be named "name"), producing a cross-service reference where a plain placeholder string belongs; overridden back to a placeholder. capacity_provider_arns is a required, list-typed argument the provider validates as well-formed ARNs (validate: "cannot be parsed as an ARN"); the generic pass's siblingRef only recognizes a singular "<base>_arn" suffix, not this plural "_arns" shape, so it is wired here by hand to the cohort's own aws_ecs_capacity_provider.app - the #150 veto reversal admitted that type with IdentityAttrs ["arn"], so this is a real sibling reference, not a placeholder. daemon_task_definition_arn is singular and the generic pass's siblingRef already wires it correctly to aws_ecs_daemon_task_definition.app.arn now that type is part of this cohort's roster, so it is left unset here`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-cohort-ecs-daemon"`, g.cohort)))
-			body.SetAttributeRaw("capacity_provider_arns", exprTokens(fmt.Sprintf(
-				`["arn:aws:ecs:us-east-1:000000000000:capacity-provider/tofu-%s-cohort-capacity-provider"]`, g.cohort)))
-			body.SetAttributeRaw("daemon_task_definition_arn", exprTokens(fmt.Sprintf(
-				`"arn:aws:ecs:us-east-1:000000000000:daemon-task-definition/tofu-%s-cohort-daemon-task:1"`, g.cohort)))
+			if cp, ok := g.byType["aws_ecs_capacity_provider"]; ok {
+				body.SetAttributeRaw("capacity_provider_arns", exprTokens(fmt.Sprintf("[%s.%s.arn]", cp.Type, cp.Label)))
+			}
 		},
 	},
 	"aws_eks_cluster": {
