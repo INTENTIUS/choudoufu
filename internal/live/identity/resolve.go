@@ -780,6 +780,36 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			failed = true
 			continue
 		}
+		// attr is present in the body, but the name/name_prefix convention
+		// the [attr == nil] branch above handles for an OMITTED base
+		// argument is just as common spelled through a conditional instead:
+		// `name = var.use_prefix ? null : var.name` paired with
+		// `name_prefix = var.use_prefix ? "${var.name}-" : null` (this is
+		// terraform-aws-modules' own aws_iam_role shape, and #190's comment
+		// on [resolver.identityArgs] already names the convention). attr is
+		// syntactically present either way, so firstPresent alone cannot
+		// tell "named through name_prefix" apart from "named", and without
+		// this check attr's null VALUE would reach stringValue below and
+		// raise "Null identity argument" - a hard, wrong refusal for a
+		// resource that resolves to ClassNeedsDiscovery under every other
+		// spelling of the identical convention.
+		//
+		// The peek below evaluates attr's expression without going through
+		// stringValue, so it raises no diagnostic of its own: a peek that
+		// itself fails (an unresolvable reference, say) is left alone, and
+		// the ordinary resolveExpr path a few lines down reports it exactly
+		// as it always has. Only a clean, wholly-known null redirects here.
+		if prefixAttr, ok := attrs[attr.Name+"_prefix"]; ok {
+			if peekVal, peekDiags := r.evalPure(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range)); !peekDiags.HasErrors() && peekVal.IsNull() {
+				return Resolution{
+					Addr:  addr,
+					Class: ClassNeedsDiscovery,
+					Reason: fmt.Sprintf(
+						"%s is named through %s rather than %q; the provider appends a random suffix to the prefix at create time, so the resulting name is not known until the object exists.",
+						addr.String(), prefixAttr.Name, attr.Name),
+				}, true
+			}
+		}
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
 		if comp.SoleElement {
