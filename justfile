@@ -51,6 +51,14 @@ demo:
 demo-records:
     bash live/e2e/record-store/run.sh
 
+# Issue #193's managed-argument projection end to end: a data source whose
+# argument reads an attribute the resource's own block sets, read against a
+# real emulator, with the parameter's live value moved out from under the
+# configuration first so a static shortcut cannot pass. Needs Docker and the
+# AWS CLI; runs on its own port (4599) so it can run beside `just demo`.
+demo-dataread:
+    bash live/e2e/dataread-projection/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
