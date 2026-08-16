@@ -65,6 +65,18 @@ func ChildModuleKeys(ctx context.Context, mod *configs.Module, subject string, e
 	}
 	elems, diag := childModuleForEachElements(ctx, mod, subject, expr)
 	if diag != nil {
+		// The whole expression did not evaluate, but a for_each only
+		// needs its KEYS to be static - the paired values are read
+		// back through each.value, from inside an instance that
+		// already exists, and [ChildModuleRepetitionData] still
+		// refuses those separately. See [staticForEachKeyNames].
+		if names, ok := staticForEachKeyNames(ctx, mod, subject, expr); ok {
+			keys := make([]addrs.InstanceKey, 0, len(names))
+			for _, name := range names {
+				keys = append(keys, addrs.StringKey(name))
+			}
+			return keys, nil
+		}
 		return nil, diag
 	}
 
@@ -94,6 +106,12 @@ func ChildModuleKeys(ctx context.Context, mod *configs.Module, subject string, e
 // one place both [ChildModuleKeys] and [ChildModuleRepetitionData] evaluate
 // a module call's for_each, so the two can never disagree about what one
 // key's value is.
+//
+// When it refuses, both callers fall back to [staticForEachKeyNames] -
+// again the same one function, so they cannot disagree about which
+// instances exist either. That fallback proves keys and never values, so
+// nothing it admits can put a value here that this function did not
+// produce.
 func childModuleForEachElements(ctx context.Context, mod *configs.Module, subject string, expr hcl.Expression) (map[string]cty.Value, *hcl.Diagnostic) {
 	if mod == nil || mod.StaticEvaluator == nil {
 		return nil, staticEvalDiag(expr.Range(), subject, "no static evaluator is available to evaluate it")
@@ -213,6 +231,23 @@ func ChildModuleRepetitionData(ctx context.Context, mod *configs.Module, subject
 		}
 		elems, diag := childModuleForEachElements(ctx, mod, subject, forEachExpr)
 		if diag != nil {
+			// The whole expression did not evaluate, but its KEY set
+			// may still be proven - the same widening [ChildModuleKeys]
+			// applies, so the two cannot disagree about which instances
+			// exist. EachValue stays cty.NilVal, and
+			// [configs.StaticEvaluator.repetitionAttr] answers
+			// each.value only for a non-nil one, so a reference to the
+			// value this pass could not read refuses where it is
+			// written instead of being guessed at here.
+			names, keysOK := staticForEachKeyNames(ctx, mod, subject, forEachExpr)
+			if !keysOK {
+				return instances.RepetitionData{}, false
+			}
+			for _, name := range names {
+				if name == string(strKey) {
+					return instances.RepetitionData{EachKey: cty.StringVal(name)}, true
+				}
+			}
 			return instances.RepetitionData{}, false
 		}
 		val, ok := elems[string(strKey)]
