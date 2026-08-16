@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/dynblock"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -161,6 +162,50 @@ func (s *StaticEvaluator) WithRepetitionData(rd instances.RepetitionData) *Stati
 	}
 	dup := *s
 	dup.repetition = rd
+	return &dup
+}
+
+// WithVariables returns a copy of the evaluator whose module call answers
+// var.* references (see [staticScopeData.GetInputVariable]) through vars
+// instead of the one captured when the module tree was first built.
+//
+// The base evaluator's own vars closure ([ModuleCall.Variables], built by
+// [ModuleCall.decodeStaticVariables]) is frozen once, at load time, against
+// this module's OWN [*StaticEvaluator] as it existed then - before any
+// caller has ever had a chance to call [StaticEvaluator.WithDataResults] or
+// [StaticEvaluator.WithRepetitionData] on anything, because no read or
+// instance resolution has happened yet. That closure is a real *StaticEvaluator
+// pointer captured by a Go closure, not re-derived per call, so every
+// module-call variable it ever answers is evaluated with NO data-source
+// coverage and NO repetition data, forever, for the lifetime of that
+// [*Config] tree - regardless of what coverage a later caller attaches to
+// ITS OWN evaluator for a descendant module.
+//
+// That staleness is invisible for an ordinary var.X - source, count,
+// for_each, module version - because those rarely depend on a data source
+// or a resource instance's repetition. It stops being invisible the moment
+// a descendant module's data source references var.X, and var.X's value,
+// in the ANCESTOR, itself reads that ancestor's OWN data source (issue
+// #212): the ancestor's frozen evaluator has never seen a data-source
+// lookup at all, so the reference refuses as unreadable even when #179
+// stage 3 says this exact shape should be readable.
+//
+// A caller that has built a "live" evaluator for the ancestor module -
+// carrying that module's own [StaticEvaluator.WithDataResults] coverage,
+// scoped to that module and no other (see
+// internal/live/dataread's per-module lookup, never a lookup shared across
+// two different modules) - uses WithVariables to re-point THIS module's own
+// var.* resolution at that live ancestor evaluator instead of the frozen
+// one, via [ModuleCall.VariablesUsing]. Every other field this evaluator
+// carries (its own module, its own data lookup, its own repetition) is
+// untouched: only how ITS OWN var.* references reach their ancestor's
+// expression changes.
+func (s *StaticEvaluator) WithVariables(vars StaticModuleVariables) *StaticEvaluator {
+	if s == nil || vars == nil {
+		return s
+	}
+	dup := *s
+	dup.call = dup.call.WithVariables(vars)
 	return &dup
 }
 
@@ -358,8 +403,40 @@ func (s StaticEvaluator) DecodeExpression(ctx context.Context, expr hcl.Expressi
 	return diags.Extend(gohcl.DecodeValue(srcVal, expr.StartRange(), expr.Range(), val))
 }
 
+// DecodeBlock decodes body against spec, expanding any "dynamic" block it
+// contains first - the same two-phase split stock OpenTofu's own plan-time
+// evaluator uses (internal/lang/eval.go's Scope.ExpandBlock, then
+// Scope.EvalBlock): phase one resolves whatever a "dynamic" block's own
+// for_each/iterator/labels arguments reference and expands the block; phase
+// two resolves the expanded body's own references and decodes it.
+//
+// Before this, DecodeBlock ran phase two alone, directly against the raw
+// body. hcldec rejects a "dynamic" block outright ("Blocks of type
+// \"dynamic\" are not expected here") because it is not a block type any
+// schema ever declares, so a data source's arguments using one - an IAM
+// policy document's `dynamic "statement" { ... }`, ordinary and common in
+// real configurations - refused every time, never silently: the caller
+// always got an error diagnostic, not a wrong or partial value. See
+// internal/live/dataread's #212 fix, which is the concrete case that first
+// exercised this.
 func (s StaticEvaluator) DecodeBlock(ctx context.Context, body hcl.Body, spec hcldec.Spec, ident StaticIdentifier) (cty.Value, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
+
+	expandRefs, expandRefsDiags := lang.References(addrs.ParseRef, dynblock.ExpandVariablesHCLDec(body, spec))
+	diags = append(diags, expandRefsDiags.ToHCL()...)
+	if diags.HasErrors() {
+		return cty.DynamicVal, diags
+	}
+
+	expandCtx, expandCtxDiags := s.scope(ident).EvalContext(ctx, expandRefs)
+	diags = append(diags, expandCtxDiags.ToHCL()...)
+	if diags.HasErrors() {
+		return cty.DynamicVal, diags
+	}
+	if expandCtx == nil {
+		expandCtx = &hcl.EvalContext{}
+	}
+	body = dynblock.Expand(body, expandCtx)
 
 	refs, refsDiags := lang.References(addrs.ParseRef, hcldec.Variables(body, spec))
 	diags = append(diags, refsDiags.ToHCL()...)

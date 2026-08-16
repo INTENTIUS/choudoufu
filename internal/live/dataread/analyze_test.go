@@ -14,6 +14,7 @@ import (
 
 	version "github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -55,6 +56,60 @@ func loadConfig(t *testing.T, dir string, vars map[string]cty.Value) *configs.Co
 		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
 			t.Fatalf("test fixture %s unexpectedly calls module %q", dir, req.Name)
 			return nil, nil, nil
+		},
+	))
+	if cfgDiags.HasErrors() {
+		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
+	}
+	return cfg
+}
+
+// loadConfigTree is [loadConfig] with a walker that actually resolves child
+// modules by treating a module call's source address as a path relative to
+// the calling module's own directory - the same reading
+// internal/live/identity/identity_test.go's own loadConfigTree uses. Every
+// existing fixture uses [loadConfig], whose walker fails the test the
+// moment anything calls a module; a fixture with a real module tree (issue
+// #212's cross-module-* fixtures) needs this one instead.
+func loadConfigTree(t *testing.T, dir string, vars map[string]cty.Value) *configs.Config {
+	t.Helper()
+
+	parser := configs.NewParser(nil)
+	call := configs.NewStaticModuleCall(
+		addrs.RootModule,
+		hcl.Range{},
+		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) {
+			if val, ok := vars[v.Name]; ok {
+				return val, nil
+			}
+			if v.Required() {
+				return cty.NilVal, hcl.Diagnostics{{
+					Severity: hcl.DiagError,
+					Summary:  "No value for required variable",
+					Detail:   fmt.Sprintf("The root module input variable %q is not set.", v.Name),
+					Subject:  v.DeclRange.Ptr(),
+				}}
+			}
+			return v.Default, nil
+		},
+		dir,
+		"default",
+	)
+
+	mod, diags := parser.LoadConfigDir(dir, call)
+	if diags.HasErrors() {
+		t.Fatalf("loading %s: %s", dir, diags.Error())
+	}
+
+	dirs := map[string]string{"": dir}
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			parentDir := dirs[req.Parent.Path.String()]
+			sourcePath := filepath.Join(parentDir, req.SourceAddr.String())
+			dirs[req.Path.String()] = sourcePath
+
+			childMod, modDiags := parser.LoadConfigDir(sourcePath, req.Call)
+			return childMod, nil, modDiags
 		},
 	))
 	if cfgDiags.HasErrors() {
@@ -362,6 +417,187 @@ func TestAnalyzeRemoteStateNonStaticBackendConfigIsIneligible(t *testing.T) {
 			t.Errorf("the wording lacks %q: %s", part, src.ReasonDetail)
 		}
 	}
+}
+
+// TestAnalyzeCrossModuleVariableChainIsEligible is issue #212's chain,
+// confirmed directly: a descendant module's data source (data.test_zone.sub
+// in child/) reads a module-call variable whose value is itself an
+// ancestor's own data source's attribute (data.test_zone.root.name in the
+// root). Before the fix, [configs.ModuleCall.decodeStaticVariables]'s
+// closure evaluated var.zone_name through the root's StaticEvaluator as it
+// existed when the module tree was FIRST built - before analysis had
+// attached any data lookup to anything - so the reference refused as
+// unreadable and every source in the chain classified ineligible. The fix
+// gives the ancestor module its own live, data-lookup-attached evaluator
+// (see liveeval.go) so the reference now resolves like any other same-stack
+// data reference.
+func TestAnalyzeCrossModuleVariableChainIsEligible(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "cross-module-eligible"), nil)
+	a := Analyze(context.Background(), cfg, Options{})
+
+	childModule := addrs.Module{"child"}
+	rootSrc, ok := a.SourceFor(addrs.RootModule, dataAddr("test_zone", "root"))
+	if !ok {
+		t.Fatalf("the root module's data.test_zone.root was not classified at all")
+	}
+	if !rootSrc.Eligible {
+		t.Fatalf("data.test_zone.root classified ineligible: %s", rootSrc.ReasonDetail)
+	}
+
+	subSrc, ok := a.SourceFor(childModule, dataAddr("test_zone", "sub"))
+	if !ok {
+		t.Fatalf("the child module's data.test_zone.sub was not classified at all")
+	}
+	if !subSrc.Eligible {
+		t.Fatalf("data.test_zone.sub classified ineligible: %s", subSrc.ReasonDetail)
+	}
+
+	// The dependency edge must be attributed to the ROOT module, not the
+	// child module data.test_zone.sub itself lives in - the whole point of
+	// #212's fix.
+	var sawCrossModuleDep bool
+	for _, dep := range subSrc.Deps {
+		if dep.Resource.String() == "data.test_zone.root" {
+			if dep.Module.String() != addrs.RootModule.String() {
+				t.Errorf("data.test_zone.root dependency attributed to module %q, want the root module", dep.Module.String())
+			}
+			sawCrossModuleDep = true
+		}
+	}
+	if !sawCrossModuleDep {
+		t.Fatalf("data.test_zone.sub's Deps %v does not name data.test_zone.root at all", subSrc.Deps)
+	}
+
+	recordSrc, ok := a.SourceFor(childModule, dataAddr("test_record", "b"))
+	if !ok {
+		t.Fatalf("the child module's data.test_record.b was not classified at all")
+	}
+	if !recordSrc.Eligible {
+		t.Fatalf("data.test_record.b classified ineligible: %s", recordSrc.ReasonDetail)
+	}
+}
+
+// TestAnalyzeCrossModuleVariableChainStillPropagatesRefusal is
+// TestAnalyzeCrossModuleVariableChainIsEligible's negative twin: the
+// ancestor's own data source depends on a managed resource (rule 4), so it
+// is ineligible on its own regardless of any module boundary. Widening
+// eligibility to cross a module boundary must not stop a genuine refusal
+// from propagating across that same boundary - answers "did this change
+// turn any warning into silence?".
+func TestAnalyzeCrossModuleVariableChainStillPropagatesRefusal(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "cross-module-ineligible"), nil)
+	a := Analyze(context.Background(), cfg, Options{})
+
+	rootSrc, ok := a.SourceFor(addrs.RootModule, dataAddr("test_zone", "root"))
+	if !ok {
+		t.Fatalf("the root module's data.test_zone.root was not classified at all")
+	}
+	if rootSrc.Eligible {
+		t.Fatalf("data.test_zone.root reads a managed resource but classified eligible")
+	}
+
+	subSrc, ok := a.SourceFor(addrs.Module{"child"}, dataAddr("test_zone", "sub"))
+	if !ok {
+		t.Fatalf("the child module's data.test_zone.sub was not classified at all")
+	}
+	if subSrc.Eligible {
+		t.Fatalf("data.test_zone.sub classified eligible even though its ancestor's own data source depends on a managed resource - the refusal did not propagate across the module boundary")
+	}
+	if subSrc.ReasonSummary != SummaryNotReadable {
+		t.Errorf("refused under %q, want %q", subSrc.ReasonSummary, SummaryNotReadable)
+	}
+	if !strings.Contains(subSrc.ReasonDetail, "data.test_zone.root") {
+		t.Errorf("the wording does not name the ancestor's own unreadable source: %s", subSrc.ReasonDetail)
+	}
+}
+
+// TestAnalyzeDynamicBlockIteratorIsEligible is issue #212's second fix,
+// confirmed: before it, collectBodyExpressions had no model for a
+// "dynamic" block's iterator at all - the block's own for_each was
+// silently skipped (its name collided with [metaArguments]) and "content"
+// walked as an ordinary nested block, so statement.value/condition.value/
+// stmt.value each evaluated as an undefined variable and the source
+// classified ineligible. This fixture exercises the three shapes that
+// actually appear in terraform-aws-modules/iam: an ordinary iterator, a
+// dynamic block nested inside another reading the OUTER block's iterator
+// from the inner block's own content, and a renamed iterator via
+// `iterator = stmt`.
+func TestAnalyzeDynamicBlockIteratorIsEligible(t *testing.T) {
+	a := analyzeFixture(t, "dynamic-block-iterator")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("test_zone", "policy"))
+	if !ok {
+		t.Fatalf("the demanded data source was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("data.test_zone.policy classified ineligible: %s", src.ReasonDetail)
+	}
+}
+
+// TestCollectDynamicBlockNoLabelRefusesRatherThanVanishing: a "dynamic"
+// block with no label is invalid HCL that OpenTofu's own schema decode
+// would refuse anyway, but this phase draws no schema at all - answers
+// "does a completeness check silently skip what it does not recognize?"
+// for that shape: it must not let the malformed block's would-be content
+// simply disappear from the walk and read as trivially eligible.
+func TestCollectDynamicBlockNoLabelRefusesRatherThanVanishing(t *testing.T) {
+	body := parseHCLBody(t, `
+dynamic {
+  for_each = ["a"]
+  content {
+    sid = "x"
+  }
+}
+`)
+	var out []namedExpr
+	collectBodyExpressions(body, "argument", &out)
+	if len(out) != 1 || out[0].expr != nil {
+		t.Fatalf("collectBodyExpressions on a labelless dynamic block produced %d expressions (want exactly one expression-less sentinel): %+v", len(out), out)
+	}
+}
+
+// TestCollectDynamicBlockNoContentRefusesRatherThanVanishing is the same
+// question for a "dynamic" block missing its required "content" sub-block.
+func TestCollectDynamicBlockNoContentRefusesRatherThanVanishing(t *testing.T) {
+	body := parseHCLBody(t, `
+dynamic "statement" {
+  for_each = ["a"]
+}
+`)
+	var out []namedExpr
+	var sawForEach, sawSentinel bool
+	collectBodyExpressions(body, "argument", &out)
+	for _, ne := range out {
+		if ne.expr == nil {
+			sawSentinel = true
+			continue
+		}
+		if strings.Contains(ne.label, "for_each") {
+			sawForEach = true
+		}
+	}
+	if !sawForEach {
+		t.Errorf("the dynamic block's own for_each was not collected at all: %+v", out)
+	}
+	if !sawSentinel {
+		t.Fatalf("a dynamic block with no content block produced no refusing sentinel: %+v", out)
+	}
+}
+
+// parseHCLBody parses src as a bare HCL body (no surrounding block) for a
+// collectBodyExpressions unit test that needs a real *hclsyntax.Body
+// without a whole fixture directory.
+func parseHCLBody(t *testing.T, src string) *hclsyntax.Body {
+	t.Helper()
+	f, diags := hclsyntax.ParseConfig([]byte(src), "test.tf", hcl.InitialPos)
+	if diags.HasErrors() {
+		t.Fatalf("parsing test HCL: %s", diags.Error())
+	}
+	body, ok := f.Body.(*hclsyntax.Body)
+	if !ok {
+		t.Fatalf("parsed body is not *hclsyntax.Body")
+	}
+	return body
 }
 
 // TestAnalyzeEmptyForConfigurationsWithoutDataDemand: the phase costs
