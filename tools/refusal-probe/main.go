@@ -432,7 +432,7 @@ func sweep(opts sweepOptions) (*run, error) {
 			e.Refusals[f.ID] += len(f.Sites)
 			r.Layers[f.ID] = string(f.Layer)
 			for _, s := range f.Sites {
-				cause := causes.site(f.Layer, s)
+				cause := causes.site(f.Layer, s, f.ID)
 				if e.Causes == nil {
 					e.Causes = map[string]map[string]int{}
 				}

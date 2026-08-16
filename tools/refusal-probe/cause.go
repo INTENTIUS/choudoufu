@@ -217,9 +217,16 @@ func (c *causeCatalog) discovery(detail string) string {
 // An empty string means this site carries none of the three. It is counted
 // under its own key rather than dropped, so the breakdown always sums to the
 // site count and a reader can see how much of it is unexplained.
-func (c *causeCatalog) site(layer check.Layer, s check.Site) string {
+//
+// The discovery axis is applied to the one stamp summary that actually
+// carries a discovery sentence, not to the stamp layer as a whole: a marker
+// CONFLICT is also a stamp-layer error and has no cause of this kind, so
+// labelling it "discovery:UNCLASSIFIED" would put it on an axis it was never
+// on. Nothing in this corpus raises one today, which is exactly why the guard
+// is worth having now rather than after one does.
+func (c *causeCatalog) site(layer check.Layer, s check.Site, id string) string {
 	switch {
-	case layer == check.LayerStamp:
+	case layer == check.LayerStamp && id == stamp.SummaryUnmarkedApply:
 		return "discovery:" + c.discovery(s.Detail)
 	case s.Category != "":
 		return "reference:" + string(s.Category)
