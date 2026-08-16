@@ -251,6 +251,30 @@ things here:
   block, the ownership-policy matrix, provider version-skew detection, bulk
   migration off a state file, and resource-level `count`/`for_each` all ship.
 
+## Nothing will wake you
+
+This applies to every agent working here, whether or not its brief repeats it.
+It is written down because on 2026-08-16 an orchestrator left it out of one
+brief and that agent stalled exactly as predicted.
+
+**No notification will resume you.** Do not start a background job and wait on
+it. Do not end your turn expecting to be woken. Do not set up a watcher, a
+monitor, or a polling loop and stop. Your final report is the only artifact
+that survives your turn.
+
+If something you started is still running when you are ready to report: check
+its state directly, read whatever log it has written, and report how far it
+got. **A partial result reported honestly is worth far more than a guess, and
+enormously more than nothing.** Then kill it, so it is not left running
+against a shared tree.
+
+**Do not spawn subagents.** One did this on 2026-08-16 and clobbered its
+parent's in-progress edits three times. If your task genuinely needs work you
+cannot do, say so in your report — that becomes the next brief.
+
+Three agents have now been lost or half-lost to these two rules. They are not
+advice.
+
 ## The verification budget
 
 Measured 2026-08-16 across sixteen agents. An implementer's median run was
