@@ -1109,7 +1109,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 112 | 1357 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 101 | 2007 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 101 | 2057 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 73 | 3509 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 58 | 226 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
@@ -1127,7 +1127,6 @@ refused, and each says so in its own entry.
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 2 | 4 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 1 | 50 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 1 | 4 | identity | Attempt to get attribute from null value | error | `hcl` | "Attempt to get attribute from null value" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
@@ -1239,6 +1238,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | error | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
+| 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
@@ -1314,7 +1314,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 101 configurations in the measured corpus, at 2007 sites.
+**How often.** Blocked 101 configurations in the measured corpus, at 2057 sites.
 
 #### Unable to compute static value
 

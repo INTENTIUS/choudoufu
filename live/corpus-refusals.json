@@ -2738,7 +2738,7 @@
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
-      "shadowed": 84,
+      "shadowed": 34,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/govuk-publishing-infrastructure.tfvars"
@@ -2757,9 +2757,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 27,
+            "sites": 77,
             "categories": {
-              "data_source": 7,
+              "data_source": 57,
               "tfe_outputs": 20
             }
           },
@@ -2805,11 +2805,6 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 3
-          },
-          {
-            "layer": "lint",
-            "id": "for-each-key",
-            "sites": 50
           },
           {
             "layer": "lint",
@@ -9172,7 +9167,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 101,
-      "sites": 2007,
+      "sites": 2057,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -9538,23 +9533,6 @@
       "examples": [
         ".corpus/autoscaling/examples/complete/main.tf:882",
         ".corpus/rds/examples/s3-import-mysql/main.tf:191"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "lint",
-      "id": "for-each-key",
-      "title": "for_each key is outside the marker character set",
-      "docs_ref": "live/LIMITATIONS.md, \"foreach-invalid-key\"",
-      "raised_by": "internal/live/lint",
-      "configs": 1,
-      "sites": 50,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/subdomain_dns.tf:9",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/subdomain_dns.tf:9",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/subdomain_dns.tf:9",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/subdomain_dns.tf:9",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/subdomain_dns.tf:9"
       ],
       "registered": true
     },
@@ -10544,6 +10522,16 @@
     },
     {
       "layer": "lint",
+      "id": "for-each-key",
+      "title": "for_each key is outside the marker character set",
+      "docs_ref": "live/LIMITATIONS.md, \"foreach-invalid-key\"",
+      "raised_by": "internal/live/lint",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "lint",
       "id": "ignore-changes",
       "title": "Ownership markers would be ignored",
       "docs_ref": "live/LIMITATIONS.md, \"ignore-changes\"",
@@ -10658,7 +10646,7 @@
     "loaded": 249,
     "instances": 3498,
     "sites": 10163,
-    "refusals_fired": 26,
+    "refusals_fired": 25,
     "refusals_in_set": 118,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
