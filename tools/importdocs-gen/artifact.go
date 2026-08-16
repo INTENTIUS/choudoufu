@@ -132,6 +132,23 @@ type Row struct {
 	// resolves to neither section and stays "unknown").
 	IDParts []IDPart `json:"id_parts,omitempty"`
 
+	// SoleIDPart is IDParts for a documented import ID with exactly one
+	// segment - the arity IDParts' own gate refuses, and therefore the
+	// arity at which nothing in this artifact used to say whether the ID
+	// is the server's value or the configuration's. Nil whenever the
+	// segment resolves to nothing, since a lone unattributed segment
+	// states nothing at all. See soleIDPart.
+	SoleIDPart *IDPart `json:"sole_id_part,omitempty"`
+
+	// ArgumentNamesAnyDepth is every Argument Reference bullet name on the
+	// page at any block depth, ArgumentReference's deliberately wider
+	// sibling. It is a refutation set and nothing should build an import
+	// ID out of it: its purpose is that a consumer deciding a segment is
+	// server-minted can first check whether configuration supplies that
+	// name at some nesting level ArgumentReference's top-level boundary
+	// does not reach. See argumentReferenceNamesAnyDepth.
+	ArgumentNamesAnyDepth []string `json:"argument_names_any_depth,omitempty"`
+
 	// AliasOf is set only on a row this sweep synthesized rather than
 	// parsed from the type's own page: the canonical TF type name whose
 	// doc page carried the provider's own "`aws_alb` is known as `aws_lb`.
@@ -328,6 +345,8 @@ func buildRow(tfType, doc string) (Row, bool) {
 		}
 	}
 	parts := idParts(section, tfType, cr.Separator, idExample, argEntries, attrNames)
+	anyDepthArgs := argumentReferenceNamesAnyDepth(doc)
+	sole := soleIDPart(section, tfType, cr.Separator, idExample, argEntries, anyDepthArgs, attrNames, attributeDescriptions(doc))
 	exArgs := exampleArguments(doc, tfType)
 	return Row{
 		TFType:                 tfType,
@@ -344,6 +363,8 @@ func buildRow(tfType, doc string) (Row, bool) {
 		OmittedFallbacks:       omittedFallbacks(section, cr.Arguments),
 		ExclusiveGroups:        exclusiveGroups(section, argEntries, doc),
 		IDParts:                parts,
+		SoleIDPart:             sole,
+		ArgumentNamesAnyDepth:  anyDepthArgs,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exampleRootLiterals(doc, tfType)),
 	}, true
 }
@@ -361,9 +382,10 @@ func exampleOnlyRow(tfType, doc string) (Row, bool) {
 		return Row{}, false
 	}
 	return Row{
-		TFType:            tfType,
-		ArgumentReference: argEntries,
-		ExampleArguments:  exArgs,
+		TFType:                tfType,
+		ArgumentReference:     argEntries,
+		ArgumentNamesAnyDepth: argumentReferenceNamesAnyDepth(doc),
+		ExampleArguments:      exArgs,
 	}, true
 }
 

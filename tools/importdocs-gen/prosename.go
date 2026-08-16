@@ -301,30 +301,42 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 			}
 		}
 	}
-	// The resource's own noun plus "ID": strip leading articles and the
-	// trailing "id", and match the remainder against the tail of the
-	// type's own name - "IPSet ID" -> "ipset" == aws_guardduty_ipset's
-	// last token, "PublishingDestinationID" ->
-	// aws_guardduty_publishing_destination's last two, "the alias ID" ->
-	// aws_bedrockagent_agent_alias's last one.
+	if namesOwnIdentifier(words, tfType) {
+		return IDPart{Token: part, Source: idPartSourceOwnID}, ""
+	}
+	return IDPart{Token: part, Source: idPartSourceUnknown}, ""
+}
+
+// namesOwnIdentifier reports whether a run of words names the resource's
+// own identifier: strip leading articles and the trailing "id", and match
+// the remainder against the tail of the type's own name - "IPSet ID" ->
+// "ipset" == aws_guardduty_ipset's last token,
+// "PublishingDestinationID" -> aws_guardduty_publishing_destination's
+// last two, "the alias ID" -> aws_bedrockagent_agent_alias's last one.
+//
+// A resource does not configure its own ID, so a phrase that passes here
+// is naming a server-provided value. soleid.go reads the same test over
+// an exported attribute's description rather than over import prose.
+func namesOwnIdentifier(words []string, tfType string) bool {
 	for len(words) > 0 && proseArticles[strings.ToLower(words[0])] {
 		words = words[1:]
 	}
 	base := strings.TrimSuffix(normalize(strings.Join(words, "")), "id")
-	if base != "" {
-		typeTokens := strings.Split(strings.TrimPrefix(tfType, "aws_"), "_")
-		tail := ""
-		for k := 1; k <= len(typeTokens); k++ {
-			tail = normalize(typeTokens[len(typeTokens)-k]) + tail
-			if tail == base {
-				return IDPart{Token: part, Source: idPartSourceOwnID}, ""
-			}
-			if len(tail) > len(base) {
-				break
-			}
+	if base == "" {
+		return false
+	}
+	typeTokens := strings.Split(strings.TrimPrefix(tfType, "aws_"), "_")
+	tail := ""
+	for k := 1; k <= len(typeTokens); k++ {
+		tail = normalize(typeTokens[len(typeTokens)-k]) + tail
+		if tail == base {
+			return true
+		}
+		if len(tail) > len(base) {
+			break
 		}
 	}
-	return IDPart{Token: part, Source: idPartSourceUnknown}, ""
+	return false
 }
 
 // plainContentWords splits a part into its content words: parenthesized

@@ -176,7 +176,7 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
 	}
-	vetoed := markerlessRoster(survey, proposals)
+	vetoed := markerlessRoster(survey, proposals, grammar)
 	rows, types := emittedRows(recordBacked, grammar, survey)
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is

@@ -74,16 +74,17 @@ const markerlessReason = "the provider mints this type's identity and the type h
 // server-assigned by whichever source decides admission for it.
 //
 // admittedRow is the ratified row and admitted says whether there is one;
-// classifiedServerAssigned is the classifier's own verdict, consulted only
-// when no row exists. taggable is live/survey-full.json's signal.
-func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned bool) bool {
+// classifiedServerAssigned is the classifier's own verdict and
+// docServerMinted the provider documentation's, both consulted only when
+// no row exists. taggable is live/survey-full.json's signal.
+func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted bool) bool {
 	if taggable {
 		return false
 	}
 	if admitted {
 		return admittedRow.ServerAssigned
 	}
-	return classifiedServerAssigned
+	return classifiedServerAssigned || docServerMinted
 }
 
 // markerlessRoster is every provider type the rule vetoes, sorted.
@@ -93,17 +94,34 @@ func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, clas
 // vetoed by the absence of a signal: a missing entry would decode as
 // taggable=false, and reading that as evidence of untaggability would veto
 // on silence. Survey membership is the precondition, not a fallback.
-func markerlessRoster(survey map[string]surveyEntry, proposals []proposal) []string {
+func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
 	classified := make(map[string]bool, len(proposals))
+	documented := make(map[string]bool, len(proposals))
 	for _, p := range proposals {
 		if p.Bucket == bucketServerAssigned {
 			classified[p.TFType] = true
+		}
+		// The documentation leg answers only where the classifier
+		// reached no verdict at all. bucketEvidenceOnly is that state
+		// stated in the classifier's own vocabulary, and it is the only
+		// bucket where a doc sentence cannot contradict something the
+		// registry already settled: bucketClientNamed, bucketComposite
+		// and bucketAssembled are all positive findings that the ID
+		// reconstructs from configuration, and vetoing over one of them
+		// would be reading the weaker source over the stronger. It is
+		// also where every no-CFN-model row starts and, absent an
+		// import-grammar precedence rule promoting it, stays - which is
+		// the population that has no registry verdict to reach.
+		if p.Bucket == bucketEvidenceOnly {
+			if _, ok := docMintedSegment(importGrammar[p.TFType]); ok {
+				documented[p.TFType] = true
+			}
 		}
 	}
 	var out []string
 	for typeName, entry := range survey {
 		row, admitted := identity.DefaultTable[typeName]
-		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName]) {
+		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName]) {
 			out = append(out, typeName)
 		}
 	}

@@ -49,16 +49,28 @@ import (
 // may be in none of internal/live/identity.DefaultTable,
 // tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 //
-// Measured at 649 on 2026-08-16 against hashicorp/aws 6.59.0: 953 aws_ rows
-// admitted, 81 vetoed by hand, 16 vetoed by the markerless rule and counted
-// by neither of the other two rosters, 649 unreached, summing to
+// Measured at 621 on 2026-08-16 against hashicorp/aws 6.59.0: 953 aws_ rows
+// admitted, 81 vetoed by hand, 44 vetoed by the markerless rule and counted
+// by neither of the other two rosters, 621 unreached, summing to
 // live/survey-full.json's 1699 exactly.
 //
-// It stood at 665 before the markerless rule landed (#249). The rule vetoes
-// 121 types in total; 77 of those are rows the table still admits (see
-// markerlessAdmittedOverlapMax) and 28 the hand ledger had already reached,
-// so only the remaining 16 - types no batch had looked at, now pre-empted -
-// move this count. It stood at 669 for the two measurements before that (949/81 and, in #245,
+// It stood at 665 before the markerless rule landed (#249), and at 649 while
+// that rule read only the CloudFormation registry's own verdict. The rule
+// now vetoes 150 types in total; 77 of those are rows the table still admits
+// (see markerlessAdmittedOverlapMax) and 29 the hand ledger had already
+// reached, so only the remaining 44 - types no batch had looked at, now
+// pre-empted - move this count.
+//
+// The 649 -> 621 step is the second evidence source. For a type
+// CloudFormation does not model the registry states nothing, so the
+// classifier's bucket cannot decide server-assignment, and 28 untaggable
+// types sat unreached that the provider's own import documentation settles
+// outright. tools/importdocs-gen/soleid.go scrapes that evidence - the sole
+// segment of a one-segment documented import ID, attributed the way
+// tools/importdocs-gen's idParts attributes each segment of a composite -
+// and tools/row-gen/importgrammar.go's docMintedSegment reads it.
+//
+// It stood at 669 for the two measurements before that (949/81 and, in #245,
 // 944/86) - the batch that moved five types from the ledger into the table
 // did not change this count at all, which is the whole reason this constant
 // exists rather than a count of the ledger.
@@ -78,7 +90,7 @@ import (
 // is 605. This test deliberately does not subtract it: the fallback needs a
 // live provider plugin, and a ratchet that cannot run without one is a
 // ratchet that does not run.
-const unreachedRatchetMax = 649
+const unreachedRatchetMax = 621
 
 // universeFloor is the anti-tamper leg. The count this file ratchets is a
 // difference, so shrinking live/survey-full.json's type roster lowers it just
@@ -288,7 +300,7 @@ const markerlessAdmittedOverlapMax = 77
 // TestUnreachedTypeRatchet's count is a difference and this roster
 // subtracts from it, so a generator that vetoed types it also admits could
 // lower that count while changing nothing about what the fork supports.
-// Bounding the overlap bounds exactly that: the 16 types the rule
+// Bounding the overlap bounds exactly that: the 44 types the rule
 // subtracts from the unreached count are, by this test, types nothing
 // admits.
 func TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow(t *testing.T) {
