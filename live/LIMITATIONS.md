@@ -1200,7 +1200,7 @@ refused, and each says so in its own entry.
 | 33 | 85 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 20 | 74 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 19 | 60 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
-| 17 | 104 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 12 | 44 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 6 | 63 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 6 | 17 | lint | child-module | error | `internal/live/lint` | "child-module" |
@@ -1466,7 +1466,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 17 configurations in the measured corpus, at 104 sites.
+**How often.** Blocked 12 configurations in the measured corpus, at 44 sites.
 
 #### Non-static count expression
 
