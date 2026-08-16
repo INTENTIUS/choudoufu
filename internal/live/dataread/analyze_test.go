@@ -344,6 +344,52 @@ func TestAnalyzeTfeOutputsEligibleWithProviderToken(t *testing.T) {
 	}
 }
 
+// TestAnalyzeDataRefInForEachValueIsDiscovered is #209: a data source
+// reference reachable only through a for_each map literal's VALUE position
+// - never named directly by any identity-bearing argument, never named by
+// the for_each expression's own keys - must still be classified demanded.
+// Before [analyzer.scanForEachDataRefs] existed, Analyze's only discovery
+// path was reading [configs.RefusedReference] diagnostics off a probe
+// round's resolution attempt, and resolve.go's own #178 key-set fix
+// (staticForEachKeys) discards exactly that diagnostic once it proves the
+// for_each's key set is knowable without the value - the fixture's
+// "content_data_api" key needs no data read at all, only the value does -
+// so the data source was invisible to Analyze no matter how many rounds it
+// ran. It has to be discovered by reading the for_each expression directly.
+func TestAnalyzeDataRefInForEachValueIsDiscovered(t *testing.T) {
+	a := analyzeFixture(t, "foreach-value-data-ref")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "security"))
+	if !ok {
+		t.Fatalf("data.tfe_outputs.security, referenced only inside a for_each map value, was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("data.tfe_outputs.security classified ineligible: %s", src.ReasonDetail)
+	}
+	if src.PerInstance {
+		t.Error("data.tfe_outputs.security has no count/for_each of its own and was wrongly marked PerInstance")
+	}
+}
+
+// TestAnalyzeDataRefInForEachValueThroughLocalIsDiscovered is #209's second
+// corpus shape (cloud-platform-infrastructure's transit-gateway module): the
+// for_each names a local rather than an object constructor directly, and
+// the data reference is reachable only by chasing that local's own
+// definition - the identical one level of aliasing
+// [resolver.staticForEachKeys] chases in resolve.go before falling back to
+// a keys-only expansion.
+func TestAnalyzeDataRefInForEachValueThroughLocalIsDiscovered(t *testing.T) {
+	a := analyzeFixture(t, "foreach-value-data-ref-local")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("tfe_outputs", "security"))
+	if !ok {
+		t.Fatalf("data.tfe_outputs.security, reachable only through a local's own for_each object, was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("data.tfe_outputs.security classified ineligible: %s", src.ReasonDetail)
+	}
+}
+
 // TestAnalyzeTfeOutputsEligibleWithNoTokenAnywhere: the maintainer's ruling
 // on #181 - eligibility models the owner running the configuration, and an
 // owner running tfe_outputs has a token by construction, the same treatment
