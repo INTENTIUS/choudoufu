@@ -82,7 +82,7 @@ func (s *stamper) perInstanceVerdict(ctx context.Context, rc *configs.Resource, 
 		return verifyOK, "", true
 	}
 
-	base, ok := s.repetitionContext(ctx, rc, cur, m.expr)
+	base, ok := s.repetitionContext(ctx, rc, cur, m.expr, m.legacyExpr)
 	if !ok {
 		return 0, "", false
 	}
@@ -104,6 +104,15 @@ func (s *stamper) perInstanceVerdict(ctx context.Context, rc *configs.Resource, 
 		}
 		if got == want {
 			continue
+		}
+		if m.legacyExpr != nil {
+			// A configuration already stamped under the pre-issue-#178
+			// grammar (only possible for a key containing "@") produces the
+			// legacy value here, not the current one, and that is still
+			// correct: see marker.legacyExpr's doc comment.
+			if legacyWant, ok := evalString(m.legacyExpr, scope); ok && got == legacyWant {
+				continue
+			}
 		}
 		return verifyConflict, perInstanceConflictDetail(rc, m, key, got, want), true
 	}

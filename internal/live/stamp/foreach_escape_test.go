@@ -13,7 +13,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
-// The each.key escaping regression (audit finding F-ESC).
+// The each.key escaping regression (audit finding F-ESC), and issue #178's
+// widening of it to admit "." and ":".
 //
 // Two sides have to produce the same string or a for_each instance binds to
 // the wrong live resource, or to none:
@@ -23,22 +24,29 @@ import (
 //     addrs' toHCLQuotedString: backslash escapes for `"`, `\`, tab, CR, LF,
 //     `$`/`%` before `{`, and `\uXXXX` for anything non-printable;
 //   - the STAMPED side, which is [addressExpr]'s template interpolating
-//     each.key raw into an already-escaped block prefix.
+//     each.key through [eachKeyEscapedExpr]'s replace() chain into an
+//     already-escaped block prefix.
 //
-// The audit found 1180 keys where those disagree. None of them is reachable
-// through a lint-clean configuration: every character that makes the two
-// sides differ is outside the for_each key set the lint rule admits
-// (internal/live/lint, RuleForEachKey), because that set is the AWS
-// tag-value characters less "." and ":", and every character
-// toHCLQuotedString touches is outside it already.
+// The audit found 1180 keys where those disagree, for the grammar as it
+// stood before issue #178. None of them is reachable through a lint-clean
+// configuration: every character that makes the two sides differ is outside
+// the for_each key set the lint rule admits (internal/live/lint,
+// RuleForEachKey), and every character toHCLQuotedString touches is outside
+// it too - a claim now proved by construction rather than by exclusion,
+// since "." and ":" are back in the admitted set (live/MARKERS.md, "for_each
+// key escaping") and eachKeyEscapedExpr's replace() chain is what keeps them
+// from reaching toHCLQuotedString's territory: neither side's escaping ever
+// touches `"`, `\`, tab/CR/LF, `$`/`%` before `{`, or a non-printable rune,
+// so the two sides still cannot collide on those.
 //
-// So the fix for F-ESC is the key restriction, not a second escaping pass in
-// the template. A faithful one is not expressible as an HCL expression
-// anyway: replace() cannot condition on what follows a `$`, and cannot
-// produce `\uXXXX` for a non-printable rune. What is expressible is the
-// invariant, and these two tests are it - the first that the two sides agree
-// for every admitted key, the second that they disagree for the rejected
-// ones, so the rule is provably buying something.
+// What is expressible as an HCL expression is the invariant this rule
+// enforces, not toHCLQuotedString's own escaping (replace() cannot condition
+// on what follows a `$`, and cannot produce `\uXXXX` for a non-printable
+// rune) - and these tests are it. The first proves the two sides agree for
+// every admitted key, including one containing "." or ":" and round-tripping
+// through the address unescaper. The second proves they still disagree for
+// whatever remains rejected, so the rule is provably buying something even
+// after the widening.
 
 // forEachEscapeConfig is one for_each block; the keys under test are supplied
 // by the evaluation scope rather than by the for_each expression, exactly as
@@ -63,6 +71,11 @@ func TestStamp_eachKeyEscapingRoundTrips(t *testing.T) {
 	keys := []string{
 		"a", "Web", "eu-west-1a", "team_one", "eu/west", "size=1",
 		"plus+one", "at@sign", "with space", "été", "日本", "007",
+		// issue #178: "." and ":" are admitted, escaped via
+		// eachKeyEscapedExpr rather than embedded raw.
+		"alice.smith", "2001:db8::/64", "a.b.c", "a:b:c",
+		"user@example.com", "group.role@team:prod", "@leading.dot",
+		"trailing.dot.", "..", "::",
 	}
 	for _, key := range keys {
 		if !lint.ValidForEachKey(key) {
@@ -106,7 +119,7 @@ func TestStamp_rejectedEachKeysWouldMisbind(t *testing.T) {
 	_, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: testSchemas()})
 	assertNoErrors(t, diags)
 
-	for _, key := range []string{"a.b", "2001:db8::/64", `a"b`, `a\b`, "a[0]", "a${b", "a\tb"} {
+	for _, key := range []string{`a"b`, `a\b`, "a[0]", "a${b", "a\tb"} {
 		if lint.ValidForEachKey(key) {
 			t.Fatalf("key %q is admitted by the lint rule; this test's premise is wrong", key)
 		}
@@ -130,13 +143,17 @@ func TestStamp_rejectedEachKeysWouldMisbind(t *testing.T) {
 // two tests above make by example: NO key the subset admits can mis-bind.
 //
 // A per-rune sweep is a complete proof rather than a sample, because both
-// sides are per-rune maps over the admitted set. discovery.EscapeAddress
-// rewrites three characters and copies the rest. addrs' toHCLQuotedString is
-// per-rune too, with one lookahead - it doubles a "$" or "%" that precedes a
-// "{" - and neither "$", "%" nor "{" is in the admitted set, so no admitted
-// key can contain the pair and the lookahead can never fire. Every remaining
-// interaction is between one input rune and one output rune, which is what
-// this sweeps.
+// sides are per-rune maps over the admitted set. discovery.EscapeKey (the
+// Go mirror of the replace() chain [eachKeyEscapedExpr] builds) rewrites
+// three characters - "@", "." and ":" - and copies the rest; the single-rune
+// keys this test constructs never trigger more than one substitution, so
+// simulating the stamped side as prefix+EscapeKey(key) here is exactly what
+// evaluating the real HCL expression would produce. addrs' toHCLQuotedString
+// is per-rune too, with one lookahead - it doubles a "$" or "%" that
+// precedes a "{" - and neither "$", "%" nor "{" is in the admitted set, so
+// no admitted key can contain the pair and the lookahead can never fire.
+// Every remaining interaction is between one input rune and one output rune,
+// which is what this sweeps.
 func TestStamp_noAdmittedRuneMisbinds(t *testing.T) {
 	prefix := discovery.EscapeAddress(`aws_subnet.this["`)
 
@@ -151,13 +168,16 @@ func TestStamp_noAdmittedRuneMisbinds(t *testing.T) {
 		}
 		admitted++
 
-		stamped := prefix + key
+		stamped := prefix + discovery.EscapeKey(key)
 		declared := discovery.EscapeAddress(forEachInstanceAddr(key))
 		if stamped != declared {
 			t.Fatalf("U+%04X (%q) is admitted but stamps %q while the declared address escapes to %q", r, key, stamped, declared)
 		}
 		if !discovery.ValidMarkerAddress(stamped) {
 			t.Fatalf("U+%04X (%q) is admitted but produces the unreadable marker %q", r, key, stamped)
+		}
+		if back := discovery.UnescapeKey(discovery.EscapeKey(key)); back != key {
+			t.Fatalf("U+%04X (%q) does not round-trip through EscapeKey/UnescapeKey: got %q", r, key, back)
 		}
 	}
 

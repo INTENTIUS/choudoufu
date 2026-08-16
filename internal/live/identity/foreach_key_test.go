@@ -26,7 +26,7 @@ func TestForEachKeyRefusedAtExpansion(t *testing.T) {
 	if !diags.HasErrors() {
 		t.Fatalf("no error diagnostics; resolution produced %d instances", result.Len())
 	}
-	if !hasDiag(diags, "for_each key cannot be recorded as a marker", `"2001:db8::/64"`) {
+	if !hasDiag(diags, "for_each key cannot be recorded as a marker", `"50%full"`) {
 		t.Errorf("no diagnostic naming the offending key. got:\n%s", renderDiags(diags))
 	}
 	if result.Len() != 0 {

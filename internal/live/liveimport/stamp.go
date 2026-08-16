@@ -128,9 +128,16 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	gotEstate := tags[discovery.TagEstate]
 	gotRaw, corrupt := discovery.GatherAddress(tags)
 	gotAddress := discovery.EscapeAddress(gotRaw)
+	// discovery.AddressMatches rather than a bare equality: a resource
+	// already adopted under a marker a prior run wrote before issue #178
+	// widened the for_each key grammar (only possible for a key containing
+	// "@") still carries an address that names this same instance, and a
+	// re-run of live-import over it has to see "already stamped" rather
+	// than "carries a different address" - see that function's doc comment.
+	addressMatches := gotAddress != "" && discovery.AddressMatches(gotAddress, addr.String())
 
 	switch {
-	case gotEstate == estate && gotAddress == wantAddress && !corrupt:
+	case gotEstate == estate && addressMatches && !corrupt:
 		out.Outcome = OutcomeAlreadyStamped
 		out.Detail = "Already carries this estate's markers; nothing written."
 		return out
@@ -142,7 +149,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Outcome = OutcomeFailed
 		out.Detail = "Already carries a tofu-address marker whose continuation tags (tofu-address-2, tofu-address-3, ...) have a gap in them, so this run cannot tell what address it names. See live/MARKERS.md, \"tofu-address continuation tags\"; a human has to resolve this before it can be adopted."
 		return out
-	case gotAddress != "" && gotAddress != wantAddress:
+	case gotAddress != "" && !addressMatches:
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Already carries tofu-address = %q. Rewriting it here would be a rename, which is choudoufu live-mv's job, not a side effect of an import; nothing was written.", gotRaw)
 		return out
