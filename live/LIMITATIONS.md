@@ -983,30 +983,30 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
 | 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
-| 97 | 1668 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
-| 70 | 579 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
+| 99 | 1701 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 86 | 3532 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 66 | 482 | lint | logical-resource | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
+| 64 | 403 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |
 | 54 | 537 | identity | Dynamic value in static context | `internal/configs` | "Dynamic value in static context" |
 | 52 | 4587 | lint | count-index | `internal/live/lint` | "count-index-in-tag" |
 | 45 | 280 | identity | Module output not supported in static context | `internal/configs` | "Module output not supported in static context" |
 | 33 | 97 | identity | Not an identity attribute | `internal/live/identity` | "Not an identity attribute" |
 | 31 | 90 | lint | provisioner | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 26 | 126 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
-| 24 | 106 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
 | 24 | 77 | identity | Null identity argument | `internal/live/identity` | "Null identity argument" |
-| 22 | 39 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
+| 22 | 187 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 22 | 66 | identity | Identity argument not set | `internal/live/identity` | "Identity argument not set" |
 | 21 | 110 | lint | module-providers | `internal/live/lint` | "module-providers" |
-| 19 | 215 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
-| 18 | 101 | identity | Identity not resolvable from configuration | `internal/live/identity` | "Identity not resolvable from configuration" |
-| 18 | 73 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
+| 20 | 265 | lint | for-each-key | `internal/live/lint` | "foreach-dotted-key" |
+| 20 | 65 | identity | Non-static for_each expression | `internal/live/identity` | "Non-static for_each expression" |
+| 18 | 63 | identity | Non-static identity argument | `internal/live/identity` | "Non-static identity argument" |
 | 13 | 30 | lint | child-module | `internal/live/lint` | "child-module" |
 | 12 | 21 | identity | Invalid for_each set | `internal/live/identity` | "Invalid for_each set" |
+| 10 | 51 | identity | Non-static count expression | `internal/live/identity` | "Non-static count expression" |
 | 6 | 63 | lint | moved-block | `internal/live/lint` | "moved-block" |
 | 6 | 48 | dataread | Data source not readable before resolution | `internal/live/dataread` | "Data source not readable before resolution" |
+| 3 | 10 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
 | 3 | 3 | lint | module-provider-block | `internal/live/lint` | "module-provider-block" |
-| 2 | 24 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
-| 2 | 3 | identity | Two resources with the same identity | `internal/live/identity` | "duplicate-identity" |
+| 1 | 10 | identity | Attempt to get attribute from null value | `hcl` | "Attempt to get attribute from null value" |
 | 1 | 4 | identity | Invalid operand | `hcl` | "Invalid operand" |
 | 1 | 2 | identity | Invalid function argument | `hcl` | "Invalid function argument" |
 | 1 | 2 | identity | Non-string identity argument | `internal/live/identity` | "Non-string identity argument" |
@@ -1185,7 +1185,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 97 configurations in the measured corpus, at 1668 sites.
+**How often.** Blocked 99 configurations in the measured corpus, at 1701 sites.
 
 #### Unable to compute static value
 
@@ -1193,7 +1193,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 86 configurations in the measured corpus, at 3546 sites.
+**How often.** Blocked 86 configurations in the measured corpus, at 3532 sites.
 
 #### Unresolvable identity
 
@@ -1201,7 +1201,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 70 configurations in the measured corpus, at 579 sites.
+**How often.** Blocked 64 configurations in the measured corpus, at 403 sites.
 
 #### Dynamic value in static context
 
@@ -1227,22 +1227,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 33 configurations in the measured corpus, at 97 sites.
 
-#### Non-static identity argument
-
-**What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 26 configurations in the measured corpus, at 126 sites.
-
-#### Non-static for_each expression
-
-**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 24 configurations in the measured corpus, at 106 sites.
-
 #### Null identity argument
 
 **What.** An identity argument evaluates to null.
@@ -1251,29 +1235,37 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 24 configurations in the measured corpus, at 77 sites.
 
-#### Identity argument not set
-
-**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 22 configurations in the measured corpus, at 39 sites.
-
 #### Identity not resolvable from configuration
 
 **What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 18 configurations in the measured corpus, at 101 sites.
+**How often.** Blocked 22 configurations in the measured corpus, at 187 sites.
 
-#### Non-static count expression
+#### Identity argument not set
 
-**What.** A count expression evaluates to null, or to a value not knowable from configuration alone.
+**What.** The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 18 configurations in the measured corpus, at 73 sites.
+**How often.** Blocked 22 configurations in the measured corpus, at 66 sites.
+
+#### Non-static for_each expression
+
+**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 20 configurations in the measured corpus, at 65 sites.
+
+#### Non-static identity argument
+
+**What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 18 configurations in the measured corpus, at 63 sites.
 
 #### Invalid for_each set
 
@@ -1282,6 +1274,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 12 configurations in the measured corpus, at 21 sites.
+
+#### Non-static count expression
+
+**What.** A count expression evaluates to null, or to a value not knowable from configuration alone.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
 
 #### Data source not readable before resolution
 
@@ -1297,7 +1297,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 2 configurations in the measured corpus, at 24 sites.
+**How often.** Blocked 1 configuration in the measured corpus, at 10 sites.
 
 #### Invalid operand
 

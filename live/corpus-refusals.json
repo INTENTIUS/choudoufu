@@ -594,15 +594,25 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 15,
-      "sites": 1,
+      "instances": 10,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 3,
       "schemas": true,
-      "var_file": "live/corpus-vars/govuk-aws-app-related-links.tfvars",
       "profile": {
-        "onboarding_class": "backend-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "identity",
+            "id": "Non-static identity argument",
+            "sites": 2,
+            "unset_var_only": true
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 3
+          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -813,15 +823,25 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 1,
+      "instances": 0,
+      "sites": 3,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 1,
       "schemas": true,
-      "var_file": "live/corpus-vars/govuk-aws-infra-athena-query-results.tfvars",
       "profile": {
-        "onboarding_class": "backend-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "identity",
+            "id": "Non-static identity argument",
+            "sites": 1,
+            "unset_var_only": true
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 1
+          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1044,15 +1064,25 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 8,
-      "sites": 1,
+      "instances": 3,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 0,
+      "unset_variables": 1,
       "schemas": true,
-      "var_file": "live/corpus-vars/govuk-aws-infra-datagovuk-organogram-bucket.tfvars",
       "profile": {
-        "onboarding_class": "backend-only",
+        "onboarding_class": "language-blocked",
         "refusals": [
+          {
+            "layer": "identity",
+            "id": "Non-static identity argument",
+            "sites": 1,
+            "unset_var_only": true
+          },
+          {
+            "layer": "identity",
+            "id": "Unresolvable identity",
+            "sites": 4
+          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1423,12 +1453,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 13,
-      "sites": 71,
+      "instances": 29,
+      "sites": 58,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 3,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/ai-accelerator-opensearch.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1443,7 +1477,7 @@
           {
             "layer": "identity",
             "id": "Attempt to get attribute from null value",
-            "sites": 12
+            "sites": 10
           },
           {
             "layer": "identity",
@@ -1460,19 +1494,13 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 3,
-            "unset_var_only": true
+            "id": "Two resources with the same identity",
+            "sites": 7
           },
           {
             "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 16
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 13
+            "sites": 14
           },
           {
             "layer": "lint",
@@ -1517,6 +1545,10 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 6,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/cdn-analytics.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1550,12 +1582,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 27,
-      "sites": 23,
+      "instances": 42,
+      "sites": 8,
       "unresolved_modules": 0,
-      "unset_variables": 6,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 2,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/chat.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1569,18 +1605,7 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 13,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
             "id": "Two resources with the same identity",
-            "sites": 2
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
             "sites": 2
           },
           {
@@ -1609,6 +1634,9 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "backend-only",
         "refusals": [
@@ -1625,39 +1653,26 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
-      "sites": 19,
+      "instances": 17,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 2,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/chat-opensearch.tfvars"
+      ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 2,
+            "sites": 3,
             "categories": {
-              "tfe_outputs": 2
+              "tfe_outputs": 3
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 7,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -1685,20 +1700,17 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 14,
-      "sites": 3,
+      "instances": 16,
+      "sites": 1,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 2,
-            "unset_var_only": true
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -1715,9 +1727,13 @@
       "instances": 0,
       "sites": 68,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 31,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-access.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1759,20 +1775,25 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 25,
-      "sites": 45,
+      "instances": 51,
+      "sites": 44,
       "unresolved_modules": 8,
-      "unset_variables": 5,
+      "unset_variables": 0,
       "schemas": true,
+      "shadowed": 4,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-infrastructure.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 1,
+            "sites": 2,
             "categories": {
-              "tfe_outputs": 1
+              "tfe_outputs": 2
             }
           },
           {
@@ -1785,14 +1806,13 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 5,
-            "unset_var_only": true
+            "id": "Identity not resolvable from configuration",
+            "sites": 15
           },
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 13
+            "sites": 1
           },
           {
             "layer": "identity",
@@ -1842,12 +1862,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
-      "sites": 61,
+      "instances": 12,
+      "sites": 49,
       "unresolved_modules": 3,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
-      "shadowed": 38,
+      "shadowed": 40,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-services.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1869,25 +1893,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 5,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
             "id": "Unable to compute static value",
             "sites": 7
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 6
           },
           {
             "layer": "lint",
@@ -1935,12 +1942,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 9,
-      "sites": 25,
+      "instances": 28,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 3,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/csp-reporter.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1956,17 +1967,6 @@
             "layer": "identity",
             "id": "Identity argument not set",
             "sites": 1
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 5,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 14
           },
           {
             "layer": "lint",
@@ -1991,12 +1991,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 9,
-      "sites": 37,
+      "instances": 32,
+      "sites": 15,
       "unresolved_modules": 2,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 4,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/datagovuk-infrastructure.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2008,23 +2012,6 @@
               "data_source": 1,
               "tfe_outputs": 2
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 2,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 5,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 15
           },
           {
             "layer": "lint",
@@ -2064,6 +2051,9 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2117,19 +2107,17 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 4,
+      "sites": 1,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/elasticache.tfvars"
+      ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "backend-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 3,
-            "unset_var_only": true
-          },
           {
             "layer": "lint",
             "id": "state-backend",
@@ -2149,6 +2137,9 @@
       "unset_variables": 1,
       "schemas": true,
       "shadowed": 6,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2178,20 +2169,18 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 320,
+      "sites": 317,
       "unresolved_modules": 6,
-      "unset_variables": 4,
+      "unset_variables": 0,
       "schemas": true,
-      "shadowed": 309,
+      "shadowed": 312,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/gcp-gov-graph.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 3,
-            "unset_var_only": true
-          },
           {
             "layer": "lint",
             "id": "child-module",
@@ -2293,6 +2282,9 @@
       "unset_variables": 2,
       "schemas": true,
       "shadowed": 66,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2334,6 +2326,9 @@
       "unset_variables": 3,
       "schemas": true,
       "shadowed": 27,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2387,12 +2382,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 67,
-      "sites": 220,
+      "instances": 203,
+      "sites": 144,
       "unresolved_modules": 6,
-      "unset_variables": 7,
+      "unset_variables": 4,
       "schemas": true,
-      "shadowed": 33,
+      "shadowed": 84,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/govuk-publishing-infrastructure.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2407,9 +2406,9 @@
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 26,
+            "sites": 27,
             "categories": {
-              "data_source": 6,
+              "data_source": 7,
               "tfe_outputs": 20
             }
           },
@@ -2431,14 +2430,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 4,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 24,
+            "sites": 2,
             "unset_var_only": true
           },
           {
@@ -2454,7 +2447,7 @@
           {
             "layer": "identity",
             "id": "Unresolvable identity",
-            "sites": 105
+            "sites": 4
           },
           {
             "layer": "identity",
@@ -2470,6 +2463,11 @@
             "layer": "lint",
             "id": "count-index",
             "sites": 6
+          },
+          {
+            "layer": "lint",
+            "id": "for-each-key",
+            "sites": 50
           },
           {
             "layer": "lint",
@@ -2519,8 +2517,12 @@
       "instances": 1,
       "sites": 1,
       "unresolved_modules": 1,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/govuk-reports.tfvars"
+      ],
       "profile": {
         "onboarding_class": "backend-only",
         "refusals": [
@@ -2537,12 +2539,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 11,
-      "sites": 14,
+      "instances": 20,
+      "sites": 5,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 2,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/logging.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2556,20 +2562,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 2,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 7
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -2598,7 +2592,10 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "var_file": "live/corpus-vars/govuk-infrastructure-mobile-backend.tfvars",
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/mobile-backend.tfvars"
+      ],
       "profile": {
         "onboarding_class": "backend-only",
         "refusals": [
@@ -2615,25 +2612,31 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 2,
-      "sites": 13,
+      "instances": 7,
+      "sites": 6,
       "unresolved_modules": 0,
-      "unset_variables": 2,
+      "unset_variables": 0,
       "schemas": true,
+      "shadowed": 4,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/neptune.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 9,
-            "unset_var_only": true
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 2,
+            "categories": {
+              "tfe_outputs": 2
+            }
           },
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 1,
-            "unset_var_only": true
+            "id": "Identity not resolvable from configuration",
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -2657,42 +2660,36 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
-      "sites": 33,
+      "instances": 101,
+      "sites": 118,
       "unresolved_modules": 0,
-      "unset_variables": 2,
+      "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
+      "shadowed": 82,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/rds.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 28,
+            "categories": {
+              "tfe_outputs": 28
+            }
+          },
+          {
             "layer": "identity",
             "id": "Identity argument not set",
-            "sites": 1
+            "sites": 28
           },
           {
             "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 1,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 14,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 3,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 7
+            "id": "Identity not resolvable from configuration",
+            "sites": 55
           },
           {
             "layer": "lint",
@@ -2733,8 +2730,12 @@
       "instances": 6,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/release.tfvars"
+      ],
       "profile": {
         "onboarding_class": "data-read-eligible",
         "refusals": [
@@ -2760,19 +2761,17 @@
       "blocked": true,
       "loaded": true,
       "instances": 3,
-      "sites": 3,
+      "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/root-dns.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Non-static count expression",
-            "sites": 1,
-            "unset_var_only": true
-          },
           {
             "layer": "lint",
             "id": "count-index",
@@ -2794,9 +2793,13 @@
       "instances": 2,
       "sites": 102,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 98,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/search-api-v2.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2846,12 +2849,16 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 16,
-      "sites": 104,
+      "instances": 35,
+      "sites": 64,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 4,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/search-opensearch.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -2862,11 +2869,6 @@
             "categories": {
               "tfe_outputs": 19
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Attempt to get attribute from null value",
-            "sites": 12
           },
           {
             "layer": "identity",
@@ -2883,19 +2885,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static identity argument",
-            "sites": 3,
-            "unset_var_only": true
-          },
-          {
-            "layer": "identity",
             "id": "Unable to compute static value",
-            "sites": 32
-          },
-          {
-            "layer": "identity",
-            "id": "Unresolvable identity",
-            "sites": 13
+            "sites": 20
           },
           {
             "layer": "lint",
@@ -2939,6 +2930,10 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/security.tfvars"
+      ],
       "profile": {
         "onboarding_class": "backend-only",
         "refusals": [
@@ -2961,6 +2956,9 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 46,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
@@ -2990,6 +2988,10 @@
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/service-linked-roles.tfvars"
+      ],
       "profile": {
         "onboarding_class": "backend-only",
         "refusals": [
@@ -3009,8 +3011,12 @@
       "instances": 6,
       "sites": 2,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/synthetic-test.tfvars"
+      ],
       "profile": {
         "onboarding_class": "data-read-eligible",
         "refusals": [
@@ -3038,9 +3044,12 @@
       "instances": 3,
       "sites": 18,
       "unresolved_modules": 0,
-      "unset_variables": 1,
+      "unset_variables": 0,
       "schemas": true,
       "shadowed": 16,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -3083,6 +3092,9 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 3,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "admissions-only",
         "refusals": [
@@ -3115,6 +3127,9 @@
       "unset_variables": 0,
       "schemas": true,
       "shadowed": 19,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -3147,11 +3162,15 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 6,
+      "instances": 37,
+      "sites": 18,
       "unresolved_modules": 0,
-      "unset_variables": 3,
+      "unset_variables": 0,
       "schemas": true,
+      "var_files": [
+        ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
+        ".corpus/govuk-infrastructure/terraform/variables/integration/vpc.tfvars"
+      ],
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -3165,9 +3184,8 @@
           },
           {
             "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 3,
-            "unset_var_only": true
+            "id": "Identity not resolvable from configuration",
+            "sites": 15
           },
           {
             "layer": "lint",
@@ -7864,8 +7882,8 @@
       "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
-      "configs": 97,
-      "sites": 1668,
+      "configs": 99,
+      "sites": 1701,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:420",
         ".corpus/alb/examples/complete-alb/main.tf:425",
@@ -7883,31 +7901,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 86,
-      "sites": 3546,
+      "sites": 3532,
       "examples": [
         ".corpus/alb/main.tf:88",
         ".corpus/alb/main.tf:231",
         ".corpus/alb/main.tf:243",
         ".corpus/alb/main.tf:460",
         ".corpus/alb/main.tf:477"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Unresolvable identity",
-      "title": "Unresolvable identity",
-      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 70,
-      "sites": 579,
-      "examples": [
-        ".corpus/autoscaling/main.tf:1463",
-        ".corpus/cool-assessment/operations_routing.tf:21",
-        ".corpus/cool-assessment/operations_routing.tf:29",
-        ".corpus/cool-assessment/operations_routing.tf:39",
-        ".corpus/cool-assessment/route53.tf:51"
       ],
       "registered": true
     },
@@ -7987,6 +7987,24 @@
         ".corpus/alb/examples/mutual-auth-alb/main.tf:293",
         ".corpus/alb/examples/mutual-auth-alb/main.tf:298",
         ".corpus/alb/examples/mutual-auth-alb/main.tf:322"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Unresolvable identity",
+      "title": "Unresolvable identity",
+      "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 64,
+      "sites": 403,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1463",
+        ".corpus/cool-assessment/operations_routing.tf:21",
+        ".corpus/cool-assessment/operations_routing.tf:29",
+        ".corpus/cool-assessment/operations_routing.tf:39",
+        ".corpus/cool-assessment/route53.tf:51"
       ],
       "registered": true
     },
@@ -8080,42 +8098,6 @@
     },
     {
       "layer": "identity",
-      "id": "Non-static identity argument",
-      "title": "Non-static identity argument",
-      "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
-      "raised_by": "internal/live/identity",
-      "configs": 26,
-      "sites": 126,
-      "examples": [
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:65",
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:70",
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:75",
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:91",
-        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:180"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Non-static for_each expression",
-      "title": "Non-static for_each expression",
-      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
-      "raised_by": "internal/live/identity",
-      "configs": 24,
-      "sites": 106,
-      "examples": [
-        ".corpus/cool-assessment/efs.tf:22",
-        ".corpus/cool-assessment/efs.tf:39",
-        ".corpus/cool-assessment/network_acls.tf:23",
-        ".corpus/cool-assessment/operations_acl_rules.tf:8",
-        ".corpus/cool-assessment/operations_acl_rules.tf:27"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Null identity argument",
       "title": "Null identity argument",
       "what": "An identity argument evaluates to null.",
@@ -8134,13 +8116,31 @@
     },
     {
       "layer": "identity",
+      "id": "Identity not resolvable from configuration",
+      "title": "Identity not resolvable from configuration",
+      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
+      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "raised_by": "internal/live/identity",
+      "configs": 22,
+      "sites": 187,
+      "examples": [
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/autoscaling/main.tf:1116",
+        ".corpus/cool-assessment/guacamole_route53.tf:33",
+        ".corpus/cool-assessment/private_acl_rules.tf:449"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Identity argument not set",
       "title": "Identity argument not set",
       "what": "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.",
       "docs_ref": "live/LIMITATIONS.md, \"Identity argument not set\"",
       "raised_by": "internal/live/identity",
       "configs": 22,
-      "sites": 39,
+      "sites": 66,
       "examples": [
         ".corpus/cyhy-amis/terraform/fdi_lambda.tf:41",
         ".corpus/cyhy-amis/terraform/fdi_lambda.tf:74",
@@ -8173,8 +8173,8 @@
       "title": "for_each key is outside the marker character set",
       "docs_ref": "live/LIMITATIONS.md, \"foreach-dotted-key\"",
       "raised_by": "internal/live/lint",
-      "configs": 19,
-      "sites": 215,
+      "configs": 20,
+      "sites": 265,
       "examples": [
         ".corpus/cool-assessment/email_sending_domain_certreadrole.tf:4",
         ".corpus/cyhy-amis/terraform/cloudwatch_alarm_sns_topic.tf:12",
@@ -8186,37 +8186,37 @@
     },
     {
       "layer": "identity",
-      "id": "Identity not resolvable from configuration",
-      "title": "Identity not resolvable from configuration",
-      "what": "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.",
-      "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+      "id": "Non-static for_each expression",
+      "title": "Non-static for_each expression",
+      "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
       "raised_by": "internal/live/identity",
-      "configs": 18,
-      "sites": 101,
+      "configs": 20,
+      "sites": 65,
       "examples": [
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/autoscaling/main.tf:1116",
-        ".corpus/cool-assessment/guacamole_route53.tf:33",
-        ".corpus/cool-assessment/private_acl_rules.tf:449"
+        ".corpus/cool-assessment/efs.tf:22",
+        ".corpus/cool-assessment/efs.tf:39",
+        ".corpus/cool-assessment/network_acls.tf:23",
+        ".corpus/cool-assessment/operations_acl_rules.tf:8",
+        ".corpus/cool-assessment/operations_acl_rules.tf:27"
       ],
       "registered": true
     },
     {
       "layer": "identity",
-      "id": "Non-static count expression",
-      "title": "Non-static count expression",
-      "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
-      "docs_ref": "live/LIMITATIONS.md, \"Non-static count expression\"",
+      "id": "Non-static identity argument",
+      "title": "Non-static identity argument",
+      "what": "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
       "raised_by": "internal/live/identity",
       "configs": 18,
-      "sites": 73,
+      "sites": 63,
       "examples": [
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:26",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:96",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:109",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:125",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:140"
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:65",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:70",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:75",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:91",
+        ".corpus/govuk-aws/terraform/projects/app-elasticsearch6/main.tf:180"
       ],
       "registered": true
     },
@@ -8256,6 +8256,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Non-static count expression",
+      "title": "Non-static count expression",
+      "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
+      "docs_ref": "live/LIMITATIONS.md, \"Non-static count expression\"",
+      "raised_by": "internal/live/identity",
+      "configs": 10,
+      "sites": 51,
+      "examples": [
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:26",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:96",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:109",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:125",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:140"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "moved-block",
       "title": "moved blocks are not available under live resource markers",
@@ -8291,6 +8309,24 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 3,
+      "sites": 10,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:7",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:117",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:128",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:140",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/s3/main.tf:181"
+      ],
+      "registered": true
+    },
+    {
       "layer": "lint",
       "id": "module-provider-block",
       "title": "Provider block in a child module is not consulted",
@@ -8312,30 +8348,14 @@
       "what": "An identity argument, a count or a for_each reads an attribute of something that evaluated to null.",
       "docs_ref": "live/LIMITATIONS.md, \"Attempt to get attribute from null value\"",
       "raised_by": "hcl",
-      "configs": 2,
-      "sites": 24,
+      "configs": 1,
+      "sites": 10,
       "examples": [
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:45",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:77",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82",
         ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch_domains.tf:82"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 2,
-      "sites": 3,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/chat/cloudwatch.tf:7",
-        ".corpus/govuk-infrastructure/terraform/deployments/chat/eventbridge.tf:16",
-        ".corpus/simpleinfra/terraform/dev-desktops/aws-region/instances.tf:176"
       ],
       "registered": true
     },
@@ -9346,8 +9366,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 2813,
-    "sites": 14462,
+    "instances": 3218,
+    "sites": 14335,
     "refusals_fired": 32,
     "refusals_in_set": 116,
     "configs_without_schemas": 0,
@@ -9370,8 +9390,8 @@
       "loaded": 144,
       "blocked": 144,
       "clean": 0,
-      "instances": 1713,
-      "sites": 3148,
+      "instances": 2118,
+      "sites": 3021,
       "reads_as": "rate"
     },
     {
@@ -9396,7 +9416,7 @@
       },
       {
         "class": "backend-only",
-        "configs": 24
+        "configs": 23
       },
       {
         "class": "admissions-only",
@@ -9404,7 +9424,7 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 22
+        "configs": 23
       },
       {
         "class": "language-blocked",
