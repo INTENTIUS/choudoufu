@@ -21,6 +21,7 @@ go run ./tools/estate-gen -cohort lambda -types aws_lambda_capacity_provider,aws
 | `aws_lambda_function.app` | coverage | schema requires only function_name and role; the provider also requires exactly one of filename/image_uri/s3_bucket (validate: "one of ... must be specified"), and image_uri requires package_type = "Image" |
 | `aws_lambda_layer_version.app` | coverage | schema requires only layer_name; the provider also requires one of filename/s3_bucket (validate: "one of ... must be specified"), and s3_bucket requires s3_key; compatible_runtimes is optional in the schema but left empty renders a layer no function could ever reference |
 | `aws_lambda_permission.app` | coverage | none |
+| `aws_api_gateway_rest_api.lambda` | supporting, not coverage | none |
 | `aws_iam_role.lambda` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 
 ## Requested types

@@ -317,6 +317,69 @@ func planCohort(cohort string, schemas providers.GetProviderSchemaResponse, requ
 			break
 		}
 	}
+
+	// A reference-shaped seed argument (issue #177's extraction, read by
+	// seedRefExpr) already names the sibling type the argument's own
+	// documented example wired it to - not a guess from the argument's
+	// name and the child's service segment, but the page's own working
+	// configuration. The loop above stops at the identity argument
+	// because a naming guess with no rendered sibling could chain
+	// unboundedly; a seed reference carries no such risk; it is at most
+	// one hop (the artifact records what the example wired the argument
+	// to, not a further chain from there), and pruneUnreferencedSupporting
+	// below removes it again if nothing in the rendered text ends up
+	// wired to it - so adding it is free when it turns out unneeded and
+	// is what completes an Optional-in-schema, required-in-practice
+	// argument the required-only pass never visits at all: aws_nat_gateway's
+	// subnet_id is Optional, so the pass renders an empty body, and only a
+	// rendered aws_subnet sibling gives seedFromExample somewhere to wire
+	// it (the same shape aws_volume_attachment's volume_id has against
+	// aws_ebs_volume, Required this time, but with no same-service naming
+	// match for siblingRef to find on its own).
+	//
+	// Skipped entirely for a type an override still owns: its Apply runs
+	// last and always wins (seedFromExample's own suppression rule), so a
+	// seed reference under an override would never reach the rendered
+	// text - pulling in its sibling anyway added an aws_dynamodb_table
+	// wired to nothing but another stray parentRef match, found and
+	// removed while measuring this change.
+	for _, p := range g.order {
+		if _, overridden := typeOverrides[p.Addr.Type]; overridden {
+			continue // its Apply always wins over a seeded reference - see seedFromExample
+		}
+		for _, arg := range g.seed[p.Addr.Type] {
+			if !arg.Reference || arg.RefType == "" || arg.RefType == p.Addr.Type {
+				continue
+			}
+			if arg.Element > 0 || len(arg.Path) == 0 {
+				continue // a later repeated-block element; seedFromExample never lands it either
+			}
+			leaf := arg.Path[len(arg.Path)-1]
+			if _, _, ok := g.parentRef(p.Addr.Type, leaf); ok {
+				continue // already resolved another way; do not add a competing sibling
+			}
+			if _, _, ok := g.siblingRef(p.Addr.Type, leaf); ok {
+				continue // same - siblingForBase's tiebreak is one-shot with no
+				// fallback, so a newly added, ultimately-unwireable candidate
+				// (aws_appsync_api's page names it for aws_appsync_channel_namespace's
+				// own api_id, a DIFFERENT AppSync resource than this cohort's
+				// curated aws_appsync_graphql_api) can beat the sibling that
+				// already answers the argument on the base/suffix tiebreak and
+				// leave the argument wired to nothing - found and fixed while
+				// measuring this change.
+			}
+			if _, inCohort := g.byType[arg.RefType]; inCohort {
+				continue
+			}
+			if _, inSchema := schemas.ResourceTypes[arg.RefType]; !inSchema {
+				continue
+			}
+			if _, admitted := identity.LookupType(arg.RefType); !admitted {
+				continue
+			}
+			supporting[arg.RefType] = true
+		}
+	}
 	supportingSorted := make([]string, 0, len(supporting))
 	for t := range supporting {
 		supportingSorted = append(supportingSorted, t)

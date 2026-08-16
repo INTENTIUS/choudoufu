@@ -58,6 +58,11 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_vpc_peering_connection.app` | coverage | none |
 | `aws_vpn_connection.app` | coverage | none |
 | `aws_vpn_gateway.app` | coverage | none |
+| `aws_eip.ec2-networking` | supporting, not coverage | none |
+| `aws_lb.ec2-networking` | supporting, not coverage | none |
+| `aws_route_table.ec2-networking` | supporting, not coverage | none |
+| `aws_security_group.ec2-networking` | supporting, not coverage | none |
+| `aws_subnet.ec2-networking` | supporting, not coverage | none |
 | `aws_vpc.ec2-networking` | supporting, not coverage | none |
 
 ## Requested types

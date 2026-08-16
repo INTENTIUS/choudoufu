@@ -32,6 +32,7 @@ go run ./tools/estate-gen -cohort rds -types aws_db_event_subscription,aws_db_in
 | `aws_rds_global_cluster.app` | coverage | none |
 | `aws_rds_integration.app` | coverage | schema requires integration_name, source_arn and target_arn; the provider validates both are well-formed ARNs (validate: "Invalid ARN Value") - source_arn references the cohort's own aws_rds_cluster, target_arn names a Redshift Serverless namespace no type in this cohort covers |
 | `aws_rds_shard_group.app` | coverage | schema requires db_cluster_identifier, db_shard_group_identifier and max_acu; db_cluster_identifier is a bare string the generic pass has no parentRef alias for (its own name differs from aws_rds_cluster's "cluster_identifier" identity argument), so it defaults to a placeholder that names no real cluster in this cohort - no provider-side validation catches the mismatch, but the fix keeps this cohort's shard group pointed at the real cluster it admits alongside it |
+| `aws_subnet.rds` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -60,6 +61,7 @@ go run ./tools/estate-gen -cohort rds -types aws_db_event_subscription,aws_db_in
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "rds-cohort", distinct from every other cohort's own tag. |
 | `rds.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

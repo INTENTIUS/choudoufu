@@ -47,6 +47,13 @@ go run ./tools/estate-gen -cohort remainder -types aws_appconfig_application,aws
 | `aws_securityhub_account.app` | coverage | none |
 | `aws_sesv2_contact_list.app` | coverage | none |
 | `aws_sesv2_email_identity.app` | coverage | none |
+| `aws_athena_workgroup.remainder` | supporting, not coverage | none |
+| `aws_cloudwatch_metric_alarm.remainder` | supporting, not coverage | comparison_operator/evaluation_periods are the schema's only Required arguments, but the provider additionally requires one of evaluation_criteria, metric_name or metric_query (validate: "one of evaluation_criteria,metric_name,metric_query must be specified"), and metric_name is exactly the argument the doc-example seed must skip (looksLikeName treats "*_name" as generator-owned naming, but this one names the metric watched, not the resource) - so the seed alone leaves the block invalid and the whole documented example lives here instead, the same CPUUtilization shape live/e2e/estate/monitoring.tf already carries by hand |
+| `aws_efs_file_system.remainder` | supporting, not coverage | none |
+| `aws_iam_role.remainder` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_kms_key.remainder` | supporting, not coverage | none |
+| `aws_lambda_function.remainder` | supporting, not coverage | schema requires only function_name and role; the provider also requires exactly one of filename/image_uri/s3_bucket (validate: "one of ... must be specified"), and image_uri requires package_type = "Image" |
+| `aws_subnet.remainder` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -90,6 +97,7 @@ go run ./tools/estate-gen -cohort remainder -types aws_appconfig_application,aws
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "remainder-cohort", distinct from every other cohort's own tag. |
 | `remainder.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

@@ -40,6 +40,7 @@ go run ./tools/estate-gen -cohort governance -types aws_auditmanager_assessment,
 | `aws_servicecatalogappregistry_application.app` | coverage | none |
 | `aws_servicecatalogappregistry_attribute_group.app` | coverage | schema requires attributes as a plain string, but the provider validates it is well-formed JSON (validate: "Invalid JSON String Value"); the generic string placeholder is not JSON. |
 | `aws_servicecatalogappregistry_attribute_group_association.app` | coverage | none |
+| `aws_iam_policy.governance` | supporting, not coverage | schema requires "policy" as a plain string, but the provider validates it is well-formed JSON; the generic string placeholder is not JSON - same fix as aws_iam_group_policy above |
 | `aws_iam_role.governance` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
 
 ## Requested types

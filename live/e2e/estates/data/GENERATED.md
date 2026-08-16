@@ -31,6 +31,8 @@ go run ./tools/estate-gen -cohort data -types aws_athena_data_catalog,aws_athena
 | `aws_kinesis_stream.app` | coverage | shard_count has no schema default and is left unset by the generic pass, but the provider's own CustomizeDiff defaults stream_mode_details.stream_mode to "PROVISIONED" and then requires shard_count to be at least 1 (found only by running the generic pass's output through terraform apply, not validate - the check is plan-time, not schema-level) |
 | `aws_kinesis_stream_consumer.app` | coverage | name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; stream_arn is a required argument the schema alone cannot wire to the sibling aws_kinesis_stream (its identity is "name", not "stream_arn", so parentRef never connects the two) |
 | `aws_iam_role.data` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_kms_key.data` | supporting, not coverage | none |
+| `aws_s3_bucket.data` | supporting, not coverage | none |
 
 ## Requested types
 

@@ -53,6 +53,7 @@ go run ./tools/estate-gen -cohort connect-euc -types aws_appstream_fleet_stack_a
 | `aws_workspacesweb_user_access_logging_settings_association.app` | coverage | none |
 | `aws_workspacesweb_user_settings.app` | coverage | none |
 | `aws_workspacesweb_user_settings_association.app` | coverage | none |
+| `aws_kinesis_firehose_delivery_stream.connect-euc` | supporting, not coverage | name coincidentally collides with aws_athena_data_catalog's own "name" identity argument in this cohort - see this file's data-plane batch header comment; destination is a required enum naming which optional *_configuration block the provider actually reads (validate: "expected destination to be one of [...]"), and the matching extended_s3_configuration block is itself optional in the schema while the provider requires it in practice once destination = "extended_s3" |
 
 ## Requested types
 
@@ -102,6 +103,7 @@ go run ./tools/estate-gen -cohort connect-euc -types aws_appstream_fleet_stack_a
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "connect-euc-cohort", distinct from every other cohort's own tag. |
 | `connect-euc.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 

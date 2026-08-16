@@ -40,6 +40,8 @@ go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_
 | `aws_apigatewayv2_routing_rule.app` | coverage | domain_name was mis-wired to aws_api_gateway_domain_name.app (the v1 type) - both v1 and v2 domain name types self-identify by the same argument name, and parentRef's alphabetic tiebreak prefers "aws_api_gateway_domain_name" over "aws_apigatewayv2_domain_name" with no way to tell they are different API generations; corrected to the v2 domain name this type actually needs. action and condition are both required blocks the schema marks optional-in-shape but the provider requires present (validate: "Block action/condition must have a configuration value"), and priority must be 1-1000000 (validate: "must be between 1 and 1000000, got: 0") |
 | `aws_apigatewayv2_stage.app` | coverage | none |
 | `aws_apigatewayv2_vpc_link.app` | coverage | none |
+| `aws_iam_role.apigateway` | supporting, not coverage | schema requires "assume_role_policy" as a plain string, but the provider validates it is well-formed JSON (validate: "\"assume_role_policy\" contains an invalid JSON"); the generic string placeholder is not JSON |
+| `aws_lb.apigateway` | supporting, not coverage | none |
 
 ## Requested types
 
@@ -76,6 +78,7 @@ go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_account,aws_
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
 | `locals.tf` | `estate_tag` — "apigateway-cohort", distinct from every other cohort's own tag. |
 | `apigateway.tf` | Every requested (coverage) resource. |
+| `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
 
 ## Gating
 
