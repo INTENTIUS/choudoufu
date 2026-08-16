@@ -1,47 +1,56 @@
-# Fixture: every position count.index must be caught in (P3.4). All types
-# here are in the v0 admission table and none of the other rules apply, so
-# only RuleCountIndex fires, once per resource.
+# Fixture: every position count.index must still be caught in, now that
+# RuleCountIndex only walks arguments identity.LookupType says could feed a
+# type's live identity (see countIndexScopeForType, count_index.go). All
+# three resources below are aws_network_acl_rule or aws_route53_record,
+# whose Components (internal/live/identity/table_generated.go) name
+# rule_number/network_acl_id/protocol/egress and zone_id/name/type as
+# identity-bearing - so count.index reaching one of those, however
+# indirectly, is still exactly the reordering hazard this rule exists to
+# catch. testdata/count-index-not-relevant holds the mirror-image fixture:
+# count.index in an argument none of this data marks as identity-bearing.
 
-# A plain, non-tag argument built from count.index.
-resource "aws_vpc" "plain_arg" {
+# A direct reference inside an identity-bearing argument, reached through an
+# arithmetic expression rather than a bare traversal.
+resource "aws_network_acl_rule" "plain_arg" {
   count = 2
 
-  cidr_block = "10.${count.index}.0.0/16"
+  network_acl_id = "acl-0123456789abcdef0"
+  rule_number = 100 + count.index
+  egress      = false
+  protocol    = "tcp"
+  rule_action = "allow"
+  cidr_block  = "10.0.0.0/16"
+  from_port   = 80
+  to_port     = 80
 }
 
-# The canonical case: count.index interpolated into a tag value.
-resource "aws_vpc" "in_tag" {
+# The canonical case generalized: count.index interpolated into a template,
+# landing in an identity-bearing attribute (name is part of
+# aws_route53_record's ZONEID_NAME_TYPE import identity) rather than an
+# ordinary tag.
+resource "aws_route53_record" "in_identity_template" {
   count = 2
 
-  cidr_block = "10.50.0.0/16"
-
-  tags = {
-    Name = "vpc-${count.index}"
-  }
+  zone_id = "Z0123456789ABCDEFGHI"
+  name    = "record-${count.index}.example.com"
+  type    = "A"
+  ttl     = 300
+  records = ["10.0.0.1"]
 }
 
-# count.index inside a nested block the resource type defines (not a
-# meta-argument block): aws_security_group's ingress block.
-resource "aws_security_group" "nested_block" {
+# count.index reached only through a conditional expression, still landing
+# in an identity-bearing argument: a traversal walk catches this because it
+# inspects the expression's referenced variables, not because the literal
+# text "count.index" appears next to rule_number.
+resource "aws_network_acl_rule" "conditional" {
   count = 2
 
-  name   = "sg-nested"
-  vpc_id = aws_vpc.plain_arg[0].id
-
-  ingress {
-    from_port   = count.index
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/8"]
-  }
-}
-
-# count.index reached only through a conditional expression: a traversal
-# walk catches this because it inspects the expression's referenced
-# variables, not because the literal text "count.index" appears next to an
-# identity-bearing property.
-resource "aws_vpc" "conditional" {
-  count = 2
-
-  cidr_block = count.index == 0 ? "10.60.0.0/16" : "10.61.0.0/16"
+  network_acl_id = "acl-0123456789abcdef0"
+  rule_number = count.index == 0 ? 100 : 200
+  egress      = false
+  protocol    = "tcp"
+  rule_action = "allow"
+  cidr_block  = "10.0.0.0/16"
+  from_port   = 80
+  to_port     = 80
 }

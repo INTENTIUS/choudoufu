@@ -63,33 +63,68 @@
 //
 // [RuleCountIndex] (count_index.go) is the one rule that does expression
 // analysis rather than construct or type classification: count.index is
-// rejected wherever it is reachable from a managed resource's own
-// configuration body — a plain argument, a tag map value, a nested block, or
-// nested inside a conditional or template expression — because a property
-// built from the lexical index of a count instance cannot be recovered from
-// the live system with no memory, and it makes that instance non-fungible
-// with its siblings (live/LIMITATIONS.md, "count-index-in-tag").
+// rejected wherever it is reachable from an argument that could plausibly
+// feed the resource's own live identity, because a property built from the
+// lexical index of a count instance cannot be recovered from the live
+// system with no memory, and it makes that instance non-fungible with its
+// siblings (live/LIMITATIONS.md, "count-index-in-tag"). It is not a ban on
+// count.index in general — count survives under live resource markers as
+// cardinality over a fungible set, and plenty of a resource's own arguments
+// (a tag, a description, an ordinary non-identity property) are exactly
+// that: fungible content that does not change which live object a config
+// address refers to.
 //
-// The line is drawn at the resource body, not at the resource block: the
-// count expression itself, and the depends_on, provider, lifecycle,
-// connection, and provisioner positions, are meta-arguments that cannot leak
-// into a resource's identity-bearing properties, so count.index is left
-// alone there. Concretely, the walk starts from [configs.Resource.Config] —
-// the body [configs.decodeResourceBlock] leaves behind after extracting
-// exactly those meta-argument names via [configs.ResourceBlockSchema] — and
-// skips the same names again at the top level as a second, explicit check,
-// since the extraction only marks them hidden rather than removing them from
-// the underlying body. count survives, unrejected, wherever it is used only
-// for cardinality: `count = 3`, `count = var.enabled ? 1 : 0`, and a
-// resource that declares count but never reads count.index are all clean.
+// What counts as identity-relevant is read from the same data
+// [identity.Resolve] itself trusts (countIndexScopeForType,
+// count_index.go), not asserted independently:
+//
+//   - A [ClassRecordAdmitted] logical type (logical_type.go) or a
+//     [identity.TypeIdentity.RecordBacked] type has no argument-derived
+//     identity at all — its whole existence is a persisted micro-state
+//     record addressed by the resource's own instance address — so nothing
+//     in its body is in scope.
+//   - A [identity.TypeIdentity.ServerAssigned] type's Resolve
+//     (internal/live/identity/resolve.go) returns ClassNeedsDiscovery
+//     before reading a single configuration attribute; discovery then
+//     matches the live object by its tofu-address marker, which
+//     internal/live/stamp recomputes fresh from the resource's own address
+//     at every run, never from any argument. Nothing in such a type's body
+//     is in scope either.
+//   - Otherwise the type's [identity.TypeIdentity.Components] name exactly
+//     which top-level arguments build its import identity
+//     (internal/live/identity/resolve.go's identityArgs reads only those,
+//     via a top-level-only PartialContent) — those, and only those, are in
+//     scope. A nested block can never be identity-relevant this way,
+//     because Components never names one.
+//   - A type absent from the table entirely gets no narrowing: every
+//     argument at every depth stays in scope, the conservative default for
+//     a type nobody has reviewed.
+//
+// Within an in-scope argument the walk is unchanged from before this
+// narrowing: a plain reference, a tag-shaped map value, a conditional, or a
+// template all get caught the same way, because [exprVariables] inspects
+// the expression's referenced variables rather than matching literal text.
+// The line is also still drawn at the resource body, not at the resource
+// block: the count expression itself, and the depends_on, provider,
+// lifecycle, connection, and provisioner positions, are meta-arguments that
+// cannot leak into a resource's identity-bearing properties, so count.index
+// is left alone there regardless of scope. Concretely, the walk starts from
+// [configs.Resource.Config] — the body [configs.decodeResourceBlock] leaves
+// behind after extracting exactly those meta-argument names via
+// [configs.ResourceBlockSchema] — and skips the same names again at the top
+// level as a second, explicit check, since the extraction only marks them
+// hidden rather than removing them from the underlying body. count
+// survives, unrejected, wherever it is used only for cardinality:
+// `count = 3`, `count = var.enabled ? 1 : 0`, and a resource that declares
+// count but never reads count.index are all clean.
 //
 // One further exemption lives inside the walk itself, not at the
 // resource-body boundary: a `tags = { ... }`-shaped object's tofu-address
 // entry (live/MARKERS.md) is allowed to contain count.index, because a
 // count instance's canonical address permanently includes its instance
 // index — the marker doing its specified job, not a leak into an
-// identity-bearing property. Every other key in that same object, and every
-// other position in the resource, is still checked; see
+// identity-bearing property. Every other key in that same object, when the
+// object's own attribute is in scope at all, is still checked; see
 // markerKeysExemptFromCountIndex in count_index.go for the one key this
 // applies to and why tofu-slot is deliberately not among them.
 package lint

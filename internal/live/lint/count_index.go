@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // metaArgumentAttributes and metaArgumentBlocks are the top-level names
@@ -50,11 +51,90 @@ var (
 	}
 )
 
+// countIndexScope narrows checkCountIndex's walk to the arguments that
+// could plausibly feed a resource type's live identity, using the same
+// classification and identity-table data checkManagedResources (lint.go)
+// already computes and internal/live/identity's own Resolve already trusts
+// — so this rule and admission can never disagree about what an argument
+// does. See [countIndexScopeForType].
+type countIndexScope struct {
+	// skip is true when this type's identity can never be built from any
+	// configuration argument at all, so count.index anywhere in the body is
+	// as harmless as it already is in the tofu-address marker value itself
+	// (see markerKeysExemptFromCountIndex below). Two cases:
+	//
+	//   - a RECORD_ADMITTED logical type (ClassifyLogicalType), whose
+	//     identity is the persisted record addressed by the resource's own
+	//     instance address, never by any argument value - null_resource's
+	//     only attributes are "triggers" and a create-time random "id",
+	//     terraform_data's identity is likewise not argument-derived.
+	//   - a ServerAssigned type (identity.LookupType), whose
+	//     Resolve (internal/live/identity/resolve.go) returns
+	//     ClassNeedsDiscovery before ever calling identityArgs - not one
+	//     configuration attribute is read building such a resolution, so
+	//     none can be identity-relevant. Discovery then matches the live
+	//     object by its tofu-address marker (internal/live/discovery's
+	//     declaredInstances), which stamp (internal/live/stamp's
+	//     addressExpr) recomputes fresh from the resource's own address at
+	//     every run - never sourced from this or any other configuration
+	//     argument - so no config argument's count.index usage can reach
+	//     that path either.
+	skip bool
+
+	// walkAll is true when identity.LookupType has no row for this type: no
+	// data exists to say which arguments are identity-relevant, so every
+	// argument at every depth is treated as identity-relevant, exactly as
+	// this rule always has (the safe default for an unreviewed type).
+	walkAll bool
+
+	// attrs is the set of top-level resource-body attribute names that
+	// could feed this type's identity: the union of every
+	// identity.Component.Attrs name across the type's Components. Nothing
+	// else can, because identity's own identityArgs
+	// (internal/live/identity/resolve.go) builds its schema from exactly
+	// these names and reads it with a top-level-only
+	// hcl.Body.PartialContent - a nested block's content is never consulted
+	// for identity, whatever its own attribute names happen to be. Used
+	// only when skip and walkAll are both false.
+	attrs map[string]bool
+}
+
+// countIndexScopeForType computes scope for one resource type, from the two
+// classifications lint.go's checkManagedResources already has in hand: lt/
+// isLogical from ClassifyLogicalType, and identity.LookupType's own table
+// row.
+func countIndexScopeForType(resourceType string, lt LogicalType, isLogical bool) countIndexScope {
+	if isLogical && lt.Class == ClassRecordAdmitted {
+		return countIndexScope{skip: true}
+	}
+
+	entry, ok := identity.LookupType(resourceType)
+	if !ok {
+		return countIndexScope{walkAll: true}
+	}
+	if entry.ServerAssigned || entry.RecordBacked {
+		return countIndexScope{skip: true}
+	}
+
+	attrs := make(map[string]bool)
+	for _, comp := range entry.Components {
+		for _, name := range comp.Attrs {
+			attrs[name] = true
+		}
+	}
+	return countIndexScope{attrs: attrs}
+}
+
 // checkCountIndex rejects count.index wherever it appears inside a managed
-// resource's own configuration body: a plain argument, a tag map value, a
-// nested block, or nested inside a conditional or template expression that
+// resource's own configuration body, but only within the arguments scope
+// says could plausibly feed this type's identity: a plain argument, a tag
+// map value, or nested inside a conditional or template expression that
 // only references it indirectly. It is a traversal walk, not a literal
-// string match, so every one of those positions is caught the same way.
+// string match, so every one of those positions is caught the same way
+// within an in-scope argument. See [countIndexScope] for what determines
+// whether an argument - or the whole resource - is in scope at all, and
+// doc.go's "Scope of the count.index rule" for why this rule exists only to
+// protect identity, not to police count.index's use in general.
 //
 // The walk starts from resource.Config, the body left over after
 // configs.decodeResourceBlock has already extracted the meta-arguments (see
@@ -63,7 +143,11 @@ var (
 // so the count expression itself, and the depends_on/provider/
 // lifecycle/connection/provisioner positions, are always out of scope,
 // regardless of what they contain.
-func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module, issues *[]Issue) {
+func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module, scope countIndexScope, issues *[]Issue) {
+	if scope.skip {
+		return
+	}
+
 	body, ok := resource.Config.(*hclsyntax.Body)
 	if !ok {
 		// JSON-syntax configuration (*.tf.json) parses to a different
@@ -74,7 +158,7 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 		return
 	}
 
-	for _, traversal := range countIndexCandidates(body, true) {
+	for _, traversal := range countIndexCandidates(body, true, scope) {
 		ref, refDiags := addrs.ParseRef(traversal)
 		if refDiags.HasErrors() || ref == nil {
 			continue
@@ -103,26 +187,50 @@ func checkCountIndex(resource *configs.Resource, addr string, path addrs.Module,
 }
 
 // countIndexCandidates collects every variable traversal referenced by the
-// given body's own attribute expressions and nested blocks. topLevel is true
-// only for a resource's own top-level body, where meta-argument attribute
-// and block names are skipped; every level below that is resource-schema
-// content the type itself defines, never a meta-argument, so it is walked in
-// full.
-func countIndexCandidates(body *hclsyntax.Body, topLevel bool) []hcl.Traversal {
+// given body's own attribute expressions and nested blocks, restricted to
+// what scope says is identity-relevant. topLevel is true only for a
+// resource's own top-level body, where meta-argument attribute and block
+// names are skipped, and - when scope narrows at all - so is everything
+// scope excludes: a top-level attribute whose name is not in scope.attrs,
+// and every nested block outright, since identity.LookupType's Components
+// only ever name top-level attributes (see [countIndexScope]), so nothing
+// inside a nested block can be identity-relevant for a type this function
+// narrows at all. When scope.walkAll is set - the unreviewed-type default -
+// every level below the top is resource-schema content the type itself
+// defines, never a meta-argument, so it is walked in full exactly as
+// before.
+//
+// The exprVariables call on an in-scope attribute still walks that
+// attribute's whole expression tree - conditionals, templates, function
+// calls, nested object keys - so a deep or indirect count.index reference
+// inside an identity-relevant argument is caught the same way it always was;
+// scope only decides which top-level attribute gets that treatment; it never
+// shortens the walk within one.
+func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexScope) []hcl.Traversal {
 	var traversals []hcl.Traversal
 
 	for name, attr := range body.Attributes {
-		if topLevel && metaArgumentAttributes[name] {
-			continue
+		if topLevel {
+			if metaArgumentAttributes[name] {
+				continue
+			}
+			if !scope.walkAll && !scope.attrs[name] {
+				continue
+			}
 		}
 		traversals = append(traversals, exprVariables(attr.Expr)...)
 	}
 
 	for _, block := range body.Blocks {
-		if topLevel && metaArgumentBlocks[block.Type] {
-			continue
+		if topLevel {
+			if metaArgumentBlocks[block.Type] {
+				continue
+			}
+			if !scope.walkAll {
+				continue
+			}
 		}
-		traversals = append(traversals, countIndexCandidates(block.Body, false)...)
+		traversals = append(traversals, countIndexCandidates(block.Body, false, scope)...)
 	}
 
 	return traversals
