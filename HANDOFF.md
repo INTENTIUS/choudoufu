@@ -14,16 +14,20 @@ version of this file was wrong four separate times.
 
     just corpus && python3 -c "import json;print({c['class']:c['configs'] for c in json.load(open('live/corpus-refusals.json'))['ladder']['classes']})"
 
-Recomputed at HEAD, and again on a second run to confirm the artifact is
-byte-reproducible:
+**Every number below is read from the `live/corpus-refusals.json` committed in
+this same commit.** An earlier version of this file quoted numbers from an
+uncommitted regeneration and two rows were wrong at the moment they were
+written - including a fabricated zero that sent a reader after a same-day
+close. Commit the artifact and the file together, or the numbers cannot be
+checked.
 
 | rung | session start | now |
 |---|---|---|
-| clean | 0 | **24** |
+| clean | 0 | **25** |
 | backend-only | 25 | 0 |
-| admissions-only | 17 | 19 |
+| admissions-only | 17 | 20 |
 | data-read-eligible | 23 | 33 |
-| language-blocked | 79 | **68** |
+| language-blocked | 79 | **66** |
 | unreadable | 1 | 1 |
 
 Both sum to 145.
@@ -34,44 +38,52 @@ Both sum to 145.
 `projection` remain unchecked. So `clean` means "nothing in four of six
 layers refused it", not "this applies end to end".
 
-Two things a reader must know before quoting 24:
+Two things a reader must know before quoting 25:
 
-- **All 24 still ship a `backend` or `cloud` block.** `state-backend` was
+- **All of them still ship a `backend` or `cloud` block.** `state-backend` was
   demoted from a fatal refusal to a warning (#214, maintainer decision), so
   `ClassifyOnboarding`'s `backendOnly` branch can structurally never be true
   again. `live-plan` never reads `mod.Backend` — the backend is orthogonal to
   the live path by construction, not stubbed. But "clean" and "backend-only"
-  collapsed into one bucket, and 24 configs needing zero attention is not the
+  collapsed into one bucket, and 25 configs needing zero attention is not the
   same claim the old 25-needing-one-edit rung made.
-- **Stamp only became a checked layer today** (#224), which is why `clean`
-  went 26 → 24 late in the session. `catalog.go` had claimed stamp's refusals
+- **Stamp only became a checked layer today** (#224), which took `clean`
+  26 → 24 late in the session; later identity work took it back to 25. `catalog.go` had claimed stamp's refusals
   need a live object; false for all four of them, and that false claim is why
   the layer went unchecked.
 
-The supportable sentence is *"24 of 145 pass the four offline checks this
+The supportable sentence is *"25 of 145 pass the four offline checks this
 instrument runs"* — not "work as published".
 
 ## Burndown
 
 19 wall-class issues closed: #185 #186 #188 #190 #191 #192 #194 #195 #198
-#199 #200 #201 #202 #203 #205 #206 #207 #208 #210. Plus #211 #213 #214 #215
-#216 #217 #218 #222.
+#199 #200 #201 #202 #203 #205 #206 #207 #208 #210, and #189. Plus #211 #213
+#215 #216 #217 #218 #222.
+
+**#214 is OPEN**, not closed - the state-backend severity decision. Its body
+reads as a finished record, but its own "Known follow-ups" section lists
+unresolved dead-code and rung-retirement items. An earlier version of this
+file listed it as closed; it was not.
 
 Still open, ranked by corpus-wide config count, recomputed at HEAD:
 
 | issue | refusal | configs | sites |
 |---|---|---|---|
-| #189 | Dynamic value in static context | 51 | 363 |
+| #189 | Dynamic value in static context | 52 | 365 |
 | #184 | Unresolvable identity | 49 | 200 |
 | #224 | Unmarked apply of a marker-only resource | 48 | 95 |
-| #197 | Not an identity attribute | 35 | 108 |
-| #196 | Identity not resolvable from configuration | 22 | 112 |
-| #187 | Non-static for_each expression | 21 | 63 |
+| #197 | Not an identity attribute | 33 | 85 |
+| #196 | Identity not resolvable from configuration | 22 | 118 |
+| #187 | Non-static for_each expression | 19 | 60 |
 | #193 | Data source not readable before resolution | 4 | 9 |
 | #204 | Attempt to get attribute from null value | 0 | 0 |
 | #209 | Unsupported attribute | 0 | 0 |
 
-#204 and #209 are at zero and should be checked for a same-day close.
+#189 has since closed — 94% of its sites are genuine value circularity matching
+upstream byte-for-byte, and the two actionable slices are filed separately.
+
+#204 and #209 are at zero in the artifact committed alongside this file.
 
 **Read #184's own latest comment before spending on it.** The retired table's
 "rides on others, no machinery of its own" was backwards — it is the sole
@@ -102,7 +114,7 @@ Filed today and not yet triaged: #212 #219 #220 #221 #223 #225 #226 #227
 
 ## What the audits are for
 
-Five adversarial audits ran today. They found **eleven** real defects in work
+Seven adversarial audits ran today. They found **fifteen** real defects in work
 that was green, committed and believed finished — including a duplicate
 marker, a fabricated refusal, a marker-grammar collision that could point
 `live-mv` at the wrong live resource, and two commits whose own messages made
@@ -118,8 +130,9 @@ floci (fork lane, lex00/floci, checkout `/Users/alex/Documents/checkouts/floci`)
 
 - fork main `05573b5e`; published image
   **`sha256:1362e856baf70b1fc848ce302c308dfa8ad39a30187812e855bc295e77a9d933`**.
-- **NOT re-pinned in choudoufu.** `live/floci-capabilities.json` and
-  `live/cohort-acceptance.json` still carry `sha256:f122a580`.
+- **Re-pinned.** All three batch-3 fixes were verified live with before/after
+  against both images rather than read from commit messages. Acceptance moved
+  3/31 → 4/31, the one flip attributable to the CBOR fix.
 - Two items on lex00/floci#50 were misdiagnosed: the ACM PCA and SageMaker
   "crashes" are provider-side panics in `expand*` functions that run before
   any request reaches floci. Not fixable in the emulator.
@@ -131,7 +144,8 @@ floci (fork lane, lex00/floci, checkout `/Users/alex/Documents/checkouts/floci`)
 
 - `env -u PWD` for every go command (symlink trap).
 - Never pipe a generator into `head` — SIGPIPE. The e2e harness had **58**
-  instances of this shape, and two consumer-side ones survive (#232).
+  producer-side instances and two consumer-side ones; all are fixed, and
+  `just demo` now exits 0 end to end through step 14.
 - Read CI and corpus results from a file, never through a pipe or a trailing
   `echo` after a semicolon. I hit this myself: the wrapper reported success
   while the file said `exit: 1`.
