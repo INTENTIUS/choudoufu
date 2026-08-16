@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -77,6 +78,26 @@ type Source struct {
 	// static arguments and count/for_each, a statically configurable
 	// provider, and no managed-resource dependency.
 	Eligible bool
+
+	// PerInstance reports that at least one of this block's own arguments -
+	// directly, or inside a nested block - reads this same block's own
+	// count.index or each.key/each.value. That is ordinary per-block
+	// repetition scoping, the same scoping every resource and data block
+	// gets in stock OpenTofu (internal/tofu/evaluate.go's
+	// evaluationStateData.GetCountAttr/GetForEachAttr, bound per instance
+	// from the block's own expansion), not a dynamic value: each instance's
+	// key or value is known the moment the block's own count/for_each is
+	// known, the same round this analysis already evaluates it in.
+	//
+	// It means instances of this block can have genuinely different
+	// arguments, so [Read] cannot share one provider answer across every
+	// instance the way it does for a block whose arguments are
+	// instance-invariant; it reads each instance separately instead, with
+	// that instance's own count.index or each.key/each.value bound - one
+	// provider call per instance, the same cost stock OpenTofu's own
+	// per-instance data-source read already pays
+	// (internal/tofu/node_resource_abstract_instance.go, readDataSource).
+	PerInstance bool
 
 	// ReasonSummary and ReasonDetail are the refusal for an ineligible
 	// source: ReasonSummary is one of this package's Summary constants and
@@ -376,8 +397,11 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 		}
 	}
 	for _, ne := range an.sourceExpressions(rc) {
-		errDetail, category, ok := an.evalRecorded(node, module, res, ne, record)
+		errDetail, category, usedSelf, ok := an.evalRecorded(node, module, res, rc, ne, record)
 		if ok {
+			if usedSelf {
+				src.PerInstance = true
+			}
 			continue
 		}
 		switch category {
@@ -497,15 +521,49 @@ func collectBodyExpressions(body *hclsyntax.Body, label string, out *[]namedExpr
 	}
 }
 
+// selfRepetitionRoots names the traversal roots this data block's own
+// count/for_each meta-argument makes legitimately self-referential in one
+// of the block's OTHER expressions: "count" when the block sets count,
+// "each" when it sets for_each - the same per-block scoping stock OpenTofu
+// gives every resource and data block (a nested block never inherits an
+// ancestor's each/count; only its own). It is never applied to the
+// count/for_each expression itself: that expression defines the repetition
+// and cannot reference it, in this fork or in stock OpenTofu.
+func selfRepetitionRoots(rc *configs.Resource, label string) map[string]bool {
+	if label == "count" || label == "for_each" {
+		return nil
+	}
+	roots := make(map[string]bool, 2)
+	if rc.Count != nil {
+		roots["count"] = true
+	}
+	if rc.ForEach != nil {
+		roots["each"] = true
+	}
+	return roots
+}
+
 // evalRecorded evaluates one expression through the module's own static
 // evaluator, with every declared same-stack data source of the module
 // covered by an unknown placeholder whose consultation is recorded as an
-// ordering edge. ok reports success; otherwise errDetail carries the
-// evaluator's first error and category the refused reference's category
-// when the error carries one.
-func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res addrs.Resource, ne namedExpr, record func(addrs.Resource)) (errDetail string, category configs.ReferenceCategory, ok bool) {
+// ordering edge, and this block's own count.index / each.key / each.value -
+// when the expression is not the count/for_each expression itself - treated
+// as a legitimate per-instance reference rather than a dynamic-value
+// refusal: [Read] binds the real value once instance expansion is known,
+// the same way stock OpenTofu's plan-time evaluator does
+// (internal/tofu/evaluate.go, evaluationStateData.GetCountAttr /
+// GetForEachAttr, populated per instance from InstanceKeyData).
+//
+// ok reports success; otherwise errDetail carries the evaluator's first
+// error and category the refused reference's category when the error
+// carries one. usedSelf reports whether the expression actually needed a
+// self-repetition binding, so the caller can mark the source
+// [Source.PerInstance] only when at least one argument genuinely varies per
+// instance - the common case, where every instance shares one answer,
+// keeps its existing one-call cost.
+func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res addrs.Resource, rc *configs.Resource, ne namedExpr, record func(addrs.Resource)) (errDetail string, category configs.ReferenceCategory, usedSelf bool, ok bool) {
 	if ne.expr == nil {
-		return "the block is not written in native syntax, and this phase enumerates arguments only there", configs.CategoryOther, false
+		return "the block is not written in native syntax, and this phase enumerates arguments only there", configs.CategoryOther, false, false
 	}
 	defer func() {
 		// The same guard identity's evalPure carries: static evaluation can
@@ -515,6 +573,7 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 		if rec := recover(); rec != nil {
 			errDetail = fmt.Sprintf("evaluation failed: %v", rec)
 			category = configs.CategoryOther
+			usedSelf = false
 			ok = false
 		}
 	}()
@@ -536,29 +595,93 @@ func (an *analyzer) evalRecorded(node *configs.Config, module addrs.Module, res 
 		Subject:   fmt.Sprintf("%s's %s", res.String(), ne.label),
 		DeclRange: ne.expr.Range(),
 	}
-	_, hclDiags := eval.Evaluate(an.ctx, ne.expr, ident)
-	if !hclDiags.HasErrors() {
-		return "", "", true
+
+	selfRoots := selfRepetitionRoots(rc, ne.label)
+	var travs []hcl.Traversal
+	for _, trav := range ne.expr.Variables() {
+		if selfRoots[trav.RootName()] {
+			usedSelf = true
+			continue
+		}
+		travs = append(travs, trav)
 	}
-	for _, d := range hclDiags {
+
+	refs, refDiags := lang.References(addrs.ParseRef, travs)
+	if refDiags.HasErrors() {
+		detail, cat := firstHCLError(refDiags.ToHCL())
+		return detail, cat, false, false
+	}
+
+	hclCtx, ctxDiags := eval.EvalContextWithParent(an.ctx, nil, ident, refs)
+	if ctxDiags.HasErrors() {
+		detail, cat := firstHCLError(ctxDiags)
+		return detail, cat, false, false
+	}
+	if hclCtx == nil {
+		hclCtx = &hcl.EvalContext{}
+	}
+	if len(selfRoots) > 0 {
+		hclCtx = withRepetitionPlaceholders(hclCtx, selfRoots)
+	}
+
+	_, valDiags := ne.expr.Value(hclCtx)
+	if valDiags.HasErrors() {
+		detail, cat := firstHCLError(valDiags)
+		return detail, cat, false, false
+	}
+	return "", "", usedSelf, true
+}
+
+// withRepetitionPlaceholders returns a child of hclCtx with "each" and/or
+// "count" bound to unknown placeholders, present exactly where selfRoots
+// says the block's own count/for_each makes them legitimate. Analysis only
+// needs to know whether the rest of the expression validates - the concrete
+// per-instance value is bound later, in [reader], once an actual instance
+// key is in hand.
+func withRepetitionPlaceholders(hclCtx *hcl.EvalContext, selfRoots map[string]bool) *hcl.EvalContext {
+	child := hclCtx.NewChild()
+	vars := make(map[string]cty.Value, len(selfRoots))
+	if selfRoots["count"] {
+		vars["count"] = cty.ObjectVal(map[string]cty.Value{
+			"index": cty.UnknownVal(cty.Number),
+		})
+	}
+	if selfRoots["each"] {
+		vars["each"] = cty.ObjectVal(map[string]cty.Value{
+			"key":   cty.UnknownVal(cty.String),
+			"value": cty.UnknownVal(cty.DynamicPseudoType),
+		})
+	}
+	child.Variables = vars
+	return child
+}
+
+// firstHCLError extracts one error diagnostic's detail and reference
+// category the same way every raise site on this path already does: the
+// first diagnostic carrying a [configs.RefusedReference] wins outright (its
+// category names what was actually refused), and only when none does does
+// the first error's plain detail stand in, categoryless.
+func firstHCLError(diags hcl.Diagnostics) (detail string, category configs.ReferenceCategory) {
+	var fallback string
+	for _, d := range diags {
 		if d.Severity != hcl.DiagError {
 			continue
 		}
-		detail := d.Detail
-		if detail == "" {
-			detail = d.Summary
+		dDetail := d.Detail
+		if dDetail == "" {
+			dDetail = d.Summary
 		}
 		if ref, isRef := d.Extra.(configs.RefusedReference); isRef {
-			return detail, ref.Category, false
+			return dDetail, ref.Category
 		}
-		if errDetail == "" {
-			errDetail = detail
+		if fallback == "" {
+			fallback = dDetail
 		}
 	}
-	if errDetail == "" {
-		errDetail = hclDiags.Error()
+	if fallback == "" {
+		fallback = diags.Error()
 	}
-	return errDetail, configs.CategoryOther, false
+	return fallback, configs.CategoryOther
 }
 
 // findProviderConfig locates the root-module provider block a data source

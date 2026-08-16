@@ -142,6 +142,87 @@ func TestAnalyzeDependsOnManagedIsIneligible(t *testing.T) {
 	}
 }
 
+// TestAnalyzeSelfForEachArgumentIsEligiblePerInstance: a for_each-expanded
+// data source whose own argument reads its own each.value is ordinary
+// per-block repetition scoping, not a dynamic value (#193) - it classifies
+// eligible, and PerInstance so Read knows the instances can genuinely
+// differ.
+func TestAnalyzeSelfForEachArgumentIsEligiblePerInstance(t *testing.T) {
+	a := analyzeFixture(t, "eligible-self-each-count")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("aws_route53_zone", "by_each"))
+	if !ok {
+		t.Fatalf("the demanded data source was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("a for_each block reading its own each.value classified ineligible: %s", src.ReasonDetail)
+	}
+	if !src.PerInstance {
+		t.Fatalf("a for_each block reading its own each.value was not marked PerInstance")
+	}
+}
+
+// TestAnalyzeSelfCountArgumentIsEligiblePerInstance: count's count.index
+// half of the same rule.
+func TestAnalyzeSelfCountArgumentIsEligiblePerInstance(t *testing.T) {
+	a := analyzeFixture(t, "eligible-self-each-count")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("aws_route53_zone", "by_count"))
+	if !ok {
+		t.Fatalf("the demanded data source was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("a count block reading its own count.index classified ineligible: %s", src.ReasonDetail)
+	}
+	if !src.PerInstance {
+		t.Fatalf("a count block reading its own count.index was not marked PerInstance")
+	}
+}
+
+// TestAnalyzeArgumentInvariantAcrossInstancesIsNotPerInstance: the common
+// case - a for_each-expanded block whose arguments do not read each/count
+// at all - must not be marked PerInstance, or every for_each/count block in
+// the corpus would silently lose the one-call-per-block cost bound
+// [doc.go] promises.
+func TestAnalyzeArgumentInvariantAcrossInstancesIsNotPerInstance(t *testing.T) {
+	a := analyzeFixture(t, "read-expansion")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("test_record", "b"))
+	if !ok {
+		t.Fatalf("the demanded data source was not classified at all")
+	}
+	if !src.Eligible {
+		t.Fatalf("data.test_record.b classified ineligible: %s", src.ReasonDetail)
+	}
+	if src.PerInstance {
+		t.Fatalf("data.test_record.b's arguments never read count.index, but it was marked PerInstance")
+	}
+}
+
+// TestAnalyzeEachWithoutForEachStaysRefused: the self-repetition relaxation
+// only applies to a block's OWN count/for_each. each.value in a block with
+// no for_each set at all is not this block's own repetition value - it
+// stays refused exactly as it always has, matching stock OpenTofu's own
+// "each.value cannot be used in this context" error for the same
+// construct.
+func TestAnalyzeEachWithoutForEachStaysRefused(t *testing.T) {
+	a := analyzeFixture(t, "ineligible-each-without-for-each")
+
+	src, ok := a.SourceFor(addrs.RootModule, dataAddr("aws_route53_zone", "no_for_each"))
+	if !ok {
+		t.Fatalf("the demanded data source was not classified at all")
+	}
+	if src.Eligible {
+		t.Fatalf("each.value with no for_each on the block classified eligible")
+	}
+	if src.PerInstance {
+		t.Fatalf("each.value with no for_each on the block was marked PerInstance")
+	}
+	if src.ReasonSummary != SummaryNotReadable {
+		t.Errorf("refused under %q, want %q", src.ReasonSummary, SummaryNotReadable)
+	}
+}
+
 // TestAnalyzeNonStaticProviderIsIneligible: rule 3, the ConfiguredProvider
 // line, classified offline.
 func TestAnalyzeNonStaticProviderIsIneligible(t *testing.T) {

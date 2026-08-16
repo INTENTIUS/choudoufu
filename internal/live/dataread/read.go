@@ -11,12 +11,14 @@ import (
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -155,10 +157,12 @@ func (r *reader) refuse(src *Source, summary, format string, args ...any) bool {
 
 // readSource reads one data block: expansion first, then the block's
 // arguments decoded against the provider's own schema, then the read
-// itself. One call per block - a block expanded by count or for_each has
-// statically identical arguments for every instance (an argument reading
-// count.index or each.* is ineligible in this stage), so its instances
-// share the one honest answer.
+// itself. A block whose arguments are the same for every instance
+// ([Source.PerInstance] false) gets one provider call, reused across every
+// instance; a block that reads its own count.index or each.key/each.value
+// ([Source.PerInstance] true) gets one provider call per instance, each
+// with that instance's own repetition value bound - the same per-instance
+// shape stock OpenTofu's own plan-time data-source read has.
 func (r *reader) readSource(src *Source) bool {
 	node := r.cfg.Descendent(src.Module)
 	if node == nil || node.Module == nil {
@@ -183,7 +187,7 @@ func (r *reader) readSource(src *Source) bool {
 	lookup := r.lookupFor(src.Module)
 	eval := node.Module.StaticEvaluator.Pure().WithDataResults(lookup)
 
-	keys, ok := r.expansionKeys(src, eval)
+	keys, eachVals, ok := r.expansionKeys(src, eval)
 	if !ok {
 		return false
 	}
@@ -234,11 +238,54 @@ func (r *reader) readSource(src *Source) bool {
 			absAddr.Provider.String(), src.Resource.Type)
 	}
 
-	configVal, ok := r.decodeConfig(src, eval, dsSchema)
-	if !ok {
-		return false
+	if !src.PerInstance {
+		// The common case: every instance's arguments are identical, so one
+		// provider call answers all of them - the "one honest answer,
+		// shared" cost bound this phase's doc.go promises.
+		configVal, ok := r.decodeConfig(src, eval, dsSchema)
+		if !ok {
+			return false
+		}
+		state, ok := r.callRead(src, provider, dsSchema, configVal, keys)
+		if !ok {
+			return false
+		}
+		r.store(src, keys, func(addrs.InstanceKey) cty.Value { return state })
+		return true
 	}
 
+	// src.PerInstance: at least one argument reads this block's own
+	// count.index or each.key/each.value, so instances can genuinely
+	// differ. Stock OpenTofu reads such a block once per instance, with
+	// that instance's own repetition value bound
+	// (internal/tofu/node_resource_abstract_instance.go's readDataSource,
+	// fed by evaluationStateData.GetCountAttr/GetForEachAttr in
+	// internal/tofu/evaluate.go) - this phase matches that shape instead of
+	// sharing one answer across instances that were never promised to
+	// agree.
+	states := make(map[addrs.InstanceKey]cty.Value, len(keys))
+	for _, key := range keys {
+		configVal, ok := r.decodeConfigForInstance(src, eval, dsSchema, key, eachVals)
+		if !ok {
+			return false
+		}
+		state, ok := r.callRead(src, provider, dsSchema, configVal, []addrs.InstanceKey{key})
+		if !ok {
+			return false
+		}
+		states[key] = state
+	}
+	r.store(src, keys, func(key addrs.InstanceKey) cty.Value { return states[key] })
+	return true
+}
+
+// callRead performs one provider read for one already-decoded config value
+// and turns the response into a stored, mark-carrying state value or a
+// refusal - the part of the read that stock OpenTofu's plan-time read and
+// this phase's pre-resolution read do identically, whether the config value
+// came from the block's one shared answer or from one instance's own
+// binding.
+func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema providers.Schema, configVal cty.Value, keys []addrs.InstanceKey) (cty.Value, bool) {
 	unmarked, _ := configVal.UnmarkDeep()
 	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
@@ -256,13 +303,13 @@ func (r *reader) readSource(src *Source) bool {
 		// the error branch is a defensive backstop, not a live path.
 		tfp, ok := provider.(encryptedDataSourceReader)
 		if !ok {
-			return r.refuse(src, SummaryCrossStackStateUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
 				"%s's provider does not support the encrypted remote-state read path this stage requires; this is a defect in the calling code.",
 				src.Resource.String())
 		}
 		enc, encDiags := r.encryption()
 		if encDiags.HasErrors() {
-			return r.refuse(src, SummaryCrossStackStateUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
 				"%s's value is needed to resolve the identity of %s, and this configuration's own encryption block could not be built: %s.",
 				src.Resource.String(), src.NeededBy, encDiags.Error())
 		}
@@ -273,15 +320,15 @@ func (r *reader) readSource(src *Source) bool {
 	if resp.Diagnostics.HasErrors() {
 		switch {
 		case src.TfeOutputs:
-			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackOutputsUnavailable,
 				"reading %s's outputs from its TFC/TFE workspace failed; the provider said: %s.",
 				src.Resource.String(), resp.Diagnostics.Err())
 		case src.RemoteState:
-			return r.refuse(src, SummaryCrossStackStateUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
 				"reading %s from its backend failed; the backend said: %s.",
 				src.Resource.String(), resp.Diagnostics.Err())
 		}
-		return r.refuse(src, SummaryReadFailed,
+		return cty.NilVal, r.refuse(src, SummaryReadFailed,
 			"reading %s before resolution failed; the provider said: %s.",
 			src.Resource.String(), resp.Diagnostics.Err())
 	}
@@ -289,15 +336,15 @@ func (r *reader) readSource(src *Source) bool {
 	if state == cty.NilVal || state.IsNull() {
 		switch {
 		case src.TfeOutputs:
-			return r.refuse(src, SummaryCrossStackOutputsUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackOutputsUnavailable,
 				"reading %s returned no output values; the workspace may have no current state version.",
 				src.Resource.String())
 		case src.RemoteState:
-			return r.refuse(src, SummaryCrossStackStateUnavailable,
+			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
 				"reading %s returned no state; the backend may be unreachable or misconfigured.",
 				src.Resource.String())
 		}
-		return r.refuse(src, SummaryReadFailed,
+		return cty.NilVal, r.refuse(src, SummaryReadFailed,
 			"reading %s before resolution returned no value.", src.Resource.String())
 	}
 	// The provider's schema decides what is sensitive, and the marks ride
@@ -306,9 +353,7 @@ func (r *reader) readSource(src *Source) bool {
 	if marks := dsSchema.Block.ValueMarks(state, nil, nil); len(marks) > 0 {
 		state = state.MarkWithPaths(marks)
 	}
-
-	r.store(src, keys, state)
-	return true
+	return state, true
 }
 
 // representativeInstance picks one absolute instance address for a
@@ -343,69 +388,75 @@ func (r *reader) lookupFor(module addrs.Module) configs.StaticDataLookup {
 
 // expansionKeys evaluates count/for_each - eligibility rule 2, now with the
 // dependencies' real values in scope - into the block's instance keys.
-func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]addrs.InstanceKey, bool) {
+// eachVals carries each key's own each.value, keyed the same way, for
+// [reader.decodeConfigForInstance] to bind on a [Source.PerInstance] block;
+// it is nil for a count-expanded or unexpanded block, where the only
+// per-instance repetition value is the key itself.
+func (r *reader) expansionKeys(src *Source, eval *configs.StaticEvaluator) ([]addrs.InstanceKey, map[string]cty.Value, bool) {
 	rc := src.Config
 	switch {
 	case rc.Count != nil:
 		val, ok := r.evalExpr(src, eval, rc.Count, "count")
 		if !ok {
-			return nil, false
+			return nil, nil, false
 		}
 		if val.IsMarked() {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's count reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
 		}
 		if val.IsNull() || !val.IsWhollyKnown() {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's count does not evaluate to a value knowable before the plan.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count does not evaluate to a value knowable before the plan.", src.Resource.String())
 		}
 		num, err := convert.Convert(val, cty.Number)
 		if err != nil {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's count is not a number: %s.", src.Resource.String(), err)
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count is not a number: %s.", src.Resource.String(), err)
 		}
 		var n int
 		if convErr := numToInt(num, &n); convErr != nil || n < 0 {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's count is not a whole non-negative number.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's count is not a whole non-negative number.", src.Resource.String())
 		}
 		keys := make([]addrs.InstanceKey, n)
 		for i := range keys {
 			keys[i] = addrs.IntKey(i)
 		}
-		return keys, true
+		return keys, nil, true
 
 	case rc.ForEach != nil:
 		val, ok := r.evalExpr(src, eval, rc.ForEach, "for_each")
 		if !ok {
-			return nil, false
+			return nil, nil, false
 		}
 		if val.IsMarked() {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each reads a sensitive value, so its instance keys cannot be computed before the plan.", src.Resource.String())
 		}
 		if val.IsNull() || !val.IsWhollyKnown() {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's for_each does not evaluate to a value knowable before the plan.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each does not evaluate to a value knowable before the plan.", src.Resource.String())
 		}
 		ty := val.Type()
 		if !ty.IsMapType() && !ty.IsObjectType() && !ty.IsSetType() {
-			return nil, r.refuse(src, SummaryNotReadable, "%s's for_each is neither a map nor a set of strings.", src.Resource.String())
+			return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each is neither a map nor a set of strings.", src.Resource.String())
 		}
 		var names []string
+		eachVals := make(map[string]cty.Value)
 		for it := val.ElementIterator(); it.Next(); {
 			k, v := it.Element()
 			if ty.IsSetType() {
 				k = v
 			}
 			if k.Type() != cty.String || k.IsNull() || !k.IsKnown() {
-				return nil, r.refuse(src, SummaryNotReadable, "%s's for_each has a key that is not a string.", src.Resource.String())
+				return nil, nil, r.refuse(src, SummaryNotReadable, "%s's for_each has a key that is not a string.", src.Resource.String())
 			}
 			names = append(names, k.AsString())
+			eachVals[k.AsString()] = v
 		}
 		sort.Strings(names)
 		keys := make([]addrs.InstanceKey, len(names))
 		for i, name := range names {
 			keys[i] = addrs.StringKey(name)
 		}
-		return keys, true
+		return keys, eachVals, true
 
 	default:
-		return []addrs.InstanceKey{addrs.NoKey}, true
+		return []addrs.InstanceKey{addrs.NoKey}, nil, true
 	}
 }
 
@@ -442,7 +493,10 @@ func (r *reader) evalExpr(src *Source, eval *configs.StaticEvaluator, expr hcl.E
 }
 
 // decodeConfig evaluates the block's arguments against the provider's own
-// schema for the type, producing the config value ReadDataSource wants.
+// schema for the type, producing the config value ReadDataSource wants. It
+// is used only for a block whose arguments are the same for every instance
+// ([Source.PerInstance] false); [reader.decodeConfigForInstance] is its
+// per-instance counterpart.
 func (r *reader) decodeConfig(src *Source, eval *configs.StaticEvaluator, dsSchema providers.Schema) (val cty.Value, ok bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -467,24 +521,132 @@ func (r *reader) decodeConfig(src *Source, eval *configs.StaticEvaluator, dsSche
 	return v, true
 }
 
-// store records one read's value: the module-level aggregate for later
+// decodeConfigForInstance is [reader.decodeConfig]'s counterpart for a
+// [Source.PerInstance] block: it decodes the same body against the same
+// schema, but with this instance's own count.index or each.key/each.value
+// bound instead of refused, the same binding
+// [analyzer.withRepetitionPlaceholders] validated was legitimate for this
+// block at analysis time - only now with the real value, because a real
+// value is exactly what a guess must never stand in for on this path.
+//
+// It rebuilds the evaluation context itself rather than reusing
+// [configs.StaticEvaluator.DecodeBlock]: that method resolves every
+// referenced traversal through the module's static scope, and the static
+// scope panics on count.index/each.key/each.value unconditionally
+// (internal/configs/static_scope.go's GetCountAttr/GetForEachAttr) because
+// it has no per-instance repetition data to answer with. This function
+// supplies that data itself, the same way [identity]'s own per-instance
+// resolution does (internal/live/identity/resolve.go's evalPure): resolve
+// every OTHER reference through the static evaluator as usual, then bind
+// "each"/"count" as one more variable on the resulting context before
+// decoding.
+func (r *reader) decodeConfigForInstance(src *Source, eval *configs.StaticEvaluator, dsSchema providers.Schema, key addrs.InstanceKey, eachVals map[string]cty.Value) (val cty.Value, ok bool) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			val, ok = cty.NilVal, r.refuse(src, SummaryNotReadable,
+				"%s's arguments could not be evaluated: %v.", src.Resource.String(), rec)
+		}
+	}()
+	rc := src.Config
+	body := rc.Config
+	spec := dsSchema.Block.DecoderSpec()
+
+	selfRoots := make(map[string]bool, 2)
+	if rc.Count != nil {
+		selfRoots["count"] = true
+	}
+	if rc.ForEach != nil {
+		selfRoots["each"] = true
+	}
+
+	var travs []hcl.Traversal
+	for _, trav := range hcldec.Variables(body, spec) {
+		if selfRoots[trav.RootName()] {
+			continue
+		}
+		travs = append(travs, trav)
+	}
+	refs, refDiags := lang.References(addrs.ParseRef, travs)
+	if refDiags.HasErrors() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), refDiags.Err())
+	}
+
+	ident := configs.StaticIdentifier{
+		Module:    src.Module,
+		Subject:   src.Resource.String(),
+		DeclRange: rc.DeclRange,
+	}
+	hclCtx, ctxDiags := eval.EvalContextWithParent(r.ctx, nil, ident, refs)
+	if ctxDiags.HasErrors() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), ctxDiags.Error())
+	}
+	if hclCtx == nil {
+		hclCtx = &hcl.EvalContext{}
+	}
+	if len(selfRoots) > 0 {
+		child := hclCtx.NewChild()
+		vars := make(map[string]cty.Value, len(selfRoots))
+		if selfRoots["count"] {
+			idx, _ := key.(addrs.IntKey)
+			vars["count"] = cty.ObjectVal(map[string]cty.Value{
+				"index": cty.NumberIntVal(int64(idx)),
+			})
+		}
+		if selfRoots["each"] {
+			var keyVal, valueVal cty.Value
+			if sk, ok := key.(addrs.StringKey); ok {
+				keyVal = cty.StringVal(string(sk))
+				valueVal, ok = eachVals[string(sk)]
+				if !ok {
+					valueVal = cty.NullVal(cty.DynamicPseudoType)
+				}
+			} else {
+				keyVal = cty.UnknownVal(cty.String)
+				valueVal = cty.UnknownVal(cty.DynamicPseudoType)
+			}
+			vars["each"] = cty.ObjectVal(map[string]cty.Value{
+				"key":   keyVal,
+				"value": valueVal,
+			})
+		}
+		child.Variables = vars
+		hclCtx = child
+	}
+
+	v, valDiags := hcldec.Decode(body, spec, hclCtx)
+	if valDiags.HasErrors() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments are not statically evaluable: %s.", src.Resource.String(), valDiags.Error())
+	}
+	if !v.IsWhollyKnown() {
+		return cty.NilVal, r.refuse(src, SummaryNotReadable,
+			"%s's arguments evaluate to a value not knowable before the plan - an impure function such as uuid() or timestamp() is the usual cause.", src.Resource.String())
+	}
+	return v, true
+}
+
+// store records one read's value(s): the module-level aggregate for later
 // evaluation, and one entry per instance address of every instance of the
-// module for resolution.
-func (r *reader) store(src *Source, keys []addrs.InstanceKey, state cty.Value) {
+// module for resolution. stateFor answers one instance key's value - a
+// constant function for a block whose instances share one answer, or a map
+// lookup for a [Source.PerInstance] block whose instances do not.
+func (r *reader) store(src *Source, keys []addrs.InstanceKey, stateFor func(addrs.InstanceKey) cty.Value) {
 	var agg cty.Value
 	switch keys[0].(type) {
 	case nil:
-		agg = state
+		agg = stateFor(keys[0])
 	case addrs.IntKey:
 		vals := make([]cty.Value, len(keys))
-		for i := range vals {
-			vals[i] = state
+		for i, k := range keys {
+			vals[i] = stateFor(k)
 		}
 		agg = cty.TupleVal(vals)
 	case addrs.StringKey:
 		vals := make(map[string]cty.Value, len(keys))
 		for _, k := range keys {
-			vals[string(k.(addrs.StringKey))] = state
+			vals[string(k.(addrs.StringKey))] = stateFor(k)
 		}
 		agg = cty.ObjectVal(vals)
 	}
@@ -493,7 +655,7 @@ func (r *reader) store(src *Source, keys []addrs.InstanceKey, state cty.Value) {
 	for _, modInst := range r.insts.moduleInstancesOf(src.Module) {
 		for _, key := range keys {
 			addr := src.Resource.Instance(key).Absolute(modInst)
-			r.results[addr.String()] = state
+			r.results[addr.String()] = stateFor(key)
 		}
 	}
 }
