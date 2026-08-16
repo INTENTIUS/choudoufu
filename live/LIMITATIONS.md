@@ -982,7 +982,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Raised by | Documented at |
 |---|---|---|---|---|---|
 | 142 | 142 | lint | state-backend | `internal/live/lint` | "backend-block" / "cloud-block" |
-| 113 | 1404 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
+| 113 | 1398 | lint | unadmitted-type | `internal/live/lint` | "unadmitted-type" |
 | 97 | 1668 | dataread | Resolves at plan time via a data-source read | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 86 | 3546 | identity | Unable to compute static value | `internal/configs` | "Unable to compute static value" |
 | 70 | 579 | identity | Unresolvable identity | `internal/live/identity` | "Unresolvable identity" |

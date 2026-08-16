@@ -328,7 +328,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 5,
-      "sites": 660,
+      "sites": 657,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -350,7 +350,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 136,
+      "sites": 135,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true
@@ -373,7 +373,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 14,
-      "sites": 53,
+      "sites": 52,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -384,7 +384,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 107,
+      "sites": 106,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true
@@ -6993,7 +6993,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
       "configs": 113,
-      "sites": 1404,
+      "sites": 1398,
       "types": [
         {
           "type": "google_bigquery_table",
@@ -7222,10 +7222,6 @@
         {
           "type": "google_storage_bucket_object",
           "sites": 7
-        },
-        {
-          "type": "aws_ecs_capacity_provider",
-          "sites": 6
         },
         {
           "type": "aws_iam_user_login_profile",
@@ -9347,7 +9343,7 @@
     "configs": 250,
     "loaded": 249,
     "instances": 2813,
-    "sites": 14462,
+    "sites": 14456,
     "refusals_fired": 32,
     "refusals_in_set": 116,
     "configs_without_schemas": 0,
@@ -9381,7 +9377,7 @@
       "blocked": 72,
       "clean": 2,
       "instances": 416,
-      "sites": 11306,
+      "sites": 11300,
       "reads_as": "ranking"
     }
   ],
