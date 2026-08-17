@@ -269,8 +269,7 @@ const (
 	// schema-only classifier does not have.
 	cohortDocsTier = "docs tier"
 
-	// cohortForkWrinkle: fork-wiring wrinkles SURVEY.md itself records
-	// (aws_eip) or server-composed identities the four-path vocabulary
+	// cohortForkWrinkle: server-composed identities the path vocabulary
 	// cannot split (aws_ecs_task_definition, aws_route_table_association,
 	// aws_sns_topic_subscription).
 	cohortForkWrinkle = "fork-wiring wrinkle"
@@ -299,10 +298,10 @@ var pathExceptions = map[string]pathException{
 	"aws_iam_instance_profile":  {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 	"aws_iam_role":              {hand: pathClientNamed, generated: pathMarker, reason: "name is Optional+Computed (name_prefix idiom); falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 	"aws_s3_bucket":             {hand: pathClientNamed, generated: pathMarker, reason: "bucket is Optional+Computed (bucket_prefix idiom), the archetype in identity/doc.go; falls to marker", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_autoscaling_group":     {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_iam_role_policy":       {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_kms_alias":             {hand: pathClientNamed, generated: pathListContent, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
-	"aws_lambda_permission":     {hand: pathClientNamed, generated: pathListContent, reason: "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to list+content", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_autoscaling_group":     {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom), and tags are tag blocks rather than a tags map, so the fallback is enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_iam_role_policy":       {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_kms_alias":             {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "name is Optional+Computed (name_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
+	"aws_lambda_permission":     {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "statement_id is Optional+Computed (statement_id_prefix idiom); untaggable, falls to enumerable-unbindable", cohort: cohortNamePrefix, tracking: "choudoufu#22"},
 
 	// --- account-derived import identity (SURVEY.md flags F3-F4) ---
 	//
@@ -326,10 +325,10 @@ var pathExceptions = map[string]pathException{
 	"aws_ecs_cluster":        {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
 	"aws_key_pair":           {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (key_name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
 	"aws_db_parameter_group": {hand: pathClientNamed, generated: pathMarker, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to taggability", cohort: cohortDocsTier, tracking: "choudoufu#22"},
-	"aws_iam_group":          {hand: pathClientNamed, generated: pathListContent, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to enumeration - Cloud Control lists AWS::IAM::Group", cohort: cohortDocsTier, tracking: "choudoufu#22"},
+	"aws_iam_group":          {hand: pathClientNamed, generated: pathEnumerableUnbindable, reason: "no identity schema; hand row read the documented import grammar (name), classifier falls back to enumeration - Cloud Control lists AWS::IAM::Group", cohort: cohortDocsTier, tracking: "choudoufu#22"},
 
 	// aws_cloudfront_origin_access_control used to sit here as
-	// {hand: list+content, generated: moves to Ops}, tracked to
+	// {hand: "list + content match" (the token then in use), generated: moves to Ops}, tracked to
 	// choudoufu#22 as if a missing identity schema were the cause. It was
 	// not: the hand row was right and the classifier was wrong, because
 	// the classifier's enumeration question read only the provider's own
@@ -339,18 +338,29 @@ var pathExceptions = map[string]pathException{
 	// and the entry is gone. No identity schema appeared to make that
 	// happen, which is why the tracking issue would never have retired it.
 
+	// aws_eip used to sit here too, as {hand: list + content match,
+	// generated: marker}, marked permanent on the reasoning that the hand
+	// row "shows the fork's list+content wiring". It showed no such thing.
+	// What binds an eip is internal/live/discovery's bindCountBySlot, and a
+	// slot is a TAG - the tofu-slot marker, which the row's own Identity
+	// cell named all along. Three independent sources said marker (the
+	// generator, the summary override that counted it as marker, and the
+	// row's own identity prose) against one Path cell that said otherwise,
+	// so the 2026-08-17 rename settled it as marker and the disagreement
+	// disappeared. The summary counts do not move: summaryOverrides was
+	// already tallying it under marker, and that override is gone with this
+	// entry.
+
 	// --- wrinkles SURVEY.md or c02d492 already records ---
 	//
-	// All four are permanent: aws_eip's marker-vs-list+content split is the
-	// fork's own deliberate slot wiring (SURVEY.md's wrinkle note), and the
-	// other three are server-composed identities the four-path vocabulary
-	// was never meant to split further, aws_route_table_association's
-	// association id being the c02d492 case in point - its hand row keeps
-	// the documented subnet+route-table import string on purpose.
-	"aws_eip":                     {hand: pathListContent, generated: pathMarker, reason: "SURVEY.md's own wrinkle: taggable, so the strongest-path rule says marker; the hand table shows the fork's list+content wiring", cohort: cohortForkWrinkle, tracking: "permanent"},
+	// All three are permanent: server-composed identities the path
+	// vocabulary was never meant to split further,
+	// aws_route_table_association's association id being the c02d492 case
+	// in point - its hand row keeps the documented subnet+route-table
+	// import string on purpose.
 	"aws_ecs_task_definition":     {hand: pathParentDerived, generated: pathMarker, reason: "identity is family plus a server-assigned revision; the classifier has no parent-derived-with-server-component shape and falls to marker", cohort: cohortForkWrinkle, tracking: "permanent"},
-	"aws_route_table_association": {hand: pathParentDerived, generated: pathListContent, reason: "the provider identifies an association by its rtbassoc- id (the c02d492 divergence); the hand row keeps the documented subnet+route-table import string", cohort: cohortForkWrinkle, tracking: "permanent"},
-	"aws_sns_topic_subscription":  {hand: pathParentDerived, generated: pathListContent, reason: "identity is the subscription arn, the parent topic arn plus a server uuid (flag F6); the schema sees only a server-assigned arn", cohort: cohortForkWrinkle, tracking: "permanent"},
+	"aws_route_table_association": {hand: pathParentDerived, generated: pathEnumerableUnbindable, reason: "the provider identifies an association by its rtbassoc- id (the c02d492 divergence); the hand row keeps the documented subnet+route-table import string", cohort: cohortForkWrinkle, tracking: "permanent"},
+	"aws_sns_topic_subscription":  {hand: pathParentDerived, generated: pathEnumerableUnbindable, reason: "identity is the subscription arn, the parent topic arn plus a server uuid (flag F6); the schema sees only a server-assigned arn", cohort: cohortForkWrinkle, tracking: "permanent"},
 
 	// --- parent component the survey flags but does not reclassify ---
 	//

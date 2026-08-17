@@ -78,10 +78,10 @@ var surveyExpectations = []surveyExpectation{
 			// because its hand exclusion in opsExcluded was withdrawn by
 			// ruling; it has a native list resource and had always
 			// classified underneath the veto.
-			"list + content match": 9,
-			"moves to Ops":         2,
-			"parent-derived":       4,
-			"account-derived":      2,
+			"enumerable, unbindable": 9,
+			"moves to Ops":           2,
+			"parent-derived":         4,
+			"account-derived":        2,
 		},
 	},
 	{
@@ -112,7 +112,7 @@ var surveyExpectations = []surveyExpectation{
 			// and aws_vpc_block_public_access_options - none of them this
 			// commit's doing either.
 			"marker": 786,
-			// 702 -> 583. 118 rows moved to "list + content match"
+			// 702 -> 583. 118 rows moved to "enumerable, unbindable"
 			// because the classifier's enumeration question now reads
 			// the mapped CFN type's Cloud Control list handler as well
 			// as the provider's native list resource, which is what
@@ -133,7 +133,7 @@ var surveyExpectations = []surveyExpectation{
 			"client-named":   117,
 			"parent-derived": 47,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
-			"list + content match": 142,
+			"enumerable, unbindable": 142,
 			// aws_ecs_capacity_provider moved marker -> account-derived
 			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
 			// ARN folds in the run's region and account-id, which

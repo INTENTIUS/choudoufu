@@ -22,13 +22,40 @@ import (
 // The path vocabulary is SURVEY.md's, verbatim: its per-type table promises
 // that nothing outside these tokens appears in the Path column, so the
 // generated artifact speaks the same tokens.
+//
+// Four of the six name a way identity is recovered. Two do not, and say so
+// in the token itself: pathOps names the disposition of a type the rule
+// excludes, and pathEnumerableUnbindable names a dead end.
+//
+// pathEnumerableUnbindable replaced "list + content match" on 2026-08-17,
+// by ruling, because that string named a mechanism this fork does not have.
+// The classifier reaches it from two facts and only two: the type takes no
+// tags argument, and something can enumerate it - the provider's own native
+// list resource, or the mapped CloudFormation type's Cloud Control list
+// handler. Both are ENUMERATION facts. Neither is an admission fact, and
+// the old token asserted one anyway.
+//
+// What actually happens to such a type at run time: internal/live/discovery
+// binds a live object by reading the two ownership tags and by nothing else.
+// Its Cloud Control leg lists the object, refines it with GetResource, and
+// discards it when neither tag came back (cloudcontrol.go, ProblemNoTags, at
+// severity error) - so it never reaches internal/live/foreign.Classify,
+// whose content matching exists to surface a candidate for EXPLICIT
+// adoption and, in that package's own words, never binds one automatically,
+// "because inferring it from a content match would be exactly the guess the
+// marker spec exists to forbid".
+//
+// So the honest reading of a row on this token is: it can be listed, and
+// nothing can bind what the listing returns. That is admission debt with an
+// address (issue #233 - the type needs somewhere to write a marker, or a
+// record_store), not a fourth path.
 const (
-	pathClientNamed    = "client-named"
-	pathMarker         = "marker"
-	pathParentDerived  = "parent-derived"
-	pathListContent    = "list + content match"
-	pathAccountDerived = "account-derived"
-	pathOps            = "moves to Ops"
+	pathClientNamed          = "client-named"
+	pathMarker               = "marker"
+	pathParentDerived        = "parent-derived"
+	pathEnumerableUnbindable = "enumerable, unbindable"
+	pathAccountDerived       = "account-derived"
+	pathOps                  = "moves to Ops"
 )
 
 // opsExcluded is the one hand-written input to the classifier, per issue
@@ -47,8 +74,8 @@ const (
 // four types (aws_iam_access_key, aws_iot_certificate,
 // aws_ivs_playback_key_pair, aws_appstream_directory_config) and does not
 // grow. So the type is admission debt like any other and classifies from
-// its own schema below, which on the pinned release puts it on the "list +
-// content match" path: untaggable, but the provider does ship a native
+// its own schema below, which on the pinned release lands it on
+// "enumerable, unbindable": untaggable, but the provider does ship a native
 // list resource for it, and its identity schema requires the server-minted
 // version_id beside the configuration's own secret_id. That is the same
 // shape as the rest of tools/row-gen/rejected.json's server-minted
@@ -261,9 +288,10 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 //     type's identity (an *_id or *_arn whose base names a resource type)
 //     makes the path parent-derived; otherwise client-named.
 //  4. An identity schema the strict rule cannot prove client-assigned falls
-//     through to the discovery paths: marker when the type is taggable,
-//     list plus content match when the type can be enumerated at all, moves
-//     to Ops when neither.
+//     through to what discovery can do: marker when the type is taggable,
+//     which is the only one of the three that admits anything; enumerable,
+//     unbindable when it is untaggable but something can list it; moves to
+//     Ops when it is untaggable and nothing can list it either.
 //  5. No identity schema at all: the same discovery fallback, with the
 //     evidence saying the identity side is unreadable from schemas.
 //
@@ -365,11 +393,11 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		row.Path = pathMarker
 		row.Evidence = identityNote + "; taggable, so recoverable by tag-filtered list"
 	case hasList:
-		row.Path = pathListContent
-		row.Evidence = identityNote + "; untaggable, native list resource exists"
+		row.Path = pathEnumerableUnbindable
+		row.Evidence = identityNote + "; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
 	case listable && len(scoping) == 0:
-		row.Path = pathListContent
-		row.Evidence = identityNote + "; untaggable and no native list resource, but Cloud Control lists " + cfnType + " with no scoping input"
+		row.Path = pathEnumerableUnbindable
+		row.Evidence = identityNote + "; untaggable, so Cloud Control listing " + cfnType + " with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
 	case listable:
 		row.Path = pathOps
 		row.Evidence = identityNote + "; untaggable, no native list resource, and Cloud Control's list handler for " + cfnType +

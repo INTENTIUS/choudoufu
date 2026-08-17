@@ -62,7 +62,7 @@
     },
     {
       "type": "aws_autoscaling_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -78,7 +78,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_distribution",
@@ -101,13 +101,13 @@
     },
     {
       "type": "aws_cloudfront_origin_access_control",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::OriginAccessControl with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginAccessControl with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudwatch_event_rule",
@@ -432,13 +432,13 @@
     },
     {
       "type": "aws_iam_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::IAM::Group with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IAM::Group with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_instance_profile",
@@ -495,7 +495,7 @@
     },
     {
       "type": "aws_iam_role_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -511,7 +511,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_role_policy_attachment",
@@ -604,7 +604,7 @@
     },
     {
       "type": "aws_kms_alias",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -620,7 +620,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_kms_key",
@@ -664,7 +664,7 @@
     },
     {
       "type": "aws_lambda_permission",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -682,7 +682,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_launch_template",
@@ -878,7 +878,7 @@
     },
     {
       "type": "aws_route_table_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -894,7 +894,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3_bucket",
@@ -1033,7 +1033,7 @@
     },
     {
       "type": "aws_secretsmanager_secret_version",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1049,7 +1049,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned version_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned version_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_security_group",
@@ -1103,7 +1103,7 @@
     },
     {
       "type": "aws_sns_topic_subscription",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1114,7 +1114,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned arn; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_sqs_queue",
