@@ -697,10 +697,25 @@ would otherwise rediscover.
   literal keys and apply-time values that stock plans. `forEachKeysKnown`
   fixes that and needs no provenance: stock's own rule already separates "I
   cannot say which instances exist" from "I cannot say what is inside them".
-  #183's cohort stays refused for free, and for a reason worth writing down -
-  an unset required root variable does not evaluate to an unknown at all,
-  `configs.StaticEvaluator` refuses it outright with `No value for required
-  variable`.
+  #183's cohort stays refused, but NOT for free, and an earlier version of this
+  entry got that wrong in a way that would have talked the next agent into a
+  silent reclassification. It said an unset required root variable "does not
+  evaluate to an unknown at all" because `configs.StaticEvaluator` refuses it
+  outright. That is true through the identity package's OWN loader, which is
+  what `TestForEachUnsetVariableStillRefuses` uses, and false through
+  `internal/live/check`, which is what `refusal-probe`, `just corpus` and
+  `live-check` use: `check/load.go:266` substitutes
+  `cty.UnknownVal(variable.ConstraintType)`.
+  Measured both ways on the same fixture,
+  `internal/live/identity/testdata/foreach-unset-var-map`: identity's own loader
+  gives `No value for required variable`; `check.Dir` gives `Non-static for_each
+  expression` with 0 instances. The cohort agrees -
+  `.corpus/govuk-aws/terraform/projects/app-elasticsearch6` carries `Non-static
+  identity argument`, 7 sites, `unset_var_only: true`.
+  So the #183 guard is weaker than it reads, and the provenance discriminator is
+  genuinely required IN THE CHECK PATH and genuinely unnecessary in `live-plan`,
+  which has no substitute loader. A floci run cannot prove #183 stays refused,
+  because floci exercises the path where the problem does not exist.
   **The second half is still open and no estate has cleared.** An identity
   argument left unknown by the provider's plan must classify as
   `ClassNeedsDiscovery`, not refuse at `resolve.go:2352`. The carrier for that

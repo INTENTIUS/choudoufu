@@ -104,6 +104,27 @@ func TestForEachMapKeysKnownValuesUnknownRefusedWithoutTheFix(t *testing.T) {
 // never becomes a value this rule is asked about. The unknowns
 // forEachKeysKnown does see come from somewhere a caller put them, which today
 // is only [Context.ManagedResults] and [Context.DataResults].
+//
+// # What this test does NOT cover, and nobody should read into it
+//
+// The paragraph above is true of THIS package's loader, which is the one this
+// test uses. It is false of [internal/live/check], and check is the path
+// tools/refusal-probe, "just corpus" and live-check all take: check/load.go
+// substitutes cty.UnknownVal(variable.ConstraintType) for an unset required
+// variable rather than refusing it.
+//
+// Measured on this same fixture: identity's own loader answers "No value for
+// required variable", and check.Dir answers "Non-static for_each expression"
+// with zero instances. Both refuse, so #183's cohort is safe today - but they
+// refuse for DIFFERENT reasons, and only one of them is the reason written
+// above.
+//
+// That matters for the work #187 still needs. A rule that classifies an
+// unknown identity argument instead of refusing it has to tell a
+// managed-read unknown from an unset-variable unknown, and under check both
+// arrive as the same cty.UnknownVal. Passing this test proves nothing about
+// that case. The guard for it belongs in the check package, against the
+// substituted value, and does not exist yet.
 func TestForEachUnsetVariableStillRefuses(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "foreach-unset-var-map"), nil)
 
