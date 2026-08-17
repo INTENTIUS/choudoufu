@@ -165,6 +165,16 @@ func TestCloudDefaultAttrIsSingleSourced(t *testing.T) {
 		"aws_glue_catalog_table":                    "catalog_id",
 		"aws_glue_connection":                       "catalog_id",
 		"aws_glue_data_catalog_encryption_settings": "catalog_id",
+		// Both bullets are quoted from the pinned v6.59.0 doc pages:
+		// glue_user_defined_function's catalog_id says "If omitted, this
+		// defaults to the AWS Account ID", word for word what its four
+		// siblings above say, and its Import section adds "If you have not
+		// set a Catalog ID specify the AWS Account ID that the database is
+		// in"; s3control_storage_lens_configuration's account_id says
+		// "Defaults to automatically determined account ID of the Terraform
+		// AWS provider".
+		"aws_glue_user_defined_function":           "catalog_id",
+		"aws_s3control_storage_lens_configuration": "account_id",
 	}
 	for typeName, wantAttr := range want {
 		if got[typeName] != wantAttr {

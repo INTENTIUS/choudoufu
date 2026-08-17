@@ -10,6 +10,15 @@ package stamp
 // not, and the caricature schema each one is checked against. Registered by
 // init below; see contributing/LIVE-TABLES.md.
 var taggableRemainder = []string{
+	// Ratified from the import grammar alone, with no annotation: the
+	// documented import ID is ACCOUNT_ID:CONFIG_ID, and the account_id
+	// bullet's own prose ("Defaults to automatically determined account ID
+	// of the Terraform AWS provider") makes the leading segment a Cloud
+	// account-id slot the classifier now proposes for itself. Taggable per
+	// live/survey-full.json's real-schema signal. Its s3control siblings are
+	// pinned in this cohort, which is why it is here rather than in s3.
+	"aws_s3control_storage_lens_configuration",
+
 	// Registry-ratified REMAINDER ratification batch (#40, #44, #65):
 	// the long tail of services outside every concurrent batch own
 	// scope, verified against the pinned v6.58.0 provider Argument
@@ -398,6 +407,11 @@ func init() {
 			"aws_datazone_form_type":                           untaggedSchema("id", "domain_identifier", "name", "revision"),
 			"aws_s3control_bucket_policy":                      untaggedSchema("id", "bucket"),
 			"aws_sesv2_contact_list":                           taggedSchema("id", "arn", "contact_list_name"),
+
+			// The two arguments the identity row reads, plus the tags
+			// argument live/survey-full.json records the real schema as
+			// carrying.
+			"aws_s3control_storage_lens_configuration": taggedSchema("id", "account_id", "config_id"),
 		})
 	})
 }

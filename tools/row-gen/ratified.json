@@ -5319,6 +5319,7 @@
         "attrs": [
           "catalog_id"
         ],
+        "cloud": "account-id",
         "identity_attr": "*"
       },
       {
@@ -9148,6 +9149,28 @@
     "identity_attrs": [
       "name"
     ]
+  },
+  "aws_s3control_storage_lens_configuration": {
+    "type": "aws_s3control_storage_lens_configuration",
+    "components": [
+      {
+        "attrs": [
+          "account_id"
+        ],
+        "cloud": "account-id",
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "config_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCOUNT_ID:CONFIG_ID"
   },
   "aws_s3files_access_point": {
     "type": "aws_s3files_access_point",

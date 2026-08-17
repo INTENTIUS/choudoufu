@@ -689,6 +689,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_s3control_bucket":                                                  {},
 	"aws_s3control_bucket_policy":                                           {},
 	"aws_s3control_multi_region_access_point":                               {},
+	"aws_s3control_storage_lens_configuration":                              {},
 	"aws_s3files_access_point":                                              {},
 	"aws_s3files_file_system":                                               {},
 	"aws_s3files_file_system_policy":                                        {},
