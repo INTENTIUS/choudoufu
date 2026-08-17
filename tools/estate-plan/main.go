@@ -374,7 +374,33 @@ func refine(id string, causes map[string]int, action Action) (Action, string) {
 		// are a different class and are genuinely refused, so the rule
 		// holds only when every cause is record-admitted.
 		if recordAdmittedAll(types) {
-			return action, "every type here is an effect the record store admits; the estate clears this by declaring a record_store in its live block, which no corpus entry does because each still carries its published backend"
+			// Not a blocker, for the same reason the data-read finding is not
+			// one: no change in this repository clears it, and the thing that
+			// does is part of the edit the operator is already making.
+			//
+			// internal/live/lint returns early for a ClassRecordAdmitted type
+			// once the live block declares a record_store. No corpus entry
+			// declares one, because every entry still carries the backend it
+			// was published with and a module may declare one or the other.
+			// So this fires on the published form of any estate with effects,
+			// and is silent on the onboarded form of the same estate.
+			//
+			// Safe to demote because the promise is enforced downstream rather
+			// than here: internal/live/projection raises "Record-backed
+			// instance with no record store" as an ERROR at plan time, so an
+			// operator who writes the live block and forgets the record_store
+			// is stopped then, with a message naming what is missing. That is
+			// the same contract ActionRead carries - printed, must still
+			// succeed, does not order the queue.
+			//
+			// Verified end to end rather than argued, on
+			// .corpus/k8s-io/.../registry-sandbox-k8s-io-image-layers: swap
+			// the published backend for a live block with a record_store and
+			// the probe reads blocked=0, sites=0, 13 instances.
+			//
+			// Secret-bearing logical types are a different class and stay
+			// blockers, which is why every cause has to be record-admitted.
+			return ActionRead, "every type here is an effect the record store admits, so this is the estate's PRE-ONBOARDING form rather than a language wall: declaring a record_store in the live block clears it, and projection errors at plan time if the operator writes the block without one"
 		}
 	}
 
@@ -579,6 +605,14 @@ func buildPlan(s sweep) ([]estate, []string) {
 			}
 			b.Action, b.Note = refine(id, e.Causes[id], act)
 			b.Unreachable = strings.HasPrefix(b.Note, "MIXED SCOPE:")
+			if b.Action == ActionRead {
+				// refine demoted it: the causes say no work here clears it and
+				// something downstream enforces the promise. It joins the
+				// informational findings rather than ordering the queue, the
+				// same as a refusal the catalog files that way to begin with.
+				est.Informs = append(est.Informs, b)
+				continue
+			}
 			blockingSites += sites
 			est.Blockers = append(est.Blockers, b)
 		}

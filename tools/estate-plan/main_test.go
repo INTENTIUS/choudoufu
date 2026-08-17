@@ -272,8 +272,9 @@ func TestRefineAppliesTheScopeRulingOnlyWhenNoAWSTypeIsLeft(t *testing.T) {
 func TestRefineRecordAdmittedEffectsAreAnnotatedNotReclassified(t *testing.T) {
 	admitted := map[string]int{"type:random_pet": 1, "type:terraform_data": 1, "type:null_resource": 1}
 	got, note := refine("logical-resource", admitted, ActionDefer)
-	if got != ActionDefer {
-		t.Errorf("action = %s, want %s - annotating must not change the action", got, ActionDefer)
+	if got != ActionRead {
+		t.Errorf("action = %s, want %s - a blocker no work here clears, whose promise is enforced "+
+			"downstream, is informational rather than blocking", got, ActionRead)
 	}
 	if note == "" {
 		t.Error("an all-record-admitted logical blocker must say the record_store clears it")
@@ -282,9 +283,14 @@ func TestRefineRecordAdmittedEffectsAreAnnotatedNotReclassified(t *testing.T) {
 	// Secret-bearing logical types are genuinely refused, so one of them in
 	// the set must withdraw the note entirely rather than weaken it.
 	withSecret := map[string]int{"type:random_pet": 1, "type:random_password": 1}
-	if _, note := refine("logical-resource", withSecret, ActionDefer); note != "" {
+	gotSecret, note := refine("logical-resource", withSecret, ActionDefer)
+	if note != "" {
 		t.Errorf("random_password is not record-admitted, so the set is not clearable by a "+
 			"record_store and must carry no note; got %q", note)
+	}
+	if gotSecret != ActionDefer {
+		t.Errorf("action = %s, want %s - one secret-bearing type is enough to keep the whole "+
+			"blocker blocking, because no record_store admits it", gotSecret, ActionDefer)
 	}
 }
 
