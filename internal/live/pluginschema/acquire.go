@@ -36,6 +36,7 @@ import (
 	"time"
 
 	goPlugin "github.com/hashicorp/go-plugin"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/logging"
@@ -95,8 +96,73 @@ func ResourceTypes(ctx context.Context, req Request) (map[string]providers.Schem
 
 // Acquire installs the pinned provider into the work directory and reads its
 // full GetProviderSchema response.
+// Acquire reads a provider's schemas and closes the plugin before returning.
+// It is [AcquireSession] for the caller that wants nothing but the schemas,
+// which is most of them.
 func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaResponse, error) {
-	var none providers.GetProviderSchemaResponse
+	sess, err := AcquireSession(ctx, req)
+	if err != nil {
+		return providers.GetProviderSchemaResponse{}, err
+	}
+	defer sess.Close(ctx)
+	return sess.Schema, nil
+}
+
+// Session is an acquired provider whose plugin is still running.
+//
+// Acquire launches a plugin, reads the schemas and closes it, which is all a
+// caller wanting schemas needs. A caller that wants the provider to COMPUTE
+// something needs the process to outlive the schema read, and the difference
+// matters for one specific reason: values a configuration cannot state
+// statically because the provider derives them at plan time.
+//
+// aws_acm_certificate.domain_validation_options is the case that motivated
+// this. Its elements - one per domain in domain_name plus
+// subject_alternative_names - are filled by the provider during
+// PlanResourceChange, before any cloud call, which is how stock OpenTofu can
+// plan the canonical ACM/Route53 validation pattern that this fork's static
+// evaluator refuses. Nothing in the configuration or in any schema states the
+// relationship; only the provider knows it.
+//
+// A Session is NOT a cloud connection. PlanResourceChange for a create needs
+// the provider configured, not credentialed, and the local test target is
+// floci. Keep that distinction: "offline" here has always meant no cloud
+// calls, and a plan call makes none.
+type Session struct {
+	// Schema is what [Acquire] would have returned.
+	Schema providers.GetProviderSchemaResponse
+
+	mgr      plugins.ProviderManager
+	provider addrs.Provider
+	log      io.Writer
+	closed   bool
+}
+
+// Configured returns the running provider, configured with configVal. The
+// caller owns nothing: closing the Session closes this too.
+func (s *Session) Configured(ctx context.Context, configVal cty.Value) (providers.Configured, tfdiags.Diagnostics) {
+	return s.mgr.NewConfiguredProvider(ctx, s.provider, configVal)
+}
+
+// Close stops the plugin. Safe to call twice, because the ordinary shape here
+// is a defer beside an error path that already closed.
+func (s *Session) Close(ctx context.Context) error {
+	if s == nil || s.closed {
+		return nil
+	}
+	s.closed = true
+	err := s.mgr.CloseAll(ctx)
+	if err != nil {
+		fmt.Fprintf(s.log, "pluginschema: closing the provider: %v\n", err)
+	}
+	goPlugin.CleanupClients()
+	return err
+}
+
+// AcquireSession installs the provider, launches its plugin, reads the
+// schemas, and leaves the plugin RUNNING for the caller to use. The caller
+// must Close the returned Session.
+func AcquireSession(ctx context.Context, req Request) (*Session, error) {
 
 	log := req.Log
 	if log == nil {
@@ -119,7 +185,7 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 }
 `, req.Provider.Type, req.Source, versionLine)
 	if err := os.WriteFile(filepath.Join(req.WorkDir, "main.tf"), []byte(fixture), 0o600); err != nil {
-		return none, err
+		return nil, err
 	}
 
 	wantVersion := req.Version
@@ -133,23 +199,18 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 	cmd := exec.CommandContext(ctx, req.InitBin, "init", "-backend=false", "-input=false", "-no-color")
 	cmd.Dir = req.WorkDir
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return none, fmt.Errorf("%s init: %w\n%s", req.InitBin, err, out)
+		return nil, fmt.Errorf("%s init: %w\n%s", req.InitBin, err, out)
 	}
 
 	exe, err := findProviderBinary(req.WorkDir, req.Provider.Type)
 	if err != nil {
-		return none, err
+		return nil, err
 	}
 	fmt.Fprintf(log, "pluginschema: launching provider plugin %s\n", exe)
 
 	lib := plugins.NewLibrary(plugins.ProviderFactories{req.Provider: pluginFactory(exe)}, nil)
 	mgr := lib.NewProviderManager()
-	defer func() {
-		if err := mgr.CloseAll(ctx); err != nil {
-			fmt.Fprintf(log, "pluginschema: closing the provider: %v\n", err)
-		}
-		goPlugin.CleanupClients()
-	}()
+	sess := &Session{mgr: mgr, provider: req.Provider, log: log}
 
 	// The launch is retried a bounded number of times on go-plugin's own
 	// transient handshake failure, generic to ANY provider rather than
@@ -182,11 +243,13 @@ func Acquire(ctx context.Context, req Request) (providers.GetProviderSchemaRespo
 		time.Sleep(time.Duration(attempt) * 250 * time.Millisecond)
 	}
 	if diags.HasErrors() {
-		return none, fmt.Errorf("reading the provider schema: %w", diags.Err())
+		sess.Close(ctx)
+		return nil, fmt.Errorf("reading the provider schema: %w", diags.Err())
 	}
 	fmt.Fprintf(log, "pluginschema: %d resource types, %d list resource types\n",
 		len(schema.ResourceTypes), len(schema.ListResourceTypes))
-	return schema, nil
+	sess.Schema = schema
+	return sess, nil
 }
 
 // isTransientLaunchError reports whether err is go-plugin's own handshake
