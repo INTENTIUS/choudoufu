@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=400 instances=1353
-# shape: class CONCRETE=688
-# shape: class NEEDS_DISCOVERY=553
+# shape: dirs=403 instances=1359
+# shape: class CONCRETE=692
+# shape: class NEEDS_DISCOVERY=555
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377
+# shape: body-sha256=ce4ce8da112a2ee6b79ab328b64023c3a4edf7237e23bdce36da4f18615091a0
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -70,6 +70,10 @@ internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_a
 internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	estate-app	name=estate-app
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concrete-parent-attr	aws_ecs_cluster.main	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/identity/testdata/concrete-parent-attr	aws_iam_role.assumed	CONCRETE	release-assumed	name=release-assumed
+internal/live/identity/testdata/concrete-parent-attr	aws_lambda_function.fdi	CONCRETE	fdi-ingest	function_name=fdi-ingest
+internal/live/identity/testdata/concrete-parent-attr-unknown	aws_iam_role.assumed	CONCRETE	release-assumed	name=release-assumed
 internal/live/identity/testdata/conditional-basic	aws_route_table.primary	NEEDS_DISCOVERY		
 internal/live/identity/testdata/conditional-basic	aws_route_table.secondary	NEEDS_DISCOVERY		
 internal/live/identity/testdata/conditional-basic	aws_route_table_association.false_branch	PARENT_DERIVED	${aws_subnet.this.id}/${aws_route_table.secondary.id}	
@@ -293,6 +297,8 @@ internal/live/identity/testdata/schema-fallback-route	aws_route.r	CONCRETE	rtb-0
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.named	CONCRETE	example-role:explicit-policy-name	name=explicit-policy-name,role=example-role
 internal/live/identity/testdata/server-assigned-if-absent	aws_iam_role_policy.omitted	NEEDS_DISCOVERY		
 internal/live/identity/testdata/server-assigned-if-absent	aws_lambda_permission.omitted	NEEDS_DISCOVERY		
+internal/live/identity/testdata/server-assigned-parent-attr	aws_api_gateway_rest_api.api	NEEDS_DISCOVERY		
+internal/live/identity/testdata/server-assigned-parent-attr	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/identity/testdata/setkey-dynamic	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/setkey-objdefault	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/setkey-objdefault	module.child.aws_iam_user.u["a"]	CONCRETE	a	name=a

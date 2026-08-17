@@ -1960,7 +1960,47 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		// schema rather than by type name, so it covers every row row-gen
 		// marks RecordBacked and nothing else. Without schemas we cannot
 		// tell a real attribute from a typo, and the refusal below stands.
-		if parentRes.Class == ClassRecordBacked && r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
+		//
+		// A concrete parent ([ClassConcrete]) reaches the same conclusion
+		// by the same argument, one phase earlier in the same builder:
+		// builder.run materializes every concrete resolution - import,
+		// then ReadResource - before it renders a single formula, so by
+		// the time this promise is read the parent's whole provider object
+		// is in b.live, and builder.renderFormula's lookup takes an
+		// arbitrary attribute off it with attrString rather than off its
+		// identity. What the parent's row says about its IDENTITY
+		// attributes is therefore not the boundary of what can be read
+		// from it; it is only the boundary of what can be read without
+		// touching the cloud, which is a different question and is
+		// already answered above by attrParts and siblingLiteralExpr.
+		//
+		// This is strictly a widening of what resolves: every case that
+		// reaches here refuses today. It is not a widening of what stays
+		// offline - a child that takes this branch becomes
+		// [ClassParentDerived] and so needs its parent read live, where
+		// before it was not resolvable at all. Nothing that resolves
+		// concrete today can reach this line, because the concrete
+		// shortcut below sits outside this block and only genuine
+		// identity attributes ever get there.
+		//
+		// The concrete case carries one condition the record-backed case
+		// does not: the parent's entry has to be a ratified [DefaultTable]
+		// row rather than one [SynthesizeTypeIdentity] inferred. A
+		// synthesized entry is already a reading of the provider's
+		// identity schema, and the CONCRETE classification that this
+		// branch's whole argument rests on - the parent is imported and
+		// read before any formula renders - is only as good as that
+		// reading. Deferring a second value to it stacks an inference on
+		// an inference. That is a deliberately conservative line and not a
+		// claim that the synthesized case is wrong; it is left refused
+		// pending its own decision, along with what
+		// [resolver.siblingLiteralExpr]'s Computed boundary should mean
+		// once the value comes from the live object rather than from
+		// configuration.
+		_, ratifiedRow := LookupType(parent.Resource.Resource.Type)
+		if (parentRes.Class == ClassRecordBacked ||
+			(parentRes.Class == ClassConcrete && ratifiedRow)) &&
+			r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
 			return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
 		}
 
@@ -1974,6 +2014,14 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 			return nil, false
 		case parentRes.Class == ClassRecordBacked:
 			detail += fmt.Sprintf("%s keeps its whole object in this estate's record store, so any attribute its schema declares can be read - but its schema declares no string-valued %q.", parent.Resource.Resource.Type, attrName)
+			r.errorf(rng, "Not an identity attribute", "%s", detail)
+			return nil, false
+		case parentRes.Class == ClassConcrete && ratifiedRow && r.schemas == nil:
+			detail += fmt.Sprintf("%s resolves to a known object that is read live before this identity is rendered, so any attribute of it can be read - but no provider schemas were available to this run to confirm that %q is one of them.", parent.String(), attrName)
+			r.errorf(rng, "Not an identity attribute", "%s", detail)
+			return nil, false
+		case parentRes.Class == ClassConcrete && ratifiedRow:
+			detail += fmt.Sprintf("%s resolves to a known object that is read live before this identity is rendered, so any attribute its schema declares can be read - but %s's schema declares no string-valued %q.", parent.String(), parent.Resource.Resource.Type, attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
 		}
