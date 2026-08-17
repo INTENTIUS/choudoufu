@@ -136,23 +136,29 @@ type proposal struct {
 	CompositeArgs []string
 	CompositeSep  string
 
-	// CompositeDefaults carries the doc's own omitted-argument fallback for
-	// any of CompositeArgs (import-grammar's omitted_fallbacks field): the
-	// rendered component reads the argument when the configuration sets it
-	// and contributes the documented literal when it does not
-	// (identity.Component.Default). Nil for every composite whose doc
-	// states no fallback.
-	CompositeDefaults map[string]string
+	// ArgDefaults carries the doc's own omitted-argument fallback for any
+	// argument the identity reads (import-grammar's omitted_fallbacks
+	// field): the rendered component reads the argument when the
+	// configuration sets it and contributes the documented literal when it
+	// does not (identity.Component.Default). Nil where the doc states no
+	// fallback.
+	//
+	// Keyed by argument name and NOT restricted to bucketComposite: a
+	// bucketClientNamed row is the same claim with one argument instead of
+	// several, and its single argument can carry the same bullet. The maps
+	// were named Composite* while only the composite renderer read them,
+	// which is what let renderClientNamedEntry ship eight proposals with
+	// the fallback dropped.
+	ArgDefaults map[string]string
 
-	// CompositeCloud carries the doc's own CLOUD fallback for any of
-	// CompositeArgs (import-grammar's per-argument cloud_default): omitting
-	// the argument does not mean a literal, it means the account the run is
-	// against or the provider's Region. The rendered component sets
-	// [identity.Component.Cloud] alongside its Attrs, and the resolver
-	// prefers the configured value when there is one. Nil for every
-	// composite whose doc states no cloud default - which is all but eight
-	// of them in v6.59.0.
-	CompositeCloud map[string]string
+	// ArgCloud carries the doc's own CLOUD fallback for any argument the
+	// identity reads (import-grammar's per-argument cloud_default):
+	// omitting the argument does not mean a literal, it means the account
+	// the run is against or the provider's Region. The rendered component
+	// sets [identity.Component.Cloud] alongside its Attrs, and the resolver
+	// prefers the configured value when there is one. Nil where the doc
+	// states no cloud default.
+	ArgCloud map[string]string
 
 	// bucketAssembled only: the documented ARN/URL template's segments,
 	// copied from live/import-grammar.json's import_id_template field once

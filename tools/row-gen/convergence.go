@@ -321,7 +321,12 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 			claimedAttrs = true
 		}
 	case bucketClientNamed:
-		components = []identity.Component{{Attrs: []string{p.ArgName}, IdentityAttr: identity.SameNameIdentity}}
+		components = []identity.Component{{
+			Attrs:        []string{p.ArgName},
+			Default:      p.ArgDefaults[p.ArgName],
+			Cloud:        identity.CloudValue(p.ArgCloud[p.ArgName]),
+			IdentityAttr: identity.SameNameIdentity,
+		}}
 		importSyntax = strings.ToUpper(p.ArgName)
 	case bucketComposite:
 		for i, arg := range p.CompositeArgs {
@@ -330,8 +335,8 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 			}
 			components = append(components, identity.Component{
 				Attrs:        []string{arg},
-				Default:      p.CompositeDefaults[arg],
-				Cloud:        identity.CloudValue(p.CompositeCloud[arg]),
+				Default:      p.ArgDefaults[arg],
+				Cloud:        identity.CloudValue(p.ArgCloud[arg]),
 				IdentityAttr: identity.SameNameIdentity,
 			})
 		}
@@ -409,7 +414,7 @@ func componentsEqual(a, b []identity.Component) bool {
 // slot's ARGUMENT NAME is emit.go's to fill in, whether the proposal
 // rendered the slot with no Attrs at all (bucketAssembled, whose template
 // segment carries only the cloud property) or with the argument the
-// cloud_default bullet names (bucketComposite, via CompositeCloud) - so
+// cloud_default bullet names (bucketComposite, via ArgCloud) - so
 // comparing either would fail every ratified row the merge touches for a
 // field compareOne's caller never asked classifyAll to propose. The Cloud
 // value itself is still compared, and that is the point: whether a segment
