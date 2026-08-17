@@ -328,13 +328,13 @@
     },
     {
       "type": "aws_amplify_domain_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Amplify::Domain with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Amplify::Domain with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_amplify_webhook",
@@ -583,7 +583,7 @@
     },
     {
       "type": "aws_api_gateway_resource",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -600,7 +600,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_api_gateway_rest_api",
@@ -704,13 +704,13 @@
     },
     {
       "type": "aws_apigatewayv2_api_mapping",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ApiGatewayV2::ApiMapping with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ApiGatewayV2::ApiMapping with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_apigatewayv2_authorizer",
@@ -754,13 +754,13 @@
     },
     {
       "type": "aws_apigatewayv2_integration_response",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ApiGatewayV2::IntegrationResponse with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ApiGatewayV2::IntegrationResponse with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_apigatewayv2_model",
@@ -774,7 +774,7 @@
     },
     {
       "type": "aws_apigatewayv2_route",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -791,17 +791,17 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_apigatewayv2_route_response",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ApiGatewayV2::RouteResponse with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ApiGatewayV2::RouteResponse with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_apigatewayv2_routing_rule",
@@ -960,13 +960,13 @@
     },
     {
       "type": "aws_appconfig_extension_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::AppConfig::ExtensionAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::AppConfig::ExtensionAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_appconfig_hosted_configuration_version",
@@ -1290,13 +1290,13 @@
     },
     {
       "type": "aws_appstream_directory_config",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::AppStream::DirectoryConfig with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::AppStream::DirectoryConfig with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_appstream_fleet",
@@ -1340,23 +1340,23 @@
     },
     {
       "type": "aws_appstream_user",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::AppStream::User with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::AppStream::User with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_appstream_user_stack_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::AppStream::StackUserAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::AppStream::StackUserAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_appsync_api",
@@ -1410,13 +1410,13 @@
     },
     {
       "type": "aws_appsync_domain_name",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::AppSync::DomainName with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::AppSync::DomainName with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_appsync_domain_name_api_association",
@@ -1558,13 +1558,13 @@
     },
     {
       "type": "aws_athena_named_query",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Athena::NamedQuery with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Athena::NamedQuery with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_athena_prepared_statement",
@@ -1721,7 +1721,7 @@
     },
     {
       "type": "aws_autoscaling_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1737,7 +1737,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_autoscaling_group_tag",
@@ -1931,17 +1931,17 @@
     },
     {
       "type": "aws_backup_restore_testing_selection",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Backup::RestoreTestingSelection with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Backup::RestoreTestingSelection with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_backup_selection",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -1958,7 +1958,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_backup_vault",
@@ -2157,7 +2157,7 @@
     },
     {
       "type": "aws_bedrock_model_invocation_logging_configuration",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -2170,7 +2170,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_bedrock_provisioned_model_throughput",
@@ -2393,7 +2393,7 @@
     },
     {
       "type": "aws_bedrockagentcore_gateway_rule",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -2409,7 +2409,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned rule_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned rule_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_bedrockagentcore_gateway_target",
@@ -2491,7 +2491,7 @@
     },
     {
       "type": "aws_bedrockagentcore_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -2507,7 +2507,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned policy_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned policy_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_bedrockagentcore_policy_engine",
@@ -2530,7 +2530,7 @@
     },
     {
       "type": "aws_bedrockagentcore_registry",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -2545,7 +2545,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned registry_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned registry_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_bedrockagentcore_resource_policy",
@@ -2575,13 +2575,13 @@
     },
     {
       "type": "aws_bedrockagentcore_workload_identity",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::BedrockAgentCore::WorkloadIdentity with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::BedrockAgentCore::WorkloadIdentity with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_billing_view",
@@ -2963,13 +2963,13 @@
     },
     {
       "type": "aws_cloudfront_cache_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::CachePolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::CachePolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_connection_function",
@@ -2993,13 +2993,13 @@
     },
     {
       "type": "aws_cloudfront_continuous_deployment_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::ContinuousDeploymentPolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::ContinuousDeploymentPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_distribution",
@@ -3062,13 +3062,13 @@
     },
     {
       "type": "aws_cloudfront_key_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::KeyGroup with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::KeyGroup with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_key_value_store",
@@ -3111,43 +3111,43 @@
     },
     {
       "type": "aws_cloudfront_origin_access_control",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::OriginAccessControl with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginAccessControl with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_origin_access_identity",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::CloudFrontOriginAccessIdentity with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::CloudFrontOriginAccessIdentity with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_origin_request_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::OriginRequestPolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginRequestPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_public_key",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::PublicKey with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::PublicKey with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_realtime_log_config",
@@ -3166,13 +3166,13 @@
     },
     {
       "type": "aws_cloudfront_response_headers_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CloudFront::ResponseHeadersPolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::ResponseHeadersPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudfront_trust_store",
@@ -3467,7 +3467,7 @@
     },
     {
       "type": "aws_cloudwatch_event_bus_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3483,7 +3483,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (event_bus_name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable and no native list resource, but Cloud Control lists AWS::Events::EventBusPolicy with no scoping input"
+      "evidence": "identity attrs (event_bus_name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so Cloud Control listing AWS::Events::EventBusPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudwatch_event_connection",
@@ -3567,7 +3567,7 @@
     },
     {
       "type": "aws_cloudwatch_event_target",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -3585,7 +3585,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (event_bus_name, rule, target_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (event_bus_name, rule, target_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudwatch_log_account_policy",
@@ -3825,7 +3825,7 @@
     },
     {
       "type": "aws_cloudwatch_log_resource_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3841,11 +3841,11 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, but Cloud Control lists AWS::Logs::ResourcePolicy with no scoping input"
+      "evidence": "identity schema requires nothing for import; untaggable, so Cloud Control listing AWS::Logs::ResourcePolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudwatch_log_s3_table_integration_source",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -3861,7 +3861,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_cloudwatch_log_storage_tier_policy",
@@ -3980,7 +3980,7 @@
     },
     {
       "type": "aws_cloudwatch_otel_enrichment",
-      "path": "list + content match",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3993,11 +3993,11 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, but Cloud Control lists AWS::CloudWatch::OTelEnrichment with no scoping input"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_cloudwatch_query_definition",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -4012,7 +4012,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned query_definition_id; untaggable and no native list resource, but Cloud Control lists AWS::Logs::QueryDefinition with no scoping input"
+      "evidence": "identity requires server-assigned query_definition_id; untaggable, so Cloud Control listing AWS::Logs::QueryDefinition with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_codeartifact_domain",
@@ -4272,13 +4272,13 @@
     },
     {
       "type": "aws_codedeploy_deployment_config",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::CodeDeploy::DeploymentConfig with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CodeDeploy::DeploymentConfig with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_codedeploy_deployment_group",
@@ -4936,13 +4936,13 @@
     },
     {
       "type": "aws_connect_instance_storage_config",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Connect::InstanceStorageConfig with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Connect::InstanceStorageConfig with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_connect_lambda_function_association",
@@ -5076,13 +5076,13 @@
     },
     {
       "type": "aws_controltower_control",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ControlTower::EnabledControl with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ControlTower::EnabledControl with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_controltower_landing_zone",
@@ -5704,13 +5704,13 @@
     },
     {
       "type": "aws_db_proxy_default_target_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::RDS::DBProxyTargetGroup with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::RDS::DBProxyTargetGroup with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_db_proxy_endpoint",
@@ -5869,23 +5869,23 @@
     },
     {
       "type": "aws_detective_member",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Detective::MemberInvitation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Detective::MemberInvitation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_detective_organization_admin_account",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Detective::OrganizationAdmin with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Detective::OrganizationAdmin with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_detective_organization_configuration",
@@ -6012,23 +6012,23 @@
     },
     {
       "type": "aws_devopsguru_notification_channel",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DevOpsGuru::NotificationChannel with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DevOpsGuru::NotificationChannel with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_devopsguru_resource_collection",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DevOpsGuru::ResourceCollection with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DevOpsGuru::ResourceCollection with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_devopsguru_service_integration",
@@ -6274,13 +6274,13 @@
     },
     {
       "type": "aws_docdb_global_cluster",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DocDB::GlobalCluster with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DocDB::GlobalCluster with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_docdb_subnet_group",
@@ -6398,13 +6398,13 @@
     },
     {
       "type": "aws_dx_gateway_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DirectConnect::DirectConnectGatewayAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DirectConnect::DirectConnectGatewayAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dx_gateway_association_proposal",
@@ -6428,13 +6428,13 @@
     },
     {
       "type": "aws_dx_hosted_private_virtual_interface",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DirectConnect::PrivateVirtualInterface with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DirectConnect::PrivateVirtualInterface with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dx_hosted_private_virtual_interface_accepter",
@@ -6448,13 +6448,13 @@
     },
     {
       "type": "aws_dx_hosted_public_virtual_interface",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DirectConnect::PublicVirtualInterface with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DirectConnect::PublicVirtualInterface with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dx_hosted_public_virtual_interface_accepter",
@@ -6468,13 +6468,13 @@
     },
     {
       "type": "aws_dx_hosted_transit_virtual_interface",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DirectConnect::TransitVirtualInterface with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DirectConnect::TransitVirtualInterface with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dx_hosted_transit_virtual_interface_accepter",
@@ -6569,13 +6569,13 @@
     },
     {
       "type": "aws_dynamodb_global_table",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::DynamoDB::GlobalTable with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::DynamoDB::GlobalTable with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dynamodb_kinesis_streaming_destination",
@@ -6640,7 +6640,7 @@
     },
     {
       "type": "aws_dynamodb_table_item",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -6657,7 +6657,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned hash_key_value; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned hash_key_value; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_dynamodb_table_replica",
@@ -6721,7 +6721,7 @@
     },
     {
       "type": "aws_ebs_snapshot_block_public_access",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -6734,7 +6734,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, but Cloud Control lists AWS::EC2::SnapshotBlockPublicAccess with no scoping input"
+      "evidence": "identity schema requires nothing for import; untaggable, so Cloud Control listing AWS::EC2::SnapshotBlockPublicAccess with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ebs_snapshot_copy",
@@ -6964,13 +6964,13 @@
     },
     {
       "type": "aws_ec2_local_gateway_route",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::LocalGatewayRoute with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::LocalGatewayRoute with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ec2_local_gateway_route_table",
@@ -7148,13 +7148,13 @@
     },
     {
       "type": "aws_ec2_traffic_mirror_filter_rule",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::TrafficMirrorFilterRule with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::TrafficMirrorFilterRule with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ec2_traffic_mirror_session",
@@ -7437,53 +7437,53 @@
     },
     {
       "type": "aws_ecr_pull_through_cache_rule",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::PullThroughCacheRule with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::PullThroughCacheRule with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_pull_time_update_exclusion",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::PullTimeUpdateExclusion with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::PullTimeUpdateExclusion with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_registry_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::RegistryPolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::RegistryPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_registry_scanning_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::RegistryScanningConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::RegistryScanningConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_replication_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::ReplicationConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::ReplicationConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_repository",
@@ -7507,13 +7507,13 @@
     },
     {
       "type": "aws_ecr_repository_creation_template",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECR::RepositoryCreationTemplate with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECR::RepositoryCreationTemplate with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecr_repository_policy",
@@ -7592,13 +7592,13 @@
     },
     {
       "type": "aws_ecs_cluster_capacity_providers",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ECS::ClusterCapacityProviderAssociations with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ECS::ClusterCapacityProviderAssociations with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ecs_daemon",
@@ -8020,13 +8020,13 @@
     },
     {
       "type": "aws_elastic_beanstalk_configuration_template",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ElasticBeanstalk::ConfigurationTemplate with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ElasticBeanstalk::ConfigurationTemplate with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_elastic_beanstalk_environment",
@@ -8050,13 +8050,13 @@
     },
     {
       "type": "aws_elasticache_global_replication_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ElastiCache::GlobalReplicationGroup with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ElastiCache::GlobalReplicationGroup with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_elasticache_parameter_group",
@@ -8280,13 +8280,13 @@
     },
     {
       "type": "aws_emr_security_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EMR::SecurityConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EMR::SecurityConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_emr_studio",
@@ -8300,13 +8300,13 @@
     },
     {
       "type": "aws_emr_studio_session_mapping",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EMR::StudioSessionMapping with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EMR::StudioSessionMapping with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_emrcontainers_job_template",
@@ -8620,13 +8620,13 @@
     },
     {
       "type": "aws_fsx_s3_access_point_attachment",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::FSx::S3AccessPointAttachment with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::FSx::S3AccessPointAttachment with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_fsx_windows_file_system",
@@ -8795,7 +8795,7 @@
     },
     {
       "type": "aws_globalaccelerator_endpoint_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -8806,11 +8806,11 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::GlobalAccelerator::EndpointGroup with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::GlobalAccelerator::EndpointGroup with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_globalaccelerator_listener",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -8821,7 +8821,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::GlobalAccelerator::Listener with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::GlobalAccelerator::Listener with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_glue_catalog",
@@ -8875,13 +8875,13 @@
     },
     {
       "type": "aws_glue_classifier",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Glue::Classifier with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Glue::Classifier with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_glue_connection",
@@ -9032,13 +9032,13 @@
     },
     {
       "type": "aws_glue_security_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Glue::SecurityConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Glue::SecurityConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_glue_trigger",
@@ -9052,13 +9052,13 @@
     },
     {
       "type": "aws_glue_user_defined_function",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource, and Cloud Control's list handler for AWS::Glue::UserDefinedFunction requires DatabaseName as scoping input, which no enumeration leg supplies today"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_workflow",
@@ -9202,13 +9202,13 @@
     },
     {
       "type": "aws_guardduty_member",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::GuardDuty::Member with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::GuardDuty::Member with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_guardduty_member_detector_feature",
@@ -9311,13 +9311,13 @@
     },
     {
       "type": "aws_iam_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::IAM::Group with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IAM::Group with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_group_membership",
@@ -9501,7 +9501,7 @@
     },
     {
       "type": "aws_iam_role_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -9517,7 +9517,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name, role) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iam_role_policy_attachment",
@@ -9945,7 +9945,7 @@
     },
     {
       "type": "aws_inspector_assessment_target",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -9956,7 +9956,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::Inspector::AssessmentTarget with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::Inspector::AssessmentTarget with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_inspector_assessment_template",
@@ -10030,13 +10030,13 @@
     },
     {
       "type": "aws_internet_gateway_attachment",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::VPCGatewayAttachment with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::VPCGatewayAttachment with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_internetmonitor_monitor",
@@ -10095,13 +10095,13 @@
     },
     {
       "type": "aws_iot_certificate",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::IoT::Certificate with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IoT::Certificate with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iot_domain_configuration",
@@ -10206,13 +10206,13 @@
     },
     {
       "type": "aws_iot_thing",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::IoT::Thing with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IoT::Thing with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_iot_thing_group",
@@ -10266,13 +10266,13 @@
     },
     {
       "type": "aws_iot_topic_rule_destination",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::IoT::TopicRuleDestination with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IoT::TopicRuleDestination with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ivs_channel",
@@ -10565,7 +10565,7 @@
     },
     {
       "type": "aws_kms_alias",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -10581,7 +10581,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_kms_ciphertext",
@@ -10675,13 +10675,13 @@
     },
     {
       "type": "aws_lakeformation_data_cells_filter",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::LakeFormation::DataCellsFilter with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::LakeFormation::DataCellsFilter with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lakeformation_data_lake_settings",
@@ -10715,13 +10715,13 @@
     },
     {
       "type": "aws_lakeformation_lf_tag",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::LakeFormation::Tag with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::LakeFormation::Tag with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lakeformation_lf_tag_expression",
@@ -10925,7 +10925,7 @@
     },
     {
       "type": "aws_lambda_layer_version",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -10941,7 +10941,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned version; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned version; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lambda_layer_version_permission",
@@ -10955,7 +10955,7 @@
     },
     {
       "type": "aws_lambda_permission",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -10973,7 +10973,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (function_name, statement_id) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lambda_provisioned_concurrency_config",
@@ -11286,13 +11286,13 @@
     },
     {
       "type": "aws_licensemanager_grant",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::LicenseManager::Grant with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::LicenseManager::Grant with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_licensemanager_grant_accepter",
@@ -11416,13 +11416,13 @@
     },
     {
       "type": "aws_lightsail_domain",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Lightsail::Domain with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Lightsail::Domain with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lightsail_domain_entry",
@@ -11486,13 +11486,13 @@
     },
     {
       "type": "aws_lightsail_lb_certificate",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Lightsail::LoadBalancerTlsCertificate with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Lightsail::LoadBalancerTlsCertificate with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lightsail_lb_certificate_attachment",
@@ -11526,13 +11526,13 @@
     },
     {
       "type": "aws_lightsail_static_ip",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Lightsail::StaticIp with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Lightsail::StaticIp with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_lightsail_static_ip_attachment",
@@ -11626,13 +11626,13 @@
     },
     {
       "type": "aws_location_tracker_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Location::TrackerConsumer with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Location::TrackerConsumer with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_m2_application",
@@ -11666,13 +11666,13 @@
     },
     {
       "type": "aws_macie2_account",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Macie::Session with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Macie::Session with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_macie2_classification_export_configuration",
@@ -12045,13 +12045,13 @@
     },
     {
       "type": "aws_msk_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::MSK::Configuration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::MSK::Configuration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_msk_replicator",
@@ -12266,13 +12266,13 @@
     },
     {
       "type": "aws_neptune_global_cluster",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Neptune::GlobalCluster with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Neptune::GlobalCluster with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_neptune_parameter_group",
@@ -12337,13 +12337,13 @@
     },
     {
       "type": "aws_network_acl_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::SubnetNetworkAclAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::SubnetNetworkAclAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_network_acl_rule",
@@ -12830,13 +12830,13 @@
     },
     {
       "type": "aws_notifications_notification_hub",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Notifications::NotificationHub with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Notifications::NotificationHub with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_notifications_organizational_unit_association",
@@ -12925,7 +12925,7 @@
     },
     {
       "type": "aws_observabilityadmin_telemetry_enrichment",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -12938,7 +12938,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, but Cloud Control lists AWS::ObservabilityAdmin::TelemetryEnrichment with no scoping input"
+      "evidence": "identity schema requires nothing for import; untaggable, so Cloud Control listing AWS::ObservabilityAdmin::TelemetryEnrichment with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_observabilityadmin_telemetry_evaluation",
@@ -13303,7 +13303,7 @@
     },
     {
       "type": "aws_opensearchserverless_vpc_endpoint",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -13318,7 +13318,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned id; untaggable and no native list resource, but Cloud Control lists AWS::OpenSearchServerless::VpcEndpoint with no scoping input"
+      "evidence": "identity requires server-assigned id; untaggable, so Cloud Control listing AWS::OpenSearchServerless::VpcEndpoint with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_organizations_account",
@@ -13379,7 +13379,7 @@
     },
     {
       "type": "aws_organizations_organization",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -13394,7 +13394,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable and no native list resource, but Cloud Control lists AWS::Organizations::Organization with no scoping input"
+      "evidence": "identity requires server-assigned id; untaggable, so Cloud Control listing AWS::Organizations::Organization with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_organizations_organizational_unit",
@@ -13504,7 +13504,7 @@
     },
     {
       "type": "aws_osis_pipeline_endpoint",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -13519,7 +13519,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_osis_resource_policy",
@@ -13574,13 +13574,13 @@
     },
     {
       "type": "aws_paymentcryptography_key_alias",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::PaymentCryptography::Alias with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::PaymentCryptography::Alias with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_pinpoint_adm_channel",
@@ -13871,13 +13871,13 @@
     },
     {
       "type": "aws_prometheus_resource_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::APS::ResourcePolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::APS::ResourcePolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_prometheus_rule_group_namespace",
@@ -14568,23 +14568,23 @@
     },
     {
       "type": "aws_redshift_endpoint_access",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Redshift::EndpointAccess with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Redshift::EndpointAccess with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_redshift_endpoint_authorization",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Redshift::EndpointAuthorization with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Redshift::EndpointAuthorization with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_redshift_event_subscription",
@@ -14707,13 +14707,13 @@
     },
     {
       "type": "aws_redshift_scheduled_action",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Redshift::ScheduledAction with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Redshift::ScheduledAction with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_redshift_snapshot_copy",
@@ -14827,13 +14827,13 @@
     },
     {
       "type": "aws_redshiftserverless_snapshot",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::RedshiftServerless::Snapshot with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::RedshiftServerless::Snapshot with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_redshiftserverless_usage_limit",
@@ -15065,13 +15065,13 @@
     },
     {
       "type": "aws_route53_cidr_collection",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53::CidrCollection with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53::CidrCollection with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_cidr_location",
@@ -15105,23 +15105,23 @@
     },
     {
       "type": "aws_route53_hosted_zone_dnssec",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53::DNSSEC with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53::DNSSEC with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_key_signing_key",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53::KeySigningKey with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53::KeySigningKey with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_query_log",
@@ -15167,23 +15167,23 @@
     },
     {
       "type": "aws_route53_resolver_config",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53Resolver::ResolverConfig with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53Resolver::ResolverConfig with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_resolver_dnssec_config",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53Resolver::ResolverDNSSECConfig with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53Resolver::ResolverDNSSECConfig with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_resolver_endpoint",
@@ -15257,13 +15257,13 @@
     },
     {
       "type": "aws_route53_resolver_query_log_config_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_resolver_rule",
@@ -15287,7 +15287,7 @@
     },
     {
       "type": "aws_route53_resolver_rule_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -15303,7 +15303,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_route53_traffic_policy",
@@ -15546,7 +15546,7 @@
     },
     {
       "type": "aws_route_table_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -15562,7 +15562,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_rum_app_monitor",
@@ -16129,7 +16129,7 @@
     },
     {
       "type": "aws_s3control_multi_region_access_point",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -16144,17 +16144,17 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned name; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned name; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3control_multi_region_access_point_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::S3::MultiRegionAccessPointPolicy with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::S3::MultiRegionAccessPointPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3control_multi_region_access_point_routes",
@@ -16178,13 +16178,13 @@
     },
     {
       "type": "aws_s3control_object_lambda_access_point",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::S3ObjectLambda::AccessPoint with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::S3ObjectLambda::AccessPoint with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3control_object_lambda_access_point_policy",
@@ -16198,13 +16198,13 @@
     },
     {
       "type": "aws_s3control_storage_lens_configuration",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_s3files_access_point",
@@ -16266,7 +16266,7 @@
     },
     {
       "type": "aws_s3files_mount_target",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -16281,7 +16281,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3files_synchronization_configuration",
@@ -16305,13 +16305,13 @@
     },
     {
       "type": "aws_s3outposts_endpoint",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::S3Outposts::Endpoint with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::S3Outposts::Endpoint with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_s3tables_namespace",
@@ -16918,7 +16918,7 @@
     },
     {
       "type": "aws_scheduler_schedule",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -16935,7 +16935,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity attrs (group_name, name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, native list resource exists"
+      "evidence": "identity attrs (group_name, name) are settable but not required arguments, so client-naming is unprovable from the schema; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_scheduler_schedule_group",
@@ -17036,7 +17036,7 @@
     },
     {
       "type": "aws_secretsmanager_secret_version",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -17052,7 +17052,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned version_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned version_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_secretsmanager_tag",
@@ -17181,7 +17181,7 @@
     },
     {
       "type": "aws_securityhub_configuration_policy",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17197,7 +17197,7 @@
         ]
       },
       "admission": "needs-config-signal",
-      "evidence": "identity requires server-assigned id; untaggable and no native list resource, but Cloud Control lists AWS::SecurityHub::ConfigurationPolicy with no scoping input"
+      "evidence": "identity requires server-assigned id; untaggable, so Cloud Control listing AWS::SecurityHub::ConfigurationPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securityhub_configuration_policy_association",
@@ -17240,7 +17240,7 @@
     },
     {
       "type": "aws_securityhub_finding_aggregator",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17251,11 +17251,11 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::SecurityHub::FindingAggregator with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::SecurityHub::FindingAggregator with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securityhub_insight",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -17266,7 +17266,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned arn; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securityhub_invite_accepter",
@@ -17319,17 +17319,17 @@
     },
     {
       "type": "aws_securityhub_organization_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SecurityHub::OrganizationConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SecurityHub::OrganizationConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securityhub_product_subscription",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17345,7 +17345,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::SecurityHub::ProductSubscription with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::SecurityHub::ProductSubscription with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securityhub_standards_control",
@@ -17386,7 +17386,7 @@
     },
     {
       "type": "aws_securityhub_standards_subscription",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17397,17 +17397,17 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::SecurityHub::Standard with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::SecurityHub::Standard with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securitylake_aws_log_source",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SecurityLake::AwsLogSource with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SecurityLake::AwsLogSource with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_securitylake_custom_log_source",
@@ -17446,13 +17446,13 @@
     },
     {
       "type": "aws_securitylake_subscriber_notification",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SecurityLake::SubscriberNotification with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SecurityLake::SubscriberNotification with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_serverlessapplicationrepository_cloudformation_stack",
@@ -17616,23 +17616,23 @@
     },
     {
       "type": "aws_servicecatalog_service_action",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ServiceCatalog::ServiceAction with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ServiceCatalog::ServiceAction with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_servicecatalog_tag_option",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::ServiceCatalog::TagOption with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::ServiceCatalog::TagOption with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_servicecatalog_tag_option_resource_association",
@@ -17733,13 +17733,13 @@
     },
     {
       "type": "aws_ses_configuration_set",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SES::ConfigurationSet with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SES::ConfigurationSet with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ses_domain_dkim",
@@ -17783,13 +17783,13 @@
     },
     {
       "type": "aws_ses_email_identity",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SES::EmailIdentity with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SES::EmailIdentity with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ses_event_destination",
@@ -17853,13 +17853,13 @@
     },
     {
       "type": "aws_ses_template",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SES::Template with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SES::Template with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_sesv2_account_suppression_attributes",
@@ -18074,13 +18074,13 @@
     },
     {
       "type": "aws_shield_proactive_engagement",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Shield::ProactiveEngagement with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Shield::ProactiveEngagement with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_shield_protection",
@@ -18144,13 +18144,13 @@
     },
     {
       "type": "aws_signer_signing_profile_permission",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::Signer::ProfilePermission with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Signer::ProfilePermission with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_snapshot_create_volume_permission",
@@ -18231,7 +18231,7 @@
     },
     {
       "type": "aws_sns_topic_subscription",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -18242,7 +18242,7 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned arn; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_spot_datafeed_subscription",
@@ -18521,13 +18521,13 @@
     },
     {
       "type": "aws_ssm_resource_data_sync",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SSM::ResourceDataSync with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SSM::ResourceDataSync with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ssm_service_setting",
@@ -18556,7 +18556,7 @@
     },
     {
       "type": "aws_ssmcontacts_contact_channel",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -18567,17 +18567,17 @@
           "arn"
         ]
       },
-      "evidence": "identity requires server-assigned arn; untaggable and no native list resource, but Cloud Control lists AWS::SSMContacts::ContactChannel with no scoping input"
+      "evidence": "identity requires server-assigned arn; untaggable, so Cloud Control listing AWS::SSMContacts::ContactChannel with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ssmcontacts_plan",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SSMContacts::Plan with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SSMContacts::Plan with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ssmcontacts_rotation",
@@ -18679,13 +18679,13 @@
     },
     {
       "type": "aws_ssoadmin_application_assignment",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::SSO::ApplicationAssignment with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::SSO::ApplicationAssignment with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_ssoadmin_application_assignment_configuration",
@@ -19425,13 +19425,13 @@
     },
     {
       "type": "aws_vpc_block_public_access_options",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_vpc_dhcp_options",
@@ -19445,13 +19445,13 @@
     },
     {
       "type": "aws_vpc_dhcp_options_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::VPCDHCPOptionsAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::VPCDHCPOptionsAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_vpc_encryption_control",
@@ -19504,13 +19504,13 @@
     },
     {
       "type": "aws_vpc_endpoint_connection_notification",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::VPCEndpointConnectionNotification with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::VPCEndpointConnectionNotification with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_vpc_endpoint_policy",
@@ -19715,13 +19715,13 @@
     },
     {
       "type": "aws_vpc_network_performance_metric_subscription",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::NetworkPerformanceMetricSubscription with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::NetworkPerformanceMetricSubscription with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_vpc_peering_connection",
@@ -19785,23 +19785,23 @@
     },
     {
       "type": "aws_vpc_route_server_propagation",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::RouteServerPropagation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::RouteServerPropagation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_vpc_route_server_vpc_association",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::EC2::RouteServerAssociation with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::EC2::RouteServerAssociation with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_vpc_security_group_egress_rule",
@@ -20394,13 +20394,13 @@
     },
     {
       "type": "aws_wafv2_web_acl_logging_configuration",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable and no native list resource, but Cloud Control lists AWS::WAFv2::LoggingConfiguration with no scoping input"
+      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::WAFv2::LoggingConfiguration with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_wafv2_web_acl_rule",
@@ -20476,7 +20476,7 @@
     },
     {
       "type": "aws_workmail_group",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -20492,7 +20492,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned group_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned group_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_workmail_organization",
@@ -20515,7 +20515,7 @@
     },
     {
       "type": "aws_workmail_user",
-      "path": "list + content match",
+      "path": "enumerable, unbindable",
       "signals": {
         "taggable": false,
         "list_resource": true,
@@ -20531,7 +20531,7 @@
           "region"
         ]
       },
-      "evidence": "identity requires server-assigned user_id; untaggable, native list resource exists"
+      "evidence": "identity requires server-assigned user_id; untaggable, so the native list resource can enumerate it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
     {
       "type": "aws_workspaces_connection_alias",

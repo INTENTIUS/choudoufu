@@ -153,10 +153,13 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 2, Code: 0,
 	},
 	"tools/survey-gen/render.go": {
-		Reason: "summaryOverrides: two rows where the survey's strongest-path classing and the identity table's structural " +
-			"grouping disagree, so the rendered tally reproduces the survey's counts instead of restyling them. A row leaving " +
-			"live/LIMITATIONS.md's wrinkle list should leave here in the same change.",
-		Data: 2, Code: 0,
+		Reason: "summaryOverrides: one row, aws_iam_role_policy_attachment, where the survey's strongest-path classing and " +
+			"the identity table's structural grouping disagree, so the rendered tally reproduces the survey's counts instead " +
+			"of restyling them. A row leaving live/LIMITATIONS.md's wrinkle list should leave here in the same change. It was " +
+			"two until 2026-08-17: aws_eip's override said 'count it as marker, the table shows the fork's list-plus-content " +
+			"wiring', and there is no such wiring - bindCountBySlot binds an eip by its tofu-slot tag, which is a marker. The " +
+			"table now says marker too, so there is nothing left to override and the rendered counts did not move.",
+		Data: 1, Code: 0,
 	},
 	"tools/floci-capability-gen/tagging.go": {
 		Reason: "taggingRecipes: seven hand-verified probes of floci's tagging index. Each is a literal sequence of `aws` CLI " +
@@ -222,7 +225,11 @@ const (
 	// typeLiteralDataTotal and typeLiteralCodeTotal are the registry's sums,
 	// pinned so that moving a count from one file to another - which every
 	// per-file check passes individually - still has to be claimed.
-	typeLiteralDataTotal = 425
+	// 425 -> 424 on 2026-08-17: survey-gen's summaryOverrides lost its
+	// aws_eip row when the "list + content match" token was renamed and the
+	// eip's Path cell was corrected to marker, which is what actually binds
+	// it. One literal deleted, none moved.
+	typeLiteralDataTotal = 424
 	typeLiteralCodeTotal = 125
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

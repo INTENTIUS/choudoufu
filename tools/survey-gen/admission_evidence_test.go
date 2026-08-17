@@ -117,10 +117,9 @@ var admittedParents = map[string][]string{
 //   - an account-derived type's identity-table entry still composes every
 //     attribute the provider requires for import, and the type is still
 //     taggable for the context-less fallback;
-//   - the eip-shaped list+content type is still taggable (the tofu-slot
-//     marker) and still has a native list resource;
-//   - and no admitted type is classified moves-to-Ops or excluded by rule
-//     in the committed survey.json.
+//   - and no admitted type is classified moves-to-Ops, excluded by rule, or
+//     "enumerable, unbindable" in the committed survey.json - the last of
+//     those asserting outright that no discovery leg can bind the type.
 //
 // This test's purpose is curated-survey evidence, not global admission
 // coverage: it walks live/SURVEY.md's hand roster, so it has nothing to
@@ -273,15 +272,18 @@ func TestAdmissionEvidenceAgainstProviderSchemas(t *testing.T) {
 				t.Errorf("%s is admitted account-derived but is no longer taggable in v%s; review this: a run without a CloudContext falls back to the marker path, which needs tags", typeName, providerVersion)
 			}
 
-		case pathListContent:
-			// The eip shape: a fungible set bound by the tofu-slot marker,
-			// enumerated by the native list resource.
-			if !taggable(rs.Block) {
-				t.Errorf("%s is admitted on the list+content path but is no longer taggable in v%s; review this: the tofu-slot marker needs tags", typeName, providerVersion)
-			}
-			if _, hasList := schemas.ListResourceTypes[typeName]; !hasList {
-				t.Errorf("%s is admitted on the list+content path but v%s ships no native list resource for it; review this: nothing enumerates the fungible set", typeName, providerVersion)
-			}
+		case pathEnumerableUnbindable:
+			// Nothing may be admitted here, and that is the whole content
+			// of the token: something can list the type and no discovery
+			// leg can bind what the listing returns. This case used to hold
+			// aws_eip and check it was still taggable with a native list
+			// resource, which was really checking that it belonged on the
+			// marker path - so it now carries that path instead and this
+			// arm has no members. A row arriving here is either an
+			// admission that cannot work or a type whose Path cell is
+			// wrong; both want a human.
+			t.Errorf("%s is admitted but %s's table classifies it %q, which asserts nothing can bind it; review this: either the type is bindable and the Path cell is wrong, or the admission is",
+				typeName, surveyMDRel, path)
 
 		case pathOps:
 			t.Errorf("%s is admitted but %s's table says %q; review this: an excluded type cannot stay admitted", typeName, surveyMDRel, path)

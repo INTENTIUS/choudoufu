@@ -62,8 +62,6 @@ var summaryOverrides = map[string]struct {
 }{
 	"aws_iam_role_policy_attachment": {pathClientNamed,
 		"the table groups it structurally as parent-derived, but both components are client-named strings and the survey counted it under client-named"},
-	"aws_eip": {pathMarker,
-		"taggable, so the survey's strongest-path classing is marker; the table shows the fork's list-plus-content wiring"},
 }
 
 // runRender is the -render entry point: read the committed artifacts and
@@ -180,7 +178,7 @@ func renderSummary(rows []HandRow) string {
 		counts[path]++
 	}
 	residue := len(rows) - counts[pathClientNamed] - counts[pathMarker] -
-		counts[pathParentDerived] - counts[pathListContent] - counts[pathOps]
+		counts[pathParentDerived] - counts[pathEnumerableUnbindable] - counts[pathOps]
 
 	var b strings.Builder
 	b.WriteString("| Path | Count |\n")
@@ -188,7 +186,7 @@ func renderSummary(rows []HandRow) string {
 	fmt.Fprintf(&b, "| Client-named identity | %d |\n", counts[pathClientNamed])
 	fmt.Fprintf(&b, "| Marker (tags) | %d |\n", counts[pathMarker])
 	fmt.Fprintf(&b, "| Parent-derived | %d |\n", counts[pathParentDerived])
-	fmt.Fprintf(&b, "| List + content match | %d |\n", counts[pathListContent])
+	fmt.Fprintf(&b, "| Enumerable, unbindable (no admission path) | %d |\n", counts[pathEnumerableUnbindable])
 	fmt.Fprintf(&b, "| Moves to Ops (excluded by the rule) | %d |\n", counts[pathOps])
 	fmt.Fprintf(&b, "| Residue needing a store | %d |\n", residue)
 	return b.String()

@@ -583,8 +583,11 @@ would otherwise rediscover.
   large share are non-AWS types, which #5 rules out of scope. `estate-plan`
   annotates both and sorts them behind driveable work; it does not reclassify
   or drop them, because #183 rules they stay blocked honestly.
-- **The `list + content match` survey path names a mechanism this fork does
-  not have, and that needs a ruling.** `tools/survey-gen` assigns it from
+- **RULED AND LANDED 2026-08-17: the `list + content match` survey path
+  named a mechanism this fork does not have, and is now `enumerable,
+  unbindable`.** The rest of this entry is the case that produced the
+  ruling; the token it names no longer appears in any artifact.
+  `tools/survey-gen` assigned it from
   "untaggable + Cloud-Control-enumerable", which is an ENUMERATION fact
   labelled as an ADMISSION fact. `internal/live/discovery` binds by reading
   the marker tags and by nothing else: the Cloud Control leg lists an object,
@@ -599,9 +602,13 @@ would otherwise rediscover.
   reason is that marker discovery is the only binding mechanism there is.
   Narrowing the veto on this signal was investigated and rejected - it would
   release 62 vetoed types onto an unimplemented path and turn a lint refusal
-  that names the type into a per-plan discovery error. The open question is
-  whether path 4 is aspirational or simply wrong; the answer moves 143 survey
-  rows and a pinned user-facing string, so it is a maintainer decision.
+  that names the type into a per-plan discovery error. The question was
+  whether path 4 was aspirational or simply wrong. The maintainer ruled it
+  wrong: the token was renamed rather than the capability built, moving 142
+  rows in `live/survey-full.json` and 9 in `live/survey.json`, with no
+  verdict changed. `aws_eip` came off the exception list in the same pass -
+  its hand row had claimed the same non-existent wiring while the thing that
+  binds an eip is the `tofu-slot` tag.
 - **The ACM cluster needs the key set AND the each.value path. My earlier
   "one fix, not two" note here was wrong, and this is the correction.**
   Wiring the provider plan through end to end removes the `for_each` refusal

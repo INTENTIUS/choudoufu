@@ -27,8 +27,22 @@ Stated so the table can be re-derived against any future provider release.
    identity with no memory, in the rule's order: client-assigned identity
    (the name is in the config), marker (ownership tags, found by
    tag-filtered list), parent-derived (a composite key over admitted
-   parents), list plus content match (bind by content, identical siblings
-   as a fungible set). A type that fails all four leaves the resource model.
+   parents). A type that fails all three leaves the resource model, and the
+   Path column records which of the two dead ends it left by: `enumerable,
+   unbindable` when something can list the type but no discovery leg can
+   bind what the listing returns, `moves to Ops` when nothing can even list
+   it.
+
+   This step said "four" until 2026-08-17, the fourth being `list + content
+   match`. There is no such path. Every leg of `internal/live/discovery`
+   binds a live object by reading the two ownership tags; the Cloud Control
+   leg lists an object, refines it with `GetResource`, and discards it when
+   neither tag came back. Content matching lives in `internal/live/foreign`,
+   which surfaces a candidate for explicit adoption and, in its own words,
+   never binds one automatically, "because inferring it from a content
+   match would be exactly the guess the marker spec exists to forbid". So
+   the token was an enumeration fact wearing an admission fact's name, and
+   the rows carrying it are admission debt (#233), not a fourth way in.
 4. While the schema is open, record the raw signals per type: whether it
    takes a `tags` argument, whether a native list resource exists for it,
    and whether the provider publishes a resource identity schema for it.
@@ -76,10 +90,16 @@ is what the flag list after the table applies.
 
 The table between the markers is rendered by `go run ./tools/survey-gen
 -render`: a tally of the per-type table's Path column, counting
-`account-derived` under client-named and applying the two exception rows
-the prose below records (`aws_iam_role_policy_attachment` and `aws_eip`
-are counted by the survey's classing, while the table shows the fork's
-path).
+`account-derived` under client-named and applying the one exception row
+the prose below records (`aws_iam_role_policy_attachment` is counted by
+the survey's classing, while the table shows the fork's path).
+
+There were two exceptions until 2026-08-17. The second was `aws_eip`,
+counted as marker while its Path cell said `list + content match`. The
+cell was simply wrong: what binds an eip is the `tofu-slot` marker, a tag,
+which the row's own identity column named all along. Its Path cell now
+says marker and the counts are unmoved, because the summary had been
+counting it that way the whole time.
 
 <!-- survey-gen:begin summary -->
 | Path | Count |
@@ -87,7 +107,7 @@ path).
 | Client-named identity | 36 |
 | Marker (tags) | 23 |
 | Parent-derived | 5 |
-| List + content match | 2 |
+| Enumerable, unbindable (no admission path) | 2 |
 | Moves to Ops (excluded by the rule) | 2 |
 | Residue needing a store | 0 |
 <!-- survey-gen:end summary -->
@@ -270,7 +290,7 @@ identity argument were derived like every other row's.
 | aws_security_group | marker | wired | server-assigned group ID (sg-...); the group name is not its import identity | survey note; schema |
 | aws_route_table | marker | wired | server-assigned route table ID (rtb-...) | survey note; schema |
 | aws_internet_gateway | marker | wired | server-assigned gateway ID (igw-...) | survey note; schema |
-| aws_eip | list + content match | wired | server-assigned allocation ID (eipalloc-...); fungible set bound by the tofu-slot marker | survey note; schema |
+| aws_eip | marker | wired | server-assigned allocation ID (eipalloc-...); fungible set bound by the tofu-slot marker, which is a tag - the Path cell said `list + content match` until 2026-08-17 and named nothing this fork does | survey note; schema |
 | aws_route | parent-derived | wired | route_table_id + one of destination_cidr_block / destination_ipv6_cidr_block / destination_prefix_list_id | survey note; schema |
 | aws_route_table_association | parent-derived | wired | subnet_id (or gateway_id) + route_table_id | survey note; schema |
 | aws_iam_role_policy_attachment | parent-derived | wired | role + policy_arn, both client-named, so the composite is concrete in any realistic config | survey note; schema |
@@ -299,9 +319,9 @@ identity argument were derived like every other row's.
 | aws_sns_topic_subscription | parent-derived | markerless | subscription ARN: the parent topic ARN plus a server-assigned UUID suffix, which neither derivation nor a marker recovers. Row corrected 2026-08-14 to `wired`, because the type was in the admission and identity tables and the status column tracks the table rather than this cell's own prose - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). Corrected back 2026-08-16: the markerless retraction (#249) took the row out of both tables, so the status and the evidence sentence agree again. The evidence was right the whole time; the drift check was reporting that the table had not caught up. | survey note; schema |
 | aws_secretsmanager_secret | client-named | wired | name in config, but the required import attribute is the secret ARN, whose six-character server-generated suffix no account/region template reconstructs; deferred, and ready by the marker path since the type is taggable Row corrected 2026-08-14: the type is in the admission and identity tables, so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | roster fit; schema |
 | aws_ecs_task_definition | parent-derived | wired | family + revision, the revision assigned server-side per registration Row corrected 2026-08-14: the type is in the admission and identity tables, so the status is wired regardless of what the emulator note describes - found by TestRosterStatusAgreesWithAdmission, the #91-class drift check (#100). | survey note; schema |
-| aws_cloudfront_origin_access_control | list + content match | markerless | server-assigned OAC ID; registry-ratified (#40, #44, #65), outside this survey's provider-schema path, and the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note does not apply. Retracted 2026-08-16 by the markerless rule (#249): the row's own recovery story was "list and match on the required, AWS-enforced-unique `name` argument, since the type carries no tags", which is content matching rather than marker discovery - a route no leg of internal/live/discovery implements, since every leg binds a live object by reading the two marker tags. With no tags argument there is nowhere to write them, so the ratified route was never one the mechanism could take. | survey note, registry; docs |
+| aws_cloudfront_origin_access_control | enumerable, unbindable | markerless | server-assigned OAC ID; registry-ratified (#40, #44, #65), outside this survey's provider-schema path, and the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note does not apply. Retracted 2026-08-16 by the markerless rule (#249): the row's own recovery story was "list and match on the required, AWS-enforced-unique `name` argument, since the type carries no tags", which is content matching rather than marker discovery - a route no leg of internal/live/discovery implements, since every leg binds a live object by reading the two marker tags. With no tags argument there is nowhere to write them, so the ratified route was never one the mechanism could take. The Path cell is the generalization of that retraction, landed 2026-08-17: this row's hand-written correction was the whole vocabulary's correction. | survey note, registry; docs |
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create. The REMAINDER batch briefly admitted it against this rule; #125 ruled for the exclusion and the admission was removed 2026-08-14 | survey note; schema |
-| aws_secretsmanager_secret_version | list + content match | unadmitted | secret_id + server-assigned version_id (a UUID). Row corrected 2026-08-16: the hand exclusion was withdrawn by ruling - the ownership marker goes into a tag, never into the secret, so nothing about marking a version reads or exposes it and the credential rationale never applied here. Unadmitted now for the ordinary reason instead, recorded in tools/row-gen/rejected.json: untaggable with a server-minted identity component, so there is nowhere to write the marker (#233) | survey note; schema |
+| aws_secretsmanager_secret_version | enumerable, unbindable | unadmitted | secret_id + server-assigned version_id (a UUID). Row corrected 2026-08-16: the hand exclusion was withdrawn by ruling - the ownership marker goes into a tag, never into the secret, so nothing about marking a version reads or exposes it and the credential rationale never applied here. Unadmitted now for the ordinary reason instead, recorded in tools/row-gen/rejected.json: untaggable with a server-minted identity component, so there is nowhere to write the marker (#233) | survey note; schema |
 | aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |
 | aws_s3_bucket_versioning | client-named | wired | bucket (named singleton child) | roster fit; schema |
 | aws_s3_bucket_public_access_block | client-named | wired | bucket | roster fit; schema |
@@ -341,9 +361,11 @@ lb_target_group_attachment, sns_topic_subscription, ecs_task_definition)
 and `aws_iam_role_policy_attachment` is not among them. Both of its
 components are client-named strings, so the survey presumably counted it
 under client-named, while `admission.go` groups it structurally as
-parent-derived. Likewise `aws_eip` is taggable, so the survey's
-strongest-path classification would be marker, while the fork wires it
-through list-plus-content as a fungible set with a tofu-slot marker. And
+parent-derived. `aws_eip` used to be listed here as the second such
+divergence, on the reading that the survey said marker while the fork
+wired it "through list-plus-content as a fungible set". It does not: the
+fungible set is bound by the `tofu-slot` marker, which is a tag, so marker
+is what the fork wires and the two never disagreed. And
 `aws_route53_record` keeps its client-named row (its name and type are
 client-chosen) while the wired code composes its import ID through the
 `aws_route53_zone` marker, because the third component is the zone's
@@ -367,9 +389,11 @@ which is now an emulator-proof gap rather than an admission one.
 A fourth is the `account-derived` token itself. `aws_sns_topic` and
 `aws_sqs_queue` are both client-named in the survey's classing and stay
 counted that way in the summary, while the table shows each under the path
-the fork implements, the same treatment `aws_eip` gets, now that the
-messaging batch wired the queue's identity table entry the same
-account/region-template way as the topic's.
+the fork implements, now that the messaging batch wired the queue's
+identity table entry the same account/region-template way as the topic's.
+(`aws_eip` was cited here as a third instance of that treatment until
+2026-08-17. It is not one: its Path cell and the summary now agree on
+marker, and its `summaryOverrides` entry is gone.)
 
 ### How the roster was reconstructed
 
@@ -381,8 +405,9 @@ have since been wired by the #19, #20 and #21 lanes. Of the sixty-one
 `wired` rows today, thirty-two source from `survey note` and twenty-nine
 from `roster fit` (seven of those also cite the registry). In survey
 terms the sourced rows are 15 client-named, 12 marker,
-and complete rosters for parent-derived (5), list-plus-content (1) and
-moves-to-Ops (3), which leaves exactly 21 client-named and 11 marker to
+and complete rosters for parent-derived (5), the single row on what the
+note then called list-plus-content, and moves-to-Ops (3), which leaves
+exactly 21 client-named and 11 marker to
 find. The roster was then filled from the most-used types of the curated
 services, preferring the collectives the note gestures at without naming
 (four S3 child types beyond the bucket, three further IAM types, the
@@ -449,7 +474,9 @@ taggable for. The two parent-component rows are unchanged:
 `aws_route53_record` resolves through its zone, and
 `aws_sns_topic_subscription` needs more than parent resolution, since the
 UUID in its ARN has no source in configuration and the type takes no tags,
-which leaves only a list-plus-content match on protocol and endpoint.
+so nothing binds it: a list can enumerate subscriptions and a match on
+protocol and endpoint would be a guess, which is the guess the marker spec
+forbids.
 
 ## What the classifier does not settle
 
@@ -466,9 +493,21 @@ cohorts:
 | Name-prefix idiom (Optional+Computed identifying argument) | 12 |
 | Account-derived import identity, not yet wired | 2 |
 | Docs tier (no identity schema in v6.58.0) | 4 |
-| Fork-wiring wrinkle (deliberate, permanent) | 4 |
+| Fork-wiring wrinkle (deliberate, permanent) | 3 |
 | Parent component the survey keeps client-named | 1 |
-| **Total** | **23** |
+| **Total** | **22** |
+
+The fork-wiring cohort went from 4 to 3 on 2026-08-17, losing `aws_eip`,
+and this one was not a wrinkle at any point. Its entry read
+`{hand: list + content match, generated: marker}` and was marked permanent
+on the strength of the hand row showing "the fork's list+content wiring".
+There is no such wiring. `bindCountBySlot` binds an eip by its `tofu-slot`
+tag, which is a marker, and the row's own identity column said so. The
+generator, the summary override and the identity prose all said marker
+against one Path cell that did not; the cell was corrected and the
+disagreement went with it. A `permanent` marker is not evidence that a
+divergence is real - it only records that nobody expected upstream to
+close it.
 
 The docs-tier cohort lost `aws_cloudfront_origin_access_control` on
 2026-08-16, and not to a new identity schema. Its entry read
@@ -478,13 +517,15 @@ the PROVIDER ships a native list resource for the type, while
 `internal/live/discovery` has also read the mapped CloudFormation type's
 own Cloud Control list handler since issue #47. Cloud Control lists
 `AWS::CloudFront::OriginAccessControl` with no scoping input, the hand row
-had said `list + content match` all along, and the two agree once the
-classifier reads the same two signals the runtime does. A tracking issue
+had said the same thing all along in the token then in use, and the two
+agree once the classifier reads the same two signals the runtime does.
+Both rows now read `enumerable, unbindable`, which is what agreeing about
+this type has always meant. A tracking issue
 that could never have retired the entry is worth recording, because
 `aws_iam_group`'s entry in the same cohort moved for exactly the same
 reason without closing.
 
-23 is the number to watch: it should shrink release by release as the
+22 is the number to watch: it should shrink release by release as the
 provider adds the identity schemas opentofu#2854 tracks, and
 `TestExceptionCohortCounts` fails the moment `pathExceptions` moves without
 this table following it. The per-type detail (which attribute, which
@@ -509,7 +550,7 @@ never on the sanctioned exclusion list, which is exactly four types
 (`aws_iam_access_key`, `aws_iot_certificate`, `aws_ivs_playback_key_pair`,
 `aws_appstream_directory_config`) and does not grow. The type is therefore
 admission debt like any other. Classified from its own schema it lands on
-`list + content match` - untaggable, but the provider does ship a native
+`enumerable, unbindable` - untaggable, but the provider does ship a native
 list resource for it - and it stays unadmitted for the ordinary reason
 every other server-minted composite is: its identity needs the server's
 `version_id` beside the configuration's `secret_id`, and with no tags
