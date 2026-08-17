@@ -3174,7 +3174,7 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		}
 		return nil, false
 	}
-	if !val.IsWhollyKnown() || val.IsNull() {
+	if !forEachKeysKnown(val) || val.IsNull() {
 		r.errorf(expr.Range(), "Non-static for_each expression",
 			"The for_each value for %s cannot be determined from configuration alone. Instance keys are the addresses a projection binds against, so they must be knowable before anything is read from the cloud.", addr.String())
 		return nil, false

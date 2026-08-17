@@ -166,6 +166,48 @@ func collectStaticForEachKeys(ctx context.Context, mod *configs.Module, subject 
 	return collectionKeyNames(val)
 }
 
+// forEachKeysKnown reports whether an already-evaluated for_each value
+// determines its own instance KEYS, which is the question stock OpenTofu asks
+// and is strictly weaker than "is this value wholly known".
+//
+// Stock's rule lives in [evalchecks.performValueChecks] and its set-specific
+// companion [evalchecks.performSetValueChecks]:
+//
+//   - For a map or an object, only the value ITSELF has to be known
+//     (`!resultVal.IsKnown()`). An element may be unknown, because a map's
+//     element values never become part of an address - stock's own refusal
+//     text for the case it does reject says so outright: "it's better to
+//     define the map keys statically in your configuration and place
+//     apply-time results only in the map values".
+//   - For a set, every element has to be known, because a set's elements ARE
+//     its keys. performSetValueChecks collapses a set that is not wholly
+//     known to an unknown value for exactly that reason.
+//
+// This package asked `IsWhollyKnown` of all three, so it refused a map whose
+// keys were literal and whose values held an apply-time attribute - a
+// configuration stock plans without complaint. That is the shape at
+// `modules/acm-certificate/main.tf:30` in the corpus (issue #187): the keys
+// are the certificate's domain names, which the AWS provider fills in during
+// PlanResourceChange, and only the DNS record name, type and value underneath
+// them are unknown until apply.
+//
+// The narrowing is what makes this safe against #183's unset-variable cohort:
+// a required root variable with no value evaluates to an unknown at the TOP
+// level, so `IsKnown` is false and the refusal fires exactly as before. No
+// provenance travels with the value; stock's own rule already separates
+// "I cannot say which instances exist" from "I cannot say what is inside
+// them", and only the first is an address problem.
+func forEachKeysKnown(val cty.Value) bool {
+	if val == cty.NilVal {
+		return false
+	}
+	ty := val.Type()
+	if ty.IsMapType() || ty.IsObjectType() {
+		return val.IsKnown()
+	}
+	return val.IsWhollyKnown()
+}
+
 // collectionKeyNames reads the key set out of an already-evaluated value,
 // under the same reading a module call's for_each gets everywhere else in
 // this package: a map or object is keyed by its own keys, a set of strings

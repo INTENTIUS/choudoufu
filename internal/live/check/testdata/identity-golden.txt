@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=408 instances=1372
+# shape: dirs=410 instances=1373
 # shape: class CONCRETE=704
-# shape: class NEEDS_DISCOVERY=556
+# shape: class NEEDS_DISCOVERY=557
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=a452325a5e96c2420a1431f974ff44aa0d1296ced3451f8873bca743a8fe4768
+# shape: body-sha256=eedb02a4b679494c20be8cb35093d3ca633df1f221431154c01222c91db281e1
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -167,6 +167,7 @@ internal/live/identity/testdata/foreach-tuple-comprehension	aws_ecr_repository.g
 internal/live/identity/testdata/foreach-tuple-comprehension	aws_ecr_repository.github_repositories["repo-b"]	CONCRETE	github/alphagov/govuk/repo-b	name=github/alphagov/govuk/repo-b
 internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["a"]	CONCRETE	team-a	name=team-a
 internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["b"]	CONCRETE	team-b	name=team-b
+internal/live/identity/testdata/foreach-unknown-values-set	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/foreach-value-impure	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
