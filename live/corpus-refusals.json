@@ -316,8 +316,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 270,
-      "sites": 111,
+      "instances": 271,
+      "sites": 110,
       "unresolved_modules": 0,
       "unset_variables": 5,
       "schemas": true,
@@ -361,7 +361,7 @@
           {
             "layer": "identity",
             "id": "Not an identity attribute",
-            "sites": 14
+            "sites": 13
           },
           {
             "layer": "identity",
@@ -470,8 +470,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 33,
-      "sites": 383,
+      "instances": 34,
+      "sites": 382,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -514,8 +514,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 32,
-      "sites": 293,
+      "instances": 33,
+      "sites": 292,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -536,8 +536,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 17,
-      "sites": 348,
+      "instances": 18,
+      "sites": 347,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -1983,18 +1983,17 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 42,
-      "sites": 5,
+      "instances": 44,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/chat.tfvars"
       ],
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -2005,13 +2004,10 @@
             }
           },
           {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "layer": "identity",
+            "id": "Two resources with the same identity",
+            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_bedrock_model_invocation_logging_configuration"
         ]
       },
       "provider_schemas": [
@@ -3212,12 +3208,11 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 5,
+      "instances": 11,
+      "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/neptune.tfvars"
@@ -3232,16 +3227,7 @@
             "categories": {
               "tfe_outputs": 3
             }
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
           }
-        ],
-        "unadmitted_types": [
-          "aws_neptune_cluster",
-          "aws_neptune_cluster_instance"
         ]
       },
       "provider_schemas": [
@@ -3322,7 +3308,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3331,7 +3317,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/release.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -3340,11 +3326,6 @@
             "categories": {
               "tfe_outputs": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
           }
         ]
       },
@@ -3628,7 +3609,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3637,7 +3618,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/synthetic-test.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -3646,11 +3627,6 @@
             "categories": {
               "tfe_outputs": 1
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
           }
         ]
       },
@@ -3808,7 +3784,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 52,
-      "sites": 2,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -3826,15 +3802,7 @@
             "categories": {
               "data_source": 1
             }
-          },
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 1
           }
-        ],
-        "unadmitted_types": [
-          "aws_accessanalyzer_analyzer"
         ]
       },
       "provider_schemas": [
@@ -4038,24 +4006,22 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 0,
-      "sites": 2,
+      "instances": 1,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "profile": {
-        "onboarding_class": "admissions-only",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "layer": "dataread",
+            "id": "Resolves at plan time via a data-source read",
+            "sites": 1,
+            "categories": {
+              "data_source": 1
+            }
           }
-        ],
-        "unadmitted_types": [
-          "aws_accessanalyzer_analyzer",
-          "aws_s3control_storage_lens_configuration"
         ]
       },
       "provider_schemas": [
@@ -7912,8 +7878,8 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 85,
-      "sites": 15,
+      "instances": 86,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7933,11 +7899,6 @@
             "layer": "identity",
             "id": "Non-static for_each expression",
             "sites": 4
-          },
-          {
-            "layer": "identity",
-            "id": "Not an identity attribute",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -7972,26 +7933,15 @@
     {
       "name": ".corpus/simpleinfra/terraform/team-members-access",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 51,
-      "sites": 1,
+      "instances": 67,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 16,
       "profile": {
-        "onboarding_class": "admissions-only",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 1
-          }
-        ],
-        "unadmitted_types": [
-          "aws_iam_user_group_membership"
-        ]
+        "onboarding_class": "clean"
       },
       "provider_schemas": [
         {
@@ -8302,10 +8252,10 @@
     {
       "name": "live/e2e/estates/ai-location",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 35,
-      "sites": 1,
+      "instances": 36,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8506,10 +8456,10 @@
     {
       "name": "live/e2e/estates/ecs-eks",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 14,
-      "sites": 2,
+      "instances": 16,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8835,8 +8785,8 @@
       "what": "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
-      "configs": 124,
-      "sites": 11345,
+      "configs": 125,
+      "sites": 11346,
       "examples": [
         ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:2",
         ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:2",
@@ -8852,8 +8802,8 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 121,
-      "sites": 1530,
+      "configs": 116,
+      "sites": 1522,
       "types": [
         {
           "type": "google_bigquery_table",
@@ -9228,10 +9178,6 @@
           "sites": 3
         },
         {
-          "type": "aws_accessanalyzer_analyzer",
-          "sites": 2
-        },
-        {
           "type": "aws_apigatewayv2_api_mapping",
           "sites": 2
         },
@@ -9241,10 +9187,6 @@
         },
         {
           "type": "aws_autoscaling_attachment",
-          "sites": 2
-        },
-        {
-          "type": "aws_bedrock_model_invocation_logging_configuration",
           "sites": 2
         },
         {
@@ -9368,23 +9310,11 @@
           "sites": 1
         },
         {
-          "type": "aws_iam_user_group_membership",
-          "sites": 1
-        },
-        {
           "type": "aws_lambda_invocation",
           "sites": 1
         },
         {
           "type": "aws_lb_trust_store_revocation",
-          "sites": 1
-        },
-        {
-          "type": "aws_neptune_cluster",
-          "sites": 1
-        },
-        {
-          "type": "aws_neptune_cluster_instance",
           "sites": 1
         },
         {
@@ -9397,10 +9327,6 @@
         },
         {
           "type": "aws_s3_account_public_access_block",
-          "sites": 1
-        },
-        {
-          "type": "aws_s3control_storage_lens_configuration",
           "sites": 1
         },
         {
@@ -10042,24 +9968,6 @@
     },
     {
       "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 18,
-      "sites": 41,
-      "examples": [
-        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/transitgateway.tf:69",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Non-static count expression",
       "title": "Non-static count expression",
       "what": "A count expression evaluates to null, or to a value not knowable from configuration alone.",
@@ -10073,6 +9981,24 @@
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:109",
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:125",
         ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:140"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 10,
+      "sites": 31,
+      "examples": [
+        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/transitgateway.tf:69",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
       ],
       "registered": true
     },
@@ -10260,6 +10186,20 @@
       "registered": true
     },
     {
+      "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 1,
+      "sites": 1,
+      "examples": [
+        ".corpus/govuk-infrastructure/terraform/deployments/chat/bedrock_logging.tf:14"
+      ],
+      "registered": true
+    },
+    {
       "layer": "dataread",
       "id": "Cross-stack outputs unavailable",
       "title": "Cross-stack outputs unavailable",
@@ -10398,6 +10338,17 @@
       "what": "An object constructor in a statically evaluated expression sets the same key twice.",
       "docs_ref": "live/LIMITATIONS.md, \"Duplicate object key\"",
       "raised_by": "hcl",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Empty per-element identity argument",
+      "title": "Empty per-element identity argument",
+      "what": "A Component.PerElement identity argument is a collection with no elements at all; the provider's import identity for such a type is one segment per value, so an empty one names no object.",
+      "docs_ref": "live/LIMITATIONS.md, \"Empty per-element identity argument\"",
+      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -10866,6 +10817,17 @@
     },
     {
       "layer": "identity",
+      "id": "Per-element identity argument not resolvable",
+      "title": "Per-element identity argument not resolvable",
+      "what": "A Component.PerElement identity argument is neither a list written in configuration, nor a variable or local holding one, nor a for_each element bound to one, so this package cannot say how many segments the identity has or what they are.",
+      "docs_ref": "live/LIMITATIONS.md, \"Per-element identity argument not resolvable\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Provider function in static context",
       "title": "Provider function in static context",
       "what": "A statically evaluated expression calls a provider-defined function, which needs a configured provider this run has not started.",
@@ -11014,17 +10976,6 @@
       "what": "A function inside a statically evaluated expression was called with too many arguments.",
       "docs_ref": "live/LIMITATIONS.md, \"Too many function arguments\"",
       "raised_by": "hcl",
-      "configs": 0,
-      "sites": 0,
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
       "configs": 0,
       "sites": 0,
       "registered": true
@@ -11350,10 +11301,10 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 4288,
-    "sites": 17336,
-    "refusals_fired": 26,
-    "refusals_in_set": 126,
+    "instances": 4319,
+    "sites": 17320,
+    "refusals_fired": 27,
+    "refusals_in_set": 128,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
   },
@@ -11362,20 +11313,20 @@
       "origin": "in-repo fixture",
       "configs": 31,
       "loaded": 31,
-      "blocked": 7,
-      "clean": 24,
-      "instances": 698,
-      "sites": 13,
+      "blocked": 5,
+      "clean": 26,
+      "instances": 701,
+      "sites": 10,
       "reads_as": "ranking"
     },
     {
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 120,
-      "clean": 24,
-      "instances": 2559,
-      "sites": 3911,
+      "blocked": 119,
+      "clean": 25,
+      "instances": 2584,
+      "sites": 3901,
       "reads_as": "rate"
     },
     {
@@ -11384,8 +11335,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 1031,
-      "sites": 13412,
+      "instances": 1034,
+      "sites": 13409,
       "reads_as": "ranking"
     }
   ],
@@ -11396,7 +11347,7 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 24
+        "configs": 25
       },
       {
         "class": "backend-only",
@@ -11404,15 +11355,15 @@
       },
       {
         "class": "admissions-only",
-        "configs": 20
+        "configs": 18
       },
       {
         "class": "data-read-eligible",
-        "configs": 35
+        "configs": 37
       },
       {
         "class": "language-blocked",
-        "configs": 65
+        "configs": 64
       },
       {
         "class": "unreadable",
@@ -11503,10 +11454,6 @@
       {
         "type": "tfe_variable_set",
         "configs": 3
-      },
-      {
-        "type": "aws_accessanalyzer_analyzer",
-        "configs": 2
       },
       {
         "type": "aws_apigatewayv2_api_mapping",
@@ -11661,10 +11608,6 @@
         "configs": 1
       },
       {
-        "type": "aws_bedrock_model_invocation_logging_configuration",
-        "configs": 1
-      },
-      {
         "type": "aws_budgets_budget",
         "configs": 1
       },
@@ -11678,10 +11621,6 @@
       },
       {
         "type": "aws_iam_role_policy_attachments_exclusive",
-        "configs": 1
-      },
-      {
-        "type": "aws_iam_user_group_membership",
         "configs": 1
       },
       {
@@ -11701,14 +11640,6 @@
         "configs": 1
       },
       {
-        "type": "aws_neptune_cluster",
-        "configs": 1
-      },
-      {
-        "type": "aws_neptune_cluster_instance",
-        "configs": 1
-      },
-      {
         "type": "aws_networkflowmonitor_scope",
         "configs": 1
       },
@@ -11718,10 +11649,6 @@
       },
       {
         "type": "aws_rds_cluster_activity_stream",
-        "configs": 1
-      },
-      {
-        "type": "aws_s3control_storage_lens_configuration",
         "configs": 1
       },
       {
@@ -12281,7 +12208,7 @@
         "version": "2.4.0",
         "resource_types": 1,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/cloudinit",
@@ -12354,7 +12281,7 @@
         "version": "6.50.0",
         "resource_types": 1096,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/google",
@@ -12415,7 +12342,7 @@
         "version": "3.2.1",
         "resource_types": 81,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
@@ -12423,7 +12350,7 @@
         "version": "3.2.1",
         "resource_types": 81,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/kubernetes",
@@ -12486,7 +12413,7 @@
         "version": "3.3.1",
         "resource_types": 1,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/null",
@@ -12612,7 +12539,7 @@
         "version": "0.80.0",
         "resource_types": 72,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
@@ -12620,7 +12547,7 @@
         "version": "0.78.0",
         "resource_types": 70,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/tfe",
@@ -12660,7 +12587,7 @@
         "version": "0.14.1",
         "resource_types": 4,
         "available": true,
-        "locked": false
+        "locked": true
       },
       {
         "provider": "hashicorp/tls",

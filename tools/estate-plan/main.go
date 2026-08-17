@@ -173,6 +173,8 @@ var blockerAction = map[string]struct {
 		"a provisioner is an effect that leaves nothing to read back, which is what receipts exist for."},
 
 	// ---- deliberate ----
+	"Two resources with the same identity": {ActionRule,
+		"the identity is in the configuration twice: two declarations resolve to one cloud object, so one marker would displace the other. Refusing is the deliberate answer - a wrong marker outranks a missing one - and no analysis change is the fix, because the analysis is right. The configuration has to disambiguate. The one corpus instance is govuk-infrastructure/deployments/chat, whose bedrock_logging_dublin and bedrock_logging_london declare a per-region singleton twice without setting `provider`, so both land in the default region and the second overwrites the first on apply. Stock accepts that silently; this is one of the few places the marker model says something true stock does not."},
 	"count-index": {ActionRule,
 		"count.index reaching an identity is refused on purpose: the index is positional, so inserting an element renames every marker after it."},
 	"child-module": {ActionRule,

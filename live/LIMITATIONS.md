@@ -1393,8 +1393,8 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 124 | 11345 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 121 | 1530 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 125 | 11346 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 116 | 1522 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 94 | 441 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 70 | 512 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 66 | 1131 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
@@ -1406,8 +1406,8 @@ refused, and each says so in its own entry.
 | 27 | 86 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 23 | 81 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 20 | 73 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
-| 18 | 41 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
+| 10 | 31 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 7 | 19 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 7 | 16 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 6 | 7 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
@@ -1419,6 +1419,7 @@ refused, and each says so in its own entry.
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | error | `internal/live/identity` | "unadmitted-type" |
+| 1 | 1 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 0 | 0 | dataread | Cross-stack outputs unavailable | error | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 0 | 0 | dataread | Cross-stack state unavailable | error | `internal/live/dataread` | "Cross-stack state unavailable" |
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
@@ -1459,7 +1460,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Condition is null | error | `hcl` | "Condition is null" |
 | 0 | 0 | identity | Configuration loaded without a static evaluator | error | `internal/live/identity` | "Configuration loaded without a static evaluator" |
 | 0 | 0 | identity | Duplicate object key | error | `hcl` | "Duplicate object key" |
-| - | - | identity | Empty per-element identity argument | error | `internal/live/identity` | "Empty per-element identity argument" |
+| 0 | 0 | identity | Empty per-element identity argument | error | `internal/live/identity` | "Empty per-element identity argument" |
 | 0 | 0 | identity | Ephemeral value not allowed | error | `internal/configs` | "Ephemeral value not allowed" |
 | 0 | 0 | identity | Error in function call | error | `hcl` | "Error in function call" |
 | 0 | 0 | identity | Expression not evaluable here | error | `internal/live/identity` | "Expression not evaluable here" |
@@ -1502,7 +1503,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Null condition | error | `hcl` | "Null condition" |
 | 0 | 0 | identity | Null value as key | error | `hcl` | "Null value as key" |
 | 0 | 0 | identity | Operation failed | error | `hcl` | "Operation failed" |
-| - | - | identity | Per-element identity argument not resolvable | error | `internal/live/identity` | "Per-element identity argument not resolvable" |
+| 0 | 0 | identity | Per-element identity argument not resolvable | error | `internal/live/identity` | "Per-element identity argument not resolvable" |
 | 0 | 0 | identity | Provider function in static context | error | `internal/configs` | "Provider function in static context" |
 | 0 | 0 | identity | Reference to a module instance that does not exist | error | `internal/live/identity` | "Reference to a module instance that does not exist" |
 | 0 | 0 | identity | Reference to a resource instance that does not exist | error | `internal/live/identity` | "Reference to a resource instance that does not exist" |
@@ -1517,7 +1518,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Splat of null value | error | `hcl` | "Splat of null value" |
 | 0 | 0 | identity | The identity table names something the provider does not have | error | `internal/live/identity` | "The identity table names something the provider does not have" |
 | 0 | 0 | identity | Too many function arguments | error | `hcl` | "Too many function arguments" |
-| 0 | 0 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 0 | 0 | identity | Unable to parse provider function | error | `internal/addrs` | "Unable to parse provider function" |
 | 0 | 0 | identity | Unable to use variable in static context | error | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | error | `internal/configs` | "Undefined local" |
@@ -1606,7 +1606,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 124 configurations in the measured corpus, at 11345 sites.
+**How often.** Blocked 125 configurations in the measured corpus, at 11346 sites.
 
 #### Unable to compute static value
 
@@ -1672,14 +1672,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 20 configurations in the measured corpus, at 73 sites.
 
-#### Not an identity attribute
-
-**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 18 configurations in the measured corpus, at 41 sites.
-
 #### Non-static count expression
 
 **What.** A count expression evaluates to null, or to a value not knowable from configuration alone.
@@ -1687,6 +1679,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
+
+#### Not an identity attribute
+
+**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 10 configurations in the measured corpus, at 31 sites.
 
 #### Data source not readable before resolution
 
@@ -2046,7 +2046,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Ephemeral value not allowed
 
@@ -2390,7 +2390,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 #### Provider function in static context
 
