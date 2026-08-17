@@ -46,6 +46,18 @@ import (
 // Once the fragments are gone that ground truth is this mode's own previous
 // output, which makes -emit a fixed point: running it twice changes nothing.
 //
+// "A fixed point" and not "THE fixed point, so the artifact is implied by the
+// inputs" - the two have been read as one thing and they are not (issue
+// #263). Measured at 5502e8a3de: empty DefaultTable's literal, run -emit
+// twice, and the result is a 14-row table - exactly recordBackedRows' derived
+// set - byte-identical across both runs, exit 0, converged, and 878 AWS rows
+// gone. Every fixed-point and convergence check in this repository is
+// satisfied there. Running -emit twice and diffing says the tree sits at some
+// fixed point; it says nothing about which one, because the classifier
+// contributes no row and the ratified corpus has no home outside the file
+// being overwritten. retraction.go is the gate that follows from that, and
+// retraction_test.go pins both directions of the self-reference.
+//
 // Three fields are the deliberate exceptions, all recomputed by
 // renderIdentityFile on every run rather than copied, because nothing ever
 // ratifies any of them by hand - the provider's own documentation or schema
@@ -106,7 +118,7 @@ type emitPartition struct {
 // that declare [identity.DefaultTable] and admittedTypesV0. See this file's
 // own doc comment for why the values come from [identity.DefaultTable] itself
 // rather than from the fresh proposal.
-func runEmit(out, errOut *os.File) error {
+func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
@@ -135,6 +147,19 @@ func runEmit(out, errOut *os.File) error {
 	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey, logical)
 	if err != nil {
 		return err
+	}
+
+	// retraction.go's gate, ahead of every write: a row that leaves the
+	// table cannot be brought back by re-running this generator, because the
+	// table is its own input. emitPartition's two halves are exactly
+	// emittedRows' key set, split by the convergence verdict.
+	emitted := append(append([]string(nil), identityPart.Generated...), identityPart.Override...)
+	if retracted := retractedTypes(identity.AdmittedTypes(), emitted); len(retracted) > 0 {
+		if !allowRetraction {
+			return retractionRefusal(retracted, allowRetractionFlag)
+		}
+		fmt.Fprintf(errOut, "row-gen -emit: %s: retracting %d admitted type(s), unrecoverable by re-running:\n  %s\n",
+			allowRetractionFlag, len(retracted), strings.Join(retracted, "\n  "))
 	}
 
 	for _, rel := range emitFileOrder {

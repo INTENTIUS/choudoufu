@@ -21,6 +21,13 @@
 // why that is a fixed point over already-ratified rows rather than a fresh
 // derivation.
 //
+// One consequence of that is worth stating where the modes are listed, since
+// it is not what a generator usually behaves like (issue #263): a row that
+// leaves the table cannot be brought back by re-running -emit, because the
+// table it reads is the table it wrote last time. -emit therefore refuses to
+// write a smaller table unless -allow-retraction says so. retraction.go is
+// the whole of that gate and states the measurement behind it.
+//
 //	go run ./tools/row-gen              # every service batch, full report
 //	go run ./tools/row-gen -service Lambda
 //
@@ -50,6 +57,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
@@ -92,6 +100,7 @@ func main() {
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), instead of printing anything to paste by hand (see emit.go)")
 	logicalSchemas := flag.Bool("logical-schemas", false, "read the record-store effects providers' own schemas and write live/logical-schemas.json, the evidence -emit derives every RecordBacked row from (see logicalschemas.go). Needs -init-bin; every other mode is offline")
 	initBin := flag.String("init-bin", "terraform", "the binary -logical-schemas runs `init` with to install each provider")
+	allowRetraction := flag.Bool(strings.TrimPrefix(allowRetractionFlag, "-"), false, "issue #263: let -emit write a table with FEWER admitted types than the one it read. Off by default because re-running the generator cannot undo a retraction - the ratified rows live only in the file -emit overwrites (see retraction.go)")
 	flag.Parse()
 
 	if *logicalSchemas {
@@ -127,7 +136,7 @@ func main() {
 	}
 
 	if *emit {
-		if err := runEmit(os.Stdout, os.Stderr); err != nil {
+		if err := runEmit(os.Stdout, os.Stderr, *allowRetraction); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}

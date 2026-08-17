@@ -38,6 +38,33 @@ why, and the reason is worth keeping in view:
 So there is no fragment mechanism for these two, deliberately. A correction
 goes into the generator's rules, or into one of the ledgers below.
 
+### `DefaultTable` is generated, but it is not derived
+
+Written in full by `-emit` and still the only copy of its own contents. Every
+non-`RecordBacked` row is copied verbatim out of the `DefaultTable` compiled
+into the generator, which is the file `-emit` wrote on the previous run. The
+fresh classifier contributes no row, and `annotations.json` records the
+*rulings* that justify a row diverging from the classifier, not the rows.
+
+Two things follow, and issue #263 was opened because both were being got
+wrong:
+
+- **Re-running the generator does not restore a lost row.** Revert whatever
+  caused a row to disappear, re-run `-emit`, and it re-emits the smaller
+  table, because the smaller table is now its input. The restore is
+  `git checkout --` on the four generated files. `-emit` refuses to write a
+  smaller table at all unless you pass `-allow-retraction`; see
+  `tools/row-gen/retraction.go`.
+- **"Run `-emit` twice and diff" is not evidence the artifact is correct.**
+  It shows the tree sits at *a* fixed point. Emptying `DefaultTable`'s literal
+  and running `-emit` twice yields a 14-row table — the `RecordBacked` rows
+  and nothing else — byte-identical across both runs, exit 0, 878 AWS rows
+  gone. Measured at 5502e8a3de.
+
+`admission_generated.go` and `markerless_generated.go` both read
+`DefaultTable`, so they inherit this. `logical_type_generated.go` does not —
+it comes from `live/logical-schemas.json` alone.
+
 ## Where a hand ruling goes
 
 ### `tools/row-gen/rejected.json` — types a batch declined
