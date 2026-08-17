@@ -477,6 +477,29 @@ Every one of these has been hit, most more than once.
 
 ---
 
+## Mid-flight, as of this handoff
+
+Nothing is blocked on a decision. These are the loose ends a fresh session
+would otherwise rediscover.
+
+- **`live/corpus-module-pins.json` does not exist yet.** `corpus-fetch` now
+  installs registry modules and mirrors six pinned go-getter repos, but the
+  fetch has not been run since. **Run `just corpus-fetch`, then `just corpus`,
+  and commit both.** Until then this machine's `.corpus` has modules for one
+  entry of 250, so every corpus figure is a floor for 57 entries and
+  `estate-plan` marks the affected estates.
+- **The typed-variable half of Shape B** was in progress and stopped. Its
+  fixture `shapeb-absent-typed` pins today's behaviour, so the debt cannot go
+  quiet; #260's closing comment has the design.
+- **#263's cure is half done.** `tools/row-gen/ratified.json` holds the 878
+  rows with a byte-identical round-trip proof, and `-emit` still reads
+  `DefaultTable`. The flip is three reads, not one — `emittedRows`,
+  `buildConvergence` and `markerlessRoster` — and the convergence one is
+  load-bearing.
+- **Worktrees under `../wt/` are live.** Never prune one by whether its branch
+  merged: a branch with no commits is trivially an ancestor of main, and a
+  prune loop on that predicate destroyed five agents' work in one command.
+
 ## Session-perishable state
 
 Anything that rots faster than this file lives elsewhere on purpose.
