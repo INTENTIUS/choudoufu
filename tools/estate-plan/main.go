@@ -363,6 +363,70 @@ func refine(id string, causes map[string]int, action Action) (Action, string) {
 	return action, ""
 }
 
+// cascadeRefusals are the two refusals raised when an identity could not be
+// built because something it depends on already failed. They carry no
+// independent claim about the configuration: the dependency's own refusal is
+// the finding, and this is its shadow.
+//
+// That matters for [unsetVarArtifact], because a cascade site does not itself
+// mention the variable that defeated it. `bucket = aws_s3_bucket.x.id` reads
+// no var at all; it fails because `bucket = "prefix-${var.env}-suffix"` on the
+// resource above it did.
+var cascadeRefusals = map[string]bool{
+	"Unresolvable identity":                      true,
+	"Identity not resolvable from configuration": true,
+}
+
+func cascadeSites(blockers []blocker) int {
+	n := 0
+	for _, bl := range blockers {
+		if cascadeRefusals[bl.ID] {
+			n += bl.Sites
+		}
+	}
+	return n
+}
+
+// unsetVarArtifact reports whether every blocking site on an estate is an
+// artifact of a required variable nobody supplied a value for - counting the
+// sites that fail only because such a site failed first.
+//
+// The equality alone was the rule, and it under-reported. refusal-probe marks
+// a site by whether its own source text reaches an unset variable, which is
+// textual reachability; a cascade site is defeated by the variable without
+// ever naming it. So an estate carrying one read as partially-blocked and
+// stayed in the queue as analysis work that no analysis can do.
+//
+// Validated rather than reasoned. Every one of the 28 blocked rate-capable
+// estates with any marked site was tested by supplying type-appropriate
+// values for its required root variables and re-probing: 13 go to zero
+// blockers, 15 keep real ones. This predicate flags exactly those 13, with no
+// false positive and no miss. The 6 it adds over the equality are the cascade
+// shape - app-elasticsearch6 (7 marked of 9), app-related-links (2 of 5),
+// infra-assets (12 of 14), infra-athena-query-results (1 of 2),
+// infra-database-backups-bucket (4 of 14) and
+// infra-datagovuk-organogram-bucket (1 of 5).
+//
+// One trap that measurement had to avoid, recorded because it would silently
+// fake a clear: giving a map-typed variable `{}` makes a for_each over it
+// yield no instances at all, so the resource vanishes and sites fall to zero
+// for a reason that has nothing to do with resolution. The values used gave
+// every map one key, and instance counts ROSE or held on all 13 - none
+// cleared by disappearing.
+//
+// This still annotates and never reclassifies. #183's ruling is that these
+// estates stay language-blocked honestly, and they stay in the blocked count.
+func unsetVarArtifact(unsetVarSites, blockingSites, cascade int) bool {
+	if unsetVarSites <= 0 || blockingSites <= 0 || unsetVarSites > blockingSites {
+		return false
+	}
+	// Every blocking site either names an unset variable itself, or is the
+	// shadow of one that does. Cascade sites are only ever counted toward
+	// the remainder, so an estate whose non-cascade blockers exceed the
+	// marked sites is not an artifact.
+	return blockingSites-unsetVarSites <= cascade
+}
+
 // causeTypes pulls the resource types out of a refusal's cause map.
 // tools/refusal-probe writes them as "type:<name>"; other cause kinds
 // (reference:, discovery:) are not type-shaped and are ignored.
@@ -510,8 +574,8 @@ func buildPlan(s sweep) ([]estate, []string) {
 		// counts the informational data-read finding too, and an estate
 		// carrying one would never satisfy an equality against it however
 		// complete the marking.
-		if e.UnsetVarSites > 0 && blockingSites > 0 && e.UnsetVarSites == blockingSites {
-			est.Note = "every blocking site reads an unset required variable; stock refuses this identically, and #183 rules that an estate shipping no tfvars stays blocked rather than being papered over - not analysis work"
+		if unsetVarArtifact(e.UnsetVarSites, blockingSites, cascadeSites(est.Blockers)) {
+			est.Note = "every blocking site reads an unset required variable, or fails only because one that does failed first; stock refuses this identically, and #183 rules that an estate shipping no tfvars stays blocked rather than being papered over - not analysis work"
 		}
 		bySites := func(s []blocker) {
 			sort.Slice(s, func(i, j int) bool {

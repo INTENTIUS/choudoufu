@@ -307,3 +307,64 @@ func TestDriveableSortsRuledAndUnsetVariableEstatesToTheBack(t *testing.T) {
 		}
 	}
 }
+
+// TestUnsetVarArtifactCountsCascades pins the predicate against the estates
+// it was measured on, and against the ones it must NOT claim.
+//
+// Every row here is an estate that was actually probed with values supplied
+// for its required root variables. The clears went to zero blockers; the
+// keepers did not. A predicate that cannot tell them apart takes real
+// language-wall work off the board, which is worse than leaving an artifact
+// on it - so the keeper rows are the ones that matter.
+func TestUnsetVarArtifactCountsCascades(t *testing.T) {
+	for _, tc := range []struct {
+		name                     string
+		unset, blocking, cascade int
+		want                     bool
+	}{
+		// Marked sites cover every blocker. The equality already found these.
+		{"infra-vpc: 1 of 1", 1, 1, 0, true},
+		{"infra-public-wafs: 3 of 3", 3, 3, 0, true},
+
+		// The cascade shape the equality missed. The unmarked remainder is
+		// entirely Unresolvable identity / Identity not resolvable, each the
+		// shadow of a marked site.
+		{"infra-athena-query-results: 1 marked, 1 cascade", 1, 2, 1, true},
+		{"app-related-links: 2 marked, 3 cascade", 2, 5, 3, true},
+		{"infra-database-backups-bucket: 4 marked, 10 cascade", 4, 14, 10, true},
+		{"infra-assets: 12 marked, 2 cascade", 12, 14, 2, true},
+
+		// Keepers. An unmarked blocker that is not a cascade is real work,
+		// and one of them is enough to disqualify the estate.
+		{"unmarked remainder exceeds the cascade sites", 4, 14, 9, false},
+		{"marked, but every other blocker is independent", 1, 5, 0, false},
+		{"no marked site at all - not a candidate", 0, 3, 3, false},
+
+		// Degenerate inputs. A probe that marked more sites than block is
+		// incoherent and must not be read as a clean sweep.
+		{"more marked than blocking", 5, 2, 0, false},
+		{"nothing blocking", 0, 0, 0, false},
+	} {
+		if got := unsetVarArtifact(tc.unset, tc.blocking, tc.cascade); got != tc.want {
+			t.Errorf("%s: unsetVarArtifact(unset=%d, blocking=%d, cascade=%d) = %v, want %v",
+				tc.name, tc.unset, tc.blocking, tc.cascade, got, tc.want)
+		}
+	}
+}
+
+// TestCascadeSitesCountsOnlyTheShadowClasses stops the remainder being
+// covered by a refusal that carries its own independent claim.
+func TestCascadeSitesCountsOnlyTheShadowClasses(t *testing.T) {
+	got := cascadeSites([]blocker{
+		{ID: "Unresolvable identity", Sites: 3},
+		{ID: "Identity not resolvable from configuration", Sites: 2},
+		{ID: "unadmitted-type", Sites: 7},
+		{ID: "markerless-type", Sites: 4},
+		{ID: "Non-static count expression", Sites: 5},
+	})
+	if got != 5 {
+		t.Errorf("cascadeSites = %d, want 5 - only the two shadow refusals count; "+
+			"an unadmitted type or a markerless one is a finding in its own right and "+
+			"supplying a variable does not touch it", got)
+	}
+}
