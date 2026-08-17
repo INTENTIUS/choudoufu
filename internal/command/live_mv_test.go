@@ -731,6 +731,22 @@ func (c *mvCloud) provider() providers.Interface {
 	}
 
 	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) (resp providers.PlanResourceChangeResponse) {
+		// A null PriorState is an ordinary synthetic create-shaped plan -
+		// internal/live/projection's normalizeIdentityAttrs asks one of
+		// every materialized instance with a string identity attribute
+		// (issue #281), during the read-only locate phase every mv run
+		// does whether or not it ends up writing anything. GetAttr on a
+		// null object panics rather than erroring, which every real
+		// provider already has to tolerate (a genuine create sends exactly
+		// this). It is deliberately left OUT of c.planned: every assertion
+		// in this file reads that slice as "the write-preparation call
+		// rewrite.go makes", which a read-only self-heal check is not, and
+		// counting it here would make a -dry-run test see a "write" that
+		// never happened.
+		if req.PriorState.IsNull() {
+			resp.PlannedState = req.ProposedNewState
+			return resp
+		}
 		c.planned = append(c.planned, req.TypeName+"/"+req.PriorState.GetAttr("id").AsString())
 		resp.PlannedState = req.ProposedNewState
 		return resp

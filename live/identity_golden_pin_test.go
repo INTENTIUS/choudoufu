@@ -74,7 +74,7 @@ var identityGoldenPin = map[string]int{
 	// three types the markerless-veto two-source exception newly admits.
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        716,
+	"CONCRETE":        718,
 	"NEEDS_DISCOVERY": 562,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -108,7 +108,7 @@ var identityGoldenPin = map[string]int{
 // 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "3ea2c52fadef85e94719b4c1801477c68a7e70ded09d7c3780ff718b52dd983e"
+const identityGoldenPinBodyDigest = "d052264bede6f03aee35b3365a5116bec40b192f870eeebeb3b118569f868781"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -122,8 +122,8 @@ const identityGoldenPinBodyDigest = "3ea2c52fadef85e94719b4c1801477c68a7e70ded09
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
 const (
-	identityGoldenPinInstances = 1390
-	identityGoldenPinDirs      = 417
+	identityGoldenPinInstances = 1392
+	identityGoldenPinDirs      = 418
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -525,6 +526,292 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 	return cty.ObjectVal(vals), true
 }
 
+// normalizeIdentityAttrs asks the provider that just materialized obj
+// whether obj's own identity-bearing attributes would survive being
+// resubmitted as a brand-new create, and adopts the provider's answer where
+// they would not.
+//
+// GitHub issue #281. A rendered identity component answers "may I delete
+// this", but it is also reused as ordinary prior-state, and from there it
+// has to survive comparison against the SAME argument's value on every
+// later plan. When a provider normalizes an argument before it ever reaches
+// the wire - AWS Route 53 strips a record name's trailing dot at plan time,
+// confirmed empirically against floci: a create-shaped PlanResourceChange
+// answers "foo.example.com" for a config literal of "foo.example.com." -
+// an identity built from the raw configuration string can bind the correct
+// live object under the wrong spelling. Import succeeds regardless - the
+// API accepts either form - so the object materializes, but its ReadResource
+// answer can still carry whatever spelling the import happened to ask for
+// rather than the provider's own canonical one, and the ordinary plan that
+// follows compares that spelling against the config's own (normalized)
+// rendering and proposes a forced replace, once per run, forever.
+//
+// This names no resource type anywhere. It works by feeding the provider
+// exactly what it already told this run: PriorState is null (a synthetic
+// create), Config is obj stripped of its purely-computed attributes (see
+// configValue), and whatever PlannedState says for an identity-bearing
+// attribute IS what that attribute canonicalizes to under this provider,
+// because the provider - never this package - decides what its own create
+// path does to a string.
+//
+// Scoped narrowly on purpose:
+//
+//   - Only identity-bearing attributes are ever candidates - the ones
+//     [identity.TypeIdentity.Components] named for this instance (w.values's
+//     keys), never every attribute obj carries. A component the
+//     configuration built the import identity from is exactly the value
+//     every later run keeps comparing against configuration, which is the
+//     one place a normalization mismatch turns into a standing replace.
+//   - Only a plain top-level string attribute the resource schema and the
+//     identity table agree is the same attribute is ever a candidate. A
+//     component whose identity attribute is not also a same-named schema
+//     attribute (an inAttr composite built from several components, or a
+//     nested type) is left exactly as ReadResource returned it.
+//
+// Deliberately NOT gated on whether obj's current value already disagrees,
+// textually, with what the configuration wrote (w.values): agreement
+// between the two is exactly what the broken case looks like. w.values is
+// what built the import request in the first place, so when a provider
+// preserves an identity-object import's own input verbatim - rather than
+// overwriting it with ReadResource's fresh answer - obj and the
+// configuration agree with EACH OTHER while both disagree with what the
+// provider's own create path would normalize either of them to (issue
+// #281's exact shape). One PlanResourceChange call covers every candidate
+// attribute of one instance; an instance with no identity-bearing string
+// attributes makes no call at all.
+//
+// Any provider error - a synthetic create-shaped plan that does not
+// validate for reasons this question never touches - leaves obj exactly as
+// ReadResource returned it. This can only fail closed: the worst outcome is
+// the pre-#281 behavior for that one instance, never a value this package
+// invented.
+//
+// The return value is the same information restated as plain strings, keyed
+// by attribute name: what [builder.materialize] uses to bring the LOGGED
+// identity - importID, built from the same raw values before any of this
+// ran - back in step with the object it now actually describes, so an
+// operator reading TF_LOG=trace sees the spelling this instance settled on
+// rather than the one that turned out not to survive contact with the
+// provider. Nil when nothing changed.
+func (b *builder) normalizeIdentityAttrs(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, w wanted, obj *states.ResourceInstanceObject) map[string]string {
+	if obj == nil || len(w.values) == 0 || schema.Block == nil {
+		return nil
+	}
+	if obj.Value == cty.NilVal || obj.Value.IsNull() || !obj.Value.IsWhollyKnown() {
+		return nil
+	}
+
+	type candidate struct {
+		name string
+		live cty.Value
+	}
+	var candidates []candidate
+	for name := range w.values {
+		attrSchema, declared := schema.Block.Attributes[name]
+		if !declared || attrSchema.NestedType != nil || attrSchema.Type != cty.String {
+			continue
+		}
+		live := obj.Value.GetAttr(name)
+		if !live.IsKnown() || live.IsNull() || live.IsMarked() {
+			// A marked value - sensitive, in this codebase's only sense of
+			// the word - never becomes an identity component or a log
+			// line, the same rule [resolver.stringValue] already applies to
+			// every OTHER source an identity is built from. Refused, not
+			// unmarked: this instance's identity-bearing attribute is left
+			// exactly as ReadResource returned it.
+			continue
+		}
+		// Deliberately not gated on "does this already agree with what the
+		// configuration wrote": that agreement is exactly what the broken
+		// case looks like. w.values["name"] is the raw configuration
+		// string, which is also what built the import request in the
+		// first place - so when a provider preserves an identity-object
+		// import's own input verbatim (rather than overwriting it with
+		// ReadResource's fresh answer), obj's value and the configuration
+		// agree with EACH OTHER while both disagree with what the
+		// provider's own create path would normalize either of them to.
+		// Checked once per instance below, never per attribute.
+		candidates = append(candidates, candidate{name: name, live: live})
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	priorNull := cty.NullVal(schema.Block.ImpliedType())
+	cfgVal := configValue(schema.Block, obj.Value)
+	proposed := objchange.ProposedNew(schema.Block, priorNull, cfgVal)
+	planResp := provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
+		TypeName:         typeName,
+		PriorState:       priorNull,
+		ProposedNewState: proposed,
+		Config:           cfgVal,
+		// See importAndRead's identical call: a null of the dynamic
+		// pseudo-type, never the zero cty.Value, or a provider that
+		// declares a provider_meta schema panics its own conformance check.
+		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
+	})
+	if planResp.Diagnostics.HasErrors() {
+		log.Printf("[TRACE] projection: %s's identity-bearing attributes could not be checked against the provider's own create-time plan (%s); left as ReadResource returned them",
+			w.addr, planResp.Diagnostics.Err())
+		return nil
+	}
+	if planResp.PlannedState == cty.NilVal || planResp.PlannedState.IsNull() {
+		return nil
+	}
+
+	updates := make(map[string]cty.Value, len(candidates))
+	changed := make(map[string]string, len(candidates))
+	for _, c := range candidates {
+		planned := planResp.PlannedState.GetAttr(c.name)
+		if !planned.IsKnown() || planned.IsNull() || planned.Type() != cty.String || planned.IsMarked() {
+			continue
+		}
+		if c.live.IsMarked() {
+			// Unreachable in practice - the candidate loop above already
+			// filtered this out - but proven here too, at the point of
+			// use, rather than trusted across the struct field it travels
+			// through.
+			continue
+		}
+		if planned.RawEquals(c.live) {
+			continue
+		}
+		updates[c.name] = planned
+		changed[c.name] = planned.AsString()
+		log.Printf("[TRACE] projection: %s's %s normalized from %q to %q by the provider's own create-time plan; adopting the provider's spelling",
+			w.addr, c.name, c.live.AsString(), planned.AsString())
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	obj.Value = withReplacedAttrs(obj.Value, updates)
+	return changed
+}
+
+// configValue is the live object as a configuration would express it: every
+// attribute the provider alone can set is nulled, and everything else is
+// carried across as it stands. It exists so that [builder.normalizeIdentityAttrs]
+// can ask a provider "what would you store if this were a brand-new create",
+// using the object the provider itself already returned as the config -
+// mirroring internal/live/mv/rewrite.go's identical helper, which asks the
+// same kind of question for a tags-only rewrite. Types are never altered,
+// only values are nulled, so the result still conforms to the schema's
+// implied type.
+func configValue(block *configschema.Block, val cty.Value) cty.Value {
+	if block == nil || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
+		return val
+	}
+
+	vals := make(map[string]cty.Value, len(block.Attributes)+len(block.BlockTypes))
+	for name, attr := range block.Attributes {
+		v := val.GetAttr(name)
+		switch {
+		case attr.Computed && !attr.Optional && !attr.Required:
+			vals[name] = cty.NullVal(v.Type())
+		case attr.NestedType != nil:
+			vals[name] = configNestedObject(attr.NestedType, v)
+		default:
+			vals[name] = v
+		}
+	}
+	for name, nested := range block.BlockTypes {
+		v := val.GetAttr(name)
+		switch nested.Nesting {
+		case configschema.NestingSingle, configschema.NestingGroup:
+			vals[name] = configValue(&nested.Block, v)
+		default:
+			vals[name] = mapElementsForConfig(v, func(elem cty.Value) cty.Value {
+				return configValue(&nested.Block, elem)
+			})
+		}
+	}
+	return cty.ObjectVal(vals)
+}
+
+// configNestedObject is configValue for an attribute whose type is a nested
+// object rather than a block.
+func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
+	if val == cty.NilVal || val.IsNull() || !val.IsKnown() {
+		return val
+	}
+
+	one := func(v cty.Value) cty.Value {
+		if v.IsNull() || !v.IsKnown() {
+			return v
+		}
+		vals := make(map[string]cty.Value, len(obj.Attributes))
+		for name, attr := range obj.Attributes {
+			av := v.GetAttr(name)
+			switch {
+			case attr.Computed && !attr.Optional && !attr.Required:
+				vals[name] = cty.NullVal(av.Type())
+			case attr.NestedType != nil:
+				vals[name] = configNestedObject(attr.NestedType, av)
+			default:
+				vals[name] = av
+			}
+		}
+		return cty.ObjectVal(vals)
+	}
+
+	if obj.Nesting == configschema.NestingSingle || obj.Nesting == configschema.NestingGroup {
+		return one(val)
+	}
+	return mapElementsForConfig(val, one)
+}
+
+// mapElementsForConfig rebuilds a collection with every element passed
+// through f, preserving the collection kind. An empty or unknown collection
+// comes back untouched, since there is nothing to map and rebuilding one
+// risks changing its type - and so does a marked one: this helper only ever
+// feeds [objchange.ProposedNew] a config value, never an identity component
+// or a log line, but LengthInt and ElementIterator both panic on a marked
+// receiver, so the same "leave it alone" answer covers both reasons.
+func mapElementsForConfig(val cty.Value, f func(cty.Value) cty.Value) cty.Value {
+	if val == cty.NilVal || val.IsNull() || !val.IsKnown() || val.IsMarked() || val.LengthInt() == 0 {
+		return val
+	}
+
+	ty := val.Type()
+	switch {
+	case ty.IsMapType(), ty.IsObjectType():
+		elems := make(map[string]cty.Value)
+		for it := val.ElementIterator(); it.Next(); {
+			k, v := it.Element()
+			elems[k.AsString()] = f(v)
+		}
+		if ty.IsObjectType() {
+			return cty.ObjectVal(elems)
+		}
+		return cty.MapVal(elems)
+	default:
+		var elems []cty.Value
+		for it := val.ElementIterator(); it.Next(); {
+			_, v := it.Element()
+			elems = append(elems, f(v))
+		}
+		if ty.IsSetType() {
+			return cty.SetVal(elems)
+		}
+		return cty.ListVal(elems)
+	}
+}
+
+// withReplacedAttrs is obj with the named top-level attributes replaced by
+// updates, and everything else carried across unchanged.
+func withReplacedAttrs(obj cty.Value, updates map[string]cty.Value) cty.Value {
+	ty := obj.Type()
+	vals := make(map[string]cty.Value, len(ty.AttributeTypes()))
+	for name := range ty.AttributeTypes() {
+		if v, ok := updates[name]; ok {
+			vals[name] = v
+			continue
+		}
+		vals[name] = obj.GetAttr(name)
+	}
+	return cty.ObjectVal(vals)
+}
+
 // orderWork splits the resolutions into the work lists Build runs, in the
 // order it runs them: every concrete instance first, in address order, then
 // the parent-derived instances in dependency order.
@@ -888,6 +1175,27 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		}
 		b.omitFailed(addr, detail)
 		return
+	}
+
+	// Adopt the provider's own spelling of an identity-bearing attribute
+	// before anything downstream compares it to configuration - see
+	// [builder.normalizeIdentityAttrs] (GitHub issue #281). Ahead of the
+	// ownership check on purpose: a mismatch here is about what the value
+	// SAYS, not who owns the object, and normalizing first means ownership
+	// reads the same object every other check downstream will.
+	//
+	// importID is rewritten to match: it is built from the same raw
+	// component values that just proved not to survive the provider's own
+	// create-time plan, and every log line below this point - most of all
+	// materialize's own "materialized ... from import identity" trace -
+	// exists so an operator can compare what ran against what the live
+	// system holds. Left unrewritten, that line would keep printing the
+	// spelling this run just found unstable, on an instance whose state
+	// no longer carries it.
+	for name, newVal := range b.normalizeIdentityAttrs(ctx, entry.provider, schema, typeName, w, obj) {
+		if oldVal, ok := w.values[name]; ok && oldVal != "" {
+			importID = strings.Replace(importID, oldVal, newVal, 1)
+		}
 	}
 
 	// Ownership is checked here, on the object the provider returned, and
