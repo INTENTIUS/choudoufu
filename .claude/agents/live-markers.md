@@ -382,6 +382,32 @@ one to three times. Two of those were buying nothing, so:
   If you genuinely need a corpus number, say what you would expect it to show
   and let the orchestrator compute it on the merged tree.
 
+- **The probe measures verdicts. `TestIdentityGolden` measures values.** They
+  answer different questions and you usually want both.
+
+      env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
+
+  It pins 1320 rendered identities — address, class, `ImportID`, identity
+  attributes — across 375 configuration directories in **0.6s**, with no
+  generator, no schemas and no network. `-update` regenerates
+  `testdata/identity-golden.txt`.
+
+  **If your change moves a line, explain it. Do not run `-update` to make the
+  test quiet.** That is the whole point of the file: every other instrument
+  here counts refusals, and a marker can be *wrong* without anything
+  refusing. Six defects shipped green that way.
+
+  Its own validation is the reason to trust the previous paragraph. Reverted
+  against #251's conversion, it produced three fabricated identities and lost
+  two correct ones — and the instance count went **1320 → 1321, up**. Every
+  aggregate this repository records called that defect an improvement.
+
+  Bound, so you know what it does not cover: 550 of the 1320 render an empty
+  value, because their identity needs a live account or a server-assigned ID.
+  It covers the 658 CONCRETE and the 95 symbolic formulas. Eight of the
+  eleven classified defect shapes fail it outright; three appear only as an
+  *added* line, which a machine will not catch and a reader might.
+
 Read-only auditors finished in 6 to 15 minutes against 25 to 47 for
 implementers, entirely because they run no generators. If a task does not
 need to write, it should not be paying generator time.
