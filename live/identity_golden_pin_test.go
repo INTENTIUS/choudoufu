@@ -66,8 +66,14 @@ import (
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then read the "# shape:" block at the top of the regenerated file.
+// CONCRETE 688 -> 690: issue #281 added
+// internal/live/projection/testdata/dotnormalize, two aws_route53_record
+// instances (one spelled with Route 53's own trailing dot, one without)
+// that prove [builder.normalizeIdentityAttrs] converges both to the
+// provider's own canonical spelling. Both ADDED rows, on a fixture that did
+// not exist before; nothing else in the golden moved.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        688,
+	"CONCRETE":        690,
 	"NEEDS_DISCOVERY": 553,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -98,11 +104,11 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377"
+const identityGoldenPinBodyDigest = "6a88038b087f28be0429402a24bb1d03c9b3e7e7afe0b1dfc65af4e1c2f0799b"
 
 const (
-	identityGoldenPinInstances = 1353
-	identityGoldenPinDirs      = 400
+	identityGoldenPinInstances = 1355
+	identityGoldenPinDirs      = 401
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

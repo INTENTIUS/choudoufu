@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=400 instances=1353
-# shape: class CONCRETE=688
+# shape: dirs=401 instances=1355
+# shape: class CONCRETE=690
 # shape: class NEEDS_DISCOVERY=553
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377
+# shape: body-sha256=6a88038b087f28be0429402a24bb1d03c9b3e7e7afe0b1dfc65af4e1c2f0799b
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -537,6 +537,8 @@ internal/live/projection/testdata/chain	aws_route_table_association.a	PARENT_DER
 internal/live/projection/testdata/chain	aws_subnet.a	NEEDS_DISCOVERY		
 internal/live/projection/testdata/derived	aws_route.internet_gateway	PARENT_DERIVED	${aws_route_table.main.id}_0.0.0.0/0	destination_cidr_block=0.0.0.0/0,route_table_id=${aws_route_table.main.id}
 internal/live/projection/testdata/derived	aws_route_table.main	NEEDS_DISCOVERY		
+internal/live/projection/testdata/dotnormalize	aws_route53_record.dotted	CONCRETE	Z1_foo.example.com._CNAME	name=foo.example.com.,type=CNAME,zone_id=Z1
+internal/live/projection/testdata/dotnormalize	aws_route53_record.plain	CONCRETE	Z1_foo.example.com_CNAME	name=foo.example.com,type=CNAME,zone_id=Z1
 internal/live/projection/testdata/expanded	aws_cloudwatch_log_group.app["a"]	CONCRETE	/ours/a	name=/ours/a
 internal/live/projection/testdata/expanded	aws_cloudwatch_log_group.app["b"]	CONCRETE	/ours/b	name=/ours/b
 internal/live/projection/testdata/expanded	aws_kms_key.root	NEEDS_DISCOVERY		
