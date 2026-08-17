@@ -111,6 +111,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	result, diags := identity.ResolveWith(ctx, cfg, identity.Context{Schemas: actx.Schemas})
 	if result != nil {
 		report.Instances = result.Len()
+		report.Identities = result.All()
 	}
 
 	// Issue #224's stamp pass: internal/live/stamp needs no live provider
@@ -574,6 +575,25 @@ type Report struct {
 
 	// Instances is how many managed resource instances resolved.
 	Instances int
+
+	// Identities is what those instances resolved TO: every
+	// [identity.Resolution] the run produced, ordered by address.
+	//
+	// It exists because Instances is a count, and so is every other field
+	// on this struct. The whole of this package, the corpus ranking, the
+	// cohort ratchet and the refusal probe measure predicates over a
+	// verdict - "did we refuse?", "how many sites?" - and the product's
+	// actual output is none of those things. It is a string written into a
+	// cloud tag and handed to an import. A resolution that renders the
+	// wrong string is not a refusal, so it raises no finding, moves no
+	// count, and reads as a success everywhere: GitHub issue #251 turned a
+	// refusal into a marker naming a queue that does not exist, and
+	// Instances went UP.
+	//
+	// The resolution was already computed here and discarded after
+	// result.Len() was read. Carrying it out is what lets a test assert on
+	// the value; see TestIdentityGolden.
+	Identities []identity.Resolution
 
 	// Shadowed is how many identity refusals fell on a construct lint had
 	// already refused, and were therefore not counted as findings. It is
