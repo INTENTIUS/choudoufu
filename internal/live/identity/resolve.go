@@ -845,6 +845,19 @@ func (r *resolver) enterModuleAt(cfg *configs.Config, modInst addrs.ModuleInstan
 	if lookup := r.dataLookupFor(modInst); lookup != nil {
 		r.eval = r.eval.WithDataResults(lookup)
 	}
+	// The caller's own argument expressions, re-evaluated in the scope the
+	// module CALL actually has, so that a var.* reference this module
+	// reaches through a function call - anything [resolver.resolveExpr]
+	// does not decompose down to a bare traversal, and so never puts in
+	// front of [resolver.namedDef] - sees the call's own
+	// each.key/each.value/count.index instead of the load-time closure's
+	// nothing. Nil for a module path with no repeating call on it, and nil
+	// whenever that scope cannot be proven, either of which leaves the
+	// module tree's frozen closure in place exactly as before. See
+	// [resolver.callerVariables] (modulevars.go) and #252.
+	if vars := r.callerVariables(modInst); vars != nil {
+		r.eval = r.eval.WithVariables(vars)
+	}
 }
 
 // enterModuleFor is [resolver.enterModuleAt] by module instance path, for
