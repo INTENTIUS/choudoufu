@@ -310,7 +310,7 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 // the honest way: a configuration naming a vetoed type reports itself
 // blocked, which is what it is.
 //
-// markerlessAdmittedOverlapMax in live/admission_coverage_test.go is the
+// internal/live/harness's "markerless-veto-admitted-overlap" entry is the
 // ratchet, now at zero, and it fails upwards: a hand-pasted row for a
 // vetoed type would be caught there as well as silently dropped here.
 //

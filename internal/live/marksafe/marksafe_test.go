@@ -35,6 +35,7 @@ var guardedPackages = []string{
 	"docsref",
 	"flocitest",
 	"foreign",
+	"harness",
 	"identity",
 	"lifecycle",
 	"lint",
