@@ -164,12 +164,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 219,
-      "sites": 175,
+      "instances": 218,
+      "sites": 181,
       "unresolved_modules": 17,
       "unset_variables": 6,
       "schemas": true,
-      "shadowed": 1,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -240,17 +240,17 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 7
+          },
+          {
+            "layer": "lint",
             "id": "module-providers",
             "sites": 2
           },
           {
             "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 1
-          },
-          {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
             "sites": 1
           }
         ],
@@ -278,12 +278,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 256,
-      "sites": 102,
+      "instances": 253,
+      "sites": 109,
       "unresolved_modules": 1,
       "unset_variables": 3,
       "schemas": true,
-      "shadowed": 5,
+      "shadowed": 8,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -341,7 +341,7 @@
           {
             "layer": "lint",
             "id": "count-index",
-            "sites": 7
+            "sites": 11
           },
           {
             "layer": "lint",
@@ -351,7 +351,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 2
+            "sites": 7
           },
           {
             "layer": "lint",
@@ -361,7 +361,7 @@
           {
             "layer": "stamp",
             "id": "Unmarked apply of a marker-only resource",
-            "sites": 5
+            "sites": 3
           }
         ],
         "unadmitted_types": [
@@ -1406,11 +1406,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 21,
+      "instances": 20,
       "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1426,9 +1427,14 @@
             "sites": 1
           },
           {
+            "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
             "layer": "stamp",
             "id": "Unmarked apply of a marker-only resource",
-            "sites": 5
+            "sites": 4
           }
         ]
       },
@@ -1521,11 +1527,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 21,
+      "instances": 20,
       "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -1536,8 +1543,8 @@
             "unset_var_only": true
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -2063,11 +2070,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 16,
+      "instances": 14,
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 2,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
@@ -2075,8 +2083,8 @@
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 2
           }
         ]
@@ -2152,12 +2160,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 67,
+      "instances": 65,
       "sites": 24,
       "unresolved_modules": 8,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 5,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/cluster-infrastructure.tfvars"
@@ -2211,12 +2219,12 @@
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
+            "id": "markerless-type",
             "sites": 2
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "unadmitted-type",
             "sites": 2
           }
         ],
@@ -2393,7 +2401,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 32,
-      "sites": 8,
+      "sites": 9,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -2403,7 +2411,7 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/datagovuk-infrastructure.tfvars"
       ],
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -2413,6 +2421,11 @@
               "data_source": 2,
               "tfe_outputs": 2
             }
+          },
+          {
+            "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -2454,11 +2467,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 10,
-      "sites": 9,
+      "instances": 9,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
@@ -2490,9 +2504,14 @@
             }
           },
           {
+            "layer": "lint",
+            "id": "markerless-type",
+            "sites": 2
+          },
+          {
             "layer": "stamp",
             "id": "Unmarked apply of a marker-only resource",
-            "sites": 2
+            "sites": 1
           }
         ]
       },
@@ -2786,7 +2805,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 217,
-      "sites": 217,
+      "sites": 218,
       "unresolved_modules": 6,
       "unset_variables": 4,
       "schemas": true,
@@ -2867,6 +2886,11 @@
             "layer": "lint",
             "id": "logical-resource",
             "sites": 5
+          },
+          {
+            "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -3073,12 +3097,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 184,
+      "instances": 183,
       "sites": 60,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 55,
+      "shadowed": 56,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars",
         ".corpus/govuk-infrastructure/terraform/variables/integration/rds.tfvars"
@@ -3101,13 +3125,13 @@
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
-            "sites": 2
+            "id": "markerless-type",
+            "sites": 1
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
-            "sites": 1
+            "layer": "lint",
+            "id": "unadmitted-type",
+            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -3852,11 +3876,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
+      "instances": 3,
       "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -3869,8 +3894,8 @@
             }
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -3907,18 +3932,24 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
+      "instances": 3,
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
+            "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
             "layer": "stamp",
             "id": "Unmarked apply of a marker-only resource",
-            "sites": 2
+            "sites": 1
           }
         ]
       },
@@ -4120,17 +4151,18 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
+      "instances": 3,
       "sites": 1,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -4239,7 +4271,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 38,
+      "sites": 39,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4273,7 +4305,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 22,
+      "sites": 23,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4306,12 +4338,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 63,
-      "sites": 274,
+      "instances": 59,
+      "sites": 299,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 28,
+      "shadowed": 32,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -4341,7 +4373,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 21,
+      "sites": 22,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4374,12 +4406,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 46,
-      "sites": 270,
+      "instances": 43,
+      "sites": 281,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7,
+      "shadowed": 10,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -4409,7 +4441,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 45,
+      "sites": 47,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4447,7 +4479,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 28,
+      "sites": 29,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4481,7 +4513,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 32,
+      "sites": 33,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4515,7 +4547,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 71,
+      "sites": 73,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4549,7 +4581,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 53,
+      "sites": 57,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4587,7 +4619,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 18,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4621,7 +4653,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 18,
+      "sites": 19,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4655,7 +4687,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 21,
+      "sites": 22,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4687,12 +4719,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 7,
-      "sites": 23,
+      "instances": 6,
+      "sites": 24,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
+      "shadowed": 2,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -4722,7 +4754,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 22,
+      "sites": 23,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -4756,7 +4788,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 22,
+      "sites": 23,
       "unresolved_modules": 5,
       "unset_variables": 0,
       "schemas": true,
@@ -4899,11 +4931,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 4,
+      "instances": 3,
       "sites": 5,
       "unresolved_modules": 0,
       "unset_variables": 5,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -4922,8 +4955,8 @@
             "unset_var_only": true
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -5370,11 +5403,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 12,
+      "instances": 10,
       "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 3,
       "schemas": true,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -5387,8 +5421,8 @@
             }
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 2
           }
         ]
@@ -6447,11 +6481,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 5,
+      "instances": 4,
       "sites": 2,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -6464,8 +6499,8 @@
             }
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -6516,12 +6551,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 26,
+      "instances": 25,
       "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 13,
+      "shadowed": 14,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -6542,17 +6577,12 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 7
-          },
-          {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
-            "sites": 1
           }
         ],
         "unadmitted_types": [
@@ -6586,7 +6616,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 12,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6611,7 +6641,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -6640,11 +6670,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 23,
+      "instances": 20,
       "sites": 12,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -6657,8 +6688,8 @@
             }
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 2
           }
         ]
@@ -6945,7 +6976,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 19,
-      "sites": 13,
+      "sites": 14,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6975,7 +7006,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -7008,11 +7039,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 16,
+      "instances": 15,
       "sites": 3,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
+      "shadowed": 1,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -7030,8 +7062,8 @@
             "sites": 1
           },
           {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
+            "layer": "lint",
+            "id": "markerless-type",
             "sites": 1
           }
         ]
@@ -7209,7 +7241,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 24,
-      "sites": 12,
+      "sites": 13,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7234,7 +7266,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 1
+            "sites": 2
           },
           {
             "layer": "lint",
@@ -7263,12 +7295,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 31,
+      "instances": 29,
       "sites": 17,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -7294,12 +7326,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 2
-          },
-          {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
-            "sites": 2
+            "sites": 4
           }
         ]
       },
@@ -7315,12 +7342,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 87,
+      "instances": 85,
       "sites": 15,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
+      "shadowed": 4,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -7345,17 +7372,12 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 1
+            "sites": 3
           },
           {
             "layer": "lint",
             "id": "unadmitted-type",
             "sites": 1
-          },
-          {
-            "layer": "stamp",
-            "id": "Unmarked apply of a marker-only resource",
-            "sites": 2
           }
         ],
         "unadmitted_types": [
@@ -7479,12 +7501,12 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
+      "instances": 2,
       "sites": 137,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 4,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -7498,7 +7520,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 631,
+      "sites": 632,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7515,7 +7537,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 264,
+      "sites": 265,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -7533,7 +7555,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 12,
-      "sites": 295,
+      "sites": 297,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7551,7 +7573,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 372,
+      "sites": 373,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7569,7 +7591,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 39,
+      "sites": 40,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7587,7 +7609,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 27,
-      "sites": 145,
+      "sites": 148,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7605,7 +7627,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 9,
+      "sites": 10,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7623,7 +7645,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 333,
+      "sites": 334,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7641,7 +7663,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 16,
-      "sites": 255,
+      "sites": 256,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7659,7 +7681,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 320,
+      "sites": 321,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7677,7 +7699,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 611,
+      "sites": 612,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7695,7 +7717,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 1,
-      "sites": 136,
+      "sites": 137,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7712,8 +7734,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 36,
-      "sites": 2,
+      "instances": 35,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7729,8 +7751,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 23,
-      "sites": 6,
+      "instances": 20,
+      "sites": 4,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7778,10 +7800,10 @@
     {
       "name": "live/e2e/estates/connect-euc",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 39,
-      "sites": 1,
+      "instances": 37,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7880,10 +7902,10 @@
     {
       "name": "live/e2e/estates/ec2-core",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 16,
-      "sites": 3,
+      "instances": 13,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7948,10 +7970,10 @@
     {
       "name": "live/e2e/estates/iam-ecr",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 9,
-      "sites": 3,
+      "instances": 6,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7982,10 +8004,10 @@
     {
       "name": "live/e2e/estates/iot",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 14,
-      "sites": 1,
+      "instances": 12,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7999,10 +8021,10 @@
     {
       "name": "live/e2e/estates/lambda",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 9,
-      "sites": 1,
+      "instances": 7,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8050,10 +8072,10 @@
     {
       "name": "live/e2e/estates/networking-advanced",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 45,
-      "sites": 2,
+      "instances": 42,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8067,10 +8089,10 @@
     {
       "name": "live/e2e/estates/observability",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 33,
-      "sites": 2,
+      "instances": 31,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8101,10 +8123,10 @@
     {
       "name": "live/e2e/estates/remainder",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 39,
-      "sites": 8,
+      "instances": 30,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8120,8 +8142,8 @@
       "origin": "in-repo fixture",
       "blocked": true,
       "loaded": true,
-      "instances": 32,
-      "sites": 3,
+      "instances": 30,
+      "sites": 1,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8169,10 +8191,10 @@
     {
       "name": "live/e2e/estates/security",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 51,
-      "sites": 1,
+      "instances": 49,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -8220,10 +8242,10 @@
     {
       "name": "live/e2e/estates/streaming",
       "origin": "in-repo fixture",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 18,
-      "sites": 1,
+      "instances": 17,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -9101,20 +9123,125 @@
       "registered": true
     },
     {
-      "layer": "stamp",
-      "id": "Unmarked apply of a marker-only resource",
-      "title": "Unmarked apply of a marker-only resource",
-      "what": "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
-      "docs_ref": "live/LIMITATIONS.md, \"Unmarked apply of a marker-only resource\"",
-      "raised_by": "internal/live/stamp",
-      "configs": 53,
-      "sites": 110,
+      "layer": "lint",
+      "id": "markerless-type",
+      "title": "Resource type has nowhere to write an ownership marker",
+      "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+      "raised_by": "internal/live/lint",
+      "configs": 60,
+      "sites": 283,
+      "types": [
+        {
+          "type": "aws_lambda_function_event_invoke_config",
+          "sites": 66
+        },
+        {
+          "type": "aws_lambda_layer_version",
+          "sites": 62
+        },
+        {
+          "type": "aws_vpn_gateway_route_propagation",
+          "sites": 48
+        },
+        {
+          "type": "aws_vpc_block_public_access_options",
+          "sites": 16
+        },
+        {
+          "type": "aws_vpc_ipv4_cidr_block_association",
+          "sites": 16
+        },
+        {
+          "type": "aws_iam_access_key",
+          "sites": 15
+        },
+        {
+          "type": "aws_eip_association",
+          "sites": 14
+        },
+        {
+          "type": "aws_sns_topic_subscription",
+          "sites": 8
+        },
+        {
+          "type": "aws_efs_mount_target",
+          "sites": 7
+        },
+        {
+          "type": "aws_elasticsearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_outbound_connection",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "aws_cloudfront_response_headers_policy",
+          "sites": 3
+        },
+        {
+          "type": "aws_apigatewayv2_route",
+          "sites": 2
+        },
+        {
+          "type": "aws_cloudfront_cache_policy",
+          "sites": 2
+        },
+        {
+          "type": "aws_iam_group_membership",
+          "sites": 2
+        },
+        {
+          "type": "aws_athena_named_query",
+          "sites": 1
+        },
+        {
+          "type": "aws_cloudfront_origin_access_control",
+          "sites": 1
+        },
+        {
+          "type": "aws_cloudfront_origin_access_identity",
+          "sites": 1
+        },
+        {
+          "type": "aws_cloudfront_origin_request_policy",
+          "sites": 1
+        },
+        {
+          "type": "aws_cloudwatch_query_definition",
+          "sites": 1
+        },
+        {
+          "type": "aws_ecr_registry_scanning_configuration",
+          "sites": 1
+        },
+        {
+          "type": "aws_globalaccelerator_endpoint_group",
+          "sites": 1
+        },
+        {
+          "type": "aws_globalaccelerator_listener",
+          "sites": 1
+        },
+        {
+          "type": "aws_organizations_organization",
+          "sites": 1
+        },
+        {
+          "type": "aws_signer_signing_job",
+          "sites": 1
+        }
+      ],
       "examples": [
-        ".corpus/autoscaling/main.tf:21",
-        ".corpus/autoscaling/main.tf:21",
-        ".corpus/autoscaling/main.tf:21",
-        ".corpus/autoscaling/main.tf:21",
-        ".corpus/autoscaling/main.tf:21"
+        ".corpus/cool-assessment/efs.tf:13",
+        ".corpus/cool-assessment/egressassess_ec2.tf:90",
+        ".corpus/cool-assessment/gophish_ec2.tf:101",
+        ".corpus/cool-assessment/kali_ec2.tf:100",
+        ".corpus/cool-assessment/nessus_ec2.tf:111"
       ],
       "registered": true
     },
@@ -9155,69 +9282,6 @@
       "registered": true
     },
     {
-      "layer": "lint",
-      "id": "markerless-type",
-      "title": "Resource type has nowhere to write an ownership marker",
-      "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
-      "raised_by": "internal/live/lint",
-      "configs": 43,
-      "sites": 163,
-      "types": [
-        {
-          "type": "aws_lambda_function_event_invoke_config",
-          "sites": 66
-        },
-        {
-          "type": "aws_vpn_gateway_route_propagation",
-          "sites": 48
-        },
-        {
-          "type": "aws_vpc_ipv4_cidr_block_association",
-          "sites": 16
-        },
-        {
-          "type": "aws_iam_access_key",
-          "sites": 15
-        },
-        {
-          "type": "aws_elasticsearch_vpc_endpoint",
-          "sites": 4
-        },
-        {
-          "type": "aws_opensearch_outbound_connection",
-          "sites": 4
-        },
-        {
-          "type": "aws_opensearch_vpc_endpoint",
-          "sites": 4
-        },
-        {
-          "type": "aws_apigatewayv2_route",
-          "sites": 2
-        },
-        {
-          "type": "aws_iam_group_membership",
-          "sites": 2
-        },
-        {
-          "type": "aws_organizations_organization",
-          "sites": 1
-        },
-        {
-          "type": "aws_signer_signing_job",
-          "sites": 1
-        }
-      ],
-      "examples": [
-        ".corpus/cyhy-amis/terraform/databricks_user_read.tf:15",
-        ".corpus/cyhy-amis/terraform/moe_user_read.tf:15",
-        ".corpus/govuk-aws/terraform/projects/infra-csp-reporter/api_gateway.tf:43",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch-domain/elasticsearch.tf:121",
-        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch-domain/elasticsearch.tf:121"
-      ],
-      "registered": true
-    },
-    {
       "layer": "identity",
       "id": "Unresolvable identity",
       "title": "Unresolvable identity",
@@ -9232,6 +9296,24 @@
         ".corpus/cool-assessment/operations_routing.tf:39",
         ".corpus/cyhy-amis/terraform/bod_vpc.tf:121",
         ".corpus/cyhy-amis/terraform/bod_vpc.tf:137"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Unmarked apply of a marker-only resource",
+      "title": "Unmarked apply of a marker-only resource",
+      "what": "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
+      "docs_ref": "live/LIMITATIONS.md, \"Unmarked apply of a marker-only resource\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 23,
+      "sites": 47,
+      "examples": [
+        ".corpus/autoscaling/main.tf:21",
+        ".corpus/autoscaling/main.tf:21",
+        ".corpus/autoscaling/main.tf:21",
+        ".corpus/autoscaling/main.tf:21",
+        ".corpus/autoscaling/main.tf:21"
       ],
       "registered": true
     },
@@ -9296,13 +9378,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
       "raised_by": "internal/live/lint",
       "configs": 17,
-      "sites": 316,
+      "sites": 320,
       "examples": [
         ".corpus/cool-assessment/gophish_iam.tf:73",
         ".corpus/cool-assessment/teamserver_iam.tf:73",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:142",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:143",
-        ".corpus/cyhy-amis/terraform/cyhy_nessus_route53.tf:7"
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:110",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:111",
+        ".corpus/cyhy-amis/terraform/cyhy_nessus_ec2.tf:142"
       ],
       "registered": true
     },
@@ -10616,8 +10698,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3921,
-    "sites": 8427,
+    "instances": 3849,
+    "sites": 8488,
     "refusals_fired": 24,
     "refusals_in_set": 126,
     "configs_without_schemas": 3,
@@ -10628,10 +10710,10 @@
       "origin": "in-repo fixture",
       "configs": 31,
       "loaded": 31,
-      "blocked": 17,
-      "clean": 14,
-      "instances": 733,
-      "sites": 41,
+      "blocked": 7,
+      "clean": 24,
+      "instances": 698,
+      "sites": 13,
       "reads_as": "ranking"
     },
     {
@@ -10640,8 +10722,8 @@
       "loaded": 144,
       "blocked": 118,
       "clean": 26,
-      "instances": 2434,
-      "sites": 2288,
+      "instances": 2406,
+      "sites": 2307,
       "reads_as": "rate"
     },
     {
@@ -10650,8 +10732,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 754,
-      "sites": 6098,
+      "instances": 745,
+      "sites": 6168,
       "reads_as": "ranking"
     }
   ],
@@ -10674,11 +10756,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 35
+        "configs": 34
       },
       {
         "class": "language-blocked",
-        "configs": 60
+        "configs": 61
       },
       {
         "class": "unreadable",

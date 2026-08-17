@@ -1396,15 +1396,15 @@ refused, and each says so in its own entry.
 | 109 | 1136 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 99 | 4589 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 60 | 283 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 46 | 690 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
-| 43 | 163 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 33 | 131 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 23 | 47 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
-| 17 | 316 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 17 | 320 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 17 | 36 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 10 | 38 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
@@ -1604,14 +1604,6 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 99 configurations in the measured corpus, at 4589 sites.
 
-#### Unmarked apply of a marker-only resource
-
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked 53 configurations in the measured corpus, at 110 sites.
-
 #### Dynamic value in static context
 
 **What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
@@ -1635,6 +1627,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 33 configurations in the measured corpus, at 131 sites.
+
+#### Unmarked apply of a marker-only resource
+
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Blocked 23 configurations in the measured corpus, at 47 sites.
 
 #### Non-static identity argument
 
