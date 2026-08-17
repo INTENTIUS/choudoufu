@@ -1393,12 +1393,13 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 110 | 1299 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 109 | 1136 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
 | 99 | 4589 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 46 | 690 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 43 | 163 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 33 | 131 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
@@ -1526,7 +1527,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
-| - | - | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |

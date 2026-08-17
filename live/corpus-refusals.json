@@ -350,8 +350,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 2
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 8
+            "sites": 6
           },
           {
             "layer": "stamp",
@@ -361,7 +366,6 @@
         ],
         "unadmitted_types": [
           "aws_default_route_table",
-          "aws_iam_access_key",
           "aws_vpc_peering_connection_options"
         ]
       },
@@ -1271,8 +1275,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 3
+            "sites": 2
           },
           {
             "layer": "stamp",
@@ -1282,8 +1291,7 @@
         ],
         "unadmitted_types": [
           "aws_apigatewayv2_api_mapping",
-          "aws_apigatewayv2_integration",
-          "aws_apigatewayv2_route"
+          "aws_apigatewayv2_integration"
         ]
       },
       "provider_schemas": [
@@ -1849,17 +1857,19 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 6
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 13
+            "sites": 7
           }
         ],
         "unadmitted_types": [
           "aws_elasticsearch_domain_policy",
-          "aws_elasticsearch_vpc_endpoint",
           "aws_opensearch_authorize_vpc_endpoint_access",
           "aws_opensearch_domain_policy",
-          "aws_opensearch_outbound_connection",
-          "aws_opensearch_vpc_endpoint",
           "aws_secretsmanager_secret_version"
         ]
       },
@@ -2343,8 +2353,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 3
+            "sites": 2
           },
           {
             "layer": "stamp",
@@ -2354,8 +2369,7 @@
         ],
         "unadmitted_types": [
           "aws_apigatewayv2_api_mapping",
-          "aws_apigatewayv2_integration",
-          "aws_apigatewayv2_route"
+          "aws_apigatewayv2_integration"
         ]
       },
       "provider_schemas": [
@@ -3304,17 +3318,19 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 6
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 13
+            "sites": 7
           }
         ],
         "unadmitted_types": [
           "aws_elasticsearch_domain_policy",
-          "aws_elasticsearch_vpc_endpoint",
           "aws_opensearch_authorize_vpc_endpoint_access",
           "aws_opensearch_domain_policy",
-          "aws_opensearch_outbound_connection",
-          "aws_opensearch_vpc_endpoint",
           "aws_secretsmanager_secret_version"
         ]
       },
@@ -3998,7 +4014,7 @@
       "schemas": true,
       "shadowed": 20,
       "profile": {
-        "onboarding_class": "data-read-eligible",
+        "onboarding_class": "language-blocked",
         "refusals": [
           {
             "layer": "dataread",
@@ -4010,8 +4026,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 46
+            "sites": 45
           }
         ],
         "unadmitted_types": [
@@ -4019,7 +4040,6 @@
           "aws_budgets_budget",
           "aws_ce_cost_allocation_tag",
           "aws_organizations_delegated_administrator",
-          "aws_organizations_organization",
           "aws_ssoadmin_managed_policy_attachment"
         ]
       },
@@ -6521,8 +6541,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 8
+            "sites": 7
           },
           {
             "layer": "stamp",
@@ -6531,7 +6556,6 @@
           }
         ],
         "unadmitted_types": [
-          "aws_iam_access_key",
           "google_compute_firewall",
           "google_compute_health_check",
           "google_compute_instance_template",
@@ -6586,13 +6610,17 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 3
           }
         ],
         "unadmitted_types": [
           "aws_efs_file_system_policy",
-          "aws_iam_access_key",
           "github_actions_secret"
         ]
       },
@@ -6946,13 +6974,17 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 3
           }
         ],
         "unadmitted_types": [
           "aws_efs_file_system_policy",
-          "aws_iam_access_key",
           "github_actions_secret"
         ]
       },
@@ -7201,13 +7233,17 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 4
+            "sites": 3
           }
         ],
         "unadmitted_types": [
           "aws_efs_file_system_policy",
-          "aws_iam_access_key",
           "github_actions_secret"
         ]
       },
@@ -7257,7 +7293,7 @@
           },
           {
             "layer": "lint",
-            "id": "unadmitted-type",
+            "id": "markerless-type",
             "sites": 2
           },
           {
@@ -7265,9 +7301,6 @@
             "id": "Unmarked apply of a marker-only resource",
             "sites": 2
           }
-        ],
-        "unadmitted_types": [
-          "aws_iam_access_key"
         ]
       },
       "provider_schemas": [
@@ -7311,8 +7344,13 @@
           },
           {
             "layer": "lint",
+            "id": "markerless-type",
+            "sites": 1
+          },
+          {
+            "layer": "lint",
             "id": "unadmitted-type",
-            "sites": 2
+            "sites": 1
           },
           {
             "layer": "stamp",
@@ -7321,7 +7359,6 @@
           }
         ],
         "unadmitted_types": [
-          "aws_iam_access_key",
           "aws_s3_bucket_inventory"
         ]
       },
@@ -8205,16 +8242,12 @@
       "title": "Resource type is outside the live-markers subset",
       "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 110,
-      "sites": 1299,
+      "configs": 109,
+      "sites": 1136,
       "types": [
         {
           "type": "google_bigquery_table",
           "sites": 71
-        },
-        {
-          "type": "aws_lambda_function_event_invoke_config",
-          "sites": 66
         },
         {
           "type": "aws_lambda_function_recursion_config",
@@ -8227,10 +8260,6 @@
         {
           "type": "aws_lambda_provisioned_concurrency_config",
           "sites": 62
-        },
-        {
-          "type": "aws_vpn_gateway_route_propagation",
-          "sites": 48
         },
         {
           "type": "google_service_account",
@@ -8297,20 +8326,12 @@
           "sites": 16
         },
         {
-          "type": "aws_vpc_ipv4_cidr_block_association",
-          "sites": 16
-        },
-        {
           "type": "aws_vpn_gateway_attachment",
           "sites": 16
         },
         {
           "type": "google_service_account_iam_policy",
           "sites": 16
-        },
-        {
-          "type": "aws_iam_access_key",
-          "sites": 15
         },
         {
           "type": "restapi_object",
@@ -8473,23 +8494,11 @@
           "sites": 4
         },
         {
-          "type": "aws_elasticsearch_vpc_endpoint",
-          "sites": 4
-        },
-        {
           "type": "aws_opensearch_authorize_vpc_endpoint_access",
           "sites": 4
         },
         {
           "type": "aws_opensearch_domain_policy",
-          "sites": 4
-        },
-        {
-          "type": "aws_opensearch_outbound_connection",
-          "sites": 4
-        },
-        {
-          "type": "aws_opensearch_vpc_endpoint",
           "sites": 4
         },
         {
@@ -8581,10 +8590,6 @@
           "sites": 2
         },
         {
-          "type": "aws_apigatewayv2_route",
-          "sites": 2
-        },
-        {
           "type": "aws_autoscaling_attachment",
           "sites": 2
         },
@@ -8598,10 +8603,6 @@
         },
         {
           "type": "aws_iam_account_password_policy",
-          "sites": 2
-        },
-        {
-          "type": "aws_iam_group_membership",
           "sites": 2
         },
         {
@@ -8729,10 +8730,6 @@
           "sites": 1
         },
         {
-          "type": "aws_organizations_organization",
-          "sites": 1
-        },
-        {
           "type": "aws_s3_account_public_access_block",
           "sites": 1
         },
@@ -8750,10 +8747,6 @@
         },
         {
           "type": "aws_s3tables_table_policy",
-          "sites": 1
-        },
-        {
-          "type": "aws_signer_signing_job",
           "sites": 1
         },
         {
@@ -9158,6 +9151,69 @@
         ".corpus/alb/main.tf:460",
         ".corpus/alb/main.tf:477",
         ".corpus/alb/main.tf:565"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "lint",
+      "id": "markerless-type",
+      "title": "Resource type has nowhere to write an ownership marker",
+      "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+      "raised_by": "internal/live/lint",
+      "configs": 43,
+      "sites": 163,
+      "types": [
+        {
+          "type": "aws_lambda_function_event_invoke_config",
+          "sites": 66
+        },
+        {
+          "type": "aws_vpn_gateway_route_propagation",
+          "sites": 48
+        },
+        {
+          "type": "aws_vpc_ipv4_cidr_block_association",
+          "sites": 16
+        },
+        {
+          "type": "aws_iam_access_key",
+          "sites": 15
+        },
+        {
+          "type": "aws_elasticsearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_outbound_connection",
+          "sites": 4
+        },
+        {
+          "type": "aws_opensearch_vpc_endpoint",
+          "sites": 4
+        },
+        {
+          "type": "aws_apigatewayv2_route",
+          "sites": 2
+        },
+        {
+          "type": "aws_iam_group_membership",
+          "sites": 2
+        },
+        {
+          "type": "aws_organizations_organization",
+          "sites": 1
+        },
+        {
+          "type": "aws_signer_signing_job",
+          "sites": 1
+        }
+      ],
+      "examples": [
+        ".corpus/cyhy-amis/terraform/databricks_user_read.tf:15",
+        ".corpus/cyhy-amis/terraform/moe_user_read.tf:15",
+        ".corpus/govuk-aws/terraform/projects/infra-csp-reporter/api_gateway.tf:43",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch-domain/elasticsearch.tf:121",
+        ".corpus/govuk-infrastructure/terraform/shared-modules/opensearch-blue-green-deployment/opensearch-domain/elasticsearch.tf:121"
       ],
       "registered": true
     },
@@ -10562,8 +10618,8 @@
     "loaded": 249,
     "instances": 3921,
     "sites": 8427,
-    "refusals_fired": 23,
-    "refusals_in_set": 125,
+    "refusals_fired": 24,
+    "refusals_in_set": 126,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
   },
@@ -10618,11 +10674,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 36
+        "configs": 35
       },
       {
         "class": "language-blocked",
-        "configs": 59
+        "configs": 60
       },
       {
         "class": "unreadable",
@@ -10633,10 +10689,6 @@
       {
         "type": "aws_secretsmanager_secret_version",
         "configs": 8
-      },
-      {
-        "type": "aws_iam_access_key",
-        "configs": 7
       },
       {
         "type": "google_service_account",
@@ -10699,10 +10751,6 @@
         "configs": 2
       },
       {
-        "type": "aws_apigatewayv2_route",
-        "configs": 2
-      },
-      {
         "type": "aws_default_route_table",
         "configs": 2
       },
@@ -10711,23 +10759,11 @@
         "configs": 2
       },
       {
-        "type": "aws_elasticsearch_vpc_endpoint",
-        "configs": 2
-      },
-      {
         "type": "aws_opensearch_authorize_vpc_endpoint_access",
         "configs": 2
       },
       {
         "type": "aws_opensearch_domain_policy",
-        "configs": 2
-      },
-      {
-        "type": "aws_opensearch_outbound_connection",
-        "configs": 2
-      },
-      {
-        "type": "aws_opensearch_vpc_endpoint",
         "configs": 2
       },
       {
@@ -10848,10 +10884,6 @@
       },
       {
         "type": "aws_organizations_delegated_administrator",
-        "configs": 1
-      },
-      {
-        "type": "aws_organizations_organization",
         "configs": 1
       },
       {
