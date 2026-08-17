@@ -2157,7 +2157,7 @@
     },
     {
       "type": "aws_bedrock_model_invocation_logging_configuration",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -2170,7 +2170,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_bedrock_provisioned_model_throughput",
@@ -3980,7 +3980,7 @@
     },
     {
       "type": "aws_cloudwatch_otel_enrichment",
-      "path": "list + content match",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -3993,7 +3993,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable and no native list resource, but Cloud Control lists AWS::CloudWatch::OTelEnrichment with no scoping input"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_cloudwatch_query_definition",
@@ -9052,13 +9052,13 @@
     },
     {
       "type": "aws_glue_user_defined_function",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource, and Cloud Control's list handler for AWS::Glue::UserDefinedFunction requires DatabaseName as scoping input, which no enumeration leg supplies today"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_glue_workflow",
@@ -16198,13 +16198,13 @@
     },
     {
       "type": "aws_s3control_storage_lens_configuration",
-      "path": "marker",
+      "path": "account-derived",
       "signals": {
         "taggable": true,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_s3files_access_point",
@@ -19425,13 +19425,13 @@
     },
     {
       "type": "aws_vpc_block_public_access_options",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_vpc_dhcp_options",

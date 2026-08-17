@@ -100,7 +100,18 @@ var surveyExpectations = []surveyExpectation{
 			// an earlier merge that regenerated the tables and not this
 			// artifact, the same at-pin staleness the #150 note below
 			// records. A regeneration was what surfaced them.
-			"marker": 787,
+			//
+			// 787 -> 786 on 2026-08-17, for the same reason a third time:
+			// aws_s3control_storage_lens_configuration gained an
+			// identity-table entry composing the run's account-id, so
+			// cloudValuesOf now answers for it and the account-derived
+			// branch wins over taggability. Four more rows moved into
+			// account-derived in the same regeneration -
+			// aws_bedrock_model_invocation_logging_configuration,
+			// aws_cloudwatch_otel_enrichment, aws_glue_user_defined_function
+			// and aws_vpc_block_public_access_options - none of them this
+			// commit's doing either.
+			"marker": 786,
 			// 702 -> 583. 118 rows moved to "list + content match"
 			// because the classifier's enumeration question now reads
 			// the mapped CFN type's Cloud Control list handler as well
@@ -112,10 +123,17 @@ var surveyExpectations = []surveyExpectation{
 			// rows whose CFN list handler needs scoping input stay here,
 			// with evidence that now names the input rather than
 			// claiming no list exists.
-			"moves to Ops":         583,
-			"client-named":         117,
-			"parent-derived":       47,
-			"list + content match": 143,
+			//
+			// 583 -> 580 on 2026-08-17: three of the five movers above
+			// (bedrock model invocation logging, glue user-defined function,
+			// vpc block-public-access options) were sitting here because no
+			// enumeration leg reached them, and an identity-table entry that
+			// composes a cloud value outranks the enumeration question.
+			"moves to Ops":   580,
+			"client-named":   117,
+			"parent-derived": 47,
+			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
+			"list + content match": 142,
 			// aws_ecs_capacity_provider moved marker -> account-derived
 			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
 			// ARN folds in the run's region and account-id, which
@@ -127,7 +145,8 @@ var surveyExpectations = []surveyExpectation{
 			// are hand-synced to the committed artifact rather than
 			// derived from a fresh run, so nothing caught it until a live
 			// regeneration was actually run and diffed against it.
-			"account-derived": 22,
+			// 22 -> 27 on 2026-08-17, the five movers named above.
+			"account-derived": 27,
 		},
 	},
 }
