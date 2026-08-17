@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 901 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 905 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 576, client-named 476, composite 152, assembled 30) | 1234 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 76 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-901<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+905<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -104,12 +104,14 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_chatbot_slack_channel_configuration`, `aws_cleanrooms_collaboration`,
   `aws_cleanrooms_configured_table`, `aws_cleanrooms_membership`,
   `aws_cloud9_environment_ec2`, `aws_cloudfront_anycast_ip_list`,
-  `aws_cloudfront_connection_function`, `aws_cloudfront_connection_group`,
-  `aws_cloudfront_distribution`, `aws_cloudfront_distribution_tenant`,
-  `aws_cloudfront_function`, `aws_cloudfront_key_value_store`,
-  `aws_cloudfront_monitoring_subscription`,
+  `aws_cloudfront_cache_policy`, `aws_cloudfront_connection_function`,
+  `aws_cloudfront_connection_group`, `aws_cloudfront_distribution`,
+  `aws_cloudfront_distribution_tenant`, `aws_cloudfront_function`,
+  `aws_cloudfront_key_value_store`, `aws_cloudfront_monitoring_subscription`,
   `aws_cloudfront_multitenant_distribution`,
-  `aws_cloudfront_realtime_log_config`, `aws_cloudfront_trust_store`,
+  `aws_cloudfront_origin_request_policy`,
+  `aws_cloudfront_realtime_log_config`,
+  `aws_cloudfront_response_headers_policy`, `aws_cloudfront_trust_store`,
   `aws_cloudfront_vpc_origin`, `aws_cloudtrail`,
   `aws_cloudtrail_event_data_store`, `aws_cloudwatch_alarm_mute_rule`,
   `aws_cloudwatch_composite_alarm`, `aws_cloudwatch_contributor_insight_rule`,
@@ -368,9 +370,10 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_resiliencehubv2_system`, `aws_resourceexplorer2_index`,
   `aws_resourceexplorer2_view`, `aws_resourcegroups_group`,
   `aws_rolesanywhere_profile`, `aws_rolesanywhere_trust_anchor`, `aws_route`,
-  `aws_route53_cidr_location`, `aws_route53_health_check`,
-  `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
-  `aws_route53_record`, `aws_route53_resolver_endpoint`,
+  `aws_route53_cidr_collection`, `aws_route53_cidr_location`,
+  `aws_route53_health_check`, `aws_route53_hosted_zone_dnssec`,
+  `aws_route53_key_signing_key`, `aws_route53_record`,
+  `aws_route53_resolver_endpoint`,
   `aws_route53_resolver_firewall_domain_list`,
   `aws_route53_resolver_firewall_rule`,
   `aws_route53_resolver_firewall_rule_group`,

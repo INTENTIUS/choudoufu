@@ -2203,6 +2203,8 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUnresolvedAccount:      "No AWS account ID from the provider",
 	ProblemListFailed:             "Failed to list a resource type",
 	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
+	ProblemAmbiguousUniqueName:    "Unique name matched more than one resource",
+	ProblemUnreadableUniqueName:   "Listed resource with no readable name",
 	ProblemUnresolvedTaggedARN:    "Tagged resource's ARN could not be joined to a resource type",
 	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
 	ProblemAmbiguousTagJoin:       "Listed resource matched more than one tagged resource",

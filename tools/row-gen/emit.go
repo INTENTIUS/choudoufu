@@ -218,8 +218,13 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
 	}
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar)
-	rows, types := emittedRows(ratified, recordBacked, grammar, survey, setOf(vetoed))
+	// Computed before the roster and handed to it: uniquename.go's rule
+	// decides which types leave the veto, and markerlessRoster must skip
+	// exactly those. See uniquename.go for the two independent texts the
+	// rescue requires.
+	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName)
+	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, setOf(vetoed))
 
 	// The convergence comparison runs over the rows about to be written, not
 	// over the ones last written: a row that is ratified but not yet in the
@@ -247,9 +252,16 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	// mergeIdentityAttrs' fields have. That exemption is what retires the ten
 	// rulings annotations.json used to carry for exactly these types, each of
 	// which named this derivation as its own exit.
+	// A unique-name row is exempt on the same footing as a RecordBacked one:
+	// it is not an unreproduced row a human corrected, it is a row derived
+	// whole from two provider-authored texts (uniquename.go). There is no
+	// ratified prose for an annotation to rule on.
 	var unruled []string
 	for _, t := range types {
 		if matched[t] || recordBacked[t] {
+			continue
+		}
+		if _, derived := uniqueName[t]; derived {
 			continue
 		}
 		if _, ok := annotations[t]; !ok {
@@ -387,8 +399,8 @@ func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logical
 // no generator writes. It used to be [identity.DefaultTable], this
 // generator's own previous output, which is the whole of issue #263. See
 // ratified.go.
-func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
-	rows := make(map[string]identity.TypeIdentity, len(ratified)+len(recordBacked))
+func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[string]bool, uniqueName map[string]identity.TypeIdentity, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
+	rows := make(map[string]identity.TypeIdentity, len(ratified)+len(recordBacked)+len(uniqueName))
 	for _, t := range sortedRatifiedKeys(ratified) {
 		if ratified[t].RecordBacked {
 			continue // re-derived below, never copied
@@ -400,6 +412,14 @@ func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[str
 	}
 	for t := range recordBacked {
 		rows[t] = identity.TypeIdentity{Type: t, RecordBacked: true}
+	}
+	// The unique-name rows are derived whole, like the RecordBacked ones and
+	// for the same reason: nothing about one is ratified. uniqueNameRows
+	// already refuses any type the ratified corpus carries, so this loop
+	// cannot overwrite a ratified row - and the assignment order here is not
+	// what guarantees that.
+	for t, row := range uniqueName {
+		rows[t] = row
 	}
 	types := make([]string, 0, len(rows))
 	for t := range rows {
@@ -782,7 +802,12 @@ func renderValue(v reflect.Value) string {
 		}
 		return fmt.Sprintf("[]%s{%s}", v.Type().Elem().Name(), strings.Join(elems, ", "))
 	case reflect.Struct:
-		return renderStruct(v)
+		// A struct-typed FIELD has to spell its type: Go elides the element
+		// type of a composite literal's elements, and the key type of a
+		// map's keys, but not the type of a struct field's own value, so
+		// `UniqueName: {…}` does not compile where `[]Component{{…}}` does.
+		// The slice branch above is the one that gets to elide.
+		return v.Type().Name() + renderStruct(v)
 	default:
 		panic(fmt.Sprintf("row-gen -emit: no rendering for %s (kind %s) - teach renderValue about it", v.Type(), v.Kind()))
 	}

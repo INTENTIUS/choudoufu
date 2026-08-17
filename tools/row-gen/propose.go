@@ -318,7 +318,7 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
 	}
-	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar))
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar, uniqueNameRows(ratified, survey, proposals, importGrammar)))
 
 	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 

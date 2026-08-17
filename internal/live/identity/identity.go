@@ -168,6 +168,15 @@ type Resolution struct {
 	// prefix argument names. Empty for causes that have no subject.
 	CauseArgs []string
 
+	// UniqueName is the account-unique name this instance's configuration
+	// states, and the only value discovery may match a listed object against
+	// without reading an ownership marker off it. Populated only alongside
+	// [DiscoveryUniqueName], and empty everywhere else - including on a
+	// resolution of a UniqueName-bearing type whose name argument this run
+	// could not evaluate, which is what keeps "no name" and "the empty name"
+	// from being spelled the same way.
+	UniqueName string
+
 	// Undeclared marks a resolution whose resource block is not in the
 	// configuration at all: a live resource this estate owns, found by the
 	// marker sweep, whose block was deleted. It is never produced by

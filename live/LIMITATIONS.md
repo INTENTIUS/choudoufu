@@ -1437,6 +1437,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
 | - | - | discovery | Listed resource matched more than one tagged resource | error | `internal/live/discovery` | "Listed resource matched more than one tagged resource" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
+| - | - | discovery | Listed resource with no readable name | error | `internal/live/discovery` | "Listed resource with no readable name" |
 | - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
 | - | - | discovery | Live resource displaced from the address it is marked for | warning | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
 | - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
@@ -1454,6 +1455,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Two live resources claiming one slot | error | `internal/live/discovery` | "Two live resources claiming one slot" |
 | - | - | discovery | Unbound instance with unreadable live markers of its type | warning | `internal/live/discovery` | "Unbound instance with unreadable live markers of its type" |
 | - | - | discovery | Unclassified discovery problem | error | `internal/live/discovery` | "Unclassified discovery problem" |
+| - | - | discovery | Unique name matched more than one resource | error | `internal/live/discovery` | "Unique name matched more than one resource" |
 | - | - | discovery | Unlistable marker-discovered type | error | `internal/live/discovery` | "Unlistable marker-discovered type" |
 | - | - | discovery | Unscoped account reconciliation refused | error | `internal/live/discovery` | "policy-scope" |
 | 0 | 0 | identity | Ambiguous attribute key | error | `hcl` | "Ambiguous attribute key" |
@@ -1585,7 +1587,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**185 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**187 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1825,6 +1827,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Listed resource with no readable name
+
+**What.** A live resource of a type this fork recognises by its account-unique name was listed with no readable name at the property the CloudFormation schema says carries it, so it cannot be compared against the configuration - and the type has no tags argument to fall back on.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Listed resource with no tags
 
 **What.** A live resource was listed with no tags at all where markers were expected, so ownership cannot be read from it.
@@ -1956,6 +1966,14 @@ reserved for the limits wing's fixture directories, and
 #### Unclassified discovery problem
 
 **What.** Discovery reported a problem whose kind this package has no summary for. A gap in this package rather than anything the configuration did; the kind is named in the detail.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unique name matched more than one resource
+
+**What.** A resource type recognised by a name AWS documents as unique per account and region turned out not to match one thing: either several live resources carry the declared name, or several declared instances state it. Binding on either would be a guess, so nothing was bound.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3014,9 +3032,11 @@ undeclared instance is created through whichever configuration found it.
 `aws_backup_restore_testing_selection`,
 `aws_bedrock_model_invocation_logging_configuration`,
 `aws_bedrockagentcore_resource_policy`,
-`aws_bedrockagentcore_workload_identity`,
+`aws_bedrockagentcore_workload_identity`, `aws_cloudfront_cache_policy`,
 `aws_cloudfront_monitoring_subscription`,
-`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
+`aws_cloudfront_origin_request_policy`,
+`aws_cloudfront_realtime_log_config`,
+`aws_cloudfront_response_headers_policy`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_api_destination`, `aws_cloudwatch_event_archive`,
 `aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_event_target`,
@@ -3093,10 +3113,11 @@ undeclared instance is created through whichever configuration found it.
 `aws_prometheus_query_logging_configuration`,
 `aws_prometheus_scraper_logging_configuration`,
 `aws_rds_cluster_role_association`, `aws_redshift_endpoint_access`,
-`aws_route`, `aws_route53_cidr_location`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_route53_record`,
-`aws_route53_resolver_firewall_rule`, `aws_route53_zone_association`,
-`aws_route_table_association`, `aws_s3_bucket_lifecycle_configuration`,
+`aws_route`, `aws_route53_cidr_collection`, `aws_route53_cidr_location`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_route53_record`, `aws_route53_resolver_firewall_rule`,
+`aws_route53_zone_association`, `aws_route_table_association`,
+`aws_s3_bucket_lifecycle_configuration`,
 `aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
 `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_replication_configuration`,
@@ -3329,8 +3350,10 @@ per-type reasoning as it stands.
 `aws_backup_restore_testing_selection`,
 `aws_bedrock_model_invocation_logging_configuration`,
 `aws_bedrockagentcore_resource_policy`,
-`aws_bedrockagentcore_workload_identity`,
-`aws_cloudfront_realtime_log_config`, `aws_cloudwatch_dashboard`,
+`aws_bedrockagentcore_workload_identity`, `aws_cloudfront_cache_policy`,
+`aws_cloudfront_origin_request_policy`,
+`aws_cloudfront_realtime_log_config`,
+`aws_cloudfront_response_headers_policy`, `aws_cloudwatch_dashboard`,
 `aws_cloudwatch_event_api_destination`, `aws_cloudwatch_event_archive`,
 `aws_cloudwatch_event_connection`, `aws_cloudwatch_event_endpoint`,
 `aws_cloudwatch_event_permission`, `aws_cloudwatch_log_account_policy`,
@@ -3365,9 +3388,9 @@ per-type reasoning as it stands.
 `aws_paymentcryptography_key_alias`,
 `aws_pinpointsmsvoicev2_resource_policy`,
 `aws_rds_cluster_role_association`, `aws_redshift_endpoint_access`,
-`aws_route53_cidr_location`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_s3control_multi_region_access_point`,
-`aws_scheduler_schedule`,
+`aws_route53_cidr_collection`, `aws_route53_cidr_location`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_s3control_multi_region_access_point`, `aws_scheduler_schedule`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,

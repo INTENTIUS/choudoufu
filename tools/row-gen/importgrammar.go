@@ -302,6 +302,15 @@ type argumentRefEntry struct {
 	Required bool   `json:"required"`
 	ForceNew bool   `json:"force_new"`
 
+	// DeclaredUnique mirrors tools/importdocs-gen's ArgumentRefEntry field
+	// of the same name: this bullet's own prose states that the value the
+	// CONFIGURATION supplies is unique within the account and region
+	// (internal/live/uniquename.Asserted over the bullet's text). It is the
+	// PROVIDER half of the two-source uniqueness evidence uniquename.go
+	// crosses; the registry half is live/registry.json's
+	// unique_name_property.
+	DeclaredUnique bool `json:"declared_unique"`
+
 	// ServerAssignedIfAbsent mirrors tools/importdocs-gen/parse.go's
 	// ArgumentRefEntry field of the same name: the bullet's own prose
 	// states the provider assigns this Optional argument a fresh value

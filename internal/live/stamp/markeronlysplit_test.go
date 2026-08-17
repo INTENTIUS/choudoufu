@@ -61,6 +61,18 @@ type markerOnlyBuckets struct {
 	conditional   []string
 	cloudArgument []string
 	cloudBare     []string
+
+	// nameBound is the fifth bucket, added by issue #272: ServerAssigned and
+	// untaggable exactly like unconditional, and admitted anyway, because
+	// the type's row carries an [identity.TypeIdentity.UniqueName] and a
+	// listing recognises the object by the name the configuration states.
+	//
+	// It is a separate bucket rather than an exclusion from unconditional
+	// because the two are the same predicate with one field between them,
+	// and a reader has to be able to see how many types are in the
+	// exception. An empty nameBound alongside a non-empty MarkerlessTypes
+	// means the rescue stopped firing; a growing one is it working.
+	nameBound []string
 }
 
 // markerOnlySplit derives the buckets. Nothing here names a resource type;
@@ -84,7 +96,11 @@ func markerOnlySplit(t *testing.T) markerOnlyBuckets {
 			t.Fatalf("%s is in AdmittedTypes but LookupType does not know it", name)
 		}
 		if entry.ServerAssigned {
-			b.unconditional = append(b.unconditional, name)
+			if entry.UniqueName.Set() {
+				b.nameBound = append(b.nameBound, name)
+			} else {
+				b.unconditional = append(b.unconditional, name)
+			}
 			continue
 		}
 		for _, comp := range entry.Components {
@@ -101,7 +117,7 @@ func markerOnlySplit(t *testing.T) markerOnlyBuckets {
 			}
 		}
 	}
-	for _, s := range [][]string{b.unconditional, b.conditional, b.cloudArgument, b.cloudBare} {
+	for _, s := range [][]string{b.unconditional, b.conditional, b.cloudArgument, b.cloudBare, b.nameBound} {
 		sort.Strings(s)
 	}
 	return b
@@ -269,9 +285,16 @@ func TestMarkerOnlyUnconditionalBucketIsEmptyByVeto(t *testing.T) {
 		if taggable {
 			continue
 		}
-		if entry, ok := identity.LookupType(name); ok && entry.ServerAssigned {
+		if entry, ok := identity.LookupType(name); ok && entry.ServerAssigned && !entry.UniqueName.Set() {
 			// Admitted and matching the predicate: caught above, and
 			// recorded here too so the two failures name the same set.
+			//
+			// A row carrying a UniqueName is issue #272's exception and is
+			// counted in the nameBound bucket instead. The exclusion reads
+			// the ROW's own field rather than a list of types, so a
+			// regenerated table where the two-source evidence stopped
+			// crossing puts its rows straight back here and fails, which is
+			// the direction that matters.
 			stillAdmitted = append(stillAdmitted, name)
 		}
 		if _, vetoed := identity.MarkerlessTypes[name]; vetoed {

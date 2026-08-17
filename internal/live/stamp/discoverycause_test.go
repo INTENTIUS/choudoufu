@@ -39,6 +39,18 @@ resource "aws_route_table_association" "app" {
 func stampWithCause(t *testing.T, disco identity.BlockDiscovery) (string, tfdiags.Severity) {
 	t.Helper()
 
+	diags := stampDiagsWithCause(t, disco)
+	if len(diags) != 1 {
+		t.Fatalf("expected exactly one diagnostic, got %d: %s", len(diags), diags.ErrWithWarnings())
+	}
+	return diags[0].Description().Detail, diags[0].Severity()
+}
+
+// stampDiagsWithCause is stampWithCause without the one-diagnostic
+// expectation, for the cause whose whole point is that it produces none.
+func stampDiagsWithCause(t *testing.T, disco identity.BlockDiscovery) tfdiags.Diagnostics {
+	t.Helper()
+
 	cfg := loadSource(t, untaggableSource)
 	_, diags := Stamp(t.Context(), Request{
 		Estate:  "stamp-unit",
@@ -48,10 +60,43 @@ func stampWithCause(t *testing.T, disco identity.BlockDiscovery) (string, tfdiag
 			"aws_route_table_association.app": disco,
 		},
 	})
-	if len(diags) != 1 {
-		t.Fatalf("expected exactly one diagnostic, got %d: %s", len(diags), diags.ErrWithWarnings())
+	return diags
+}
+
+// TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused is the one cause that
+// must NOT produce a diagnostic at all, and the reason the test below skips
+// it rather than expecting a sentence for it.
+//
+// Every other cause names a resource that can only ever be found by its
+// ownership marker, so applying it unmarked creates something no later run
+// can recognise, and stamping escalates. An instance carrying
+// [identity.DiscoveryUniqueName] is found by a name AWS refuses to issue
+// twice (internal/live/discovery/uniquename.go), marker or no marker.
+// Refusing it would refuse every apply of an untaggable type of that shape -
+// which is to say the whole population issue #272 admitted.
+//
+// The fixture is the same untaggable resource every other case in this file
+// uses, so the ONLY difference between this test and the ones below is the
+// cause. If mustStamp stopped reading the cause, this test goes red on its
+// own.
+func TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused(t *testing.T) {
+	diags := stampDiagsWithCause(t, identity.BlockDiscovery{
+		Cause: identity.DiscoveryUniqueName,
+		Args:  []string{"name"},
+	})
+	if len(diags) != 0 {
+		t.Errorf("a resource bound by its account-unique name raised %d diagnostic(s), want none: %s\n"+
+			"Applying it unmarked is not the unrecoverable mistake this refusal exists to catch - a later run finds it by its name.",
+			len(diags), diags.ErrWithWarnings())
 	}
-	return diags[0].Description().Detail, diags[0].Severity()
+
+	// The contrast, in the same fixture: the same block with the ordinary
+	// server-assigned cause IS refused. Without this line the assertion
+	// above would pass just as well against a Stamp that had stopped
+	// refusing anything.
+	if got := stampDiagsWithCause(t, identity.BlockDiscovery{Cause: identity.DiscoveryServerAssigned}); len(got) != 1 {
+		t.Errorf("the same fixture with a server-assigned cause raised %d diagnostic(s), want 1 - this test proves nothing if nothing is refused", len(got))
+	}
 }
 
 // TestUnmarkedDiscoveryDetail_everyCauseIsToldApart is the whole point of
@@ -82,6 +127,14 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 
 	details := make(map[identity.DiscoveryCause]string)
 	for _, cause := range identity.AllDiscoveryCauses() {
+		if cause.BindsByName() {
+			// This cause produces no diagnostic at all - see
+			// TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused, which is
+			// where its behaviour is pinned. Reached through the predicate
+			// rather than by naming the cause, so a second bindable cause
+			// lands in the same place.
+			continue
+		}
 		detail, severity := stampWithCause(t, identity.BlockDiscovery{Cause: cause, Args: args[cause]})
 		details[cause] = detail
 

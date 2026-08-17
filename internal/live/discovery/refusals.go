@@ -90,6 +90,10 @@ var refusals = []Refusal{
 		What:    "A live resource was listed with no ownership marker of its own, and its identifier matched more than one resource in the estate's tag index whose marker names this very type. Attaching either one's tags would risk adopting the other's resource, so none was attached.",
 	},
 	{
+		Summary: "Listed resource with no readable name",
+		What:    "A live resource of a type this fork recognises by its account-unique name was listed with no readable name at the property the CloudFormation schema says carries it, so it cannot be compared against the configuration - and the type has no tags argument to fall back on.",
+	},
+	{
 		Summary: "Listed resource with no identity",
 		What:    "A live resource carries this estate's markers but the listing returned nothing that identifies it, so it cannot be bound to a configuration address.",
 	},
@@ -152,6 +156,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Unbound instance with unreadable live markers of its type",
 		What:    "A declared instance bound to nothing, so the plan proposes creating it, while the run listed live resources of its type whose ownership markers it could not read. One of them may be this instance's own resource, in which case applying creates a duplicate carrying the same marker instead of adopting it.",
+	},
+	{
+		Summary: "Unique name matched more than one resource",
+		What:    "A resource type recognised by a name AWS documents as unique per account and region turned out not to match one thing: either several live resources carry the declared name, or several declared instances state it. Binding on either would be a guess, so nothing was bound.",
 	},
 	{
 		Summary: "Unlistable marker-discovered type",

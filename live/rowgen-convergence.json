@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 901,
-    "compared": 887,
+    "admitted_total": 905,
+    "compared": 891,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 791,
-    "adopted_unchanged_pct": 89.18,
+    "adopted_unchanged": 795,
+    "adopted_unchanged_pct": 89.23,
     "genuine_mismatches": 96,
     "annotated": 96,
     "unannotated_mismatches": 0,
@@ -183,8 +183,8 @@
       "adopted_unchanged_pct": 100
     },
     "CloudFront": {
-      "compared": 12,
-      "adopted_unchanged": 12,
+      "compared": 15,
+      "adopted_unchanged": 15,
       "adopted_unchanged_pct": 100
     },
     "CloudTrail": {
@@ -738,9 +738,9 @@
       "adopted_unchanged_pct": 100
     },
     "Route53": {
-      "compared": 7,
-      "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 71.43
+      "compared": 8,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 75
     },
     "Route53Profiles": {
       "compared": 2,
@@ -2225,6 +2225,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_cloudfront_cache_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_cloudfront_connection_function",
       "service": "CloudFront",
       "proposed_bucket": "server-assigned",
@@ -2314,6 +2322,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_cloudfront_origin_request_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_cloudfront_realtime_log_config",
       "service": "CloudFront",
       "proposed_bucket": "assembled",
@@ -2322,6 +2338,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudfront_response_headers_policy",
+      "service": "CloudFront",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -8096,6 +8120,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The canonical arity trap: the documented example is ROUTETABLEID_DESTINATION where the destination segment is an either-or of three mutually-exclusive arguments (cidr, ipv6 cidr, prefix list), so the ratified row's second component is a preference list. The fail-closed derivation refuses exactly this shape by design (deriveCompositeWithSeparator's arity check exists because of this row), and no proposal bucket has a preference-list component."
+    },
+    {
+      "tf_type": "aws_route53_cidr_collection",
+      "service": "Route53",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_route53_cidr_location",

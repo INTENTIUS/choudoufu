@@ -75,7 +75,7 @@ var identityGoldenPin = map[string]int{
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
 	"CONCRETE":        716,
-	"NEEDS_DISCOVERY": 557,
+	"NEEDS_DISCOVERY": 562,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
@@ -108,7 +108,7 @@ var identityGoldenPin = map[string]int{
 // 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311"
+const identityGoldenPinBodyDigest = "5d22babcceb3a6e3a7905adfd191a3fcf5d8d0fdb7b98e5fd0e66c65beaee74e"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -122,8 +122,8 @@ const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
 const (
-	identityGoldenPinInstances = 1385
-	identityGoldenPinDirs      = 413
+	identityGoldenPinInstances = 1390
+	identityGoldenPinDirs      = 414
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

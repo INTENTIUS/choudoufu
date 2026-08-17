@@ -25,6 +25,16 @@ type registryEntry struct {
 		List              bool     `json:"list"`
 		ListRequiredInput []string `json:"list_required_input"`
 	} `json:"handlers"`
+
+	// UniqueNameProperty is the path, inside this type's CloudFormation
+	// schema, of a Name property whose own description asserts the name is
+	// unique within the account and region - tools/registry-gen computes it
+	// with internal/live/uniquename.Asserted, and it is empty for the great
+	// majority of types, whose schema makes no such claim. It is the
+	// REGISTRY half of the two-source uniqueness evidence uniquename.go
+	// crosses; the provider half is live/import-grammar.json's
+	// declared_unique, and neither alone admits anything.
+	UniqueNameProperty string `json:"unique_name_property"`
 }
 
 // readOnlySet and createOnlySet are the two property partitions classify.go

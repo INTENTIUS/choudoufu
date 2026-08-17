@@ -90,6 +90,32 @@ const (
 	// [Resolution.CauseArgs] holds two entries, the base argument name and
 	// the prefix argument name actually set.
 	DiscoveryNamePrefix DiscoveryCause = "NAME_PREFIX"
+
+	// DiscoveryUniqueName is [TypeIdentity.UniqueName] on a row whose
+	// configuration states the name: the identity is still minted by the
+	// provider, so the import ID cannot be computed here, but the object can
+	// be recognised in a listing without an ownership marker, because AWS
+	// itself refuses to issue that name twice.
+	//
+	// It is a different answer from [DiscoveryServerAssigned], and the
+	// difference is the whole reason this cause exists rather than a flag on
+	// that one. A server-assigned instance is found by its marker and by
+	// nothing else, so applying it unmarked creates an object no later run
+	// can ever recognise - which is why internal/live/stamp escalates a
+	// missing marker on one to an error. An instance in THIS state is found
+	// by its name whether or not a marker was written, so the same missing
+	// marker is not that mistake, and stamping must not refuse it. That is
+	// what makes an untaggable type of this shape admissible at all.
+	//
+	// [Resolution.CauseArgs] holds the argument names the name was looked
+	// for under, in the order [TypeIdentity.UniqueName] lists them, and
+	// [Resolution.UniqueName] holds the value found. An instance whose name
+	// argument could not be resolved to a string does NOT reach this cause -
+	// it stays [DiscoveryServerAssigned], because a name this run cannot
+	// compute is a name no listing can be matched against, and reporting it
+	// as bindable would be the wrong-marker outcome this whole mechanism is
+	// built to avoid.
+	DiscoveryUniqueName DiscoveryCause = "UNIQUE_NAME"
 )
 
 // AllDiscoveryCauses is every cause this package can produce, in a stable
@@ -103,7 +129,17 @@ func AllDiscoveryCauses() []DiscoveryCause {
 		DiscoveryCloudUnknown,
 		DiscoveryNameOmitted,
 		DiscoveryNamePrefix,
+		DiscoveryUniqueName,
 	}
+}
+
+// BindsByName reports whether an instance with this cause can be recognised
+// in a listing without an ownership marker. It is the question every reader
+// that has to decide "is a missing marker fatal here" asks, stated once, so
+// that adding a further bindable cause does not mean finding every reader
+// that spelled the comparison out.
+func (c DiscoveryCause) BindsByName() bool {
+	return c.Normalize() == DiscoveryUniqueName
 }
 
 // Normalize maps the zero value onto [DiscoveryCauseUnspecified] and leaves

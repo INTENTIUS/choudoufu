@@ -35,11 +35,24 @@ import (
 // which is the mechanism working as designed. Rows that are untaggable and
 // name themselves from configuration resolve without discovery ever
 // running, so nothing needs a marker. It is only the conjunction that has
-// nowhere to go, and no enumeration mechanism rescues it: every leg of
-// discovery binds a live object by reading the markers, and for this
-// population every candidate's marker is absent by definition, so
-// "unmarked" carries no signal and an estate's own object is
-// indistinguishable from one created outside the tool.
+// nowhere to go.
+//
+// This comment used to end that sentence with "and no enumeration mechanism
+// rescues it", on the argument that every leg of discovery binds a live
+// object by reading its markers, so for this population "unmarked" carries
+// no signal and an estate's own object is indistinguishable from one created
+// outside the tool. The premise was true of every leg that existed when it
+// was written and is no longer true of all of them (GitHub issue #272):
+// uniquename.go rescues a type whose client-supplied name AWS itself refuses
+// to issue twice, and internal/live/discovery binds such an object by
+// comparing that name against the listing. The conclusion was also stated
+// too widely for its premise even then - "no mechanism rescues it" is a
+// claim about mechanisms nobody had built, which is not a fact about the
+// types.
+//
+// The rescue is narrow and it fails closed; see uniquename.go for the two
+// independent texts it requires and the four further conditions. Everything
+// it does not reach stays vetoed here, for the reason above.
 //
 // The rule is derived, per this generator's standing bar - it names no
 // resource type. Taggability comes from live/survey-full.json's own
@@ -106,7 +119,18 @@ const markerlessReason = "the provider mints this type's identity and the type h
 // supplied but the doc's own prose names it as the resource's own ID - this
 // stays silent and the ordinary veto stands, because a wrong marker
 // outranks a missing one.
-func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted, sourcesAgreeComposed bool) bool {
+//
+// boundByName is the second exception (issue #272), and it is a different
+// claim from sourcesAgreeComposed: that one says the identity is built from
+// configuration after all, so the type was never in the veto's population;
+// this one accepts every word of the veto - the identity IS minted and there
+// IS nowhere to write a marker - and says the object is still recognisable,
+// because AWS refuses to issue its name twice. It is checked LAST, after
+// every other exception, because it is the only one that admits a type the
+// veto's own premises hold of, and it must therefore be the one whose
+// evidence is read most narrowly. uniquename.go computes it, and calls this
+// function with it false to establish the veto would otherwise fire.
+func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted, sourcesAgreeComposed, boundByName bool) bool {
 	if taggable {
 		return false
 	}
@@ -116,7 +140,10 @@ func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, clas
 	if sourcesAgreeComposed {
 		return false
 	}
-	return classifiedServerAssigned || docServerMinted
+	if !classifiedServerAssigned && !docServerMinted {
+		return false
+	}
+	return !boundByName
 }
 
 // registryComposedOfArguments is the registry half of sourcesAgreeComposed's
@@ -175,10 +202,39 @@ func sourcesAgree(typeName string, byType map[string]proposal, importGrammar map
 // ratified is the ratified corpus, passed in rather than read out of
 // [identity.DefaultTable] here (issue #263): a type's admission is decided by
 // tools/row-gen/ratified.json, not by whatever -emit last wrote.
-func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
+// boundByName is uniqueNameRows' key set: the types issue #272's rule
+// rescues, computed once by that file and handed in rather than recomputed,
+// so the roster and the rows can never disagree about which types they are
+// talking about.
+func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow, boundByName map[string]identity.TypeIdentity) []string {
 	byType := indexByType(proposals)
-	classified := make(map[string]bool, len(proposals))
-	documented := make(map[string]bool, len(proposals))
+	classified, documented := serverAssignmentVerdicts(proposals, importGrammar)
+	var out []string
+	for typeName, entry := range survey {
+		row, admitted := ratified[typeName]
+		agree := sourcesAgree(typeName, byType, importGrammar)
+		_, named := boundByName[typeName]
+		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName], agree, named) {
+			out = append(out, typeName)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// serverAssignmentVerdicts is the two evidence sources [markerless] consults
+// for a type with no ratified row, indexed by TF type: the classifier's own
+// server-assigned bucket, and the provider documentation's named server
+// segment for a type the classifier reached no verdict on.
+//
+// It is split out of [markerlessRoster] so uniquename.go can ask the veto's
+// question through [markerless] itself rather than through a paraphrase of
+// it. A second implementation of "would this type be vetoed" is the shape
+// that lets a rescue and a veto disagree, which would leave a type both
+// absent from the table and absent from the roster explaining why.
+func serverAssignmentVerdicts(proposals []proposal, importGrammar map[string]importGrammarRow) (classified, documented map[string]bool) {
+	classified = make(map[string]bool, len(proposals))
+	documented = make(map[string]bool, len(proposals))
 	for _, p := range proposals {
 		if p.Bucket == bucketServerAssigned {
 			classified[p.TFType] = true
@@ -200,16 +256,7 @@ func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[stri
 			}
 		}
 	}
-	var out []string
-	for typeName, entry := range survey {
-		row, admitted := ratified[typeName]
-		agree := sourcesAgree(typeName, byType, importGrammar)
-		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName], agree) {
-			out = append(out, typeName)
-		}
-	}
-	sort.Strings(out)
-	return out
+	return classified, documented
 }
 
 // markerlessTableRel is the generated roster's home. It sits beside the

@@ -832,8 +832,25 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 // by their ownership marker, which is what decides the severity of every
 // failure to write one. See [Request.NeedsDiscovery].
 func (s *stamper) mustStamp(rc *configs.Resource) bool {
-	_, ok := s.discovery(rc)
-	return ok
+	disco, ok := s.discovery(rc)
+	if !ok {
+		return false
+	}
+	// "Can only ever be found by their ownership marker" is what this
+	// function claims, and for one cause the claim is false: an instance
+	// whose name AWS itself refuses to issue twice is found by that name,
+	// marker or no marker (see [identity.DiscoveryUniqueName]). Escalating a
+	// missing marker to an error there would refuse an apply that works -
+	// and would refuse it for every instance of an untaggable type of that
+	// shape, which is to say for the whole population admitting those types
+	// was about.
+	//
+	// The test is on the block's FOLDED verdict, which is what makes it fail
+	// closed: [identity.Result.DiscoveryCausesByBlock] collapses a block
+	// whose instances disagree to DiscoveryCauseUnspecified, so a for_each
+	// where one key's name resolves and another's does not is marker-only
+	// again and lands back on the error.
+	return !disco.Cause.BindsByName()
 }
 
 // discovery is [stamper.mustStamp] with the reason attached: the block's
