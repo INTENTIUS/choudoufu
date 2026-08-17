@@ -148,7 +148,21 @@ var surveyExpectations = []surveyExpectation{
 			"client-named":   117,
 			"parent-derived": 48,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
-			"enumerable, unbindable": 142,
+			// 142 -> 138 on 2026-08-17: the unique-name discovery leg
+			// (internal/live/discovery/uniquename.go) landed, and the
+			// classifier learned to read internal/live/identity's
+			// UniqueName field instead of asserting nothing can bind a
+			// listing. Four rows moved to the new "unique-name" token -
+			// aws_cloudfront_cache_policy, aws_cloudfront_origin_request_policy,
+			// aws_cloudfront_response_headers_policy and
+			// aws_route53_cidr_collection, the same four the identity table
+			// already carried a UniqueName entry for. No other row moved:
+			// aws_cloudfront_origin_access_control has no UniqueName entry
+			// (no source documents its name as account-and-region unique)
+			// and stays here.
+			"enumerable, unbindable": 138,
+			// The four movers above, the whole membership of the new token.
+			"unique-name": 4,
 			// aws_ecs_capacity_provider moved marker -> account-derived
 			// here: #150 (commit 0ca3115721) gave it IdentityAttrs whose
 			// ARN folds in the run's region and account-id, which

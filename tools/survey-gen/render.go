@@ -181,7 +181,8 @@ func renderSummary(rows []HandRow) string {
 		counts[path]++
 	}
 	residue := len(rows) - counts[pathClientNamed] - counts[pathMarker] -
-		counts[pathParentDerived] - counts[pathEnumerableUnbindable] - counts[pathOps]
+		counts[pathParentDerived] - counts[pathEnumerableUnbindable] -
+		counts[pathUniqueName] - counts[pathOps]
 
 	var b strings.Builder
 	b.WriteString("| Path | Count |\n")
@@ -190,6 +191,7 @@ func renderSummary(rows []HandRow) string {
 	fmt.Fprintf(&b, "| Marker (tags) | %d |\n", counts[pathMarker])
 	fmt.Fprintf(&b, "| Parent-derived | %d |\n", counts[pathParentDerived])
 	fmt.Fprintf(&b, "| Enumerable, unbindable (no admission path) | %d |\n", counts[pathEnumerableUnbindable])
+	fmt.Fprintf(&b, "| Unique name (AWS-enforced, discovery-bound) | %d |\n", counts[pathUniqueName])
 	fmt.Fprintf(&b, "| Moves to Ops (excluded by the rule) | %d |\n", counts[pathOps])
 	fmt.Fprintf(&b, "| Residue needing a store | %d |\n", residue)
 	return b.String()

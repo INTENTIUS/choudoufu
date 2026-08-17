@@ -108,6 +108,7 @@ counting it that way the whole time.
 | Marker (tags) | 23 |
 | Parent-derived | 6 |
 | Enumerable, unbindable (no admission path) | 2 |
+| Unique name (AWS-enforced, discovery-bound) | 0 |
 | Moves to Ops (excluded by the rule) | 1 |
 | Residue needing a store | 0 |
 <!-- survey-gen:end summary -->

@@ -2963,13 +2963,13 @@
     },
     {
       "type": "aws_cloudfront_cache_policy",
-      "path": "enumerable, unbindable",
+      "path": "unique-name",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::CachePolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the provider's argument reference for name and the CloudFormation registry's CachePolicyConfig/Name schema independently document it as unique within the account and region, so discovery binds a live object by that name rather than by an ownership tag"
     },
     {
       "type": "aws_cloudfront_connection_function",
@@ -3131,13 +3131,13 @@
     },
     {
       "type": "aws_cloudfront_origin_request_policy",
-      "path": "enumerable, unbindable",
+      "path": "unique-name",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginRequestPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the provider's argument reference for name and the CloudFormation registry's OriginRequestPolicyConfig/Name schema independently document it as unique within the account and region, so discovery binds a live object by that name rather than by an ownership tag"
     },
     {
       "type": "aws_cloudfront_public_key",
@@ -3166,13 +3166,13 @@
     },
     {
       "type": "aws_cloudfront_response_headers_policy",
-      "path": "enumerable, unbindable",
+      "path": "unique-name",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::ResponseHeadersPolicy with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the provider's argument reference for name and the CloudFormation registry's ResponseHeadersPolicyConfig/Name schema independently document it as unique within the account and region, so discovery binds a live object by that name rather than by an ownership tag"
     },
     {
       "type": "aws_cloudfront_trust_store",
@@ -15065,13 +15065,13 @@
     },
     {
       "type": "aws_route53_cidr_collection",
-      "path": "enumerable, unbindable",
+      "path": "unique-name",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::Route53::CidrCollection with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the provider's argument reference for name and the CloudFormation registry's Name schema independently document it as unique within the account and region, so discovery binds a live object by that name rather than by an ownership tag"
     },
     {
       "type": "aws_route53_cidr_location",

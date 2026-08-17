@@ -23,8 +23,8 @@ import (
 // that nothing outside these tokens appears in the Path column, so the
 // generated artifact speaks the same tokens.
 //
-// Four of the six name a way identity is recovered. Two do not, and say so
-// in the token itself: pathOps names the disposition of a type the rule
+// Five of the seven name a way identity is recovered. Two do not, and say
+// so in the token itself: pathOps names the disposition of a type the rule
 // excludes, and pathEnumerableUnbindable names a dead end.
 //
 // pathEnumerableUnbindable replaced "list + content match" on 2026-08-17,
@@ -49,12 +49,30 @@ import (
 // nothing can bind what the listing returns. That is admission debt with an
 // address (issue #233 - the type needs somewhere to write a marker, or a
 // record_store), not a fourth path.
+//
+// pathUniqueName joined the vocabulary on 2026-08-17, for the same reason
+// pathEnumerableUnbindable was introduced: a type used to land there for a
+// mechanism this fork now has. internal/live/discovery/uniquename.go binds a
+// live object by comparing the configuration's declared name against the
+// listed object's own name, for the narrow population where AWS documents
+// that name as unique within the account and region - a claim
+// internal/live/uniquename.Asserted reads off two independent texts, crossed
+// by tools/row-gen/uniquename.go into internal/live/identity's table. It is
+// not pathClientNamed: that token asserts the configuration states the
+// import IDENTITY itself (identity.Derivable's strict, schema-provable
+// rule), and every row this token reaches is ServerAssigned - the provider
+// still mints the id or arn a later apply acts on. What the configuration
+// states is a SEARCH KEY discovery can bind by instead of a tag, which is
+// the same shape as pathMarker one level removed: marker binds by reading an
+// ownership tag off a listing, pathUniqueName binds by reading a name off
+// the same kind of listing. Both are ways in, so the token reads as one.
 const (
 	pathClientNamed          = "client-named"
 	pathMarker               = "marker"
 	pathParentDerived        = "parent-derived"
 	pathEnumerableUnbindable = "enumerable, unbindable"
 	pathAccountDerived       = "account-derived"
+	pathUniqueName           = "unique-name"
 	pathOps                  = "moves to Ops"
 )
 
@@ -295,8 +313,9 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 
 // classify derives one type's row: the raw signals, the identity
 // composition, and the admission path per SURVEY.md's Method section,
-// strongest path first (client-named, marker, parent-derived, list plus
-// content match; a type failing all four leaves the resource model).
+// strongest path first (client-named, marker, parent-derived, account-
+// derived, unique-name; a type failing every rule leaves the resource
+// model).
 //
 // The mechanical rules, in the order applied:
 //
@@ -305,16 +324,18 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 //  2. The fork's identity table builds the identity from configuration plus
 //     the run's account or region, which is account-derived. Also not a
 //     schema judgment - see cloudValuesOf.
-//  3. identity.Derivable proves the identity fully client-assigned. Within
+//  3. The fork's identity table names a unique-name binding for the type,
+//     which is unique-name. Also not a schema judgment - see uniqueNameOf.
+//  4. identity.Derivable proves the identity fully client-assigned. Within
 //     that set, a required identity attribute that names another managed
 //     type's identity (an *_id or *_arn whose base names a resource type)
 //     makes the path parent-derived; otherwise client-named.
-//  4. An identity schema the strict rule cannot prove client-assigned falls
+//  5. An identity schema the strict rule cannot prove client-assigned falls
 //     through to what discovery can do: marker when the type is taggable,
 //     which is the only one of the three that admits anything; enumerable,
 //     unbindable when it is untaggable but something can list it; moves to
 //     Ops when it is untaggable and nothing can list it either.
-//  5. No identity schema at all: the same discovery fallback, with the
+//  6. No identity schema at all: the same discovery fallback, with the
 //     evidence saying the identity side is unreadable from schemas.
 //
 // enumerate answers "can this type be listed, and how", over the same two
@@ -366,6 +387,26 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 		row.Evidence = fmt.Sprintf(
 			"the identity table builds this type's import identity from configuration plus the run's %s",
 			strings.Join(cloud, " and "))
+		return row
+	}
+
+	// The unique-name path, and the second place this classifier reads the
+	// fork's identity table rather than the provider's schemas. It has to:
+	// the fact this branch needs - that AWS itself refuses to issue this
+	// type's configured name twice within an account and region - is not in
+	// any provider schema. It comes from crossing two independent AWS texts
+	// (the provider's own argument reference and the CloudFormation
+	// registry's property description), which is tools/row-gen/uniquename.go's
+	// job and internal/live/uniquename.Asserted's predicate, not this tool's.
+	// That crossing is asserted once, in internal/live/identity's table, as
+	// [identity.TypeIdentity.UniqueName] - so this reads the assertion
+	// instead of restating the crossing, the same way the account-derived
+	// branch above reads a cloud-value assertion rather than re-deriving it.
+	if arg, prop, ok := uniqueNameOf(typeName); ok {
+		row.Path = pathUniqueName
+		row.Evidence = fmt.Sprintf(
+			"the provider's argument reference for %s and the CloudFormation registry's %s schema independently document it as unique within the account and region, so discovery binds a live object by that name rather than by an ownership tag",
+			arg, prop)
 		return row
 	}
 
@@ -481,6 +522,22 @@ func cloudValuesOf(typeName string) []string {
 		out = append(out, string(c.Cloud))
 	}
 	return out
+}
+
+// uniqueNameOf returns the configuration argument and the CloudFormation
+// property path a type's identity-table entry names for unique-name
+// discovery binding, and whether the table carries one at all. See the
+// unique-name branch in classify. The table's UniqueName field is the same
+// crossing tools/row-gen/uniquename.go computed to admit the row in the
+// first place (live/registry.json's unique_name_property against
+// live/import-grammar.json's declared_unique) - this reads that result
+// rather than recomputing the crossing.
+func uniqueNameOf(typeName string) (arg, property string, ok bool) {
+	entry, ok := identity.LookupType(typeName)
+	if !ok || !entry.UniqueName.Set() {
+		return "", "", false
+	}
+	return entry.UniqueName.Attrs[0], entry.UniqueName.Property, true
 }
 
 // serverAssigned returns the required-for-import identity attributes the
