@@ -93,7 +93,7 @@ func TestEveryLayerHasARegistry(t *testing.T) {
 		withRegistry[layer] = true
 	}
 
-	for _, layer := range append(CheckedLayers(), UncheckedLayers()...) {
+	for _, layer := range allClassifiedLayers() {
 		if !withRegistry[layer] {
 			t.Errorf("the %s layer has no registry in AllRefusals, so its refusals are in no table and in no document", layer)
 		}
@@ -101,7 +101,7 @@ func TestEveryLayerHasARegistry(t *testing.T) {
 
 	// And the other direction: a registry for a layer nothing lists.
 	classified := map[Layer]bool{}
-	for _, layer := range append(CheckedLayers(), UncheckedLayers()...) {
+	for _, layer := range allClassifiedLayers() {
 		classified[layer] = true
 	}
 	for _, layer := range LayersWithRegistries() {

@@ -35,10 +35,12 @@ type LiveCheckReport struct {
 	// Warnings are non-fatal diagnostics, as a title and a count each.
 	Warnings []LiveCheckCount
 
-	// Checked and Unchecked name the live-path stages behind this verdict
-	// and the ones nobody looked at. Both are always printed: see
+	// Checked, Partial and Unchecked name the live-path stages behind this
+	// verdict: the ones run in full, the ones run in part, and the ones
+	// nobody looked at. All three are always printed: see
 	// [LiveCheckHuman.Report].
 	Checked   []string
+	Partial   []string
 	Unchecked []string
 
 	// Schemas is whether provider schemas were available.
@@ -242,6 +244,9 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	}
 
 	fmt.Fprintf(&b, "\nChecked: %s.\n", strings.Join(rep.Checked, ", "))
+	if len(rep.Partial) > 0 {
+		fmt.Fprintf(&b, "Partly checked: %s.\n", strings.Join(rep.Partial, ", "))
+	}
 	fmt.Fprintf(&b, "Not checked: %s. Each of those needs a cloud, and this command makes no cloud calls,\n", strings.Join(rep.Unchecked, ", "))
 	b.WriteString("so a clean result above is not a promise that an apply succeeds.\n")
 

@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -157,6 +158,62 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 				f.add(site)
 			default:
 				report.addWarning(LayerStamp, desc.Summary, site)
+			}
+		}
+	}
+
+	// The offline half of the projection stage. internal/live/projection is
+	// mostly a live read, but two of its twenty-seven refusals are decided
+	// before any provider is asked for anything, from the resolutions above
+	// plus (for the second) the same schemas the stamp pass just used:
+	//
+	//   - "Cyclic parent-derived identities" is orderWork's classification
+	//     over the Addr/Formula.Parents graph among resolutions alone.
+	//   - "Empty import identity" is importTarget's own decision for a
+	//     concrete resolution, taken from the statically-resolved identity
+	//     values and the provider's identity schema.
+	//
+	// Both entry points were exported by #224 with the explicit note that a
+	// caller with no provider handle can still see them, and then nothing
+	// outside projection's own tests ever called either. Running them here
+	// is what makes the "projection is unchecked" caveat every corpus number
+	// carries true of what is actually unchecked rather than of the whole
+	// stage - see [PartiallyCheckedLayers].
+	//
+	// Findings, not warnings: both are hard errors in [projection.Build], so
+	// a configuration carrying one does not onboard. Expect the clean count
+	// to fall when this first runs; that is the instrument seeing a stage it
+	// was previously blind to, not a regression.
+	if result != nil {
+		// Set here rather than in the initializer above, deliberately. It is
+		// the record that this pass ran, so it must be written by the code
+		// that runs it: deleting the block below then fails
+		// TestReportNamesWhatItDidNotCheck instead of leaving a report that
+		// advertises a partly checked stage nothing looked at. It is also
+		// the truth for the early returns - a configuration that did not
+		// load, or one identity could not resolve at all, had no projection
+		// half run over it and should not claim one.
+		report.Partial = PartiallyCheckedLayers()
+
+		resolutions := report.Identities
+		projDiags := projection.CyclicIdentityDiagnostics(resolutions)
+		projDiags = projDiags.Append(projection.EmptyImportIdentityDiagnostics(cfg, resolutions, flatSchemas(actx.Schemas)))
+		for _, diag := range projDiags {
+			desc := diag.Description()
+			site := Site{Detail: desc.Detail}
+			if src := diag.Source(); src.Subject != nil {
+				site.File = src.Subject.Filename
+				site.Line = src.Subject.Start.Line
+				site.Column = src.Subject.Start.Column
+				site.StartByte = src.Subject.Start.Byte
+				site.EndByte = src.Subject.End.Byte
+			}
+			switch diag.Severity() {
+			case tfdiags.Error:
+				f := findings.get(LayerProjection, desc.Summary)
+				f.add(site)
+			default:
+				report.addWarning(LayerProjection, desc.Summary, site)
 			}
 		}
 	}
@@ -610,10 +667,14 @@ type Report struct {
 	// findings below can be trusted to cover.
 	Load LoadResult
 
-	// Checked and Unchecked are the live-path stages this analysis did and
-	// did not run. Both are reported, always: a verdict that named only
-	// what passed would read as a promise about stages nobody looked at.
+	// Checked, Partial and Unchecked are the live-path stages this analysis
+	// ran in full, ran part of, and did not run. All three are reported,
+	// always: a verdict that named only what passed would read as a promise
+	// about stages nobody looked at, and one that called a stage unchecked
+	// when it computes two of that stage's refusals understates itself in
+	// the other direction. See [PartiallyCheckedLayers].
 	Checked   []Layer
+	Partial   []PartialLayer
 	Unchecked []Layer
 }
 
