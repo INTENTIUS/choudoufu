@@ -95,6 +95,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"docsref":         true, // parses the doc references refusals carry
 		"flocitest":       true, // test harness
 		"foreign":         true, // classification of unclaimed resources, inside discovery's stage
+		"harness":         true, // the burndown and assumptions registries; measures the instrument, is not part of it
 		"lifecycle":       true,
 		"listclient":      true, // a client
 		"liveimport":      true, // the bulk migration command's engine

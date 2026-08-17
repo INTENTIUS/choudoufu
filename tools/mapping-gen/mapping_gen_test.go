@@ -893,43 +893,28 @@ func TestNoBareNoneOnceEnforced(t *testing.T) {
 	}
 }
 
-// unclassifiedRatchetMax is issue #53's own downward ratchet, the "pinned
+// unclassifiedRatchetMax was issue #53's own downward ratchet, the "pinned
 // unclassified-count test that must only ever decrease" the issue asks for:
-// the highest live/mapping.json's counts.unclassified may be. This pass
-// measured 754 via:"none" rows before classification and left 713 after
-// (34 tf-only, 7 deprecated-service, 0 cfn-unmodeled - see this package's
-// taxonomy.go). Every family sweep after this one only ever removes rows
-// from the unclassified bucket (by mapping, folding, or terminally
-// classifying them), so this ceiling only ever moves down; lower it to
-// match live/mapping.json's own committed count whenever a sweep lands.
-// Raising it back up is exactly the "quietly regrow a shrug" issue #53
-// exists to forbid, and TestUnclassifiedCountRatchet below fails the build
-// the moment a regeneration would do that.
-const unclassifiedRatchetMax = 13
-
-// TestUnclassifiedCountRatchet reads the committed live/mapping.json's own
-// unclassified count and fails if it is above unclassifiedRatchetMax -
-// never below: a genuine drop is welcome and simply means the constant
-// above is stale and should be lowered to match, not a test failure. Reads
-// the committed artifact directly rather than regenerating (unlike
-// TestMappingJSONMatchesCommittedInputs, which already guards the two
-// staying in sync) so this ratchet keeps working as its own, independent
-// check even if that drift test's own shape changes later.
-func TestUnclassifiedCountRatchet(t *testing.T) {
-	root, err := repoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(filepath.Join(root, mappingJSONRel))
-	if err != nil {
-		t.Fatalf("reading %s: %v", mappingJSONRel, err)
-	}
-	var m Mapping
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("decoding %s: %v", mappingJSONRel, err)
-	}
-	if m.Counts.Unclassified > unclassifiedRatchetMax {
-		t.Errorf("%s's unclassified count is %d, above the ratchet ceiling of %d (unclassifiedRatchetMax); a regeneration must never grow the unclassified bucket - if a new TF or CFN type genuinely has no mapping and no terminal classification, it still needs to land through the taxonomy (tf-only, cfn-unmodeled, deprecated-service) or an explicit, reviewed bump of this constant, not a silent increase",
-			mappingJSONRel, m.Counts.Unclassified, unclassifiedRatchetMax)
-	}
-}
+// the highest live/mapping.json's counts.unclassified may be. The first
+// pass measured 754 via:"none" rows before classification and left 713
+// after (34 tf-only, 7 deprecated-service, 0 cfn-unmodeled - see this
+// package's taxonomy.go). Every family sweep after that one only ever
+// removes rows from the unclassified bucket, by mapping, folding or
+// terminally classifying them.
+//
+// The bound moved into the burndown registry in internal/live/harness on
+// 2026-08-16, as the "mapping-unclassified" entry. Three things changed
+// with it, and none of them was expressible as a const:
+//
+//   - the count is recomputed from the artifact's own rows and cross-checked
+//     against counts.unclassified, so a summary that disagrees with its body
+//     fails instead of passing;
+//   - it gained a denominator, live/mapping.json's row count, tied to
+//     live/survey-full.json's own type count - the unclassified bucket is a
+//     subset of the rows, so dropping rows from the mapping lowers it
+//     without classifying anything, and nothing recorded that before;
+//   - what the instrument cannot see is written down beside it.
+//
+// TestNoBareNoneOnceEnforced above remains the hard gate on a regeneration
+// regrowing a shrug; the registry entry is the ratchet on the population
+// that predates it.

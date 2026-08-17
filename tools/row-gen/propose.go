@@ -64,8 +64,8 @@ import (
 // (a precedence-pass correction that only fires for one CFN service, say)
 // can still qualify as its own history accumulates, rather than being
 // permanently starved by a threshold sized for the big base rules. Lower it
-// only with the same reviewed-reason discipline
-// unannotatedMismatchRatchetMax's own doc comment asks for; raising it needs
+// only with the same reviewed-reason discipline internal/live/harness's
+// "rowgen-unannotated-mismatches" entry asks for; raising it needs
 // no ceremony, since a stricter bar only ever proposes less.
 const proposeMinSample = 5
 

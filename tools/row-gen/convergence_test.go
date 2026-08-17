@@ -12,11 +12,12 @@ import (
 	"testing"
 )
 
-// unannotatedMismatchRatchetMax is rowgen-convergence's own downward
+// unannotatedMismatchRatchetMax was rowgen-convergence's own downward
 // ratchet, the "delete-me ratchet idiom" tools/mapping-gen's own
-// unclassifiedRatchetMax already uses for live/mapping.json's unclassified
-// count (mapping_gen_test.go): the highest live/rowgen-convergence.json's
-// summary.unannotated_mismatches may be. This pass originally measured 170
+// unclassified-count ratchet already used for live/mapping.json: the
+// highest live/rowgen-convergence.json's summary.unannotated_mismatches may
+// be. Both are now entries in internal/live/harness; what follows is the
+// provenance for this one's bound, kept because it is the evidence. This pass originally measured 170
 // genuine mismatches over 571 admitted types, after merging
 // ratify-sagemaker/ratify-governance/ratify-media. It was then bumped to
 // 207 (125 scrape-gap) after a further eight concurrently-landed batches
@@ -86,7 +87,13 @@ import (
 // admission that has not been ruled, and both should fail the build. The
 // count that still travels downward is the ledger's own size,
 // annotationCountRatchetMax below.
-const unannotatedMismatchRatchetMax = 0
+// The bound moved into the burndown registry in internal/live/harness on
+// 2026-08-16, as the "rowgen-unannotated-mismatches" entry. The measurement
+// moved with it and got stricter: the entry recomputes both counts from the
+// artifact's own rows, cross-checks them against summary.genuine_mismatches
+// and summary.unannotated_mismatches, and reads tools/row-gen/annotations.json
+// to confirm each unmatched row is genuinely ruled. The const trusted the
+// summary field this file writes, which is a number checking itself.
 
 // annotationCountRatchetMax is the other half of issue #132's ratchet pair:
 // the number of rulings tools/row-gen/annotations.json may carry. The
@@ -181,39 +188,15 @@ const unannotatedMismatchRatchetMax = 0
 // (recordBackedRows, emit.go). A derived row is not an unreproduced one, so
 // the rulings are deleted rather than left to quietly exempt something else.
 // 105 - 10 = 95.
-const annotationCountRatchetMax = 95
-
-// TestAnnotationCountRatchet reads the committed ledger directly and fails
-// when it has grown past annotationCountRatchetMax - never when it shrinks:
-// a genuine drop means the constant is stale and should be lowered.
-func TestAnnotationCountRatchet(t *testing.T) {
-	root, err := repoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	annotations, err := loadAnnotations(filepath.Join(root, annotationsJSONRel))
-	if err != nil {
-		t.Fatalf("loadAnnotations: %v", err)
-	}
-	if len(annotations) > annotationCountRatchetMax {
-		t.Errorf("%s carries %d rulings, above the ratchet ceiling of %d (annotationCountRatchetMax); the ledger only shrinks as extractors improve - fix the extractor or do a reviewed bump of this constant, not a silent increase",
-			annotationsJSONRel, len(annotations), annotationCountRatchetMax)
-	}
-}
-
-// TestUnannotatedMismatchRatchet reads the committed live/rowgen-
-// convergence.json directly (not a fresh regeneration - see
-// TestConvergenceArtifactMatchesCommitted for that check) and fails if its
-// summary.unannotated_mismatches is above unannotatedMismatchRatchetMax -
-// never below: a genuine drop means the constant above is stale and should
-// be lowered to match.
-func TestUnannotatedMismatchRatchet(t *testing.T) {
-	art := loadCommittedConvergence(t)
-	if art.Summary.UnannotatedMismatches > unannotatedMismatchRatchetMax {
-		t.Errorf("%s's unannotated mismatch count is %d, above the ratchet ceiling of %d (unannotatedMismatchRatchetMax); a regeneration must never grow the unannotated bucket - annotate a genuine ruling in tools/row-gen/annotations.json, implement a mechanical rule, or do a reviewed bump of this constant, not a silent increase",
-			convergenceJSONRel, art.Summary.UnannotatedMismatches, unannotatedMismatchRatchetMax)
-	}
-}
+// The bound moved into the burndown registry in internal/live/harness on
+// 2026-08-16, as the "rowgen-annotation-rulings" entry, and two things
+// surfaced in the move. It gained a denominator - the convergence
+// artifact's admitted_total - because the cheapest way to delete a ruling
+// is to un-admit the type it names, which lowers the count while removing
+// support, and nothing recorded that. And the const was measured stale for
+// the second time in two days: the committed ledger carried 93 rulings
+// against a ceiling of 95, so it had stopped bounding anything. The entry's
+// bound is 93, taken from the measurement rather than from this comment.
 
 // TestConvergenceArtifactMatchesCommitted is the drift half the ratchet
 // test above deliberately does not do itself (mapping_gen_test.go's own

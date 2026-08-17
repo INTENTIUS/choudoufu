@@ -126,7 +126,7 @@ corpus init_bin="terraform":
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.
-tables: mapping row-emit convergence identity-sources survey-render limits
+tables: mapping row-emit convergence identity-sources survey-render limits harness
     @git status --porcelain || true
 
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
@@ -188,6 +188,16 @@ identity-sources:
 # Render live/LIMITATIONS.md's per-refusal spans from the refusal registries.
 limits:
     go run ./tools/limits-gen
+
+# live/HARNESS.md's two registries: what the fork is driving down, and what it
+# believes while it does. Runs every measurement and every assumption check, so
+# a successful run is also a run in which the whole harness held. Last in
+# `tables` because it reads what the other stages write. No provider, no
+# network, well under a second.
+#
+# Render the burndown and assumptions registries -> live/HARNESS.md.
+harness:
+    go run ./tools/harness-gen
 
 # Will this configuration work under live markers? (#114) DIR defaults to "."
 live-check dir=".":

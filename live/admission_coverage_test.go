@@ -42,10 +42,20 @@ import (
 // rejected.json's size is not the parity debt and never was - its own note
 // calls it a veto set - so a batch reporting "rejected.json 159 -> 104 -> 86"
 // says how many types a batch declined, not how many remain outside
-// admission. The number below is the one that measures that, and it does not
-// move when a batch shuffles a type between the table and the ledger.
+// admission. internal/live/harness's "unreached-types" entry is the number
+// that measures that, and it does not move when a batch shuffles a type
+// between the table and the ledger.
 
-// unreachedRatchetMax is the highest number of provider resource types that
+// The paragraphs below are the provenance for two bounds that no longer live
+// in this file. Both moved into the burndown registry in
+// internal/live/harness on 2026-08-16 - as entries "unreached-types" and
+// "markerless-veto-admitted-overlap" - so that a bound, the measurement
+// behind it and the roster it is counted against cannot drift apart the way
+// tools/row-gen's annotation ledger did twice in two days. The text is kept
+// here because it is the evidence, and the registry entry's History points
+// back at it.
+//
+// unreachedRatchetMax was the highest number of provider resource types that
 // may be in none of internal/live/identity.DefaultTable,
 // tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 //
@@ -91,13 +101,16 @@ import (
 // is 605. This test deliberately does not subtract it: the fallback needs a
 // live provider plugin, and a ratchet that cannot run without one is a
 // ratchet that does not run.
-const unreachedRatchetMax = 621
+//
+// It is now internal/live/harness's "unreached-types" entry.
 
-// universeFloor is the anti-tamper leg. The count this file ratchets is a
+// universeFloor was the anti-tamper leg. The count this file ratchets is a
 // difference, so shrinking live/survey-full.json's type roster lowers it just
 // as effectively as admitting a type does, and shrinking it is the cheaper
 // edit. hashicorp/aws has never lost a hundred resource types in a release.
-const universeFloor = 1600
+//
+// It is now that entry's Denominator, which every other migrated bound had
+// to answer for too: two of the four had no equivalent recorded anywhere.
 
 // rejectedLedgerRel is tools/row-gen/rejected.json, read here as JSON rather
 // than through row-gen's own loadRejectedTypes: this test is a guard on that
@@ -133,12 +146,11 @@ func providerTypeUniverse(t *testing.T) map[string]bool {
 		t.Fatalf("live/survey-full.json lists %d distinct types but its own counts.types says %d; one of the two is stale",
 			len(universe), survey.Counts.Types)
 	}
-	if len(universe) < universeFloor {
-		t.Fatalf("live/survey-full.json's type roster is %d types, below the floor of %d (universeFloor); "+
-			"the unreached ratchet is a difference against this roster, so a roster that shrank by accident "+
-			"would read as admission progress",
-			len(universe), universeFloor)
-	}
+	// The roster floor that used to sit here is the "unreached-types" entry's
+	// Denominator in internal/live/harness, checked before that entry's bound
+	// rather than beside it. The tests below use this roster to ask whether a
+	// named type exists, which a shrunken roster answers wrongly in the
+	// direction of a false failure, not a false pass.
 	return universe
 }
 
@@ -163,46 +175,6 @@ func rejectedLedger(t *testing.T) map[string]bool {
 		out[typeName] = true
 	}
 	return out
-}
-
-// TestUnreachedTypeRatchet counts the provider types that are in neither
-// roster, and fails when that count grows.
-func TestUnreachedTypeRatchet(t *testing.T) {
-	universe := providerTypeUniverse(t)
-	rejected := rejectedLedger(t)
-
-	admitted := make(map[string]bool, len(identity.AdmittedTypes()))
-	for _, typeName := range identity.AdmittedTypes() {
-		admitted[typeName] = true
-	}
-
-	var unreached []string
-	for typeName := range universe {
-		if !admitted[typeName] && !rejected[typeName] {
-			if _, vetoed := identity.MarkerlessTypes[typeName]; vetoed {
-				continue
-			}
-			unreached = append(unreached, typeName)
-		}
-	}
-	sort.Strings(unreached)
-
-	if len(unreached) > unreachedRatchetMax {
-		sample := unreached
-		if len(sample) > 20 {
-			sample = sample[:20]
-		}
-		t.Errorf("%d provider type(s) are in none of internal/live/identity.DefaultTable, %s and "+
-			"internal/live/identity.MarkerlessTypes, above the "+
-			"ratchet ceiling of %d (unreachedRatchetMax). Naming one of these in a configuration is a hard "+
-			"resolve error with no ledger entry saying why. Admit it, or record the ruling in the ledger - "+
-			"raising this constant is neither. First %d: %v",
-			len(unreached), rejectedLedgerRel, unreachedRatchetMax, len(sample), sample)
-	}
-	if len(unreached) < unreachedRatchetMax {
-		t.Logf("%d unreached types, below the ceiling of %d; lower unreachedRatchetMax to match",
-			len(unreached), unreachedRatchetMax)
-	}
 }
 
 // TestNoVetoNamesATypeTheProviderDoesNotServe is the other half of the same
@@ -270,7 +242,7 @@ func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 	}
 }
 
-// markerlessAdmittedOverlapMax is the number of rows internal/live/identity's
+// markerlessAdmittedOverlapMax was the number of rows internal/live/identity's
 // generated table still admits that the markerless rule vetoes, and it is a
 // ratchet down to zero.
 //
@@ -297,38 +269,11 @@ func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 // vetoed type reached the table by some route -emit does not filter, which a
 // hand-pasted row can do and PROPOSE cannot, and it needs to be a deliberate
 // edit rather than a silent one.
-const markerlessAdmittedOverlapMax = 0
-
-// TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow is the anti-tamper leg
-// for the third roster, and the debt marker for the rows the rule has not
-// been applied to yet.
 //
-// TestUnreachedTypeRatchet's count is a difference and this roster
-// subtracts from it, so a generator that vetoed types it also admits could
-// lower that count while changing nothing about what the fork supports.
-// Bounding the overlap bounds exactly that: the 44 types the rule
-// subtracts from the unreached count are, by this test, types nothing
-// admits.
-func TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow(t *testing.T) {
-	var both []string
-	for typeName := range identity.MarkerlessTypes {
-		if _, admitted := identity.DefaultTable[typeName]; admitted {
-			both = append(both, typeName)
-		}
-	}
-	sort.Strings(both)
-	if len(both) > markerlessAdmittedOverlapMax {
-		t.Errorf("%d type(s) are in both internal/live/identity.DefaultTable and MarkerlessTypes, above the "+
-			"ratchet ceiling of %d (markerlessAdmittedOverlapMax). The markerless rule refuses to admit "+
-			"these, so a row for one of them is the table contradicting a derived veto. Retract the row, or "+
-			"show why the rule does not reach it - raising this constant is neither. Overlap: %v",
-			len(both), markerlessAdmittedOverlapMax, both)
-	}
-	if len(both) < markerlessAdmittedOverlapMax {
-		t.Logf("%d admitted rows overlap the markerless veto, below the ceiling of %d; lower "+
-			"markerlessAdmittedOverlapMax to match", len(both), markerlessAdmittedOverlapMax)
-	}
-}
+// It is now internal/live/harness's "markerless-veto-admitted-overlap"
+// entry, whose Denominator is the size of MarkerlessTypes itself: the
+// overlap also falls to zero if the veto roster is emptied, and nothing
+// recorded that before.
 
 // TestMarkerlessVetoNamesOnlyTypesTheProviderServes is the same question
 // TestNoVetoNamesATypeTheProviderDoesNotServe asks of the hand ledger. A
