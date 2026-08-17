@@ -1397,9 +1397,9 @@ refused, and each says so in its own entry.
 | 99 | 4589 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 60 | 283 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
-| 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 46 | 690 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
-| 33 | 131 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 46 | 669 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 44 | 320 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 33 | 128 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 23 | 47 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
 | 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
@@ -1604,21 +1604,21 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 99 configurations in the measured corpus, at 4589 sites.
 
-#### Dynamic value in static context
-
-**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
-
-**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked 47 configurations in the measured corpus, at 338 sites.
-
 #### Unable to compute static value
 
 **What.** Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 46 configurations in the measured corpus, at 690 sites.
+**How often.** Blocked 46 configurations in the measured corpus, at 669 sites.
+
+#### Dynamic value in static context
+
+**What.** An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.
+
+**Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
+
+**How often.** Blocked 44 configurations in the measured corpus, at 320 sites.
 
 #### Unresolvable identity
 
@@ -1626,7 +1626,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 131 sites.
+**How often.** Blocked 33 configurations in the measured corpus, at 128 sites.
 
 #### Unmarked apply of a marker-only resource
 

@@ -8,8 +8,8 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=380 instances=1332
-# shape: class CONCRETE=669
+# shape: dirs=382 instances=1335
+# shape: class CONCRETE=672
 # shape: class NEEDS_DISCOVERY=551
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
@@ -1347,3 +1347,6 @@ live/e2e/record-store	null_resource.trigger	RECORD_BACKED
 live/e2e/record-store	random_pet.name	RECORD_BACKED		
 live/e2e/record-store	terraform_data.replacement	RECORD_BACKED		
 live/e2e/record-store	time_static.created	RECORD_BACKED		
+live/e2e/tagging-sweep/declared	aws_iam_role.demo	CONCRETE	tagging-sweep-e2e-demo	name=tagging-sweep-e2e-demo
+live/e2e/tagging-sweep/declared	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper
+live/e2e/tagging-sweep/removed	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper

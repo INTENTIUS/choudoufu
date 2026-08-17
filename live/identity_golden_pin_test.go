@@ -56,15 +56,15 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        669,
+	"CONCRETE":        672,
 	"NEEDS_DISCOVERY": 551,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
 
 const (
-	identityGoldenPinInstances = 1332
-	identityGoldenPinDirs      = 380
+	identityGoldenPinInstances = 1335
+	identityGoldenPinDirs      = 382
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
@@ -73,7 +73,7 @@ const (
 	// root, tighten the file filter, and the numbers fall to something you
 	// then re-pin, with each individual edit looking reasonable. This is the
 	// number that must never go down. It is deliberately well below the
-	// current 380 so that removing fixtures is not an event, and far enough
+	// current 382 so that removing fixtures is not an event, and far enough
 	// above zero that narrowing the walk to nothing is.
 	identityGoldenSweepFloor = 300
 )
