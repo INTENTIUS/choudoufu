@@ -70,6 +70,14 @@ type importGrammarRow struct {
 	SoleIDPart            *idPart  `json:"sole_id_part"`
 	ArgumentNamesAnyDepth []string `json:"argument_names_any_depth"`
 
+	// SoleIDCloudValue mirrors tools/importdocs-gen/cloudsingleton.go's Row
+	// field of the same name: the cloud property the documented import ID
+	// IS, in its entirety, spelled with identity.CloudValue's own string.
+	// Empty for all but 25 of the 1699 rows. tryCloudSingletonID is its one
+	// reader; see that function and the scrape's own doc comment for why
+	// the vocabulary is the region alone.
+	SoleIDCloudValue string `json:"sole_id_cloud_value"`
+
 	// EvidenceExcerpt is the Import section's own text, pinned verbatim at
 	// scrape time (tools/importdocs-gen/artifact.go's Evidence). Issue #176's
 	// R3 corroboration reads its "using ..." sentences the same way

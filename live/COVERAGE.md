@@ -26,10 +26,10 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 890 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 578, client-named 474, composite 152, assembled 10) | 1214 types | A ratification batch: paste, fixture, test. |
+| Admitted (the shipped table) | 892 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 575, client-named 474, composite 152, assembled 30) | 1231 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
-| Evidence-only | 335 types | An identity-argument name no current evidence source states. |
+| Evidence-only | 318 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
 | Of those, with no CloudFormation model | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-890<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+892<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
   `aws_alb`, `aws_alb_listener`, `aws_alb_listener_certificate`,
@@ -123,8 +123,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_cloudwatch_log_resource_policy`, `aws_cloudwatch_log_stream`,
   `aws_cloudwatch_log_subscription_filter`, `aws_cloudwatch_log_transformer`,
   `aws_cloudwatch_metric_alarm`, `aws_cloudwatch_metric_stream`,
-  `aws_codeartifact_domain`, `aws_codeartifact_domain_permissions_policy`,
-  `aws_codeartifact_repository`,
+  `aws_cloudwatch_otel_enrichment`, `aws_codeartifact_domain`,
+  `aws_codeartifact_domain_permissions_policy`, `aws_codeartifact_repository`,
   `aws_codeartifact_repository_permissions_policy`, `aws_codebuild_fleet`,
   `aws_codebuild_project`, `aws_codebuild_report_group`,
   `aws_codebuild_webhook`, `aws_codecommit_repository`,
@@ -460,7 +460,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_verifiedaccess_endpoint`, `aws_verifiedaccess_group`,
   `aws_verifiedaccess_instance`, `aws_verifiedaccess_trust_provider`,
   `aws_verifiedpermissions_policy_store`, `aws_volume_attachment`, `aws_vpc`,
-  `aws_vpc_block_public_access_exclusion`, `aws_vpc_dhcp_options`,
+  `aws_vpc_block_public_access_exclusion`,
+  `aws_vpc_block_public_access_options`, `aws_vpc_dhcp_options`,
   `aws_vpc_dhcp_options_association`, `aws_vpc_encryption_control`,
   `aws_vpc_endpoint`, `aws_vpc_endpoint_policy`,
   `aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,

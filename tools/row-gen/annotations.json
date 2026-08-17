@@ -25,11 +25,6 @@
       "evidence": "import-grammar row: example 'example-api-id'. fresh proposal: bucket server-assigned, derived IdentityAttrs ['id']. ratified row (table_generated.go): ServerAssigned; Reason: 'the AppSync service assigns this identity at create time; no argument reconstructs it.'.",
       "exit": "No extraction reaches a deliberate no-claim: retiring this ruling needs an IdentityAttrs derivation tools/row-gen/identityattr.go's ratchet would accept, and the schema-derived candidate rule was measured there and mis-fires (aws_route, aws_route_table_association, the codebuild client-named rows). Until a source exists that can confirm an exported attribute equals the import identity, the ratified empty stands."
     },
-    "aws_arczonalshift_autoshift_observer_notification_status": {
-      "reason": "An account/region singleton whose import ID is the region name itself; the ratified row is a single Cloud region component with a deliberately empty IdentityAttrs. The registry reads it server-assigned, but nothing is minted - the identity is the cloud context. A Cloud component is outside every proposal bucket's vocabulary.",
-      "evidence": "import-grammar row: example 'us-east-1'. fresh proposal: bucket server-assigned. ratified row (table_generated.go): ImportSyntax 'REGION'; IdentityAttrs [].",
-      "exit": "Issue #172's assembled-template shape landed, but it only decomposes a schemed ARN/URL example; this row is a single bare Cloud region component with no scheme, which the template parse never produces. Retire when the vocabulary covers an unschemed example that IS a cloud value (the region name itself as the whole ID)."
-    },
     "aws_backup_logically_air_gapped_vault": {
       "reason": "The fresh proposal guessed the right shape (client-named) but filed evidence-only for lack of confidence, and its guessed argument is the CFN property's name (backup_vault_name) where the provider argument is name. The ratified row also pairs IdentityAttrs [id, name], a verification only the ratifiers made.",
       "evidence": "import-grammar row: example 'lag-example-vault'. fresh proposal: bucket evidence-only, arg_name 'backup_vault_name'. ratified row (table_generated.go): ImportSyntax 'NAME'; IdentityAttrs ['id', 'name'].",

@@ -575,6 +575,21 @@ var (
 		// (false for both).
 		"aws_lb_listener_certificate",
 		"aws_alb_listener_certificate",
+		// The two cloud-singleton rows: a per-account, per-region setting
+		// whose whole documented import ID is the Region name, admitted as
+		// one Component{Cloud: "region"}. Untaggable in
+		// live/survey-full.json's signals.taggable (false for both) and in
+		// the v6.59.0 Argument Reference, which names no tags argument on
+		// either page.
+		//
+		// Untaggable AND admitted is the combination markerless.go vetoes -
+		// but only when the identity is server-minted, and neither of these
+		// is. Both resolve CONCRETE from configuration alone (the resource's
+		// own `region` argument, or the region its provider block declares),
+		// so discovery never runs and there is no marker to be missing. That
+		// is the same standing every other type on this list has.
+		"aws_cloudwatch_otel_enrichment",
+		"aws_vpc_block_public_access_options",
 	}
 )
 
@@ -1056,7 +1071,7 @@ func testSchemas() Schemas {
 		"aws_ses_receipt_rule":                               untaggedSchema("id"),
 		"aws_ses_receipt_rule_set":                           untaggedSchema("id"),
 		"aws_ses_template":                                   untaggedSchema("id"),
-		"aws_vpc_block_public_access_options":                untaggedSchema("id"),
+		"aws_vpc_block_public_access_options":                untaggedSchema("id", "region", "internet_gateway_block_mode"),
 		"aws_comprehend_entity_recognizer":                   taggedSchema("id", "arn", "name"),
 		"aws_inspector_resource_group":                       taggedSchema("id", "arn"),
 		"aws_iot_ca_certificate":                             taggedSchema("id", "arn"),
