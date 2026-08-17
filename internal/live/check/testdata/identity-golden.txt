@@ -13,6 +13,7 @@
 # shape: class NEEDS_DISCOVERY=551
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
+# shape: body-sha256=b88e87b72f01bd9bee523fd6d7a3b94d5148f3140ad5191d5b14401c6ed5c49a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e

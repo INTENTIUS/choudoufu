@@ -7,6 +7,8 @@ package residue
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,29 +20,38 @@ import (
 // This file is the leg that makes internal/live/check's identity golden
 // non-silenceable.
 //
-// TestIdentityGolden pins 1320 rendered identities. It is the only instrument
-// in this repository that measures the value a marker will carry rather than
-// whether something refused - every other one counts refusals, and a marker
-// can be wrong without anything refusing. Six defects shipped green through
-// that gap.
+// TestIdentityGolden pins the rendered identity of every managed resource
+// instance the in-repo fixtures resolve. It is the only instrument in this
+// repository that measures the value a marker will carry rather than whether
+// something refused - every other one counts refusals, and a marker can be
+// wrong without anything refusing. Six defects shipped green through that gap.
 //
 // But the golden regenerates with -update, which is one word, and the diff it
-// produces is a changed testdata file among 1331 lines. Nobody reads that as
-// an alarm. So the rule "explain a moved line, do not silence it" lived only
-// in prose, in two files, and prose is what this project keeps discovering
-// was stale.
+// produces is a changed testdata file among thirteen hundred lines. Nobody
+// reads that as an alarm. So the rule "explain a moved line, do not silence
+// it" lived only in prose, in two files, and prose is what this project keeps
+// discovering was stale.
 //
-// The shape is therefore pinned again here, in Go, where moving it is a
+// The golden is therefore pinned again here, in Go, where moving it is a
 // one-line diff in a file named for the purpose. -update alone no longer
 // makes the tree green: it makes THIS test fail, and the only way past is to
-// edit a number next to a comment asking why.
+// edit a line next to a comment asking why.
 //
-// Why the shape and not the whole file: re-pinning 1331 lines here would just
-// be the golden twice. The shape is what a silenced regression moves. The
-// validation case is on record - reverting #251's conversion fabricated three
-// identities and lost two correct ones, which is CONCRETE 658 -> 659. An
-// exact pin catches that. A floor does not, and neither does any aggregate
-// this repository was recording at the time: the instance count went UP.
+// Two legs, and it took an audit to find out that one of them was not enough.
+//
+// The counts are the first. They catch a regression that adds or drops an
+// instance or moves one between classes: reverting #251's conversion
+// fabricated three identities and lost two correct ones, which is CONCRETE
+// 658 -> 659. An exact pin catches that; a floor does not, and neither does
+// any aggregate this repository was recording at the time, because the
+// instance count went UP.
+//
+// The digest is the second, and it exists because the counts alone were
+// defeated on 2026-08-16 by injecting a defect that rewrote 35 rendered
+// ImportIDs and running -update. Every count was byte-identical afterwards and
+// both tests went green over 35 changed markers - which is the very defect
+// shape the golden's own doc says it catches eight times out of eleven. A
+// count cannot see a value move.
 
 // identityGoldenPin is the shape of internal/live/check/testdata/identity-golden.txt.
 //
@@ -61,6 +72,33 @@ var identityGoldenPin = map[string]int{
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
+
+// identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
+// leg that covers the VALUES rather than the counts.
+//
+// The counts above cannot see an identity move. An audit proved it by
+// injecting a one-line defect into identity resolution that rewrote 35
+// rendered ImportIDs, running -update, and watching both this test and
+// TestIdentityGolden go green with a byte-identical "# shape:" count block.
+// That is exactly the defect shape the golden's own doc says it catches eight
+// times out of eleven - a MODIFIED line - and it was the one shape the pin
+// could not see, because a changed value moves no count.
+//
+// So this number changes on any change to any rendered identity, which is
+// deliberate and is the whole guarantee: -update alone leaves the tree red,
+// and the only way past is to edit this line next to a comment asking why.
+//
+// TO CHANGE IT, read the diff first. `git diff` on the golden separates
+// modified rows from added ones and they mean opposite things: an added row is
+// the campaign working, a modified row on a fixture nobody touched is a marker
+// this tool would write into a real cloud tag having silently changed.
+//
+// Recompute with:
+//
+//	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
+//
+// then copy the body-sha256 from the regenerated file's header.
+const identityGoldenPinBodyDigest = "b88e87b72f01bd9bee523fd6d7a3b94d5148f3140ad5191d5b14401c6ed5c49a"
 
 const (
 	identityGoldenPinInstances = 1335
@@ -90,7 +128,27 @@ const (
 func TestIdentityGoldenShapeIsPinned(t *testing.T) {
 	path := filepath.Join(repoRoot(t), "internal", "live", "check", "testdata", "identity-golden.txt")
 
-	header, bodyCounts, bodyInstances := readIdentityGolden(t, path)
+	header, bodyCounts, bodyInstances, bodyDigest, headerDigest := readIdentityGolden(t, path)
+
+	// The value leg, checked first because it is the one that covers what a
+	// marker will actually say. The counts below cover how many there are.
+	if headerDigest == "" {
+		t.Error("the golden's header carries no \"# shape: body-sha256=\" line.\n" +
+			"Without it the pin covers counts only, and a defect that rewrites a rendered identity without\n" +
+			"adding or removing one is invisible to every check in this repository. Regenerate with -update.")
+	} else if headerDigest != bodyDigest {
+		t.Errorf("the golden's header says body-sha256=%s, a rehash of its rows gives %s: the header was edited without regenerating.",
+			headerDigest, bodyDigest)
+	}
+	if bodyDigest != identityGoldenPinBodyDigest {
+		t.Errorf("the golden's rows hash to %s, pinned at %s.\n"+
+			"Some rendered identity changed. That is not settled by re-running -update: the counts can be identical\n"+
+			"while every marker in the file is different, which is how this leg came to exist.\n"+
+			"Read `git diff internal/live/check/testdata/identity-golden.txt`. A MODIFIED row on a fixture nobody\n"+
+			"touched is a marker this tool would write into a real cloud tag having silently moved; an ADDED row is\n"+
+			"the campaign working. Say which, then re-pin.",
+			bodyDigest, identityGoldenPinBodyDigest)
+	}
 
 	// The header is written by the same walk that writes the body, so these
 	// agreeing proves only that the file was not hand-edited afterwards -
@@ -169,8 +227,12 @@ func identityGoldenClassAdvice(class string, got, want int) string {
 
 // readIdentityGolden parses the "# shape:" header and independently recounts
 // the body, so the two can be compared against each other.
-func readIdentityGolden(t *testing.T, path string) (header map[string]int, bodyCounts map[string]int, bodyInstances int) {
+func readIdentityGolden(t *testing.T, path string) (header map[string]int, bodyCounts map[string]int, bodyInstances int, bodyDigest, headerDigest string) {
 	t.Helper()
+
+	// Rehashed here rather than read from the header, so a hand-edited header
+	// and a hand-edited body are two different failures.
+	digest := sha256.New()
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -190,6 +252,9 @@ func readIdentityGolden(t *testing.T, path string) (header map[string]int, bodyC
 			for _, kv := range parseShapeLine(line) {
 				header[kv.key] = kv.n
 			}
+			if d, ok := parseShapeDigest(line); ok {
+				headerDigest = d
+			}
 			continue
 		}
 		if line == "" {
@@ -201,6 +266,10 @@ func readIdentityGolden(t *testing.T, path string) (header map[string]int, bodyC
 		}
 		bodyCounts[fields[2]]++
 		bodyInstances++
+		// The same bytes the writer hashed: each row plus its newline, and
+		// nothing else.
+		digest.Write([]byte(line))
+		digest.Write([]byte("\n"))
 	}
 	if err := sc.Err(); err != nil {
 		t.Fatalf("scanning the identity golden: %s", err)
@@ -209,7 +278,23 @@ func readIdentityGolden(t *testing.T, path string) (header map[string]int, bodyC
 		t.Fatal("the identity golden carries no \"# shape:\" header.\n" +
 			"That block is what makes a silenced regression visible in the first fifteen lines of a diff; regenerate with -update.")
 	}
-	return header, bodyCounts, bodyInstances
+	return header, bodyCounts, bodyInstances, hex.EncodeToString(digest.Sum(nil)), headerDigest
+}
+
+// parseShapeDigest reads "# shape: body-sha256=<hex>". It is separate from
+// parseShapeLine because that one Atoi's every value and silently drops what
+// does not parse, which is how a hex digest would have gone unnoticed.
+func parseShapeDigest(line string) (string, bool) {
+	const marker = "# shape:"
+	if !strings.HasPrefix(line, marker) {
+		return "", false
+	}
+	for _, field := range strings.Fields(strings.TrimPrefix(line, marker)) {
+		if v, ok := strings.CutPrefix(field, "body-sha256="); ok {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 type shapeKV struct {
