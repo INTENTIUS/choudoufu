@@ -562,13 +562,36 @@ would otherwise rediscover.
   un-vacated. Both are classified `DERIVE` in `blockerAction` with the
   reasoning; neither is any estate's sole blocker, so neither reorders the
   queue. Neither is fixed.
-- **The first two estates off the queue were both verdicts, not merges.**
-  `govuk-aws/.../infra-vpc` is parity: its refusal is an unset required
-  variable, stock refuses the same shape, and the manifest's own #183 ruling
-  says govuk-aws estates stay language-blocked honestly. Seven estates sit in
-  that bucket and all seven are govuk-aws. `simpleinfra/team-members-access`
-  is the worked example behind "Two questions, not one" above, and it is
-  driveable once item 1 there lands.
+- **Ratification has a safe home now.** `-emit` reads
+  `tools/row-gen/ratified.json` rather than the table it writes, so adding a
+  row is an edit to a hand-owned input followed by a regeneration. Verified by
+  mutation: delete rows from `table_generated.go`, re-emit, and they come back
+  - where before they stayed deleted while the run exited 0 and "converged".
+  `aws_accessanalyzer_analyzer` went through that path and cleared an estate.
+  Two things a ratifier still has to do that nothing tells them up front: pin
+  the type's taggability in the right `internal/live/stamp` cohort, and expect
+  the lint fixtures that used the type *because* it was unadmitted to need a
+  new one.
+- **`row-gen`'s report still names paste targets that do not exist**
+  (`table_cohort_<cohort>.go`, `admission_cohort_<cohort>.go`). They went when
+  `-emit` took ownership. The target is `ratified.json`; the report has not
+  been told.
+- **Most of the queue's head is not language-wall work, and that is now
+  measured rather than suspected.** Of the 28 blocked estates carrying any
+  unset-variable site, 13 go to zero blockers when values are supplied and 15
+  keep real ones - all 13 govuk-aws. Of the estates one blocker from clean, a
+  large share are non-AWS types, which #5 rules out of scope. `estate-plan`
+  annotates both and sorts them behind driveable work; it does not reclassify
+  or drop them, because #183 rules they stay blocked honestly.
+- **Three shapes remain, each with its next step named.** The ACM
+  DNS-validation `for_each` blocks four estates at one shared module line and
+  is a confirmed parity defect - stock plans it; the machinery to resolve the
+  adoption case is `projection.ReadInstances`, which is landed and has no
+  non-test caller. `markerless-type` blocks five, and those types really are
+  server-minted and untaggable, so they need the edge-identity idea in "Two
+  questions, not one", not a veto correction.
+  `simpleinfra/team-members-access` needs a variadic-tail component before
+  its row can be written at all.
 - **The typed-variable half of Shape B** was in progress and stopped. Its
   fixture `shapeb-absent-typed` pins today's behaviour, so the debt cannot go
   quiet; #260's closing comment has the design.
