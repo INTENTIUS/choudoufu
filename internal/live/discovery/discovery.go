@@ -244,6 +244,13 @@ type Request struct {
 	// itself, since Discover reports every scan and does no throttling of
 	// its own.
 	Progress ProgressFunc
+
+	// markers is the estate-filtered Tagging API answer, fetched at most
+	// once per pass and shared between the config-driven scan's tag join
+	// (issue #266) and the estate-wide sweep, which used to make the call
+	// itself. It is unexported because [Discover] installs it from Tagging
+	// and Estate; a caller neither sets nor sees it.
+	markers *markerIndex
 }
 
 // ProgressFunc is a discovery progress callback. See Request.Progress.
@@ -298,6 +305,14 @@ func Discover(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 			"Discovery needs a configured provider handle to list live resources with, and none was given.",
 		))
 	}
+
+	// Issue #266. The one estate-filtered GetResources call the sweep used
+	// to make itself is installed here instead, lazily, so the
+	// config-driven scan can join its tags onto listed objects whose own
+	// list call dropped them. Nil Tagging leaves this nil, and a nil index
+	// answers "unavailable" to everything - the pre-#266 behavior, which is
+	// also what TOFU_LIVE_CLOUDCONTROL=off buys.
+	req.markers = newMarkerIndex(req)
 
 	decl, declDiags := declaredInstances(ctx, req)
 	diags = diags.Append(declDiags)
@@ -580,6 +595,19 @@ type declared struct {
 	// the plan should propose creating something.
 	unscanned map[string]bool
 
+	// unreadable counts, per type, the live resources the config-driven
+	// scan listed and could not read an ownership marker off - after the
+	// tag join (issue #266) had its chance at them.
+	//
+	// It is the evidence behind [unreadableMarkerProblem]: an instance that
+	// goes unbound while this is zero for its type has no live resource
+	// anywhere the run looked, so a create is the right plan. An instance
+	// that goes unbound while this is non-zero may be looking straight at
+	// its own resource without being able to tell. Sweep scans do not count
+	// here - a sweep lists types the configuration declares nothing of, so
+	// no instance of them could be waiting on one.
+	unreadable map[string]int
+
 	// all is the escaped address of every declared instance in the
 	// configuration, whatever its identity class - not only the ones waiting
 	// on discovery - indexed by resource type.
@@ -702,6 +730,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		countAliases: make(map[string]map[string]*countBlock),
 		order:        make(map[string][]string),
 		unscanned:    make(map[string]bool),
+		unreadable:   make(map[string]int),
 		all:          make(map[string]map[string]*declaredAddress, len(req.Resolutions)),
 	}
 
@@ -1273,6 +1302,40 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		importID, idAttr, hasID := importIdentity(typeName, r)
 
 		tags, taggable := markers.TagsOf(r.Resource)
+
+		// Issue #266: the list call may have dropped this object's tags -
+		// iam:ListRoles returns none at all - and an object whose marker
+		// cannot be read is one a needs-discovery instance can never bind
+		// to, so the plan proposes creating a resource that already exists.
+		// The estate's tag index has the tags; join them on by identifier.
+		// See bindtags.go for the three gates that keep this from adopting
+		// somebody else's object.
+		if tags[TagEstate] == "" {
+			joined, outcome := req.markers.join(ctx, typeName, importID)
+			switch outcome {
+			case joinBound:
+				tags, taggable = joined, true
+				scan.Joined++
+				log.Printf("[DEBUG] stateless/discovery: %s %q came back from the list call with no ownership marker; joined one from the estate's tag index", typeName, importID)
+			case joinAmbiguous:
+				diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemAmbiguousTagJoin,
+					TypeName: typeName,
+					LiveIDs:  liveIDs(importID),
+					Detail: fmt.Sprintf(
+						"The provider listed a %s (%s) carrying no ownership marker, and more than one resource in estate %q's tag index has that identifier and a tofu-address naming a %s: %s. Nothing in either answer says which is the listed object, so no marker was read off it. Retag or remove the duplicates.",
+						typeName, importID, req.Estate, typeName, strings.Join(req.markers.matchedARNs(typeName, importID), ", ")),
+				}))
+			}
+		}
+		if tags[TagEstate] == "" && !sweep {
+			// The object is one this run could not read a marker off: it
+			// carries none, or it carries one the run could not see. Those
+			// are the same output, which is why [unreadableMarkerProblem]
+			// keys on the count rather than on which types lose tags.
+			decl.unreadable[typeName]++
+		}
+
 		if !taggable {
 			if sweep {
 				// The runtime twin of the schema-level check above
@@ -1828,8 +1891,14 @@ func bind(req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 			switch len(entry.claimants) {
 			case 0:
 				// Nothing claims this address. Absence is the answer, and
-				// the plan proposing a create is the correct outcome.
+				// the plan proposing a create is the correct outcome -
+				// unless the run listed resources of this type it could not
+				// read a marker off, in which case absence is one of two
+				// answers and #266 says which one out loud.
 				res.Unbound = append(res.Unbound, entry.res.Addr)
+				if p, ok := unreadableMarkerProblem(req, decl, typeName, escaped, entry.res.Addr); ok {
+					diags = diags.Append(problemDiag(res, p))
+				}
 			case 1:
 				c := entry.claimants[0]
 				if c.noIdentity {
@@ -2136,4 +2205,6 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
 	ProblemUnresolvedTaggedARN:    "Tagged resource's ARN could not be joined to a resource type",
 	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
+	ProblemAmbiguousTagJoin:       "Listed resource matched more than one tagged resource",
+	ProblemUnreadableMarker:       "Unbound instance with unreadable live markers of its type",
 }

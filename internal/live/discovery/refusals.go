@@ -86,6 +86,10 @@ var refusals = []Refusal{
 		What:    "The estate name does not match the tofu-estate marker grammar (a lowercase letter, then letters, digits or hyphens, at most 128 characters).",
 	},
 	{
+		Summary: "Listed resource matched more than one tagged resource",
+		What:    "A live resource was listed with no ownership marker of its own, and its identifier matched more than one resource in the estate's tag index whose marker names this very type. Attaching either one's tags would risk adopting the other's resource, so none was attached.",
+	},
+	{
 		Summary: "Listed resource with no identity",
 		What:    "A live resource carries this estate's markers but the listing returned nothing that identifies it, so it cannot be bound to a configuration address.",
 	},
@@ -144,6 +148,10 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryUnclassifiedProblem,
 		What:    "Discovery reported a problem whose kind this package has no summary for. A gap in this package rather than anything the configuration did; the kind is named in the detail.",
+	},
+	{
+		Summary: "Unbound instance with unreadable live markers of its type",
+		What:    "A declared instance bound to nothing, so the plan proposes creating it, while the run listed live resources of its type whose ownership markers it could not read. One of them may be this instance's own resource, in which case applying creates a duplicate carrying the same marker instead of adopting it.",
 	},
 	{
 		Summary: "Unlistable marker-discovered type",
