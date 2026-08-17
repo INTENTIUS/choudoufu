@@ -385,34 +385,110 @@ func TestTypeLiteralSurfacesAreReal(t *testing.T) {
 // candidate name out of a service and a base, which is the derivation itself.
 // Concatenating two literals is a different act and there are none, so the
 // pin is zero.
+//
+// The first version of this check asked whether the LEFT operand started with
+// "aws_", and an audit defeated it in one byte: `"aws" + "_ecs_capacity_provider"`
+// is the same act with the split moved one character earlier, and neither
+// operand matches providerTypeLiteral either, so it was invisible to every leg
+// of this file. `fmt.Sprintf("aws_%s", "ecs_capacity_provider")` was invisible
+// for the same reason - the check looked at the spelling of the pieces rather
+// than at the value they make.
+//
+// So the check now FOLDS the expression and tests the result. Anything whose
+// value is knowable from literals alone - a concatenation chain of any depth,
+// or a Sprintf whose format and arguments are all literals - is compared
+// against providerTypeLiteral exactly as a whole literal would be. A variable
+// anywhere in the expression makes it unfoldable, which is still correct and
+// still the stated bound: those are the generic pass building a candidate name.
 func TestNoTypeNameIsAssembledFromLiterals(t *testing.T) {
 	var found []string
 
 	forEachHandWrittenGoFile(t, func(rel string, f *ast.File, fset *token.FileSet) {
 		ast.Inspect(f, func(n ast.Node) bool {
-			be, ok := n.(*ast.BinaryExpr)
-			if !ok || be.Op != token.ADD {
+			e, ok := n.(ast.Expr)
+			if !ok {
 				return true
 			}
-			left, lok := stringLit(be.X)
-			right, rok := stringLit(be.Y)
-			if !lok || !rok {
+			// A bare literal is the registry's business, not this test's.
+			if _, isLit := e.(*ast.BasicLit); isLit {
 				return true
 			}
-			if !strings.HasPrefix(left, "aws_") {
+			v, folded := foldStringExpr(e)
+			if !folded || !providerTypeLiteral.MatchString(v) {
 				return true
 			}
-			found = append(found, fmt.Sprintf("%s:%d: %q + %q", rel, fset.Position(be.Pos()).Line, left, right))
-			return true
+			found = append(found, fmt.Sprintf("%s:%d: assembles %q", rel, fset.Position(e.Pos()).Line, v))
+			// Do not descend: an inner sub-expression of the same fold would
+			// be reported twice, and the outermost one names the whole act.
+			return false
 		})
 	})
 
 	if len(found) != 0 {
 		sort.Strings(found)
-		t.Errorf("a provider type name is assembled from two string literals at:\n  %s\n"+
-			"Spelling `\"aws_ecs_\" + \"capacity_provider\"` hides the type from typeLiteralSurfaces while doing exactly what a "+
-			"whole literal would do. Write it as one literal and register it, or - better - derive it.",
+		t.Errorf("a provider type name is assembled from literals at:\n  %s\n"+
+			"Spelling `\"aws_ecs_\" + \"capacity_provider\"`, `\"aws\" + \"_ecs_capacity_provider\"` or "+
+			"`fmt.Sprintf(\"aws_%%s\", \"ecs_capacity_provider\")` hides the type from typeLiteralSurfaces while doing exactly "+
+			"what a whole literal would do. Write it as one literal and register it, or - better - derive it.",
 			strings.Join(found, "\n  "))
+	}
+}
+
+// foldStringExpr evaluates a string expression whose value is knowable from
+// literals alone, and reports whether it could.
+//
+// It handles the two shapes that have actually been used to hide a type name:
+// a `+` chain, and fmt.Sprintf with an all-literal format and argument list.
+// Anything else - a variable, a function call, a const identifier - is
+// unfoldable, which is the deliberate bound: a name built out of a variable is
+// the generic derivation this whole project is trying to write more of.
+func foldStringExpr(e ast.Expr) (string, bool) {
+	switch x := e.(type) {
+	case *ast.BasicLit:
+		return stringLit(x)
+	case *ast.ParenExpr:
+		return foldStringExpr(x.X)
+	case *ast.BinaryExpr:
+		if x.Op != token.ADD {
+			return "", false
+		}
+		l, lok := foldStringExpr(x.X)
+		r, rok := foldStringExpr(x.Y)
+		if !lok || !rok {
+			return "", false
+		}
+		return l + r, true
+	case *ast.CallExpr:
+		sel, ok := x.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Sprintf" {
+			return "", false
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok || pkg.Name != "fmt" {
+			return "", false
+		}
+		if len(x.Args) == 0 || x.Ellipsis.IsValid() {
+			return "", false
+		}
+		format, ok := foldStringExpr(x.Args[0])
+		if !ok {
+			return "", false
+		}
+		args := make([]any, 0, len(x.Args)-1)
+		for _, a := range x.Args[1:] {
+			v, ok := foldStringExpr(a)
+			if !ok {
+				return "", false
+			}
+			args = append(args, v)
+		}
+		out := fmt.Sprintf(format, args...)
+		// A wrong verb count renders %!s(MISSING) or %!(EXTRA ...), which
+		// cannot match providerTypeLiteral anyway; returning it is harmless
+		// and avoids pretending the fold failed.
+		return out, true
+	default:
+		return "", false
 	}
 }
 
