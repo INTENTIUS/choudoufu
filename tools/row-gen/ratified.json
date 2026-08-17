@@ -2627,6 +2627,27 @@
     ],
     "import_syntax": "USERPOOLID|IDENTIFIER"
   },
+  "aws_cognito_risk_configuration": {
+    "type": "aws_cognito_risk_configuration",
+    "components": [
+      {
+        "attrs": [
+          "user_pool_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "client_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "USERPOOLID:CLIENTID"
+  },
   "aws_cognito_user": {
     "type": "aws_cognito_user",
     "components": [
@@ -3370,6 +3391,27 @@
     "identity_attrs": [
       "graph_arn"
     ]
+  },
+  "aws_detective_member": {
+    "type": "aws_detective_member",
+    "components": [
+      {
+        "attrs": [
+          "graph_arn"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "account_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "GRAPHARN/ACCOUNTID"
   },
   "aws_devopsguru_resource_collection": {
     "type": "aws_devopsguru_resource_collection",
@@ -6415,6 +6457,27 @@
       "id",
       "function_name"
     ]
+  },
+  "aws_lambda_function_event_invoke_config": {
+    "type": "aws_lambda_function_event_invoke_config",
+    "components": [
+      {
+        "attrs": [
+          "function_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "qualifier"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FUNCTIONNAME:QUALIFIER"
   },
   "aws_lambda_layer_version_permission": {
     "type": "aws_lambda_layer_version_permission",

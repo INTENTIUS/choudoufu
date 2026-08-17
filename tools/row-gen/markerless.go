@@ -87,14 +87,82 @@ const markerlessReason = "the provider mints this type's identity and the type h
 // classifiedServerAssigned is the classifier's own verdict and
 // docServerMinted the provider documentation's, both consulted only when
 // no row exists. taggable is live/survey-full.json's signal.
-func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted bool) bool {
+//
+// sourcesAgreeComposed is the two-sources-agreeing exception (issue #274):
+// CloudFormation's registry model and the provider's own import
+// documentation, read independently of the classifier's bucket, both say
+// this type's identity is built from configuration rather than minted by
+// the provider. It is checked only for an unadmitted type and only after
+// classifiedServerAssigned/docServerMinted would otherwise fire, because
+// those two evidence sources can themselves be wrong in the direction that
+// matters here: a documentation heuristic can promote a composite
+// primaryIdentifier to server-assigned on the strength of one import
+// example that happens not to demonstrate every documented form, and a
+// segment the doc's structured scrape could not attribute to any argument
+// is not by itself proof the segment is server-minted. When the registry
+// and the docs independently AGREE the identity is argument-built, that
+// agreement outranks the single-source verdict that produced the veto in
+// the first place. When they disagree - the registry says the identifier is
+// supplied but the doc's own prose names it as the resource's own ID - this
+// stays silent and the ordinary veto stands, because a wrong marker
+// outranks a missing one.
+func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted, sourcesAgreeComposed bool) bool {
 	if taggable {
 		return false
 	}
 	if admitted {
 		return admittedRow.ServerAssigned
 	}
+	if sourcesAgreeComposed {
+		return false
+	}
 	return classifiedServerAssigned || docServerMinted
+}
+
+// registryComposedOfArguments is the registry half of sourcesAgreeComposed's
+// two-source check: CloudFormation's own primary identifier, read off this
+// proposal's PrimaryIdentifier/ReadOnly fields exactly as classifyMapped
+// populated them from live/registry.json, contains no read-only property.
+// That is CloudFormation's own model saying every part of the identity is a
+// property the caller supplies, not one the service hands back - the same
+// fact classify.go's own rule 1 (isSubset(PrimaryIdentifier,
+// ReadOnlyProperties)) tests for the opposite verdict. A type can reach
+// bucketServerAssigned or bucketEvidenceOnly without rule 1 ever firing -
+// over a documentation-driven precedence rule instead - and this is what
+// lets the veto ask the registry's own, unmediated question rather than
+// trusting whichever bucket the classifier landed the type in.
+func registryComposedOfArguments(p proposal) bool {
+	if len(p.PrimaryIdentifier) == 0 {
+		return false
+	}
+	readOnly := toSet(p.ReadOnly)
+	for _, name := range p.PrimaryIdentifier {
+		if readOnly[name] {
+			return false
+		}
+	}
+	return true
+}
+
+// sourcesAgree computes markerless's sourcesAgreeComposed argument for one
+// type: registryComposedOfArguments agrees with docMintedSegment's own
+// negative - the provider's Import section names no segment as the
+// resource's own server-provided attribute. A type outside the mapped set
+// (no proposal) or outside live/import-grammar.json (no grammar row) has
+// only one source, or none, and a lone source is not the agreement this
+// rule requires - see markerless's own doc comment for why either alone is
+// not enough.
+func sourcesAgree(typeName string, byType map[string]proposal, importGrammar map[string]importGrammarRow) bool {
+	p, hasProposal := byType[typeName]
+	if !hasProposal || !registryComposedOfArguments(p) {
+		return false
+	}
+	g, hasGrammar := importGrammar[typeName]
+	if !hasGrammar {
+		return false
+	}
+	_, minted := docMintedSegment(g)
+	return !minted
 }
 
 // markerlessRoster is every provider type the rule vetoes, sorted.
@@ -108,6 +176,7 @@ func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, clas
 // [identity.DefaultTable] here (issue #263): a type's admission is decided by
 // tools/row-gen/ratified.json, not by whatever -emit last wrote.
 func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
+	byType := indexByType(proposals)
 	classified := make(map[string]bool, len(proposals))
 	documented := make(map[string]bool, len(proposals))
 	for _, p := range proposals {
@@ -134,7 +203,8 @@ func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[stri
 	var out []string
 	for typeName, entry := range survey {
 		row, admitted := ratified[typeName]
-		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName]) {
+		agree := sourcesAgree(typeName, byType, importGrammar)
+		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName], agree) {
 			out = append(out, typeName)
 		}
 	}

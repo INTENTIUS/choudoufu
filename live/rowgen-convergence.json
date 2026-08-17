@@ -1,15 +1,15 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 898,
-    "compared": 884,
+    "admitted_total": 901,
+    "compared": 887,
     "not_in_mapped_set": 14,
     "adopted_unchanged": 791,
-    "adopted_unchanged_pct": 89.48,
-    "genuine_mismatches": 93,
-    "annotated": 93,
+    "adopted_unchanged_pct": 89.18,
+    "genuine_mismatches": 96,
+    "annotated": 96,
     "unannotated_mismatches": 0,
-    "scrape_gap_mismatches": 23
+    "scrape_gap_mismatches": 26
   },
   "by_service": {
     "(no CFN model)": {
@@ -243,9 +243,9 @@
       "adopted_unchanged_pct": 100
     },
     "Cognito": {
-      "compared": 11,
+      "compared": 12,
       "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 54.55
+      "adopted_unchanged_pct": 50
     },
     "Comprehend": {
       "compared": 1,
@@ -298,9 +298,9 @@
       "adopted_unchanged_pct": 100
     },
     "Detective": {
-      "compared": 1,
+      "compared": 2,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 50
     },
     "DevOpsGuru": {
       "compared": 1,
@@ -528,9 +528,9 @@
       "adopted_unchanged_pct": 100
     },
     "Lambda": {
-      "compared": 6,
+      "compared": 7,
       "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 85.71
     },
     "Lex": {
       "compared": 2,
@@ -2984,6 +2984,24 @@
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
+      "tf_type": "aws_cognito_risk_configuration",
+      "service": "Cognito",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "The fresh proposal is server-assigned via row-gen's tryOpaqueOverride: the scrape's own import_id_example ('example') is the first of the page's two documented import blocks (import by user pool ID alone), and it does not reconstruct the registry's two-part primaryIdentifier ['UserPoolId','ClientId'] under any separator, so the precedence pass reads that as the doc showing a single opaque value and promotes the type to server-assigned. The same page's second import block shows the composite form explicitly ('the user pool ID and Client Id separated by a :'), and the registry's own primaryIdentifier carries no read-only property at all - CloudFormation's model says the identity is entirely supplied. Two independent sources (the registry model and the doc's own prose) agree the identity is argument-built; only the scrape's single-example capture disagrees, because it kept the shorter of the two documented forms (issue #274's markerless-veto two-source exception). The ratified row takes the composite form the second block documents: user_pool_id + ':' + client_id, with client_id REQUIRED rather than optional - this table has no representation for an optional trailing component, and tools/row-gen/rejected.json used to reject this type for exactly that gap ('two resources against the same pool, one scoped to a client and one not, would resolve to the identical identity under the flat proposal - a real collision risk'). Requiring client_id cannot collide: a configuration that omits it refuses resolution outright (Component has no Default and is not ServerAssignedIfAbsent, so resolve.go's identityArgs loop fails closed) rather than falling back to a shorter, colliding form. That rejection is now stale and was deleted from the ledger."
+    },
+    {
       "tf_type": "aws_cognito_user",
       "service": "Cognito",
       "proposed_bucket": "needs-hand-separator",
@@ -3625,6 +3643,24 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_detective_member",
+      "service": "Detective",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "tryOpaqueOverride promotes to server-assigned because the page's one documented import form is a single ARN/account-ID string that does not split against the registry's two-part primaryIdentifier ['GraphArn','MemberId'] under any known separator - the ARN itself contains colons, so no single-character split recovers it. The doc's own prose states the ID's two segments explicitly ('the ARN of the graph followed by the account ID of the member account'), both graph_arn and account_id are Required top-level arguments, and the registry's primaryIdentifier carries no read-only property. The registry and the doc's own words agree the identity is two supplied values joined by '/'; the scrape's structured IDParts/SoleIDPart attribution never fired because the ARN template's tail segments are Unattributed rather than named, not because the doc disagrees (issue #274's markerless-veto two-source exception). The ratified row takes graph_arn + '/' + account_id, matching the doc's own stated order."
     },
     {
       "tf_type": "aws_devopsguru_resource_collection",
@@ -6159,6 +6195,24 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_lambda_function_event_invoke_config",
+      "service": "Lambda",
+      "proposed_bucket": "server-assigned",
+      "proposed_rule": "import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead",
+      "mismatch_classes": [
+        "server-assigned",
+        "components",
+        "identity-attrs"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "tryOpaqueOverride promotes to server-assigned for the same shape as aws_cognito_risk_configuration and aws_detective_member: the scrape's import_id_example is the page's first documented form ('ARN without qualifier'), a single string that does not split against the registry's two-part primaryIdentifier ['FunctionName','Qualifier'] because the function ARN itself contains colons. The same page documents a second, qualifier-bearing form ('arn:...:function:example:production') and a third, bare-name form ('example:production'), both of which ARE the composite the registry names; the scrape simply did not keep them as the pinned example. function_name is the Required top-level argument and the ARN-or-name value the doc's first form shows is exactly what function_name itself accepts, so the two forms are the same argument at two levels of qualification, not two different identities. The registry's primaryIdentifier carries no read-only property, and the doc names no server-provided segment anywhere on the page (issue #274's markerless-veto two-source exception). The ratified row is function_name + ':' + qualifier, the doc's own second form."
     },
     {
       "tf_type": "aws_lambda_layer_version_permission",

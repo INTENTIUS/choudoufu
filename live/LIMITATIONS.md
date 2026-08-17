@@ -3003,15 +3003,17 @@ undeclared instance is created through whichever configuration found it.
 `aws_cognito_identity_pool_provider_principal_tag`,
 `aws_cognito_identity_pool_roles_attachment`,
 `aws_cognito_identity_provider`, `aws_cognito_resource_server`,
-`aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
+`aws_cognito_risk_configuration`, `aws_cognito_user`,
+`aws_cognito_user_group`, `aws_cognito_user_in_group`,
 `aws_cognito_user_pool_domain`, `aws_cognito_user_pool_ui_customization`,
 `aws_config_conformance_pack`, `aws_config_organization_conformance_pack`,
 `aws_config_remediation_configuration`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
 `aws_datazone_environment_blueprint_configuration`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
-`aws_devopsguru_resource_collection`, `aws_dynamodb_global_secondary_index`,
-`aws_dynamodb_global_table`, `aws_dynamodb_kinesis_streaming_destination`,
+`aws_detective_member`, `aws_devopsguru_resource_collection`,
+`aws_dynamodb_global_secondary_index`, `aws_dynamodb_global_table`,
+`aws_dynamodb_kinesis_streaming_destination`,
 `aws_dynamodb_resource_policy`, `aws_ebs_snapshot_block_public_access`,
 `aws_ec2_client_vpn_route`, `aws_ec2_managed_prefix_list_entry`,
 `aws_ec2_transit_gateway_metering_policy_entry`,
@@ -3037,6 +3039,7 @@ undeclared instance is created through whichever configuration found it.
 `aws_iam_user_policy_attachment`, `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_iot_thing`,
 `aws_kinesis_resource_policy`, `aws_kms_alias`,
+`aws_lambda_function_event_invoke_config`,
 `aws_lambda_layer_version_permission`, `aws_lambda_permission`,
 `aws_launch_configuration`, `aws_lb_listener_certificate`,
 `aws_lb_target_group_attachment`, `aws_lexv2models_bot_locale`,
@@ -3160,11 +3163,13 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cognito_identity_pool_roles_attachment` | `aws_cognito_identity_pool` | no (report-only) |
 | `aws_cognito_identity_provider` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_resource_server` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_cognito_risk_configuration` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_pool_ui_customization` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_datazone_environment_blueprint_configuration` | `aws_datazone_domain` | no (report-only) |
+| `aws_detective_member` | `aws_detective_graph` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
 | `aws_ec2_managed_prefix_list_entry` | `aws_ec2_managed_prefix_list` | no (report-only) |
 | `aws_ec2_transit_gateway_metering_policy_entry` | `aws_ec2_transit_gateway_metering_policy` | no (report-only) |
@@ -3188,6 +3193,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_user_group_membership` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
+| `aws_lambda_function_event_invoke_config` | `aws_lambda_function` | no (report-only) |
 | `aws_lb_listener_certificate` | `aws_lb_listener` | no (report-only) |
 | `aws_lb_target_group_attachment` | `aws_lb_target_group` | no (report-only) |
 | `aws_lexv2models_bot_locale` | `aws_lexv2models_bot` | no (report-only) |
@@ -3260,7 +3266,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 124 types swept via a parent read.
+**Total.** 127 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it

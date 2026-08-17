@@ -379,7 +379,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      93,
+		Bound:      96,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -433,6 +433,19 @@ func rowgenAnnotationRulings() Entry {
 				"missing evidence rather than the missing rule: importdocs-gen scrapes an " +
 				"argument's name and whether it is required, and nothing anywhere in the artifacts " +
 				"says the argument is a collection.",
+			"96 on 2026-08-17: the same reviewed upward bump, for three types issue #274's markerless-" +
+				"veto two-source exception admits. aws_cognito_risk_configuration, aws_detective_member " +
+				"and aws_lambda_function_event_invoke_config each have a composite CloudFormation " +
+				"primaryIdentifier with no read-only property AND an import-grammar row whose Import " +
+				"section names no server-provided segment - the two independent sources markerless.go " +
+				"now reads agree the identity is argument-built. All three are still classified server-" +
+				"assigned by tryOpaqueOverride: the scrape pinned only the FIRST of several documented " +
+				"import forms on each page, and that one form's example does not split against the " +
+				"registry's composite primaryIdentifier, which is exactly the shape tryOpaqueOverride " +
+				"reads as \"the doc shows one opaque value\". Each ruling's exit names the same missing " +
+				"capability: keeping every documented import form, not one pinned example, so a composite " +
+				"rule can test the registry's primaryIdentifier against whichever form demonstrates the " +
+				"split.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

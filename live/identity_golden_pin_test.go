@@ -67,7 +67,14 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        713,
+	// 716, up from 713 (issue #274): three ADDED rows, not a moved one -
+	// internal/live/identity/testdata/markerless-veto-two-source-agreement's
+	// new fixture, one instance each of aws_cognito_risk_configuration,
+	// aws_detective_member and aws_lambda_function_event_invoke_config,
+	// three types the markerless-veto two-source exception newly admits.
+	// Every other CONCRETE row in the golden is byte-identical; see the
+	// digest below.
+	"CONCRETE":        716,
 	"NEEDS_DISCOVERY": 557,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -98,11 +105,14 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "7a55ec8c052c81df44d9587d2d06fc18acd58c199f6102ab8a2069cb81c08945"
+// 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
+// comment above) - a fresh fixture directory, not an edit to an existing
+// one, so every pre-existing row's digest contribution is unchanged.
+const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311"
 
 const (
-	identityGoldenPinInstances = 1382
-	identityGoldenPinDirs      = 411
+	identityGoldenPinInstances = 1385
+	identityGoldenPinDirs      = 412
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

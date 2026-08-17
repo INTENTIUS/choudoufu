@@ -24,6 +24,11 @@ var untaggableLambda = []string{
 	// #175 reversal batch, 2026-08-15: taggability per the provider
 	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
 	"aws_lambda_permission",
+	// The markerless-veto two-source exception (issue #274):
+	// function_name/qualifier, qualifier required for identity. Untaggable
+	// per live/survey-full.json (v6.59.0 signals.taggable) and the
+	// provider's own Argument Reference, which names no tags block.
+	"aws_lambda_function_event_invoke_config",
 }
 
 func init() {
@@ -40,6 +45,8 @@ func init() {
 			"aws_lambda_layer_version":        untaggedSchema("id", "arn", "layer_arn", "layer_name", "version"),
 			// #175 reversal batch, 2026-08-15.
 			"aws_lambda_permission": untaggedSchema("id", "function_name", "statement_id"),
+			// The markerless-veto two-source exception above.
+			"aws_lambda_function_event_invoke_config": untaggedSchema("id", "function_name", "qualifier"),
 		})
 	})
 }
