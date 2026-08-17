@@ -602,6 +602,18 @@ would otherwise rediscover.
   that names the type into a per-plan discovery error. The open question is
   whether path 4 is aspirational or simply wrong; the answer moves 143 survey
   rows and a pinned user-facing string, so it is a maintainer decision.
+- **The ACM cluster needs ONE fix, not two, and that was measured rather than
+  reasoned.** A scout concluded that deriving the `for_each` key set would only
+  reveal the identity refusal underneath, because the record's `name` and
+  `type` come from `resource_record_name`/`_type` and are known only after
+  apply. That is wrong. Substituting a statically-knowable key set into
+  `.corpus/simpleinfra/terraform/shared/modules/acm-certificate/main.tf` while
+  leaving an identity argument genuinely computed
+  (`name = aws_acm_certificate.cert.arn`) takes the estate to ZERO blockers -
+  four informational data-read findings and nothing else. An apply-time
+  identity argument defers; it does not refuse. So the whole cluster turns on
+  the key set alone, and whoever picks it up should not budget for the second
+  half. The corpus was restored after the experiment.
 - **Three shapes remain, each with its next step named.** The ACM
   DNS-validation `for_each` blocks four estates at one shared module line and
   is a confirmed parity defect - stock plans it; the machinery to resolve the
