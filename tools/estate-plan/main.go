@@ -151,8 +151,8 @@ var blockerAction = map[string]struct {
 		"the resource type is not in the identity table. Either row-gen can reach it from the provider's own documentation and schema, or a ruling says it cannot - and non-AWS types are refused by ruling, not by gap."},
 	"Resource type outside the live-markers subset": {ActionAdmit,
 		"the identity layer's spelling of the same gap, raised after admission rather than at lint."},
-	"Not an identity attribute": {ActionAdmit,
-		"the type HAS a row and the argument the config identifies it by is not the one the row names. A row correction, not an analysis fix."},
+	"Not an identity attribute": {ActionDerive,
+		"an identity argument reads a computed attribute of a SIBLING - most often a client-named parent's arn - that is neither part of that sibling's identity nor a literal the sibling's own block wrote. The value is in the configuration's reach: the parent resolves concrete, and internal/live/projection materialises every concrete resolution before any derived one renders, so a promise to read the attribute later is renderable. It is an analysis fix in resolve.go's parentPart, not a row correction. DO NOT 'correct' the parent's row by adding the attribute to IdentityAttrs: for a non-server-assigned parent that reaches resolve.go's concrete shortcut and silently renders the parent's IMPORT ID in place of the attribute - aws_eks_access_entry would get cluster:release-assumed instead of cluster:arn:aws:iam::...:role/release-assumed, green."},
 	"Identity argument not set": {ActionAdmit,
 		"the row names an argument the configuration leaves unset. Frequently parity - stock also cannot plan without it - so check before assigning."},
 
