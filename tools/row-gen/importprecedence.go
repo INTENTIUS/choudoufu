@@ -172,6 +172,11 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		deriveDocImportSyntax(p, g)
 		tryCompoundArnImportSyntax(p, g)
 		applyIdentitySchemaAttrsCorrection(p, g)
+		// After the switch and after the attrs correction, so it reads
+		// whatever ArgName the rules above finally settled on rather than
+		// an intermediate one. See its own comment for why it is a
+		// post-pass and not four calls.
+		setClientNamedEvidence(p, g)
 		// Last, so that whatever the rules above settled on is what gets
 		// compared against the provider's own two answers. See
 		// crosscheck.go: this is the pass that would have caught
@@ -505,7 +510,7 @@ func setClientNamedComposite(p *proposal, args []string, sep string, g importGra
 	p.Bucket = bucketComposite
 	p.CompositeArgs = append([]string(nil), args...)
 	p.CompositeSep = sep
-	setCompositeEvidence(p, args, g)
+	setArgumentEvidence(p, args, g)
 	p.ArgSource = argSourceImportGrammar
 	p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs pin %s joined by %q: %s", quoteList(args), sep, g.ImportIDExample))
@@ -808,7 +813,7 @@ func tryRegistryComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
-		setCompositeEvidence(p, dc.ArgsInOrder, g)
+		setArgumentEvidence(p, dc.ArgsInOrder, g)
 		p.ArgSource = argSourceImportGrammar
 		p.Rule = "import-grammar precedence: registry composite primaryIdentifier, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly the registry's %d primary-identifier parts, matched by name: %s", g.ImportIDExample, sep, len(p.PrimaryIdentifier), quoteList(dc.ArgsInOrder)))
@@ -1358,7 +1363,7 @@ func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
-		setCompositeEvidence(p, dc.ArgsInOrder, g)
+		setArgumentEvidence(p, dc.ArgsInOrder, g)
 		p.ArgSource = argSourceArgumentReference
 		p.Rule = "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly %d Required Argument Reference names, matched by name: %s", g.ImportIDExample, sep, len(required), quoteList(dc.ArgsInOrder)))
@@ -1648,11 +1653,12 @@ func tryCompoundArnImportSyntax(p *proposal, g importGrammarRow) {
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q joins %d ARNs; ImportSyntax reflects that compound shape rather than the registry's single-ARN placeholder", g.ImportIDExample, len(matches)))
 }
 
-// compositeDefaultsFor is the slice of the grammar row's omitted_fallbacks
-// that names one of this composite's own arguments; nil when there are
-// none, so proposals without a documented fallback stay byte-identical to
-// what they were before the field existed.
-func compositeDefaultsFor(args []string, g importGrammarRow) map[string]string {
+// argDefaultsFor is the slice of the grammar row's omitted_fallbacks that
+// names one of the arguments this proposal's identity reads; nil when there
+// are none, so proposals without a documented fallback stay byte-identical
+// to what they were before the field existed. args is the composite's
+// argument list, or the one-element list a client-named row reads.
+func argDefaultsFor(args []string, g importGrammarRow) map[string]string {
 	var out map[string]string
 	for _, a := range args {
 		if v, ok := g.OmittedFallbacks[a]; ok {
@@ -1665,7 +1671,7 @@ func compositeDefaultsFor(args []string, g importGrammarRow) map[string]string {
 	return out
 }
 
-// compositeCloudFor is compositeDefaultsFor's sibling for the other kind of
+// argCloudFor is argDefaultsFor's sibling for the other kind of
 // documented omission. omitted_fallbacks says "omitting this argument means
 // this literal value"; cloud_default says "omitting it means a property of
 // the cloud the run is against" - the AWS account ID, the provider's Region
@@ -1682,7 +1688,7 @@ func compositeDefaultsFor(args []string, g importGrammarRow) map[string]string {
 // this fills the proposal from it so the classifier can reproduce a row of
 // that shape without a ruling. Restricted to args, so a `region` bullet on a
 // type whose import ID names no region argument contributes nothing.
-func compositeCloudFor(args []string, g importGrammarRow) map[string]string {
+func argCloudFor(args []string, g importGrammarRow) map[string]string {
 	byCloud := make(map[string]string, 2)
 	for _, a := range g.ArgumentReference {
 		if a.CloudDefault == "" {
@@ -1710,12 +1716,52 @@ func compositeCloudFor(args []string, g importGrammarRow) map[string]string {
 	return out
 }
 
-// setCompositeEvidence fills both per-argument evidence maps a composite
-// proposal carries. Every site that resolves a composite calls it, so the
-// three ladders (grammar arguments, registry primaryIdentifier, Argument
-// Reference Required names) cannot drift apart on which evidence a
-// component gets.
-func setCompositeEvidence(p *proposal, args []string, g importGrammarRow) {
-	p.CompositeDefaults = compositeDefaultsFor(args, g)
-	p.CompositeCloud = compositeCloudFor(args, g)
+// setArgumentEvidence fills both per-argument evidence maps a proposal
+// carries. Every site that resolves a composite calls it, so the three
+// ladders (grammar arguments, registry primaryIdentifier, Argument Reference
+// Required names) cannot drift apart on which evidence a component gets.
+func setArgumentEvidence(p *proposal, args []string, g importGrammarRow) {
+	p.ArgDefaults = argDefaultsFor(args, g)
+	p.ArgCloud = argCloudFor(args, g)
+}
+
+// setClientNamedEvidence is [setArgumentEvidence] for the one-argument case,
+// run as a post-pass over every proposal rather than at each site that sets
+// bucketClientNamed.
+//
+// The bucket is reached from four different places (classify.go's rule 2,
+// setClientNamedComposite, tryArgumentReferenceConfirmedGuess,
+// tryArgumentReferenceValueMatch), and a per-site call is the shape that
+// leaves one of them behind. The composite maps were filled at their sites
+// and the client-named ones were never filled at all, so eight proposals
+// rendered Component{Attrs: [...]} where the doc's own Argument Reference
+// says omitting that argument means the account the run is against or the
+// provider's Region:
+//
+//	aws_backup_region_settings, aws_cloudwatch_log_storage_tier_policy,
+//	aws_quicksight_account_subscription, aws_rds_certificate,
+//	aws_s3_account_public_access_block,
+//	aws_s3control_access_grants_instance,
+//	aws_s3control_access_grants_instance_resource_policy,
+//	aws_s3control_multi_region_access_point_policy
+//
+// Measured at 8a26d66e59 over the 1234 pastable proposals the full report
+// prints. Every one is a per-account or per-region singleton whose only
+// identity component is the argument in question, so a configuration that
+// omits it - which is the documented, ordinary case, and what
+// .corpus/s3-bucket/examples/account-public-access actually does - renders
+// an identity with nothing in it. That is not a missing marker but a wrong
+// one: an empty component names every account's (or every region's)
+// singleton at once, which is the exact defect
+// identity.TestCloudSingletonNeedsDiscoveryWithNoRegionAnywhere exists to
+// catch on the rows that already carry the Cloud half.
+//
+// It names no resource type: the evidence is the grammar row's own
+// per-argument cloud_default and omitted_fallbacks bullets, read through the
+// same two functions the composite path reads them through.
+func setClientNamedEvidence(p *proposal, g importGrammarRow) {
+	if p.Bucket != bucketClientNamed || p.ArgName == "" {
+		return
+	}
+	setArgumentEvidence(p, []string{p.ArgName}, g)
 }

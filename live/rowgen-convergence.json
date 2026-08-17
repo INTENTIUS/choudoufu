@@ -5138,7 +5138,7 @@
       ],
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The Cloud account-id slot is no longer what divides this row from its proposal: a composite proposal now reads the catalog_id bullet's own cloud_default and renders the segment as Component{Attrs: [catalog_id], Cloud: account-id} (compositeCloudFor). What remains is the OTHER half of the ratifiers' ruling on this family - that all three components, the separator included, jointly supply one identity attribute named 'id' - where the classifier proposes SameNameIdentity on each argument and none on the separator."
+      "annotation_reason": "The Cloud account-id slot is no longer what divides this row from its proposal: a composite proposal now reads the catalog_id bullet's own cloud_default and renders the segment as Component{Attrs: [catalog_id], Cloud: account-id} (argCloudFor). What remains is the OTHER half of the ratifiers' ruling on this family - that all three components, the separator included, jointly supply one identity attribute named 'id' - where the classifier proposes SameNameIdentity on each argument and none on the separator."
     },
     {
       "tf_type": "aws_glue_catalog_table",

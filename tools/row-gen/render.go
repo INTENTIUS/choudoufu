@@ -262,8 +262,8 @@ func renderCompositeEntry(p proposal) string {
 		if i > 0 {
 			fmt.Fprintf(&comps, "\n\t\tsep(%q),", p.CompositeSep)
 		}
-		def, hasDef := p.CompositeDefaults[arg]
-		cloud, hasCloud := p.CompositeCloud[arg]
+		def, hasDef := p.ArgDefaults[arg]
+		cloud, hasCloud := p.ArgCloud[arg]
 		switch {
 		case hasDef || hasCloud:
 			// attr() cannot carry a fallback of either kind; the component
@@ -329,15 +329,40 @@ func renderAssembledEntry(p proposal) string {
 // renderClientNamedEntry is the ready-to-paste TypeIdentity{...} literal for
 // DefaultTable. IdentityAttrs names only the resolved argument itself, for
 // the same id-alias reason renderServerAssignedEntry's comment states.
+//
+// attr() carries neither kind of documented fallback, so a proposal whose
+// argument has one is spelled in full - the same choice renderCompositeEntry
+// makes per segment, and for the same reason: the paste has to stay
+// unedited. Eight proposals need it, every one a per-account or per-region
+// singleton whose configuration ordinarily omits the argument entirely; see
+// setClientNamedEvidence for the list and the measurement.
 func renderClientNamedEntry(p proposal) string {
 	importSyntax := strings.ToUpper(p.ArgName)
+	def, hasDef := p.ArgDefaults[p.ArgName]
+	cloud, hasCloud := p.ArgCloud[p.ArgName]
+	component := fmt.Sprintf("attr(%q)", p.ArgName)
+	if hasDef || hasCloud {
+		// Elided element type, matching renderAssembledEntry and the
+		// ratified table's own single-line spelling; an explicit
+		// Component{...} inside []Component{...} is what gofmt -s removes.
+		var b strings.Builder
+		fmt.Fprintf(&b, "{Attrs: []string{%q}", p.ArgName)
+		if hasDef {
+			fmt.Fprintf(&b, ", Default: %q", def)
+		}
+		if hasCloud {
+			fmt.Fprintf(&b, ", Cloud: %q", cloud)
+		}
+		b.WriteString(", IdentityAttr: SameNameIdentity}")
+		component = b.String()
+	}
 	return fmt.Sprintf(`TypeIdentity{
 	Type:          %q,
-	Components:    []Component{attr(%q)},
+	Components:    []Component{%s},
 	ImportSyntax:  %q,
 	IdentityAttrs: []string{%q}, // "id" intentionally omitted; see issue #44 non-goals
 },
-`, p.TFType, p.ArgName, importSyntax, p.ArgName)
+`, p.TFType, component, importSyntax, p.ArgName)
 }
 
 // summaryCounts is the acceptance criterion's headline: the bucket totals
