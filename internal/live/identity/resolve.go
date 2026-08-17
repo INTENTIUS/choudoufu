@@ -88,6 +88,33 @@ type Context struct {
 	// ownership marker, which is why the phase re-reads on every run and no
 	// cache exists.
 	DataResults map[string]cty.Value
+
+	// ManagedResults are the values a caller read from the live system for
+	// managed resource instances this estate already owns (issue #187),
+	// keyed the same way as DataResults. They let a count, a for_each or an
+	// identity argument that reads a COMPUTED attribute of a sibling -
+	// aws_acm_certificate.cert.domain_validation_options, which the
+	// certificate's own block never sets and no rule can derive from
+	// configuration - resolve against what the cloud actually holds.
+	//
+	// It is the same seam as DataResults and shares its index; the two
+	// cannot collide because a data resource's address carries the "data."
+	// prefix and a managed one does not. It differs in what a caller has to
+	// do to populate it: a data source can be read outright, whereas a
+	// managed resource that is server-assigned has no identity until marker
+	// discovery has found it, so a caller filling this in has already run
+	// resolution once and discovery once. See [Context.DataResults] for
+	// everything else, which is identical.
+	//
+	// Nil is the default and every reference to a managed attribute refuses
+	// exactly as it always has. Nothing here is ever read by this package.
+	//
+	// A caller must put in only the resources whose attributes it means to
+	// answer. An entry for a resource a for_each iterates WHOLE
+	// (for_each = aws_subnet.this) is ignored rather than honoured, because
+	// those instance keys come from the parent block's own expansion and are
+	// configuration data that needs no read - see [resolver.managedCovered].
+	ManagedResults map[string]cty.Value
 }
 
 // ResolveWith is [Resolve] told everything the caller knows that the
@@ -632,6 +659,23 @@ func (r *resolver) probeString(expr hcl.Expression, scope instScope, ident confi
 
 func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolver {
 	dataIndex, badResults := buildDataResultsIndex(rctx.DataResults)
+	// [Context.ManagedResults] joins the same index. The two cannot collide:
+	// a data resource's [addrs.Resource.String] carries the "data." prefix
+	// and a managed one does not, so one map holds both without either
+	// shadowing the other, and the static evaluator's own lookup takes an
+	// [addrs.Resource] that already says which mode it means.
+	mgIndex, badManaged := buildResultsIndex(rctx.ManagedResults, addrs.ManagedResourceMode)
+	if len(mgIndex) > 0 && dataIndex == nil {
+		dataIndex = make(dataResultsIndex, len(mgIndex))
+	}
+	for modKey, byRes := range mgIndex {
+		if dataIndex[modKey] == nil {
+			dataIndex[modKey] = make(map[string]cty.Value, len(byRes))
+		}
+		for resKey, val := range byRes {
+			dataIndex[modKey][resKey] = val
+		}
+	}
 	r := &resolver{
 		ctx:        ctx,
 		rootCfg:    cfg,
@@ -647,26 +691,39 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		synth:      make(map[string]*TypeIdentity),
 		scopeCtx:   make(map[string][]string),
 	}
+	// A result the index could not use is the calling code's defect, not
+	// the configuration's, and it must not vanish: dropped silently it
+	// would resurface as the generic dynamic-value refusal pointing the
+	// user at their own file.
 	for _, key := range badResults {
-		// A result the index could not use is the calling code's defect, not
-		// the configuration's, and it must not vanish: dropped silently it
-		// would resurface as the generic dynamic-value refusal pointing the
-		// user at their own file.
-		r.diags = r.diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			SummaryUnusableDataResult,
-			fmt.Sprintf(
-				"The data-read phase handed resolution a result under %q, which is not usable: it must be an absolute data resource instance address, and one resource's instances must share one key kind with no gaps. This is a defect in the calling code, not in the configuration.",
-				key),
-		))
+		r.diags = r.diags.Append(unusableResult("data-read", "data resource", key))
+	}
+	for _, key := range badManaged {
+		r.diags = r.diags.Append(unusableResult("managed-read", "managed resource", key))
 	}
 	r.enterModule(cfg)
 	return r
 }
 
 // SummaryUnusableDataResult is the caller-error refusal for a
-// [Context.DataResults] entry resolution cannot index. See [newResolver].
+// [Context.DataResults] or [Context.ManagedResults] entry resolution cannot
+// index. See [newResolver]. One summary covers both seams because the defect
+// is the same one - a caller handed in a key this package cannot address -
+// and only the detail differs, which is where the two are told apart.
 const SummaryUnusableDataResult = "Unusable data-source result"
+
+// unusableResult is the diagnostic for one such entry. phase and kind name
+// which seam the entry arrived through, so the message points at the calling
+// code that produced it rather than at whichever seam happens to be older.
+func unusableResult(phase, kind, key string) tfdiags.Diagnostic {
+	return tfdiags.Sourceless(
+		tfdiags.Error,
+		SummaryUnusableDataResult,
+		fmt.Sprintf(
+			"The %s phase handed resolution a result under %q, which is not usable: it must be an absolute %s instance address, and one resource's instances must share one key kind with no gaps. This is a defect in the calling code, not in the configuration.",
+			phase, key, kind),
+	)
+}
 
 type resolver struct {
 	ctx context.Context
@@ -2058,6 +2115,15 @@ func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 			}
 			// Anything else in a resource argument is a managed resource
 			// reference; whether it is declared is checked later.
+			if r.managedCovered(trav) {
+				// A managed attribute the caller's live read covers
+				// (issue #187, [Context.ManagedResults]) is answerable by
+				// the static evaluator, exactly as a data source's is once
+				// the data-read phase has run. Calling it symbolic here
+				// would route it to the keys-from-the-parent's-expansion
+				// path, which cannot use a value at all.
+				continue
+			}
 			return true
 		}
 	}
