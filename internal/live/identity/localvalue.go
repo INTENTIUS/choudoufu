@@ -216,6 +216,47 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 
 // ---- the key-set fix ---------------------------------------------------
 
+// elemBinding is everything the key-set chase learned about ONE key's
+// element of a for_each source, and it carries two independent answers that
+// must not be conflated:
+//
+//   - val is the element's value if - and only if - this resolver evaluated
+//     that one expression whole ([resolver.provenValue]). cty.NilVal means
+//     "not proven", never "null", and every consumer reads it that way.
+//   - expr is the element's own value EXPRESSION, kept whether or not val
+//     proved, so that a later each.value.<attr> can select one attribute out
+//     of it structurally instead of asking for the element as a value. This
+//     is #260: one dynamic attribute inside an element made val NilVal and
+//     therefore refused every literal sibling beside it, because a value is
+//     all-or-nothing while a selection is not.
+//
+// scope is the scope expr must be evaluated in - a for-comprehension's own
+// loop variables, or a module call's own repetition - and modInst is the
+// module instance it was WRITTEN in, which is very often not the module the
+// resource being resolved lives in: [resolver.namedDef]'s "var" hop reads a
+// module call's argument in the CALLER, under a restore() that has long
+// since run by the time an instance's arguments are resolved. Re-entering
+// that module instance before touching expr is what makes the deferred
+// selection see the same locals, variables and provider mapping the
+// immediate one did.
+type elemBinding struct {
+	val     cty.Value
+	expr    hcl.Expression
+	scope   instScope
+	modInst addrs.ModuleInstance
+}
+
+// binding is the ordinary way to build one: prove the value if it proves,
+// and keep the expression either way, pinned to where it was written.
+func (r *resolver) binding(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) elemBinding {
+	return elemBinding{
+		val:     r.provenValue(expr, scope, ident),
+		expr:    expr,
+		scope:   scope,
+		modInst: r.modInst,
+	}
+}
+
 // staticForEachKeys is #178's key-set fix, extended by #189's follow-up: the
 // key set of an object constructor - or of a for-comprehension that builds
 // one, or of a list of such things merged together - is knowable whatever
@@ -283,8 +324,8 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 // first and cty.NilVal wherever this resolver did not evaluate one for
 // itself. See [resolver.staticCollElems] for what "did not evaluate one"
 // means and why an unproven value is left unbound rather than guessed.
-func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, []cty.Value, bool) {
-	keys, vals, ok := r.staticCollElems(expr, ident, depth, tupleIsArgs)
+func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) ([]string, []elemBinding, bool) {
+	keys, elems, ok := r.staticCollElems(expr, ident, depth, tupleIsArgs)
 	if !ok {
 		return nil, nil, false
 	}
@@ -292,7 +333,7 @@ func (r *resolver) staticForEachKeys(expr hcl.Expression, ident configs.StaticId
 	if !ok {
 		return nil, nil, false
 	}
-	return names, vals, true
+	return names, elems, true
 }
 
 // stringKeys narrows a collection's key set to the strings a for_each
@@ -357,7 +398,7 @@ func stringKeys(keys []cty.Value) ([]string, bool) {
 //     no values at all, which is the boundary [resolver.forSourceElements]
 //     draws for a for-comprehension's source and the one
 //     [expansion.keyOnly] draws for each.value.
-func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) (keys, vals []cty.Value, ok bool) {
+func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIdentifier, depth int, tupleIsArgs bool) (keys []cty.Value, elems []elemBinding, ok bool) {
 	if depth > maxStaticDecomposeDepth {
 		return nil, nil, false
 	}
@@ -374,7 +415,7 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 					// tupleIsArgs propagates through the alias: the corpus
 					// shape is merge(local.teams...), where the splatted
 					// argument is a local naming the list.
-					keys, vals, ok := r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
+					keys, elems, ok := r.staticCollElems(defExpr, ident, depth+1, tupleIsArgs)
 					if !ok {
 						return nil, nil, false
 					}
@@ -389,28 +430,28 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 					// object keeps the ones it was given, but a SET's keys ARE
 					// its elements, so the argument's own indices are not the
 					// key set the module sees.
-					return varConvertedElems(decl, keys, vals)
+					return varConvertedElems(decl, keys, elems)
 				}
 			}
 		}
 	}
 
 	if obj, ok := expr.(*hclsyntax.ObjectConsExpr); ok {
-		names, itemVals, ok := r.objectConsElems(obj, ident)
+		names, itemElems, ok := r.objectConsElems(obj, ident)
 		if !ok {
 			return nil, nil, false
 		}
-		return stringVals(names), itemVals, true
+		return stringVals(names), itemElems, true
 	}
 
 	if fe, ok := expr.(*hclsyntax.ForExpr); ok {
-		names, elemVals, ok := r.forExprElems(fe, ident, depth)
+		names, forElems, ok := r.forExprElems(fe, ident, depth)
 		if !ok {
 			return nil, nil, false
 		}
 		// A for-comprehension with a key clause produces an OBJECT, whose
 		// keys are strings whatever it ranged over.
-		return stringVals(names), elemVals, true
+		return stringVals(names), forElems, true
 	}
 
 	if tuple, ok := expr.(*hclsyntax.TupleConsExpr); ok {
@@ -422,26 +463,26 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 			// expression is what a for-comprehension over this list binds
 			// its value variable to, so it is offered where it evaluates.
 			keys := make([]cty.Value, 0, len(tuple.Exprs))
-			vals := make([]cty.Value, 0, len(tuple.Exprs))
+			elems := make([]elemBinding, 0, len(tuple.Exprs))
 			for i, elem := range tuple.Exprs {
 				keys = append(keys, cty.NumberIntVal(int64(i)))
-				vals = append(vals, r.provenValue(elem, instScope{}, ident))
+				elems = append(elems, r.binding(elem, instScope{}, ident))
 			}
-			return keys, vals, true
+			return keys, elems, true
 		}
 		u := newKeyUnion()
 		for _, elem := range tuple.Exprs {
 			// An element of the splatted list is one of merge's arguments,
 			// an object in its own right - never itself a list of them, and
 			// never a list at all, which is why this asks for strings.
-			got, gotVals, ok := r.staticForEachKeys(elem, ident, depth+1, false)
+			got, gotElems, ok := r.staticForEachKeys(elem, ident, depth+1, false)
 			if !ok {
 				return nil, nil, false
 			}
-			u.add(got, gotVals)
+			u.add(got, gotElems)
 		}
-		names, uVals := u.result()
-		return stringVals(names), uVals, true
+		names, uElems := u.result()
+		return stringVals(names), uElems, true
 	}
 
 	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "merge" {
@@ -455,14 +496,14 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 			// objects, so an argument whose key set is integer indices is
 			// not a merge argument at all and refuses here rather than
 			// contributing "0", "1" to the union.
-			got, gotVals, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
+			got, gotElems, ok := r.staticForEachKeys(arg, ident, depth+1, argIsSplat)
 			if !ok {
 				return nil, nil, false
 			}
-			u.add(got, gotVals)
+			u.add(got, gotElems)
 		}
-		names, uVals := u.result()
-		return stringVals(names), uVals, true
+		names, uElems := u.result()
+		return stringVals(names), uElems, true
 	}
 
 	return nil, nil, false
@@ -479,32 +520,32 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 // load-bearing rather than incidental.
 type keyUnion struct {
 	order []string
-	vals  map[string]cty.Value
+	elems map[string]elemBinding
 }
 
 func newKeyUnion() *keyUnion {
-	return &keyUnion{vals: map[string]cty.Value{}}
+	return &keyUnion{elems: map[string]elemBinding{}}
 }
 
-func (u *keyUnion) add(names []string, vals []cty.Value) {
+func (u *keyUnion) add(names []string, elems []elemBinding) {
 	for i, n := range names {
-		if _, seen := u.vals[n]; !seen {
+		if _, seen := u.elems[n]; !seen {
 			u.order = append(u.order, n)
 		}
-		v := cty.NilVal
-		if i < len(vals) {
-			v = vals[i]
+		var b elemBinding
+		if i < len(elems) {
+			b = elems[i]
 		}
-		u.vals[n] = v
+		u.elems[n] = b
 	}
 }
 
-func (u *keyUnion) result() ([]string, []cty.Value) {
-	vals := make([]cty.Value, 0, len(u.order))
+func (u *keyUnion) result() ([]string, []elemBinding) {
+	elems := make([]elemBinding, 0, len(u.order))
 	for _, n := range u.order {
-		vals = append(vals, u.vals[n])
+		elems = append(elems, u.elems[n])
 	}
-	return u.order, vals
+	return u.order, elems
 }
 
 // stringVals lifts a string key set into the typed form [resolver.staticCollElems]
@@ -569,10 +610,10 @@ func (r *resolver) provenValue(expr hcl.Expression, scope instScope, ident confi
 // errors on a duplicate object key, so there is no "correct" answer to copy,
 // and folding two items into one binding is the shape that made two
 // count.index instances share one live marker in #178.
-func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier) ([]string, []cty.Value, bool) {
+func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.StaticIdentifier) ([]string, []elemBinding, bool) {
 	seen := map[string]int{}
 	var keys []string
-	var vals []cty.Value
+	var elems []elemBinding
 	for _, item := range obj.Items {
 		kv, diags := r.evalPure(item.KeyExpr, instScope{}, ident)
 		if diags.HasErrors() {
@@ -589,14 +630,19 @@ func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.
 		}
 		name := ks.AsString()
 		if at, dup := seen[name]; dup {
-			vals[at] = cty.NilVal
+			// The expression goes with the value: two items writing one key
+			// have two different value expressions, and selecting an
+			// attribute out of "the first one" would be this package
+			// choosing which of them the language means. It answers with
+			// neither.
+			elems[at] = elemBinding{}
 			continue
 		}
 		seen[name] = len(keys)
 		keys = append(keys, name)
-		vals = append(vals, r.provenValue(item.ValueExpr, instScope{}, ident))
+		elems = append(elems, r.binding(item.ValueExpr, instScope{}, ident))
 	}
-	return keys, vals, true
+	return keys, elems, true
 }
 
 // forExprElems is the for-comprehension half of #189's key-set extension: a
@@ -665,19 +711,19 @@ func (r *resolver) objectConsElems(obj *hclsyntax.ObjectConsExpr, ident configs.
 // leaves that key's value unbound instead of refusing the comprehension.
 // Grouping mode (`k => v...`) collects a tuple of every matching element's
 // value rather than one value, so it offers nothing.
-func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, []cty.Value, bool) {
+func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdentifier, depth int) ([]string, []elemBinding, bool) {
 	if fe.KeyExpr == nil {
 		return nil, nil, false
 	}
 
-	srcKeys, srcVals, ok := r.forSourceElements(fe.CollExpr, ident, depth)
+	srcKeys, srcElems, ok := r.forSourceElements(fe.CollExpr, ident, depth)
 	if !ok {
 		return nil, nil, false
 	}
 
 	seen := map[string]bool{}
 	var keys []string
-	var vals []cty.Value
+	var elems []elemBinding
 	for i, srcKey := range srcKeys {
 		vars := map[string]cty.Value{}
 		if fe.KeyVar != "" {
@@ -688,8 +734,8 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 		// one did not). Both mean the same thing here: leave the value
 		// variable unbound, so a key clause that reads it fails to evaluate
 		// and the comprehension refuses, rather than binding a stand-in.
-		if fe.ValVar != "" && i < len(srcVals) && srcVals[i] != cty.NilVal {
-			vars[fe.ValVar] = srcVals[i]
+		if fe.ValVar != "" && i < len(srcElems) && srcElems[i].val != cty.NilVal {
+			vars[fe.ValVar] = srcElems[i].val
 		}
 		scope := instScope{vars: vars}
 
@@ -723,13 +769,82 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 		}
 		seen[name] = true
 		keys = append(keys, name)
-		if fe.Group {
-			vals = append(vals, cty.NilVal)
-		} else {
-			vals = append(vals, r.provenValue(fe.ValExpr, scope, ident))
+		switch {
+		case fe.Group:
+			elems = append(elems, elemBinding{})
+		case isBareVar(fe.ValExpr, fe.ValVar) && i < len(srcElems) && srcElems[i].expr != nil:
+			// `{ for k, v in SRC : k => v }` - the value clause IS the loop
+			// variable, so this comprehension's element and the SOURCE's
+			// element are the same expression, and it is the source's own
+			// binding that can be selected into. Binding fe.ValExpr instead
+			// would hand a later selection the identifier `v`, which means
+			// nothing outside the ForExpr node that scopes it.
+			//
+			// The proven value still comes from evaluating the value clause
+			// under this scope, so the two halves never disagree: where the
+			// source's value proved, `v` is bound and evaluates to it.
+			b := srcElems[i]
+			b.val = r.provenValue(fe.ValExpr, scope, ident)
+			elems = append(elems, b)
+		default:
+			b := r.binding(fe.ValExpr, scope, ident)
+			if loopVarUnbound(fe.ValExpr, scope, fe.KeyVar, fe.ValVar) {
+				// The value clause reads a loop variable this scope does not
+				// bind, so the expression means nothing outside the ForExpr
+				// node that scopes it. Carrying it anyway let a later
+				// selection reach a bare `v` and hand it to
+				// [addrs.ParseRef], which answered "Invalid reference" - a
+				// diagnostic about a name the author never wrote, replacing
+				// one that named the real obstacle. Measured: one site in
+				// .corpus/iam/examples/iam-role-for-service-accounts.
+				//
+				// The value half is unaffected: [resolver.provenValue] has
+				// already failed on the same unbound name and left
+				// cty.NilVal, which is the answer this shape had before the
+				// expression was carried at all.
+				b.expr = nil
+			}
+			elems = append(elems, b)
 		}
 	}
-	return keys, vals, true
+	return keys, elems, true
+}
+
+// loopVarUnbound reports whether expr reads one of a for-comprehension's own
+// loop variables that scope does not bind. The key variable is always bound
+// and the value variable only where the source element's value proved, so
+// this is exactly the "the source is shape-only" case.
+func loopVarUnbound(expr hclsyntax.Expression, scope instScope, names ...string) bool {
+	if expr == nil {
+		return false
+	}
+	for _, trav := range expr.Variables() {
+		root := trav.RootName()
+		for _, n := range names {
+			if n == "" || root != n {
+				continue
+			}
+			if _, bound := scope.vars[n]; !bound {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isBareVar reports whether expr is exactly the identifier name and nothing
+// more - a for-comprehension's own value variable standing alone as the
+// value clause, which is the `k => v` idiom.
+func isBareVar(expr hclsyntax.Expression, name string) bool {
+	if name == "" || expr == nil {
+		return false
+	}
+	trav, ok := expr.(*hclsyntax.ScopeTraversalExpr)
+	if !ok || len(trav.Traversal) != 1 {
+		return false
+	}
+	root, ok := trav.Traversal[0].(hcl.TraverseRoot)
+	return ok && root.Name == name
 }
 
 // forSourceElements reports what a for-comprehension's SOURCE collection
@@ -748,9 +863,9 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 //
 // Evaluation is tried first because it yields strictly more: the same keys
 // plus the values beside them.
-func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.StaticIdentifier, depth int) (keys, vals []cty.Value, ok bool) {
-	if keys, vals, ok := r.evaluatedCollElements(coll, ident); ok {
-		return keys, vals, true
+func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.StaticIdentifier, depth int) (keys []cty.Value, elems []elemBinding, ok bool) {
+	if keys, elems, ok := r.evaluatedCollElements(coll, ident); ok {
+		return keys, elems, true
 	}
 	// tupleIsArgs is false: a for-comprehension's source is ranged over, so
 	// a list here is a list, and its keys are its integer indices - never
@@ -762,11 +877,11 @@ func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.St
 	// still binds the value variable for the elements it DID evaluate. Each
 	// binding is one expression this resolver evaluated itself, never an
 	// inference from a neighbouring element.
-	keys, vals, ok = r.staticCollElems(coll, ident, depth+1, false)
+	keys, elems, ok = r.staticCollElems(coll, ident, depth+1, false)
 	if !ok {
 		return nil, nil, false
 	}
-	return keys, vals, true
+	return keys, elems, true
 }
 
 // evaluatedCollElements reads a collection that evaluates whole under the
@@ -777,7 +892,7 @@ func (r *resolver) forSourceElements(coll hclsyntax.Expression, ident configs.St
 // elements - which is what an element iterator hands back, and what
 // hclsyntax.ForExpr.Value then binds. Anything that is not a collection at
 // all cannot be ranged over and refuses.
-func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident configs.StaticIdentifier) (keys, vals []cty.Value, ok bool) {
+func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident configs.StaticIdentifier) (keys []cty.Value, elems []elemBinding, ok bool) {
 	// An impure call would make the collection a different collection on
 	// the next run. Its LENGTH might well be stable, but nothing here can
 	// show that, and [resolver.evalStatic] refuses the same shape one layer
@@ -809,9 +924,14 @@ func (r *resolver) evaluatedCollElements(expr hclsyntax.Expression, ident config
 	for it := val.ElementIterator(); it.Next(); {
 		k, v := it.Element()
 		keys = append(keys, k)
-		vals = append(vals, v)
+		// No expression: the whole collection evaluated, so every element
+		// already has a value and nothing is left for a structural selection
+		// to recover. Offering the syntax back here would also be wrong -
+		// the value read out of the evaluated collection is the one the
+		// language settled on, conversions included.
+		elems = append(elems, elemBinding{val: v})
 	}
-	return keys, vals, true
+	return keys, elems, true
 }
 
 // forCondIncludes evaluates a comprehension's "if" clause for one element.

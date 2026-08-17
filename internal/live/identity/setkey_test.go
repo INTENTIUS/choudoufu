@@ -112,6 +112,18 @@ func TestObjectVarOptionalAttributeIsAKey(t *testing.T) {
 
 // ---- varConvertedElems, directly ----------------------------------------
 
+// valBindings lifts a plain values slice into the bindings [varConvertedElems]
+// takes since #260. Every one of these cases is about the VALUE half, so no
+// element expression is supplied; the expression half has its own tests in
+// eachvalue_test.go.
+func valBindings(vals []cty.Value) []elemBinding {
+	out := make([]elemBinding, len(vals))
+	for i, v := range vals {
+		out[i] = elemBinding{val: v}
+	}
+	return out
+}
+
 func setVar(t *testing.T, ty cty.Type) *configs.Variable {
 	t.Helper()
 	return &configs.Variable{Name: "s", Type: ty, ConstraintType: ty}
@@ -120,12 +132,12 @@ func setVar(t *testing.T, ty cty.Type) *configs.Variable {
 // elemPairs renders a keys/vals answer as "key=value" strings so a test can
 // compare the PAIRING, not only the two sides separately. cty.NilVal - this
 // file's "not proven" signal - renders as a bare key.
-func elemPairs(keys, vals []cty.Value) []string {
+func elemPairs(keys []cty.Value, elems []elemBinding) []string {
 	out := make([]string, 0, len(keys))
 	for i, k := range keys {
 		s := k.GoString()
-		if i < len(vals) && vals[i] != cty.NilVal {
-			s += "=" + vals[i].GoString()
+		if i < len(elems) && elems[i].val != cty.NilVal {
+			s += "=" + elems[i].val.GoString()
 		}
 		out = append(out, s)
 	}
@@ -133,7 +145,7 @@ func elemPairs(keys, vals []cty.Value) []string {
 	return out
 }
 
-func assertElems(t *testing.T, gotKeys, gotVals []cty.Value, gotOK bool, wantOK bool, want ...string) {
+func assertElems(t *testing.T, gotKeys []cty.Value, gotElems []elemBinding, gotOK bool, wantOK bool, want ...string) {
 	t.Helper()
 	if gotOK != wantOK {
 		t.Fatalf("ok is %v, want %v", gotOK, wantOK)
@@ -141,7 +153,7 @@ func assertElems(t *testing.T, gotKeys, gotVals []cty.Value, gotOK bool, wantOK 
 	if !wantOK {
 		return
 	}
-	got := elemPairs(gotKeys, gotVals)
+	got := elemPairs(gotKeys, gotElems)
 	if len(got) != len(want) {
 		t.Fatalf("answered %d elements %v, want %d %v", len(got), got, len(want), want)
 	}
@@ -158,8 +170,8 @@ func assertElems(t *testing.T, gotKeys, gotVals []cty.Value, gotOK bool, wantOK 
 func TestSetElemsAreKeysAndValues(t *testing.T) {
 	keys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}
 	vals := []cty.Value{cty.StringVal("beta"), cty.StringVal("alpha")}
-	gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, vals)
-	assertElems(t, gotKeys, gotVals, ok, true,
+	gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, valBindings(vals))
+	assertElems(t, gotKeys, gotElems, ok, true,
 		`cty.StringVal("alpha")=cty.StringVal("alpha")`,
 		`cty.StringVal("beta")=cty.StringVal("beta")`,
 	)
@@ -174,14 +186,14 @@ func TestSetElemsAreKeysAndValues(t *testing.T) {
 func TestSetNumberIndexCoincidence(t *testing.T) {
 	keys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}
 	vals := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(5)}
-	gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.Set(cty.Number)), keys, vals)
-	assertElems(t, gotKeys, gotVals, ok, true,
+	gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.Set(cty.Number)), keys, valBindings(vals))
+	assertElems(t, gotKeys, gotElems, ok, true,
 		`cty.NumberIntVal(0)=cty.NumberIntVal(0)`,
 		`cty.NumberIntVal(5)=cty.NumberIntVal(5)`,
 	)
 	for _, k := range gotKeys {
 		if k.RawEquals(cty.NumberIntVal(1)) {
-			t.Errorf("key 1 is the tuple's second INDEX, not an element of {0, 5}: %v", elemPairs(gotKeys, gotVals))
+			t.Errorf("key 1 is the tuple's second INDEX, not an element of {0, 5}: %v", elemPairs(gotKeys, gotElems))
 		}
 	}
 }
@@ -193,8 +205,8 @@ func TestSetNumberIndexCoincidence(t *testing.T) {
 func TestSetDedupesTheCount(t *testing.T) {
 	keys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}
 	vals := []cty.Value{cty.StringVal("same"), cty.StringVal("same")}
-	gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, vals)
-	assertElems(t, gotKeys, gotVals, ok, true, `cty.StringVal("same")=cty.StringVal("same")`)
+	gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, valBindings(vals))
+	assertElems(t, gotKeys, gotElems, ok, true, `cty.StringVal("same")=cty.StringVal("same")`)
 }
 
 // TestSetWithUnreadableElementRefuses: an element the chase could not prove
@@ -204,7 +216,7 @@ func TestSetDedupesTheCount(t *testing.T) {
 func TestSetWithUnreadableElementRefuses(t *testing.T) {
 	keys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}
 	vals := []cty.Value{cty.StringVal("alpha"), cty.NilVal}
-	_, _, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, vals)
+	_, _, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, valBindings(vals))
 	if ok {
 		t.Error("a set with an element this could not read answered a key set; it has none")
 	}
@@ -218,7 +230,7 @@ func TestSetWithUnreadableElementRefuses(t *testing.T) {
 func TestSetFailedConversionRefuses(t *testing.T) {
 	keys := []cty.Value{cty.StringVal("a"), cty.StringVal("b")}
 	vals := []cty.Value{cty.StringVal("x"), cty.StringVal("y")}
-	_, _, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, vals)
+	_, _, ok := varConvertedElems(setVar(t, cty.Set(cty.String)), keys, valBindings(vals))
 	if ok {
 		t.Error("an object that does not convert to a set answered a key set")
 	}
@@ -233,8 +245,8 @@ func TestKeyedTargetsKeepTheirKeys(t *testing.T) {
 	t.Run("map", func(t *testing.T) {
 		keys := []cty.Value{cty.StringVal("a"), cty.StringVal("b")}
 		vals := []cty.Value{cty.StringVal("007"), cty.NilVal}
-		gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.Map(cty.Number)), keys, vals)
-		assertElems(t, gotKeys, gotVals, ok, true,
+		gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.Map(cty.Number)), keys, valBindings(vals))
+		assertElems(t, gotKeys, gotElems, ok, true,
 			`cty.StringVal("a")=cty.NumberIntVal(7)`,
 			`cty.StringVal("b")`,
 		)
@@ -242,8 +254,8 @@ func TestKeyedTargetsKeepTheirKeys(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		keys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(1)}
 		vals := []cty.Value{cty.StringVal("007"), cty.StringVal("008")}
-		gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.List(cty.Number)), keys, vals)
-		assertElems(t, gotKeys, gotVals, ok, true,
+		gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.List(cty.Number)), keys, valBindings(vals))
+		assertElems(t, gotKeys, gotElems, ok, true,
 			`cty.NumberIntVal(0)=cty.NumberIntVal(7)`,
 			`cty.NumberIntVal(1)=cty.NumberIntVal(8)`,
 		)
@@ -251,7 +263,7 @@ func TestKeyedTargetsKeepTheirKeys(t *testing.T) {
 	t.Run("failed conversion keeps the keys", func(t *testing.T) {
 		keys := []cty.Value{cty.StringVal("a")}
 		vals := []cty.Value{cty.StringVal("not-a-number")}
-		gotKeys, gotVals, ok := varConvertedElems(setVar(t, cty.Map(cty.Number)), keys, vals)
-		assertElems(t, gotKeys, gotVals, ok, true, `cty.StringVal("a")`)
+		gotKeys, gotElems, ok := varConvertedElems(setVar(t, cty.Map(cty.Number)), keys, valBindings(vals))
+		assertElems(t, gotKeys, gotElems, ok, true, `cty.StringVal("a")`)
 	})
 }

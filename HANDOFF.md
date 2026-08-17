@@ -240,10 +240,14 @@ env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
 <<<<<<< HEAD
-1341 rendered identities across 387 configuration directories in under a
+<<<<<<< HEAD
+1353 rendered identities across 400 configuration directories in under a
 =======
-1341 rendered identities across 387 configuration directories in under a
+1353 rendered identities across 400 configuration directories in under a
 >>>>>>> wall/projfix
+=======
+1353 rendered identities across 400 configuration directories in under a
+>>>>>>> wall/shapebimpl
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 

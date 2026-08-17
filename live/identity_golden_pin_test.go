@@ -67,7 +67,7 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        676,
+	"CONCRETE":        688,
 	"NEEDS_DISCOVERY": 553,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -98,11 +98,11 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "fc79cc75789a441a04c151d9f44b28bf264d5aabedce77585912e55ff62a178d"
+const identityGoldenPinBodyDigest = "a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377"
 
 const (
-	identityGoldenPinInstances = 1341
-	identityGoldenPinDirs      = 387
+	identityGoldenPinInstances = 1353
+	identityGoldenPinDirs      = 400
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
@@ -111,7 +111,7 @@ const (
 	// root, tighten the file filter, and the numbers fall to something you
 	// then re-pin, with each individual edit looking reasonable. This is the
 	// number that must never go down. It is deliberately well below the
-	// current 387 so that removing fixtures is not an event, and far enough
+	// current 400 so that removing fixtures is not an event, and far enough
 	// above zero that narrowing the walk to nothing is.
 	identityGoldenSweepFloor = 300
 )

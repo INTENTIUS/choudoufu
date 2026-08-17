@@ -157,6 +157,33 @@ func (r *resolver) fallbackArmVerdict(arm hclsyntax.Expression, scope instScope,
 		return armUndecidable, false
 	}
 
+	if trav, diags := hcl.AbsTraversalForExpr(arm); !diags.HasErrors() && trav.RootName() == "each" && scope.eachValueExpr != nil {
+		// #260: each.value.<attr> where each.value is known as an
+		// expression. This is the one arm shape whose verdict is decided by
+		// SELECTION rather than by expansion, and it is the reason
+		// [resolver.eachValueSelect] answers three-valued: an attribute the
+		// element does not have really does error on every run, so try moves
+		// past it exactly as stock does; an attribute it HAS but this
+		// package cannot resolve does not error, so falling back over it
+		// would write a literal where a real value belongs. See
+		// eachvalue.go's own note on why a partial value cannot decide this.
+		// The probe leaves no diagnostic behind: a failure here means
+		// "cannot decide", not "this configuration is wrong", and the
+		// caller's own refusal is the one that should be read. Same rollback
+		// [resolver.soleElementFromValue] uses for the same reason.
+		mark := len(r.diags)
+		_, presence := r.eachValueSelect(trav, scope, ident)
+		r.diags = r.diags[:mark]
+		switch presence {
+		case eachAttrPresent:
+			return armSelected, false
+		case eachAttrAbsent:
+			return armErrors, false
+		default:
+			return armUndecidable, false
+		}
+	}
+
 	instAddr, attrOK := fallbackArmTarget(arm)
 	if !attrOK {
 		return armUndecidable, false
