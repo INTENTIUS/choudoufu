@@ -821,17 +821,17 @@
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 4,
+            "sites": 2,
             "categories": {
-              "data_source": 4
+              "data_source": 2
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 6,
+            "sites": 8,
             "categories": {
-              "data_source": 1,
+              "data_source": 3,
               "remote_state": 5
             }
           },
@@ -2676,7 +2676,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 54,
-      "sites": 46,
+      "sites": 12,
       "unresolved_modules": 0,
       "unset_variables": 2,
       "schemas": true,
@@ -2685,13 +2685,8 @@
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "admissions-only",
         "refusals": [
-          {
-            "layer": "identity",
-            "id": "Two resources with the same identity",
-            "sites": 34
-          },
           {
             "layer": "lint",
             "id": "unadmitted-type",
@@ -2792,17 +2787,17 @@
           {
             "layer": "dataread",
             "id": "Data source not readable before resolution",
-            "sites": 4,
+            "sites": 2,
             "categories": {
-              "data_source": 4
+              "data_source": 2
             }
           },
           {
             "layer": "dataread",
             "id": "Resolves at plan time via a data-source read",
-            "sites": 185,
+            "sites": 187,
             "categories": {
-              "data_source": 158,
+              "data_source": 160,
               "tfe_outputs": 26
             }
           },
@@ -9023,7 +9018,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Resolves at plan time via a data-source read\"",
       "raised_by": "internal/live/dataread",
       "configs": 99,
-      "sites": 4585,
+      "sites": 4589,
       "examples": [
         ".corpus/alb/examples/complete-nlb/main.tf:12",
         ".corpus/alb/examples/complete-nlb/main.tf:203",
@@ -9334,13 +9329,13 @@
       "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
       "raised_by": "internal/live/dataread",
       "configs": 5,
-      "sites": 14,
+      "sites": 10,
       "examples": [
         ".corpus/eks/node_groups.tf:22",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:130",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:141",
         ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:202",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:239"
+        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:239",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:133",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:170"
       ],
       "registered": true
     },
@@ -9373,24 +9368,6 @@
       "examples": [
         ".corpus/autoscaling/examples/complete/main.tf:882",
         ".corpus/rds/examples/s3-import-mysql/main.tf:191"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Two resources with the same identity",
-      "title": "Two resources with the same identity",
-      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
-      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
-      "raised_by": "internal/live/identity",
-      "configs": 1,
-      "sites": 34,
-      "examples": [
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41",
-        ".corpus/govuk-infrastructure/terraform/deployments/gcp-search-api-v2/modules/search-api-v2/main.tf:41"
       ],
       "registered": true
     },
@@ -10243,6 +10220,17 @@
     },
     {
       "layer": "identity",
+      "id": "Two resources with the same identity",
+      "title": "Two resources with the same identity",
+      "what": "Two resource blocks resolve to one identity, so one live object would have two owners.",
+      "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+      "raised_by": "internal/live/identity",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Unable to parse provider function",
       "title": "Unable to parse provider function",
       "what": "A provider:: function reference is not in the form the address parser accepts.",
@@ -10573,8 +10561,8 @@
     "configs": 250,
     "loaded": 249,
     "instances": 3921,
-    "sites": 8461,
-    "refusals_fired": 24,
+    "sites": 8427,
+    "refusals_fired": 23,
     "refusals_in_set": 125,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
@@ -10597,7 +10585,7 @@
       "blocked": 118,
       "clean": 26,
       "instances": 2434,
-      "sites": 2322,
+      "sites": 2288,
       "reads_as": "rate"
     },
     {
@@ -10626,7 +10614,7 @@
       },
       {
         "class": "admissions-only",
-        "configs": 22
+        "configs": 23
       },
       {
         "class": "data-read-eligible",
@@ -10634,7 +10622,7 @@
       },
       {
         "class": "language-blocked",
-        "configs": 60
+        "configs": 59
       },
       {
         "class": "unreadable",

@@ -1341,7 +1341,7 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 110 | 1299 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 99 | 4585 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 99 | 4589 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
 | 53 | 110 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 47 | 338 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
@@ -1355,10 +1355,9 @@ refused, and each says so in its own entry.
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
 | 10 | 38 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 5 | 14 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 5 | 10 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 1 | 34 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 1 | 5 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
@@ -1459,6 +1458,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Splat of null value | error | `hcl` | "Splat of null value" |
 | 0 | 0 | identity | The identity table names something the provider does not have | error | `internal/live/identity` | "The identity table names something the provider does not have" |
 | 0 | 0 | identity | Too many function arguments | error | `hcl` | "Too many function arguments" |
+| 0 | 0 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 0 | 0 | identity | Unable to parse provider function | error | `internal/addrs` | "Unable to parse provider function" |
 | 0 | 0 | identity | Unable to use variable in static context | error | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | error | `internal/configs` | "Undefined local" |
@@ -1548,7 +1548,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 99 configurations in the measured corpus, at 4585 sites.
+**How often.** Blocked 99 configurations in the measured corpus, at 4589 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1636,7 +1636,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 5 configurations in the measured corpus, at 14 sites.
+**How often.** Blocked 5 configurations in the measured corpus, at 10 sites.
 
 #### Identity argument not set
 
