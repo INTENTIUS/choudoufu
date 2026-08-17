@@ -48,6 +48,12 @@ var untaggableIdentity = []string{
 	"aws_ssoadmin_managed_policy_attachments_exclusive",
 	"aws_ssoadmin_permission_set_inline_policy",
 	"aws_ssoadmin_permissions_boundary_attachment",
+	// aws_iam_user_group_membership, admitted on a Component.PerElement
+	// tail (user/group1/group2). Untaggable per live/survey-full.json
+	// (v6.59.0 signals.taggable) and per the provider's own schema, which
+	// has exactly three attributes - user, groups, id - and no tags among
+	// them.
+	"aws_iam_user_group_membership",
 }
 
 func init() {
@@ -85,6 +91,8 @@ func init() {
 			"aws_ssoadmin_managed_policy_attachments_exclusive":          untaggedSchema("id", "instance_arn", "permission_set_arn"),
 			"aws_ssoadmin_permission_set_inline_policy":                  untaggedSchema("id", "instance_arn", "permission_set_arn"),
 			"aws_ssoadmin_permissions_boundary_attachment":               untaggedSchema("id", "instance_arn", "permission_set_arn"),
+			// The PerElement admission above.
+			"aws_iam_user_group_membership": untaggedSchema("id", "user", "groups"),
 		})
 	})
 }

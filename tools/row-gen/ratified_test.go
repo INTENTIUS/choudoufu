@@ -139,6 +139,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 				Cloud:                  identity.CloudAccountID,
 				IdentityAttr:           "*",
 				SoleElement:            true,
+				PerElement:             true,
 			},
 			{Attrs: []string{}}, // empty, non-nil
 		},

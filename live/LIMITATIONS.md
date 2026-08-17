@@ -1459,6 +1459,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Condition is null | error | `hcl` | "Condition is null" |
 | 0 | 0 | identity | Configuration loaded without a static evaluator | error | `internal/live/identity` | "Configuration loaded without a static evaluator" |
 | 0 | 0 | identity | Duplicate object key | error | `hcl` | "Duplicate object key" |
+| - | - | identity | Empty per-element identity argument | error | `internal/live/identity` | "Empty per-element identity argument" |
 | 0 | 0 | identity | Ephemeral value not allowed | error | `internal/configs` | "Ephemeral value not allowed" |
 | 0 | 0 | identity | Error in function call | error | `hcl` | "Error in function call" |
 | 0 | 0 | identity | Expression not evaluable here | error | `internal/live/identity` | "Expression not evaluable here" |
@@ -1501,6 +1502,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Null condition | error | `hcl` | "Null condition" |
 | 0 | 0 | identity | Null value as key | error | `hcl` | "Null value as key" |
 | 0 | 0 | identity | Operation failed | error | `hcl` | "Operation failed" |
+| - | - | identity | Per-element identity argument not resolvable | error | `internal/live/identity` | "Per-element identity argument not resolvable" |
 | 0 | 0 | identity | Provider function in static context | error | `internal/configs` | "Provider function in static context" |
 | 0 | 0 | identity | Reference to a module instance that does not exist | error | `internal/live/identity` | "Reference to a module instance that does not exist" |
 | 0 | 0 | identity | Reference to a resource instance that does not exist | error | `internal/live/identity` | "Reference to a resource instance that does not exist" |
@@ -1574,7 +1576,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**180 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**182 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2038,6 +2040,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Empty per-element identity argument
+
+**What.** A Component.PerElement identity argument is a collection with no elements at all; the provider's import identity for such a type is one segment per value, so an empty one names no object.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Ephemeral value not allowed
 
 **What.** A module source or a backend argument resolves to an ephemeral value. It is raised while decoding those two expressions, not during identity resolution: an ephemeral value in an identity argument is refused by identity itself, under "Identity derived from a sensitive value".
@@ -2373,6 +2383,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Per-element identity argument not resolvable
+
+**What.** A Component.PerElement identity argument is neither a list written in configuration, nor a variable or local holding one, nor a for_each element bound to one, so this package cannot say how many segments the identity has or what they are.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Provider function in static context
 
@@ -3009,8 +3027,8 @@ undeclared instance is created through whichever configuration found it.
 `aws_guardduty_organization_configuration`, `aws_iam_group`,
 `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
-`aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
-`aws_inspector2_delegated_admin_account`,
+`aws_iam_user_group_membership`, `aws_iam_user_policy`,
+`aws_iam_user_policy_attachment`, `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_iot_thing`,
 `aws_kinesis_resource_policy`, `aws_kms_alias`,
 `aws_lambda_layer_version_permission`, `aws_lambda_permission`,
@@ -3161,6 +3179,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
+| `aws_iam_user_group_membership` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_lb_listener_certificate` | `aws_lb_listener` | no (report-only) |
@@ -3235,7 +3254,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 123 types swept via a parent read.
+**Total.** 124 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it

@@ -46,9 +46,9 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 148, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 92 | at most 92 | `live/rowgen-convergence.json summary.admitted_total` at 896, floor 850 | #132 |
-| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 882, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 617 | at most 618 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 93 | at most 93 | `live/rowgen-convergence.json summary.admitted_total` at 897, floor 850 | #132 |
+| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 883, floor 800 | #132 |
+| [`unreached-types`](#unreached-types) | 616 | at most 618 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -103,14 +103,14 @@ Where the bound has been:
 
 tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. With unruled mismatches held at zero, nothing else stops the ledger growing, because adding a ruling is always easier than fixing an extractor.
 
-Now **92 rulings**, at most **92**. At the bound.
+Now **93 rulings**, at most **93**. At the bound.
 
-every ruling names one of the 882 types the convergence artifact carries, over 896 admitted types.
+every ruling names one of the 883 types the convergence artifact carries, over 897 admitted types.
 
 - Measured on tools/row-gen/annotations.json.
 - Held against live/rowgen-convergence.json. Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
 - Instrument: the committed ledger read as JSON, cross-checked against the committed convergence artifact's type list.
-- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 896 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
+- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 897 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
 
 What the instrument cannot see:
 
@@ -124,6 +124,7 @@ Where the bound has been:
 - 95 once the ten record-backed effects rows were derived inside -emit instead of carried as unreproduced table rows. That bump also recorded that the constant had already been stale by nine, which is the failure a ratchet is supposed to make visible.
 - 93 on 2026-08-16 when this entry was migrated into the harness: the committed ledger was already two below its own const, so for the second time in two days the number was not bounding anything. Nothing was found to have deleted the two; the const was lowered to the measurement rather than the measurement explained.
 - 92 the same day, and this one is accounted for. The cloud-singleton admission retired aws_arczonalshift_autoshift_observer_notification_status's ruling, whose own recorded exit condition was "retire when the vocabulary covers an unschemed example that IS a cloud value" - which is exactly the rule that landed. row-gen -convergence demanded the deletion rather than permitting it, and this entry reported the resulting slack within the hour. That is the first time this ledger has fallen for a reason its own annotation predicted.
+- 93 on 2026-08-17: the reviewed upward bump this entry's own rule allows for a newly admitted type the classifier cannot reproduce. aws_iam_user_group_membership is the first row whose import ID has a variable number of segments - one per element of a set-typed argument - and every grammar rule in importprecedence.go compares a FIXED segment count against a fixed argument count. The ruling's exit names the missing evidence rather than the missing rule: importdocs-gen scrapes an argument's name and whether it is required, and nothing anywhere in the artifacts says the argument is a collection.
 
 <a id="rowgen-unannotated-mismatches"></a>
 ### `rowgen-unannotated-mismatches`
@@ -132,12 +133,12 @@ Every admitted row tools/row-gen's classifier fails to reproduce carries a rulin
 
 Now **0 unruled mismatches**, at most **0**. At the bound.
 
-recomputed from 882 compared rows: 92 unmatched, every one of them named by one of the ledger's 92 rulings.
+recomputed from 883 compared rows: 93 unmatched, every one of them named by one of the ledger's 93 rulings.
 
 - Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.
 - Instrument: the committed convergence artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift half.
-- Denominator `live/rowgen-convergence.json summary.compared`, measured at 882 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
+- Denominator `live/rowgen-convergence.json summary.compared`, measured at 883 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
 
 What the instrument cannot see:
 
@@ -154,9 +155,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **617 provider resource types**, at most **618**, so the bound is stale by 1 and should be lowered to the measurement.
+Now **616 provider resource types**, at most **618**, so the bound is stale by 2 and should be lowered to the measurement.
 
-896 admitted, 81 hand-vetoed, 148 markerless-vetoed, over a roster of 1699.
+897 admitted, 81 hand-vetoed, 148 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.

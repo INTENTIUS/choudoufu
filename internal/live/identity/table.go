@@ -233,6 +233,64 @@ type Component struct {
 	// refuse other non-static identity arguments elsewhere in this
 	// package.
 	SoleElement bool
+
+	// PerElement is [SoleElement]'s opposite number, for the identities the
+	// provider documents as one segment PER value of a collection-typed
+	// argument rather than one segment total. aws_iam_user_group_membership
+	// is the archetype: `user1/group1/group2` is a scalar user followed by
+	// one segment for every member of the `groups` set, so the number of
+	// segments is a property of the configuration and not of the type.
+	//
+	// The elements are joined by the separator this component's immediate
+	// predecessor supplies - a component whose Attrs are empty and whose
+	// Literal is the separator, which is how every other multi-segment row
+	// in the table already spells one. That predecessor emits the separator
+	// that precedes the FIRST element; this component emits the rest.
+	//
+	// # Why the elements may be sorted
+	//
+	// A set has no order, so the configuration's own spelling of `groups`
+	// cannot be the answer on its own: two configurations differing only in
+	// the order of that list are the same configuration, and must produce
+	// the same marker. Sorting supplies the missing determinism, and it is
+	// sound here because it changes nothing the provider will see. The
+	// provider's schema declares groups as set(string) (aws 6.59.0, verified
+	// against `terraform providers schema -json`), so the import ID's tail
+	// segments are parsed straight back into a set: any permutation of them
+	// yields the identical value, and a plan taken after importing one
+	// permutation is the plan taken after importing any other. Order is
+	// therefore free to be chosen, and this package chooses the one that is
+	// stable across runs.
+	//
+	// # The all-or-nothing rule
+	//
+	// Sorting needs a key for every element, and an element that waits on a
+	// live value has none: its rendered form is not known until apply, so
+	// where it belongs in a sorted sequence is not known either. Sorting the
+	// ones that do have keys and leaving the rest where they fell would
+	// invent an order that is neither the configuration's nor a canonical
+	// one. So the rule is all-or-nothing - canonicalise only when EVERY
+	// element yields a key, and otherwise leave the configuration's order
+	// untouched. A partial answer would mean "I do not know how to
+	// canonicalise this", and the honest way to say that is to not do it.
+	//
+	// The rule is borrowed from the sibling project chant, which met the
+	// same question about the same shape.
+	//
+	// # What IdentityAttr means on a component like this
+	//
+	// The rendered value is several segments joined by the separator, and no
+	// set-typed attribute has a string for its value, so a PerElement
+	// component naming an identity attribute contributes something the
+	// provider's identity object could not accept as-is. That is inert
+	// today - aws_iam_user_group_membership has no identity schema in aws
+	// 6.59.0, so nothing builds an identity object for it and the import-ID
+	// string is the whole answer - and the row keeps [SameNameIdentity] for
+	// the same reason every other IAM attachment row does: the attribute
+	// name is what the import string is built out of. A provider release
+	// that gives this type an identity schema is the point at which the
+	// question becomes real, and [checkIdentity] is what would raise it.
+	PerElement bool
 }
 
 // SameNameIdentity is [Component.IdentityAttr] for the ordinary case: the

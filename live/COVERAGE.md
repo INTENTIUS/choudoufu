@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 896 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 897 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 575, client-named 476, composite 152, assembled 30) | 1233 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-896<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+897<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -251,9 +251,9 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_iam_policy`, `aws_iam_role`, `aws_iam_role_policy`,
   `aws_iam_role_policy_attachment`, `aws_iam_saml_provider`,
   `aws_iam_server_certificate`, `aws_iam_service_linked_role`, `aws_iam_user`,
-  `aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
-  `aws_iam_virtual_mfa_device`, `aws_imagebuilder_component`,
-  `aws_imagebuilder_container_recipe`,
+  `aws_iam_user_group_membership`, `aws_iam_user_policy`,
+  `aws_iam_user_policy_attachment`, `aws_iam_virtual_mfa_device`,
+  `aws_imagebuilder_component`, `aws_imagebuilder_container_recipe`,
   `aws_imagebuilder_distribution_configuration`, `aws_imagebuilder_image`,
   `aws_imagebuilder_image_pipeline`, `aws_imagebuilder_image_recipe`,
   `aws_imagebuilder_infrastructure_configuration`,

@@ -128,6 +128,7 @@ type ratifiedComponent struct {
 	Cloud                  identity.CloudValue `json:"cloud,omitempty"`
 	IdentityAttr           string              `json:"identity_attr,omitempty"`
 	SoleElement            bool                `json:"sole_element,omitempty"`
+	PerElement             bool                `json:"per_element,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -154,6 +155,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				Cloud:                  c.Cloud,
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
+				PerElement:             c.PerElement,
 			})
 		}
 		r.Components = &comps
@@ -187,6 +189,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				Cloud:                  c.Cloud,
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
+				PerElement:             c.PerElement,
 			})
 		}
 		e.Components = comps

@@ -373,7 +373,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      92,
+		Bound:      93,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -419,6 +419,14 @@ func rowgenAnnotationRulings() Entry {
 				"the deletion rather than permitting it, and this entry reported the resulting slack " +
 				"within the hour. That is the first time this ledger has fallen for a reason its own " +
 				"annotation predicted.",
+			"93 on 2026-08-17: the reviewed upward bump this entry's own rule allows for a newly " +
+				"admitted type the classifier cannot reproduce. aws_iam_user_group_membership is " +
+				"the first row whose import ID has a variable number of segments - one per element " +
+				"of a set-typed argument - and every grammar rule in importprecedence.go compares a " +
+				"FIXED segment count against a fixed argument count. The ruling's exit names the " +
+				"missing evidence rather than the missing rule: importdocs-gen scrapes an " +
+				"argument's name and whether it is required, and nothing anywhere in the artifacts " +
+				"says the argument is a collection.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()
