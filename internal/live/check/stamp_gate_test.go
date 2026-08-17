@@ -242,19 +242,19 @@ func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 //     exactly the trade this mechanism is forbidden to make;
 //   - the configuration is no longer language-blocked by this rule.
 func TestStampGate_UntaggableTypeUnderARecordStoreIsAdmitted(t *testing.T) {
-	const typeName = "aws_cloudfront_cache_policy"
+	const typeName = "aws_eip_association"
 	schemas := map[string]providers.Schema{
 		typeName: {Block: &configschema.Block{
 			Attributes: map[string]*configschema.Attribute{
-				"id":      {Type: cty.String, Computed: true},
-				"name":    {Type: cty.String, Required: true},
-				"min_ttl": {Type: cty.Number, Optional: true},
+				"id":            {Type: cty.String, Computed: true},
+				"allocation_id": {Type: cty.String, Optional: true},
+				"instance_id":   {Type: cty.String, Optional: true},
 				// Still no tags: the type is as markerless as it ever was.
 			},
 		}},
 	}
 	if _, markerless := identity.MarkerlessTypes[typeName]; !markerless {
-		t.Fatalf("%s left identity.MarkerlessTypes, so this test no longer exercises the located path", typeName)
+		t.Fatalf("%s left identity.MarkerlessTypes, so this test no longer exercises the located path. Pick another type from the located population that no other admission route reaches - this fixture has already been rewritten once for exactly this reason.", typeName)
 	}
 
 	report := Dir(t.Context(), filepath.Join("testdata", "stamp-untaggable-record-located"), Context{Schemas: schemas})

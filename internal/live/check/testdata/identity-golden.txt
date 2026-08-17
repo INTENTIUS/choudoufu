@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=414 instances=1390
+# shape: dirs=414 instances=1389
 # shape: class CONCRETE=716
-# shape: class NEEDS_DISCOVERY=562
+# shape: class NEEDS_DISCOVERY=561
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=5d22babcceb3a6e3a7905adfd191a3fcf5d8d0fdb7b98e5fd0e66c65beaee74e
+# shape: body-sha256=fb5bc2ce1ffb8ce080e7d469e8e15bfe48950b439d863d189f5f47ad871981dd
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -21,7 +21,6 @@ internal/live/check/testdata/data-read-blocked	aws_instance.web	NEEDS_DISCOVERY
 internal/live/check/testdata/managed-result-foreach	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
-internal/live/check/testdata/stamp-untaggable-record-located	aws_cloudfront_cache_policy.example	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_cache_policy.example	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_origin_request_policy.example	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_response_headers_policy.example	NEEDS_DISCOVERY		
