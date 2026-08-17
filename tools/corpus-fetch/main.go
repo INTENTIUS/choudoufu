@@ -26,11 +26,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/check"
@@ -45,9 +47,13 @@ func main() {
 
 func run() error {
 	var (
-		manifestPath = flag.String("manifest", "live/corpus-manifest.json", "corpus manifest to read")
-		root         = flag.String("root", ".", "repository root that relative paths are resolved against")
-		force        = flag.Bool("force", false, "re-clone even when the pinned commit is already checked out")
+		manifestPath  = flag.String("manifest", "live/corpus-manifest.json", "corpus manifest to read")
+		root          = flag.String("root", ".", "repository root that relative paths are resolved against")
+		force         = flag.Bool("force", false, "re-clone even when the pinned commit is already checked out")
+		modules       = flag.Bool("modules", true, "install each entry's registry modules into its .terraform/modules, the directory internal/live/check.Load reads (#254)")
+		modulePinPath = flag.String("module-pins", "live/corpus-module-pins.json", "checked-in module lock: the frozen registry version listing a ranged version constraint resolves against, so an install does not float with whatever a module author published today")
+		remoteModules = flag.Bool("remote-modules", false, "also keep go-getter module sources (github.com/org/repo). They carry no ref in 133 of this corpus's 134 such calls, so the corpus then floats on somebody's default branch; a run that uses this cannot be compared with one that does not")
+		quiet         = flag.Bool("quiet", false, "suppress the per-entry module install log")
 	)
 	flag.Parse()
 
@@ -85,10 +91,64 @@ func run() error {
 
 	if fetched == 0 && skipped == 0 {
 		fmt.Println("corpus-fetch: the manifest pins no external sources; nothing to fetch")
+	} else {
+		fmt.Printf("corpus-fetch: %d fetched, %d already current\n", fetched, skipped)
+	}
+
+	if !*modules {
 		return nil
 	}
-	fmt.Printf("corpus-fetch: %d fetched, %d already current\n", fetched, skipped)
-	return nil
+	logOut := os.Stderr
+	if *quiet {
+		logOut = nil
+	}
+	summary, err := installModules(context.Background(), manifest, installOptions{
+		Root:          *root,
+		PinsPath:      underRoot(*root, *modulePinPath),
+		RemoteModules: *remoteModules,
+		Log:           logOut,
+	})
+	fmt.Print(renderInstallSummary(summary, *remoteModules))
+	return err
+}
+
+// renderInstallSummary prints what the module pass did. Every line is a
+// count this run computed, not a claim about the corpus: an entry whose
+// modules failed to install is measured with a hole in it, and the ranking
+// that follows has to be read knowing which ones.
+func renderInstallSummary(s installSummary, remote bool) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "\ncorpus-fetch: module pass ran over %d of %d entries (%d module records kept, %d entries carry calls).\n",
+		s.Entries-s.Failed, s.Entries, s.Installed, s.EntriesWithCalls)
+	fmt.Fprintf(&b, "corpus-fetch: %d registry package(s) pinned in the module lock", s.Packages)
+	if len(s.NewlyPinned) > 0 {
+		fmt.Fprintf(&b, "; %d newly locked this run: %s", len(s.NewlyPinned), strings.Join(s.NewlyPinned, ", "))
+	}
+	b.WriteString(".\n")
+	if len(s.FloatingPackages) > 0 {
+		fmt.Fprintf(&b, "corpus-fetch: %d package(s) were queried but resolved to nothing installable, so they are unpinned: %s\n",
+			len(s.FloatingPackages), strings.Join(s.FloatingPackages, ", "))
+	}
+	switch {
+	case remote:
+		b.WriteString("corpus-fetch: go-getter sources were KEPT (-remote-modules). This corpus is not reproducible:\n" +
+			"  a branch head can move under it with no change to this repository.\n")
+	case s.Dropped > 0:
+		sources := make([]string, 0, len(s.DroppedSources))
+		for source, n := range s.DroppedSources {
+			sources = append(sources, fmt.Sprintf("%s (%d)", source, n))
+		}
+		sort.Strings(sources)
+		fmt.Fprintf(&b, "corpus-fetch: %d go-getter module record(s) dropped, so those calls stay unresolved and the\n"+
+			"  corpus stays pinned. Sources: %s\n", s.Dropped, strings.Join(sources, ", "))
+	}
+	if len(s.Errors) > 0 {
+		fmt.Fprintf(&b, "corpus-fetch: %d entr(ies) reported install errors:\n", len(s.Errors))
+		for _, e := range s.Errors {
+			fmt.Fprintf(&b, "    %s\n", e)
+		}
+	}
+	return b.String()
 }
 
 // fetchOne clones one pinned source, shallowly, and verifies the tag resolves

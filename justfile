@@ -83,7 +83,21 @@ site-serve port="8000": site
 lint:
     make golangci-lint
 
-# Fetch the third-party corpus pinned in live/corpus-manifest.json into .corpus/ (gitignored). Needs network; run once.
+# Fetch the third-party corpus pinned in live/corpus-manifest.json into .corpus/
+# (gitignored), and install each entry's registry modules into its own
+# .terraform/modules. Needs network; run once.
+#
+# The module half is #254. internal/live/check.Load resolves a non-local module
+# source through .terraform/modules, exactly as a real user's directory has it
+# after init, and nothing here ever created that directory - so 58 of the 250
+# entries were measured with a hole where their modules should be, and two
+# refusal classes read as zero because the code that trips them was never
+# loaded. Registry versions are frozen in live/corpus-module-pins.json so the
+# corpus does not float with whatever a module author published today; commit
+# that file whenever this run changes it. Go-getter sources (github.com/org/repo)
+# are installed and then dropped, because 133 of the corpus's 134 such calls
+# carry no ref and there is nothing to pin them to; -remote-modules keeps them
+# and gives up reproducibility to do it.
 corpus-fetch:
     go run ./tools/corpus-fetch
 
