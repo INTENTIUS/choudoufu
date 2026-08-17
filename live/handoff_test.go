@@ -240,6 +240,18 @@ func handoffCitedPaths(root, text string) []string {
 		}
 		// ./tools/x is how a go command spells it; the repo path is the same.
 		s = strings.TrimPrefix(s, "./")
+		// A path that escapes the repository root names a location on the
+		// operator's disk rather than an artifact in the tree - `../wt/<name>`
+		// is where the playbook says to PUT a worktree, not something the
+		// repository ships. Its existence is a property of one machine: a
+		// fresh clone has no sibling `wt/`, and a run from inside
+		// .claude/worktrees/<name> resolves it somewhere else again. Checking
+		// it asserted the layout of the machine this document was written on,
+		// which failed for every worktree run and read as the agent's own
+		// breakage.
+		if s == ".." || strings.HasPrefix(s, "../") {
+			continue
+		}
 		// A GitHub repo slug (opentofu/opentofu, INTENTIUS/choudoufu) is
 		// spelled exactly like a two-segment path. Recognition is therefore
 		// "the first segment is a real entry at the repo root" rather than a
