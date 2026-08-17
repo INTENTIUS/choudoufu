@@ -46,7 +46,7 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 148, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 92 | at most 93 | `live/rowgen-convergence.json summary.admitted_total` at 892, floor 850 | #132 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 92 | at most 92 | `live/rowgen-convergence.json summary.admitted_total` at 892, floor 850 | #132 |
 | [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 878, floor 800 | #132 |
 | [`unreached-types`](#unreached-types) | 621 | at most 621 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
@@ -103,7 +103,7 @@ Where the bound has been:
 
 tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. With unruled mismatches held at zero, nothing else stops the ledger growing, because adding a ruling is always easier than fixing an extractor.
 
-Now **92 rulings**, at most **93**, so the bound is stale by 1 and should be lowered to the measurement.
+Now **92 rulings**, at most **92**. At the bound.
 
 every ruling names one of the 878 types the convergence artifact carries, over 892 admitted types.
 
@@ -123,6 +123,7 @@ Where the bound has been:
 - 122, 119, 116 through 2026-08-15 and 16 as classifyUnmapped, tryDocumentedShorterForm and the plain-prose enumeration signal each retired a batch of rulings.
 - 95 once the ten record-backed effects rows were derived inside -emit instead of carried as unreproduced table rows. That bump also recorded that the constant had already been stale by nine, which is the failure a ratchet is supposed to make visible.
 - 93 on 2026-08-16 when this entry was migrated into the harness: the committed ledger was already two below its own const, so for the second time in two days the number was not bounding anything. Nothing was found to have deleted the two; the const was lowered to the measurement rather than the measurement explained.
+- 92 the same day, and this one is accounted for. The cloud-singleton admission retired aws_arczonalshift_autoshift_observer_notification_status's ruling, whose own recorded exit condition was "retire when the vocabulary covers an unschemed example that IS a cloud value" - which is exactly the rule that landed. row-gen -convergence demanded the deletion rather than permitting it, and this entry reported the resulting slack within the hour. That is the first time this ledger has fallen for a reason its own annotation predicted.
 
 <a id="rowgen-unannotated-mismatches"></a>
 ### `rowgen-unannotated-mismatches`

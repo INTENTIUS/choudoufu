@@ -373,7 +373,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      93,
+		Bound:      92,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -412,6 +412,13 @@ func rowgenAnnotationRulings() Entry {
 				"already two below its own const, so for the second time in two days the number was not " +
 				"bounding anything. Nothing was found to have deleted the two; the const was lowered to " +
 				"the measurement rather than the measurement explained.",
+			"92 the same day, and this one is accounted for. The cloud-singleton admission retired " +
+				"aws_arczonalshift_autoshift_observer_notification_status's ruling, whose own recorded " +
+				"exit condition was \"retire when the vocabulary covers an unschemed example that IS a " +
+				"cloud value\" - which is exactly the rule that landed. row-gen -convergence demanded " +
+				"the deletion rather than permitting it, and this entry reported the resulting slack " +
+				"within the hour. That is the first time this ledger has fallen for a reason its own " +
+				"annotation predicted.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()
