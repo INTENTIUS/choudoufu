@@ -383,8 +383,9 @@ and until this harness existed it had never been run against anything.
 just demo-corpus-crossing
 ```
 
-Docker, the AWS CLI, a populated `.corpus` (`just corpus-fetch`), port 4605,
-about four minutes.
+Docker, the AWS CLI, a populated `.corpus` (`just corpus-fetch`), port 4605.
+It runs six plans and three applies over 63 instances, so it is the slowest
+of these harnesses by some way.
 
 What the estate contributes that a generated fixture cannot is not scale.
 It is three shapes nobody would think to write on purpose.
