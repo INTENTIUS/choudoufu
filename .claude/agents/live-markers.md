@@ -324,6 +324,14 @@ one to three times. Two of those were buying nothing, so:
   numbers are never the measurement; and its result arrives too late in an
   agent's turn to change any decision.
 
+  **Read `.claude/skills/measuring-the-wall/SKILL.md` before producing or
+  quoting any number.** It carries every way a figure has actually been
+  wrong here — quoted from a branch predating a merge, touches counted as
+  sole blockers, the wrong denominator, sites reported where instances was
+  the question, a gain that was our own fixture — plus what makes one
+  defensible. Every number in this project has been wrong at least once,
+  usually while being quoted confidently.
+
   **Use `tools/refusal-probe`. Do not build your own.** A dozen agents each
   wrote this same throwaway program before starting real work; it now exists.
 
