@@ -25,8 +25,18 @@
 // the output states what a schema-driven lint rule could and could not
 // catch.
 //
-// Throwaway measurement tooling: this feeds one issue comment and is not
-// part of any generation pipeline.
+// Originally throwaway measurement tooling for one issue comment (#126).
+// It is that no longer: its output, committed at live/wo-sweep.json, is
+// tools/limits-gen's source for the "Attribute-level residue" section's
+// figures in live/LIMITATIONS.md. Regenerate the artifact with
+//
+//	go run ./tools/wo-sweep > live/wo-sweep.json
+//
+// then `go run ./tools/limits-gen` to fold the new counts into the doc.
+// The doc once cited #126's 846-type snapshot verbatim while the admission
+// table had grown to 905, because nothing recomputed the figures when it
+// did; the committed artifact plus a drift test in tools/limits-gen closes
+// that.
 package main
 
 import (
@@ -36,6 +46,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
@@ -69,6 +80,7 @@ type output struct {
 	HardRequired    int           `json:"hard_required"`
 	TypesWithSoft   int           `json:"types_with_sensitive_settable"`
 	SoftAttrs       int           `json:"sensitive_settable_attrs"`
+	SoftRequiredTop int           `json:"sensitive_settable_required_top_level"`
 	TypesWithCompSn int           `json:"types_with_computed_sensitive"`
 	CompSnAttrs     int           `json:"computed_sensitive_attrs"`
 	ProvenInstances []string      `json:"proven_instances"`
@@ -197,6 +209,18 @@ func main() {
 		if len(tf.SensitiveSettable) > 0 {
 			out.TypesWithSoft++
 			out.SoftAttrs += len(tf.SensitiveSettable)
+			for _, a := range tf.SensitiveSettable {
+				// A dot in Path means the attribute sits inside a nested
+				// block or object (walkBlock/walkObject prefix the path as
+				// they descend), so it bites only when that block is
+				// present. No dot means it is a root-level argument of the
+				// resource itself: Required there makes the type
+				// unconfigurable without it, which is what "unconditionally
+				// required" means in live/LIMITATIONS.md's residue section.
+				if a.Required && !strings.Contains(a.Path, ".") {
+					out.SoftRequiredTop++
+				}
+			}
 		}
 		if len(tf.ComputedSensitive) > 0 {
 			out.TypesWithCompSn++

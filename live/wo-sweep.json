@@ -1,0 +1,1689 @@
+{
+  "provider": "hashicorp/aws",
+  "provider_version": "6.59.0",
+  "admitted_types": 905,
+  "missing_schema": [
+    "null_resource",
+    "random_id",
+    "random_integer",
+    "random_pet",
+    "random_shuffle",
+    "random_string",
+    "random_uuid",
+    "random_uuid4",
+    "random_uuid7",
+    "terraform_data",
+    "time_offset",
+    "time_rotating",
+    "time_sleep",
+    "time_static"
+  ],
+  "types_with_hard": 12,
+  "hard_attrs": 23,
+  "hard_required": 0,
+  "types_with_sensitive_settable": 60,
+  "sensitive_settable_attrs": 140,
+  "sensitive_settable_required_top_level": 8,
+  "types_with_computed_sensitive": 2,
+  "computed_sensitive_attrs": 2,
+  "proven_instances": [
+    "aws_s3_object.content: required=false optional=true computed=false sensitive=false write_only=false",
+    "aws_iam_access_key.secret: required=false optional=false computed=true sensitive=true write_only=false"
+  ],
+  "findings": [
+    {
+      "type": "aws_acm_certificate",
+      "hard": [
+        {
+          "path": "private_key_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": false,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "private_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_alb_listener",
+      "sensitive_settable": [
+        {
+          "path": "default_action.authenticate_oidc.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_alb_listener_rule",
+      "sensitive_settable": [
+        {
+          "path": "action.authenticate_oidc.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_amplify_app",
+      "sensitive_settable": [
+        {
+          "path": "access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "basic_auth_credentials",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auto_branch_creation_config.basic_auth_credentials",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_amplify_branch",
+      "sensitive_settable": [
+        {
+          "path": "basic_auth_credentials",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_api_gateway_api_key",
+      "sensitive_settable": [
+        {
+          "path": "value",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_api_gateway_domain_name",
+      "sensitive_settable": [
+        {
+          "path": "certificate_private_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_appconfig_configuration_profile",
+      "sensitive_settable": [
+        {
+          "path": "validator.content",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_appflow_connector_profile",
+      "sensitive_settable": [
+        {
+          "path": "connector_profile_config.connector_profile_credentials.amplitude.secret_key",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.custom_connector.basic.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.custom_connector.custom.credentials_map",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.custom_connector.oauth2.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.custom_connector.oauth2.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.google_analytics.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.google_analytics.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.honeycode.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.infor_nexus.secret_access_key",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.marketo.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.marketo.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.redshift.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.salesforce.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.sapo_data.basic_auth_credentials.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.sapo_data.oauth_credentials.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.service_now.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.slack.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.slack.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.snowflake.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.trendmicro.api_secret_key",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.veeva.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.zendesk.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connector_profile_config.connector_profile_credentials.zendesk.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_bedrockagentcore_api_key_credential_provider",
+      "hard": [
+        {
+          "path": "api_key_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "api_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_bedrockagentcore_evaluator",
+      "sensitive_settable": [
+        {
+          "path": "evaluator_config.llm_as_a_judge.instructions",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_bedrockagentcore_harness",
+      "sensitive_settable": [
+        {
+          "path": "environment_variables",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "system_prompt.text",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "tool.config.inline_function.input_schema",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "tool.config.remote_mcp.headers",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "tool.config.remote_mcp.url",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_bedrockagentcore_oauth2_credential_provider",
+      "hard": [
+        {
+          "path": "oauth2_provider_config.custom_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.custom_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.github_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.github_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.google_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.google_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.microsoft_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.microsoft_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.salesforce_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.salesforce_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.slack_oauth2_provider_config.client_id_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        },
+        {
+          "path": "oauth2_provider_config.slack_oauth2_provider_config.client_secret_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "oauth2_provider_config.custom_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.custom_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.github_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.github_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.google_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.google_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.microsoft_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.microsoft_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.salesforce_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.salesforce_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.slack_oauth2_provider_config.client_id",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oauth2_provider_config.slack_oauth2_provider_config.client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_cloudwatch_event_connection",
+      "sensitive_settable": [
+        {
+          "path": "auth_parameters.api_key.value",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.basic.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.invocation_http_parameters.body.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.invocation_http_parameters.header.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.invocation_http_parameters.query_string.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.oauth.client_parameters.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.oauth.oauth_http_parameters.body.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.oauth.oauth_http_parameters.header.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "auth_parameters.oauth.oauth_http_parameters.query_string.value",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_codebuild_webhook",
+      "computed_sensitive": [
+        {
+          "path": "secret",
+          "required": false,
+          "optional": false,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_codepipeline_webhook",
+      "sensitive_settable": [
+        {
+          "path": "authentication_configuration.secret_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_cognito_user",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "temporary_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_connect_user",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_datasync_location_fsx_ontap_file_system",
+      "sensitive_settable": [
+        {
+          "path": "protocol.smb.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_datasync_location_fsx_windows_file_system",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_datasync_location_object_storage",
+      "sensitive_settable": [
+        {
+          "path": "secret_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_datasync_location_smb",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_db_instance",
+      "hard": [
+        {
+          "path": "password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_dms_certificate",
+      "sensitive_settable": [
+        {
+          "path": "certificate_pem",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "certificate_wallet",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_dms_endpoint",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "kafka_settings.sasl_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "kafka_settings.ssl_client_key_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oracle_settings.asm_password",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oracle_settings.security_db_encryption",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "redis_settings.auth_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_docdb_cluster",
+      "hard": [
+        {
+          "path": "master_password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": false,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "master_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_docdbelastic_cluster",
+      "sensitive_settable": [
+        {
+          "path": "admin_user_password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_elasticache_replication_group",
+      "sensitive_settable": [
+        {
+          "path": "auth_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_elasticache_user",
+      "hard": [
+        {
+          "path": "passwords_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "passwords",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_mode.passwords",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_elasticsearch_domain",
+      "sensitive_settable": [
+        {
+          "path": "advanced_security_options.master_user_options.master_user_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_emr_cluster",
+      "sensitive_settable": [
+        {
+          "path": "kerberos_attributes.ad_domain_join_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "kerberos_attributes.cross_realm_trust_principal_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "kerberos_attributes.kdc_admin_password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_fsx_ontap_file_system",
+      "sensitive_settable": [
+        {
+          "path": "fsx_admin_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_fsx_ontap_storage_virtual_machine",
+      "sensitive_settable": [
+        {
+          "path": "svm_admin_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "active_directory_configuration.self_managed_active_directory_configuration.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_fsx_windows_file_system",
+      "hard": [
+        {
+          "path": "self_managed_active_directory.password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "self_managed_active_directory.password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_glue_connection",
+      "sensitive_settable": [
+        {
+          "path": "athena_properties",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "connection_properties",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.custom_authentication_credentials",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.basic_authentication_credentials.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.token_url_parameters_map",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.authorization_code_properties.authorization_code",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.oauth2_credentials.access_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.oauth2_credentials.jwt_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.oauth2_credentials.refresh_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "authentication_configuration.oauth2_properties.oauth2_credentials.user_managed_client_application_client_secret",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_glue_job",
+      "sensitive_settable": [
+        {
+          "path": "source_control_details.auth_token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_iam_server_certificate",
+      "sensitive_settable": [
+        {
+          "path": "private_key",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_iot_authorizer",
+      "sensitive_settable": [
+        {
+          "path": "token_signing_public_keys",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_iot_ca_certificate",
+      "sensitive_settable": [
+        {
+          "path": "ca_certificate_pem",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "verification_certificate_pem",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_kinesis_firehose_delivery_stream",
+      "sensitive_settable": [
+        {
+          "path": "http_endpoint_configuration.access_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "redshift_configuration.password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "snowflake_configuration.key_passphrase",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "snowflake_configuration.private_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_kms_external_key",
+      "sensitive_settable": [
+        {
+          "path": "key_material_base64",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_lb_listener",
+      "sensitive_settable": [
+        {
+          "path": "default_action.authenticate_oidc.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_lb_listener_rule",
+      "sensitive_settable": [
+        {
+          "path": "action.authenticate_oidc.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_lightsail_database",
+      "sensitive_settable": [
+        {
+          "path": "master_password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_mailmanager_ingress_point",
+      "hard": [
+        {
+          "path": "ingress_point_configuration.smtp_password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ]
+    },
+    {
+      "type": "aws_memorydb_user",
+      "sensitive_settable": [
+        {
+          "path": "authentication_mode.passwords",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_mq_broker",
+      "sensitive_settable": [
+        {
+          "path": "ldap_server_metadata.service_account_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "user.password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_mwaa_environment",
+      "sensitive_settable": [
+        {
+          "path": "airflow_configuration_options",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_opensearch_domain",
+      "sensitive_settable": [
+        {
+          "path": "advanced_security_options.master_user_options.master_user_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_rds_cluster",
+      "hard": [
+        {
+          "path": "master_password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "master_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_redshift_cluster",
+      "hard": [
+        {
+          "path": "master_password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "master_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_redshiftserverless_namespace",
+      "hard": [
+        {
+          "path": "admin_user_password_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": false,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "admin_user_password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "admin_username",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_s3_bucket_object_lock_configuration",
+      "sensitive_settable": [
+        {
+          "path": "token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_s3_bucket_replication_configuration",
+      "sensitive_settable": [
+        {
+          "path": "token",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_sesv2_email_identity",
+      "sensitive_settable": [
+        {
+          "path": "dkim_signing_attributes.domain_signing_private_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_ssm_parameter",
+      "hard": [
+        {
+          "path": "value_wo",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": true
+        }
+      ],
+      "sensitive_settable": [
+        {
+          "path": "value",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_timestreaminfluxdb_db_cluster",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_timestreaminfluxdb_db_instance",
+      "sensitive_settable": [
+        {
+          "path": "password",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_transfer_certificate",
+      "sensitive_settable": [
+        {
+          "path": "certificate",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "certificate_chain",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "private_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_transfer_server",
+      "sensitive_settable": [
+        {
+          "path": "host_key",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "post_authentication_login_banner",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "pre_authentication_login_banner",
+          "required": false,
+          "optional": true,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_verifiedaccess_trust_provider",
+      "sensitive_settable": [
+        {
+          "path": "native_application_oidc_options.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "oidc_options.client_secret",
+          "required": true,
+          "optional": false,
+          "computed": false,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    },
+    {
+      "type": "aws_vpn_connection",
+      "sensitive_settable": [
+        {
+          "path": "tunnel1_preshared_key",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        },
+        {
+          "path": "tunnel2_preshared_key",
+          "required": false,
+          "optional": true,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ],
+      "computed_sensitive": [
+        {
+          "path": "customer_gateway_configuration",
+          "required": false,
+          "optional": false,
+          "computed": true,
+          "sensitive": true,
+          "write_only": false
+        }
+      ]
+    }
+  ]
+}
