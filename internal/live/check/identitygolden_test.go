@@ -69,9 +69,13 @@ import (
 // offline analysis knows that account, so both the right identity and the
 // wrong one classify NEEDS_DISCOVERY here and neither renders. Every type
 // whose identity needs a live account, a server-assigned ID, or a parent's
-// real ID is invisible to this file in the same way: 550 of the 1320
-// instances it pins are NEEDS_DISCOVERY with nothing in the value column. It
-// covers the 658 that are CONCRETE and the 95 whose formula is symbolic.
+// real ID is invisible to this file in the same way: roughly two rows in five
+// are NEEDS_DISCOVERY or RECORD_BACKED with nothing in the value column. It
+// covers the CONCRETE rows and the PARENT_DERIVED ones whose formula is
+// symbolic. The exact split is the "# shape:" block at the top of the golden
+// and the pin in live/identity_golden_pin_test.go; it is not repeated here,
+// because the version of this sentence that named 550, 1320, 658 and 95
+// outlived all four.
 //
 // The second is the direction-of-merit problem, reproduced exactly. With the
 // fix reverted, the sweep resolved 1321 instances against 1320 - the count
