@@ -7,10 +7,15 @@ package projection
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
+	version "github.com/hashicorp/go-version"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -162,4 +167,71 @@ func keysOf(m map[string]cty.Value) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// TestPlanInstancesReachesIntoModules is not a nicety. The resource whose
+// computed attribute a for_each reads is usually in a shared module, not
+// beside the block reading it - simpleinfra's acm-certificate module is
+// called by four separate estates - so a version of this that walked only the
+// root would find nothing at all for the case it was written for, and would
+// do so silently.
+//
+// The key must be the ABSOLUTE instance address, because that is what
+// identity's own index parses (addrs.ParseAbsResourceInstanceStr). A bare
+// "stub_cert.cert" would be filed against a root resource that does not
+// exist: a wrong value rather than a missing one.
+func TestPlanInstancesReachesIntoModules(t *testing.T) {
+	cfg := loadConfigWithModules(t, "testdata/plan-in-module")
+	got, diags := PlanInstances(context.Background(), cfg,
+		map[string]providers.Schema{"stub_cert": stubCertSchema()}, derivingStub())
+	if diags.HasErrors() {
+		t.Fatalf("PlanInstances: %s", diags.Err())
+	}
+
+	const want = "module.acm.stub_cert.cert"
+	val, ok := got[want]
+	if !ok {
+		t.Fatalf("no value under %q; got %v", want, keysOf(got))
+	}
+	if n := val.GetAttr("derived").LengthInt(); n != 1 {
+		t.Errorf("derived has %d elements, want 1", n)
+	}
+	if _, unqualified := got["stub_cert.cert"]; unqualified {
+		t.Error("a module resource was also filed under its bare address, which names a root " +
+			"resource that does not exist")
+	}
+}
+
+// loadConfigWithModules is loadConfig for a fixture that calls a local module.
+// The shared helper deliberately fails on one, which is right for every test
+// that has no business having modules; this file's does, because the case
+// under test IS the module boundary.
+func loadConfigWithModules(t *testing.T, dir string) *configs.Config {
+	t.Helper()
+	parser := configs.NewParser(nil)
+	call := configs.NewStaticModuleCall(
+		addrs.RootModule, hcl.Range{},
+		func(v *configs.Variable) (cty.Value, hcl.Diagnostics) { return v.Default, nil },
+		dir, "default",
+	)
+	mod, diags := parser.LoadConfigDir(dir, call)
+	if diags.HasErrors() {
+		t.Fatalf("loading %s: %s", dir, diags.Error())
+	}
+	cfg, cfgDiags := configs.BuildConfig(context.Background(), mod, configs.ModuleWalkerFunc(
+		func(_ context.Context, req *configs.ModuleRequest) (*configs.Module, *version.Version, hcl.Diagnostics) {
+			sub := filepath.Join(dir, filepath.FromSlash(req.SourceAddr.String()))
+			subCall := configs.NewStaticModuleCall(
+				req.Path, hcl.Range{},
+				func(v *configs.Variable) (cty.Value, hcl.Diagnostics) { return v.Default, nil },
+				sub, "default",
+			)
+			m, d := parser.LoadConfigDir(sub, subCall)
+			return m, version.Must(version.NewVersion("0.0.0")), d
+		},
+	))
+	if cfgDiags.HasErrors() {
+		t.Fatalf("building config for %s: %s", dir, cfgDiags.Error())
+	}
+	return cfg
 }

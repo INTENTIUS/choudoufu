@@ -395,7 +395,7 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1372 rendered identities across 406 configuration directories in under a
+1372 rendered identities across 408 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
@@ -602,8 +602,21 @@ would otherwise rediscover.
   that names the type into a per-plan discovery error. The open question is
   whether path 4 is aspirational or simply wrong; the answer moves 143 survey
   rows and a pinned user-facing string, so it is a maintainer decision.
-- **The ACM cluster needs ONE fix, not two, and that was measured rather than
-  reasoned.** A scout concluded that deriving the `for_each` key set would only
+- **The ACM cluster needs the key set AND the each.value path. My earlier
+  "one fix, not two" note here was wrong, and this is the correction.**
+  Wiring the provider plan through end to end removes the `for_each` refusal
+  on rust-lang-org exactly as intended, and then reads 3 sites/5 instances
+  before against 4 sites/4 instances after: two refusals appear one layer down
+  (a data source inside the for_each body, and an identity argument carried
+  through `each.value` that is unknown until apply) and one resolved instance
+  is LOST. The experiment that produced the earlier note substituted a static
+  key set and set the record's name from a direct resource attribute
+  reference, which defers; the real configuration carries it through
+  `each.value`, which refuses. The library half is landed and tested
+  (projection.PlanInstances, pluginschema.AcquireSession,
+  check.Context.ManagedResults); the probe wiring is not, because a change
+  that clears a refusal and loses a marker is the wrong trade.
+- **Superseded, kept for the reasoning:** A scout concluded that deriving the `for_each` key set would only
   reveal the identity refusal underneath, because the record's `name` and
   `type` come from `resource_record_name`/`_type` and are known only after
   apply. That is wrong. Substituting a statically-knowable key set into

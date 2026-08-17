@@ -102,7 +102,7 @@ const identityGoldenPinBodyDigest = "a452325a5e96c2420a1431f974ff44aa0d1296ced34
 
 const (
 	identityGoldenPinInstances = 1372
-	identityGoldenPinDirs      = 406
+	identityGoldenPinDirs      = 408
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

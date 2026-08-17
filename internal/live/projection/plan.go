@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -74,10 +75,36 @@ func PlanInstances(ctx context.Context, cfg *configs.Config, schemas map[string]
 		return out, diags
 	}
 
+	planModule(ctx, cfg, schemas, prov, out)
+	return out, diags
+}
+
+// planModule plans one module node and then its children.
+//
+// The recursion is the point rather than a detail: the resource whose
+// computed attribute a for_each reads is very often in a shared module, not
+// beside the block that reads it - the ACM certificate this exists for sits
+// in simpleinfra's shared/modules/acm-certificate while four different
+// estates call it. Walking the root alone would have found nothing at all.
+//
+// Keys are ABSOLUTE instance addresses ("module.acm.aws_acm_certificate.cert"),
+// because that is what identity's own index parses them as
+// (addrs.ParseAbsResourceInstanceStr in dataresults.go). A bare
+// "aws_acm_certificate.cert" from a child module would be filed against a
+// root resource that does not exist, which is a wrong value rather than a
+// missing one.
+func planModule(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, prov providers.Configured, out map[string]cty.Value) {
+	if cfg == nil || cfg.Module == nil {
+		return
+	}
+	eval := cfg.Module.StaticEvaluator
+	if eval == nil {
+		return
+	}
 	for _, res := range cfg.Module.ManagedResources {
 		if res.Count != nil || res.ForEach != nil {
-			// See the doc comment: one planned value cannot stand for a set
-			// of instances whose key set is the thing in question.
+			// See PlanInstances' doc comment: one planned value cannot stand
+			// for a set of instances whose key set is the thing in question.
 			continue
 		}
 		schema, ok := schemas[res.Type]
@@ -88,9 +115,22 @@ func PlanInstances(ctx context.Context, cfg *configs.Config, schemas map[string]
 		if !ok {
 			continue
 		}
-		out[res.Addr().String()] = val
+		out[res.Addr().Absolute(cfg.Path.UnkeyedInstanceShim()).Instance(addrs.NoKey).String()] = val
 	}
-	return out, diags
+	for _, child := range cfg.Children {
+		// A repeated module call has one set of values per instance, for the
+		// same reason a repeated resource does, and cfg.Path carries no key
+		// to tell them apart. Planning it would file one instance's values
+		// under an address that names all of them.
+		if child != nil && child.Path.IsRoot() {
+			continue
+		}
+		if call, ok := cfg.Module.ModuleCalls[child.Path[len(child.Path)-1]]; ok &&
+			(call.Count != nil || call.ForEach != nil) {
+			continue
+		}
+		planModule(ctx, child, schemas, prov, out)
+	}
 }
 
 // planOne decodes one resource's configuration statically and asks the
@@ -146,4 +186,56 @@ func planOne(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.M
 		return cty.NilVal, false
 	}
 	return resp.PlannedState, true
+}
+
+// ProviderConfigValue statically evaluates a configuration's own DEFAULT
+// (unaliased) provider block for one provider type, so a caller can configure
+// a provider the way this estate configures it.
+//
+// It exists because [PlanInstances] needs a CONFIGURED provider -
+// PlanResourceChange is on that interface - and what the provider is
+// configured with can change the answer. An AWS provider pointed at one
+// region derives a different ARN than the same provider pointed at another,
+// and a planned value obtained under the wrong configuration is a wrong
+// value, which outranks a missing one. So there is no default here and no
+// fallback: a configuration whose provider block does not evaluate statically
+// gets no planned values at all, and refuses exactly as it does today.
+//
+// The aliased blocks are deliberately not read. A resource selects its
+// provider per block, and pairing the wrong one with a resource is the same
+// error as the wrong region. Handling aliases means resolving each resource's
+// own provider reference, which is worth doing and is not this.
+func ProviderConfigValue(ctx context.Context, cfg *configs.Config, providerType string, schema *configschema.Block) (val cty.Value, ok bool) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			val, ok = cty.NilVal, false
+		}
+	}()
+	if cfg == nil || cfg.Module == nil || schema == nil {
+		return cty.NilVal, false
+	}
+	eval := cfg.Module.StaticEvaluator
+	if eval == nil {
+		return cty.NilVal, false
+	}
+	pc, found := cfg.Module.ProviderConfigs[providerType]
+	if !found || pc == nil || pc.Alias != "" {
+		return cty.NilVal, false
+	}
+	ident := configs.StaticIdentifier{
+		Module:    cfg.Path,
+		Subject:   "provider." + providerType,
+		DeclRange: pc.DeclRange,
+	}
+	v, hclDiags := eval.DecodeBlock(ctx, pc.Config, schema.DecoderSpec(), ident)
+	if hclDiags.HasErrors() || v == cty.NilVal {
+		return cty.NilVal, false
+	}
+	// A provider configured from values this run cannot know is a provider
+	// configured differently from the operator's, which is the case this
+	// function refuses rather than guesses at.
+	if !v.IsWhollyKnown() {
+		return cty.NilVal, false
+	}
+	return v, true
 }
