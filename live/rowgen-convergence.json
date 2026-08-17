@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 897,
-    "compared": 883,
+    "admitted_total": 898,
+    "compared": 884,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 790,
-    "adopted_unchanged_pct": 89.47,
+    "adopted_unchanged": 791,
+    "adopted_unchanged_pct": 89.48,
     "genuine_mismatches": 93,
     "annotated": 93,
     "unannotated_mismatches": 0,
@@ -763,8 +763,8 @@
       "adopted_unchanged_pct": 85.71
     },
     "S3": {
-      "compared": 9,
-      "adopted_unchanged": 9,
+      "compared": 10,
+      "adopted_unchanged": 10,
       "adopted_unchanged_pct": 100
     },
     "S3Express": {
@@ -5078,7 +5078,7 @@
       ],
       "matched": false,
       "annotated": true,
-      "annotation_reason": "The Glue catalog family imports by CATALOG_ID:NAME, and the ratifiers ruled the CATALOG-ID segment a Cloud account-id slot: catalog_id is an optional argument that defaults to the caller's AWS account, so the row reads the account from the run's cloud context rather than from configuration. A Cloud component is not in any proposal bucket's vocabulary, so the ruling is the same missing shape as issue #172's ARN templates, over a bare account slot instead of a full ARN."
+      "annotation_reason": "The Cloud account-id slot is no longer what divides this row from its proposal: a composite proposal now reads the catalog_id bullet's own cloud_default and renders the segment as Component{Attrs: [catalog_id], Cloud: account-id} (compositeCloudFor). What remains is the OTHER half of the ratifiers' ruling on this family - that all three components, the separator included, jointly supply one identity attribute named 'id' - where the classifier proposes SameNameIdentity on each argument and none on the separator."
     },
     {
       "tf_type": "aws_glue_catalog_table",
@@ -8489,6 +8489,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_storage_lens_configuration",
+      "service": "S3",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },

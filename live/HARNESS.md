@@ -46,9 +46,9 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 148, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 93 | at most 93 | `live/rowgen-convergence.json summary.admitted_total` at 897, floor 850 | #132 |
-| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 883, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 616 | at most 618 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 93 | at most 93 | `live/rowgen-convergence.json summary.admitted_total` at 898, floor 850 | #132 |
+| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 884, floor 800 | #132 |
+| [`unreached-types`](#unreached-types) | 615 | at most 615 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -105,12 +105,12 @@ tools/row-gen/annotations.json is a list of named extractor gaps that only ever 
 
 Now **93 rulings**, at most **93**. At the bound.
 
-every ruling names one of the 883 types the convergence artifact carries, over 897 admitted types.
+every ruling names one of the 884 types the convergence artifact carries, over 898 admitted types.
 
 - Measured on tools/row-gen/annotations.json.
 - Held against live/rowgen-convergence.json. Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
 - Instrument: the committed ledger read as JSON, cross-checked against the committed convergence artifact's type list.
-- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 897 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
+- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 898 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
 
 What the instrument cannot see:
 
@@ -133,12 +133,12 @@ Every admitted row tools/row-gen's classifier fails to reproduce carries a rulin
 
 Now **0 unruled mismatches**, at most **0**. At the bound.
 
-recomputed from 883 compared rows: 93 unmatched, every one of them named by one of the ledger's 93 rulings.
+recomputed from 884 compared rows: 93 unmatched, every one of them named by one of the ledger's 93 rulings.
 
 - Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.
 - Instrument: the committed convergence artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift half.
-- Denominator `live/rowgen-convergence.json summary.compared`, measured at 883 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
+- Denominator `live/rowgen-convergence.json summary.compared`, measured at 884 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
 
 What the instrument cannot see:
 
@@ -155,9 +155,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **616 provider resource types**, at most **618**, so the bound is stale by 2 and should be lowered to the measurement.
+Now **615 provider resource types**, at most **615**. At the bound.
 
-897 admitted, 81 hand-vetoed, 148 markerless-vetoed, over a roster of 1699.
+898 admitted, 81 hand-vetoed, 148 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.
@@ -175,6 +175,7 @@ Where the bound has been:
 - 669 while the hand ledger stood at 949/81 and again at 944/86 - the batch that moved five types from the ledger into the table did not change this count at all, which is why it exists rather than a count of the ledger.
 - 665 when the markerless rule landed (#249); 649 while that rule read only the CloudFormation registry's verdict.
 - 621 once tools/importdocs-gen's soleid scrape settled 28 untaggable types the registry models nothing for.
+- 615 on 2026-08-17, three of them from single ratifications rather than a batch. The last is aws_s3control_storage_lens_configuration, and it is the first row admitted with no annotation over a documented account-id slot: a composite proposal now reads the cloud_default the argument's own bullet states and renders the segment as a Cloud component, so the classifier reproduces the ratified row instead of needing a ruling for it.
 <!-- harness-gen:end burndown -->
 
 ## Assumptions

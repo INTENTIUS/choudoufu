@@ -136,6 +136,16 @@ type proposal struct {
 	// states no fallback.
 	CompositeDefaults map[string]string
 
+	// CompositeCloud carries the doc's own CLOUD fallback for any of
+	// CompositeArgs (import-grammar's per-argument cloud_default): omitting
+	// the argument does not mean a literal, it means the account the run is
+	// against or the provider's Region. The rendered component sets
+	// [identity.Component.Cloud] alongside its Attrs, and the resolver
+	// prefers the configured value when there is one. Nil for every
+	// composite whose doc states no cloud default - which is all but eight
+	// of them in v6.59.0.
+	CompositeCloud map[string]string
+
 	// bucketAssembled only: the documented ARN/URL template's segments,
 	// copied from live/import-grammar.json's import_id_template field once
 	// tryAssembledTemplate's evidence bar passed. Every segment is a

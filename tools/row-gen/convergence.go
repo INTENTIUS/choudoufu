@@ -328,7 +328,12 @@ func proposedFields(p proposal) (serverAssigned bool, components []identity.Comp
 			if i > 0 {
 				components = append(components, identity.Component{Literal: p.CompositeSep})
 			}
-			components = append(components, identity.Component{Attrs: []string{arg}, Default: p.CompositeDefaults[arg], IdentityAttr: identity.SameNameIdentity})
+			components = append(components, identity.Component{
+				Attrs:        []string{arg},
+				Default:      p.CompositeDefaults[arg],
+				Cloud:        identity.CloudValue(p.CompositeCloud[arg]),
+				IdentityAttr: identity.SameNameIdentity,
+			})
 		}
 		// #106 criterion 3: an assembled row whose leading literal names its
 		// own scheme carries the derived IdentityAttr on every component. A
@@ -400,13 +405,18 @@ func componentsEqual(a, b []identity.Component) bool {
 // comparison: [identity.Component.ServerAssignedIfAbsent] (#190) and
 // [identity.Component.Attrs] on a component that carries a
 // [identity.Component.Cloud] value (#241, emit.go's mergeCloudDefault).
-// Neither is a classification judgment any proposal bucket makes -
-// proposedFields' bucketAssembled switch renders a cloud slot as a Cloud
-// component and nothing else, by construction - so comparing either would
-// fail every ratified row the merge touches for a field compareOne's caller
-// never asked classifyAll to propose. Only the Attrs of a cloud-bearing
-// component are cleared; an ordinary argument component's Attrs is the
-// classifier's own claim and is compared in full.
+// Neither is a classification judgment any proposal bucket makes - a cloud
+// slot's ARGUMENT NAME is emit.go's to fill in, whether the proposal
+// rendered the slot with no Attrs at all (bucketAssembled, whose template
+// segment carries only the cloud property) or with the argument the
+// cloud_default bullet names (bucketComposite, via CompositeCloud) - so
+// comparing either would fail every ratified row the merge touches for a
+// field compareOne's caller never asked classifyAll to propose. The Cloud
+// value itself is still compared, and that is the point: whether a segment
+// is an account/region slot at all is a claim the classifier now makes.
+// Only the Attrs of a cloud-bearing component are cleared; an ordinary
+// argument component's Attrs is the classifier's own claim and is compared
+// in full.
 //
 // Never mutates its argument: a is [identity.DefaultTable]'s own slice by
 // way of compareOne's ratified parameter, and mutating it in place would

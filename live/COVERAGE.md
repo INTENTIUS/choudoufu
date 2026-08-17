@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 897 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 898 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 575, client-named 476, composite 152, assembled 30) | 1233 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-897<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+898<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -392,7 +392,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_s3_bucket_server_side_encryption_configuration`,
   `aws_s3_bucket_versioning`, `aws_s3_directory_bucket`,
   `aws_s3control_bucket`, `aws_s3control_bucket_policy`,
-  `aws_s3control_multi_region_access_point`, `aws_s3files_access_point`,
+  `aws_s3control_multi_region_access_point`,
+  `aws_s3control_storage_lens_configuration`, `aws_s3files_access_point`,
   `aws_s3files_file_system`, `aws_s3files_file_system_policy`,
   `aws_s3tables_table_bucket`, `aws_s3tables_table_bucket_policy`,
   `aws_s3vectors_index`, `aws_s3vectors_vector_bucket`,

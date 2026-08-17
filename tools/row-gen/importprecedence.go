@@ -505,7 +505,7 @@ func setClientNamedComposite(p *proposal, args []string, sep string, g importGra
 	p.Bucket = bucketComposite
 	p.CompositeArgs = append([]string(nil), args...)
 	p.CompositeSep = sep
-	p.CompositeDefaults = compositeDefaultsFor(args, g)
+	setCompositeEvidence(p, args, g)
 	p.ArgSource = argSourceImportGrammar
 	p.Rule = "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs pin %s joined by %q: %s", quoteList(args), sep, g.ImportIDExample))
@@ -808,7 +808,7 @@ func tryRegistryComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
-		p.CompositeDefaults = compositeDefaultsFor(dc.ArgsInOrder, g)
+		setCompositeEvidence(p, dc.ArgsInOrder, g)
 		p.ArgSource = argSourceImportGrammar
 		p.Rule = "import-grammar precedence: registry composite primaryIdentifier, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly the registry's %d primary-identifier parts, matched by name: %s", g.ImportIDExample, sep, len(p.PrimaryIdentifier), quoteList(dc.ArgsInOrder)))
@@ -1358,7 +1358,7 @@ func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 		p.Bucket = bucketComposite
 		p.CompositeArgs = dc.ArgsInOrder
 		p.CompositeSep = dc.Separator
-		p.CompositeDefaults = compositeDefaultsFor(dc.ArgsInOrder, g)
+		setCompositeEvidence(p, dc.ArgsInOrder, g)
 		p.ArgSource = argSourceArgumentReference
 		p.Rule = "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string"
 		p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q splits on %q into exactly %d Required Argument Reference names, matched by name: %s", g.ImportIDExample, sep, len(required), quoteList(dc.ArgsInOrder)))
@@ -1663,4 +1663,59 @@ func compositeDefaultsFor(args []string, g importGrammarRow) map[string]string {
 		}
 	}
 	return out
+}
+
+// compositeCloudFor is compositeDefaultsFor's sibling for the other kind of
+// documented omission. omitted_fallbacks says "omitting this argument means
+// this literal value"; cloud_default says "omitting it means a property of
+// the cloud the run is against" - the AWS account ID, the provider's Region
+// (tools/importdocs-gen's ArgumentRefEntry.CloudDefault, scraped from the
+// bullet's own prose). A composite segment over such an argument is an
+// [identity.Component] carrying BOTH Attrs and Cloud, which is the shape
+// Component.Cloud's own doc comment describes as the ordinary case rather
+// than a contradiction, and which the resolver decides per instance.
+//
+// The selection rule is emit.go's mergeCloudDefault, verbatim: first bullet
+// wins per cloud property, matching the doc order the scrape preserves. The
+// two must agree, because they are the same claim reached from opposite
+// ends - mergeCloudDefault annotates a ratified row from this evidence, and
+// this fills the proposal from it so the classifier can reproduce a row of
+// that shape without a ruling. Restricted to args, so a `region` bullet on a
+// type whose import ID names no region argument contributes nothing.
+func compositeCloudFor(args []string, g importGrammarRow) map[string]string {
+	byCloud := make(map[string]string, 2)
+	for _, a := range g.ArgumentReference {
+		if a.CloudDefault == "" {
+			continue
+		}
+		if _, seen := byCloud[a.CloudDefault]; !seen {
+			byCloud[a.CloudDefault] = a.Name
+		}
+	}
+	if len(byCloud) == 0 {
+		return nil
+	}
+	var out map[string]string
+	for _, a := range args {
+		for cloud, name := range byCloud {
+			if name != a {
+				continue
+			}
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[a] = cloud
+		}
+	}
+	return out
+}
+
+// setCompositeEvidence fills both per-argument evidence maps a composite
+// proposal carries. Every site that resolves a composite calls it, so the
+// three ladders (grammar arguments, registry primaryIdentifier, Argument
+// Reference Required names) cannot drift apart on which evidence a
+// component gets.
+func setCompositeEvidence(p *proposal, args []string, g importGrammarRow) {
+	p.CompositeDefaults = compositeDefaultsFor(args, g)
+	p.CompositeCloud = compositeCloudFor(args, g)
 }

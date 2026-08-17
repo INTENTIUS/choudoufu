@@ -71,7 +71,7 @@ func unreachedTypes() Entry {
 			"internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or " +
 			"vetoed by the derived markerless rule. This counts the ones in none of them, where naming " +
 			"the type in a configuration is a hard resolve error with no ledger entry saying why.",
-		Bound:     618,
+		Bound:     615,
 		Direction: AtMost,
 		Measured: "internal/live/identity.DefaultTable, tools/row-gen/rejected.json and " +
 			"internal/live/identity.MarkerlessTypes",
@@ -103,6 +103,12 @@ func unreachedTypes() Entry {
 				"CloudFormation registry's verdict.",
 			"621 once tools/importdocs-gen's soleid scrape settled 28 untaggable types the registry " +
 				"models nothing for.",
+			"615 on 2026-08-17, three of them from single ratifications rather than a batch. The last " +
+				"is aws_s3control_storage_lens_configuration, and it is the first row admitted with no " +
+				"annotation over a documented account-id slot: a composite proposal now reads the " +
+				"cloud_default the argument's own bullet states and renders the segment as a Cloud " +
+				"component, so the classifier reproduces the ratified row instead of needing a ruling " +
+				"for it.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			universe, err := r.SurveyTypes()

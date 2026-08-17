@@ -262,11 +262,22 @@ func renderCompositeEntry(p proposal) string {
 		if i > 0 {
 			fmt.Fprintf(&comps, "\n\t\tsep(%q),", p.CompositeSep)
 		}
-		if def, ok := p.CompositeDefaults[arg]; ok {
-			// attr() cannot carry a fallback; the component is spelled in
-			// full so the paste stays unedited (see Component.Default).
-			fmt.Fprintf(&comps, "\n\t\tComponent{Attrs: []string{%q}, Default: %q, IdentityAttr: SameNameIdentity},", arg, def)
-		} else {
+		def, hasDef := p.CompositeDefaults[arg]
+		cloud, hasCloud := p.CompositeCloud[arg]
+		switch {
+		case hasDef || hasCloud:
+			// attr() cannot carry a fallback of either kind; the component
+			// is spelled in full so the paste stays unedited (see
+			// Component.Default and Component.Cloud).
+			fmt.Fprintf(&comps, "\n\t\tComponent{Attrs: []string{%q}", arg)
+			if hasDef {
+				fmt.Fprintf(&comps, ", Default: %q", def)
+			}
+			if hasCloud {
+				fmt.Fprintf(&comps, ", Cloud: %q", cloud)
+			}
+			comps.WriteString(", IdentityAttr: SameNameIdentity},")
+		default:
 			fmt.Fprintf(&comps, "\n\t\tattr(%q),", arg)
 		}
 		syn = append(syn, strings.ToUpper(arg))
