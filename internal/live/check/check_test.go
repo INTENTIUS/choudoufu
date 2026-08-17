@@ -116,6 +116,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"slots":           true,
 		"staterecord":     true,
 		"untag":           true,
+		// One predicate over a documentation string, shared by two
+		// generators so both read the same rule (#272). It refuses nothing
+		// at run time and never will: what it produces is a signal in a
+		// generated artifact, and the stage that would act on that signal
+		// does not exist yet.
+		"uniquename": true,
 	}
 
 	classified := map[string]bool{}

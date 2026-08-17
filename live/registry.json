@@ -3652,7 +3652,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Athena::NamedQuery",
@@ -6124,7 +6125,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::BedrockAgentCore::PaymentManager",
@@ -6359,7 +6361,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::BedrockMantle::Project",
@@ -6777,7 +6780,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Cases::Field",
@@ -8267,7 +8271,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "CachePolicyConfig/Name"
     },
     {
       "type_name": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
@@ -8583,7 +8588,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "OriginRequestPolicyConfig/Name"
     },
     {
       "type_name": "AWS::CloudFront::PublicKey",
@@ -8629,7 +8635,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::CloudFront::ResponseHeadersPolicy",
@@ -8651,7 +8658,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "ResponseHeadersPolicyConfig/Name"
     },
     {
       "type_name": "AWS::CloudFront::StreamingDistribution",
@@ -14331,7 +14339,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::DevOpsAgent::Service",
@@ -19622,7 +19631,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::EKS::FargateProfile",
@@ -20813,7 +20823,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::ElasticLoadBalancingV2::TargetGroup",
@@ -22345,7 +22356,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::GameLift::Location",
@@ -22762,7 +22774,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Glue::Database",
@@ -27370,7 +27383,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::IoTWireless::DeviceProfile",
@@ -28830,7 +28844,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Lambda::NetworkConnector",
@@ -29963,7 +29978,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Logs::Destination",
@@ -33915,7 +33931,8 @@
         "update": false,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::ODB::CloudAutonomousVmCluster",
@@ -34825,7 +34842,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::OpenSearchServerless::CollectionGroup",
@@ -39917,7 +39935,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Route53::DNSSEC",
@@ -47219,7 +47238,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Timestream::InfluxDBInstance",
@@ -47264,7 +47284,8 @@
         "update": true,
         "delete": true,
         "list": true
-      }
+      },
+      "unique_name_property": "Name"
     },
     {
       "type_name": "AWS::Timestream::ScheduledQuery",
