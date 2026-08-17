@@ -244,10 +244,10 @@ corpus init_bin="terraform":
 # `just tables` on a clean tree must produce no diff. If it does, either a
 # recipe is wrong or an artifact was already stale - both worth finding.
 #
-# `tables` runs the DERIVED stages only. The five source stages - registry,
-# importdocs, tagverbs, survey and logical-schemas - fetch from upstream or
-# need a running provider, so re-running one is a deliberate act with a pin
-# bump behind it,
+# `tables` runs the DERIVED stages only. The six source stages - registry,
+# importdocs, tagverbs, survey, logical-schemas and wo-sweep - fetch from
+# upstream or need a running provider, so re-running one is a deliberate act
+# with a pin bump behind it,
 # not something a routine regeneration should trigger as a side effect.
 # estate-gen is out for the same reason plus its own: it regenerates committed
 # fixtures whose acceptance verdicts are a ratchet, and it carries a separate
@@ -292,6 +292,14 @@ logical-schemas init_bin="terraform":
 row-emit:
     env -u PWD go run ./tools/row-gen -emit
 
+# hashicorp/aws's own schema, walked for WriteOnly and Sensitive+settable
+# arguments -> live/wo-sweep.json, tools/limits-gen's source for the
+# "Attribute-level residue" section's figures (#126). A source stage like
+# `survey`: it launches the provider, so it is out of `tables`. The plugin
+# cache serves it after the first run.
+wo-sweep init_bin="terraform":
+    env -u PWD go run ./tools/wo-sweep -init-bin {{init_bin}} > live/wo-sweep.json
+
 # Measure the classifier against the shipped table -> rowgen-convergence.json. NOT a coverage metric.
 convergence:
     env -u PWD go run ./tools/row-gen -convergence
@@ -312,7 +320,8 @@ identity-sources:
     go run ./tools/row-gen -sources
 
 # live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
-# registries plus the corpus artifact above. No provider, no network.
+# registries, the corpus artifact above, and live/wo-sweep.json's residue
+# figures (#126). No provider, no network: all three inputs are committed.
 #
 # Render live/LIMITATIONS.md's per-refusal spans from the refusal registries.
 limits:

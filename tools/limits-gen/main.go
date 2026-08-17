@@ -120,6 +120,15 @@ func run() error {
 		return err
 	}
 
+	sweep, err := readWoSweep(filepath.Join(root, filepath.FromSlash(woSweepRel)))
+	if err != nil {
+		return err
+	}
+	out, err = applyResidueSpans(out, sweep)
+	if err != nil {
+		return err
+	}
+
 	if out == string(src) {
 		fmt.Fprintf(os.Stderr, "limits-gen: %s is already current\n", limitationsRel)
 		return nil
