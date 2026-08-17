@@ -34,6 +34,20 @@ const (
 	// admission table.
 	RuleUnadmittedType Rule = "unadmitted-type"
 
+	// RuleMarkerlessType covers managed resources whose type
+	// [identity.MarkerlessTypes] vetoes: the provider mints the identity and
+	// the type has no tags argument, so the marker that is the only remaining
+	// handle has nowhere to be written. See admission.go's markerlessVetoed.
+	//
+	// It is a separate rule from [RuleUnadmittedType] because the two report
+	// the same absence with opposite promises. RuleUnadmittedType means the
+	// type is not in the table yet and ends by inviting the reader to open an
+	// issue naming the type and its documented import ID; this rule means the
+	// type is out by a derived rule that has already weighed that evidence,
+	// and no batch reaches it. An operator who acts on the wrong one of those
+	// two spends a round trip to be told no.
+	RuleMarkerlessType Rule = "markerless-type"
+
 	// RuleStateBackend covers backend and cloud blocks in terraform settings.
 	RuleStateBackend Rule = "state-backend"
 
@@ -131,6 +145,26 @@ const (
 	RuleModuleProviderBlock Rule = "module-provider-block"
 )
 
+// UnfindableClause is what an apply with no usable handle costs, as a
+// predicate with no subject, so that every sentence saying it can supply
+// its own subject and none of them can say it differently.
+//
+// Two layers say it. This package says it to an author whose resource type
+// can never carry a marker at all ([RuleMarkerlessType]); internal/live/stamp
+// says it in four sentences to an operator who reached apply with a
+// resource it could not stamp, one per [identity.DiscoveryCause], each with
+// its own subject - "Applying it unmarked", "leaving it out and applying",
+// "applying as written". Five hand copies of the text existed before it was
+// named. #111 is what one fact with two wordings costs: the fork's own
+// documentation came to describe a guarantee it did not hold because one
+// copy was updated and the other was not.
+//
+// It lives here rather than in internal/live/stamp, where four of the five
+// callers are, because this package is the lower of the two: stamp's own
+// tests already import it for [ValidForEachKey], so an edge the other way
+// is a cycle the compiler refuses.
+const UnfindableClause = "would create a resource this configuration can never see again, and every later plan would propose creating another one."
+
 // Severity is how fatal a rule's issues are treated as once they reach a
 // command. [SeverityError] is the zero value on purpose: every rule declared
 // before this type existed has no severity field set in its ruleInfo entry,
@@ -186,6 +220,15 @@ var ruleInfo = map[Rule]struct {
 	RuleUnadmittedType: {
 		summary: "Resource type is outside the live-markers subset",
 		docsRef: `live/LIMITATIONS.md, "unadmitted-type"`,
+	},
+	RuleMarkerlessType: {
+		// Deliberately not a variation on RuleUnadmittedType's summary. The
+		// two rules share an audience and a symptom, and a reader skimming a
+		// findings list has only these lines to tell "not wired yet" from
+		// "never will be" apart. This one names the mechanism that is
+		// missing rather than the table the type is absent from.
+		summary: "Resource type has nowhere to write an ownership marker",
+		docsRef: `live/LIMITATIONS.md, "markerless-type"`,
 	},
 	RuleStateBackend: {
 		summary: "State backends are not available under live resource markers",
@@ -328,10 +371,10 @@ type Issue struct {
 
 	// Type is the managed resource type name, set only by the rules whose
 	// verdict is about the type rather than about the construct:
-	// [RuleUnadmittedType] and [RuleLogicalResource]. Every other rule
-	// leaves it empty.
+	// [RuleUnadmittedType], [RuleMarkerlessType] and [RuleLogicalResource].
+	// Every other rule leaves it empty.
 	//
-	// It exists so that a report can group these two rules by type without
+	// It exists so that a report can group these rules by type without
 	// picking the name back out of Construct or Detail. Both are prose a
 	// campaign has already rewritten once (#101) and #110 will rewrite
 	// again, and an instrument that measures which refusals fire must not
