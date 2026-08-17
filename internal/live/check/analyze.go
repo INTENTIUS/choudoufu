@@ -6,6 +6,8 @@
 package check
 
 import (
+	"github.com/zclconf/go-cty/cty"
+
 	"context"
 	"fmt"
 	"sort"
@@ -39,6 +41,22 @@ type Context struct {
 	// [Report.Schemas] records whether they were present and every front
 	// end says so.
 	Schemas map[string]providers.Schema
+
+	// ManagedResults are values a caller obtained from the provider for
+	// resources whose computed attributes the configuration references -
+	// [projection.PlanInstances] produces them, keyed by resource address.
+	//
+	// This package stays provider-free on purpose. Analyze is the offline
+	// instrument that tools/refusal-probe and tools/corpus-gen fold into a
+	// ranking, and a pass that reached out to a provider on its own would
+	// make every one of those runs depend on a subprocess. So the caller
+	// that already has a provider in hand does the asking, and hands the
+	// answers in - the same seam [identity.Context.ManagedResults] has had
+	// since #187, under the same name.
+	//
+	// Empty is the ordinary case and means exactly today's behaviour: a
+	// for_each over a computed attribute refuses, as it always has.
+	ManagedResults map[string]cty.Value
 }
 
 // Analyze runs the configuration-only passes over one loaded configuration
@@ -109,7 +127,10 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		}
 	}
 
-	result, diags := identity.ResolveWith(ctx, cfg, identity.Context{Schemas: actx.Schemas})
+	result, diags := identity.ResolveWith(ctx, cfg, identity.Context{
+		Schemas:        actx.Schemas,
+		ManagedResults: actx.ManagedResults,
+	})
 	if result != nil {
 		report.Instances = result.Len()
 		report.Identities = result.All()

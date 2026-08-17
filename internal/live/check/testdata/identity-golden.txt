@@ -8,16 +8,17 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=405 instances=1371
+# shape: dirs=406 instances=1372
 # shape: class CONCRETE=704
-# shape: class NEEDS_DISCOVERY=555
+# shape: class NEEDS_DISCOVERY=556
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=65ef5360163aa2998b5405643c621059ee166f795b64dd41a52eeec3b07ae438
+# shape: body-sha256=a452325a5e96c2420a1431f974ff44aa0d1296ced3451f8873bca743a8fe4768
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
 internal/live/check/testdata/data-read-blocked	aws_instance.web	NEEDS_DISCOVERY		
+internal/live/check/testdata/managed-result-foreach	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
 internal/live/dataread/testdata/cross-module-ineligible	aws_instance.web	NEEDS_DISCOVERY		
