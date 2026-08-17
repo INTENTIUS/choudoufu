@@ -42,6 +42,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/lint"
 )
 
 // Action is what a blocker demands of whoever picks it up. The estate's own
@@ -100,8 +102,20 @@ const (
 //
 // The Reason is the deliverable, not the row. It has to say WHERE the
 // identity is, because that is what decides the action - the product has
-// exactly three places to put one (a tag, a record_store entry, a receipt),
-// and every refusal here is a statement that none of them applies yet.
+// three places to CARRY one (a tag, a record_store entry, a receipt), and a
+// refusal is usually a statement that none of them applies yet.
+//
+// Usually, not always, and the exception is the one this map got wrong twice.
+// A fourth answer is that the identity needs no carrier, because it re-derives
+// from the declaration on every run - which is what the client-named,
+// parent-derived and account-derived survey paths mean, and what an
+// association's identity always is. A marker is delete permission, not
+// identity, so "nothing to tag" is not "nothing identifies it". See
+// HANDOFF.md's "Two questions, not one".
+//
+// The ID alone also does not always settle the action. [refine] adjusts it
+// from the refusal's causes, and its two rules are where the scope ruling and
+// the pre-onboarding artifacts are applied.
 var blockerAction = map[string]struct {
 	Action Action
 	Reason string
@@ -168,15 +182,34 @@ var blockerAction = map[string]struct {
 }
 
 type sweep struct {
-	Commit  string `json:"commit"`
-	Entries []struct {
-		Name     string         `json:"name"`
-		Origin   string         `json:"origin"`
-		Blocked  bool           `json:"blocked"`
-		Refusals map[string]int `json:"refusals"`
-		Sites    int            `json:"sites"`
-		Modules  int            `json:"unresolved_modules"`
-	} `json:"entries"`
+	Commit  string       `json:"commit"`
+	Entries []sweepEntry `json:"entries"`
+}
+
+// sweepEntry is one measured configuration directory. It is a named type
+// rather than an anonymous struct so a test can build one without restating
+// every field and tag, which is what made adding a field here a three-file
+// edit before.
+type sweepEntry struct {
+	Name     string         `json:"name"`
+	Origin   string         `json:"origin"`
+	Blocked  bool           `json:"blocked"`
+	Refusals map[string]int `json:"refusals"`
+	Sites    int            `json:"sites"`
+	Modules  int            `json:"unresolved_modules"`
+
+	// Causes is the probe's per-refusal breakdown, keyed by refusal ID
+	// then by cause ("type:aws_s3_bucket", "reference:data_source").
+	// [refine] reads it because a refusal ID alone does not say what
+	// kind of work a blocker is.
+	Causes map[string]map[string]int `json:"causes"`
+
+	// UnsetVarSites is how many refused sites read a required variable
+	// with no value. The probe's own summary hedges that these "may be
+	// artifacts of the missing value", and the marking is textual
+	// reachability rather than a causal claim, so this annotates an
+	// estate and never reclassifies one.
+	UnsetVarSites int `json:"unset_var_sites"`
 }
 
 // ratePopulation is the only origin that counts as progress. See the package
@@ -233,8 +266,14 @@ func main() {
 			marker = "->"
 		}
 		fmt.Printf("%s %d blocker(s), %d site(s)%s  %s\n", marker, len(e.Blockers), e.Sites, moduleNote(e.Modules), e.Name)
+		if e.Note != "" {
+			fmt.Printf("      NOTE: %s\n", e.Note)
+		}
 		for _, bl := range e.Blockers {
 			fmt.Printf("      [%-6s] %-3d  %s\n", bl.Action, bl.Sites, bl.ID)
+			if bl.Note != "" {
+				fmt.Printf("             ^ %s\n", bl.Note)
+			}
 		}
 		for _, bl := range e.Informs {
 			fmt.Printf("      [%-6s] %-3d  %s (not a blocker; must still succeed at plan time)\n", bl.Action, bl.Sites, bl.ID)
@@ -247,14 +286,179 @@ type blocker struct {
 	ID     string
 	Sites  int
 	Action Action
+	// Note is why this blocker's action is not the one blockerAction gives
+	// its ID, or what an assignee has to know before taking it. Empty for
+	// the common case where the ID settles it.
+	Note string
+}
+
+// refine adjusts a blocker from its causes.
+//
+// The refusal ID says what the analyzer could not do. The cause says what
+// about the configuration defeated it, and for two refusals that difference
+// changes what kind of work the blocker is - or whether it is work at all.
+// Classifying by ID alone put an estate no fix can clear at the top of this
+// board twice: once for the data-read finding (see [ActionRead]) and once for
+// the two below.
+//
+// Both rules key on a property of the cause, never on a list of type names. A
+// list would buy the estates in front of it and leave the next cohort to be
+// rediscovered, which is the standing bar's first rule.
+func refine(id string, causes map[string]int, action Action) (Action, string) {
+	types := causeTypes(causes)
+	if len(types) == 0 {
+		return action, ""
+	}
+
+	switch id {
+	case "unadmitted-type":
+		// A type outside the one provider this fork markers. The maintainer
+		// ruling is #5 ("choudoufu is AWS only for now, and no second cloud
+		// is on the roadmap"), reaffirmed 2026-08-16, so these estates are
+		// out of scope rather than unbuilt - not driveable work, and they
+		// should not sit in front of estates that are.
+		//
+		// Note what this does NOT claim. The admission path contains no
+		// provider gate: internal/live/lint/admission.go decides on the
+		// generated table, the markerless veto and a schema-only
+		// derivation, and the schema fallback admits non-AWS types whose
+		// provider publishes an identity schema. So this is a SCOPE ruling
+		// about which estates are worth a slot, not a description of why
+		// the code refused. The two were conflated in this map's own
+		// wording before ("non-AWS types are refused by ruling, not by
+		// gap"), which is false about the code.
+		//
+		// A logical type never reaches this refusal - internal/live/lint's
+		// resource loop classifies logical types and `continue`s before the
+		// admission check - so the effects vocabulary (null_resource,
+		// terraform_data, time_*, random_*) cannot be caught by the prefix
+		// test below.
+		if foreign := nonAWS(types); len(foreign) > 0 && !anyAWS(types) {
+			return ActionRule, "every unadmitted type here belongs to another provider (" +
+				strings.Join(foreign, ", ") + "); AWS-only is a maintainer ruling (#5), so this estate is out of scope rather than unbuilt"
+		}
+
+	case "logical-resource":
+		// An effect whose record is admitted the moment the estate declares
+		// a record_store - internal/live/lint's resource loop returns early
+		// for a ClassRecordAdmitted type when recordStoreConfigured.
+		//
+		// No corpus entry declares one, because every corpus entry still
+		// carries the backend block it was published with, and a module may
+		// declare a live block or a backend but not both. So this refusal
+		// is the estate's PRE-ONBOARDING state rather than a language wall,
+		// in exactly the way an unset required variable is. Verified on
+		// .corpus/k8s-io/.../registry-sandbox-k8s-io-image-layers: swap the
+		// backend for a live block with a record_store and the probe reads
+		// blocked=0, sites=0, 13 instances.
+		//
+		// Secret-bearing logical types (random_password, local_sensitive_*)
+		// are a different class and are genuinely refused, so the rule
+		// holds only when every cause is record-admitted.
+		if recordAdmittedAll(types) {
+			return action, "every type here is an effect the record store admits; the estate clears this by declaring a record_store in its live block, which no corpus entry does because each still carries its published backend"
+		}
+	}
+
+	return action, ""
+}
+
+// causeTypes pulls the resource types out of a refusal's cause map.
+// tools/refusal-probe writes them as "type:<name>"; other cause kinds
+// (reference:, discovery:) are not type-shaped and are ignored.
+func causeTypes(causes map[string]int) []string {
+	var out []string
+	for cause := range causes {
+		if name, ok := strings.CutPrefix(cause, "type:"); ok {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// nonAWS returns the distinct provider prefixes among types this fork does
+// not marker. live/survey-full.json describes exactly one provider, and the
+// prefix is that provider's, so a type whose prefix is not "aws" is served by
+// something else.
+func nonAWS(types []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range types {
+		prefix, _, ok := strings.Cut(t, "_")
+		if !ok || prefix == "aws" {
+			continue
+		}
+		if !seen[prefix] {
+			seen[prefix] = true
+			out = append(out, prefix+"_*")
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// anyAWS reports whether any type is served by the one provider this fork
+// markers. It is the guard on the scope ruling: an estate with even one
+// unadmitted aws_ type still has in-scope admission work, so the ruling about
+// the others must not take the whole blocker out of the queue.
+func anyAWS(types []string) bool {
+	for _, t := range types {
+		if prefix, _, ok := strings.Cut(t, "_"); ok && prefix == "aws" {
+			return true
+		}
+	}
+	return false
+}
+
+// recordAdmittedAll reports whether every type is one the record store
+// admits. It asks internal/live/lint rather than carrying a list, so the
+// answer moves with the classification instead of drifting from it.
+func recordAdmittedAll(types []string) bool {
+	for _, t := range types {
+		lt, isLogical := lint.ClassifyLogicalType(t)
+		if !isLogical || lt.Class != lint.ClassRecordAdmitted {
+			return false
+		}
+	}
+	return len(types) > 0
 }
 
 type estate struct {
-	Name     string
-	Sites    int
-	Modules  int
+	Name    string
+	Sites   int
+	Modules int
+	// Note is what an assignee has to know about this estate before taking
+	// it, when the fact is a property of the estate rather than of any one
+	// blocker. Empty for the common case.
+	Note     string
 	Blockers []blocker // count toward the ordering
 	Informs  []blocker // printed, but not blockers
+}
+
+// driveable reports whether work in this repository can move this estate.
+//
+// Two shapes cannot be, and both used to sort to the front on blocker count
+// alone:
+//
+//   - every blocker is a maintainer ruling, which HANDOFF.md's loop already
+//     says to skip rather than re-prove;
+//   - every blocking site reads a required variable nobody supplied, which
+//     only the operator's own tfvars changes.
+//
+// Not driveable is not "not blocked". These estates stay in the plan, stay in
+// the blocked count, and keep their reason printed. This decides queue
+// position only.
+func (e estate) driveable() bool {
+	if e.Note != "" {
+		return false
+	}
+	for _, bl := range e.Blockers {
+		if bl.Action != ActionRule {
+			return true
+		}
+	}
+	return len(e.Blockers) == 0
 }
 
 // buildPlan orders blocked rate-capable estates by how many distinct classes
@@ -269,6 +473,7 @@ func buildPlan(s sweep) ([]estate, []string) {
 			continue
 		}
 		est := estate{Name: e.Name, Sites: e.Sites, Modules: e.Modules}
+		blockingSites := 0
 		for id, sites := range e.Refusals {
 			a, ok := blockerAction[id]
 			if !ok {
@@ -283,7 +488,30 @@ func buildPlan(s sweep) ([]estate, []string) {
 				est.Informs = append(est.Informs, b)
 				continue
 			}
+			b.Action, b.Note = refine(id, e.Causes[id], act)
+			blockingSites += sites
 			est.Blockers = append(est.Blockers, b)
+		}
+
+		// Every refused site on this estate reads a required variable nobody
+		// supplied a value for. Stock OpenTofu refuses the same configuration
+		// for the same reason, so no analysis change clears it; only the
+		// operator's own tfvars does.
+		//
+		// The estate is deliberately NOT reclassified or dropped. The ruling
+		// in live/corpus-manifest.json (#183, reworked to the parity ruling
+		// on 2026-08-15) is that an estate whose repository ships no tfvars
+		// "stays language-blocked on unset_var_only refusals, honestly", and
+		// inferring parity from the marking would reverse that. It is
+		// annotated so a slot is not spent extending an evaluator that
+		// already folds the expression, which is what happened here once.
+		//
+		// The comparison is against BLOCKING sites, not e.Sites: the latter
+		// counts the informational data-read finding too, and an estate
+		// carrying one would never satisfy an equality against it however
+		// complete the marking.
+		if e.UnsetVarSites > 0 && blockingSites > 0 && e.UnsetVarSites == blockingSites {
+			est.Note = "every blocking site reads an unset required variable; stock refuses this identically, and #183 rules that an estate shipping no tfvars stays blocked rather than being papered over - not analysis work"
 		}
 		bySites := func(s []blocker) {
 			sort.Slice(s, func(i, j int) bool {
@@ -304,6 +532,19 @@ func buildPlan(s sweep) ([]estate, []string) {
 	}
 
 	sort.Slice(out, func(i, j int) bool {
+		// Driveable estates first, and only then fewest blockers. An estate
+		// nothing in this repository can change is not the next assignment
+		// however few blockers it carries, and it headed this board for a
+		// whole session precisely because blocker count alone put it there.
+		//
+		// They are still listed, still blocked, and still in the denominator.
+		// Dropping them would overstate the rate, and for the unset-variable
+		// cohort it would also reverse #183's ruling that such an estate
+		// stays language-blocked rather than being papered over. The order
+		// changes; the accounting does not.
+		if di, dj := out[i].driveable(), out[j].driveable(); di != dj {
+			return di
+		}
 		if len(out[i].Blockers) != len(out[j].Blockers) {
 			return len(out[i].Blockers) < len(out[j].Blockers)
 		}
@@ -325,34 +566,54 @@ func buildPlan(s sweep) ([]estate, []string) {
 // running at all: how many estates are one blocker from clean, and which
 // classes those single blockers are.
 func summarise(plan []estate) string {
-	sole := map[string]int{}
-	oneAway := 0
+	// Keyed by the REFINED action and the refusal ID together, and counted
+	// over driveable estates only. Both matter. Reading the action off
+	// blockerAction here while the body below printed the refined one made
+	// this block disagree with the list underneath it, and counting
+	// non-driveable estates in "one blocker from clean" is the same error
+	// the data-read finding caused: a number that reads as available work
+	// when no work in this repository moves it.
+	type key struct {
+		action Action
+		id     string
+	}
+	sole := map[key]int{}
+	oneAway, parked := 0, 0
 	for _, e := range plan {
-		if len(e.Blockers) == 1 {
-			oneAway++
-			sole[e.Blockers[0].ID]++
+		if len(e.Blockers) != 1 {
+			continue
 		}
+		if !e.driveable() {
+			parked++
+			continue
+		}
+		oneAway++
+		sole[key{e.Blockers[0].Action, e.Blockers[0].ID}]++
 	}
 	type kv struct {
-		id string
-		n  int
+		key key
+		n   int
 	}
 	var rows []kv
-	for id, n := range sole {
-		rows = append(rows, kv{id, n})
+	for k, n := range sole {
+		rows = append(rows, kv{k, n})
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].n != rows[j].n {
 			return rows[i].n > rows[j].n
 		}
-		return rows[i].id < rows[j].id
+		return rows[i].key.id < rows[j].key.id
 	})
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d estates are ONE blocker from clean:\n", oneAway)
+	fmt.Fprintf(&b, "%d driveable estates are ONE blocker from clean:\n", oneAway)
 	for _, r := range rows {
-		a := blockerAction[r.id]
-		fmt.Fprintf(&b, "  %3d  [%-6s] %s\n", r.n, a.Action, r.id)
+		fmt.Fprintf(&b, "  %3d  [%-6s] %s\n", r.n, r.key.action, r.key.id)
+	}
+	if parked > 0 {
+		fmt.Fprintf(&b, "  (%d more carry a single blocker that no work here moves - a maintainer "+
+			"ruling, or a required variable only the operator supplies. They stay blocked and "+
+			"counted; they sort to the back.)\n", parked)
 	}
 	return b.String()
 }
