@@ -337,14 +337,36 @@ one to three times. Two of those were buying nothing, so:
   one tree — which `just corpus` cannot. It reports per-entry and per-refusal-ID
   deltas, and flags entries that got **worse**, which an aggregate hides.
 
-  Then verify the handful of entries you actually care about with real
-  schemas from the warm plugin cache, by calling `check.Dir`,
-  `identity.ResolveWith`, `stamp.Stamp` or `SynthesizeTypeIdentity` directly.
-  The probe is schema-less: it undercounts refusals and **overcounts what a
-  fix clears**, because clearing one refusal often reveals another underneath
-  that only schemas can see. One fix measured 11 sites cleared and delivered
-  10046 → 10046. Another measured 60 and delivered exactly 60 — the second
-  agent had checked, per entry, that no other refusal count moved.
+  **`-schemas` is the other half, and it corrects what this section used to
+  say.** The default mode is schema-less: it over-reports refusals a
+  provider's own identity schema would have settled, and it **overcounts what
+  a fix clears**, because clearing one refusal often reveals another
+  underneath. One fix measured 11 sites cleared and delivered 10046 → 10046;
+  another measured 60 and delivered exactly 60, because that agent checked
+  per entry that no other count moved.
+
+  But "upper bound" is true of **sites** and **false of the verdict**.
+  Measured over all 250 entries at one commit, schema-less then not:
+
+      sites     8767 → 8461      blocked configurations   193 → 206
+      instances 3587 → 3921
+
+  **Blocked configurations rise by thirteen.** Thirteen configurations read
+  as unblocked in the default mode that a real run refuses, because a rule
+  needing a schema returns false without one and a false there is not
+  evidence of anything. A fix validated only against the default mode can
+  look like it unblocked something it did not.
+
+  The default mode is also blind to **the whole stamp layer** (110 sites),
+  to `Two resources with the same identity` (34), and to any non-AWS estate —
+  a `google_*` configuration measured with no google schema reports
+  `unadmitted-type` for every resource in it, which is a property of the run.
+
+      go run ./tools/refusal-probe -schemas -out before.json   # ~2.5min warm
+      go run ./tools/refusal-probe -schemas -entry .corpus/vpc -v
+
+  `-schemas` also reports the per-site **cause**, and `-diff` refuses to
+  compare a schema-less run against a schema-backed one.
 
   If you genuinely need a corpus number, say what you would expect it to show
   and let the orchestrator compute it on the merged tree.

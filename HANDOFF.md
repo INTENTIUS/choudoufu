@@ -75,22 +75,34 @@ It writes where you point it, so several agents can measure concurrently in
 one tree — `just corpus` cannot. It reports per-entry and per-refusal-ID
 deltas and flags entries that got **worse**.
 
-It runs **without provider schemas**: it sees the sites a fix clears and not
-the ones that surface underneath. Worked examples from one session:
+The default mode runs **without provider schemas**: it sees the sites a fix
+clears and not the ones that surface underneath. #196's first half claimed
+11 sites cleared and delivered 10046 → 10046, fourteen merely relabelled;
+its second half claimed 60 from a **per-entry probe against real schemas**
+and delivered exactly 60. The difference is the instrument, not luck.
 
-- #196's first half claimed 11 sites cleared. Schema-backed: 10046 → 10046,
-  fourteen sites merely relabelled into another refusal ID.
-- Its second half claimed 60 from a **per-entry probe against real schemas
-  from the warm plugin cache**, and delivered exactly 60.
+**But "upper bound" is true of sites and false of the verdict**, and this
+corrects what the file used to say. Both modes, all 250 entries, one commit:
 
-The difference is the instrument, not luck. Sweep offline; verify the
-entries you care about with real schemas before reporting a number as
-anything but an upper bound.
+    sites     8767 → 8461      blocked configurations   193 → 206
+    instances 3587 → 3921
 
-Two probe blind spots found the hard way: a rule that returns false when
-`schemas == nil` is **invisible** to it (its zero is not evidence), and an
-entry with registry module calls is measuring roughly a sixth of its refusal
-surface — one went 59 sites → 394 once its modules were installed.
+**Blocked configurations rise by thirteen.** Thirteen configurations read as
+unblocked in the default mode that a real run refuses, because a rule
+needing a schema returns false without one and a false there is not evidence
+of anything. A fix validated only against the default mode can look like it
+unblocked something it did not.
+
+    go run ./tools/refusal-probe -schemas -out before.json   # ~2.5min warm
+
+`-schemas` also reports the per-site **cause**, which three agents each
+hand-built before it existed. `-diff` refuses to compare the two modes.
+
+Other blind spots: the default mode cannot see the stamp layer at all (110
+sites), nor `Two resources with the same identity` (34), nor any non-AWS
+estate; and an entry with registry module calls measures roughly a sixth of
+its refusal surface — one went 59 sites → 394 once its modules were
+installed.
 
 ## Binding rules (maintainer directives)
 
