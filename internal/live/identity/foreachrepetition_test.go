@@ -9,6 +9,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 // #213: a local value's own definition references each.value/each.key/
@@ -52,32 +54,74 @@ func TestLocalAttrRepetitionSymbolic(t *testing.T) {
 	if !diags.HasErrors() {
 		t.Fatal("expected a refusal: local.suffix reads each.value, which this for_each never makes known")
 	}
-	if !hasDiag(diags, "Dynamic value in static context", "each.value") {
-		t.Errorf("expected \"Dynamic value in static context\" naming each.value; got:\n%s", renderDiags(diags))
+	// The summary moved with #260. each.value is no longer refused by
+	// [configs.StaticEvaluator]'s reference pre-scan before anything looks at
+	// it; the element expression is carried and SELECTED into, and here the
+	// element is a one-element tuple, which a string interpolation cannot
+	// take. So the refusal now names the real obstacle - a resource
+	// reference this cannot follow through an expression - instead of
+	// "each.value is dynamic". What has not moved, and is the whole point of
+	// the fixture, is that it refuses rather than answering with each.key.
+	if !diags.HasErrors() {
+		t.Fatal("expected a refusal")
+	}
+	for _, res := range mustResolve(t, cfg) {
+		if res.ImportID == "user-alice" || res.ImportID == "user-" {
+			t.Errorf("%s resolved to %q - each.key was substituted for each.value", res.Addr, res.ImportID)
+		}
 	}
 }
 
-// TestForEachValueKeyOnlyRefusesCleanly pins the one real corpus site this
-// change touched (see the fixture's own comment): a bare, TOP-LEVEL
-// each.value reference - not through a local - under a keyOnly expansion.
-// Before #213, this refused via HCL's own generic "Unsupported attribute"
-// (a symptom of the old unconditional scope.vars splice building an "each"
-// object with no "value" key at all); after, it refuses through this
-// package's own structured "Dynamic value in static context", categorized
-// "other" ([configs.CategoryOther], since [addrs.ForEachAttr] has no more
-// specific category). Both refuse - this pins that the reclassification
-// did not also change WHETHER it refuses.
-func TestForEachValueKeyOnlyRefusesCleanly(t *testing.T) {
+// TestForEachValueKeyOnlyResolvesAManagedParent is what #213's
+// TestForEachValueKeyOnlyRefusesCleanly became under #260, and the rename is
+// the point: the shape it pins - a bare, TOP-LEVEL each.value under a keyOnly
+// expansion, whose element is a managed resource's identity attribute - is
+// now the B-ref/managed case that RESOLVES, through the same
+// [resolver.parentPart] a direct reference to that attribute has always used.
+//
+// The corpus site it was written for is not this shape: govuk-infrastructure's
+// aws_security_group_rule.postgres_from_eks_workers reads a data source, and
+// that half is pinned by TestForEachValueKeyOnlyDataStillRefuses below,
+// unchanged in outcome.
+func TestForEachValueKeyOnlyResolvesAManagedParent(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "foreach-value-keyonly"), nil)
 
-	_, diags := Resolve(context.Background(), cfg)
-	if !diags.HasErrors() {
-		t.Fatal("expected a refusal: each.value is not statically known under this for_each")
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	res := resolutionAt(t, result, `aws_iam_user.team["alice"]`)
+	if res.ImportID != "admins" {
+		t.Errorf(`aws_iam_user.team["alice"] import ID is %q, want "admins" - the group's own name, which is what each.value names`, res.ImportID)
 	}
-	if !hasDiag(diags, "Dynamic value in static context", "each.value") {
-		t.Errorf("expected \"Dynamic value in static context\" naming each.value; got:\n%s", renderDiags(diags))
+	if got := res.IdentityValues["name"]; got != "admins" {
+		t.Errorf(`aws_iam_user.team["alice"] name is %q, want "admins"`, got)
+	}
+}
+
+// TestForEachValueKeyOnlyDataStillRefuses is the boundary #260 did not move,
+// and the shape the real corpus site actually has. A data source's attribute
+// is knowable at plan time and not before, so an identity built from it is
+// refused rather than guessed - and in particular the instance key, the one
+// value that IS in scope, must not stand in for it.
+func TestForEachValueKeyOnlyDataStillRefuses(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "foreach-value-keyonly-data"), nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	if !diags.HasErrors() {
+		t.Fatal("expected a refusal: each.value is a data-source read")
+	}
+	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["alice"]`)); ok {
+		t.Errorf(`aws_iam_user.team["alice"] resolved to import ID %q; its value is a data-source read`, got.ImportID)
 	}
 	if hasDiag(diags, "Unsupported attribute", "") {
-		t.Errorf("the old HCL-native diagnostic should have been superseded by the structured one; got:\n%s", renderDiags(diags))
+		t.Errorf("the old HCL-native diagnostic should have been superseded by a structured one; got:\n%s", renderDiags(diags))
 	}
+}
+
+// mustResolve is [Resolve] with the result flattened, for a test that only
+// wants to sweep every rendered identity for a value that must not appear.
+func mustResolve(t *testing.T, cfg *configs.Config) []Resolution {
+	t.Helper()
+	result, _ := Resolve(context.Background(), cfg)
+	return result.All()
 }

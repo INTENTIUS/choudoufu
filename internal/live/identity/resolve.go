@@ -1857,6 +1857,13 @@ func (r *resolver) resolveTraversal(trav hcl.Traversal, scope instScope, ident c
 		return r.parentPart(parent, attrStep.Name, rng, ident)
 	}
 
+	if trav.RootName() == "each" && scope.eachValueExpr != nil &&
+		len(trav) >= 2 && isAttrStep(trav[1], "value") {
+		// #260: each.value is an expression here, not a value. See
+		// eachvalue.go.
+		return r.eachValuePart(trav, scope, ident)
+	}
+
 	ref, refDiags := addrs.ParseRef(trav)
 	if refDiags.HasErrors() {
 		r.appendDiags(refDiags)
@@ -2108,7 +2115,13 @@ func (r *resolver) isSymbolic(expr hcl.Expression, scope instScope) bool {
 	for _, trav := range expr.Variables() {
 		switch trav.RootName() {
 		case "each":
-			if scope.eachParent != nil && len(trav) >= 2 && isAttrStep(trav[1], "value") {
+			// each.value handled structurally rather than evaluated: the
+			// for_each parent's instance with the same key, or (#260) the
+			// element expression this key's each.value stands for. each.key
+			// is never either - it is bound as an ordinary value - so the
+			// "value" step is required in both cases.
+			if len(trav) >= 2 && isAttrStep(trav[1], "value") &&
+				(scope.eachParent != nil || scope.eachValueExpr != nil) {
 				return true
 			}
 		case "count", "var", "local", "path", "terraform", "tofu", "module", "data", "self":
@@ -2609,6 +2622,18 @@ type expansion struct {
 	// not mention keeps each.value unbound and refusing.
 	eachValues map[addrs.InstanceKey]cty.Value
 
+	// eachValueExprs is #260: for a key whose element did NOT evaluate as a
+	// value, the element's own value EXPRESSION, so that each.value.<attr>
+	// can select one attribute out of it structurally instead of asking for
+	// the whole element. One dynamic attribute inside an element leaves
+	// eachValues without that key, which used to refuse every literal
+	// sibling beside it; a selection is per-attribute where a value is
+	// all-or-nothing.
+	//
+	// Read only where eachValues has no entry for the key, so a key whose
+	// value proved keeps its old binding and its old behaviour exactly.
+	eachValueExprs map[addrs.InstanceKey]elemBinding
+
 	// eachParent is set when for_each iterates over another managed
 	// resource: each.value is then that resource's instance with the same
 	// key, which is a symbolic reference rather than a value.
@@ -2688,6 +2713,16 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
 		if v, ok := e.eachValues[key]; ok {
 			sc.repetition.EachValue = v
+			break
+		}
+		// #260: no proven value, but the element's own expression is in
+		// hand. each.value stays unbound - nothing here knows the element as
+		// a VALUE, and binding a partial one is what would let try() fall
+		// back over an attribute that is present and merely unresolvable -
+		// and the expression is threaded instead, for
+		// [resolver.eachValueSelect] to select one attribute out of.
+		if b, ok := e.eachValueExprs[key]; ok && b.expr != nil {
+			sc.eachValueExpr = &b
 		}
 	case e.eachValues != nil:
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key), EachValue: e.eachValues[key]}
@@ -2711,6 +2746,16 @@ type instScope struct {
 	repetition instances.RepetitionData
 	vars       map[string]cty.Value
 	eachParent *addrs.Resource
+
+	// eachValueExpr is set when this instance's each.value is known as an
+	// EXPRESSION rather than as a value (#260): the element of the for_each
+	// source that belongs to this key, plus the scope and module instance it
+	// was written in. It and repetition.EachValue are mutually exclusive by
+	// construction ([expansion.scope]), so nothing has to decide between a
+	// value and a selection - only one is ever present.
+	//
+	// A pointer, not a value: elemBinding carries an instScope of its own.
+	eachValueExpr *elemBinding
 }
 
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
@@ -3027,17 +3072,22 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		// object, or a set of strings, never a list, so a tuple standing
 		// here is not a set of merge() arguments and its elements' own keys
 		// are not this block's instance keys.
-		if keys, vals, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
+		if keys, elems, structOK := r.staticForEachKeys(expr, ident, 0, false); structOK {
 			r.diags = r.diags[:mark]
 			// Whatever the chase proved a key's value to be, carried onto the
 			// expansion so each.value resolves for that key alone. A key with
 			// no proven value is simply absent from the map, which is how
 			// [expansion.scope] tells the two apart; nothing here fills a gap
 			// with a neighbouring key's value or with a zero value.
-			proven := map[string]cty.Value{}
+			//
+			// #260 adds the second, weaker answer beside it: for a key with
+			// no proven value, the element's own EXPRESSION, which supports
+			// a per-attribute selection where a value supports nothing at
+			// all. The two never both apply to one key.
+			byName := map[string]elemBinding{}
 			for i, name := range keys {
-				if i < len(vals) && vals[i] != cty.NilVal {
-					proven[name] = vals[i]
+				if i < len(elems) {
+					byName[name] = elems[i]
 				}
 			}
 			sorted := append([]string(nil), keys...)
@@ -3046,11 +3096,18 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 			for _, name := range sorted {
 				k := addrs.StringKey(name)
 				exp.keys = append(exp.keys, k)
-				if v, ok := proven[name]; ok {
+				b := byName[name]
+				switch {
+				case b.val != cty.NilVal:
 					if exp.eachValues == nil {
 						exp.eachValues = make(map[addrs.InstanceKey]cty.Value)
 					}
-					exp.eachValues[k] = v
+					exp.eachValues[k] = b.val
+				case b.expr != nil:
+					if exp.eachValueExprs == nil {
+						exp.eachValueExprs = make(map[addrs.InstanceKey]elemBinding)
+					}
+					exp.eachValueExprs[k] = b
 				}
 			}
 			return r.checkedForEachKeys(rc, exp)

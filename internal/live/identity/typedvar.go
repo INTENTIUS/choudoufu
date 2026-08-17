@@ -90,21 +90,27 @@ import (
 // a cty value and has no conversion, so covering it needs a rule about what
 // a declared type means for the symbolic half - a separate question from
 // this one.
-func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
+func varConvertedElems(decl *configs.Variable, keys []cty.Value, elems []elemBinding) ([]cty.Value, []elemBinding, bool) {
 	if decl == nil {
-		return keys, vals, true
+		return keys, elems, true
 	}
 	ty := decl.ConstraintType
 	if ty == cty.NilType || ty == cty.DynamicPseudoType {
 		// Nothing to convert to. prepareFinalInputVariableValue calls
 		// convert.Convert with this same type and gets the value back
-		// unchanged, so passing through is parity, not a shortcut.
-		return keys, vals, true
+		// unchanged, so passing through is parity, not a shortcut - and it
+		// is the case that carries the element EXPRESSIONS across the hop
+		// intact, because nothing happened to them. Every other case below
+		// drops them, which is #260's third wrinkle: once a declared type
+		// applies, an attribute the constructor does not write may still be
+		// present inside the module (optional(string, "tcp") supplies it),
+		// so the constructor is no longer evidence of what the element has.
+		return keys, elems, true
 	}
 
-	raw, ok := rebuiltContainer(keys, vals)
+	raw, ok := rebuiltContainer(keys, elems)
 	if !ok {
-		return unreadableConversion(ty, keys, vals)
+		return unreadableConversion(ty, keys, elems)
 	}
 	given := raw
 	if decl.TypeDefaults != nil {
@@ -114,9 +120,9 @@ func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) ([]cty.Va
 	}
 	conv, err := convert.Convert(given, ty)
 	if err != nil {
-		return unreadableConversion(ty, keys, vals)
+		return unreadableConversion(ty, keys, elems)
 	}
-	return convertedElems(conv, keys, vals)
+	return convertedElems(conv, keys, elems)
 }
 
 // unreadableConversion is what this file answers when the converted
@@ -133,19 +139,22 @@ func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) ([]cty.Va
 // argument's own indices or attribute names - are the wrong answer rather
 // than an incomplete one. Refusing costs a resolution; answering would cost a
 // marker naming something that does not exist.
-func unreadableConversion(ty cty.Type, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
+func unreadableConversion(ty cty.Type, keys []cty.Value, elems []elemBinding) ([]cty.Value, []elemBinding, bool) {
 	if ty.IsSetType() {
 		return nil, nil, false
 	}
-	return keys, unboundLike(vals), true
+	return keys, unboundLike(elems), true
 }
 
-// unboundLike is a values slice of the same length holding nothing at all.
-// cty.NilVal is this file's one "unproven" signal and every consumer reads it
-// as "leave the binding out", which is what makes an unusable conversion cost
-// a refusal rather than a wrong answer.
-func unboundLike(vals []cty.Value) []cty.Value {
-	return make([]cty.Value, len(vals))
+// unboundLike is a bindings slice of the same length holding nothing at all -
+// no value and no expression. cty.NilVal is this file's one "unproven" signal
+// for a value and every consumer reads it as "leave the binding out", which
+// is what makes an unusable conversion cost a refusal rather than a wrong
+// answer; the expression is dropped alongside it for the same reason, since
+// the syntax the caller wrote is not what a declared type puts inside the
+// module.
+func unboundLike(elems []elemBinding) []elemBinding {
+	return make([]elemBinding, len(elems))
 }
 
 // rebuiltContainer reassembles the collection the chase decomposed, so that
@@ -162,17 +171,17 @@ func unboundLike(vals []cty.Value) []cty.Value {
 // for an answer: an unknown converts to an unknown of the target type and is
 // discarded again by [convertedElems], so it contributes nothing except its
 // presence, which is the one thing about it the whole-value conversion needs.
-func rebuiltContainer(keys, vals []cty.Value) (cty.Value, bool) {
-	if len(keys) != len(vals) || len(keys) == 0 {
+func rebuiltContainer(keys []cty.Value, bindings []elemBinding) (cty.Value, bool) {
+	if len(keys) != len(bindings) || len(keys) == 0 {
 		return cty.NilVal, false
 	}
-	elems := make([]cty.Value, len(vals))
-	for i, v := range vals {
-		if v == cty.NilVal {
+	elems := make([]cty.Value, len(bindings))
+	for i, b := range bindings {
+		if b.val == cty.NilVal {
 			elems[i] = cty.DynamicVal
 			continue
 		}
-		elems[i] = v
+		elems[i] = b.val
 	}
 
 	// stringKeys carries the marked/null/unknown guard AsString needs; a key
@@ -235,9 +244,9 @@ func rebuiltContainer(keys, vals []cty.Value) (cty.Value, bool) {
 // an unreadable element costs not just its own key but the COUNT - which is
 // the one thing about a key set that must never be approximated. Every other
 // container keeps its keys whatever its values do.
-func convertedElems(conv cty.Value, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
+func convertedElems(conv cty.Value, keys []cty.Value, elems []elemBinding) ([]cty.Value, []elemBinding, bool) {
 	if conv == cty.NilVal {
-		return keys, unboundLike(vals), true
+		return keys, unboundLike(elems), true
 	}
 	ty := conv.Type()
 
@@ -250,7 +259,7 @@ func convertedElems(conv cty.Value, keys, vals []cty.Value) ([]cty.Value, []cty.
 	// through [resolver.provenValue], which already refuses one, and a
 	// conversion introduces no marks - but the read happens here.
 	if conv.ContainsMarked() || conv.IsNull() || !conv.IsKnown() {
-		return unreadableConversion(ty, keys, vals)
+		return unreadableConversion(ty, keys, elems)
 	}
 	switch {
 	case ty.IsMapType(), ty.IsObjectType(), ty.IsListType(), ty.IsTupleType(), ty.IsSetType():
@@ -259,14 +268,14 @@ func convertedElems(conv cty.Value, keys, vals []cty.Value) ([]cty.Value, []cty.
 		// declared `type = string` whose argument was an object is not a
 		// collection once converted, and OpenTofu would have rejected it
 		// before that anyway.
-		return keys, unboundLike(vals), true
+		return keys, unboundLike(elems), true
 	}
 	if ty.IsSetType() && !conv.IsWhollyKnown() {
 		return nil, nil, false
 	}
 
 	outKeys := make([]cty.Value, 0, len(keys))
-	outVals := make([]cty.Value, 0, len(keys))
+	outVals := make([]elemBinding, 0, len(keys))
 	for it := conv.ElementIterator(); it.Next(); {
 		k, v := it.Element()
 		outKeys = append(outKeys, k)
@@ -276,10 +285,12 @@ func convertedElems(conv cty.Value, keys, vals []cty.Value) ([]cty.Value, []cty.
 		// conversion that produced a null produced nothing an instance's
 		// each.value can be read from.
 		if v.ContainsMarked() || v.IsNull() || !v.IsWhollyKnown() {
-			outVals = append(outVals, cty.NilVal)
+			outVals = append(outVals, elemBinding{})
 			continue
 		}
-		outVals = append(outVals, v)
+		// Value only: the conversion is what the module sees, and the
+		// pre-conversion expression is not it.
+		outVals = append(outVals, elemBinding{val: v})
 	}
 	return outKeys, outVals, true
 }

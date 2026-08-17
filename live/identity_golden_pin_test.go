@@ -55,16 +55,26 @@ import (
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then read the "# shape:" block at the top of the regenerated file.
+// #260 moved CONCRETE 669 -> 684, and 12 of the 15 are its own. Seven are
+// existing keyOnly fixtures whose scaffolding key (aws_iam_group.admins.name,
+// present only to keep the for_each source from evaluating whole) now
+// resolves through [identity.parentPart] exactly as a direct reference to
+// that attribute always has - the value is "admins", the group's own name.
+// Five are #260's new fixtures. The remaining three are
+// live/e2e/tagging-sweep, which predates this change: those fixtures merged
+// into main at 73374dad6d after the golden was last re-pinned at 368c31b66c,
+// on a branch that never contained them, and TestIdentityGolden was already
+// red for them on a tree with #260 reverted.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        669,
+	"CONCRETE":        684,
 	"NEEDS_DISCOVERY": 551,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
 
 const (
-	identityGoldenPinInstances = 1332
-	identityGoldenPinDirs      = 380
+	identityGoldenPinInstances = 1347
+	identityGoldenPinDirs      = 395
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

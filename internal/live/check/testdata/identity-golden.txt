@@ -8,8 +8,8 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=380 instances=1332
-# shape: class CONCRETE=669
+# shape: dirs=395 instances=1347
+# shape: class CONCRETE=684
 # shape: class NEEDS_DISCOVERY=551
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
@@ -158,21 +158,28 @@ internal/live/identity/testdata/foreach-tuple-comprehension	aws_ecr_repository.g
 internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["a"]	CONCRETE	team-a	name=team-a
 internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["b"]	CONCRETE	team-b	name=team-b
 internal/live/identity/testdata/foreach-value-impure	aws_iam_group.admins	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
 internal/live/identity/testdata/foreach-value-keyonly	aws_iam_group.admins	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-keyonly	aws_iam_user.team["alice"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-merge-precedence	aws_iam_group.admins	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-merge-precedence	aws_iam_user.team["dyn"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-merge-precedence	aws_iam_user.team["shared"]	CONCRETE	from-override	name=from-override
 internal/live/identity/testdata/foreach-value-proven	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven	aws_iam_user.team["alice"]	CONCRETE	alice-from-config	name=alice-from-config
+internal/live/identity/testdata/foreach-value-proven	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-collision	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-collision	aws_iam_user.team["a"]	CONCRETE	shared-name	name=shared-name
 internal/live/identity/testdata/foreach-value-proven-collision	aws_iam_user.team["b"]	CONCRETE	shared-name	name=shared-name
+internal/live/identity/testdata/foreach-value-proven-collision	aws_iam_user.team["dyn"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-comprehension	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-comprehension	aws_iam_user.team["alice"]	CONCRETE	alice-from-config	name=alice-from-config
+internal/live/identity/testdata/foreach-value-proven-comprehension	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["alice"]	CONCRETE	alice-from-config	name=alice-from-config
 internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["bob"]	CONCRETE	bob-from-config	name=bob-from-config
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.admins	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-sensitive	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_user.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["a"]	PARENT_DERIVED	${aws_subnet.this["a"].id}/rtb-fixed	
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["b"]	PARENT_DERIVED	${aws_subnet.this["b"].id}/rtb-fixed	
@@ -290,6 +297,11 @@ internal/live/identity/testdata/setkey-whole	module.child.aws_iam_group.g["n-e-a
 internal/live/identity/testdata/setkey-whole	module.child.aws_iam_group.g["n-e-beta"]	CONCRETE	g-e-beta	name=g-e-beta
 internal/live/identity/testdata/setkey-whole	module.child.aws_iam_user.u["n-e-alpha"]	CONCRETE	n-e-alpha	name=n-e-alpha
 internal/live/identity/testdata/setkey-whole	module.child.aws_iam_user.u["n-e-beta"]	CONCRETE	n-e-beta	name=n-e-beta
+internal/live/identity/testdata/shapeb-absent	module.u.aws_iam_user.this["alice"]	CONCRETE	fallback	name=fallback
+internal/live/identity/testdata/shapeb-poison	module.u.aws_iam_user.this["alice"]	CONCRETE	alice-user	name=alice-user
+internal/live/identity/testdata/shapeb-poison	module.u.aws_iam_user.this["bob"]	CONCRETE	bob-user	name=bob-user
+internal/live/identity/testdata/shapeb-tryref	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/shapeb-tryref	module.u.aws_iam_user.this["alice"]	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/sibling-literal-attr	aws_route53_zone.production	NEEDS_DISCOVERY		
 internal/live/identity/testdata/sole-element-from-value	aws_security_group_rule.from_default	CONCRETE	sg-0123456789abcdef0_ingress_tcp_22_22_10.0.0.0/8	cidr_blocks=10.0.0.0/8,from_port=22,protocol=tcp,security_group_id=sg-0123456789abcdef0,to_port=22,type=ingress
 internal/live/identity/testdata/splat-arity-multi	aws_route_table.pair[0]	NEEDS_DISCOVERY		
@@ -1347,3 +1359,6 @@ live/e2e/record-store	null_resource.trigger	RECORD_BACKED
 live/e2e/record-store	random_pet.name	RECORD_BACKED		
 live/e2e/record-store	terraform_data.replacement	RECORD_BACKED		
 live/e2e/record-store	time_static.created	RECORD_BACKED		
+live/e2e/tagging-sweep/declared	aws_iam_role.demo	CONCRETE	tagging-sweep-e2e-demo	name=tagging-sweep-e2e-demo
+live/e2e/tagging-sweep/declared	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper
+live/e2e/tagging-sweep/removed	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper

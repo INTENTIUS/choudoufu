@@ -43,14 +43,19 @@ func TestForEachKeyOnlyBindsOnlyProvenValues(t *testing.T) {
 		t.Errorf(`aws_iam_user.team["alice"] name is %q, want %q`, got, "alice-from-config")
 	}
 
-	// bob's value is aws_iam_group.admins.name, which nothing here can read
-	// before the cloud is. A resolution for it would be a fabricated one -
-	// and the empty string, the group's own literal name, and alice's value
-	// are all wrong in different ways, so the assertion is that the address
-	// is absent rather than that it holds any particular string.
-	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["bob"]`)); ok {
-		t.Errorf(`aws_iam_user.team["bob"] resolved to import ID %q; its value is a managed resource's attribute`, got.ImportID)
-	}
+	// bob's value is aws_iam_group.admins.name. #260 widened this: the
+	// element expression is now carried onto the expansion, so each.value
+	// for bob reaches [resolver.parentPart] exactly as the direct reference
+	// `name = aws_iam_group.admins.name` in a resource body always has, and
+	// the group's own name is a literal, so the part collapses to it.
+	//
+	// That is not a fabrication and the assertion says so by pinning the
+	// value: "admins" is the group's OWN name, which is what OpenTofu
+	// really creates this user with. The three wrong answers this used to
+	// guard against - the empty string, alice's value, and the instance key
+	// - are each checked for by name below, because "resolved to something"
+	// and "resolved to the right thing" are different claims.
+	assertEachValueParent(t, result, `aws_iam_user.team["bob"]`, "admins")
 
 	// The key set is unchanged by any of this: two keys, and neither of them
 	// an unkeyed address. A value binding that leaked into key derivation
@@ -103,9 +108,7 @@ func TestForEachComprehensionBindsOnlyProvenValues(t *testing.T) {
 	if res.ImportID != "alice-from-config" {
 		t.Errorf(`aws_iam_user.team["alice"] import ID is %q, want %q`, res.ImportID, "alice-from-config")
 	}
-	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["bob"]`)); ok {
-		t.Errorf(`aws_iam_user.team["bob"] resolved to import ID %q; its value is a managed resource's attribute`, got.ImportID)
-	}
+	assertEachValueParent(t, result, `aws_iam_user.team["bob"]`, "admins")
 }
 
 // TestForEachMergeValuePrecedence pins merge()'s own rule on the values, not
@@ -123,8 +126,24 @@ func TestForEachMergeValuePrecedence(t *testing.T) {
 	if res.ImportID != "from-override" {
 		t.Errorf(`aws_iam_user.team["shared"] import ID is %q, want %q (merge takes the later argument's value)`, res.ImportID, "from-override")
 	}
-	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["dyn"]`)); ok {
-		t.Errorf(`aws_iam_user.team["dyn"] resolved to import ID %q; its value is a managed resource's attribute`, got.ImportID)
+	// #260: "dyn" resolves through its element EXPRESSION now, which also
+	// makes this fixture pin merge's precedence on the expression half - the
+	// union keeps the later argument's binding whichever half carries it.
+	assertEachValueParent(t, result, `aws_iam_user.team["dyn"]`, "admins")
+}
+
+// assertEachValueParent pins an instance whose each.value is a managed
+// resource's identity attribute (#260's B-ref/managed shape): it must
+// resolve, and it must resolve to the PARENT's own value - not to the
+// instance key, not to a sibling key's value, and not to nothing.
+func assertEachValueParent(t *testing.T, result *Result, addr, want string) {
+	t.Helper()
+	res := resolutionAt(t, result, addr)
+	if res.ImportID != want {
+		t.Errorf("%s import ID is %q, want %q (the parent resource's own identity attribute)", addr, res.ImportID, want)
+	}
+	if got := res.IdentityValues["name"]; got != want {
+		t.Errorf("%s identity attribute name is %q, want %q", addr, got, want)
 	}
 }
 
