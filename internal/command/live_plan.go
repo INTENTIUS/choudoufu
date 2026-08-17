@@ -9,8 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -715,27 +713,54 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 				Endpoint: ep,
 				Region:   provs.region(providerAddr),
 			})
-			// TaggingSweep itself stays off against a loopback endpoint
-			// (issue #229): floci's resourcegroupstaggingapi GetResources
-			// returns an empty list for every filter, tagged or not - the
-			// same gap live/floci-capabilities.json:1724-1727 already
-			// records for aws_iam_role, reproduced here with the raw AWS
-			// CLI and zero choudoufu code involved (tagged EBS volume,
-			// describe-volumes shows the tags, get-resources returns []).
-			// Leaving TaggingSweep on on such an endpoint does not degrade
-			// removal detection, it silently disables it: every type the
-			// sweep would have covered comes back with zero candidates and
-			// no diagnostic says so.
+			// TaggingSweep is on for every endpoint, real AWS and
+			// emulator alike.
 			//
-			// isEmulatorEndpoint is deliberately narrower than "a custom
-			// endpoint is set" - see its doc comment - so a real AWS run
-			// through a VPC endpoint, PrivateLink, or a GovCloud/China
-			// region still gets TaggingSweep exactly as before. The Cloud
-			// Control client above is untouched: its own per-candidate
-			// GetResource refinement does not go through
-			// resourcegroupstaggingapi at all, and #47's fallback for
-			// types with no native list resource is unaffected.
-			req.TaggingSweep = !isEmulatorEndpoint(ep)
+			// It was conditional for a while (issue #229): through
+			// ghcr.io/lex00/floci@sha256:1362e856..., the emulator served
+			// GetResources on the wire but answered from an index fed by
+			// only 2 of its 64 services, so a tagged resource came back
+			// from its own service's describe call and not from the
+			// tagging API. On such an endpoint TaggingSweep=true does not
+			// degrade removal detection, it silently disables it: every
+			// type the sweep would have covered comes back with zero
+			// candidates and no diagnostic says so. The gate that bought
+			// safety from that was "off against any loopback endpoint",
+			// which is a premise about an emulator dressed up as a
+			// property of a host.
+			//
+			// It cost the whole emulator tier its coverage of this branch.
+			// Loopback is exactly what live/e2e/run.sh and
+			// internal/live/flocitest.Endpoint both use, so with the gate
+			// in place every e2e run, every cohort-acceptance run and
+			// every local run took the per-type List fallback, and
+			// discovery.go's sweepViaTagging leg was never reached outside
+			// a unit test. Then the emulator was fixed (lex00/floci#229
+			// unions the private tag map with a live read of every
+			// service's stores), the pin moved, and the gate outlived its
+			// reason with a test pinning it.
+			//
+			// So the premise moved out of this comment and into a
+			// measurement: TestTaggingSweepPremiseHoldsForThePinnedEmulator
+			// (tagging_sweep_premise_test.go) reads
+			// live/floci-capabilities.json's tagging-sweep rows for
+			// whatever digest live/floci-image pins and fails if any of
+			// them is not "implemented" with no recorded exception - and
+			// fails the other way too, if an exception is recorded while
+			// this line stays unconditional. A future pin that regresses
+			// says so on its own rather than waiting for someone to
+			// re-read a comment.
+			//
+			// The residual case a gate here would have covered is a
+			// third-party emulator whose own tagging index is blind. The
+			// lever for that is cloudControlEnvVar ("off"), which skips
+			// this whole block and returns the run to the pre-#51 per-type
+			// sweep. The Cloud Control client above is untouched either
+			// way: its own per-candidate GetResource refinement does not
+			// go through resourcegroupstaggingapi at all, and #47's
+			// fallback for types with no native list resource is
+			// unaffected.
+			req.TaggingSweep = true
 		}
 	}
 
@@ -774,39 +799,6 @@ func cloudControlTarget() (endpoint string, on bool) {
 		return v, true
 	}
 	return os.Getenv("AWS_ENDPOINT_URL"), true
-}
-
-// isEmulatorEndpoint reports whether endpoint's host is the loopback
-// interface - "localhost", 127.0.0.0/8, or ::1 - rather than a routable
-// network address. An empty or unparseable endpoint is not loopback.
-//
-// This is the gate issue #229 needs for [Request.TaggingSweep]: narrower
-// than "a custom endpoint is set," because that is also true of every
-// legitimate real-AWS AWS_ENDPOINT_URL override - a VPC endpoint, a
-// PrivateLink DNS name, a GovCloud or China-region endpoint - and disabling
-// estate-wide removal detection for any of those would be a regression for
-// a real user, not a fix. None of them is ever loopback: AWS does not host
-// any service on the local machine's own network interface, on a real
-// account or on GovCloud alike. Loopback is, by contrast, exactly the
-// convention this repo's own emulator tooling uses throughout -
-// live/e2e/run.sh sets AWS_ENDPOINT_URL="http://localhost:$FLOCI_PORT", and
-// internal/live/flocitest.Endpoint (and its docker-based standup) return the
-// same "http://localhost:<port>" shape - so it identifies the one case this
-// gate exists for with no false positive against a working configuration.
-func isEmulatorEndpoint(endpoint string) bool {
-	if endpoint == "" {
-		return false
-	}
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 // guidedDiscoveryDisableEnvVar opts every estate this process plans or
