@@ -88,6 +88,20 @@ analyzer stopped complaining. **Instances rising means resources that could
 not be identified now can.** A relabelling moves thousands of sites and zero
 instances — real work, but not the same work. Report both.
 
+**Reported instances rising as if it were good news.** This corrects the
+paragraph above, which was written this morning and is not safe on its own.
+`TestIdentityGolden` was validated by reverting #251's conversion; the
+revert made three fabricated identities appear and two correct ones vanish,
+and the instance count went **1320 → 1321, up**. Every aggregate this
+repository records says the defect was an improvement.
+
+An instance is a marker this tool will write into a cloud tag. Fabricating
+one is worse than refusing to make one, so a count that cannot tell a real
+instance from an invented one ranks a regression above the fix. **Only a
+value assertion separates them** — which is why `Report.Identities` and the
+golden exist, and why an instance delta is now a supporting number rather
+than a verdict.
+
 **Reported a gain that was our own fixture.** A change dropped blocked
 configurations by ten; every one was a cohort estate whose only refusal was
 a resource `estate-gen` had just removed. No third-party configuration
@@ -133,6 +147,21 @@ lives:
 **Assert on rendered identities — `res.ImportID`, `res.IdentityValues` —
 never on a predicate boolean.** Predicates have been green while markers
 were wrong six times. A duplicate-marker bug had a passing analyzer.
+
+There is now one instrument that does this at scale.
+`internal/live/check.TestIdentityGolden` pins 1320 rendered identities —
+address, class, `ImportID`, identity attributes — across 375 configuration
+directories, in 0.6s with no generator, schemas or network. **If your change
+moves a line in `testdata/identity-golden.txt`, explain it. Do not run
+`-update` to make it quiet.** A moved line is the only signal here that
+distinguishes a fix from a plausible-looking regression.
+
+Its bound is written into its own doc and you should know it: 550 of the
+1320 render an empty value, because their identity needs a live account or
+a server-assigned ID. It covers the 658 CONCRETE and the 95 symbolic
+formulas. Eight of the eleven classified defect shapes fail it
+automatically; three present as an *added* line and are only surfaced to
+somebody reading the diff.
 
 **Assert the instance count separately from the key set.** One bug's whole
 signature was two instances where OpenTofu makes three.
