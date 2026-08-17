@@ -16,6 +16,21 @@ import (
 // ownership split, the worktree rules, and the adversarial-audit shapes.
 const operationalBrief = ".claude/agents/live-markers.md"
 
+// trackedInstructions is every path under .claude/ that carries shared
+// written instruction rather than per-machine state, and that therefore has
+// to survive a fresh clone.
+//
+// The skill is here for the reason a62c892276 gave when it widened
+// TestLocalAgentStateStaysUntracked to admit skills/: a skill has exactly
+// the standing of the brief. That commit widened the exclusion half and left
+// the inclusion half naming only the brief, so re-narrowing the .gitignore
+// would have silently dropped the skill while both tests stayed green - the
+// #165 state again, one directory over.
+var trackedInstructions = []string{
+	operationalBrief,
+	".claude/skills/measuring-the-wall/SKILL.md",
+}
+
 // TestOperationalBriefIsTracked is issue #165's guard.
 //
 // HANDOFF.md carried this material and was tracked. Retiring it
@@ -30,14 +45,16 @@ const operationalBrief = ".claude/agents/live-markers.md"
 // That is a narrow exception and an easy one to lose while adjusting the
 // surrounding rules, so it is checked rather than trusted.
 func TestOperationalBriefIsTracked(t *testing.T) {
-	out, err := exec.Command("git", "-C", "..", "ls-files", "--error-unmatch", operationalBrief).CombinedOutput()
-	if err != nil {
-		t.Errorf("%s is not tracked by git (%v: %s)\n"+
-			"It is the only written record of how to work on this repository. Untracked, it does not "+
-			"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
-			"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
-			"re-includes /.claude/agents/.",
-			operationalBrief, err, strings.TrimSpace(string(out)))
+	for _, path := range trackedInstructions {
+		out, err := exec.Command("git", "-C", "..", "ls-files", "--error-unmatch", path).CombinedOutput()
+		if err != nil {
+			t.Errorf("%s is not tracked by git (%v: %s)\n"+
+				"It is written instruction on how to work on this repository. Untracked, it does not "+
+				"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
+				"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
+				"re-includes both /.claude/agents/ and /.claude/skills/.",
+				path, err, strings.TrimSpace(string(out)))
+		}
 	}
 }
 
