@@ -33,6 +33,31 @@ receipts move to per-estate cloud records (`record_store`), and what remains in
 the state file is effects only — `null_resource`, `terraform_data`, `time_*`,
 non-secret `random_*` — through the stock provider lifecycle, as upstream.
 
+## Two questions, not one
+
+**The marker answers "may I delete this". It does not answer "which object is
+this".** Before you conclude a type cannot be admitted, check which of the two
+you are actually stuck on. Refusing a type because no tag can be written on it
+is a different claim from "nothing says which instance this is", and treating
+them as one is the largest single source of wrongly-refused types here.
+
+A resource can be fully identified by its own declaration and have nowhere to
+hang a tag. Every association, attachment and membership is that shape.
+`aws_iam_group_policy_attachment` is untaggable, has no ARN, and is admitted
+as `{group}` `/` `{policy_arn}`. So a fourth answer sits beside the tag, the
+record_store and the receipt: **the identity needs no carrier at all, because
+it re-derives from the declaration every run.** That is what the
+`client-named`, `parent-derived` and `account-derived` survey paths mean.
+
+An edge's identity is its endpoints, and the configuration already holds them.
+
+`live/marker_identity_split_test.go` enforces the part that can be enforced:
+no type may be vetoed as markerless while `live/survey-full.json` classifies
+it client-named. HANDOFF.md's section of the same name carries the four
+consequences worth acting on and the order to take them in. Read it before
+proposing that a type is inherently unadmittable - that claim has been wrong
+here more often than it has been right.
+
 ## The measurement trap, which is the main thing to avoid
 
 **`live/rowgen-convergence.json` and `adopted_unchanged` are not coverage.**

@@ -192,10 +192,14 @@ and do not spend a slot proving it again.
 
 ### The decision matrix
 
-The product has exactly three places to put an identity: a **tag** on the
-resource, a **record_store** entry, or a **receipt**. Every refusal is a
+The product has three places to *carry* an identity: a **tag** on the
+resource, a **record_store** entry, or a **receipt**. A refusal is usually a
 statement that none of them applies yet, and *which* one it should have been
 is what decides the work.
+
+Usually, not always. Read the next section before concluding a refusal is one
+of these, because the most common wrong answer is to reach for a carrier when
+the identity needed no carrier at all.
 
 | Action | The identity is | The fix is | Done when |
 |---|---|---|---|
@@ -209,6 +213,67 @@ is what decides the work.
 its reason. Both directions are enforced against `live/corpus-refusals.json`,
 which a different generator produces, so a renamed refusal fails rather than
 silently dropping out of the plan.
+
+### Two questions, not one
+
+**The marker answers "may I delete this". It does not answer "which object is
+this".** Admission has drifted toward refusing a type because no marker can be
+written on it, and that is a different claim from "nothing says which instance
+this is".
+
+A resource can be perfectly identified by its own declaration and still have
+nowhere to hang a tag. Every association, attachment and membership in the
+provider is that shape. The identity table already carries such rows:
+`aws_iam_group_policy_attachment` is untaggable, has no ARN, and is admitted
+with a composite of `{group}` `/` `{policy_arn}`, both client-supplied. Count
+the admitted types on the `parent-derived` survey path, none of which is
+taggable, before arguing that untaggability decides anything.
+
+So a fourth answer belongs beside the three carriers: **the identity needs no
+carrier, because it re-derives from the declaration on every run.** Nothing is
+persisted and nothing is looked up. That is what the `client-named`,
+`parent-derived` and `account-derived` survey paths already mean, and it is the
+answer for an edge: an association's identity is its endpoints, which the
+configuration holds in full.
+
+Four consequences, in the order they are worth doing. Recompute every
+population before acting on one; the figures that motivated this are in the
+issue, not here.
+
+1. **Client-naming is provable without the provider's identity schema.**
+   `identity.Derivable` accepts only that schema as proof, and the provider
+   publishes one for well under half its types. A **required, non-computed**
+   argument cannot be a value the provider fills in, so the configuration
+   schema settles it alone. The `aws_vpc` and `aws_s3_bucket` caution in
+   `Derivable`'s doc comment is about Optional+Computed and stays excluded.
+   This is the widest of the four by a large margin.
+2. **When the provider ships no identity schema, the identity candidates are
+   in `live/import-grammar.json`**, scraped from the provider's own import
+   documentation. That artifact already exists and already carries the
+   composition for types the schema says nothing about.
+3. **A set-valued component serializes in canonical sorted order, all or
+   nothing.** Canonicalize only when *every* element yields a key; otherwise
+   leave the order alone rather than refusing the type. The objection that an
+   unordered set cannot produce an ordered import ID does not hold where the
+   provider parses that ID straight back into a set, which makes any order
+   round-trip and sorting merely deterministic. Check that it does before
+   relying on it.
+4. **Split "confirmed absent" from "never looked".** These collapse into one
+   verdict today, so a resource nobody could look at reads the same as one
+   confirmed missing, and declared-plus-absent proposes a create. A third
+   outcome with a total, exhaustive reason is what lets an unmarkable resource
+   stay inside the model instead of leaving it.
+
+`live/marker_identity_split_test.go` holds the part of this a reader cannot
+skip: no type may be vetoed as markerless while the survey classifies it
+client-named, because those are contradictory claims about the same fact and
+the veto currently wins in silence.
+
+The sibling project at `lex00/chant` reached the same wall and did not stop.
+Its ownership module is delete-permission only, carrying no identifier and no
+lookup; identity is recomputed from the declaration's own properties every
+run. Its untaggable share of the provider is roughly ours. Worth reading
+before redesigning any of this from scratch.
 
 **`DEFER` is the big column and it is where the campaign actually is.** The two
 largest sole-blockers, `Resolves at plan time via a data-source read` (28
@@ -432,6 +497,7 @@ The pattern to copy, in `live/`:
 | `TestBurndownBoundsHold` | every migrated ratchet, each computing its own number and pinning the denominator it is a fraction of |
 | `TestEveryToolHasAGitignoreEntry`, `TestNoCompiledBinaryIsTracked` | no multi-megabyte binary lands in a commit again |
 | `TestOperationalBriefIsTracked` | the brief cannot go back to being untracked local state |
+| `TestMarkerlessVetoNeverContradictsClientNaming` | the marker stays delete permission and does not become identity: no type is vetoed as markerless while the survey calls it client-named, and a resolved exception has to be deleted |
 
 The bounds those ratchets used to carry as scattered constants now live in
 `internal/live/harness`, one entry each, computing their number at run time
@@ -482,12 +548,27 @@ Every one of these has been hit, most more than once.
 Nothing is blocked on a decision. These are the loose ends a fresh session
 would otherwise rediscover.
 
-- **`live/corpus-module-pins.json` does not exist yet.** `corpus-fetch` now
-  installs registry modules and mirrors six pinned go-getter repos, but the
-  fetch has not been run since. **Run `just corpus-fetch`, then `just corpus`,
-  and commit both.** Until then this machine's `.corpus` has modules for one
-  entry of 250, so every corpus figure is a floor for 57 entries and
-  `estate-plan` marks the affected estates.
+- **The corpus now has its modules, and that moved the ladder.** `corpus-fetch`
+  and `corpus` have both been run and committed, so the module hole is closed.
+  Two published deployments that read unblocked did so only because their
+  modules were absent, and refusal sites roughly doubled. Nothing regressed:
+  the committed ladder had been measured with a hole. Four entries still report
+  install errors and stay a floor, named in the fetch log.
+- **Two refusals fire that no corpus run had ever reached**, because both live
+  only inside installed modules. `Null identity argument` is `firstPresent`
+  choosing an alternation member by syntactic presence while a sibling holds
+  the value. `moved-block` is `declaresSubject` collapsing an instance address
+  to its resource, so every keyed rename terraform-aws-modules ships reads as
+  un-vacated. Both are classified `DERIVE` in `blockerAction` with the
+  reasoning; neither is any estate's sole blocker, so neither reorders the
+  queue. Neither is fixed.
+- **The first two estates off the queue were both verdicts, not merges.**
+  `govuk-aws/.../infra-vpc` is parity: its refusal is an unset required
+  variable, stock refuses the same shape, and the manifest's own #183 ruling
+  says govuk-aws estates stay language-blocked honestly. Seven estates sit in
+  that bucket and all seven are govuk-aws. `simpleinfra/team-members-access`
+  is the worked example behind "Two questions, not one" above, and it is
+  driveable once item 1 there lands.
 - **The typed-variable half of Shape B** was in progress and stopped. Its
   fixture `shapeb-absent-typed` pins today's behaviour, so the debt cannot go
   quiet; #260's closing comment has the design.
