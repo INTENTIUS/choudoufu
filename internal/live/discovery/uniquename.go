@@ -80,6 +80,39 @@ import (
 // declared" as "ours to destroy" for a whole type is the catastrophe the
 // marker scheme exists to prevent. A sweep over such a type is refused
 // before it lists anything, by scanTypeCloudControl's own untaggable check.
+//
+// # Why there is no end-to-end fixture for this leg
+//
+// There should be one, in the shape of live/e2e/per-element/run.sh: stand the
+// estate up against floci, delete the state file, replan empty, and read the
+// bound identity out of the run's own trace. It cannot be written against the
+// pinned emulator, and the reason is worth recording so nobody spends another
+// session finding it.
+//
+// live/floci-capabilities.json reports all four of this leg's types
+// "implemented" with the evidence "ListResources(AWS::CloudFront::CachePolicy)
+// succeeded". That is a claim about the CALL, not about what it answers.
+// Measured 2026-08-17 against the pinned image
+// ghcr.io/lex00/floci@sha256:a1c729f4...326d52e6bd5f:
+//
+//   - `aws cloudfront create-cache-policy` succeeds and returns an Id;
+//   - `aws cloudfront list-cache-policies` then reports Quantity 0;
+//   - `aws cloudcontrol create-resource` on AWS::CloudFront::CachePolicy
+//     returns IN_PROGRESS;
+//   - `aws cloudcontrol list-resources` on it returns an empty
+//     ResourceDescriptions either way.
+//
+// AWS::Route53::CidrCollection behaves identically. So the emulator creates
+// these objects and cannot enumerate them, which is precisely the one thing
+// this leg needs from it: a fixture built on it would replan a create over
+// the object it had just made, and would be measuring the emulator rather
+// than this code.
+//
+// Until an emulator enumerates them, the coverage here is the unit tests in
+// uniquename_test.go - which drive a fake Cloud Control endpoint through the
+// real Discover path - plus TestIdentityGolden's four pinned rows. Neither is
+// a cloud, and this comment is the record of that gap rather than a cover for
+// it.
 
 // uniqueNameIndex is one type's name-binding state for a single scan: where
 // to read the name off a live object, which declared instances are waiting
