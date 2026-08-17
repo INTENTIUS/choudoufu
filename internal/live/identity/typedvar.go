@@ -68,10 +68,20 @@ import (
 //     conversions and the constraint itself are all applied by cty rather
 //     than re-derived here.
 //
-// Keys are not touched. A for_each key is converted to a string on both
-// sides, which is why the key set has been right through this hop all along
-// (see #251's own note), and inventing a key set from a converted collection
-// would be a second, separate claim.
+// KEYS come out of the converted collection too, which is the correction
+// this function's first version needed. Its note claimed a key set survives
+// the hop untouched because "a for_each key is converted to a string on both
+// sides" - true of a map or an object, and false of a SET, where cty binds no
+// key separate from the element. A set's element iterator yields the element
+// in BOTH halves (cty/element_iterator.go), and hclsyntax.ForExpr.Value binds
+// e.KeyVar to that verbatim, so `{ for k, v in var.s : "n-${k}" => v }` over a
+// variable declared set(string) renders one instance per ELEMENT and names it
+// after the element. Answering with the argument tuple's indices instead
+// rendered n-0/n-1 for a two-element set - the wrong-marker shape, silent, and
+// the same count by coincidence rather than by construction. Reading the keys
+// off the converted value is the same thing
+// [resolver.evaluatedCollElements] already does where the collection
+// evaluates whole, so the two halves of the chase now answer alike.
 //
 // What this does NOT cover, deliberately: the same raw-value question
 // applies to [resolver.resolveNamed]'s path, where `var.s.a` selects one item
@@ -80,21 +90,21 @@ import (
 // a cty value and has no conversion, so covering it needs a rule about what
 // a declared type means for the symbolic half - a separate question from
 // this one.
-func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) []cty.Value {
+func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
 	if decl == nil {
-		return vals
+		return keys, vals, true
 	}
 	ty := decl.ConstraintType
 	if ty == cty.NilType || ty == cty.DynamicPseudoType {
 		// Nothing to convert to. prepareFinalInputVariableValue calls
 		// convert.Convert with this same type and gets the value back
 		// unchanged, so passing through is parity, not a shortcut.
-		return vals
+		return keys, vals, true
 	}
 
 	raw, ok := rebuiltContainer(keys, vals)
 	if !ok {
-		return unboundLike(vals)
+		return unreadableConversion(ty, keys, vals)
 	}
 	given := raw
 	if decl.TypeDefaults != nil {
@@ -104,9 +114,30 @@ func varConvertedElems(decl *configs.Variable, keys, vals []cty.Value) []cty.Val
 	}
 	conv, err := convert.Convert(given, ty)
 	if err != nil {
-		return unboundLike(vals)
+		return unreadableConversion(ty, keys, vals)
 	}
-	return readBackElems(conv, keys, vals)
+	return convertedElems(conv, keys, vals)
+}
+
+// unreadableConversion is what this file answers when the converted
+// collection is not available to read - the container could not be rebuilt,
+// or the conversion failed outright.
+//
+// For every target but a set that costs the values and no more: a map, an
+// object, a list and a tuple all keep the keys they were given through a
+// conversion, so the key set the chase already holds is still the right one
+// and only the values are unproven.
+//
+// A SET target refuses instead. Its keys are its elements, so a set this
+// could not read has no key set here at all, and the keys in hand - the
+// argument's own indices or attribute names - are the wrong answer rather
+// than an incomplete one. Refusing costs a resolution; answering would cost a
+// marker naming something that does not exist.
+func unreadableConversion(ty cty.Type, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
+	if ty.IsSetType() {
+		return nil, nil, false
+	}
+	return keys, unboundLike(vals), true
 }
 
 // unboundLike is a values slice of the same length holding nothing at all.
@@ -129,7 +160,7 @@ func unboundLike(vals []cty.Value) []cty.Value {
 //
 // A value that did not prove becomes cty.DynamicVal. That is not a stand-in
 // for an answer: an unknown converts to an unknown of the target type and is
-// discarded again by [readBackElems], so it contributes nothing except its
+// discarded again by [convertedElems], so it contributes nothing except its
 // presence, which is the one thing about it the whole-value conversion needs.
 func rebuiltContainer(keys, vals []cty.Value) (cty.Value, bool) {
 	if len(keys) != len(vals) || len(keys) == 0 {
@@ -176,74 +207,79 @@ func rebuiltContainer(keys, vals []cty.Value) (cty.Value, bool) {
 	return cty.TupleVal(elems), true
 }
 
-// readBackElems takes each key's value out of the converted collection, in
-// the caller's own key order.
+// convertedElems reads the converted collection's elements the way cty itself
+// hands them out, keys and values together and in cty's own order.
 //
-// A value is bound only where the chase had proven one to begin with: the
-// conversion is allowed to change a value, never to supply one. That keeps
-// this file's rule intact - bind only what the resolver actually evaluated -
-// with the conversion sitting inside it rather than beside it.
+// The previous version matched the chase's keys against the converted ones
+// with RawEquals and kept the chase's key set whatever came back. That is
+// only meaningful where the target KEEPS its keys, and it hid the set case
+// twice over: a set has no positions at all, and for a set(number) the
+// elements ARE numbers and RawEquals the integer indices by coincidence -
+// [0, 5] converted to a set is {0, 5}, so index 0 matched element 0 while the
+// value chased at that position was 5. Reading the iterator instead removes
+// the question: cty synthesizes a StringVal for a map key or an object
+// attribute name, a NumberIntVal for a list or tuple index, and the ELEMENT
+// itself for a set (cty/element_iterator.go), which is exactly what
+// hclsyntax.ForExpr.Value binds a comprehension's key variable to.
 //
-// A SET target is refused outright, and that is the one case here that is not
-// obvious. A set has no positions: cty's conversion of a tuple to a set
-// converts each element and then deduplicates and reorders, so the element
-// that sits where key 0 sat is not knowable from the set. Worse, for a
-// set(number) the elements ARE numbers and would RawEquals the integer keys
-// by coincidence - [0, 5] converted to a set is {0, 5}, and key 0 would match
-// element 0 while the value it actually chased was 5. Matching by key is only
-// meaningful where the target keeps its keys, so a set answers nothing.
-func readBackElems(conv cty.Value, keys, vals []cty.Value) []cty.Value {
-	out := unboundLike(vals)
+// A value is still bound only where the chase proved one. An unproven value
+// entered the conversion as cty.DynamicVal, comes out unknown, and is dropped
+// by the same three tests [resolver.provenValue] applies - so the conversion
+// is allowed to CHANGE a value and never to supply one out of nothing. The
+// one thing it does supply is a declared type's optional-attribute default,
+// which is configuration the module author wrote and which OpenTofu really
+// does put inside the module.
+//
+// A set whose membership is not wholly known refuses rather than answering.
+// Two unknown elements are RawEquals to each other and collapse into one, so
+// an unreadable element costs not just its own key but the COUNT - which is
+// the one thing about a key set that must never be approximated. Every other
+// container keeps its keys whatever its values do.
+func convertedElems(conv cty.Value, keys, vals []cty.Value) ([]cty.Value, []cty.Value, bool) {
+	if conv == cty.NilVal {
+		return keys, unboundLike(vals), true
+	}
+	ty := conv.Type()
 
 	// ContainsMarked before anything else reads the value, and before
 	// IsWhollyKnown in particular, which iterates and panics on a marked
 	// element; a mark hoists to the containing value only for a set, which is
 	// cty's asymmetry and is asserted in internal/live/marksafe's
-	// TestOnlySetsHoistElementMarks. Nothing marked can be here - every value
-	// came through [resolver.provenValue], which already refuses one, and a
+	// TestOnlySetsHoistElementMarks - and a set is precisely the type this
+	// function exists for. Nothing marked can be here - every value came
+	// through [resolver.provenValue], which already refuses one, and a
 	// conversion introduces no marks - but the read happens here.
-	if conv == cty.NilVal || conv.ContainsMarked() || conv.IsNull() || !conv.IsKnown() {
-		return out
+	if conv.ContainsMarked() || conv.IsNull() || !conv.IsKnown() {
+		return unreadableConversion(ty, keys, vals)
 	}
-	switch ty := conv.Type(); {
-	case ty.IsMapType(), ty.IsObjectType(), ty.IsListType(), ty.IsTupleType():
-		// Keyed by exactly the keys the chase produced, so a match means the
-		// same element.
+	switch {
+	case ty.IsMapType(), ty.IsObjectType(), ty.IsListType(), ty.IsTupleType(), ty.IsSetType():
 	default:
-		// A set (see above) or a primitive, which has no elements to read at
-		// all - a variable declared `type = string` whose argument was an
-		// object is not a collection once converted, and OpenTofu would have
-		// rejected it before that anyway.
-		return out
+		// A primitive, which has no elements to read at all - a variable
+		// declared `type = string` whose argument was an object is not a
+		// collection once converted, and OpenTofu would have rejected it
+		// before that anyway.
+		return keys, unboundLike(vals), true
+	}
+	if ty.IsSetType() && !conv.IsWhollyKnown() {
+		return nil, nil, false
 	}
 
-	convKeys := make([]cty.Value, 0, len(keys))
-	convVals := make([]cty.Value, 0, len(keys))
+	outKeys := make([]cty.Value, 0, len(keys))
+	outVals := make([]cty.Value, 0, len(keys))
 	for it := conv.ElementIterator(); it.Next(); {
 		k, v := it.Element()
-		convKeys = append(convKeys, k)
-		convVals = append(convVals, v)
-	}
-
-	for i, k := range keys {
-		if i >= len(vals) || vals[i] == cty.NilVal {
+		outKeys = append(outKeys, k)
+		// The same three tests [resolver.provenValue] applies to a value
+		// before binding it, applied again to the converted one: a sibling's
+		// unknown converts to an unknown here and must stay unbound, and a
+		// conversion that produced a null produced nothing an instance's
+		// each.value can be read from.
+		if v.ContainsMarked() || v.IsNull() || !v.IsWhollyKnown() {
+			outVals = append(outVals, cty.NilVal)
 			continue
 		}
-		for j, ck := range convKeys {
-			if !ck.RawEquals(k) {
-				continue
-			}
-			cv := convVals[j]
-			// The same three tests [resolver.provenValue] applies to a value
-			// before binding it, applied again to the converted one: a
-			// sibling's unknown converts to an unknown here and must stay
-			// unbound, and a conversion that produced a null produced nothing
-			// an instance's each.value can be read from.
-			if !cv.ContainsMarked() && !cv.IsNull() && cv.IsWhollyKnown() {
-				out[i] = cv
-			}
-			break
-		}
+		outVals = append(outVals, v)
 	}
-	return out
+	return outKeys, outVals, true
 }
