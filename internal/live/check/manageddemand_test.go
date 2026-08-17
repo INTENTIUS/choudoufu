@@ -1,0 +1,106 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package check
+
+import (
+	"context"
+	"path/filepath"
+	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+)
+
+// This file is the guard [identity.TestForEachUnsetVariableStillRefuses]'s doc
+// comment says belongs here and did not exist: the one that runs against THIS
+// package's loader.
+//
+// The difference is the whole point. internal/live/identity's own test loader
+// lets [configs.StaticEvaluator] refuse an unset required root variable
+// outright, so a value never reaches the rules at all. load.go here does not:
+// it substitutes cty.UnknownVal(variable.ConstraintType) so a corpus run can
+// measure a configuration rather than the absence of a tfvars file, and this
+// is the loader tools/refusal-probe, "just corpus" and live-check all take.
+//
+// So under this loader, and only under this loader, an unset variable and a
+// value nothing has read yet arrive as the same cty.Unknown. Any rule that
+// treats an unknown as "a live read would settle this" reclassifies #183's
+// whole cohort - 177 refused sites - which live/corpus-manifest.json rules
+// must stay blocked.
+//
+// Measured on these fixtures at the time this was written:
+//
+//	foreach-unset-var-map   Non-static for_each expression   0 instances
+//	unset-var-identity-arg  Non-static identity argument     0 instances
+//
+// The second is the collision that matters. "Non-static identity argument" is
+// [identity.resolver.stringValue]'s !IsWhollyKnown branch, which is exactly
+// where an identity argument left unknown by a live read would land too.
+
+// TestNoManagedDemandFromAnUnsetVariable is the safety half, with its own
+// positive control in the same function so it cannot pass by being unreached.
+//
+// The control has to come first when read and is checked first when run: if
+// the demand analysis names nothing for a configuration that genuinely needs a
+// live read, then it names nothing for anything, and the two unset-variable
+// subtests below are proving that the mechanism is broken rather than that it
+// is careful.
+func TestNoManagedDemandFromAnUnsetVariable(t *testing.T) {
+	t.Run("control: a managed attribute IS demanded", func(t *testing.T) {
+		load, result, diags := resolveFixture(t, "managed-result-foreach")
+		if len(load.UnsetVariables()) != 0 {
+			t.Fatalf("the control has unset variables %v, so it cannot separate the two kinds of unknown", load.UnsetVariables())
+		}
+		if !diags.HasErrors() {
+			t.Fatal("the control fixture resolved with no managed results; it is meant to refuse")
+		}
+		got := identity.DemandedManagedReads(result, diags)
+		if len(got) != 1 || got[0].Resource.String() != "aws_acm_certificate.cert" {
+			t.Fatalf("the control demanded %+v, want exactly aws_acm_certificate.cert; "+
+				"the guards below mean nothing while this is wrong", got)
+		}
+	})
+
+	// Both #183 shapes, because they refuse at different places. The for_each
+	// one never expands a block at all; the argument one expands and then
+	// refuses per instance, in the very branch a live-read unknown would
+	// reach.
+	for _, dir := range []string{"foreach-unset-var-map", "unset-var-identity-arg"} {
+		t.Run(dir, func(t *testing.T) {
+			load, result, diags := resolveFixture(t, dir)
+			if len(load.UnsetVariables()) == 0 {
+				t.Fatal("this fixture has no unset required variable, so it is not testing the substituted-unknown path at all")
+			}
+			if !diags.HasErrors() {
+				t.Fatal("resolved a configuration reading a required root variable with no value; #183 rules it must stay refused")
+			}
+			if got := identity.DemandedManagedReads(result, diags); len(got) != 0 {
+				t.Fatalf("an unset root variable was reported as a live read that would settle it: %+v", got)
+			}
+			// Not Blocked() alone: a rule could leave the run blocked and
+			// still have invented instances for a block whose key set nothing
+			// knows. Assert there are none.
+			for _, res := range result.All() {
+				if res.Addr.Resource.Resource.Type == "aws_s3_bucket" {
+					t.Errorf("%s was resolved anyway, as %v with import ID %q", res.Addr, res.Class, res.ImportID)
+				}
+			}
+		})
+	}
+}
+
+// resolveFixture loads a fixture through THIS package's loader - the one that
+// substitutes an unknown for an unset required variable - and resolves it with
+// no results of any kind in hand, which is what a first pass has.
+func resolveFixture(t *testing.T, dir string) (LoadResult, *identity.Result, tfdiags.Diagnostics) {
+	t.Helper()
+	load := Load(context.Background(), filepath.Join("testdata", dir))
+	if load.Config == nil {
+		t.Fatalf("fixture %s did not load: %s", dir, load.Diags.Error())
+	}
+	result, diags := identity.ResolveWith(context.Background(), load.Config, identity.Context{})
+	return load, result, diags
+}

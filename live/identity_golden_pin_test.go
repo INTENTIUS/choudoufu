@@ -121,9 +121,18 @@ const identityGoldenPinBodyDigest = "fb5bc2ce1ffb8ce080e7d469e8e15bfe48950b439d8
 // must refuse. So the located class is a class this instrument cannot see,
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
+// 2026-08-17 (issue #271): dirs 414 -> 416, instances unchanged at 1389, every
+// class count unchanged and the body digest unchanged. The two new directories
+// are internal/live/check/testdata/foreach-unset-var-map and
+// internal/live/check/testdata/unset-var-identity-arg, both #183 shapes -
+// a required root variable with no value, once in a for_each and once in an
+// identity argument - added so the managed-demand guard can be asserted
+// against the loader that substitutes an unknown for such a variable. Neither
+// resolves any instance, which is the whole point of them, so neither
+// contributes a row.
 const (
 	identityGoldenPinInstances = 1389
-	identityGoldenPinDirs      = 414
+	identityGoldenPinDirs      = 416
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

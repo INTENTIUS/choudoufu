@@ -3343,8 +3343,16 @@ func (r *resolver) resolveResourceRef(expr hcl.Expression, subject string, rng h
 	}
 	parentAddr, ok := ref.Subject.(addrs.Resource)
 	if !ok || len(ref.Remaining) > 0 || parentAddr.Mode != addrs.ManagedResourceMode {
+		// The expansion path is out of answers here, but a LIVE READ of the
+		// referenced block would settle it: `for dvo in
+		// aws_acm_certificate.cert.domain_validation_options` names an
+		// attribute, and an attribute is a value rather than a key set. That
+		// is issue #187's shape, and the demand is recorded structurally so
+		// [DemandedManagedReads] can name the block a second pass would need
+		// - the diagnostic itself is byte-for-byte what it always was.
 		r.errorf(rng, "Non-static for_each expression",
 			"The for_each value for %s refers to %s. Instance keys can be propagated only from a whole managed resource (for_each = aws_subnet.this).", subject, ref.Subject.String())
+		r.demandedManaged(ref.Subject, subject)
 		return addrs.Resource{}, nil, false
 	}
 
