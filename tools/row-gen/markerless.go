@@ -56,12 +56,20 @@ import (
 //     that is the verdict a future admission batch would be acting on.
 //
 // Reading the classifier for an admitted type would be a defect, not a
-// simplification. Six admitted untaggable rows - measured, not asserted -
-// are in the classifier's server-assigned bucket while their ratified row
-// says they are not server-assigned at all: those types resolve from their
-// own configuration today, never reach discovery, never need a marker, and
-// vetoing them would remove six working types. The ratified row is the one
-// that knows.
+// simplification. FIVE admitted untaggable rows - remeasured at 5502e8a3de,
+// where this comment said six - are in the classifier's server-assigned
+// bucket while their ratified row says they are not server-assigned at all:
+// those types resolve from their own configuration today, never reach
+// discovery, never need a marker, and vetoing them would remove five working
+// types. The ratified row is the one that knows.
+//
+// Two independent measurements agree on the five, which is also the whole of
+// what this file's DefaultTable read is worth: dropping the tier and running
+// -emit retracts exactly five types, and emitting from an emptied
+// DefaultTable grows MarkerlessTypes from 148 to 153 with the same five
+// names. Note the second of those is only measurable by emptying the table,
+// because this lookup reads -emit's own previous output - see
+// retraction.go for what that costs.
 
 // markerlessReason is the whole ruling, stated once. It is a rule and not
 // 121 separate judgements, so it is written once and every vetoed type
