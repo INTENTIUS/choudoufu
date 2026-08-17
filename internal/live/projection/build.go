@@ -180,29 +180,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		return empty, diags
 	}
 
-	// The config-side naming signal, for the identity check the provider
-	// cache runs when the schemas arrive (schema_check.go). Its diagnostics
-	// are dropped on purpose: a configuration whose expansion this cannot
-	// enumerate is a resolution failure the caller has already seen, and a
-	// second copy of it here would fail a projection over a report.
-	signal, _ := identity.ScanConfig(ctx, cfg)
-
-	b := &builder{
-		cfg:        cfg,
-		opts:       opts,
-		providers:  newProviderCache(provs, signal),
-		state:      states.NewState(),
-		live:       make(map[string]cty.Value),
-		omitted:    make(map[string]Omission),
-		causes:     make(map[string]string),
-		depsByType: make(map[string][]addrs.ConfigResource),
-		// The `moved` blocks this configuration's markers may follow (GitHub
-		// issue #198), computed once for the whole projection because
-		// [builder.checkOwnership] asks about them per instance. A
-		// configuration with no moved blocks gets an empty slice here and
-		// [moved.Accepts] degenerates to one address comparison.
-		movedStmts: moved.Honoured(cfg),
-	}
+	b := newBuilder(ctx, cfg, provs, opts)
 	b.run(ctx, resolutions)
 
 	sortOmissions(b.omissionList)
@@ -227,6 +205,38 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		Policy:         b.policyList,
 	}
 	return res, diags.Append(b.diags)
+}
+
+// newBuilder is the one place a builder is constructed, shared by
+// [buildFrom] and by [ReadInstances] so that a narrow read talks to
+// providers through exactly the same cache, the same identity check and the
+// same `moved` set a full projection does. A second construction site here
+// is how one of the two would come to read through a differently-configured
+// provider than the other.
+func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts Options) *builder {
+	// The config-side naming signal, for the identity check the provider
+	// cache runs when the schemas arrive (schema_check.go). Its diagnostics
+	// are dropped on purpose: a configuration whose expansion this cannot
+	// enumerate is a resolution failure the caller has already seen, and a
+	// second copy of it here would fail a projection over a report.
+	signal, _ := identity.ScanConfig(ctx, cfg)
+
+	return &builder{
+		cfg:        cfg,
+		opts:       opts,
+		providers:  newProviderCache(provs, signal),
+		state:      states.NewState(),
+		live:       make(map[string]cty.Value),
+		omitted:    make(map[string]Omission),
+		causes:     make(map[string]string),
+		depsByType: make(map[string][]addrs.ConfigResource),
+		// The `moved` blocks this configuration's markers may follow (GitHub
+		// issue #198), computed once for the whole projection because
+		// [builder.checkOwnership] asks about them per instance. A
+		// configuration with no moved blocks gets an empty slice here and
+		// [moved.Accepts] degenerates to one address comparison.
+		movedStmts: moved.Honoured(cfg),
+	}
 }
 
 type builder struct {
