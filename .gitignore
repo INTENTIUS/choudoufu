@@ -65,6 +65,7 @@ site/public/
 # never matches.
 /.claude/*
 !/.claude/agents/
+!/.claude/skills/
 
 # tools/<name> binaries: `go build ./tools/<name>` (or `go build
 # ./tools/<name>/...`), run from the repo root with no -o, drops a
