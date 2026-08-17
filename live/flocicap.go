@@ -30,11 +30,13 @@
 // The manifest has two grains:
 //
 //   - Services (botocore/AWS CLI service ids, e.g. "networkmanager",
-//     "transfer"): whether floci implements the service at all. This grain
-//     is fully mechanical to (re)generate - floci's own
-//     /_localstack/health endpoint names every service it implements -
-//     which is exactly what tools/floci-capability-gen's default probe mode
-//     does.
+//     "transfer"): whether floci implements the service at all, read off
+//     floci's own /_localstack/health endpoint by
+//     tools/floci-capability-gen's default probe mode. Note the grain's
+//     coverage is its own watchlist rather than the health response: the
+//     probe re-checks every service already carrying a row and records
+//     nothing for the rest, so the four rows here sit against 82 service
+//     names the pinned image reports (#276).
 //   - Types (Terraform provider-local resource types, e.g.
 //     "aws_redshift_cluster"), each optionally scoped to a discovery
 //     mechanism other than the ordinary create/read path
@@ -51,10 +53,16 @@
 //     structured, queryable home instead of only prose a later reader has
 //     to find and re-read. tools/floci-capability-gen's -mode=cloudcontrol
 //     regenerates the "cloudcontrol-list" mechanism's entries mechanically,
-//     over every registry-ratified type, by replaying
-//     tools/cloudcontrol-probe's own ListResources call; the rest stay hand
-//     data, extended the same way tools/estate-gen/overrides.go's
-//     typeOverrides table is.
+//     over every registry-ratified type, by round trip: create a resource
+//     of the type through Cloud Control, then list and look for the
+//     identifier the create just named. That round trip is the only way to
+//     tell a list that answers from one that returns - floci's ListResources
+//     answers an empty ResourceDescriptions, cleanly, for a type whose
+//     objects demonstrably exist, and an earlier sweep that recorded a bare
+//     successful call as "implemented" filled this manifest with 645 rows
+//     that said so. Re-probed as a round trip against the same image, seven
+//     of 610 hold (#279). The rest of the grain stays hand data, extended
+//     the same way tools/estate-gen/overrides.go's typeOverrides table is.
 //
 // A digest with no entry at all, or a service/type with no row under a
 // digest that does have entries, means "not yet investigated" - never
@@ -101,6 +109,22 @@ const (
 	// Docker-socket-mount requirement is the running example), or that
 	// works for some but not all of its own operations.
 	FlociPartial FlociStatus = "partial"
+
+	// FlociUnverified is a probe that reached a real handler and got an
+	// ordinary answer back, without that answer establishing anything: the
+	// call returned, and nothing showed whether the service actually
+	// answered it. tools/floci-capability-gen's cloudcontrol-list sweep
+	// writes this when it could not create a resource of the type to then
+	// look for in the list, which leaves an empty ResourceDescriptions
+	// indistinguishable between "nothing exists" and "this list handler is
+	// a stub".
+	//
+	// Read it exactly the way an absent row is read - not yet established,
+	// never a clearance - which is why the *CapabilityGate helpers leave a
+	// test running rather than skipping it. It exists as a distinct status
+	// so a reader can tell "probed, and the probe settled nothing" from
+	// "never probed".
+	FlociUnverified FlociStatus = "unverified"
 )
 
 // FlociCapability is one manifest entry: what happened when this repo tried
@@ -165,6 +189,7 @@ var flociValidStatus = map[string]bool{
 	string(FlociUnimplemented): true,
 	string(FlociBroken):        true,
 	string(FlociPartial):       true,
+	string(FlociUnverified):    true,
 }
 
 func loadFlociCapabilities() *flociState {

@@ -92,3 +92,84 @@ func TestFlociTypeCapability(t *testing.T) {
 		t.Error("expected no manifest entry for a made-up type, got one")
 	}
 }
+
+// TestCloudControlListRowsRecordAnAnswerNotACall pins the defect that made
+// this mechanism's verdict worth rewriting.
+//
+// Every cloudcontrol-list row for the pinned digest used to read
+// "implemented", on the strength of "ListResources(X) succeeded". Succeeding
+// is not answering: floci's ListResources returns an empty
+// ResourceDescriptions, cleanly, for a type whose objects demonstrably
+// exist. Measured against the pinned image on 2026-08-17: create a cache
+// policy through CloudFront's own API and `cloudfront list-cache-policies`
+// returns it (Quantity 1), while `cloudcontrol list-resources --type-name
+// AWS::CloudFront::CachePolicy` returns []. A discovery leg reading the old
+// manifest would have planned a crossing against a list that cannot see
+// what it just made, and AWS::ECS::TaskDefinition is where that actually
+// happened - two corpus estates hard-errored on their first cold live-plan
+// with "Listed resource with no identity" after applying cleanly.
+//
+// The three types are named HERE rather than anywhere in
+// tools/floci-capability-gen, which must stay free of any AWS::* or aws_*
+// literal in its control flow: the generator derives its whole type list
+// from internal/live/identity.AdmittedTypes joined through the registry,
+// and a test is the right place to hold it to a known answer.
+func TestCloudControlListRowsRecordAnAnswerNotACall(t *testing.T) {
+	for _, tfType := range []string{
+		"aws_cloudfront_cache_policy", // AWS::CloudFront::CachePolicy
+		"aws_route53_cidr_collection", // AWS::Route53::CidrCollection
+		"aws_ecs_task_definition",     // AWS::ECS::TaskDefinition
+	} {
+		entry, ok := FlociTypeCapability(pinnedDigest, tfType, "cloudcontrol-list")
+		if !ok {
+			t.Errorf("%s has no cloudcontrol-list row at the pinned digest; it is meant to carry the probe's finding", tfType)
+			continue
+		}
+		if entry.Status == FlociImplemented {
+			t.Errorf("%s cloudcontrol-list = implemented, but the emulator's list cannot find an object it just created: %s",
+				tfType, entry.Evidence)
+		}
+		if !strings.Contains(entry.Evidence, "ListResources") || !strings.Contains(entry.Evidence, "CreateResource") {
+			t.Errorf("%s evidence does not say which calls were made, so a reader cannot tell a round trip from a bare call: %q",
+				tfType, entry.Evidence)
+		}
+	}
+}
+
+// TestNoCloudControlListRowClaimsImplementedOnABareCall is the same guard
+// widened past the three named types, so the defect cannot come back for
+// any of the several hundred others. An "implemented" verdict under this
+// mechanism means one thing and may only be reached one way: something was
+// created and the following list enumerated it. A row that claims it
+// without citing a create is a call being reported as an answer.
+func TestNoCloudControlListRowClaimsImplementedOnABareCall(t *testing.T) {
+	state := loadFlociCapabilities()
+	rows, ok := state.types[pinnedDigest]
+	if !ok {
+		t.Fatalf("no manifest entry for the pinned digest %s", pinnedDigest)
+	}
+
+	var seen, implemented int
+	for _, row := range rows {
+		if row.Mechanism != "cloudcontrol-list" {
+			continue
+		}
+		seen++
+		if row.Status != string(FlociImplemented) {
+			continue
+		}
+		implemented++
+		if !strings.Contains(row.Evidence, "CreateResource") {
+			t.Errorf("%s claims implemented without citing the create it round-tripped through: %q", row.Type, row.Evidence)
+		}
+		if strings.Contains(row.Evidence, "succeeded") {
+			t.Errorf("%s evidence is the bare-call wording this mechanism was rewritten to stop producing: %q", row.Type, row.Evidence)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no cloudcontrol-list rows at the pinned digest at all - this guard is checking nothing")
+	}
+	if implemented == seen {
+		t.Errorf("all %d cloudcontrol-list rows read implemented, which is the shape the old bare-call probe produced", seen)
+	}
+}

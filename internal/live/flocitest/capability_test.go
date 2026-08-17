@@ -5,7 +5,11 @@
 
 package flocitest
 
-import "testing"
+import (
+	"testing"
+
+	flocicap "github.com/intentius/choudoufu/live"
+)
 
 func TestImageDigest(t *testing.T) {
 	t.Run("pinned by digest (the default)", func(t *testing.T) {
@@ -77,22 +81,32 @@ func TestCapabilityGateNoOpForUnrecordedType(t *testing.T) {
 // mechanism never leaks into a lookup scoped to another, driven by real
 // committed rows at the pinned digest rather than a fixture.
 //
-// aws_redshift_cluster is the vehicle: at the pinned digest it carries a
-// mechanism="" row recording unimplemented (create-cluster misroutes to the
-// SQS handler), a mechanism="cloudcontrol-list" row recording implemented,
-// and no tagging-sweep row at all. So the ordinary-path gate must skip on
-// it (TestCapabilityGateSkipsForKnownGap covers that half), while both
-// scoped wrappers must be no-ops - one because its own row says
-// implemented, the other because there is no row under that mechanism to
-// read.
+// aws_redshift_cluster carries a mechanism="" row recording unimplemented
+// (create-cluster misroutes to the SQS handler) and no tagging-sweep row at
+// all, so the ordinary-path gate must skip on it
+// (TestCapabilityGateSkipsForKnownGap covers that half) while the
+// tagging-sweep wrapper must be a no-op, there being no row under that
+// mechanism to read.
 //
-// This test used to run the same property through aws_iam_role's
-// tagging-sweep row, which recorded unimplemented until the pin moved to
-// sha256:a1c729f4 and floci's union index made all seven tagging-sweep
-// recipes implemented. That direction is now covered as a positive: the
-// tagging-sweep gate must be a no-op on aws_iam_role, which is exactly what
-// makes internal/live/discovery's TestTaggingSweepAgainstFloci assert its
-// bind rather than skip.
+// aws_vpc runs the property the other way round: no mechanism="" row at
+// all, and a cloudcontrol-list row recording implemented, so both gates are
+// no-ops for opposite reasons. Its cloudcontrol-list row is one of the
+// seven that survived the sweep's rewrite into a create/list round trip -
+// CreateResource made a VPC and the following ListResources came back
+// carrying it.
+//
+// This test used to run the first property through aws_redshift_cluster's
+// own cloudcontrol-list row, on the strength of that row recording
+// implemented. It no longer does, and the reason is the point of the
+// rewrite: that verdict came from ListResources returning without erroring,
+// which floci does for every type whether or not its list handler answers.
+// Re-probed as a round trip, the row is unimplemented, and the gate now
+// skips on it - correctly.
+//
+// The tagging-sweep direction is covered as a positive: the gate must be a
+// no-op on aws_iam_role, which is exactly what makes
+// internal/live/discovery's TestTaggingSweepAgainstFloci assert its bind
+// rather than skip.
 func TestCapabilityGateMechanismScoping(t *testing.T) {
 	cases := []struct {
 		name string
@@ -100,9 +114,14 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 		why  string
 	}{
 		{
-			name: "cloudcontrol-list does not inherit the ordinary-path gap",
-			run:  func(st *testing.T) { CloudControlListCapabilityGate(st, "aws_redshift_cluster") },
-			why:  "aws_redshift_cluster's cloudcontrol-list row records implemented; only its mechanism=\"\" row is a gap",
+			name: "cloudcontrol-list is a no-op once its own row records implemented",
+			run:  func(st *testing.T) { CloudControlListCapabilityGate(st, "aws_vpc") },
+			why:  "aws_vpc's cloudcontrol-list row records implemented, on a create/list round trip",
+		},
+		{
+			name: "ordinary path does not inherit a scoped row",
+			run:  func(st *testing.T) { CapabilityGate(st, "aws_vpc") },
+			why:  "aws_vpc has no mechanism=\"\" row; only its cloudcontrol-list row is recorded",
 		},
 		{
 			name: "tagging-sweep does not inherit the ordinary-path gap",
@@ -136,6 +155,87 @@ func TestCapabilityGateMechanismScoping(t *testing.T) {
 			t.Errorf("%s: code after the gate never ran (%s)", tc.name, tc.why)
 		}
 	}
+}
+
+// TestCloudControlListGateSkipsForAListThatCannotFindWhatExists is the
+// scoping property in the skip direction, and the reason the manifest's
+// cloudcontrol-list verdict was rewritten to mean something.
+//
+// aws_cloudfront_cache_policy has no mechanism="" row, so the ordinary gate
+// is a no-op on it - floci's CloudFront handler creates cache policies
+// fine, and its own list-cache-policies returns them. What it cannot do is
+// enumerate them through Cloud Control, which is the one thing a discovery
+// leg needs, and the scoped gate is what has to catch that. Under the old
+// bare-call sweep this row read implemented and the gate waved the test
+// through.
+func TestCloudControlListGateSkipsForAListThatCannotFindWhatExists(t *testing.T) {
+	var scoped *testing.T
+	t.Run("scoped", func(st *testing.T) {
+		scoped = st
+		CloudControlListCapabilityGate(st, "aws_cloudfront_cache_policy")
+		st.Fatal("unreachable: the cloudcontrol-list gate should have skipped before this line")
+	})
+	if !scoped.Skipped() {
+		t.Error("CloudControlListCapabilityGate did not skip for aws_cloudfront_cache_policy, whose list cannot find an object it just created")
+	}
+
+	var ordinary *testing.T
+	ran := false
+	t.Run("ordinary", func(st *testing.T) {
+		ordinary = st
+		CapabilityGate(st, "aws_cloudfront_cache_policy")
+		ran = true
+	})
+	if ordinary.Skipped() || !ran {
+		t.Error("CapabilityGate skipped for aws_cloudfront_cache_policy; a cloudcontrol-list gap must not leak into the ordinary path")
+	}
+}
+
+// TestCapabilityGateIsANoOpForUnverified holds the contract for the
+// manifest's fifth status. "unverified" is what the round-trip sweep writes
+// when it reached a real handler and settled nothing - for
+// aws_subnet, ListResources came back carrying floci's three default
+// subnets, and CreateResource with an empty desired state was refused, so
+// there was no object of this run's own making to look for. That is
+// evidence of nothing, and it must be read exactly the way an absent row is
+// read: let the test run and find out.
+//
+// Skipping on it would be the failure mode this whole rewrite is against,
+// inverted - hiding a type nobody has established anything about, instead
+// of waving one through.
+func TestCapabilityGateIsANoOpForUnverified(t *testing.T) {
+	entry, ok := flocicap.FlociTypeCapability(digestOrSkip(t), "aws_subnet", "cloudcontrol-list")
+	if !ok {
+		t.Skip("aws_subnet has no cloudcontrol-list row at the pinned digest")
+	}
+	if entry.Status != flocicap.FlociUnverified {
+		t.Skipf("aws_subnet cloudcontrol-list is %q, not unverified; this test needs an unverified row to mean anything", entry.Status)
+	}
+
+	var sub *testing.T
+	ran := false
+	t.Run("noop", func(st *testing.T) {
+		sub = st
+		CloudControlListCapabilityGate(st, "aws_subnet")
+		ran = true
+	})
+	if sub.Skipped() {
+		t.Error("CloudControlListCapabilityGate skipped on an unverified row; unverified means not established, not known-broken")
+	}
+	if !ran {
+		t.Error("code after the gate never ran for an unverified row")
+	}
+}
+
+// digestOrSkip is imageDigest with a skip for a run whose image is not
+// pinned by digest, since every manifest lookup is a no-op in that case.
+func digestOrSkip(t *testing.T) string {
+	t.Helper()
+	digest, ok := imageDigest()
+	if !ok {
+		t.Skip("the image in play is not pinned by digest; manifest lookups are no-ops")
+	}
+	return digest
 }
 
 // TestServiceCapabilityGateSkipsForKnownGap exercises the service-level

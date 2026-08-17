@@ -89,24 +89,36 @@ import (
 // pinned emulator, and the reason is worth recording so nobody spends another
 // session finding it.
 //
-// live/floci-capabilities.json reports all four of this leg's types
+// live/floci-capabilities.json used to report all four of this leg's types
 // "implemented" with the evidence "ListResources(AWS::CloudFront::CachePolicy)
-// succeeded". That is a claim about the CALL, not about what it answers.
-// Measured 2026-08-17 against the pinned image
-// ghcr.io/lex00/floci@sha256:a1c729f4...326d52e6bd5f:
+// succeeded". That was a claim about the CALL, not about what it answers, and
+// the whole cloudcontrol-list mechanism has since been re-probed as a create/
+// list round trip; the rows now read unimplemented, with evidence naming both
+// calls. Measured 2026-08-17 against the pinned image
+// ghcr.io/lex00/floci@sha256:a1c729f4...326d52e6bd5f, twice, on separate
+// fresh containers:
 //
-//   - `aws cloudfront create-cache-policy` succeeds and returns an Id;
-//   - `aws cloudfront list-cache-policies` then reports Quantity 0;
+//   - `aws cloudfront create-cache-policy` succeeds and returns an Id, and
+//     `aws cloudfront list-cache-policies` then reports Quantity 1 carrying
+//     that exact Id. CloudFront's own API round trips fine - an earlier
+//     version of this comment said Quantity 0, which does not reproduce;
 //   - `aws cloudcontrol create-resource` on AWS::CloudFront::CachePolicy
-//     returns IN_PROGRESS;
+//     returns IN_PROGRESS, settles SUCCESS, and names a synthetic
+//     "resource-<hex>" identifier that CloudFront's own list never shows -
+//     so that create makes a Cloud Control record and no cache policy;
 //   - `aws cloudcontrol list-resources` on it returns an empty
-//     ResourceDescriptions either way.
+//     ResourceDescriptions in every one of those states, including with a
+//     natively created policy sitting there.
 //
-// AWS::Route53::CidrCollection behaves identically. So the emulator creates
-// these objects and cannot enumerate them, which is precisely the one thing
-// this leg needs from it: a fixture built on it would replan a create over
-// the object it had just made, and would be measuring the emulator rather
-// than this code.
+// AWS::Route53::CidrCollection is worse rather than identical: floci has no
+// native route53 CIDR-collection handler at all, and both create-cidr-
+// collection and list-cidr-collections come back as errors with an empty
+// code.
+//
+// Either way the emulator cannot enumerate these objects through the
+// transport this leg reads, which is precisely the one thing it needs from
+// it: a fixture built on it would replan a create over the object it had
+// just made, and would be measuring the emulator rather than this code.
 //
 // Until an emulator enumerates them, the coverage here is the unit tests in
 // uniquename_test.go - which drive a fake Cloud Control endpoint through the

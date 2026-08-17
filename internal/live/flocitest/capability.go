@@ -77,6 +77,11 @@ func capabilityGate(t *testing.T, tfType, mechanism string) {
 	case flocicap.FlociUnimplemented, flocicap.FlociBroken:
 		t.Skipf("skipped: %s not implemented by floci image %s per capability manifest (%s): %s",
 			tfType, digest, entry.Source, entry.Evidence)
+	case flocicap.FlociUnverified:
+		// Deliberately not a skip. "unverified" means the probe reached a
+		// handler and settled nothing, which is the same standing as no row
+		// at all: let the test run and find out, rather than waving it
+		// through as known-good or hiding it as known-bad.
 	}
 }
 

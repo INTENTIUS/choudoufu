@@ -10,21 +10,32 @@
 // rediscover, by trial and error, which services and types it still does
 // not implement.
 //
-// Two probe modes, both safe to run against a floci instance mid-use (both
-// are read-only against AWS-shaped state; the health probe makes no calls
-// at all, and the Cloud Control sweep only ever calls ListResources):
+// Every mode except -mode=services writes to the instance it probes, so run
+// this tool against a throwaway floci container, never one another agent is
+// mid-crossing on. That is a change from an earlier version of this tool,
+// which called only ListResources and was therefore safe mid-use - and the
+// reason for the change is the whole point of the -mode=cloudcontrol
+// rewrite: a call that returns is not a service that answers, and there is
+// no way to tell those apart without putting an object in front of the list
+// and seeing whether it comes back.
+//
+// The probe modes:
 //
 //   - -mode=services (the default's first half): GETs
 //     <endpoint>/_localstack/health, which floci answers with the flat
 //     "service name -> status" map its own /_localstack/health always has -
 //     live/e2e/estates/stragglers/README.md's own "Floci coverage"
 //     section reads this same endpoint by hand. Every service name the
-//     response includes is recorded implemented, with its reported status
-//     as evidence. A service this tool is watching for - every service
-//     name already recorded for ANY digest in the committed manifest,
-//     plus anything passed via -watch - that the response does NOT
-//     include is recorded unimplemented. This is why the manifest is
-//     cumulative rather than needing a fixed universal service roster: a
+//     response includes AND that this tool is watching for is recorded
+//     implemented, with its reported status as evidence; a service the
+//     response names that nothing is watching for is not recorded at all,
+//     so this grain's coverage is exactly the watchlist (#276 - the health
+//     response names 82 services against the manifest's 4). A service this
+//     tool is watching for - every service name already recorded for ANY
+//     digest in the committed manifest, plus anything passed via -watch -
+//     that the response does NOT include is recorded unimplemented. This is
+//     why the manifest is cumulative rather than needing a fixed universal
+//     service roster: a
 //     hand investigation that finds a new absent service and records it
 //     once (tools/estate-gen/overrides.go's "hand judgment, mechanically
 //     replayed thereafter" split) makes every future -mode=services run
@@ -33,23 +44,51 @@
 //   - -mode=cloudcontrol (the default's second half): sweeps every
 //     registry-ratified type (internal/live/identity.AdmittedTypes, joined
 //     through live/mapping.json + live/registry.json exactly the way
-//     internal/live/discovery's own enumeration-source selection does) and
-//     calls Cloud Control's ListResources for each one that join says is
-//     listable - the exact same call tools/cloudcontrol-probe makes by
-//     hand for one type at a time, generalized into a full sweep with
-//     classification. A clean result (even an empty list) means
-//     implemented; an UnsupportedOperation/UnknownOperationException-shaped
-//     API error means unimplemented; a response Cloud Control's own client
-//     cannot parse as its ordinary error shape (the HTML-error-page
-//     signature the databases and stragglers cohort READMEs both document
-//     for a router-recognized-but-broken handler) means broken. Written
-//     under the "cloudcontrol-list" mechanism - see
+//     internal/live/discovery's own enumeration-source selection does) and,
+//     for each one that join says is listable, ROUND TRIPS it: list, then
+//     create one resource of the type through Cloud Control with an empty
+//     desired state, then list again and look for the identifier the create
+//     named.
+//
+//     The round trip is the point. An emulator whose ListResources handler
+//     is a stub answers an empty ResourceDescriptions with no error at all,
+//     which is indistinguishable from a real list of an empty account - so
+//     "the call returned" cannot be evidence that the service answers, and
+//     an earlier version of this sweep that recorded exactly that put 645
+//     "implemented" rows into the manifest for one image, most of which a
+//     discovery leg cannot rely on. AWS::CloudFront::CachePolicy is the
+//     worked example: create succeeds, the object is real (CloudFront's own
+//     list-cache-policies returns it), and Cloud Control's ListResources
+//     stays empty.
+//
+//     Verdicts, and what each is evidence of: implemented means the created
+//     resource came back in the list, the only path to that word here;
+//     unimplemented means either the router refuses ListResources
+//     (UnsupportedOperation/UnknownOperationException) or the created
+//     resource was absent from the list it did return; broken means a
+//     response Cloud Control's own client cannot parse as its ordinary
+//     error shape (the HTML-error-page signature the databases and
+//     stragglers cohort READMEs both document for a
+//     router-recognized-but-broken handler); unverified means the handler
+//     answered but nothing was established - overwhelmingly because no
+//     resource of the type could be created to look for. Every evidence
+//     string says which calls were made and what they returned, so a reader
+//     can tell a round trip from a bare call without consulting this file.
+//
+//     Nothing about which types get round-tripped is written down anywhere:
+//     the type list is internal/live/identity.AdmittedTypes joined through
+//     the registry, and the desired state is "{}" for every one of them,
+//     because no source in this checkout carries per-type required
+//     properties and inventing them would be the hand-written type list
+//     this generator exists to avoid. A type whose create is refused
+//     therefore lands in unverified rather than being guessed at.
+//
+//     Written under the "cloudcontrol-list" mechanism - see
 //     internal/live/flocitest.CloudControlListCapabilityGate - never
 //     conflated with the ordinary create/read path's own mechanism="" gaps,
-//     which this tool does not attempt to probe generically (no minimal
-//     per-type Create recipe is safe to invent without a live image to
-//     verify it against; those stay hand-curated, exactly like every
-//     "types" row this manifest ships with today).
+//     which this tool does not attempt to probe generically; those stay
+//     hand-curated, exactly like every "types" row this manifest ships with
+//     under mechanism="".
 //
 // Usage, against a floci instance already running (this tool starts none
 // itself):
@@ -80,6 +119,29 @@
 //     row under that mechanism the same way -mode=cloudcontrol replaces
 //     "cloudcontrol-list" rows - this mode is what generates that bucket
 //     now, rather than it staying hand-curated indefinitely.
+//
+// # Reproducibility
+//
+// Re-probing the same image must produce the same file, or the artifact's
+// diff stops carrying information. Measured 2026-08-17 against
+// sha256:a1c729f4: three -mode=cloudcontrol runs, two against separate
+// fresh containers and one against a container already holding the previous
+// run's ~600 created resources, agreed on the verdict for all 610 rows -
+// zero status differences, including the dirty one.
+//
+// Getting there took removing two things from the evidence text that varied
+// per run: the identifier the emulator generates for each created resource
+// (random every time - it alone made 590 of 610 rows differ between two
+// runs) and, on the found path, how many other resources the list happened
+// to be carrying (which grows as a re-run's own creates accumulate). The
+// test named for that property in sweep_test.go holds the line. The
+// not-found path DOES keep its count, because zero-versus-many is the
+// difference between a list handler that is a stub and one answering about
+// something else; that number is stable on a fresh container, which is the
+// only kind this tool should be pointed at.
+//
+// The sweep itself is cheap: 610 listable types, three or four calls each,
+// 12 seconds against a warm local container.
 //
 // Every run merges into the committed live/floci-capabilities.json rather
 // than replacing it: -mode=services rewrites only the resolved digest's own
@@ -125,7 +187,7 @@ func main() {
 	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "tagging", or "all"`)
 	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, beyond every service id already recorded for any digest in the manifest")
 	out := flag.String("out", "", "manifest path; empty defaults to live/floci-capabilities.json")
-	timeout := flag.Duration("timeout", 2*time.Minute, "overall timeout for the probe(s)")
+	timeout := flag.Duration("timeout", 30*time.Minute, "overall timeout for the probe(s); the cloudcontrol round trip measured 12s over 610 types against a warm local container, so this is headroom for a cold one, not an estimate of the cost")
 	flag.Parse()
 
 	if err := run(*endpoint, *image, *region, *mode, *watch, *out, *timeout); err != nil {
