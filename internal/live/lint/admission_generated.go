@@ -16,6 +16,7 @@ package lint
 // by fully-qualified provider address, because that is what a configuration
 // author writes and what the error message has to name back to them.
 var admittedTypesV0 = map[string]struct{}{
+	"aws_accessanalyzer_analyzer":                                           {},
 	"aws_acm_certificate":                                                   {},
 	"aws_acmpca_certificate_authority":                                      {},
 	"aws_acmpca_certificate_authority_certificate":                          {},

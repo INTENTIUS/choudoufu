@@ -71,7 +71,7 @@ func unreachedTypes() Entry {
 			"internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or " +
 			"vetoed by the derived markerless rule. This counts the ones in none of them, where naming " +
 			"the type in a configuration is a hard resolve error with no ledger entry saying why.",
-		Bound:     621,
+		Bound:     620,
 		Direction: AtMost,
 		Measured: "internal/live/identity.DefaultTable, tools/row-gen/rejected.json and " +
 			"internal/live/identity.MarkerlessTypes",

@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 892,
-    "compared": 878,
+    "admitted_total": 893,
+    "compared": 879,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 786,
-    "adopted_unchanged_pct": 89.52,
+    "adopted_unchanged": 787,
+    "adopted_unchanged_pct": 89.53,
     "genuine_mismatches": 92,
     "annotated": 92,
     "unannotated_mismatches": 0,
@@ -35,6 +35,11 @@
     "ARCZonalShift": {
       "compared": 2,
       "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
+    },
+    "AccessAnalyzer": {
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "AmazonMQ": {
@@ -944,6 +949,14 @@
     }
   },
   "types": [
+    {
+      "tf_type": "aws_accessanalyzer_analyzer",
+      "service": "AccessAnalyzer",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
     {
       "tf_type": "aws_acm_certificate",
       "service": "CertificateManager",

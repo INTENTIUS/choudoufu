@@ -17,6 +17,7 @@ package identity
 // annotation ledger (tools/row-gen/annotations.json), never here: this file is
 // overwritten in full on every run.
 var DefaultTable = map[string]TypeIdentity{
+	"aws_accessanalyzer_analyzer":                                           {Type: "aws_accessanalyzer_analyzer", Components: []Component{{Attrs: []string{"analyzer_name"}, IdentityAttr: "*"}}, ImportSyntax: "ANALYZER_NAME"},
 	"aws_acm_certificate":                                                   {Type: "aws_acm_certificate", ServerAssigned: true, Reason: "ACM assigns the certificate ARN at create time; the domain name is not an identity, and several certificates may cover the same domain.", ImportSyntax: "CERTIFICATEARN", IdentityAttrs: []string{"arn", "id"}},
 	"aws_acmpca_certificate_authority":                                      {Type: "aws_acmpca_certificate_authority", ServerAssigned: true, Reason: "ACM Private CA assigns the certificate authority's own ARN at create time; the subject and key parameters describe it but do not identify it.", ImportSyntax: "CERTIFICATEAUTHORITYARN", IdentityAttrs: []string{"arn", "id"}},
 	"aws_acmpca_certificate_authority_certificate":                          {Type: "aws_acmpca_certificate_authority_certificate", Components: []Component{{Attrs: []string{"certificate_authority_arn"}, IdentityAttr: "*"}}, ImportSyntax: "CERTIFICATEAUTHORITYARN", IdentityAttrs: []string{"certificate_authority_arn"}},

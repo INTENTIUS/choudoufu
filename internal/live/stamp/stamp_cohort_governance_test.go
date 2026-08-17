@@ -10,6 +10,12 @@ package stamp
 // not, and the caricature schema each one is checked against. Registered by
 // init below; see contributing/LIVE-TABLES.md.
 var taggableGovernance = []string{
+	// Ratified from the import grammar alone: the documented import ID is
+	// the bare analyzer_name, which is a required client-supplied argument,
+	// so the row is a single attr component. Taggable per
+	// live/survey-full.json's real-schema signal.
+	"aws_accessanalyzer_analyzer",
+
 	// Registry-ratified governance batch (#40, #44, issue #65). See
 	// live/e2e/estates/governance/README.md.
 	"aws_config_config_rule",
@@ -52,6 +58,8 @@ var untaggableGovernance = []string{
 func init() {
 	registerCohortStamp(taggableGovernance, untaggableGovernance, func(s testSchemaSource) {
 		mergeCohortSchemas(s, testSchemaSource{
+			"aws_accessanalyzer_analyzer": taggedSchema("id", "arn", "analyzer_name"),
+
 			// Registry-ratified governance batch (#40, #44, issue #65).
 			// Taggable/untaggable per live/survey-full.json's real-schema signal
 			// for each type: aws_config_conformance_pack,

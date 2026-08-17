@@ -1,4 +1,16 @@
 {
+  "aws_accessanalyzer_analyzer": {
+    "type": "aws_accessanalyzer_analyzer",
+    "components": [
+      {
+        "attrs": [
+          "analyzer_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ANALYZER_NAME"
+  },
   "aws_acm_certificate": {
     "type": "aws_acm_certificate",
     "server_assigned": true,

@@ -260,7 +260,16 @@ type ArgumentRefEntry struct {
 // domain_owner, "The account number of the AWS account that owns the
 // domain", is such a bullet, and it is correctly not a cloud default: the
 // docs do not say what omitting it does).
-var accountDefaultRe = regexp.MustCompile(`(?i)(defaults?\s+to\s+(the\s+)?(aws\s+)?account\s*id|(aws\s+)?account\s*id\s+is\s+used\s+by\s+default)`)
+// The optional "automatically determined" is the S3 Control family's
+// phrasing of the same fact - "Defaults to automatically determined account
+// ID of the Terraform AWS provider" - and it went unread, so every row whose
+// account segment is documented that way emitted an argument component with
+// no cloud fallback and refused "Identity argument not set" on any
+// configuration that omitted the argument. It is admitted as a fixed adjectival
+// phrase rather than a bounded gap on purpose: a `[^.]{0,N}` wildcard here
+// would also swallow "defaults to the account id of the bucket owner", which
+// is a different account and would put the wrong one in a marker.
+var accountDefaultRe = regexp.MustCompile(`(?i)(defaults?\s+to\s+(the\s+)?(automatically\s+determined\s+)?(aws\s+)?account\s*id|(aws\s+)?account\s*id\s+is\s+used\s+by\s+default)`)
 
 // regionDefaultRe is accountDefaultRe for the region: the phrase has to name
 // the provider, which is what separates the AWS provider's per-resource
