@@ -42,6 +42,7 @@ func readRoster(path string) ([]HandRow, error) {
 		pathParentDerived:        true,
 		pathEnumerableUnbindable: true,
 		pathAccountDerived:       true,
+		pathUniqueName:           true,
 		pathOps:                  true,
 	}
 
