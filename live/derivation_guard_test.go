@@ -45,7 +45,7 @@ import (
 //
 //	3680  in _test.go files          - fixtures; a test naming a type is the test
 //	2778  in *_generated.go files    - the generated tables; the whole product
-//	 421  package-level table data   - hand tables, each already carrying prose
+//	 425  package-level table data   - hand tables, each already carrying prose
 //	 125  inside a function body     - the decision positions, and the debt
 //
 // The prior this was written against guessed that the shape to catch was a
@@ -116,6 +116,13 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"justification is an AWS uniqueness guarantee (ELBv2 names unique per account/region, an SNS ARN built out of its " +
 			"name), which no provider schema states, so it cannot be read off one.",
 		Data: 10, Code: 0,
+	},
+	"internal/live/harness/assumptions.go": {
+		Reason: "sanctionedCredentialExclusions: the four types the maintainer has ruled may sit in rejected.json, because their " +
+			"identity IS credential material and a marker goes in a tag rather than in the secret. A ruling is the one thing " +
+			"that cannot be derived - no schema records what a maintainer decided - and the assumption exists precisely to " +
+			"fail when the veto set drifts away from those four. Naming them here is the check, not the hand-wiring.",
+		Data: 4, Code: 0,
 	},
 	"internal/live/identity/parent.go": {
 		Reason: "parentReadRemovable and foldParentTypes: two one-entry maps whose growth rule is written into their own doc " +
@@ -215,7 +222,7 @@ const (
 	// typeLiteralDataTotal and typeLiteralCodeTotal are the registry's sums,
 	// pinned so that moving a count from one file to another - which every
 	// per-file check passes individually - still has to be claimed.
-	typeLiteralDataTotal = 421
+	typeLiteralDataTotal = 425
 	typeLiteralCodeTotal = 125
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
