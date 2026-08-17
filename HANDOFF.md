@@ -583,6 +583,25 @@ would otherwise rediscover.
   large share are non-AWS types, which #5 rules out of scope. `estate-plan`
   annotates both and sorts them behind driveable work; it does not reclassify
   or drop them, because #183 rules they stay blocked honestly.
+- **The `list + content match` survey path names a mechanism this fork does
+  not have, and that needs a ruling.** `tools/survey-gen` assigns it from
+  "untaggable + Cloud-Control-enumerable", which is an ENUMERATION fact
+  labelled as an ADMISSION fact. `internal/live/discovery` binds by reading
+  the marker tags and by nothing else: the Cloud Control leg lists an object,
+  refines it with GetResource, and discards it when neither carried tags
+  (`cloudcontrol.go`'s `ProblemNoTags`, severity error). `internal/live/foreign`
+  says the same in words - a content match is "surfaced for explicit adoption
+  and never bound automatically", because "inferring it from a content match
+  would be exactly the guess the marker spec exists to forbid".
+  `internal/live/doc.go` states both the promise and the denial within twenty
+  lines, and `lint.go` offers the path to a user as one of four options.
+  So the markerless veto is RIGHT and its stated reason is WRONG: the accurate
+  reason is that marker discovery is the only binding mechanism there is.
+  Narrowing the veto on this signal was investigated and rejected - it would
+  release 62 vetoed types onto an unimplemented path and turn a lint refusal
+  that names the type into a per-plan discovery error. The open question is
+  whether path 4 is aspirational or simply wrong; the answer moves 143 survey
+  rows and a pinned user-facing string, so it is a maintainer decision.
 - **Three shapes remain, each with its next step named.** The ACM
   DNS-validation `for_each` blocks four estates at one shared module line and
   is a confirmed parity defect - stock plans it; the machinery to resolve the
