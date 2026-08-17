@@ -437,7 +437,7 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1385 rendered identities across 412 configuration directories in under a
+1385 rendered identities across 413 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 

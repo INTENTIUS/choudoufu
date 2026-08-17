@@ -54,6 +54,42 @@ const (
 	// additively: existing callers that switch on Class need no change
 	// until they choose to handle this one.
 	ClassRecordBacked Class = "RECORD_BACKED"
+
+	// ClassRecordLocated means the object exists in the cloud, has nowhere
+	// to carry a marker, and the estate's record store holds the answer to
+	// "which object is this" - GitHub issue #270, and the maintainer ruling
+	// of 2026-08-17 that an ID is not a permission.
+	//
+	// It is the exact complement of [ClassRecordBacked], and confusing the
+	// two is the one mistake that matters here. A record-BACKED instance
+	// has no cloud object: the record IS the object, deleting the record
+	// deletes the thing, and that is why the record namespace may be
+	// enumerated to find orphans. A record-LOCATED instance's object is in
+	// the cloud and is read from the cloud exactly like any other; the
+	// record carries a single import identity and nothing else. Reading a
+	// located record as delete authority would turn a lost or stale key
+	// into a cloud deletion, which is what
+	// internal/live/projection/located.go's separate namespace and
+	// enumeration-free API exist to make structurally impossible rather
+	// than merely forbidden.
+	//
+	// Behaviourally this is [ClassConcrete] with the import identity coming
+	// from a store lookup instead of from configuration: once
+	// internal/live/projection's builder.materializeLocated has read the
+	// identity, the instance goes through the ordinary materialize path -
+	// same import, same read, same ownership rule, same encoding. What is
+	// different is only where the string came from.
+	//
+	// Resolution.ImportID is deliberately EMPTY for this class. The
+	// identity is not knowable to this package: it is a property of the
+	// estate's store, which this package does not read, the same way it
+	// does not read the record behind [ClassRecordBacked]. A resolution of
+	// this class is a statement that the store is where to look.
+	//
+	// Produced only when a live block declares a record_store and the
+	// provider's own schema clears the type - see [LocatedType] for the
+	// three conditions and for why an absent schema fails closed.
+	ClassRecordLocated Class = "RECORD_LOCATED"
 )
 
 // Resolution is what this package knows about one managed resource
@@ -459,6 +495,14 @@ func (res *Result) NeedsDiscovery() []Resolution {
 // reads this instead of the concrete/parent-derived/needs-discovery lists.
 func (res *Result) RecordBacked() []Resolution {
 	return res.OfClass(ClassRecordBacked)
+}
+
+// RecordLocated is GitHub issue #270's list: the instances whose cloud
+// object carries no marker and whose import identity the estate's record
+// store holds. See [ClassRecordLocated] for why that is a different list
+// from [Result.RecordBacked] and not a wider one.
+func (res *Result) RecordLocated() []Resolution {
+	return res.OfClass(ClassRecordLocated)
 }
 
 // InstanceFailure is carried in the Extra field of every error diagnostic

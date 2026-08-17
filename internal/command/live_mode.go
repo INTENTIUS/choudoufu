@@ -312,6 +312,14 @@ type statelessRunner struct {
 	recordKeyPrefix string
 	recordVersions  []projection.RecordVersion
 
+	// locatedStore and locatedVersions are GitHub issue #270's half of the
+	// same write-back state, set alongside the three above and from the
+	// same store. They are separate fields rather than a widening of them
+	// because the two namespaces answer different questions and only one of
+	// them may ever be enumerated - see internal/live/projection/located.go.
+	locatedStore    *projection.LocatedStore
+	locatedVersions []projection.RecordVersion
+
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
 	// this type's own doc comment), and backend_local.go's localRunDirect
@@ -420,6 +428,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		}
 		r.recordStore = store
 		r.recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
+		// Issue #270's located namespace rides the same store. Note it
+		// takes the ESTATE and not r.recordKeyPrefix: a record_store
+		// block's key_prefix override moves the record namespace and must
+		// not be able to move this one, or the override could put a located
+		// key where orphan discovery would list it. internal/configs'
+		// validateRecordStoreKeyPrefix closes the other direction by
+		// refusing an override rooted at the located namespace.
+		r.locatedStore = projection.NewLocatedStore(store, estate)
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
 		// timestamp land at [projection.HintKey](estate), where the next
@@ -509,6 +525,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 		RecordStore:         r.recordStore,
 		RecordKeyPrefix:     r.recordKeyPrefix,
+		LocatedStore:        r.locatedStore,
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
@@ -519,6 +536,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// applying nothing - in which case WriteBack is simply never called,
 	// and this is harmless to have set.
 	r.recordVersions = projResult.RecordVersions
+	r.locatedVersions = projResult.LocatedVersions
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -595,11 +613,13 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // in this file follows.
 func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics {
 	return projection.WriteBack(ctx, projection.WriteBackRequest{
-		Store:         r.recordStore,
-		KeyPrefix:     r.recordKeyPrefix,
-		PriorVersions: r.recordVersions,
-		FinalState:    finalState,
-		Schemas:       schemas,
+		Store:           r.recordStore,
+		KeyPrefix:       r.recordKeyPrefix,
+		PriorVersions:   r.recordVersions,
+		LocatedStore:    r.locatedStore,
+		LocatedVersions: r.locatedVersions,
+		FinalState:      finalState,
+		Schemas:         schemas,
 	})
 }
 

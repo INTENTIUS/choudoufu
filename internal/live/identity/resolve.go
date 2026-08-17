@@ -677,19 +677,20 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		}
 	}
 	r := &resolver{
-		ctx:        ctx,
-		rootCfg:    cfg,
-		cloud:      rctx.Cloud,
-		schemas:    rctx.Schemas,
-		dataIndex:  dataIndex,
-		expansions: make(map[string]*expansion),
-		expFailed:  make(map[string]bool),
-		expVisit:   make(map[string]bool),
-		insts:      make(map[string]Resolution),
-		instFailed: make(map[string]bool),
-		instVisit:  make(map[string]bool),
-		synth:      make(map[string]*TypeIdentity),
-		scopeCtx:   make(map[string][]string),
+		ctx:         ctx,
+		rootCfg:     cfg,
+		cloud:       rctx.Cloud,
+		schemas:     rctx.Schemas,
+		recordStore: recordStoreConfiguredIn(cfg),
+		dataIndex:   dataIndex,
+		expansions:  make(map[string]*expansion),
+		expFailed:   make(map[string]bool),
+		expVisit:    make(map[string]bool),
+		insts:       make(map[string]Resolution),
+		instFailed:  make(map[string]bool),
+		instVisit:   make(map[string]bool),
+		synth:       make(map[string]*TypeIdentity),
+		scopeCtx:    make(map[string][]string),
 	}
 	// A result the index could not use is the calling code's defect, not
 	// the configuration's, and it must not vanish: dropped silently it
@@ -754,6 +755,18 @@ type resolver struct {
 	// schemas are the provider's resource type schemas when the caller had
 	// them, and nil when it did not. See [Context.Schemas].
 	schemas map[string]providers.Schema
+
+	// recordStore is whether the root module's live block declares a
+	// record_store, which is what admits [ClassRecordLocated] (issue #270)
+	// and, before it, [ClassRecordBacked].
+	//
+	// It is read from the configuration here rather than taken from
+	// [Context] on purpose: internal/live/lint already reads exactly this
+	// fact from exactly this place (its recordStoreConfiguredIn), the two
+	// must never disagree about whether a type is admitted, and a Context
+	// field would be one more thing four call sites could forget to pass.
+	// The configuration is the authority and both layers ask it directly.
+	recordStore bool
 
 	// dataIndex is [Context.DataResults] regrouped per module instance and
 	// resource, and nil when the caller passed none. See
@@ -982,6 +995,27 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		r.errorf(rng, "Reference to a resource instance that does not exist",
 			"%s does not exist. %s", addr.String(), exp.describe(resAddr))
 		return Resolution{}, false
+	}
+
+	// GitHub issue #270, ahead of r.lookupType and therefore ahead of the
+	// schema fallback inside it, for the reason internal/live/lint's
+	// admission.go gives for putting the markerless veto in the same
+	// position: [SynthesizeTypeIdentity] would re-admit some of these types
+	// from the provider's identity schema alone, which is plan-and-create-
+	// only support for a type whose whole problem is that no later run can
+	// find the object again. Consulted after the fallback this branch would
+	// never run for the types it exists to serve.
+	//
+	// It cannot shadow a ratified row: [LocatedType]'s first two conditions
+	// are membership in [MarkerlessTypes] and absence from the table, and
+	// the two sets are disjoint. It cannot run without a record_store
+	// either, which is what makes the ordering safe - an estate that has
+	// not migrated reaches the refusal below exactly as before.
+	if r.recordStore && LocatedType(resAddr.Type, r.schemas) {
+		return Resolution{
+			Addr:  addr,
+			Class: ClassRecordLocated,
+		}, true
 	}
 
 	entry, ok := r.lookupType(resAddr.Type)

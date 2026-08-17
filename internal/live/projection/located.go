@@ -11,7 +11,11 @@ import (
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // This file is the record store answering the OTHER question (issue #270).
@@ -51,6 +55,219 @@ import (
 //
 // What a careless caller would have to do to defeat this is written out at
 // [LocatedStore] - it is deliberately not one slip.
+
+// materializeLocated is [builder.materialize]'s front door for GitHub issue
+// #270's record-located instances (identity.ClassRecordLocated).
+//
+// It is deliberately thin, and the thinness is the design. All it does is
+// answer the one question the configuration cannot: which live object is
+// this? Once [LocatedStore.Get] has returned an import identity, the
+// instance is handed to [builder.materialize] as an ordinary [wanted], and
+// everything downstream of wanted.importID is unchanged - the same import,
+// the same read, the same ownership rule, the same encoding, the same
+// dependency computation. A located resource is not a special kind of
+// prior-state entry; it is an ordinary one whose identity string arrived
+// from a different place.
+//
+// That is the opposite of [builder.materializeRecord], which bypasses
+// importAndRead entirely because a record-backed instance has no cloud
+// object to read. Here the cloud object is the whole point.
+//
+// # The three answers, and why "not found" is not an error
+//
+// A located record that does not exist produces an ordinary
+// [ReasonAbsent] omission, so the plan proposes a CREATE. That is the same
+// answer for two different situations, and making them indistinguishable is
+// the ruling rather than a shortcut: an instance that has never been
+// created and one whose record was LOST both want a create proposed, and
+// internal/live/foreign then surfaces the live object as unclaimed rather
+// than as an orphan to destroy. The failure mode is an announced duplicate,
+// never a silent deletion. Issue #270 states the trade in those terms and
+// accepts it.
+//
+// A store that cannot be read at all, or a record that decodes to another
+// address, is an error - [LocatedStore.Get]'s own refusals - because
+// continuing past either would bind this instance to an identity that is
+// not its, and a wrong identity is invisible to every verdict-level check.
+//
+// # No undeclared parameter
+//
+// [builder.materializeRecord] takes one, because the record namespace is
+// enumerated to find records whose configuration was deleted. Nothing
+// enumerates the located namespace, by construction, so there is no way to
+// arrive here without a declared address and no parameter to carry the
+// distinction. A located key with no configuration is inert: it costs a few
+// bytes and is overwritten the next time the same address is created. That
+// is the cost of never letting a stored ID drive a cloud deletion, and it
+// is the cost issue #270 chose.
+func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResourceInstance) {
+	if b.opts.LocatedStore == nil {
+		// Reachable only if a caller resolves a located type without also
+		// configuring a store. internal/live/lint's admission gate makes
+		// that impossible for a configuration - identity.ClassRecordLocated
+		// is produced only when the root module's live block declares a
+		// record_store - so this is an internal inconsistency rather than an
+		// operator's mistake, and it is stated as one. It is also the
+		// backstop that lets tools/estate-plan demote the markerless-type
+		// refusal safely: the demotion is only sound while a run that
+		// reaches here without a store stops, loudly, naming what is
+		// missing.
+		detail := fmt.Sprintf(
+			"%s resolved to a record-located identity, but no record store was configured for this projection. This is an internal inconsistency: a type whose live object carries no ownership marker should never reach here without a live block's record_store, which is the only thing that can say which object it is.",
+			addr,
+		)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryLocatedNoStore, detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+
+	typeName := addr.Resource.Resource.Type
+
+	importID, version, exists, err := b.opts.LocatedStore.Get(ctx, addr)
+	if err != nil {
+		detail := fmt.Sprintf("Reading the located record for %s failed: %s.", addr, err)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a located record", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+	if !exists {
+		b.omit(addr, ReasonAbsent,
+			fmt.Sprintf(
+				"No record of which live %s %s owns exists yet, so this resource has not been created yet, or its record was lost. Either way the plan will propose creating it: a %s carries no ownership marker, so nothing else can say which object it is. If the object does exist, it is reported as unclaimed rather than destroyed.",
+				typeName, addr, typeName,
+			),
+			fmt.Sprintf("no located record exists yet saying which live %s it owns.", typeName),
+		)
+		return
+	}
+
+	b.locatedVersions = append(b.locatedVersions, RecordVersion{Addr: addr, Version: version})
+
+	b.materialize(ctx, wanted{
+		addr:     addr,
+		importID: importID,
+	})
+}
+
+// writeBackLocated is [WriteBack]'s located half: after an apply, every
+// record-located instance's import identity is written to the store, and
+// every located record whose instance the apply removed is deleted.
+//
+// This is the half that makes the whole mechanism true rather than
+// hypothetical. The plan side reads an identity out of the store; if
+// nothing ever writes one, every run reads unbound and proposes a create
+// forever. The floci crossing in live/e2e/record-store is what proves the
+// pair works end to end - apply, delete the state file, replan, and find
+// the same object - and no unit test can make that claim.
+//
+// # Where the identity comes from
+//
+// [identity.LocatedImportID] reads the applied object's own "id", which is
+// the attribute OpenTofu's import path round-trips. It is the same schema
+// fact [identity.LocatedType] required before admitting the type, so a type
+// that got this far has one by construction - which is why an object that
+// arrives here without a usable one is an ERROR rather than a skip. A skip
+// would leave the estate with a live object and no record of it: the next
+// run would propose creating a second one, and the operator would learn
+// about it from the cloud bill.
+//
+// # Deleting a record is not deleting an object
+//
+// The delete loop mirrors the record-backed one and means something
+// different. There, deleting the record IS deleting the resource. Here the
+// cloud object is destroyed by the ordinary apply, through the provider,
+// and this only removes the now-meaningless note saying where it was. The
+// reverse case - a record with no instance in the final state and none in
+// LocatedVersions either - is unreachable from here and is deliberately
+// left inert rather than swept, because sweeping it would need the
+// enumeration this whole design refuses to build.
+func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	if req.LocatedStore == nil {
+		return diags
+	}
+
+	seen := make(map[string]bool, len(req.LocatedVersions))
+
+	if req.FinalState != nil {
+		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
+			if entry.DeposedKey != states.NotDeposed {
+				// Same reason the record-backed loop skips one: a deposed
+				// object is a mid-replace leftover the graph is about to
+				// discard, and the current object is what this address's
+				// identity should be read from.
+				continue
+			}
+			addr := entry.Instance
+			typeName := addr.Resource.Resource.Type
+
+			res := req.FinalState.Resource(addr.ContainingResource())
+			if res == nil {
+				continue
+			}
+			schema, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
+			if schema == nil || schema.Block == nil {
+				continue
+			}
+			// The admission predicate itself, re-asked rather than
+			// remembered. Asking the same function the same question is
+			// what keeps the set that gets written identical to the set
+			// that gets read; a second, looser rule here is how a type
+			// would come to be materialized from a record nothing writes,
+			// or written to a record nothing reads.
+			if !identity.LocatedType(typeName, map[string]providers.Schema{typeName: *schema}) {
+				continue
+			}
+
+			ri := res.Instance(addr.Resource.Key)
+			if ri == nil || ri.Current == nil {
+				continue
+			}
+			seen[addr.String()] = true
+
+			obj, err := ri.Current.Decode(schema.Block.ImpliedType())
+			if err != nil {
+				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
+					fmt.Sprintf("Recording which live %s %s owns failed: its final state could not be decoded: %s.", typeName, addr, err),
+				))
+				continue
+			}
+			importID, ok := identity.LocatedImportID(obj.Value)
+			if !ok {
+				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
+					fmt.Sprintf(
+						"Recording which live %s %s owns failed: the applied object carries no usable identity to record. A %s carries no ownership marker, so without this record no later run can find the object again, and the next plan would propose creating a second one.",
+						typeName, addr, typeName,
+					),
+				))
+				continue
+			}
+			if _, err := req.LocatedStore.Put(ctx, addr, importID, priorVersion(req.LocatedVersions, addr)); err != nil {
+				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
+			}
+		}
+	}
+
+	for _, rv := range req.LocatedVersions {
+		if seen[rv.Addr.String()] {
+			continue
+		}
+		if err := req.LocatedStore.Delete(ctx, rv.Addr, rv.Version); err != nil {
+			diags = diags.Append(writeBackConflictDiag(rv.Addr, "Deleting", err))
+		}
+	}
+
+	return diags
+}
+
+// SummaryLocatedNoStore is the summary of the refusal
+// [builder.materializeLocated] raises when a located instance reaches the
+// projection with no store to look it up in. Named for the same reason
+// [SummaryOutsideEstate] is: internal/live/refusalscan requires every
+// diagnostic this fork raises to have a registry entry, and the entry and
+// the diagnostic have to name one string.
+const SummaryLocatedNoStore = "Record-located instance with no record store"
 
 // locatedNamespaceRoot is the literal segment every record-located key lives
 // under. It is a different literal from [recordNamespaceRoot]

@@ -52,6 +52,20 @@ type Result struct {
 	// expectedVersion "" - the store's own create/absence convention.
 	RecordVersions []RecordVersion
 
+	// LocatedVersions is RecordVersions' counterpart for GitHub issue
+	// #270's record-located instances, in address order: the version each
+	// located record carried when this projection read it. An instance with
+	// no entry here had no located record - either it has never been
+	// created, or its record was lost, which are deliberately the same
+	// answer (see [LocatedStore.Get]).
+	//
+	// It is a separate list from RecordVersions rather than a merged one so
+	// that write-back cannot use a record-backed version to open a
+	// conditional write against a located key or the reverse. The two live
+	// under different namespace roots and the versions are not
+	// interchangeable.
+	LocatedVersions []RecordVersion
+
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
 	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or

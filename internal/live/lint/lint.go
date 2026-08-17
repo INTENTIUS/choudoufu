@@ -348,6 +348,40 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 		}
 
 		if markerlessVetoed(resource.Type) {
+			if identity.LocatedType(resource.Type, schemas) {
+				// GitHub issue #270. The marker answers "may I delete
+				// this" and the identity answers "which object is this",
+				// and this branch is where the two stop being one
+				// question. A markerless type has nowhere to carry a
+				// marker, which is a fact about the first; it does not
+				// follow that nothing can say which object it is. For an
+				// object choudoufu created, the estate's record store can,
+				// because choudoufu minted the ID.
+				//
+				// With a record_store declared the type is admitted and
+				// resolution classifies it identity.ClassRecordLocated;
+				// nothing is raised here, exactly as a RECORD_ADMITTED
+				// type raises nothing above.
+				//
+				// Without one it is still refused - but the refusal names
+				// the store, because that is now a one-block fix rather
+				// than a permanent exclusion. Keeping the permanent
+				// wording here would be the #101 defect over again: an
+				// operator reading "no configuration edit changes that"
+				// about a type one block admits.
+				if recordStoreConfigured {
+					continue
+				}
+				*issues = append(*issues, Issue{
+					Rule:      RuleMarkerlessType,
+					Construct: addr,
+					Type:      resource.Type,
+					Module:    path,
+					Detail:    markerlessLocatedDetail(resource.Type),
+					Subject:   resource.DeclRange,
+				})
+				continue
+			}
 			// Ahead of the unadmitted-type refusal below, and ahead of the
 			// schema fallback inside admitted() - see markerlessVetoed and
 			// admitted in admission.go for why the order is load-bearing

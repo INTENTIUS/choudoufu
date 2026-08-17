@@ -1553,9 +1553,11 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
 | - | - | projection | Cannot persist a record | error | `internal/live/projection` | "Cannot persist a record" |
+| - | - | projection | Cannot read a located record | error | `internal/live/projection` | "Cannot read a located record" |
 | - | - | projection | Cannot read a parent's identity from the projection | error | `internal/live/projection` | "Cannot read a parent's identity from the projection" |
 | - | - | projection | Cannot read a persisted record | error | `internal/live/projection` | "Cannot read a persisted record" |
 | - | - | projection | Cannot read for projection | error | `internal/live/projection` | "Cannot read for projection" |
+| - | - | projection | Cannot record a located identity | error | `internal/live/projection` | "Cannot record a located identity" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Cyclic parent-derived identities | error | `internal/live/projection` | "Cyclic parent-derived identities" |
 | - | - | projection | Empty import identity | error | `internal/live/projection` | "Empty import identity" |
@@ -1573,6 +1575,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
+| - | - | projection | Record-located instance with no record store | error | `internal/live/projection` | "Record-located instance with no record store" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | 0 | 0 | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
@@ -1582,7 +1585,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**182 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**185 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2630,6 +2633,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot read a located record
+
+**What.** The record saying which live object a markerless resource owns could not be read: the store failed, the payload did not decode, or it names a different resource address. Reading on would bind the instance to another object's identity.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot read a parent's identity from the projection
 
 **What.** A resource whose identity is derived from its parent's could not read that parent, because the parent is not in this projection.
@@ -2649,6 +2660,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot read for projection
 
 **What.** The provider refused the read this projection needed to fill in a resource's current state.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot record a located identity
+
+**What.** An applied resource whose live object carries no ownership marker had no identity that could be written to the record store, so no later run could find it again and the next plan would propose creating a second one.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -2785,6 +2804,14 @@ reserved for the limits wing's fixture directories, and
 #### Record-backed instance with no record store
 
 **What.** An effect resource that keeps its whole state in a record was projected with no record_store configured, so there is nowhere to read its prior state from.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Record-located instance with no record store
+
+**What.** A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
