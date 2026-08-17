@@ -6,14 +6,19 @@ markers and the feature's live demo
 covers running it in one command, reading its output as a human or a
 machine, and what the branch's claim means as a single exit code.
 
-There are three smaller harnesses beside it, all documented at the bottom of
-this file. `live/e2e/record-store/` is issue #73's record-backed lifecycle,
-the only end-to-end exercise that class has, and it needs neither Docker nor
-AWS. `live/e2e/dataread-projection/` is issue #193's read side, a data source
-resolved from a managed resource's own configured argument and read against
-the emulator. `live/e2e/tagging-sweep/` is issue #255's estate-wide tagging
-sweep, the production candidate path, which until that issue no emulator run
-could reach. The last two need Docker and the AWS CLI.
+There are smaller harnesses beside it, each on its own port so they can all
+run at once.
+
+| | Issue | Needs |
+|---|---|---|
+| `live/e2e/record-store/` | #73's record-backed lifecycle, the only end-to-end exercise that class has | neither Docker nor AWS — null, time and random are cloud-free |
+| `live/e2e/dataread-projection/` | #193's read side: a data source resolved from a managed resource's own configured argument | Docker, AWS CLI, :4599 |
+| `live/e2e/tagging-sweep/` | #255's estate-wide tagging sweep, the production candidate path | Docker, AWS CLI, :4601 |
+| `live/e2e/create-over/` | a pinned defect: a tag-losing needs-discovery type creating what the estate already owns | Docker, AWS CLI, :4602 |
+| `live/e2e/per-element/` | `Component.PerElement`: a set-valued identity tail, rendered sorted | Docker, AWS CLI, :4604 |
+| `live/e2e/record-located/` | #270's crossing: an object with no marker, found again by the estate's record store | Docker, AWS CLI, :4605 |
+
+All but `per-element` are documented at the bottom of this file.
 
 ## Quickstart
 
@@ -370,3 +375,91 @@ message that says the defect is fixed.
 For a type whose name is in the configuration the same defect surfaces as an
 `AlreadyExists` error on apply. The fixture uses `name_prefix` deliberately,
 because the silent form is the one worth pinning.
+
+## The record-located harness
+
+`live/e2e/record-located/run.sh` is issue #270's crossing:
+`identity.ClassRecordLocated` against a real emulator, having never touched a
+cloud before.
+
+```
+just demo-record-located
+```
+
+Docker and the AWS CLI, port 4605, about two minutes after the image is
+pulled.
+
+A located resource has nowhere to carry an ownership marker and an identity
+the provider minted at create time. Neither the configuration nor a tag can
+say which live object it is, so the estate's record store says instead,
+under its own namespace root `tofu-located`. The claim being crossed is that
+this survives the state file being deleted — and that it names the *right*
+object, which is a stronger claim than an empty plan can make.
+
+The fixture is four resources and each has a job:
+
+| | Identity | Why it is here |
+|---|---|---|
+| `aws_cloudfront_public_key.signers` (×2) | server-minted, opaque | The measurement. The ids appear nowhere in `main.tf`, so only the record can supply them, and there are two so a swap is possible. |
+| `aws_ecr_registry_policy.registry` | the registry id, an account singleton | The located path must not depend on the identity being opaque. |
+| `aws_vpc.control` | server-assigned, taggable | The only needs-discovery type present, so the *"Foreign resources"* line reports a sweep that ran. Without it the run sweeps nothing and every negative claim below is vacuous. |
+
+The rendered identity is checked against **the emulator**, not against the
+record. Asking whether the run agrees with the record it read is asking the
+mechanism to grade itself; a record pointing at the wrong key would agree
+with itself perfectly, both ids are well-formed, and either imports cleanly.
+So step 3 asks CloudFront which id carries the name `rl-e2e-alpha` and step 7
+requires the run to have rendered that id.
+
+| Step | Proves |
+|---|---|
+| apply | Four resources exist. Three located records are written under `tofu-located/`, **zero** files under `tofu-records/` — the namespace orphan discovery enumerates, which for a cloud-backed object would turn a stale key into a deletion. |
+| state deleted, `live-plan` | Empty plan, sweep completed, nothing foreign. |
+| the rendered identities | Each located instance bound to the id the emulator names for it. |
+| the deliberate break | One record pointed at the other key's object, `address` field left correct so `LocatedStore.Get`'s cross-check still passes. The run renders the wrong id, so step 7 would have failed. |
+| apply again | 0 added, 0 destroyed, still two live keys, records unchanged. |
+| record deleted | One create proposed, zero destroys, nothing classified *"Owned and undeclared"*, and the live key still there. Applying it makes a **third** key and leaves the first alone: an announced duplicate, never a silent deletion. |
+
+Both halves of the value assertion were mutation-checked. Making step 7
+expect the wrong id fails the run **with the plan still empty**, which is the
+entire reason the value is asserted rather than the verdict; neutering step
+8's mutation fails the run at step 8, so step 8 cannot pass by not having
+broken anything.
+
+Two things the run observes and does not endorse.
+
+With one record pointed at the other key's object, **two instances resolve to
+one live identity and nothing refuses**. The plan reads as an ordinary
+replacement of the shared object, which would destroy the object the other
+instance owns. Step 8 pins that as an observation; if it goes red a refusal
+has been added, and the paragraph beside it says so.
+
+And `materializeLocated`'s absent-record message ends *"it is reported as
+unclaimed rather than destroyed"*. Destroyed is what must not happen and does
+not. Unclaimed is not delivered: no sweep enumerates a markerless type, so
+nothing can report one as unclaimed. The run says as much itself, naming
+`aws_cloudfront_public_key` and `aws_ecr_registry_policy` under
+`[NOT_SCANNED]`, and step 10 asserts that section rather than leaving the
+negative to stand as silence.
+
+### What floci gets wrong
+
+CloudFront and ECR both serve this fixture natively — `CreatePublicKey`,
+`GetPublicKey`, `DeletePublicKey`, `PutRegistryPolicy`, `GetRegistryPolicy`
+and `DeleteRegistryPolicy` all work, and the key format is really validated
+(a truncated PEM is rejected). Two divergences:
+
+- `list-public-keys` returns every item with `Name: None`; the name is only
+  visible through `get-public-key` on each id. The harness reads it the
+  second way for that reason.
+- floci mints a UUID for a public key id where real CloudFront mints a
+  `K…`-form id. Server-assigned either way, which is all the located path
+  depends on, but a fixture that pattern-matched the id would pass here and
+  fail against AWS.
+
+`live/floci-capabilities.json`'s `cloudcontrol-list` evidence does **not**
+imply the native API works. It records that Cloud Control's `ListResources`
+answered for the CFN type, which LocalStack answers generically.
+`aws_cloudwatch_query_definition` and `aws_athena_named_query` are both
+recorded `implemented` on that evidence and both return `UnsupportedOperation`
+from the API the AWS provider actually calls.

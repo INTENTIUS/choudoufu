@@ -80,6 +80,19 @@ demo-create-over:
 demo-per-element:
     bash live/e2e/per-element/run.sh
 
+# Issue #270's record-located class end to end: an object with nowhere to
+# carry an ownership marker, whose id the provider minted at create time,
+# found again after the state file is deleted - by the estate's record store
+# and by nothing else. aws_cloudfront_public_key's id appears nowhere in the
+# configuration, so the run's rendered identity is checked against the
+# EMULATOR's own answer rather than against the record it read; the run then
+# points one record at the other key's object and requires that check to
+# fail. Ends by deleting a record and proving a lost one costs an announced
+# duplicate, never a deletion. Needs Docker and the AWS CLI; runs on its own
+# port (4605) so it can run beside `just demo`.
+demo-record-located:
+    bash live/e2e/record-located/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
