@@ -108,3 +108,17 @@ site/public/
 # match a symlink. Three hit this in one session and each caught it by hand
 # before committing; the fourth would not have.
 /.corpus
+
+# corpus-fetch's module pass (#254) runs over every manifest entry, and the
+# manifest's globs reach the in-repo cohorts as well as the fetched corpus. So
+# it writes .terraform/modules/modules.json into each of the 31 estates here,
+# where the fetched half lands under /.corpus and is already ignored.
+#
+# Ignored rather than committed because the file is pure install state: these
+# estates declare no module blocks, so each record holds the root module and
+# nothing else, and `just corpus-fetch` reproduces every one of them.
+#
+# Scoped to this directory on purpose. A blanket .terraform/ would also cover
+# the 53 fixture files upstream tracks under internal/command/testdata and
+# friends, which are deliberate inputs to backend and configload tests.
+/live/e2e/estates/*/.terraform

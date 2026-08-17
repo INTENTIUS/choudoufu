@@ -265,9 +265,7 @@ func handoffCitedPaths(root, text string) []string {
 //
 // Each entry must say what creates it. The check runs in both directions, so
 // an entry outlives its file by exactly one commit.
-var notYetCreated = map[string]string{
-	"live/corpus-module-pins.json": "written by the first `just corpus-fetch` run after the module-install and go-getter-mirror work landed; the playbook names it so the next session commits it with the regenerated artifact instead of leaving the corpus unpinned",
-}
+var notYetCreated = map[string]string{}
 
 var justCall = regexp.MustCompile(`\bjust ([a-z][a-z0-9-]*)`)
 

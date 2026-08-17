@@ -1393,29 +1393,31 @@ refused, and each says so in its own entry.
 <!-- limits-gen:begin refusal-table -->
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
-| 109 | 1136 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 101 | 4596 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
-| 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 60 | 267 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
-| 46 | 669 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
-| 43 | 293 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
-| 33 | 128 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 23 | 47 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
-| 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
-| 18 | 166 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
-| 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
-| 17 | 320 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
-| 17 | 36 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
-| 13 | 44 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 124 | 11345 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 121 | 1530 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
+| 94 | 441 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
+| 70 | 512 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
+| 66 | 1131 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 52 | 1032 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
+| 51 | 430 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 36 | 143 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
+| 31 | 237 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
+| 30 | 55 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
+| 27 | 86 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
+| 23 | 81 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
+| 20 | 73 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 18 | 41 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
-| 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 5 | 10 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 7 | 19 | lint | child-module | error | `internal/live/lint` | "child-module" |
+| 7 | 16 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 6 | 7 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
+| 4 | 43 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
+| 4 | 37 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
-| 1 | 5 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
+| 1 | 12 | dataread | Data source provider not configurable | error | `internal/live/dataread` | "Data source provider not configurable" |
 | 1 | 4 | identity | Invalid operand | error | `hcl` | "Invalid operand" |
 | 1 | 2 | lint | module-providers | error | `internal/live/lint` | "module-providers" |
-| 1 | 1 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
 | 1 | 1 | identity | Resource type outside the live-markers subset | error | `internal/live/identity` | "unadmitted-type" |
 | 0 | 0 | dataread | Cross-stack outputs unavailable | error | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 0 | 0 | dataread | Cross-stack state unavailable | error | `internal/live/dataread` | "Cross-stack state unavailable" |
@@ -1497,7 +1499,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Non-string identity argument | error | `internal/live/identity` | "Non-string identity argument" |
 | 0 | 0 | identity | Not enough function arguments | error | `hcl` | "Not enough function arguments" |
 | 0 | 0 | identity | Null condition | error | `hcl` | "Null condition" |
-| 0 | 0 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
 | 0 | 0 | identity | Null value as key | error | `hcl` | "Null value as key" |
 | 0 | 0 | identity | Operation failed | error | `hcl` | "Operation failed" |
 | 0 | 0 | identity | Provider function in static context | error | `internal/configs` | "Provider function in static context" |
@@ -1530,7 +1531,6 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
-| 0 | 0 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
 | 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |
@@ -1604,7 +1604,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 101 configurations in the measured corpus, at 4596 sites.
+**How often.** Blocked 124 configurations in the measured corpus, at 11345 sites.
 
 #### Unable to compute static value
 
@@ -1612,7 +1612,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 46 configurations in the measured corpus, at 669 sites.
+**How often.** Blocked 66 configurations in the measured corpus, at 1131 sites.
 
 #### Dynamic value in static context
 
@@ -1620,7 +1620,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 43 configurations in the measured corpus, at 293 sites.
+**How often.** Blocked 51 configurations in the measured corpus, at 430 sites.
 
 #### Unresolvable identity
 
@@ -1628,23 +1628,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 33 configurations in the measured corpus, at 128 sites.
-
-#### Unmarked apply of a marker-only resource
-
-**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
-
-**Where.** The stamp pass, raised by `internal/live/stamp`.
-
-**How often.** Blocked 23 configurations in the measured corpus, at 47 sites.
-
-#### Non-static identity argument
-
-**What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 21 configurations in the measured corpus, at 76 sites.
+**How often.** Blocked 36 configurations in the measured corpus, at 143 sites.
 
 #### Module output not supported in static context
 
@@ -1652,23 +1636,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 18 configurations in the measured corpus, at 166 sites.
+**How often.** Blocked 31 configurations in the measured corpus, at 237 sites.
 
-#### Non-static for_each expression
+#### Unmarked apply of a marker-only resource
 
-**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
+**What.** Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - "Ownership markers not stamped" and "Ownership marker could not be checked" - because applying this one unmarked would create a live object no later run could recognise as this estate's.
 
-**Where.** The identity pass, raised by `internal/live/identity`.
+**Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Blocked 18 configurations in the measured corpus, at 59 sites.
-
-#### Not an identity attribute
-
-**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 17 configurations in the measured corpus, at 36 sites.
+**How often.** Blocked 30 configurations in the measured corpus, at 55 sites.
 
 #### Identity not resolvable from configuration
 
@@ -1676,7 +1652,31 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 13 configurations in the measured corpus, at 44 sites.
+**How often.** Blocked 27 configurations in the measured corpus, at 86 sites.
+
+#### Non-static identity argument
+
+**What.** An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 23 configurations in the measured corpus, at 81 sites.
+
+#### Non-static for_each expression
+
+**What.** A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 20 configurations in the measured corpus, at 73 sites.
+
+#### Not an identity attribute
+
+**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 18 configurations in the measured corpus, at 41 sites.
 
 #### Non-static count expression
 
@@ -1692,7 +1692,23 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 5 configurations in the measured corpus, at 10 sites.
+**How often.** Blocked 7 configurations in the measured corpus, at 16 sites.
+
+#### Ambiguous list-valued identity argument
+
+**What.** A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 6 configurations in the measured corpus, at 7 sites.
+
+#### Null identity argument
+
+**What.** An identity argument evaluates to null.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 4 configurations in the measured corpus, at 43 sites.
 
 #### Identity argument not set
 
@@ -1708,7 +1724,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 1 configuration in the measured corpus, at 5 sites.
+**How often.** Blocked 1 configuration in the measured corpus, at 12 sites.
 
 #### Invalid operand
 
@@ -1717,14 +1733,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked 1 configuration in the measured corpus, at 4 sites.
-
-#### Ambiguous list-valued identity argument
-
-**What.** A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 1 configuration in the measured corpus, at 1 site.
 
 #### Cross-stack outputs unavailable
 
@@ -2347,14 +2355,6 @@ reserved for the limits wing's fixture directories, and
 **What.** A for expression's if clause evaluates to null.
 
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
-
-**How often.** Blocked no configuration in the measured corpus.
-
-#### Null identity argument
-
-**What.** An identity argument evaluates to null.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked no configuration in the measured corpus.
 

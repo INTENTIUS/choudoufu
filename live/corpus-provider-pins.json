@@ -81,6 +81,12 @@
     "available": true,
     "version": "6.59.0"
   },
+  "hashicorp/cloudinit@\u003e= 2.0.0": {
+    "provider": "hashicorp/cloudinit",
+    "constraint": "\u003e= 2.0.0",
+    "available": true,
+    "version": "2.4.0"
+  },
   "hashicorp/cloudinit@~\u003e 2.0": {
     "provider": "hashicorp/cloudinit",
     "constraint": "~\u003e 2.0",
@@ -143,9 +149,9 @@
     "available": false,
     "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/google versions matching \"2.4.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/google v2.4.1 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
   },
-  "hashicorp/google@6.50.0": {
+  "hashicorp/google@\u003e= 3.53.0, 6.50.0, \u003c 8.0.0": {
     "provider": "hashicorp/google",
-    "constraint": "6.50.0",
+    "constraint": "\u003e= 3.53.0, 6.50.0, \u003c 8.0.0",
     "available": true,
     "version": "6.50.0"
   },
@@ -185,11 +191,22 @@
     "available": true,
     "version": "3.6.1"
   },
+  "hashicorp/kubernetes@": {
+    "provider": "hashicorp/kubernetes",
+    "available": true,
+    "version": "3.2.1"
+  },
   "hashicorp/kubernetes@\u003e= 1.6.2, 1.10.0": {
     "provider": "hashicorp/kubernetes",
     "constraint": "\u003e= 1.6.2, 1.10.0",
     "available": false,
     "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/kubernetes versions matching \"\u003e= 1.6.2, 1.10.0\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/kubernetes v1.10.0 does not have a\npackage available for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/kubernetes@\u003e= 2.10.0": {
+    "provider": "hashicorp/kubernetes",
+    "constraint": "\u003e= 2.10.0",
+    "available": true,
+    "version": "3.2.1"
   },
   "hashicorp/kubernetes@~\u003e 2.38.0": {
     "provider": "hashicorp/kubernetes",
@@ -243,6 +260,12 @@
     "constraint": "\u003e= 2.1.0, ~\u003e 2.1",
     "available": false,
     "error": "terraform init: exit status 1\nInitializing provider plugins...\n- Finding hashicorp/null versions matching \"\u003e= 2.1.0, ~\u003e 2.1\"...\n\nError: Incompatible provider version\n\nProvider registry.terraform.io/hashicorp/null v2.1.2 does not have a package\navailable for your current platform, darwin_arm64.\n\nProvider releases are separate from Terraform CLI releases, so not all\nproviders are available for all platforms. Other versions of this provider\nmay have different platforms supported.\n"
+  },
+  "hashicorp/null@\u003e= 3.0.0": {
+    "provider": "hashicorp/null",
+    "constraint": "\u003e= 3.0.0",
+    "available": true,
+    "version": "3.3.1"
   },
   "hashicorp/null@\u003e= 3.2.0": {
     "provider": "hashicorp/null",
@@ -349,6 +372,18 @@
     "available": true,
     "version": "0.78.0"
   },
+  "hashicorp/tfe@~\u003e 0.62": {
+    "provider": "hashicorp/tfe",
+    "constraint": "~\u003e 0.62",
+    "available": true,
+    "version": "0.80.0"
+  },
+  "hashicorp/tfe@~\u003e 0.72, ~\u003e 0.78.0": {
+    "provider": "hashicorp/tfe",
+    "constraint": "~\u003e 0.72, ~\u003e 0.78.0",
+    "available": true,
+    "version": "0.78.0"
+  },
   "hashicorp/tfe@~\u003e 0.78": {
     "provider": "hashicorp/tfe",
     "constraint": "~\u003e 0.78",
@@ -370,6 +405,12 @@
   "hashicorp/time@\u003e= 0.13.0": {
     "provider": "hashicorp/time",
     "constraint": "\u003e= 0.13.0",
+    "available": true,
+    "version": "0.14.1"
+  },
+  "hashicorp/time@\u003e= 0.9.0": {
+    "provider": "hashicorp/time",
+    "constraint": "\u003e= 0.9.0",
     "available": true,
     "version": "0.14.1"
   },

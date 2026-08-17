@@ -127,6 +127,10 @@ var blockerAction = map[string]struct {
 		"an expression the evaluator rejected outright. Check parity first: if stock accepts it, this is a defect in our evaluator."},
 	"Ambiguous list-valued identity argument": {ActionDerive,
 		"the identity argument is a list and nothing says which element identifies the resource. May need a ruling rather than a derivation."},
+	"Null identity argument": {ActionDerive,
+		"the identity value is in the configuration, in a sibling of the same alternation component. firstPresent (resolve.go) picks an alternate by syntactic presence, so a body writing every one of cidr_blocks/ipv6_cidr_blocks/prefix_list_ids/source_security_group_id as try(..., null) gets a null one chosen while another holds the name the tag would carry. Selecting by value rather than by presence reaches it - the same shape as #190's <name>_prefix peek, one layer wider."},
+	"moved-block": {ActionDerive,
+		"the identity is the tofu-address tag already on the live resource, and a keyed rename vacates an instance address that tag carries, so the plan can rewrite it in place - which is what lint.go's own design comment says moved blocks do under markers. declaresSubject (moved.go) collapses an AbsResourceInstance to its resource before asking whether the from-address is still declared, so every this[\"old\"] -> this[\"new\"] migration terraform-aws-modules ships reads as un-vacated. Honourable's two genuinely deliberate clauses - a count-keyed module step, endpoints of different types - fire nowhere in the corpus."},
 
 	// ---- admission: the type has no row ----
 	"unadmitted-type": {ActionAdmit,
