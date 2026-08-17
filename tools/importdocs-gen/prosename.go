@@ -283,12 +283,34 @@ func plainEnumComposedArguments(section, tfType string, args []ArgumentRefEntry,
 		}
 		names := make([]string, 0, len(parts))
 		complete := true
+		seen := make(map[string]bool, len(parts))
 		for _, p := range parts {
 			_, arg := attributePlainPart(p, tfType, requiredNames, attrNames)
 			if arg == "" {
 				complete = false
 				break
 			}
+			// Two segments of one ID cannot be the same argument. When they
+			// resolve alike the reading is wrong, not merely incomplete:
+			// aws_computeoptimizer_recommendation_preferences documents "the
+			// resource type, scope name and scope value", and a rule that let
+			// the last two both land on `scope` claimed a two-argument
+			// composite for a three-segment ID and put `scope` in it twice.
+			//
+			// Honest about its standing: this gate cannot fire today. The
+			// duplicate that prompted it came from trimming "scope value" to
+			// `scope`, and narrowing genericHeads to name/names stops that a
+			// step earlier - mutating this condition away changes no row in
+			// the artifact. It is kept because the file's own doc comment
+			// already promised the caller "every resolved name to be
+			// distinct" and nothing enforced it, so a future reading that
+			// makes two parts agree again fails here rather than shipping a
+			// composite naming one argument twice.
+			if seen[arg] {
+				complete = false
+				break
+			}
+			seen[arg] = true
 			names = append(names, arg)
 		}
 		if complete {
@@ -310,12 +332,12 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 			continue
 		}
 		for _, a := range requiredNames {
-			if plainNameMatches(cand, a) {
+			if plainNameMatchesAmong(cand, a, requiredNames) {
 				return IDPart{Token: part, Source: idPartSourceArgument}, a
 			}
 		}
 		for _, a := range attrNames {
-			if plainNameMatches(cand, a) {
+			if plainNameMatchesAmong(cand, a, attrNames) {
 				return IDPart{Token: part, Source: idPartSourceAttribute}, ""
 			}
 		}
@@ -348,6 +370,11 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 // than no attribution. Neither rule can attribute a segment to an argument
 // that does not exist, and the caller still requires every part to resolve
 // and every resolved name to be distinct before it uses any of them.
+//
+// Use [plainNameMatchesAmong] from anywhere the resource's other argument
+// names are in hand. This function alone cannot see the reading that defeats
+// the head-noun rule, and an audit found three types where it picked the
+// wrong argument because of it.
 func plainNameMatches(cand, arg string) bool {
 	want := normalize(arg)
 	if want == "" || cand == "" {
@@ -364,11 +391,80 @@ func plainNameMatches(cand, arg string) bool {
 	return false
 }
 
+// plainNameMatchesAmong is [plainNameMatches] with the resource's other
+// candidate names in hand, which is the only way to tell two readings of the
+// same phrase apart.
+//
+// "&lt;stem&gt; &lt;head&gt;" has two readings in English and the head-noun rule assumes
+// the wrong one whenever both are available:
+//
+//	the user name    -> the argument `user`      (head is decoration)
+//	the policy name  -> the `name` OF the policy (head is the argument)
+//
+// Nothing in the phrase distinguishes them. What does is whether the resource
+// declares an argument called the head noun: if it declares `name`, then
+// "policy name" means that one, and trimming to `policy` picks a different
+// argument entirely. aws_ses_identity_policy is the case that found this - its
+// `policy` argument is the IAM policy JSON document, so the trimmed match
+// built an import identity out of a policy body. Two of the three types this
+// guard rescues had a CORRECT attribution before the head-noun rule was added
+// and were regressed by it.
+//
+// Exact and plural matching are unaffected: the guard only ever withdraws a
+// TRIMMED match, and only when the head noun names something real here.
+//
+// Measured when the guard was added: of the eleven types the head-noun rule
+// reached, eight were right and three wrong; none of the eight declares an
+// argument equal to its head noun, so the guard keeps every one of them.
+func plainNameMatchesAmong(cand, arg string, others []string) bool {
+	want := normalize(arg)
+	if want == "" || cand == "" {
+		return false
+	}
+	if cand == want || singularEqual(cand, want) {
+		return true
+	}
+	head := trailingGenericHead(cand)
+	if head == "" {
+		return false
+	}
+	for _, other := range others {
+		if normalize(other) == head {
+			// The head noun is itself an argument of this resource, so the
+			// phrase names it and the stem qualifies it. Withdraw.
+			return false
+		}
+	}
+	stem := strings.TrimSuffix(cand, head)
+	return stem != "" && (stem == want || singularEqual(stem, want))
+}
+
+// trailingGenericHead returns the generic noun cand ends with, or "" when it
+// ends with none or consists of nothing else.
+func trailingGenericHead(cand string) string {
+	for _, head := range genericHeads {
+		if len(cand) > len(head) && strings.HasSuffix(cand, head) {
+			return head
+		}
+	}
+	return ""
+}
+
 // genericHeads are the nouns documentation appends to a schema name to make a
 // sentence read. They are only ever REMOVED from the end of a candidate, and
-// only when something is left, so "the name" and "the id" cannot collapse to
-// nothing and match everything.
-var genericHeads = []string{"identifiers", "identifier", "names", "name", "ids", "id", "arns", "arn", "numbers", "number", "values", "value"}
+// only when something is left, so "the name" cannot collapse to nothing and
+// match everything.
+//
+// Only "name". It started as name/id/arn/number/value and an audit showed the
+// others reading the phrase backwards. "X name" and the argument X are the
+// same thing - the name the resource goes by. "X ID", "X ARN" and "X value"
+// are a property OF X, usually one the server assigns, and are not X:
+// aws_athena_named_query's "the query ID" trimmed to `query`, which is the
+// resource's SQL TEXT, and the correct reading (a server-assigned id) was
+// already recorded before the trim was added. Every attribution the trim gets
+// right is a "name" one - bucket name, repository name, user name, group
+// names.
+var genericHeads = []string{"names", "name"}
 
 func trimGenericHead(cand string) string {
 	for _, head := range genericHeads {

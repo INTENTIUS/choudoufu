@@ -9,9 +9,9 @@
     "no_import_section": 0,
     "rows": 1699,
     "alias_rows": 6,
-    "composed_true": 721,
+    "composed_true": 720,
     "composed_false": 232,
-    "composed_unsure": 746,
+    "composed_unsure": 747,
     "separator_known": 437,
     "separator_unsure": 1262
   },
@@ -14323,7 +14323,7 @@
       ],
       "sole_id_part": {
         "token": "the query ID",
-        "source": "argument"
+        "source": "own-id"
       },
       "argument_names_any_depth": [
         "region",
@@ -39708,11 +39708,8 @@
       "tf_type": "aws_computeoptimizer_recommendation_preferences",
       "import_id_example": "Ec2Instance,AccountId,123456789012",
       "separator": ",",
-      "composed_of_arguments": true,
-      "arguments": [
-        "resource_type",
-        "scope"
-      ],
+      "composed_of_arguments": null,
+      "arguments": null,
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import recommendation preferences using the resource type, scope name and scope value. For example:\n\n```terraform\nimport {\n  to = aws_computeoptimizer_recommendation_preferences.example\n  id = \"Ec2Instance,AccountId,123456789012\"\n}\n```\n\nUsing `terraform import`, import recommendation preferences using the resource type, scope name and scope value. For example:\n\n```console\n% terraform import aws_computeoptimizer_recommendation_preferences.example Ec2Instance,AccountId,123456789012\n```",
       "example_arguments": [
         {
@@ -39789,11 +39786,6 @@
           "required": false
         }
       ],
-      "arguments_in_doc_order": [
-        "resource_type",
-        "scope",
-        "scope"
-      ],
       "id_parts": [
         {
           "token": "the resource type",
@@ -39805,7 +39797,7 @@
         },
         {
           "token": "scope value",
-          "source": "argument"
+          "source": "unknown"
         }
       ],
       "argument_names_any_depth": [
@@ -121413,7 +121405,7 @@
         },
         {
           "token": "folder ID name",
-          "source": "argument"
+          "source": "attribute"
         }
       ],
       "argument_names_any_depth": [
@@ -147879,7 +147871,7 @@
         },
         {
           "token": "VPC ID",
-          "source": "argument"
+          "source": "unknown"
         }
       ],
       "argument_names_any_depth": [
@@ -149984,7 +149976,7 @@
       "composed_of_arguments": true,
       "arguments": [
         "identity",
-        "policy"
+        "name"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```terraform\nimport {\n  to = aws_ses_identity_policy.example\n  id = \"example.com|example\"\n}\n```\n\nUsing `terraform import`, import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```console\n% terraform import aws_ses_identity_policy.example 'example.com|example'\n```",
       "example_arguments": [
@@ -150036,7 +150028,7 @@
       ],
       "arguments_in_doc_order": [
         "identity",
-        "policy"
+        "name"
       ],
       "id_parts": [
         {
