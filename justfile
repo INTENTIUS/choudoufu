@@ -59,6 +59,16 @@ demo-records:
 demo-tagging-sweep:
     bash live/e2e/tagging-sweep/run.sh
 
+# The create-over-existing defect, end to end and pinned: a needs-discovery
+# resource whose type loses its tags on the provider's list path is invisible
+# to marker discovery, so a live-plan proposes creating what the estate
+# already owns and an apply then creates a second one, once per run. Exit 0
+# means the defect is still there; when it goes red the fix has landed and the
+# script says which assertions to invert. Needs Docker and the AWS CLI; runs
+# on its own port (4602) so it can run beside `just demo`.
+demo-create-over:
+    bash live/e2e/create-over/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the

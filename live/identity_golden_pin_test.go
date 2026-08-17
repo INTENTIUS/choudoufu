@@ -68,7 +68,7 @@ import (
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
 	"CONCRETE":        676,
-	"NEEDS_DISCOVERY": 551,
+	"NEEDS_DISCOVERY": 553,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
@@ -101,8 +101,8 @@ var identityGoldenPin = map[string]int{
 const identityGoldenPinBodyDigest = "f64774d8a1490979aab4b85ca4eb9d78b34e88e3485ba3ad63382da0fff7698b"
 
 const (
-	identityGoldenPinInstances = 1339
-	identityGoldenPinDirs      = 384
+	identityGoldenPinInstances = 1341
+	identityGoldenPinDirs      = 385
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
