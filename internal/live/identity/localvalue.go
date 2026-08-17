@@ -333,6 +333,12 @@ func stringKeys(keys []cty.Value) ([]string, bool) {
 // #239 defect; the caller that needs strings asks for them explicitly
 // through [stringKeys].
 //
+// A SET is the third case and the one with no key of its own: cty's iterator
+// hands back the element in BOTH halves, so a variable declared set(...)
+// answers with its elements and not with the indices of the argument tuple
+// the call wrote. Only the declared-type conversion can produce one here, so
+// that is where it is read - see [varConvertedElems].
+//
 // No key here is ever decided by evaluating a VALUE expression, which is
 // the whole point of the chase: a managed resource's attribute buried in a
 // value must not refuse the block. The values returned alongside are a
@@ -379,10 +385,11 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 					// there is no declared type and nothing to apply; for a
 					// variable it is applied here, at the hop, so a chain of
 					// hops converts once per hop exactly as OpenTofu does.
-					// Keys are deliberately left alone: they are converted to
-					// strings on both sides already, which is why the key set
-					// has been right through this hop all along.
-					return keys, varConvertedElems(decl, keys, vals), true
+					// The KEYS come back from the conversion too: a map or an
+					// object keeps the ones it was given, but a SET's keys ARE
+					// its elements, so the argument's own indices are not the
+					// key set the module sees.
+					return varConvertedElems(decl, keys, vals)
 				}
 			}
 		}
