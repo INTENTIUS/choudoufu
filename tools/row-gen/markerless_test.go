@@ -32,23 +32,33 @@ func TestMarkerlessRule(t *testing.T) {
 		row        identity.TypeIdentity
 		classified bool
 		documented bool
+		agree      bool
 		want       bool
 	}{
-		{"admitted, untaggable, row says server-assigned", false, true, serverAssigned, false, false, true},
-		{"unadmitted, untaggable, classifier says server-assigned", false, false, identity.TypeIdentity{}, true, false, true},
-		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, identity.TypeIdentity{}, false, true, true},
+		{"admitted, untaggable, row says server-assigned", false, true, serverAssigned, false, false, false, true},
+		{"unadmitted, untaggable, classifier says server-assigned", false, false, identity.TypeIdentity{}, true, false, false, true},
+		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, identity.TypeIdentity{}, false, true, false, true},
 
-		{"taggable and server-assigned is the mechanism working", true, true, serverAssigned, true, true, false},
-		{"untaggable but named from configuration needs no marker", false, true, clientNamed, false, false, false},
-		{"untaggable with a conditional component is a different problem", false, true, ifAbsent, false, false, false},
-		{"admitted: the ratified row overrules the classifier", false, true, clientNamed, true, false, false},
-		{"admitted: the ratified row overrules the docs too", false, true, clientNamed, false, true, false},
-		{"unadmitted and neither source says server-assigned", false, false, identity.TypeIdentity{}, false, false, false},
+		{"taggable and server-assigned is the mechanism working", true, true, serverAssigned, true, true, false, false},
+		{"untaggable but named from configuration needs no marker", false, true, clientNamed, false, false, false, false},
+		{"untaggable with a conditional component is a different problem", false, true, ifAbsent, false, false, false, false},
+		{"admitted: the ratified row overrules the classifier", false, true, clientNamed, true, false, false, false},
+		{"admitted: the ratified row overrules the docs too", false, true, clientNamed, false, true, false, false},
+		{"unadmitted and neither source says server-assigned", false, false, identity.TypeIdentity{}, false, false, false, false},
+
+		// sourcesAgreeComposed (issue #274): CloudFormation's registry and
+		// the provider's own import docs, read independently of the
+		// classifier's bucket, both say the identity is argument-built.
+		// That outranks a single-source verdict that produced the veto.
+		{"unadmitted, untaggable, sources agree overrules the classifier's server-assigned call", false, false, identity.TypeIdentity{}, true, false, true, false},
+		{"unadmitted, untaggable, sources agree overrules the docs' minted segment", false, false, identity.TypeIdentity{}, false, true, true, false},
+		{"unadmitted, untaggable, sources agree and nothing else fired anyway", false, false, identity.TypeIdentity{}, false, false, true, false},
+		{"admitted: the ratified row overrules sources agreeing too", false, true, serverAssigned, false, false, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := markerless(tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented); got != tc.want {
-				t.Errorf("markerless(taggable=%v, admitted=%v, row=%+v, classified=%v, documented=%v) = %v, want %v",
-					tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, got, tc.want)
+			if got := markerless(tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree); got != tc.want {
+				t.Errorf("markerless(taggable=%v, admitted=%v, row=%+v, classified=%v, documented=%v, sourcesAgreeComposed=%v) = %v, want %v",
+					tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree, got, tc.want)
 			}
 		})
 	}
@@ -77,6 +87,86 @@ func TestMarkerlessRosterNeedsSurveyMembership(t *testing.T) {
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Errorf("markerlessRoster = %v, want %v - a type outside live/survey-full.json must never be "+
 			"vetoed, because its taggability signal is absent rather than false", got, want)
+	}
+}
+
+// TestMarkerlessRosterSourcesAgreeSparesTheVeto isolates sourcesAgree's own
+// wiring into markerlessRoster - registryComposedOfArguments plus
+// docMintedSegment's negative, read off a proposal and a grammar row - from
+// the ratified corpus entirely. Every type below is UNADMITTED (ratified is
+// nil), so this is the state a type is in BEFORE a human writes a row for
+// it: once a ratified composite row exists, [markerless]'s own admitted
+// branch shields the type regardless of sourcesAgree, which is exactly why
+// TestMarkerlessRosterTwoSourcesAgreement (over the real, now-ratified
+// leads) cannot be the test that catches a broken sourcesAgree - mutating
+// sourcesAgree to always return false left that test green. This one is
+// what a broken sourcesAgree actually breaks: the population that has no
+// ratified row yet to fall back on.
+func TestMarkerlessRosterSourcesAgreeSparesTheVeto(t *testing.T) {
+	survey := map[string]surveyEntry{
+		"aws_test_agree_composite":          {Type: "aws_test_agree_composite"},          // untaggable (zero value)
+		"aws_test_disagree_serverid":        {Type: "aws_test_disagree_serverid"},        // untaggable
+		"aws_test_no_grammar_row":           {Type: "aws_test_no_grammar_row"},           // untaggable, no import-grammar row at all
+		"aws_test_registry_alone_disagrees": {Type: "aws_test_registry_alone_disagrees"}, // untaggable
+	}
+	proposals := []proposal{
+		// Registry: composite primaryIdentifier, no read-only part -
+		// CloudFormation says supplied. Bucket server-assigned mimics
+		// tryOpaqueOverride's real misfire.
+		{TFType: "aws_test_agree_composite", Bucket: bucketServerAssigned,
+			PrimaryIdentifier: []string{"PartOne", "PartTwo"}, ReadOnly: nil},
+		// Registry: primaryIdentifier ⊆ readOnly - genuinely server-minted.
+		// The doc's own SoleIDPart also says own-id: both sources agree
+		// the OTHER way, so this must stay vetoed.
+		{TFType: "aws_test_disagree_serverid", Bucket: bucketServerAssigned,
+			PrimaryIdentifier: []string{"Id"}, ReadOnly: []string{"Id"}},
+		{TFType: "aws_test_no_grammar_row", Bucket: bucketServerAssigned,
+			PrimaryIdentifier: []string{"PartOne", "PartTwo"}, ReadOnly: nil},
+		// Registry: primaryIdentifier ⊆ readOnly - server-minted - but the
+		// doc's own structured evidence is silent (no IDParts, no
+		// SoleIDPart), the way a page with no captured Import section
+		// segments reads. The registry alone disagreeing is enough to
+		// refuse agreement; the doc's silence must not be read as a second
+		// vote for "supplied". This is the case that only fails if
+		// registryComposedOfArguments itself is broken - the other three
+		// cases here all still resolve correctly even with that function
+		// stubbed to always return true, because each of them is also
+		// gated by docMintedSegment or the missing grammar row.
+		{TFType: "aws_test_registry_alone_disagrees", Bucket: bucketServerAssigned,
+			PrimaryIdentifier: []string{"Id"}, ReadOnly: []string{"Id"}},
+	}
+	importGrammar := map[string]importGrammarRow{
+		"aws_test_agree_composite": {
+			TFType:                "aws_test_agree_composite",
+			ArgumentNamesAnyDepth: []string{"part_one", "part_two"},
+			// No IDParts, no SoleIDPart: the doc's structured evidence
+			// names no server-provided segment.
+		},
+		"aws_test_disagree_serverid": {
+			TFType:     "aws_test_disagree_serverid",
+			SoleIDPart: &idPart{Token: "the resource's own ID", Source: idPartSourceOwnID},
+		},
+		// aws_test_no_grammar_row deliberately has no entry here.
+		"aws_test_registry_alone_disagrees": {
+			TFType: "aws_test_registry_alone_disagrees",
+			// No IDParts, no SoleIDPart, same as the agree case - the
+			// doc side alone cannot tell these two types apart.
+		},
+	}
+
+	vetoed := setOf(markerlessRoster(nil, survey, proposals, importGrammar))
+
+	if vetoed["aws_test_agree_composite"] {
+		t.Error("aws_test_agree_composite: registry and docs agree the identity is argument-built, but the roster still vetoes it")
+	}
+	if !vetoed["aws_test_disagree_serverid"] {
+		t.Error("aws_test_disagree_serverid: registry and docs BOTH say server-minted; this must stay vetoed")
+	}
+	if !vetoed["aws_test_no_grammar_row"] {
+		t.Error("aws_test_no_grammar_row: no import-grammar row means only one source has an opinion at all; a lone source is not agreement, so this must stay vetoed")
+	}
+	if !vetoed["aws_test_registry_alone_disagrees"] {
+		t.Error("aws_test_registry_alone_disagrees: the registry alone says server-minted and the doc is merely silent, not agreeing; this must stay vetoed")
 	}
 }
 
@@ -124,4 +214,60 @@ func TestMarkerlessRosterSpares442ServerAssignedTaggableRows(t *testing.T) {
 			"either the table or the survey signal changed shape")
 	}
 	t.Logf("%d admitted server-assigned taggable rows, none vetoed", spared)
+}
+
+// TestMarkerlessRosterTwoSourcesAgreement pins issue #274's exception over
+// the real committed inputs: CloudFormation's registry model and the
+// provider's own import documentation, read independently of the
+// classifier's bucket, agree the identity is built from configuration for
+// three real types, and disagree for a fourth that must stay vetoed.
+//
+// aws_cognito_risk_configuration, aws_detective_member and
+// aws_lambda_function_event_invoke_config are the agreement case: each has
+// a composite CloudFormation primaryIdentifier with no read-only part, and
+// the provider's Import section names no segment as the resource's own
+// server-provided attribute - the classifier's bucketServerAssigned call for
+// the first and third came from a documentation heuristic
+// (tryOpaqueOverride) reading one import example that does not demonstrate
+// every documented form, not from the registry's own rule 1.
+//
+// aws_route53_resolver_config is the disagreement case and the one this
+// rule has to get right: the registry says ResourceId (supplied, not
+// read-only) but the doc's own prose names the documented ID as "the Route
+// 53 Resolver config ID" - the resource's own identifier, not an argument.
+// The two sources disagree, so the ordinary veto must stand.
+func TestMarkerlessRosterTwoSourcesAgreement(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposals, err := loadProposals(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importGrammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar))
+
+	for _, spared := range []string{
+		"aws_cognito_risk_configuration",
+		"aws_detective_member",
+		"aws_lambda_function_event_invoke_config",
+	} {
+		if vetoed[spared] {
+			t.Errorf("%s: registry and docs agree the identity is argument-built, but the roster still vetoes it", spared)
+		}
+	}
+
+	const stillVetoed = "aws_route53_resolver_config"
+	if !vetoed[stillVetoed] {
+		t.Errorf("%s: the registry and the docs DISAGREE about this type's identity (registry says ResourceId, "+
+			"the doc names the resource's own config ID) - it must stay vetoed, and it no longer is", stillVetoed)
+	}
 }

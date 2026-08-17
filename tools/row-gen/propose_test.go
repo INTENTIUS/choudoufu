@@ -351,8 +351,20 @@ func TestLoadRejectedTypes_LedgerIsIntact(t *testing.T) {
 	// Each was reproduced by the fresh classifier with no generator change
 	// and no annotations.json ruling (rowgen-convergence: matched, no
 	// mismatch classes), which is why the batch adds no rule here.
-	if len(rejected) < 81 {
-		t.Errorf("rejected.json carries %d types, want at least the 81 standing after wall/servermint's 5-type admission", len(rejected))
+	// 80 (2026-08-17, issue #274): the markerless-veto two-source exception
+	// took aws_cognito_risk_configuration out. Its own ruling here named
+	// the exact gap - "two resources against the same pool, one scoped to
+	// a client and one not, would resolve to the identical identity under
+	// the flat proposal - a real collision risk... Needs an
+	// optional/conditional trailing component this table has no
+	// representation for yet" - and the admitted row does not build that
+	// component: client_id is a REQUIRED part of the composite, so a
+	// configuration that omits it refuses resolution outright rather than
+	// falling back to the collision-prone single-value form the original
+	// rejection was about. See tools/row-gen/annotations.json's own entry
+	// for the type and TestMarkerlessRosterTwoSourcesAgreement.
+	if len(rejected) < 80 {
+		t.Errorf("rejected.json carries %d types, want at least the 80 standing after issue #274's markerless-veto two-source exception", len(rejected))
 	}
 }
 

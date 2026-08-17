@@ -987,3 +987,28 @@ func TestResolveDefaultedIdentityArg(t *testing.T) {
 	}
 	assertClassifications(t, result, want)
 }
+
+// TestResolveMarkerlessVetoTwoSourceAgreement pins issue #274's three newly
+// admitted types against the RENDERED import identity string, not just the
+// resolution verdict - the distinction the brief for this change is built
+// around, because a verdict-only check cannot tell a correct composite from
+// a composite with its arguments transposed or its separator wrong. Each
+// want value is the provider's own documented example for the type, quoted
+// in tools/row-gen/annotations.json's own entry.
+func TestResolveMarkerlessVetoTwoSourceAgreement(t *testing.T) {
+	cfg := loadConfig(t, "testdata/markerless-veto-two-source-agreement", nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	want := map[string]string{
+		// Doc: "the user pool ID and Client ID separated by a `:`".
+		`aws_cognito_risk_configuration.main`: `CONCRETE us-east-1_abc123:1example23456789`,
+		// Doc: "the ARN of the graph followed by the account ID of the
+		// member account".
+		`aws_detective_member.member`: `CONCRETE arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d/123456789012`,
+		// Doc: "Name with qualifier" form, "example:production".
+		`aws_lambda_function_event_invoke_config.main`: `CONCRETE example:production`,
+	}
+	assertClassifications(t, result, want)
+}
