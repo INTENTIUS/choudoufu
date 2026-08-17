@@ -25,6 +25,7 @@ const (
 	SummaryMarkerUncheckable = "Ownership marker could not be checked"
 	SummaryNotStamped        = "Ownership markers not stamped"
 	SummaryUnmarkedApply     = "Unmarked apply of a marker-only resource"
+	SummarySharedBody        = "Two resources share one configuration body"
 
 	// The three caller errors, raised through tfdiags.Sourceless. They were
 	// invisible to the first version of the scanner, which read diagnostic

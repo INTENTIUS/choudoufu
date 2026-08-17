@@ -17,8 +17,10 @@ run at once.
 | `live/e2e/create-over/` | a pinned defect: a tag-losing needs-discovery type creating what the estate already owns | Docker, AWS CLI, :4602 |
 | `live/e2e/per-element/` | `Component.PerElement`: a set-valued identity tail, rendered sorted | Docker, AWS CLI, :4604 |
 | `live/e2e/record-located/` | #270's crossing: an object with no marker, found again by the estate's record store | Docker, AWS CLI, :4605 |
+| `live/e2e/repeated-module/` | #280's crossing: one local module called seven times, and the seven markers read off the live objects | Docker, AWS CLI, :4606, `.corpus` |
 
-All but `per-element` are documented at the bottom of this file.
+All but `per-element` and `repeated-module` are documented at the bottom of
+this file.
 
 ## Quickstart
 

@@ -386,6 +386,19 @@ since issue #201 it is admitted and honoured, not refused, when (as here)
 no call in the chain reaching it uses `count`, `for_each`, `enabled` or
 `depends_on`.
 
+Calling one module *source* more than once - `./impl` once per domain, the
+ordinary way a configuration is factored - is admitted too, and until issue
+#280 that admission was wrong in a way nothing here reported. Seven calls of
+one source are parsed once, because the HCL parser caches a file by its
+name, so all seven reached one syntax tree; the stamping pass wrote a
+literal `tofu-address` into it once per call and the last call's address was
+the one all seven live objects carried. The apply reported success and the
+next run was a hard "Two live resources claiming one address". Each call now
+gets its own copy of the nodes stamping mutates
+(`internal/live/stamp/sharedbody.go`), and a body two resources somehow
+still share is refused rather than stamped. Crossed against an emulator at
+`live/e2e/repeated-module/`.
+
 **A statically-evaluable `count` module call with no `count.index` leak is
 admitted.** As of issue #195, a module call's `count` is evaluated the same
 way a resource's own `count` is: a literal, or an expression built from
@@ -1586,8 +1599,9 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
+| - | - | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**187 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**188 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2898,6 +2912,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Two resources share one configuration body
+
+**What.** Two resources in the configuration reached one HCL body, so the ownership marker written for one of them would be the marker the other carries too. A module source called more than once is parsed once - every call shares the syntax tree - and each call is supposed to get its own body for a resource's arguments; this fires when one did not. It is a defect in how the run loaded the configuration rather than a fault in the configuration, and it is a hard error because a marker shared between two live objects is worse than no marker at all.
+
+**Where.** The stamp pass, raised by `internal/live/stamp`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 <!-- limits-gen:end refusal-entries -->
 

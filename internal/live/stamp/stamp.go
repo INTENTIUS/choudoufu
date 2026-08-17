@@ -282,6 +282,14 @@ const (
 	// inert inside keyed modules; fixing the key made it fire on the wrong
 	// half. Keep the two reasons distinct.
 	SkipModuleKeyedTrusted SkipReason = "MODULE_KEYED_TRUSTED"
+
+	// SkipSharedBody is a resource whose configuration body some other
+	// resource has already claimed for rewriting, so a marker written into
+	// it would be that other resource's marker too. It always accompanies
+	// the [SummarySharedBody] error - see [stamper.claimBody] for why it
+	// exists at all, given that the loader is not supposed to be able to
+	// produce it.
+	SkipSharedBody SkipReason = "SHARED_BODY"
 )
 
 // Unknown reports whether this skip means the pass could not TELL whether the
@@ -484,6 +492,11 @@ type stamper struct {
 	// and different address prefixes.
 	mod     *configs.Module
 	modInst addrs.ModuleInstance
+
+	// bodies are the configuration bodies already claimed for rewriting,
+	// by the resource that claimed each. Two resources reaching one body
+	// is the shape GitHub issue #280 was: see [stamper.claimBody].
+	bodies map[*hclsyntax.Body]addrs.ConfigResource
 }
 
 // rewrite is one resource's decided mutation, held until the whole
@@ -551,8 +564,8 @@ func (rw *rewrite) apply() {
 		if rw.body.Attributes == nil {
 			rw.body.Attributes = hclsyntax.Attributes{}
 		}
-		rw.body.Attributes["tags"] = &hclsyntax.Attribute{
-			Name:        "tags",
+		rw.body.Attributes[tagsArgument] = &hclsyntax.Attribute{
+			Name:        tagsArgument,
 			Expr:        rw.markerObject(),
 			SrcRange:    rw.rng,
 			NameRange:   rw.rng,
@@ -649,6 +662,16 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			addr, TagEstate, TagAddress)
 		s.skip(addr, SkipNotHCL, "Its configuration is not in HCL native syntax.")
 		return nil, diags.Append(s.unstampable(rc, detail))
+	}
+
+	// Before anything reads the body, let alone writes to it: give this
+	// resource its own copy of the nodes a rewrite mutates, so that N calls
+	// of one local module source do not all write into one shared tags
+	// argument. See [privateBody] and GitHub issue #280.
+	claimDiags, ok := s.claimBody(body, addr, rc)
+	if !ok {
+		s.skip(addr, SkipSharedBody, "Its configuration body is shared with another resource, so a marker written here would be that resource's marker too.")
+		return nil, diags.Append(claimDiags)
 	}
 
 	rw, existing, static, writable := s.tagsWrite(ctx, rc, body)
@@ -804,7 +827,7 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 	var diags tfdiags.Diagnostics
 
 	body, ok := rc.Config.(*hclsyntax.Body)
-	hasTags := ok && body.Attributes != nil && body.Attributes["tags"] != nil
+	hasTags := ok && body.Attributes != nil && body.Attributes[tagsArgument] != nil
 	detail := fmt.Sprintf(
 		"%s is declared inside a module call that expands with for_each, so its %s and %s markers cannot be computed here: "+
 			"the module's instances share one configuration body for the resource's tags argument, and there is no single "+
@@ -1240,7 +1263,7 @@ func taggable(block *configschema.Block) bool { return markers.Taggable(block) }
 func (s *stamper) tagsWrite(ctx context.Context, rc *configs.Resource, body *hclsyntax.Body) (*rewrite, map[string]hclsyntax.Expression, map[string]string, bool) {
 	rw := &rewrite{body: body, rng: rc.DeclRange}
 
-	attr, ok := body.Attributes["tags"]
+	attr, ok := body.Attributes[tagsArgument]
 	if !ok {
 		return rw, nil, nil, true
 	}
