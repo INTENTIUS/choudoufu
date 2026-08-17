@@ -9,8 +9,15 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // The plan is only as good as blockerAction, and a lookup table checked
@@ -84,7 +91,7 @@ func TestPlanIsOrderedAndStable(t *testing.T) {
 		{Name: "already-clean", Origin: ratePopulation, Blocked: false, Sites: 0},
 	}}
 
-	plan, unknown := buildPlan(s)
+	plan, unknown := buildPlan(s, nil)
 	if len(unknown) != 0 {
 		t.Fatalf("fixture uses refusals with no action: %v", unknown)
 	}
@@ -102,7 +109,7 @@ func TestPlanIsOrderedAndStable(t *testing.T) {
 	// Stability: the same sweep planned twice gives the same order. Map
 	// iteration over Refusals is the thing that would break this.
 	for range 20 {
-		again, _ := buildPlan(s)
+		again, _ := buildPlan(s, nil)
 		for j := range again {
 			if again[j].Name != plan[j].Name {
 				t.Fatalf("plan is not stable across runs: position %d was %q, now %q", j, plan[j].Name, again[j].Name)
@@ -132,7 +139,7 @@ func TestInformationalFindingIsNotABlocker(t *testing.T) {
 			Refusals: map[string]int{read: 9, "unadmitted-type": 1}},
 	}}
 
-	plan, _ := buildPlan(s)
+	plan, _ := buildPlan(s, nil)
 	if len(plan) != 1 {
 		t.Fatalf("plan holds %d estates, want 1: an estate whose only findings are informational is not blocked", len(plan))
 	}
@@ -157,7 +164,7 @@ func TestUnmappedRefusalIsReportedNotSwallowed(t *testing.T) {
 		{Name: "e", Origin: ratePopulation, Blocked: true, Sites: 1,
 			Refusals: map[string]int{"a-refusal-nobody-classified": 1}},
 	}}
-	plan, unknown := buildPlan(s)
+	plan, unknown := buildPlan(s, nil)
 	if len(unknown) != 1 || unknown[0] != "a-refusal-nobody-classified" {
 		t.Fatalf("unmapped refusal not reported, got %v", unknown)
 	}
@@ -243,7 +250,7 @@ func TestRefineAppliesTheScopeRulingOnlyWhenNoAWSTypeIsLeft(t *testing.T) {
 		{"no type-shaped cause at all", map[string]int{"reference:data_source": 1}, ActionAdmit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, note := refine("unadmitted-type", tc.causes, ActionAdmit)
+			got, note := refine("unadmitted-type", tc.causes, ActionAdmit, nil)
 			if got != tc.want {
 				t.Errorf("refine(unadmitted-type, %v) action = %s, want %s", tc.causes, got, tc.want)
 			}
@@ -271,7 +278,7 @@ func TestRefineAppliesTheScopeRulingOnlyWhenNoAWSTypeIsLeft(t *testing.T) {
 // record_store before it clears.
 func TestRefineRecordAdmittedEffectsAreAnnotatedNotReclassified(t *testing.T) {
 	admitted := map[string]int{"type:random_pet": 1, "type:terraform_data": 1, "type:null_resource": 1}
-	got, note := refine("logical-resource", admitted, ActionDefer)
+	got, note := refine("logical-resource", admitted, ActionDefer, nil)
 	if got != ActionRead {
 		t.Errorf("action = %s, want %s - a blocker no work here clears, whose promise is enforced "+
 			"downstream, is informational rather than blocking", got, ActionRead)
@@ -283,7 +290,7 @@ func TestRefineRecordAdmittedEffectsAreAnnotatedNotReclassified(t *testing.T) {
 	// Secret-bearing logical types are genuinely refused, so one of them in
 	// the set must withdraw the note entirely rather than weaken it.
 	withSecret := map[string]int{"type:random_pet": 1, "type:random_password": 1}
-	gotSecret, note := refine("logical-resource", withSecret, ActionDefer)
+	gotSecret, note := refine("logical-resource", withSecret, ActionDefer, nil)
 	if note != "" {
 		t.Errorf("random_password is not record-admitted, so the set is not clearable by a "+
 			"record_store and must carry no note; got %q", note)
@@ -291,6 +298,75 @@ func TestRefineRecordAdmittedEffectsAreAnnotatedNotReclassified(t *testing.T) {
 	if gotSecret != ActionDefer {
 		t.Errorf("action = %s, want %s - one secret-bearing type is enough to keep the whole "+
 			"blocker blocking, because no record_store admits it", gotSecret, ActionDefer)
+	}
+}
+
+// aMarkerlessType returns one type from identity.MarkerlessTypes with no
+// ratified row, chosen deterministically so a failure names the same type
+// twice running.
+func aMarkerlessType(t *testing.T) string {
+	t.Helper()
+	names := make([]string, 0, len(identity.MarkerlessTypes))
+	for name := range identity.MarkerlessTypes {
+		if _, ratified := identity.LookupType(name); ratified {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		t.Fatal("identity.MarkerlessTypes is empty of unratified types, so every assertion below would be vacuous")
+	}
+	sort.Strings(names)
+	return names[0]
+}
+
+// TestRefineMarkerlessTypeIsDemotedOnlyWhenLocatedAndSchemaBacked is
+// acceptance criterion (b): markerless-type demotes to ActionRead only when
+// every cause type is identity.LocatedType, and never without schemas in
+// hand - the same fail-closed direction identity.LocatedType itself takes.
+func TestRefineMarkerlessTypeIsDemotedOnlyWhenLocatedAndSchemaBacked(t *testing.T) {
+	typeName := aMarkerlessType(t)
+	locatableSchemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id": {Type: cty.String, Computed: true},
+		},
+	}}}
+	causes := map[string]int{"type:" + typeName: 1}
+
+	// No schemas at all: fails closed, exactly as it read before #270.
+	got, note := refine("markerless-type", causes, ActionDefer, nil)
+	if got != ActionDefer {
+		t.Errorf("action = %s, want %s - markerless-type must not demote with no schemas to check the "+
+			"credential exclusion against", got, ActionDefer)
+	}
+	if note != "" {
+		t.Errorf("no note expected with no schemas; got %q", note)
+	}
+
+	// Schemas present, type is located: demoted, and it must say so.
+	got, note = refine("markerless-type", causes, ActionDefer, locatableSchemas)
+	if got != ActionRead {
+		t.Errorf("action = %s, want %s - every cause type is identity.LocatedType under this schema", got, ActionRead)
+	}
+	if note == "" {
+		t.Error("a wholly-located markerless blocker must say the record_store clears it")
+	}
+
+	// One credential-bearing type in the set withdraws the note and keeps
+	// the whole blocker blocking - the same shape recordAdmittedAll pins for
+	// logical-resource, and the reason a roster-free predicate is safe here.
+	credentialSchemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":     {Type: cty.String, Computed: true},
+			"secret": {Type: cty.String, Computed: true, Sensitive: true},
+		},
+	}}}
+	got, note = refine("markerless-type", causes, ActionDefer, credentialSchemas)
+	if got != ActionDefer {
+		t.Errorf("action = %s, want %s - credential material must keep the blocker blocking even under a schema", got, ActionDefer)
+	}
+	if note != "" {
+		t.Errorf("credential material must withdraw the note entirely; got %q", note)
 	}
 }
 
@@ -312,7 +388,7 @@ func TestDriveableSortsRuledAndUnsetVariableEstatesToTheBack(t *testing.T) {
 			Causes:   map[string]map[string]int{"unadmitted-type": {"type:aws_s3_bucket_inventory": 1}}},
 	}}
 
-	plan, unknown := buildPlan(s)
+	plan, unknown := buildPlan(s, nil)
 	if len(unknown) != 0 {
 		t.Fatalf("unexpected unmapped refusals: %v", unknown)
 	}

@@ -133,7 +133,7 @@ lint:
 # blockers and clearing one of them leaves it blocked.
 estate-plan sweep="/tmp/choudoufu-sweep.json":
     go run ./tools/refusal-probe -schemas -out {{sweep}}
-    go run ./tools/estate-plan -in {{sweep}}
+    go run ./tools/estate-plan -in {{sweep}} -schemas
 
 # Re-plan from a sweep you already have (instant, vs ~2.5min to re-measure).
 estate-plan-from sweep:

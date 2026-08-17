@@ -43,7 +43,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // Action is what a blocker demands of whoever picks it up. The estate's own
@@ -223,6 +225,8 @@ func main() {
 	in := flag.String("in", "", "refusal-probe -out JSON to plan from (required)")
 	top := flag.Int("top", 15, "how many estates to print")
 	all := flag.Bool("all", false, "print every blocked estate")
+	withSchemas := flag.Bool("schemas", false, "acquire hashicorp/aws and demote a markerless-type blocker whose causes are all record-locatable (issue #270). Without it, markerless-type stays exactly as it read before")
+	initBin := flag.String("init-bin", "terraform", "binary used to install hashicorp/aws, with -schemas")
 	flag.Parse()
 
 	if *in == "" {
@@ -241,7 +245,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	plan, unknown := buildPlan(s)
+	var schemas map[string]providers.Schema
+	if *withSchemas {
+		schemas, err = acquireAWSSchemas(*initBin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "estate-plan: -schemas: %s\n", err)
+			os.Exit(1)
+		}
+	}
+
+	plan, unknown := buildPlan(s, schemas)
 	if len(unknown) > 0 {
 		// Not fatal: a new refusal should not stop the plan being read. But
 		// it is printed first, because an unmapped blocker is a blocker
@@ -312,7 +325,13 @@ type blocker struct {
 // Both rules key on a property of the cause, never on a list of type names. A
 // list would buy the estates in front of it and leave the next cohort to be
 // rediscovered, which is the standing bar's first rule.
-func refine(id string, causes map[string]int, action Action) (Action, string) {
+//
+// schemas is nil unless the caller acquired them (-schemas). It gates the
+// markerless-type rule below the same way it gates identity.LocatedType
+// itself: a predicate that can only run against a schema must not run
+// without one, so a nil map leaves every markerless-type blocker exactly
+// where it already was.
+func refine(id string, causes map[string]int, action Action, schemas map[string]providers.Schema) (Action, string) {
 	types := causeTypes(causes)
 	if len(types) == 0 {
 		return action, ""
@@ -402,9 +421,55 @@ func refine(id string, causes map[string]int, action Action) (Action, string) {
 			// blockers, which is why every cause has to be record-admitted.
 			return ActionRead, "every type here is an effect the record store admits, so this is the estate's PRE-ONBOARDING form rather than a language wall: declaring a record_store in the live block clears it, and projection errors at plan time if the operator writes the block without one"
 		}
+
+	case "markerless-type":
+		// GitHub issue #270's class, identity.ClassRecordLocated: an object
+		// that exists in the cloud but has nowhere to carry its own marker.
+		// The type is admitted the moment the estate's live block declares a
+		// record_store, exactly as ClassRecordAdmitted is above - a marker
+		// answers "may I delete this", an identity answers "which object is
+		// this", and the record store can answer the second question for an
+		// object choudoufu itself created.
+		//
+		// Not every markerless type qualifies. identity.LocatedType also
+		// excludes credential material (no record store admits secret
+		// material) and a type with no top-level string id (nothing to
+		// record). Both exclusions are schema facts, not a roster, so this
+		// rule can only be evaluated with schemas in hand - see
+		// [locatedAll].
+		//
+		// Safe to demote for the same downstream reason as above:
+		// internal/live/lint refuses a located type by name whenever a live
+		// block has no record_store (TestMarkerlessLocatableTypeWithoutARecordStoreIsRefusedByName),
+		// so an operator who writes the live block and forgets the store is
+		// stopped before this ever reaches an apply.
+		if locatedAll(types, schemas) {
+			return ActionRead, "every type here is an object choudoufu can locate once the estate's record store exists: the marker question (may I delete this) and the identity question (which object is this) are separate here, and the live block's record_store answers the second. Declaring one without also declaring the type's record store leaves the refusal in place, named, until it does"
+		}
 	}
 
 	return action, ""
+}
+
+// locatedAll reports whether every type is one identity.LocatedType admits:
+// markerless, carrying no credential material, and carrying a top-level
+// string id it could record. It asks internal/live/identity rather than
+// carrying a list, so the answer moves with the classification instead of
+// drifting from it.
+//
+// Fails closed with no schemas, the same direction identity.LocatedType
+// itself fails: the credential exclusion is only readable from a schema, so
+// a nil map must never be read as "nothing here is credential material".
+func locatedAll(types []string, schemas map[string]providers.Schema) bool {
+	if len(types) == 0 || schemas == nil {
+		return false
+	}
+	for _, t := range types {
+		if !identity.LocatedType(t, schemas) {
+			return false
+		}
+	}
+	return true
 }
 
 // cascadeRefusals are the two refusals raised when an identity could not be
@@ -579,7 +644,7 @@ func (e estate) driveable() bool {
 // buildPlan orders blocked rate-capable estates by how many distinct classes
 // block them, then by total sites, then by name so the order is stable across
 // runs and two people planning from one sweep see the same first line.
-func buildPlan(s sweep) ([]estate, []string) {
+func buildPlan(s sweep, schemas map[string]providers.Schema) ([]estate, []string) {
 	var out []estate
 	unknownSet := map[string]bool{}
 
@@ -603,7 +668,7 @@ func buildPlan(s sweep) ([]estate, []string) {
 				est.Informs = append(est.Informs, b)
 				continue
 			}
-			b.Action, b.Note = refine(id, e.Causes[id], act)
+			b.Action, b.Note = refine(id, e.Causes[id], act, schemas)
 			b.Unreachable = strings.HasPrefix(b.Note, "MIXED SCOPE:")
 			if b.Action == ActionRead {
 				// refine demoted it: the causes say no work here clears it and
