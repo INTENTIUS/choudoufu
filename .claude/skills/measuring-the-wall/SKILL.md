@@ -24,6 +24,14 @@ behind by up to four behaviour-changing commits in a single afternoon, and
 an agent quoted from it and had to be corrected. Say which commit your
 number came from, every time.
 
+**Check the instrument saw the whole corpus.** `.corpus` is gitignored, so a
+fresh worktree has none, and a sweep there measured the 31 in-repo fixtures
+and reported them under a summary line indistinguishable from a full run.
+`refusal-probe` refuses that now, and names the sources it could not find;
+`just corpus-fetch`, or symlink a `.corpus` in from a checkout that has one.
+A number quoted from a partial corpus is about a different population than
+every other number in this project.
+
 **Check which instrument answers your question.** `tools/refusal-probe`
 default mode is schema-less and runs in ~20s. `-schemas` takes ~2.5min warm
 and sees things the default cannot. They are not the same measurement and
@@ -74,9 +82,15 @@ buries it. A different class inverted from step 1 to step 4 in four hours
 because a merge moved where its refusal fires.
 
 **Measured a class the corpus cannot see.** An entry with registry module
-calls is measuring roughly a sixth of its refusal surface, because the
-corpus never runs `terraform init`. One went 59 sites → 394 with modules
-installed. Every per-entry number for such an entry is a floor.
+calls whose modules are not installed is measuring roughly a sixth of its
+refusal surface. One went 59 sites to 394 with modules installed. `just
+corpus-fetch` installs them now (#254), for 58 of the 250 entries — but a
+`.corpus` fetched before that landed, or symlinked in from a checkout that
+was, still has the hole, and the two produce site totals that cannot be
+subtracted. `refusal-probe`'s second summary line says how many entries it
+found with modules installed, and its `-diff` names any entry whose install
+state moved between two sweeps. Every per-entry number for an entry with the
+hole is a floor.
 
 **Reported a total that concealed two opposite movements.** Sites can hold
 steady while one entry improves and another regresses. Always diff

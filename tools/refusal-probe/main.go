@@ -92,6 +92,36 @@
 // bound" is true of sites and false of the verdict, and a fix validated only
 // against the default mode can look like it unblocked something it did not.
 //
+// # What it refuses to measure, and what it refuses to compare
+//
+// Two silent failures of this tool were found by the agents who hit them, and
+// both are the class the tool exists to prevent: an instrument reporting a
+// number about something other than what the reader assumes.
+//
+// A fresh worktree has no .corpus - it is gitignored, and agents symlink one
+// in rather than refetch 250 repositories - and a sweep there reported
+// "entries 31" with exit 0 and no other output. So a sweep now refuses unless
+// every manifest source expands to at least one configuration on this disk,
+// and every fetched source sits at the commit the manifest pins. The manifest
+// holds 21 globs rather than 250 entries, so the expectation is derived per
+// source rather than hard-coded (see corpus.go). -allow-partial-corpus
+// measures anyway and records what was wrong.
+//
+// -diff compared two sweeps of two different trees without a word. It could
+// not have done otherwise: -root defaults to "." and both sweeps recorded
+// ".", so the field that should have caught it compared equal. Every sweep
+// now records its root resolved absolutely (symlinks and all), its commit,
+// the manifest's content digest and its per-source corpus accounting, and
+// -diff refuses any pair differing in an input that is not the change under
+// test: another tree, another manifest, one side schema-backed, another
+// provider version, a partial corpus on one side, or two different sets of
+// entries.
+//
+// Three inputs are allowed to differ and are reported rather than refused,
+// because each is normal and none of them is the change: module install state
+// per entry (one corpus entry moved 59 -> 394 refused sites on that alone),
+// the var files each entry was measured with, and per-provider acquisition.
+//
 // # Use
 //
 //	refusal-probe -out before.json                 # sweep the whole manifest
@@ -124,13 +154,57 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
+// probeVersion is the sweep format. It exists so -diff can refuse a file
+// written before the fields it now compares existed, rather than reading
+// their zero values as agreement - a missing root would have compared equal
+// to every other missing root, which is the exact shape of the gap this
+// version closes.
+const probeVersion = 2
+
 // run is one sweep: what was measured, and what it is worth.
 type run struct {
+	// ProbeVersion is [probeVersion] at the time of writing.
+	ProbeVersion int `json:"probe_version"`
+
 	// Manifest is the manifest path, and Root the tree it was resolved
 	// against, so a diff can refuse to compare two runs of different
 	// things.
 	Manifest string `json:"manifest"`
 	Root     string `json:"root"`
+
+	// RootPath is Root made absolute with symlinks resolved, and is what a
+	// diff actually compares. Root alone could not do that job: it defaults
+	// to "." and two sweeps of two entirely different worktrees therefore
+	// both recorded "root": ".", so a guard on it would have compared equal
+	// and said nothing. That gap was found by an agent who had relied on it
+	// and was fine only because both its sweeps happened to share a tree.
+	RootPath string `json:"root_path"`
+
+	// Commit is RootPath's git HEAD, suffixed "+dirty" when tracked files
+	// are modified. Informational, never compared: a before/after pair in
+	// one tree differs here by construction. It is recorded because a
+	// number that does not name the commit it was computed at has been
+	// quoted past its own expiry here more than once.
+	Commit string `json:"commit,omitempty"`
+
+	// ManifestSHA is the manifest's content digest. The path is compared
+	// too, but two trees can hold different manifests at one path, and the
+	// manifest decides which directories are measured and with which tfvars
+	// files.
+	ManifestSHA string `json:"manifest_sha256,omitempty"`
+
+	// Sources is each manifest source and what it expanded to here. It is
+	// the run's account of the corpus it measured, and the derivation
+	// behind the completeness refusal: the manifest holds 21 globs, not 250
+	// entries, so "how many should there be" is computed and never a
+	// constant.
+	Sources []corpusSource `json:"sources,omitempty"`
+
+	// CorpusProblems is empty on a full sweep and lists what was missing or
+	// stale on a partial one. Written in both directions and never omitted:
+	// a partial sweep must be recognizable as one from the file alone, and
+	// -diff refuses to compare two sweeps whose problems differ.
+	CorpusProblems []string `json:"corpus_problems"`
 
 	// Schemas records whether provider schemas were acquired. It is written
 	// in BOTH directions and never omitted: a consumer that does not see
@@ -142,6 +216,15 @@ type run struct {
 	// InitBin is the binary used to install providers, in -schemas mode.
 	// Empty otherwise.
 	InitBin string `json:"init_bin,omitempty"`
+
+	// PinsPath, PinSource and PinVersion are the -schemas mode inputs that
+	// decide WHICH provider release the corpus was measured against. They
+	// were previously reachable only by reading the per-provider rows, and
+	// two sweeps taken against two AWS provider versions are not two
+	// measurements of one thing however similar their totals look.
+	PinsPath   string `json:"pins_path,omitempty"`
+	PinSource  string `json:"pin_source,omitempty"`
+	PinVersion string `json:"pin_version,omitempty"`
 
 	// Providers is every (provider, constraint) pair this run tried, with
 	// the version it got or the error it hit. Present only in -schemas
@@ -229,6 +312,24 @@ type entry struct {
 	// registry module calls, not a measurement - roughly a sixth of the
 	// refusal surface was found missing on one such entry.
 	Unresolved int `json:"unresolved_modules"`
+
+	// ModulesInstalled reports whether this entry's directory carries an
+	// installed module tree. Written in both directions, because the
+	// interesting reading is "no entry has one" and omitempty would make
+	// that indistinguishable from "the field was never written".
+	//
+	// It is the input behind the largest unrecorded swing a sweep could
+	// take: 59 refused sites to 394 on one entry, from nothing but whether
+	// the install had run. Two trees differing only here produce totals
+	// that cannot be subtracted.
+	ModulesInstalled bool `json:"modules_installed"`
+
+	// VarFiles is what the manifest handed this entry, resolved against the
+	// root. An estate measured with its operator's tfvars and the same
+	// estate measured without them are different measurements, and the
+	// files are discovered from disk, so two trees can disagree about them
+	// while agreeing about everything else.
+	VarFiles []string `json:"var_files,omitempty"`
 }
 
 // providerResult is one (provider, constraint) pair's outcome for the whole
@@ -275,6 +376,8 @@ func main() {
 		pinSource   = flag.String("provider-source", "hashicorp/aws", "the one provider held at an exact version rather than at whatever each entry's own constraint resolves to")
 		pinVersion  = flag.String("provider-version", pins.AWSProviderVersion, "exact version for -provider-source")
 		quiet       = flag.Bool("quiet", false, "suppress the per-entry progress log")
+
+		allowPartial = flag.Bool("allow-partial-corpus", false, "measure anyway when a manifest source expands to no configurations on this disk, or a fetched source sits at a commit the manifest does not pin; the sweep records what was wrong and -diff then refuses to compare it against a full sweep")
 	)
 	flag.Parse()
 
@@ -287,15 +390,16 @@ func main() {
 	}
 
 	opts := sweepOptions{
-		manifest: *manifest,
-		root:     *root,
-		only:     *one,
-		verbose:  *verbose,
-		schemas:  *withSchemas,
-		initBin:  *initBin,
-		pinsPath: *pinsPath,
-		pinSrc:   *pinSource,
-		pinVer:   *pinVersion,
+		manifest:     *manifest,
+		root:         *root,
+		only:         *one,
+		verbose:      *verbose,
+		schemas:      *withSchemas,
+		initBin:      *initBin,
+		pinsPath:     *pinsPath,
+		pinSrc:       *pinSource,
+		pinVer:       *pinVersion,
+		allowPartial: *allowPartial,
 	}
 	if !*quiet {
 		opts.log = os.Stderr
@@ -337,11 +441,16 @@ type sweepOptions struct {
 	pinSrc   string
 	pinVer   string
 
+	// allowPartial proceeds past [corpusState]'s problems instead of
+	// refusing. The run still records them.
+	allowPartial bool
+
 	log io.Writer
 }
 
 func sweep(opts sweepOptions) (*run, error) {
-	m, err := check.ReadManifest(filepath.Join(opts.root, opts.manifest))
+	manifestPath := filepath.Join(opts.root, opts.manifest)
+	m, err := check.ReadManifest(manifestPath)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +459,22 @@ func sweep(opts sweepOptions) (*run, error) {
 		return nil, err
 	}
 
-	r := &run{Manifest: opts.manifest, Root: opts.root, Schemas: opts.schemas}
+	sources, problems := corpusState(opts.root, m)
+	if len(problems) > 0 && !opts.allowPartial {
+		return nil, corpusProblemRefusal(realPath(opts.root), sources, problems)
+	}
+
+	r := &run{
+		ProbeVersion:   probeVersion,
+		Manifest:       opts.manifest,
+		Root:           opts.root,
+		RootPath:       realPath(opts.root),
+		Commit:         treeCommit(opts.root),
+		ManifestSHA:    fileDigest(manifestPath),
+		Sources:        sources,
+		CorpusProblems: problems,
+		Schemas:        opts.schemas,
+	}
 	ctx := context.Background()
 
 	causes, err := newCauseCatalog()
@@ -377,6 +501,9 @@ func sweep(opts sweepOptions) (*run, error) {
 		}
 		acq = newAcquirer(opts.initBin, pinned, opts.pinVer, locks, opts.log)
 		r.InitBin = opts.initBin
+		r.PinsPath = opts.pinsPath
+		r.PinSource = opts.pinSrc
+		r.PinVersion = opts.pinVer
 	}
 
 	r.Layers = map[string]string{}
@@ -416,17 +543,19 @@ func sweep(opts sweepOptions) (*run, error) {
 		unsetSites := rep.AttributeUnsetVariables(rep.Load.UnsetVariables(), rep.Load.Sources())
 
 		e := entry{
-			Name:          ref.Name,
-			Origin:        ref.Origin,
-			Readable:      rep.Readable(),
-			Blocked:       rep.Blocked(),
-			Sites:         rep.Sites(),
-			Instances:     rep.Instances,
-			Shadowed:      rep.Shadowed,
-			Unresolved:    len(rep.Load.UnresolvedModules),
-			UnsetVarSites: unsetSites,
-			Refusals:      map[string]int{},
-			Providers:     provRows,
+			Name:             ref.Name,
+			Origin:           ref.Origin,
+			Readable:         rep.Readable(),
+			Blocked:          rep.Blocked(),
+			Sites:            rep.Sites(),
+			Instances:        rep.Instances,
+			Shadowed:         rep.Shadowed,
+			Unresolved:       len(rep.Load.UnresolvedModules),
+			UnsetVarSites:    unsetSites,
+			Refusals:         map[string]int{},
+			Providers:        provRows,
+			ModulesInstalled: modulesInstalled(ref.Dir),
+			VarFiles:         ref.VarFiles,
 		}
 		for _, f := range rep.Findings {
 			e.Refusals[f.ID] += len(f.Sites)
@@ -491,6 +620,34 @@ func sweep(opts sweepOptions) (*run, error) {
 		r.Providers = acq.results()
 	}
 
+	if r.Totals.Entries == 0 {
+		// Zero entries with an exit status of 0 is the failure this whole
+		// file is about, in its smallest form: -entry with a typo prints a
+		// summary of nothing and looks like a configuration that refuses
+		// nothing.
+		if opts.only != "" {
+			return nil, fmt.Errorf("-entry %q matched none of the %d configurations the manifest resolves to.\n"+
+				"The filter is a substring of the entry name as it appears in the artifact, e.g. \".corpus/vpc\" or \"live/e2e/estates\".\n"+
+				"Run without -entry to list what is there.", opts.only, len(refs))
+		}
+		return nil, fmt.Errorf("the manifest resolved to no configurations at all under %s; nothing was measured", r.RootPath)
+	}
+
+	// The per-source accounting and the sweep must agree, or the sweep's own
+	// account of what it measured is wrong - which is worse than not having
+	// one, because it is the thing a later reader would check against.
+	if opts.only == "" {
+		var accounted int
+		for _, s := range r.Sources {
+			accounted += s.Entries
+		}
+		if accounted != r.Totals.Entries {
+			return nil, fmt.Errorf("the probe's per-source accounting says %d configurations and the sweep measured %d.\n"+
+				"corpusState in corpus.go duplicates check.Manifest.Resolve's matching rules and has drifted from them; fix corpusState, not this message.",
+				accounted, r.Totals.Entries)
+		}
+	}
+
 	sort.Slice(r.Entries, func(i, j int) bool { return r.Entries[i].Name < r.Entries[j].Name })
 	return r, nil
 }
@@ -517,6 +674,7 @@ func summarize(r *run, wrote string) {
 	}
 	sort.Slice(ids, func(i, j int) bool { return byID[ids[i]] > byID[ids[j]] })
 
+	summarizeTree(r)
 	fmt.Printf("entries %d  readable %d  blocked %d  sites %d  instances %d  shadowed %d  warnings %d\n",
 		r.Totals.Entries, r.Totals.Readable, r.Totals.Blocked,
 		r.Totals.Sites, r.Totals.Instances, r.Totals.Shadowed, r.Totals.Warnings)
@@ -532,6 +690,33 @@ func summarize(r *run, wrote string) {
 	summarizeCauses(r)
 	if wrote != "" {
 		fmt.Printf("\nwrote %s\n", wrote)
+	}
+}
+
+// summarizeTree says what was measured before saying what was found. A
+// summary that opened with a total was how "entries 31" got read as a sweep
+// of the corpus: the number was fine, the corpus under it was 12% of the one
+// the reader assumed.
+func summarizeTree(r *run) {
+	commit := r.Commit
+	if commit == "" {
+		commit = "(not a git checkout)"
+	}
+	var withModules int
+	for _, e := range r.Entries {
+		if e.ModulesInstalled {
+			withModules++
+		}
+	}
+	fmt.Printf("tree %s at %s\n", r.RootPath, commit)
+	fmt.Printf("corpus %d source(s), %d entries measured, %d with modules installed\n",
+		len(r.Sources), r.Totals.Entries, withModules)
+	if len(r.CorpusProblems) > 0 {
+		fmt.Printf("PARTIAL CORPUS - %d problem(s), measured anyway under -allow-partial-corpus:\n", len(r.CorpusProblems))
+		for _, p := range r.CorpusProblems {
+			fmt.Printf("  %s\n", p)
+		}
+		fmt.Println("  every total below is about this corpus, not the one the manifest describes")
 	}
 }
 
@@ -670,27 +855,24 @@ func runDiff(spec string) error {
 	if err != nil {
 		return err
 	}
-	if before.Manifest != after.Manifest {
-		return fmt.Errorf("these measure different manifests (%q vs %q); the comparison would be meaningless",
-			before.Manifest, after.Manifest)
-	}
-	// A schema-less run and a schema-backed one are not two measurements of
-	// the same thing. The schema-less one cannot see the stamp layer at all,
-	// reports a non-AWS estate as unadmitted throughout, and reads any rule
-	// that needs a schema as false. Subtracting one from the other produces
-	// a number with no meaning, and it would look exactly like a large win.
-	if before.Schemas != after.Schemas {
-		return fmt.Errorf("one run has schemas and the other does not (%s: %v, %s: %v); "+
-			"they measure different things and a mixed comparison is worse than none - re-run so both agree",
-			parts[0], before.Schemas, parts[1], after.Schemas)
+	if err := diffPreconditions(parts[0], before, parts[1], after); err != nil {
+		return err
 	}
 
+	fmt.Printf("before %s at %s\nafter  %s at %s\n\n",
+		before.RootPath, commitOrUnknown(before.Commit), after.RootPath, commitOrUnknown(after.Commit))
 	fmt.Printf("sites      %d -> %d  (%+d)\n", before.Totals.Sites, after.Totals.Sites,
 		after.Totals.Sites-before.Totals.Sites)
 	fmt.Printf("instances  %d -> %d  (%+d)\n", before.Totals.Instances, after.Totals.Instances,
 		after.Totals.Instances-before.Totals.Instances)
 	fmt.Printf("blocked    %d -> %d  (%+d)\n", before.Totals.Blocked, after.Totals.Blocked,
 		after.Totals.Blocked-before.Totals.Blocked)
+	// Unresolved module calls belong beside the totals rather than in a
+	// footnote: every count above is a floor for the entries carrying them,
+	// so a pair of sweeps that disagree here disagree about how much of the
+	// corpus was visible at all.
+	fmt.Printf("unresolved %d -> %d  (%+d) module calls\n", before.Totals.Unresolved, after.Totals.Unresolved,
+		after.Totals.Unresolved-before.Totals.Unresolved)
 	fmt.Println()
 
 	// Per-ID, because sites moving between IDs at a constant total is this
@@ -744,6 +926,8 @@ func runDiff(spec string) error {
 		fmt.Println("\nan entry losing instances is a resolution the change took away; do not report the")
 		fmt.Println("aggregate without these beside it")
 	}
+	diffEnvironment(before, after)
+
 	if before.Schemas {
 		fmt.Println("\nschemas true in both runs. Check the per-entry providers lists agree too: a provider that")
 		fmt.Println("acquired in one run and not the other moves sites for a reason belonging to the run.")
@@ -754,6 +938,249 @@ func runDiff(spec string) error {
 		fmt.Println("\nschemas false in both runs - upper bound, verify per-entry with real schemas")
 	}
 	return nil
+}
+
+func commitOrUnknown(commit string) string {
+	if commit == "" {
+		return "(not a git checkout)"
+	}
+	return commit
+}
+
+// diffPreconditions is everything that has to agree before a subtraction
+// means anything.
+//
+// The rule each of these encodes is the same one: an input that differs
+// between two sweeps and is not the change under test will show up in the
+// delta wearing the change's name. -diff already refused a schema-less run
+// against a schema-backed one on exactly that reasoning. These are the rest
+// of the inputs, found by asking what else the sweep reads from its
+// environment.
+func diffPreconditions(beforeName string, before *run, afterName string, after *run) error {
+	// Version first. Every check below reads a field that did not exist in
+	// version 1, and an absent field unmarshals to the zero value, which
+	// compares equal to the other side's absent field. A guard that passes
+	// because both sides are silent is the shape being fixed here, not one
+	// to reintroduce.
+	// Ordered deliberately: a map here would name whichever file Go's
+	// iteration happened to reach first, so the same two inputs would
+	// produce two different messages across runs.
+	for _, side := range []struct {
+		name string
+		r    *run
+	}{{beforeName, before}, {afterName, after}} {
+		name, r := side.name, side.r
+		if r.ProbeVersion < probeVersion {
+			return fmt.Errorf("%s was written by refusal-probe format %d, and this is format %d.\n"+
+				"The older format did not record the tree, the manifest's contents or the corpus it measured, so the "+
+				"checks that make a comparison meaningful cannot run and would pass by reading absent fields as agreement.\n"+
+				"Re-run the sweep to regenerate it.", name, r.ProbeVersion, probeVersion)
+		}
+	}
+
+	if before.Manifest != after.Manifest {
+		return fmt.Errorf("these measure different manifests (%q vs %q); the comparison would be meaningless",
+			before.Manifest, after.Manifest)
+	}
+	if before.ManifestSHA != after.ManifestSHA {
+		return fmt.Errorf("both runs name %s but its contents differ (%s vs %s).\n"+
+			"The manifest decides which directories are measured and with which tfvars files, so the two sweeps "+
+			"have different populations under one name. Re-run both against one manifest.",
+			before.Manifest, short(before.ManifestSHA), short(after.ManifestSHA))
+	}
+	// A schema-less run and a schema-backed one are not two measurements of
+	// the same thing. The schema-less one cannot see the stamp layer at all,
+	// reports a non-AWS estate as unadmitted throughout, and reads any rule
+	// that needs a schema as false. Subtracting one from the other produces
+	// a number with no meaning, and it would look exactly like a large win.
+	if before.Schemas != after.Schemas {
+		return fmt.Errorf("one run has schemas and the other does not (%s: %v, %s: %v); "+
+			"they measure different things and a mixed comparison is worse than none - re-run so both agree",
+			beforeName, before.Schemas, afterName, after.Schemas)
+	}
+	if before.Schemas && before.PinVersion != after.PinVersion {
+		return fmt.Errorf("the two schema-backed runs pinned %s at different versions (%q vs %q).\n"+
+			"That is a comparison of two provider releases with a code change mixed in. Re-run both at one version.",
+			before.PinSource, before.PinVersion, after.PinVersion)
+	}
+	if before.Schemas && before.PinSource != after.PinSource {
+		return fmt.Errorf("the two schema-backed runs pinned different providers (%q vs %q); re-run both against one",
+			before.PinSource, after.PinSource)
+	}
+
+	// Root, resolved. The unresolved field could not do this job: it
+	// defaults to "." and two sweeps of two different worktrees both record
+	// ".", so a guard on it compares equal and says nothing - which is
+	// precisely how two trees came to be compared silently.
+	if before.RootPath != after.RootPath {
+		return fmt.Errorf("these sweeps measured two different trees:\n"+
+			"  %s: %s (at %s)\n"+
+			"  %s: %s (at %s)\n"+
+			"Each tree has its own .corpus, its own manifest and its own uncommitted work, so the delta carries "+
+			"all of that and not only the change under test.\n"+
+			"Re-run both sweeps against one tree - the probe writes wherever -out points, so before and after can "+
+			"live side by side in the same checkout.",
+			beforeName, before.RootPath, commitOrUnknown(before.Commit),
+			afterName, after.RootPath, commitOrUnknown(after.Commit))
+	}
+
+	// Corpus completeness. A partial sweep is allowed to exist - that is
+	// what -allow-partial-corpus is for - but it can only be compared
+	// against a sweep that was partial in the same way.
+	if !sameStrings(before.CorpusProblems, after.CorpusProblems) {
+		return fmt.Errorf("the two sweeps saw different corpora on disk.\n"+
+			"  %s: %s\n"+
+			"  %s: %s\n"+
+			"A source present for one sweep and absent for the other contributes its whole refusal count to the "+
+			"delta. Re-run both with the same corpus - go run ./tools/corpus-fetch.",
+			beforeName, problemSummary(before.CorpusProblems),
+			afterName, problemSummary(after.CorpusProblems))
+	}
+
+	// The entry sets themselves. byEntry skips a name it cannot find on
+	// both sides, so unequal populations previously produced a per-entry
+	// section over the intersection and totals over the union - and a
+	// 250-entry sweep against a 31-entry one reads as an enormous win.
+	onlyBefore, onlyAfter := entryDiff(before, after)
+	if len(onlyBefore) > 0 || len(onlyAfter) > 0 {
+		return fmt.Errorf("the two sweeps measured different sets of configurations (%d and %d entries).\n"+
+			"  only in %s: %s\n"+
+			"  only in %s: %s\n"+
+			"The totals above each other would be over different populations. If one side used -entry, re-run it "+
+			"without; otherwise the corpus changed between the sweeps.",
+			before.Totals.Entries, after.Totals.Entries,
+			beforeName, sample(onlyBefore),
+			afterName, sample(onlyAfter))
+	}
+
+	return nil
+}
+
+// diffEnvironment reports the inputs that are allowed to differ but change
+// what the numbers mean. None of these is fatal: a provider that failed to
+// install on one run and not the other is normal, and so is a module tree
+// that was installed between two sweeps. What is not acceptable is that
+// happening silently, which is what used to happen.
+func diffEnvironment(before, after *run) {
+	bE, aE := byEntry(before), byEntry(after)
+
+	var modulesChanged, varFilesChanged []string
+	for name, a := range aE {
+		b, ok := bE[name]
+		if !ok {
+			continue
+		}
+		if b.ModulesInstalled != a.ModulesInstalled {
+			modulesChanged = append(modulesChanged, fmt.Sprintf("  %s  modules installed %v -> %v, unresolved %d -> %d, sites %d -> %d",
+				name, b.ModulesInstalled, a.ModulesInstalled, b.Unresolved, a.Unresolved, b.Sites, a.Sites))
+		}
+		if !sameStrings(b.VarFiles, a.VarFiles) {
+			varFilesChanged = append(varFilesChanged, fmt.Sprintf("  %s  var files %v -> %v", name, b.VarFiles, a.VarFiles))
+		}
+	}
+	sort.Strings(modulesChanged)
+	sort.Strings(varFilesChanged)
+
+	if len(modulesChanged) > 0 {
+		fmt.Printf("\nMODULE INSTALL STATE CHANGED on %d entry(s) - their site deltas are that, not your change:\n", len(modulesChanged))
+		for _, s := range modulesChanged {
+			fmt.Println(s)
+		}
+		fmt.Println("one corpus entry moved 59 -> 394 refused sites on this input alone")
+	}
+	if len(varFilesChanged) > 0 {
+		fmt.Printf("\nVAR FILES CHANGED on %d entry(s) - a refusal that was only an unset variable will move here:\n", len(varFilesChanged))
+		for _, s := range varFilesChanged {
+			fmt.Println(s)
+		}
+	}
+
+	if !before.Schemas {
+		return
+	}
+	bP := map[string]providerResult{}
+	for _, p := range before.Providers {
+		bP[p.Provider+"@"+p.Constraint] = p
+	}
+	var moved []string
+	for _, a := range after.Providers {
+		b, ok := bP[a.Provider+"@"+a.Constraint]
+		if !ok {
+			moved = append(moved, fmt.Sprintf("  %s %s  not required by the before run", a.Provider, a.Constraint))
+			continue
+		}
+		switch {
+		case b.Available != a.Available:
+			moved = append(moved, fmt.Sprintf("  %s %s  acquired %v -> %v (%s)", a.Provider, a.Constraint, b.Available, a.Available, firstLine(a.Error)))
+		case b.Version != a.Version:
+			moved = append(moved, fmt.Sprintf("  %s %s  version %s -> %s", a.Provider, a.Constraint, b.Version, a.Version))
+		}
+	}
+	sort.Strings(moved)
+	if len(moved) > 0 {
+		fmt.Printf("\nPROVIDER ACQUISITION CHANGED on %d requirement(s) - the entries needing them measured different schemas:\n", len(moved))
+		for _, s := range moved {
+			fmt.Println(s)
+		}
+		fmt.Println("a refusal on a type one of these serves moved for a reason belonging to the run, not to the change")
+	}
+}
+
+// entryDiff is the names present in exactly one of two sweeps.
+func entryDiff(before, after *run) (onlyBefore, onlyAfter []string) {
+	bE, aE := byEntry(before), byEntry(after)
+	for name := range bE {
+		if _, ok := aE[name]; !ok {
+			onlyBefore = append(onlyBefore, name)
+		}
+	}
+	for name := range aE {
+		if _, ok := bE[name]; !ok {
+			onlyAfter = append(onlyAfter, name)
+		}
+	}
+	sort.Strings(onlyBefore)
+	sort.Strings(onlyAfter)
+	return onlyBefore, onlyAfter
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// sample renders at most a few names, with a count for the rest, so a
+// refusal message stays readable when a whole corpus is on one side.
+func sample(names []string) string {
+	if len(names) == 0 {
+		return "(none)"
+	}
+	const max = 5
+	shown := names
+	var rest int
+	if len(shown) > max {
+		rest = len(shown) - max
+		shown = shown[:max]
+	}
+	s := strings.Join(shown, ", ")
+	if rest > 0 {
+		s += fmt.Sprintf(", and %d more", rest)
+	}
+	return s
+}
+
+func problemSummary(problems []string) string {
+	if len(problems) == 0 {
+		return "the full corpus"
+	}
+	return fmt.Sprintf("%d problem(s): %s", len(problems), sample(problems))
 }
 
 func load(path string) (*run, error) {
