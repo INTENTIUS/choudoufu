@@ -658,6 +658,27 @@ would otherwise rediscover.
   whether an ordinary estate is onboardable at all. Do not assume which way
   round the default goes; that is the maintainer's, and the two modes need
   separate measurements before it is chosen.
+- **MEASURED, and it argues against the general form.** Before choosing a
+  default, the cost of each mode was measured rather than guessed. Suppressing
+  the point-of-use `Non-static identity argument` refusal across the whole
+  corpus frees exactly FIVE rate-capable estates - app-licensify-documentdb,
+  infra-content-data-admin, infra-public-wafs, infra-specialist-publisher,
+  infra-stack-dns-zones - and every one of them is a govuk-aws
+  unset-variable estate, which is precisely the cohort #183 rules must stay
+  blocked. No ACM estate is freed, because in the unplanned state they are
+  blocked on the for_each, not on this. And rate-capable instances do not move
+  at all: 2584 before, 2584 after.
+  So a blanket "defer every unknown" would reverse #183, free nothing the
+  campaign wants, and resolve not one additional identity. It would hide a
+  refusal rather than answer it - which is the failure mode a rising site
+  count normally reveals and this one would not, because the sites simply
+  disappear.
+  That is a strong argument for the source-versus-point-of-use split above
+  rather than for a mode switch on its own. The point-of-use refusal is doing
+  exactly one job today, and that job is refusing unset-variable estates; the
+  apply-time unknowns it would also need to defer are not reached until a plan
+  supplies the values. Any toggle has to be built on top of that distinction,
+  not instead of it.
 - **Superseded, kept for the reasoning:** A scout concluded that deriving the `for_each` key set would only
   reveal the identity refusal underneath, because the record's `name` and
   `type` come from `resource_record_name`/`_type` and are known only after
