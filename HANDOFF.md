@@ -308,9 +308,14 @@ The pattern to copy, in `live/`:
 | `TestCIRunsEveryForkOwnedTestPackage`, `TestCIExclusionsAreReal` | every fork-owned test package is in CI's glob, or excluded with a reason |
 | `TestFlociMeasurementsMatchThePinOrSayWhyNot` | a measurement is current, or its exception still applies |
 | `TestIdentityGoldenShapeIsPinned` | the golden's shape, so `-update` alone cannot silence a regression |
-| `TestUnreachedTypeRatchet` and siblings | admission debt does not grow; `universeFloor` is the anti-tamper leg |
+| `TestBurndownBoundsHold` | every migrated ratchet, each computing its own number and pinning the denominator it is a fraction of |
 | `TestEveryToolHasAGitignoreEntry`, `TestNoCompiledBinaryIsTracked` | no multi-megabyte binary lands in a commit again |
 | `TestOperationalBriefIsTracked` | the brief cannot go back to being untracked local state |
+
+The bounds those ratchets used to carry as scattered constants now live in
+`internal/live/harness`, one entry each, computing their number at run time
+and naming the denominator they are a fraction of. `live/HARNESS.md` renders
+them. Migrating them found one that had stopped bounding anything.
 
 What they have in common is worth copying deliberately. Each is a registry
 checked against the tree rather than a hand-list. Each exception is written
