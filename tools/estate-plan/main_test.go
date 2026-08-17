@@ -58,7 +58,7 @@ func TestEveryActionNamesARealRefusal(t *testing.T) {
 func TestEveryActionCarriesAReason(t *testing.T) {
 	for id, a := range blockerAction {
 		switch a.Action {
-		case ActionDerive, ActionAdmit, ActionDefer, ActionRule, ActionParity:
+		case ActionDerive, ActionAdmit, ActionDefer, ActionRule, ActionParity, ActionRead:
 		default:
 			t.Errorf("%q has action %q, which is not one of the five", id, a.Action)
 		}
@@ -115,6 +115,52 @@ func TestPlanIsOrderedAndStable(t *testing.T) {
 				t.Fatalf("plan is not stable across runs: position %d was %q, now %q", j, plan[j].Name, again[j].Name)
 			}
 		}
+	}
+}
+
+// TestInformationalFindingIsNotABlocker pins the correction an audit forced
+// the same day this tool was written.
+//
+// dataread's SummaryEligibleRead declares itself "not a refusal", and
+// ClassifyOnboarding lands such an estate on data-read-eligible rather than
+// language-blocked - but Report.Blocked() is len(Findings) > 0, so the first
+// version of this tool counted it and put a class no fix removes at the top of
+// the board.
+func TestInformationalFindingIsNotABlocker(t *testing.T) {
+	const read = "Resolves at plan time via a data-source read"
+	if blockerAction[read].Action != ActionRead {
+		t.Fatalf("%q is classified %q; it is explicitly not a refusal", read, blockerAction[read].Action)
+	}
+
+	s := sweep{Entries: []struct {
+		Name     string         `json:"name"`
+		Origin   string         `json:"origin"`
+		Blocked  bool           `json:"blocked"`
+		Refusals map[string]int `json:"refusals"`
+		Sites    int            `json:"sites"`
+		Modules  int            `json:"unresolved_modules"`
+	}{
+		{Name: "reads-only", Origin: ratePopulation, Blocked: true, Sites: 9,
+			Refusals: map[string]int{read: 9}},
+		{Name: "one-real-blocker-plus-reads", Origin: ratePopulation, Blocked: true, Sites: 10,
+			Refusals: map[string]int{read: 9, "unadmitted-type": 1}},
+	}}
+
+	plan, _ := buildPlan(s)
+	if len(plan) != 1 {
+		t.Fatalf("plan holds %d estates, want 1: an estate whose only findings are informational is not blocked", len(plan))
+	}
+	e := plan[0]
+	if e.Name != "one-real-blocker-plus-reads" {
+		t.Fatalf("plan[0] = %q", e.Name)
+	}
+	if len(e.Blockers) != 1 || e.Blockers[0].ID != "unadmitted-type" {
+		t.Errorf("blockers = %+v, want just unadmitted-type", e.Blockers)
+	}
+	// Still printed: the read has to succeed against a real cloud, and that
+	// is step 6's job. Dropping it entirely would hide real remaining work.
+	if len(e.Informs) != 1 || e.Informs[0].ID != read {
+		t.Errorf("informational findings = %+v, want the read carried alongside", e.Informs)
 	}
 }
 

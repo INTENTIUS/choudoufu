@@ -138,9 +138,16 @@ forty estates leaves forty estates blocked. **An estate onboards when its LAST
 blocker clears**, which makes the estate the only unit that measures progress
 and therefore the only unit worth assigning.
 
-The shape of the work, as of the last sweep: **56 of 118 blocked deployments
-are one blocker from clean**, and ten of those are one blocker at one site.
+The shape of the work, as of the last sweep: **44 of 90 blocked deployments
+are one blocker from clean**, and several of those are one blocker at one site.
 Recompute rather than quoting that.
+
+Note what is *not* counted. `Resolves at plan time via a data-source read` is
+not a refusal — `dataread`'s own declaration says so, and `ClassifyOnboarding`
+lands such an estate on the data-read-eligible rung. It is printed against the
+estate because the read still has to succeed against a real cloud at step 6,
+but it does not order the queue. Counting it read 118 blocked and 56 one-away,
+and put a class no fix removes at the top of the board.
 
 ### The loop
 

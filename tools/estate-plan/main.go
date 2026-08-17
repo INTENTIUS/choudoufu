@@ -71,6 +71,26 @@ const (
 	// ActionParity: stock OpenTofu refuses the same configuration for the
 	// same reason. Not a defect, and not ours to fix.
 	ActionParity Action = "PARITY"
+
+	// ActionRead is not a blocker and does not count toward an estate's
+	// blocker total.
+	//
+	// internal/live/dataread's SummaryEligibleRead says so in its own
+	// declaration - "not a refusal: it is live-check's finding for a site the
+	// phase will resolve at plan time with a read" - and ClassifyOnboarding
+	// agrees, landing such an estate on the data-read-eligible rung rather
+	// than language-blocked.
+	//
+	// The first version of this tool counted it, because Report.Blocked() is
+	// len(Findings) > 0 and an informational finding is a finding. That
+	// inflated the plan from 90 blocked estates to 118 and the one-away count
+	// from 44 to 56, and it put a class that no fix removes at the top of the
+	// board. An audit caught it the same day the tool was written.
+	//
+	// It is still printed, because the estate is not finished: the read has to
+	// actually succeed against a cloud, and offline analysis cannot say
+	// whether it will. It just does not order the queue.
+	ActionRead Action = "READ"
 )
 
 // blockerAction maps each refusal that has ever blocked a published
@@ -119,8 +139,8 @@ var blockerAction = map[string]struct {
 		"the row names an argument the configuration leaves unset. Frequently parity - stock also cannot plan without it - so check before assigning."},
 
 	// ---- deferral: the identity does not exist yet ----
-	"Resolves at plan time via a data-source read": {ActionDefer,
-		"the identity comes from a data source, so it is not in the configuration and not in the cloud until the read happens. The largest single blocker in the corpus."},
+	"Resolves at plan time via a data-source read": {ActionRead,
+		"the identity comes from a data source and the plan phase will read it. Explicitly not a refusal - it is what the data-read-eligible rung means - so it does not count as a blocker. It still has to succeed against a real cloud, which is step 6's job and not the corpus's."},
 	"Data source not readable before resolution": {ActionDefer,
 		"the data source itself depends on something unresolved, so even deferring the read does not help without an ordering."},
 	"Data source provider not configurable": {ActionDefer,
@@ -212,6 +232,9 @@ func main() {
 		for _, bl := range e.Blockers {
 			fmt.Printf("      [%-6s] %-3d  %s\n", bl.Action, bl.Sites, bl.ID)
 		}
+		for _, bl := range e.Informs {
+			fmt.Printf("      [%-6s] %-3d  %s (not a blocker; must still succeed at plan time)\n", bl.Action, bl.Sites, bl.ID)
+		}
 		fmt.Println()
 	}
 }
@@ -226,7 +249,8 @@ type estate struct {
 	Name     string
 	Sites    int
 	Modules  int
-	Blockers []blocker
+	Blockers []blocker // count toward the ordering
+	Informs  []blocker // printed, but not blockers
 }
 
 // buildPlan orders blocked rate-capable estates by how many distinct classes
@@ -250,14 +274,28 @@ func buildPlan(s sweep) ([]estate, []string) {
 			if !ok {
 				act = "?"
 			}
-			est.Blockers = append(est.Blockers, blocker{ID: id, Sites: sites, Action: act})
-		}
-		sort.Slice(est.Blockers, func(i, j int) bool {
-			if est.Blockers[i].Sites != est.Blockers[j].Sites {
-				return est.Blockers[i].Sites > est.Blockers[j].Sites
+			b := blocker{ID: id, Sites: sites, Action: act}
+			if act == ActionRead {
+				est.Informs = append(est.Informs, b)
+				continue
 			}
-			return est.Blockers[i].ID < est.Blockers[j].ID
-		})
+			est.Blockers = append(est.Blockers, b)
+		}
+		bySites := func(s []blocker) {
+			sort.Slice(s, func(i, j int) bool {
+				if s[i].Sites != s[j].Sites {
+					return s[i].Sites > s[j].Sites
+				}
+				return s[i].ID < s[j].ID
+			})
+		}
+		bySites(est.Blockers)
+		bySites(est.Informs)
+		// An estate with only informational findings is not blocked. It is
+		// on the data-read-eligible rung and its remaining work is step 6.
+		if len(est.Blockers) == 0 {
+			continue
+		}
 		out = append(out, est)
 	}
 
