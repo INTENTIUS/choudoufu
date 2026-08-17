@@ -633,6 +633,31 @@ would otherwise rediscover.
   (`marksafe`), but `val.IsMarked()` is itself a refusal condition in several
   paths in resolve.go, so a provenance mark would refuse in exactly the places
   it needs to pass. That interaction is the design, and it is the next slot.
+- **Framing for that design, from the maintainer: choudoufu has to have an
+  ANSWER here, and the answer may be a toggle rather than a rule.** Worth
+  writing down because it changes what the fix is aiming at.
+  The unknown-vs-unknown distinction is not really about provenance. It maps
+  onto the parity rule exactly. An unset required variable evaluates to an
+  unknown AND stock refuses the same configuration, so refusing is
+  parity-correct. A resource attribute that is unknown until apply evaluates
+  to an unknown AND stock plans it without complaint, so refusing is a parity
+  DEFECT. Same value, opposite correct answers, and what separates them is
+  whether stock would proceed - not anything about the value itself.
+  That suggests the refusal is in the wrong PLACE rather than being the wrong
+  rule. At the point of use the two unknowns are indistinguishable; at the
+  source they are not, and an unset required variable is knowable exactly
+  where the variable is read. Refusing there and deferring everywhere else is
+  the shape that lets an ordinary estate onboard, and it is not what the
+  resolver does today.
+  A marker does not have to exist at plan time. It has to exist after apply,
+  which is when the value does - that is what ClassNeedsDiscovery and
+  ClassParentDerived already mean, and the ACM records are exactly that shape.
+  And a strict mode that refuses anything it cannot name up front is a
+  legitimate thing to want, because it is what makes live-check a gate worth
+  running. It cannot be the ONLY mode, however, since the same setting decides
+  whether an ordinary estate is onboardable at all. Do not assume which way
+  round the default goes; that is the maintainer's, and the two modes need
+  separate measurements before it is chosen.
 - **Superseded, kept for the reasoning:** A scout concluded that deriving the `for_each` key set would only
   reveal the identity refusal underneath, because the record's `name` and
   `type` come from `resource_record_name`/`_type` and are known only after
