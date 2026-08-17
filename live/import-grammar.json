@@ -81153,6 +81153,7 @@
           "required": false
         }
       ],
+      "sole_id_literal_value": "iam-account-password-policy",
       "argument_names_any_depth": [
         "allow_users_to_change_password",
         "hard_expiry",
@@ -150705,6 +150706,7 @@
           "required": false
         }
       ],
+      "sole_id_literal_value": "ses-account-vdm-attributes",
       "argument_names_any_depth": [
         "vdm_enabled",
         "region",
@@ -153225,6 +153227,7 @@
           "required": false
         }
       ],
+      "sole_id_literal_value": "spot-datafeed-subscription",
       "argument_names_any_depth": [
         "region",
         "bucket",

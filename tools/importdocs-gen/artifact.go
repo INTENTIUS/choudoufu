@@ -149,6 +149,14 @@ type Row struct {
 	// deliberately not recorded.
 	SoleIDCloudValue string `json:"sole_id_cloud_value,omitempty"`
 
+	// SoleIDLiteralValue is the fixed string the documented import ID IS, in
+	// its entirety, when the Import section itself says so with "the word
+	// `...`" - the constant sibling of SoleIDCloudValue above, for the
+	// account-singleton settings resources whose whole identity is neither
+	// an argument nor a cloud property but one fixed word every account
+	// shares. Empty for every other example. See literalsingleton.go.
+	SoleIDLiteralValue string `json:"sole_id_literal_value,omitempty"`
+
 	// ArgumentNamesAnyDepth is every Argument Reference bullet name on the
 	// page at any block depth, ArgumentReference's deliberately wider
 	// sibling. It is a refutation set and nothing should build an import
@@ -374,6 +382,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		IDParts:                parts,
 		SoleIDPart:             sole,
 		SoleIDCloudValue:       soleIDCloudValue(idExample),
+		SoleIDLiteralValue:     soleIDLiteralValue(section, idExample),
 		ArgumentNamesAnyDepth:  anyDepthArgs,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exampleRootLiterals(doc, tfType)),
 	}, true
