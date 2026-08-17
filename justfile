@@ -80,6 +80,22 @@ demo-create-over:
 demo-per-element:
     bash live/e2e/per-element/run.sh
 
+# Issue #274's crossing, on a real third-party estate rather than a fixture:
+# .corpus/mastino/prod-eu-west/services/message-queue, 28 aws_sqs_queue in a
+# module and one aws_iam_policy in the root, kept by its authors in a
+# Terraform Cloud workspace. The estate is copied out of .corpus and never
+# written to; the four onboarding deltas it needs are applied to the copy and
+# each one is asserted. It applies 29 resources, writes no terraform.tfstate
+# at all, replans empty twice, and every one of the 29 rendered import
+# identities is checked as a string - the emulator answers a wrong-region SQS
+# queue URL with the right queue's ARN, so the plan verdict cannot tell a
+# wrong region from a right one and only the string can. BREAK=1 corrupts one
+# expected string and the run must then fail in step 6 and nowhere else.
+# Needs Docker, the AWS CLI and a fetched corpus; runs on its own port (4632)
+# so it can run beside `just demo`.
+demo-corpus-message-queue:
+    bash live/e2e/corpus-message-queue/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
