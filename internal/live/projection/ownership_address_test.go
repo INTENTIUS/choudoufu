@@ -25,13 +25,15 @@ import (
 // address until the tag rewrite lands (issue #198), and live-mv's own
 // materialize path, which does not go through the ownership check at all.
 //
-// The other half of #244 is in internal/live/discovery, whose scan drops a
-// live object whose marker names a ClassConcrete declared address
+// The other half of #244 is in internal/live/discovery, whose scan used to
+// drop a live object whose marker names a ClassConcrete declared address
 // (discovery.go's `if decl.declares(...) { continue }`) on the stated grounds
 // that "the marker only confirms the estate still owns what it thinks it
-// owns" - the confirmation this file's subject now performs. That half is
-// still open; see internal/live/discovery/ownership_address_test.go, which
-// pins it.
+// owns" - the confirmation this file's subject performs. That half landed too
+// (internal/live/discovery/displaced.go); the two ask different questions of
+// different inputs, and neither closes the other. This comment used to say
+// half 2 was still open, which stopped being true one commit after it was
+// written.
 
 // TestOwnershipAddress_wrongAddressSameEstateIsRefused: this estate's marker,
 // another resource's address. Stock OpenTofu, holding no state for this
@@ -277,6 +279,112 @@ func TestOwnershipAddress_mvMaterializePathIsUnaffected(t *testing.T) {
 	assertNoErrors(t, diags)
 	if !res.Has(mustAddr(t, `aws_cloudwatch_log_group.app`)) {
 		t.Fatalf("BuildFrom now applies an ownership check, which breaks live-mv's materialize:\n%s", res)
+	}
+}
+
+// TestOwnershipAddress_legacyGrammarMarkerIsStillAdmitted is the audit
+// question "what does this newly refuse that used to work?", asked of the one
+// input that can make a correct marker fail a naive comparison: a live object
+// stamped by a run older than issue #178.
+//
+// A for_each key containing "@" is the whole of that window. Both the pre- and
+// post-#178 grammars admit the character and escape it differently, so the
+// value a 2025 run wrote onto this object is not the value EscapeAddress
+// computes for the same address today. [markers.AddressMatches] tries the
+// older grammars for exactly this reason, and [moved.Accepts] - which is what
+// [builder.addressNames] calls - is defined in terms of it.
+//
+// Both legs were unit-tested when #244 landed (markers.TestAddressMatches...,
+// moved.TestAcceptsHonoursOlderEscapingGrammars) and neither was tested HERE,
+// where the refusal that could fire on them lives. Stripping the two fallback
+// grammars out of AddressMatches left this whole package green. So the
+// property "an estate stamped before #178 does not start reading as marked for
+// another address" rested on nobody rewriting the call site to a bare
+// equality - the exact narrowing #244's own body warns against, because it is
+// what produced 107 cross-grammar false positives earlier in this campaign.
+//
+// The refusal this guards against is not a warning an operator can ignore: it
+// takes the instance out of the prior state, so the plan proposes CREATING a
+// log group that already exists, and for a unique-named type the apply then
+// fails. On every instance of the estate at once.
+func TestOwnershipAddress_legacyGrammarMarkerIsStillAdmitted(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	const addr = `aws_cloudwatch_log_group.app["at@sign"]`
+
+	// What a pre-#178 run stamped, and what today's grammar computes for the
+	// same address. If these ever coincide the test has stopped testing
+	// anything, so it says so rather than passing vacuously.
+	legacy := markers.LegacyEscapeAddress(addr)
+	current := markers.EscapeAddress(addr)
+	if legacy == current {
+		t.Fatalf("the two grammars agree on %s (%q), so this fixture no longer exercises the fallback", addr, legacy)
+	}
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:  ownershipEstate,
+		markers.TagAddress: legacy,
+	})
+
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, addr), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if !res.Has(mustAddr(t, addr)) {
+		t.Fatalf("a marker written under the pre-#178 grammar (%q, where today's is %q) was read as another address's and refused:\n%s", legacy, current, res)
+	}
+	if len(res.Unowned) != 0 || len(diags) != 0 {
+		t.Errorf("a pre-#178 marker produced a complaint: %+v\n%s", res.Unowned, renderDiags(diags))
+	}
+
+	// The materialized value, not the predicate: Has() being true says the
+	// address is in the projection, not that it is bound to the live object
+	// the marker is on. A fallback that admitted the address while
+	// materializing something else would satisfy every assertion above.
+	is := res.State.ResourceInstance(mustAddr(t, addr))
+	if is == nil || is.Current == nil {
+		t.Fatalf("Has() is true but the state carries no current object for %s", addr)
+	}
+	if got, want := string(is.Current.AttrsJSON), `"/ours/logs"`; !strings.Contains(got, want) {
+		t.Errorf("admitted, but the attributes are not the live object the marker sits on:\n%s", got)
+	}
+	if got := is.Current.Status; got != 'R' {
+		t.Errorf("object status is %q, want ObjectReady", got)
+	}
+}
+
+// TestOwnershipAddress_legacyGrammarDoesNotWidenToAnotherKey bounds the test
+// above. The fallback grammars exist to recognize ONE address written an older
+// way, not to make near misses acceptable: a pre-#178 marker for the "at@sign"
+// key must still be refused when the instance being checked is a different
+// key of the same block. Without this, "admit on any grammar" and "admit the
+// right thing" are indistinguishable.
+func TestOwnershipAddress_legacyGrammarDoesNotWidenToAnotherKey(t *testing.T) {
+	cfg := loadConfig(t, "testdata/named")
+
+	cloud := newFakeCloud()
+	cloud.putTagged("aws_cloudwatch_log_group", "/ours/logs", map[string]string{
+		"id": "/ours/logs", "name": "/ours/logs",
+	}, map[string]string{
+		markers.TagEstate:  ownershipEstate,
+		markers.TagAddress: markers.LegacyEscapeAddress(`aws_cloudwatch_log_group.app["at@sign"]`),
+	})
+
+	other := `aws_cloudwatch_log_group.app["other@sign"]`
+	res, diags := BuildWith(context.Background(), cfg, []identity.Resolution{
+		{Addr: mustAddr(t, other), Class: identity.ClassConcrete, ImportID: "/ours/logs"},
+	}, cloud.providers(t), Options{Ownership: &Ownership{Estate: ownershipEstate}})
+
+	assertNoErrors(t, diags)
+	if res.Has(mustAddr(t, other)) {
+		t.Fatalf("a pre-#178 marker for one for_each key admitted a different key of the same block:\n%s", res)
+	}
+	if got := diagSummaries(diags); len(got) != 1 || got[0] != SummaryWrongAddress {
+		t.Errorf("diagnostics = %v, want exactly [%q]:\n%s", got, SummaryWrongAddress, renderDiags(diags))
 	}
 }
 
