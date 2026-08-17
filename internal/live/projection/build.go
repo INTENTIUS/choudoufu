@@ -579,6 +579,31 @@ type Schemas interface {
 // to import or read anything. This is that half of [builder.run] (see its
 // "for _, r := range cyclic" loop) with the live-materializing halves left
 // out, so a caller with no provider handle can still see it.
+//
+// # It cannot fire over resolutions that came from identity.ResolveWith
+//
+// GitHub issue #262 asked whether any configuration makes this refusal
+// reach a user through internal/live/check's Analyze, and the answer is no,
+// by construction rather than for want of a fixture:
+//
+//   - Every [Part] carrying a non-nil ParentRef is built by identity's
+//     parentPart, and parentPart returns nothing unless r.instance already
+//     resolved that parent to completion. A cyclic configuration therefore
+//     fails inside identity, as "Circular identity reference", and neither
+//     instance reaches a Resolution at all.
+//   - identity's classify is the only place a [Formula] is constructed, and
+//     it reads Parents off those same Parts.
+//
+// So a resolution's Formula.Parents can only name instances that finished
+// resolving before it did. That orders the graph by completion time, which
+// is acyclic, and orderWork's cyclic list is consequently always empty for
+// anything ResolveWith produced. The refusal is defence in depth against a
+// bug in identity resolution - which is what its own detail text says - and
+// not a refusal a configuration trips. Any caller assembling resolutions by
+// some other route still needs it.
+//
+// internal/live/check's TestAnalyzeCannotReachCyclicParentDerivedIdentities
+// pins the empirical half over the configuration that shape describes.
 func CyclicIdentityDiagnostics(resolutions []identity.Resolution) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	_, _, _, cyclic, _ := orderWork(resolutions)

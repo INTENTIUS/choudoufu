@@ -239,7 +239,7 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1339 rendered identities across 384 configuration directories in under a
+1339 rendered identities across 386 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 

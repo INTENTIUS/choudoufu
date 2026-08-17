@@ -64,7 +64,16 @@ var identityGoldenPin = map[string]int{
 
 const (
 	identityGoldenPinInstances = 1339
-	identityGoldenPinDirs      = 384
+
+	// 384 -> 386: internal/live/check gained two fixture directories for
+	// GitHub issue #262, projection-empty-import and
+	// projection-identity-cycle. Neither resolves an instance under the
+	// sweep, which runs with no provider schemas: the first declares a type
+	// only a synthetic identity schema admits, and the second is the
+	// identity cycle identity resolution refuses outright. So dirs moved and
+	// instances did not, and no class count moved either - the regenerated
+	// golden's only changed line is its own dirs= header.
+	identityGoldenPinDirs = 386
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
