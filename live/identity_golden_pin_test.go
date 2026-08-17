@@ -98,7 +98,7 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "b88e87b72f01bd9bee523fd6d7a3b94d5148f3140ad5191d5b14401c6ed5c49a"
+const identityGoldenPinBodyDigest = "f64774d8a1490979aab4b85ca4eb9d78b34e88e3485ba3ad63382da0fff7698b"
 
 const (
 	identityGoldenPinInstances = 1339
