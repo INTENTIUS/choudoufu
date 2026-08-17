@@ -6,6 +6,7 @@
 package stamp
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -38,9 +39,11 @@ import (
 // own predicate word for word, so a shipped table that still admitted such a
 // type would be admitting a type nothing can ever find again - the whole
 // point of the retraction. That flips this bucket's assertion: the other
-// three must be populated, and this one must be empty for a reason the test
-// checks against [identity.MarkerlessTypes] rather than accepting on
-// silence. See TestMarkerOnlyUnconditionalBucketIsEmptyByVeto.
+// three must be populated, and this one must be empty, with
+// TestMarkerOnlyUnconditionalBucketIsEmptyByVeto checking that the veto's
+// roster and the table stay disjoint over it. What that test does NOT check
+// is the veto rule itself - see its own doc comment, and
+// markerlessdocs_test.go for the guard that does.
 //
 // The refusal wording it used to serve is NOT dead, which is why the
 // rendering half below still exercises it. internal/live/lint admits a type
@@ -221,24 +224,34 @@ func TestMarkerOnlySplitDecidesWhetherAnEditExists(t *testing.T) {
 // TestMarkerOnlyUnconditionalBucketIsEmptyByVeto is the inverted assertion
 // for the one bucket the markerless retraction emptied (#249).
 //
-// Emptiness on its own proves nothing - a derivation that stopped reading
-// ServerAssigned would produce exactly the same zero - so this test refuses
-// to accept it on silence. It re-derives the bucket's own predicate over
-// live/survey-full.json's whole type roster rather than over the admission
-// table, which gives it a population that does not depend on the table at
-// all, and then requires two things of it:
+// WHAT IT CHECKS, stated after issue #257 corrected an earlier version of
+// this comment that claimed more:
 //
-//   - it is non-empty, so the predicate still finds the shape the provider
-//     publishes. A zero here means the derivation broke, and that is the
-//     failure the old populated-bucket assertion was catching;
-//   - every member is in [identity.MarkerlessTypes] and none is admitted.
-//     That is the retraction stated as an invariant: the veto's roster and
-//     the table are disjoint over exactly this predicate.
+//   - the shipped table admits no untaggable ServerAssigned type. That is
+//     the retraction holding, and it is checked twice over, once against
+//     [identity.AdmittedTypes] and once against the survey's own roster, so
+//     the two failures name the same set;
+//   - the veto's roster and the table are DISJOINT. A type cannot be both
+//     refused as unfindable and admitted as resolvable;
+//   - every type on the roster is untaggable per live/survey-full.json.
+//     That is the veto's other leg, and the count equality below is what
+//     makes it an assertion: a roster carrying a taggable type would be
+//     smaller here than [identity.MarkerlessTypes] is.
 //
-// The three inputs are independent of one another - the provider's own
-// taggability signal, tools/row-gen's generated veto roster, and the
-// generated admission table - so no edit to any one of them can make this
-// test agree with itself.
+// WHAT IT DOES NOT CHECK is server-assignment - the leg that decides which
+// untaggable types get retracted. The version of this comment 6bb23bcbf8
+// shipped said it did, on the strength of the loop below re-deriving the
+// bucket's predicate "over live/survey-full.json's whole type roster". It
+// does not: the loop's own membership test is [identity.MarkerlessTypes],
+// which markerlessRoster has already filtered to untaggable types out of
+// the same survey file, so the set it builds IS the roster and consults
+// ServerAssigned nowhere. An audit deleted the rule's server-assignment leg
+// outright, retracting 217 further rows, and this test passed.
+//
+// TestMarkerlessVetoIsNotRefutedByTheImportDocs, in markerlessdocs_test.go,
+// is the guard for that leg. It reads live/import-grammar.json, which no
+// part of the roster's construction can edit into agreement with itself,
+// and it fails under that mutation with 196 named types.
 func TestMarkerOnlyUnconditionalBucketIsEmptyByVeto(t *testing.T) {
 	if got := markerOnlySplit(t).unconditional; len(got) > 0 {
 		t.Errorf("%d admitted type(s) are still ServerAssigned and untaggable: %v - "+
@@ -247,33 +260,59 @@ func TestMarkerOnlyUnconditionalBucketIsEmptyByVeto(t *testing.T) {
 			len(got), got)
 	}
 
+	if len(identity.MarkerlessTypes) == 0 {
+		t.Fatal("identity.MarkerlessTypes is empty; every assertion below is a loop over it and would pass over nothing")
+	}
 	survey := readSurveyTaggable(t)
-	var shape, unrostered, stillAdmitted []string
+	var vetoedAndUntaggable, stillAdmitted []string
 	for name, taggable := range survey {
 		if taggable {
 			continue
 		}
-		entry, ok := identity.LookupType(name)
-		if ok && entry.ServerAssigned {
+		if entry, ok := identity.LookupType(name); ok && entry.ServerAssigned {
 			// Admitted and matching the predicate: caught above, and
 			// recorded here too so the two failures name the same set.
 			stillAdmitted = append(stillAdmitted, name)
 		}
-		if _, vetoed := identity.MarkerlessTypes[name]; !vetoed {
+		if _, vetoed := identity.MarkerlessTypes[name]; vetoed {
+			vetoedAndUntaggable = append(vetoedAndUntaggable, name)
+		}
+	}
+	sort.Strings(stillAdmitted)
+
+	// The veto's untaggability leg, asserted rather than assumed. Every roster
+	// member has to have been seen here, so a roster carrying a type the
+	// survey calls taggable - or one the survey has never heard of, which is
+	// how a veto lands "on silence" - leaves a name behind.
+	seen := make(map[string]bool, len(vetoedAndUntaggable))
+	for _, name := range vetoedAndUntaggable {
+		seen[name] = true
+	}
+	var notUntaggable []string
+	for name := range identity.MarkerlessTypes {
+		if seen[name] {
 			continue
 		}
-		shape = append(shape, name)
+		if taggable, known := survey[name]; !known {
+			notUntaggable = append(notUntaggable, name+" (absent from the survey)")
+		} else {
+			notUntaggable = append(notUntaggable, fmt.Sprintf("%s (survey says taggable=%v)", name, taggable))
+		}
+	}
+	sort.Strings(notUntaggable)
+
+	var unrostered []string
+	for _, name := range vetoedAndUntaggable {
 		if _, admitted := identity.LookupType(name); admitted {
 			unrostered = append(unrostered, name)
 		}
 	}
-	sort.Strings(shape)
 	sort.Strings(unrostered)
-	sort.Strings(stillAdmitted)
 
-	if len(shape) == 0 {
-		t.Error("no type in live/survey-full.json is both untaggable and on the markerless roster; " +
-			"the bucket above is empty because the derivation stopped seeing the shape, not because the veto removed it")
+	if len(notUntaggable) > 0 {
+		t.Errorf("%d of the %d type(s) on the markerless roster are not untaggable per live/survey-full.json:\n%s\n"+
+			"the veto's second leg is that there is nowhere to write a marker, and a taggable type has somewhere",
+			len(notUntaggable), len(identity.MarkerlessTypes), indentedSample(notUntaggable))
 	}
 	if len(unrostered) > 0 {
 		t.Errorf("%d type(s) are on the markerless roster and still admitted: %v - "+
