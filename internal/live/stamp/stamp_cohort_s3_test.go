@@ -29,6 +29,10 @@ var untaggableS3 = []string{
 	// two-form Import section needed building.
 	"aws_s3_bucket_replication_configuration",
 	"aws_s3_bucket_object_lock_configuration",
+	// account-public-access-block batch: an account-level singleton (one
+	// per AWS account, not per bucket). Its Argument Reference names
+	// account_id and four block_public_* booleans, no tags block at all.
+	"aws_s3_account_public_access_block",
 }
 
 func init() {
@@ -41,6 +45,7 @@ func init() {
 			// neither type has one.
 			"aws_s3_bucket_replication_configuration": untaggedSchema("id", "bucket", "role"),
 			"aws_s3_bucket_object_lock_configuration": untaggedSchema("id", "bucket"),
+			"aws_s3_account_public_access_block":      untaggedSchema("id", "account_id", "block_public_acls", "block_public_policy", "ignore_public_acls", "restrict_public_buckets"),
 		})
 	})
 }

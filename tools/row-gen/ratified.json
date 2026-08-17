@@ -5520,6 +5520,21 @@
       "id"
     ]
   },
+  "aws_iam_account_alias": {
+    "type": "aws_iam_account_alias",
+    "components": [
+      {
+        "attrs": [
+          "account_alias"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCOUNT_ALIAS",
+    "identity_attrs": [
+      "account_alias"
+    ]
+  },
   "aws_iam_group": {
     "type": "aws_iam_group",
     "components": [
@@ -9028,6 +9043,22 @@
     "import_syntax": "NAME",
     "identity_attrs": [
       "name"
+    ]
+  },
+  "aws_s3_account_public_access_block": {
+    "type": "aws_s3_account_public_access_block",
+    "components": [
+      {
+        "attrs": [
+          "account_id"
+        ],
+        "cloud": "account-id",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCOUNT_ID",
+    "identity_attrs": [
+      "account_id"
     ]
   },
   "aws_s3_bucket": {

@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 905 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 907 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 576, client-named 476, composite 152, assembled 30) | 1234 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 76 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-905<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+907<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -249,11 +249,12 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_guardduty_member`, `aws_guardduty_organization_admin_account`,
   `aws_guardduty_organization_configuration`,
   `aws_guardduty_publishing_destination`, `aws_guardduty_threatintelset`,
-  `aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
-  `aws_iam_instance_profile`, `aws_iam_openid_connect_provider`,
-  `aws_iam_policy`, `aws_iam_role`, `aws_iam_role_policy`,
-  `aws_iam_role_policy_attachment`, `aws_iam_saml_provider`,
-  `aws_iam_server_certificate`, `aws_iam_service_linked_role`, `aws_iam_user`,
+  `aws_iam_account_alias`, `aws_iam_group`, `aws_iam_group_policy`,
+  `aws_iam_group_policy_attachment`, `aws_iam_instance_profile`,
+  `aws_iam_openid_connect_provider`, `aws_iam_policy`, `aws_iam_role`,
+  `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+  `aws_iam_saml_provider`, `aws_iam_server_certificate`,
+  `aws_iam_service_linked_role`, `aws_iam_user`,
   `aws_iam_user_group_membership`, `aws_iam_user_policy`,
   `aws_iam_user_policy_attachment`, `aws_iam_virtual_mfa_device`,
   `aws_imagebuilder_component`, `aws_imagebuilder_container_recipe`,
@@ -388,7 +389,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_route53recoveryreadiness_readiness_check`,
   `aws_route53recoveryreadiness_recovery_group`,
   `aws_route53recoveryreadiness_resource_set`, `aws_route_table`,
-  `aws_route_table_association`, `aws_rum_app_monitor`, `aws_s3_bucket`,
+  `aws_route_table_association`, `aws_rum_app_monitor`,
+  `aws_s3_account_public_access_block`, `aws_s3_bucket`,
   `aws_s3_bucket_lifecycle_configuration`,
   `aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
   `aws_s3_bucket_public_access_block`,

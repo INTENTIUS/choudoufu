@@ -71,7 +71,7 @@ func unreachedTypes() Entry {
 			"internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or " +
 			"vetoed by the derived markerless rule. This counts the ones in none of them, where naming " +
 			"the type in a configuration is a hard resolve error with no ledger entry saying why.",
-		Bound:     615,
+		Bound:     613,
 		Direction: AtMost,
 		Measured: "internal/live/identity.DefaultTable, tools/row-gen/rejected.json and " +
 			"internal/live/identity.MarkerlessTypes",
@@ -109,6 +109,12 @@ func unreachedTypes() Entry {
 				"cloud_default the argument's own bullet states and renders the segment as a Cloud " +
 				"component, so the classifier reproduces the ratified row instead of needing a ruling " +
 				"for it.",
+			"613 on 2026-08-17: aws_iam_account_alias and aws_s3_account_public_access_block, two " +
+				"client-named single-argument rows the import grammar already pinned. The account " +
+				"public access block's account_id component carries the same documented cloud-id " +
+				"default as aws_s3control_storage_lens_configuration above; renderClientNamedEntry " +
+				"gained the fallback the composite path already had (#241) so the pasted row spells it " +
+				"rather than an empty identity.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			universe, err := r.SurveyTypes()
