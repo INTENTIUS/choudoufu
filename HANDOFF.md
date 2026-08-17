@@ -119,25 +119,84 @@ than a run.
 
 ---
 
-## Where the work is
+## Where the work is: one estate at a time
 
-**The tracker, not this file.** `gh issue list -R INTENTIUS/choudoufu`.
+**Run this. Take the first line. That is the assignment.**
 
-A bare `gh` in this clone resolves to `opentofu/opentofu`, silently and
-without an error. Either pass `-R INTENTIUS/choudoufu` every time or run
+```
+just estate-plan
+```
+
+It sweeps the corpus and prints the blocked rate-capable deployments, fewest
+blockers first, each with the action class every blocker implies. Re-plan from
+a sweep you already have with `just estate-plan-from <file>`.
+
+**Never assign by refusal class.** That was tried for a full day: 1570 sites
+cleared, the ladder unmoved at 26. It could not have gone otherwise. The median
+blocked estate carries about two blocking classes, so clearing one class across
+forty estates leaves forty estates blocked. **An estate onboards when its LAST
+blocker clears**, which makes the estate the only unit that measures progress
+and therefore the only unit worth assigning.
+
+The shape of the work, as of the last sweep: **56 of 118 blocked deployments
+are one blocker from clean**, and ten of those are one blocker at one site.
+Recompute rather than quoting that.
+
+### The loop
+
+1. `just estate-plan`.
+2. Take the top estate. If it is marked with unresolved modules, its blockers
+   are a floor — run `just corpus-fetch` first or pick the next one.
+3. For each blocker, the matrix below says what kind of work it is.
+4. Drive **every** blocker on that estate to zero. A partial estate is worth
+   nothing on the ladder.
+5. Verify on that entry alone: `go run ./tools/refusal-probe -entry <path> -v`.
+   The estate is done when it reads `blocked=false`. Not when a class is
+   cleared, not when sites fall.
+6. Regenerate, commit, go to 1.
+
+An estate whose blockers are all `RULE` is **not driveable**. Say so, skip it,
+and do not spend a slot proving it again.
+
+### The decision matrix
+
+The product has exactly three places to put an identity: a **tag** on the
+resource, a **record_store** entry, or a **receipt**. Every refusal is a
+statement that none of them applies yet, and *which* one it should have been
+is what decides the work.
+
+| Action | The identity is | The fix is | Done when |
+|---|---|---|---|
+| `DERIVE` | in the configuration, and the analysis does not reach it | extend the static evaluation | the value renders; assert on `ImportID`, never a boolean |
+| `ADMIT` | knowable, but the type has no table row | a generator reaches it, or a ruling says it cannot | the row emits and `-convergence` exits 0 |
+| `DEFER` | not knowable at plan time at all | read it, record it, or order around it | the estate plans without it, and the marker is right when it lands |
+| `RULE` | refused on purpose | a maintainer decision, not code | out of scope; skip the estate |
+| `PARITY` | absent for stock too | nothing | confirm stock refuses identically, then stop |
+
+`tools/estate-plan`'s `blockerAction` holds the per-refusal classification with
+its reason. Both directions are enforced against `live/corpus-refusals.json`,
+which a different generator produces, so a renamed refusal fails rather than
+silently dropping out of the plan.
+
+**`DEFER` is the big column and it is where the campaign actually is.** The two
+largest sole-blockers, `Resolves at plan time via a data-source read` (28
+estates) and `markerless-type`, are both deferral questions, not analysis
+questions. `unadmitted-type` (20 estates) is the largest `ADMIT`.
+
+### Reading the tracker
+
+`gh issue list -R INTENTIUS/choudoufu`. A bare `gh` in this clone resolves to
+`opentofu/opentofu`, silently. Pass `-R INTENTIUS/choudoufu` or run
 `gh repo set-default INTENTIUS/choudoufu` once.
 
-Issue titles carry figures that were honest when written and have since
-moved. Populations have been recomputed twice. **Do not read a title as a
-current number**, and do not rank off one without recomputing.
+**Most wall issues are named after a refusal class**, which is the old frame.
+Read them as background on a blocker, not as an assignment. An issue title's
+figure was honest when written and the population has been recomputed twice —
+never rank off one without recomputing.
 
-Two ranking mistakes that have both been made here:
-
-- Ranking by how many estates *carry* a refusal, and calling it the number it
-  is a sole blocker on. Those differ by an order of magnitude.
-- Ranking by sole-blocker count when marginal cover was the question. One
-  class freed one estate alone and nine more once other classes were cleared.
-  Use the greedy marginal ordering.
+Two ranking mistakes both already made here: counting estates that *carry* a
+refusal and calling it sole-blocker count, and using sole-blocker count where
+marginal cover was the question.
 
 ---
 

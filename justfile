@@ -101,6 +101,20 @@ site-serve port="8000": site
 lint:
     make golangci-lint
 
+# The estate work plan: which estate to onboard next, and what blocks it.
+#
+# This is the assignment rule. Work is picked per ESTATE, fewest blockers
+# first - never per refusal class. A day spent clearing classes moved 1570
+# sites and zero estates, because the median blocked estate carries about two
+# blockers and clearing one of them leaves it blocked.
+estate-plan sweep="/tmp/choudoufu-sweep.json":
+    go run ./tools/refusal-probe -schemas -out {{sweep}}
+    go run ./tools/estate-plan -in {{sweep}}
+
+# Re-plan from a sweep you already have (instant, vs ~2.5min to re-measure).
+estate-plan-from sweep:
+    go run ./tools/estate-plan -in {{sweep}}
+
 # Fetch the third-party corpus pinned in live/corpus-manifest.json into .corpus/
 # (gitignored), and install each entry's registry modules into its own
 # .terraform/modules. Needs network; run once.

@@ -79,6 +79,7 @@ site/public/
 /corpus-fetch
 /corpus-gen
 /estate-gen
+/estate-plan
 /find-dep-upgrades
 /find-pkg-importer
 /floci-capability-gen
