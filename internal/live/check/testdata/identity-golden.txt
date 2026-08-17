@@ -8,6 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
+# shape: dirs=375 instances=1320
+# shape: class CONCRETE=658
+# shape: class NEEDS_DISCOVERY=550
+# shape: class PARENT_DERIVED=95
+# shape: class RECORD_BACKED=17
+#
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
 internal/live/check/testdata/data-read-blocked	aws_instance.web	NEEDS_DISCOVERY		
