@@ -82,9 +82,11 @@ its second half claimed 60 from a **per-entry probe against real schemas**
 and delivered exactly 60. The difference is the instrument, not luck.
 
 **But "upper bound" is true of sites and false of the verdict**, and this
-corrects what the file used to say. Both modes, all 250 entries, one commit:
+corrects what the file used to say. Both modes, all 250 entries, recomputed
+at 0044177183 (the figures first written here were measured at 7d66fa0968,
+before #200's fix emptied the duplicate-identity class, and read 8461):
 
-    sites     8767 → 8461      blocked configurations   193 → 206
+    sites     8767 → 8427      blocked configurations   193 → 206
     instances 3587 → 3921
 
 **Blocked configurations rise by thirteen.** Thirteen configurations read as
@@ -99,7 +101,8 @@ unblocked something it did not.
 hand-built before it existed. `-diff` refuses to compare the two modes.
 
 Other blind spots: the default mode cannot see the stamp layer at all (110
-sites), nor `Two resources with the same identity` (34), nor any non-AWS
+sites), nor `Two resources with the same identity` (34 at 7d66fa0968, 0
+today — #200 emptied the class), nor any non-AWS
 estate; and an entry with registry module calls measures roughly a sixth of
 its refusal surface — one went 59 sites → 394 once its modules were
 installed.
