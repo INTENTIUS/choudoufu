@@ -54,6 +54,16 @@ func TestHandoffCitationsResolve(t *testing.T) {
 			t.Fatalf("found only %d cited paths in %s; the extraction is broken rather than the document being sparse", len(cited), handoffPath)
 		}
 		for _, p := range cited {
+			if reason, expected := notYetCreated[p]; expected {
+				// Both directions: the entry is only valid while the file is
+				// genuinely absent. Once it exists the exception is stale and
+				// says so, rather than quietly excusing a real citation.
+				if _, err := os.Stat(filepath.Join(root, p)); err == nil {
+					t.Errorf("%s is listed in notYetCreated (%q) and now exists.\n"+
+						"Delete the entry - an exception that no longer applies reads as a live one.", p, reason)
+				}
+				continue
+			}
 			if _, err := os.Stat(filepath.Join(root, p)); err != nil {
 				t.Errorf("%s cites %s, which does not exist.\n"+
 					"Either the path moved and the playbook needs updating, or it was deleted and the instruction around it is now wrong.", handoffPath, p)
@@ -247,6 +257,16 @@ func handoffCitedPaths(root, text string) []string {
 		seen[s] = true
 	}
 	return sortedSet(seen)
+}
+
+// notYetCreated are paths the playbook names on purpose while they do not yet
+// exist, because telling a fresh session which file a step will produce is the
+// whole value of the sentence.
+//
+// Each entry must say what creates it. The check runs in both directions, so
+// an entry outlives its file by exactly one commit.
+var notYetCreated = map[string]string{
+	"live/corpus-module-pins.json": "written by the first `just corpus-fetch` run after the module-install and go-getter-mirror work landed; the playbook names it so the next session commits it with the regenerated artifact instead of leaving the corpus unpinned",
 }
 
 var justCall = regexp.MustCompile(`\bjust ([a-z][a-z0-9-]*)`)
