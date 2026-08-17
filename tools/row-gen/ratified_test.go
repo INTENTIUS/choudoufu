@@ -16,6 +16,21 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
+// loadEmittedTableForTest is the rows -emit would write, the population
+// buildConvergence measures against. It is loadEmittedTable's test spelling.
+func loadEmittedTableForTest(t *testing.T, proposals []proposal) map[string]identity.TypeIdentity {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := loadEmittedTable(root, proposals)
+	if err != nil {
+		t.Fatalf("loadEmittedTable: %v", err)
+	}
+	return rows
+}
+
 // loadRatifiedForTest reads tools/row-gen/ratified.json the same way a caller
 // of loadRatified would.
 func loadRatifiedForTest(t *testing.T) map[string]identity.TypeIdentity {
@@ -241,6 +256,65 @@ func TestRatifiedRoundTripsEveryCommittedRow(t *testing.T) {
 	}
 }
 
+// TestEmitDoesNotReadTheTableItWrites is issue #263's cure stated as a
+// property, and it is the one assertion in this package that the
+// pre-#263 generator could not have passed.
+//
+// It empties [identity.DefaultTable] outright - the exact accident that
+// motivated the issue, where a mutation retracted 217 rows, survived
+// reverting the mutation, and re-emitted the smaller table twice more
+// while exiting 0 - and requires -emit to produce all four files
+// byte-identically anyway. Measured against the generator as it stood at
+// ceb0795d66, emptying the table and re-emitting yielded a 14-row table
+// (recordBackedTypes' derived set) that every fixed-point and convergence
+// check in this repository accepted.
+//
+// Emptying rather than deleting a few rows is deliberate. A handful of
+// deletions leaves the read paths that still consult DefaultTable mostly
+// working, so a partial revert can pass; nothing survives an empty map by
+// accident.
+//
+// The gate is deliberately excluded here, because it is the one thing that
+// SHOULD still read the committed table: runEmit compares
+// identity.AdmittedTypes() against what it is about to write, and over an
+// emptied table that comparison correctly finds nothing retracted. This test
+// drives buildEmitFiles, which is everything downstream of that comparison.
+func TestEmitDoesNotReadTheTableItWrites(t *testing.T) {
+	ratified := loadRatifiedForTest(t)
+	proposals := loadAllForTest(t)
+	annotations := loadAnnotationsForTest(t)
+	grammar := loadImportGrammarForTest(t)
+	survey := loadSurveyForTest(t)
+	logical := loadLogicalSchemasForTest(t)
+
+	before, _, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
+	if err != nil {
+		t.Fatalf("buildEmitFiles over the committed tree: %v", err)
+	}
+
+	saved := identity.DefaultTable
+	identity.DefaultTable = map[string]identity.TypeIdentity{}
+	defer func() { identity.DefaultTable = saved }()
+
+	after, part, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
+	if err != nil {
+		t.Fatalf("buildEmitFiles over an EMPTIED identity.DefaultTable: %v\n"+
+			"-emit still depends on the table it writes; the corpus is supposed to be %s", err, ratifiedJSONRel)
+	}
+
+	if got := len(part.Generated) + len(part.Override); got != len(saved) {
+		t.Errorf("emitting from an emptied table produced %d rows, want %d - the missing rows are the ones "+
+			"still being read out of %s instead of %s", got, len(saved), identityTableRel, ratifiedJSONRel)
+	}
+	for _, rel := range emitFileOrder {
+		if !bytes.Equal(before[rel], after[rel]) {
+			t.Errorf("%s differs when identity.DefaultTable is emptied (%d bytes with the table, %d without): "+
+				"some read still reaches the generator's own previous output, which is exactly what issue #263 is",
+				rel, len(before[rel]), len(after[rel]))
+		}
+	}
+}
+
 // TestRatifiedRendersTheCommittedIdentityTable is the point of the exercise,
 // stated as a byte comparison.
 //
@@ -261,15 +335,16 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recordBacked, err := recordBackedRows(loadLogicalSchemasForTest(t))
+	ratified := loadRatifiedForTest(t)
+	recordBacked, err := recordBackedRows(ratified, loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("recordBackedRows: %v", err)
 	}
 	grammar := loadImportGrammarForTest(t)
 	survey := loadSurveyForTest(t)
-	vetoed := setOf(markerlessRoster(survey, loadAllForTest(t), grammar))
+	vetoed := setOf(markerlessRoster(ratified, survey, loadAllForTest(t), grammar))
 
-	rows, types := emittedRows(loadRatifiedForTest(t), recordBacked, grammar, survey, vetoed)
+	rows, types := emittedRows(ratified, recordBacked, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)
 	if err != nil {
 		t.Fatalf("renderIdentityFile: %v", err)

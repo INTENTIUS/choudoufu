@@ -13,8 +13,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// This file is rowgen-convergence's measurement half: for every type
-// internal/live/identity.DefaultTable already admits, it regenerates
+// This file is rowgen-convergence's measurement half: for every type -emit
+// admits, it regenerates
 // row-gen's own fresh proposal (the same classifyAll pipeline -service
 // output uses) and diffs it against the ratified entry on the four fields
 // the ratification batches actually correct - ServerAssigned, Components,
@@ -107,14 +107,32 @@ type convergenceArtifact struct {
 	Types       []convergenceRow          `json:"types"`
 }
 
-// buildConvergence runs the comparison over every type identity.DefaultTable
-// admits, using proposals (a fresh classifyAll run) and annotations (the
-// per-type rulings tools/row-gen/annotations.json records).
-func buildConvergence(proposals []proposal, annotations map[string]annotation) convergenceArtifact {
+// buildConvergence runs the comparison over emitted - every row -emit would
+// write, from [emittedRows] - using proposals (a fresh classifyAll run) and
+// annotations (the per-type rulings tools/row-gen/annotations.json records).
+//
+// The population is emitted rather than [identity.DefaultTable] because of
+// issue #263. This verdict feeds -emit's unruled gate (emit.go), which
+// refuses any emitted row the fresh classifier does not reproduce and
+// annotations.json does not rule. Reading the population out of the
+// committed table meant a row that is ratified but not yet in that table -
+// which is now the normal shape of adding one, a hand edit to
+// tools/row-gen/ratified.json followed by a regeneration - was never
+// compared at all, so matched came back false and the operator was made to
+// write an annotation for a row the classifier may well agree with.
+//
+// summary.admitted_total keeps its meaning across the change, and that is
+// deliberate: internal/live/harness's rowgen-annotation-ledger entry uses it
+// as a denominator whose stated job is to make un-admitting a type visible.
+// [emittedRows]' key set is the same 892 types the committed table holds, so
+// the artifact is byte-identical - but it now counts what -emit admits
+// rather than what -emit last wrote, which is the number that denominator
+// was always reaching for.
+func buildConvergence(emitted map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation) convergenceArtifact {
 	byType := indexByType(proposals)
 
-	admitted := make([]string, 0, len(identity.DefaultTable))
-	for t := range identity.DefaultTable {
+	admitted := make([]string, 0, len(emitted))
+	for t := range emitted {
 		admitted = append(admitted, t)
 	}
 	sort.Strings(admitted)
@@ -129,7 +147,7 @@ func buildConvergence(proposals []proposal, annotations map[string]annotation) c
 	svcMatched := map[string]int{}
 
 	for _, tf := range admitted {
-		ratified := identity.DefaultTable[tf]
+		ratified := emitted[tf]
 		p, ok := byType[tf]
 		if !ok {
 			art.Summary.NotInMappedSet++
