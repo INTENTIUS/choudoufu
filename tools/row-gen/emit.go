@@ -54,9 +54,18 @@ import (
 // gone. Every fixed-point and convergence check in this repository is
 // satisfied there. Running -emit twice and diffing says the tree sits at some
 // fixed point; it says nothing about which one, because the classifier
-// contributes no row and the ratified corpus has no home outside the file
+// contributes no row and the corpus [emittedRows] copies from is the file
 // being overwritten. retraction.go is the gate that follows from that, and
 // retraction_test.go pins both directions of the self-reference.
+//
+// tools/row-gen/ratified.json is the cure and it is now committed: the same
+// 878 rows in a file no generator writes, proven to render the committed
+// table byte for byte (ratified.go). [emittedRows] takes the corpus as an
+// argument so switching to it is one call site here - but only one of three,
+// because [buildConvergence] and [markerlessRoster] read
+// [identity.DefaultTable] on their own account too, and a from-empty -emit
+// has to satisfy the #132 unruled gate that [buildConvergence]'s verdict
+// feeds. Until all three move, this comment still describes the tree.
 //
 // Three fields are the deliberate exceptions, all recomputed by
 // renderIdentityFile on every run rather than copied, because nothing ever
@@ -202,7 +211,14 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 		return nil, emitPartition{}, emitPartition{}, err
 	}
 	vetoed := markerlessRoster(survey, proposals, grammar)
-	rows, types := emittedRows(recordBacked, grammar, survey, setOf(vetoed))
+	// The ratified corpus. Today it is read back out of [identity.DefaultTable],
+	// which is this generator's own previous output - that is issue #263's
+	// self-reference, and ratified.go is the file that ends it. The seam is
+	// here so that the switch to loadRatified is one argument rather than a
+	// rewrite of emittedRows, and so that
+	// TestRatifiedRendersTheCommittedIdentityTable can prove the stored corpus
+	// renders the committed table byte for byte before anything depends on it.
+	rows, types := emittedRows(ratifiedRowsOf(identity.DefaultTable), recordBacked, grammar, survey, setOf(vetoed))
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is
 	// only emittable when annotations.json records why - otherwise a row
@@ -342,20 +358,25 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 // The two halves come from different places on purpose. A RecordBacked row is
 // derived whole - its only non-zero fields are Type and RecordBacked, because
 // a record-backed type has no components to resolve and nothing about it is
-// ratified by hand. Every other row is copied verbatim from
-// [identity.DefaultTable], the ratified ground truth this file's own doc
-// comment describes, with mergeServerAssigned's, mergeCloudDefault's and
+// ratified by hand. Every other row is copied verbatim from the ratified
+// corpus, with mergeServerAssigned's, mergeCloudDefault's and
 // mergeIdentityAttrs' three recomputed fields layered over it.
-func emittedRows(recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
-	rows := make(map[string]identity.TypeIdentity, len(identity.DefaultTable)+len(recordBacked))
-	for _, t := range identity.AdmittedTypes() {
-		if identity.DefaultTable[t].RecordBacked {
+//
+// ratified is that corpus, passed in rather than read from
+// [identity.DefaultTable] here. Which corpus the caller supplies is what
+// issue #263 turns on: [identity.DefaultTable] is this generator's own
+// previous output, and tools/row-gen/ratified.json is an input no generator
+// writes. See ratified.go.
+func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
+	rows := make(map[string]identity.TypeIdentity, len(ratified)+len(recordBacked))
+	for _, t := range sortedRatifiedKeys(ratified) {
+		if ratified[t].RecordBacked {
 			continue // re-derived below, never copied
 		}
 		if vetoed[t] {
 			continue // markerless: no marker can attach, so no row
 		}
-		rows[t] = mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), grammar[t]), survey[t])
+		rows[t] = mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(ratified[t], grammar[t]), grammar[t]), survey[t])
 	}
 	for t := range recordBacked {
 		rows[t] = identity.TypeIdentity{Type: t, RecordBacked: true}
