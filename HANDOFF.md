@@ -110,6 +110,18 @@ another instance's object or leak one.
 So a defect that produces a wrong rendered identity outranks a whole class of
 refusals by count, every time.
 
+**And a wrong identity is invisible to every verdict-level check.** This was
+measured, not reasoned: `live/e2e/per-element` was run against floci with the
+canonicalising sort in `internal/live/identity/perelement.go` deliberately
+removed. The plan stayed empty, the second apply added nothing, and the
+foreign sweep came back clean — because the provider splits that import ID on
+`/` and puts the tail in a set, and a set has no order, so nothing on the wire
+objected. Only the assertion on the rendered string caught it.
+
+Convergence is therefore not evidence that an identity is right. An e2e step
+that stops at "plan is empty" has proved the run terminates, not that it
+addressed the correct object. Assert the rendered identity itself.
+
 ### No claim without a measurement
 
 A closed issue needs a closing comment naming the number that changed and the
@@ -634,12 +646,63 @@ would otherwise rediscover.
   So one fix covers all of it - treat an identity value that is unknown
   BECAUSE it comes from a resource this run planned the way a direct reference
   to that resource is already treated.
-  The obstacle is provenance: an unset required variable also evaluates to an
-  unknown, and deferring THAT would reverse #183's honesty. cty marks are the
-  natural carrier and the codebase already treats marks as first-class
-  (`marksafe`), but `val.IsMarked()` is itself a refusal condition in several
-  paths in resolve.go, so a provenance mark would refuse in exactly the places
-  it needs to pass. That interaction is the design, and it is the next slot.
+  The obstacle was thought to be provenance: an unset required variable also
+  evaluates to an unknown, and deferring THAT would reverse #183's honesty.
+- **RESOLVED 2026-08-17: cty marks cannot carry that provenance, and half the
+  problem needed no carrier at all.** Marks are out on evidence, not taste.
+  `IsMarked()` is not a policy test in this fork - it guards panicking
+  accessors, roughly 70 of them across `identity`, `lint`, `stamp`,
+  `dataread`, `check`, `foreign` and `projection`, and `internal/live/marksafe`
+  is a static prover that requires exactly that guard shape
+  (`marksafe.go:285`, `ProofGuarded`). The fork's guards also spell it
+  `IsMarked()` where stock spells it `HasMark(marks.Sensitive)`, so they
+  cannot tell two mark kinds apart. A second kind would mean rewriting every
+  guard and teaching marksafe a new proof form, with a missed site producing
+  either a wrong refusal or a panic.
+  The key-set half then turned out to be plain parity. Stock asks a `for_each`
+  two different questions - `IsKnown()` for a map or object, `IsWhollyKnown`
+  only for a set, because a set's elements ARE its keys while a map's values
+  never enter an address (`internal/lang/evalchecks/eval_for_each.go:144`).
+  This package asked `IsWhollyKnown` of all three and so refused a map with
+  literal keys and apply-time values that stock plans. `forEachKeysKnown`
+  fixes that and needs no provenance: stock's own rule already separates "I
+  cannot say which instances exist" from "I cannot say what is inside them".
+  #183's cohort stays refused for free, and for a reason worth writing down -
+  an unset required root variable does not evaluate to an unknown at all,
+  `configs.StaticEvaluator` refuses it outright with `No value for required
+  variable`.
+  **The second half is still open and no estate has cleared.** An identity
+  argument left unknown by the provider's plan must classify as
+  `ClassNeedsDiscovery`, not refuse at `resolve.go:2352`. The carrier for that
+  is the expansion rather than the value: leave a not-wholly-known element out
+  of `eachValues` and build the expansion `keyOnly`, so `expansion.scope`
+  leaves `each.value` unbound and the structural route that already produces
+  PARENT_DERIVED/NEEDS_DISCOVERY takes over. Unbuilt because it was not
+  verified that the structural route terminates correctly for a comprehension
+  loop variable rather than a resource instance address.
+- **RULED 2026-08-17: a type whose identity is fully determined by parents
+  choudoufu already tags and admits needs no marker of its own.** The
+  markerless veto reads two facts - untaggable, provider-minted identity - and
+  never asks the third: does the configuration already state enough to name
+  the object. `tools/survey-gen/classify.go:303` reasons from carrier signals,
+  and checks for a parent reference only inside the already-`derivable`
+  branch, over the provider's IDENTITY-SCHEMA attributes. A type with no
+  identity schema never reaches that check whatever its configuration says.
+  `internal/live/discovery/parent_read.go:48 parentReadSweep` is the mechanism
+  and it is already wired. Roughly a third of the 148-type veto has a required
+  argument pointing at a taggable, admitted parent - recomputed outside the
+  generator, so treat the figure as unverified until the generator says it.
+  Ruled in the same pass: **widen the derivability rule to read
+  mutually-exclusive argument groups.** An argument the schema marks Optional
+  only because it is one member of an `ExactlyOneOf` group, where the
+  configuration states exactly one member, counts as stated. That is what
+  `aws_eip_association` needs - its `allocation_id` / `instance_id` /
+  `network_interface_id` are all Optional for that reason alone.
+  Open under this ruling: the three CloudFront policy types have a required
+  client-supplied `name` and no identity schema at all, so nothing routes them
+  anywhere. Whether the name identifies the object is an evidence question -
+  if AWS does not enforce uniqueness, matching on name could adopt an object
+  the operator made by hand.
 - **Framing for that design, from the maintainer: choudoufu has to have an
   ANSWER here, and the answer may be a toggle rather than a rule.** Worth
   writing down because it changes what the fix is aiming at.
