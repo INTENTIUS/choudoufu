@@ -147,10 +147,12 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 8, Code: 0,
 	},
 	"tools/survey-gen/classify.go": {
-		Reason: "opsExcluded: aws_iam_access_key is one of the four sanctioned credential-material exclusions (a ruling, not " +
-			"hand-wiring); aws_acm_certificate_validation is a waiter that records only that DNS validation finished. Neither " +
-			"fact is in a schema.",
-		Data: 2, Code: 0,
+		Reason: "opsExcluded: aws_iam_access_key, one of the four sanctioned credential-material exclusions (a ruling, not " +
+			"hand-wiring). The secret half is unreadable after create, which is a fact about the resource's own contents " +
+			"and is in no schema. It was two until 2026-08-17, when the maintainer withdrew aws_acm_certificate_validation " +
+			"(\"waiter: records only that DNS validation finished\") - a judgment about what the resource means, not about " +
+			"what can name it, and the classifier settles the naming question from the schemas.",
+		Data: 1, Code: 0,
 	},
 	"tools/survey-gen/render.go": {
 		Reason: "summaryOverrides: one row, aws_iam_role_policy_attachment, where the survey's strongest-path classing and " +
@@ -229,7 +231,10 @@ const (
 	// aws_eip row when the "list + content match" token was renamed and the
 	// eip's Path cell was corrected to marker, which is what actually binds
 	// it. One literal deleted, none moved.
-	typeLiteralDataTotal = 424
+	// 424 -> 423, same day: survey-gen's opsExcluded lost
+	// aws_acm_certificate_validation when the maintainer withdrew the
+	// waiter exclusion. One literal deleted, none moved.
+	typeLiteralDataTotal = 423
 	typeLiteralCodeTotal = 125
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

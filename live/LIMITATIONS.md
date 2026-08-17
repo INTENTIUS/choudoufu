@@ -500,8 +500,8 @@ v0 admission table.
 
 **Why bounded.** "The admission rule". A type participates only if its
 identity is recoverable from the live system with no memory, by one of the
-four admission paths (`live/SURVEY.md`, 66 of 68 top types admitted; the
-two out are the excluded-by-rule set below), and the tables that record
+four admission paths (`live/SURVEY.md`, 67 of 68 top types admitted; the
+one out is the excluded-by-rule set below), and the tables that record
 admission
 (`internal/live/lint/admission_generated.go`, mirrored by
 `internal/live/identity`'s `table_generated.go`, the copy the sweep and
@@ -514,11 +514,17 @@ reversal) let its batch land. `aws_iam_access_key` held it after those and
 moved to the `markerless-type` entry below when that rule landed: it is on
 the derived markerless roster, so the refusal an operator now sees for it
 names the mechanism rather than the table. `aws_acm_certificate_validation`
-is what is left, and it is stable for the same reason `aws_iam_access_key`
-was: it is in the AWS provider survey's curated top types, and it is out by
-ruling rather than by any gap - it records only that DNS validation
-finished, which is lifecycle sequencing wearing a resource's shape, so no
-future ratification batch retires this example.
+is what is left, and as of 2026-08-17 it is here for the ordinary reason
+rather than a special one. It used to be described as stable - out by
+ruling, so no ratification batch would ever retire it. The maintainer
+withdrew that ruling: the resource gates whether the certificate is usable,
+so an estate does care about it, and "waiter" was a statement about what
+the resource means rather than about what can name it. Classified from its
+own schema it is parent-derived (`live/survey.json`), because the
+provider's identity schema for it requires exactly `certificate_arn`, a
+required argument pointing at the taggable, admitted `aws_acm_certificate`.
+So this example is admission debt like the rest of the entry, and a future
+ratification batch is expected to retire it.
 
 Two kinds of type hit this rule, and the error message used to make no
 distinction. Most out-of-table types are simply not wired yet - a scoping
@@ -530,10 +536,10 @@ other kind is out by rule with no wiring batch ever coming, and that half
 now has a refusal of its own wherever the reason is derivable: see
 `markerless-type` below, which claims every type the markerless roster
 vetoes, `aws_iam_access_key` among them. What is left under this heading is
-the surveyed type whose exclusion is a hand ruling the roster does not
-reach - `aws_acm_certificate_validation`, a waiter pretending to be a
-resource, which moves to lifecycle sequencing, the same forwarding
-`time_sleep` gets above. `aws_iam_access_key`'s own forwarding is unchanged
+one surveyed top type nobody has ratified a row for yet -
+`aws_acm_certificate_validation`, whose hand exclusion was withdrawn on
+2026-08-17 and which the survey now classes parent-derived.
+`aws_iam_access_key`'s own forwarding is unchanged
 by the move: it becomes a lifecycle-layer Op writing to the secret store,
 referenced by ARN or pointer, never by value, the same forwarding
 `random_password` gets. What cannot be read back there is the resource's
@@ -544,7 +550,7 @@ maintainer withdrew the exclusion: the ownership marker goes into a tag,
 never into the secret, so the credential rationale never applied to it. It
 is ordinary admission debt now, refused like every other untaggable type
 whose identity carries a server-minted component (#233).
-`live/SURVEY.md`, "The two the rule excludes", has the full account.
+`live/SURVEY.md`, "The one the rule excludes", has the full account.
 
 **Forwarding address.** For types not yet covered: the provider survey
 (`live/SURVEY.md`) and the generated admission table, which grows as
@@ -558,8 +564,8 @@ schema fallback runs only when the caller supplied provider schemas
 `CheckContext` passes). And the naming signal flips a refusal to an
 admission when every block of the type sets its identity argument
 explicitly. A `*_prefix` argument used in place of the name itself is the
-usual reason a type lands here. For the two
-types the rule excludes: the lifecycle layer, per their entries in
+usual reason a type lands here. For the one
+type the rule excludes: the lifecycle layer, per its entry in
 `live/SURVEY.md`.
 
 **Enforcement.** `RuleUnadmittedType`, `internal/live/lint/lint.go`

@@ -106,17 +106,22 @@ counting it that way the whole time.
 |---|---|
 | Client-named identity | 36 |
 | Marker (tags) | 23 |
-| Parent-derived | 5 |
+| Parent-derived | 6 |
 | Enumerable, unbindable (no admission path) | 2 |
-| Moves to Ops (excluded by the rule) | 2 |
+| Moves to Ops (excluded by the rule) | 1 |
 | Residue needing a store | 0 |
 <!-- survey-gen:end summary -->
 
-65 of 68 (96%) admitted in the resource model. Nothing in the top set
+67 of 68 (99%) admitted in the resource model. Nothing in the top set
 requires memory, so the residual-store row is empty, which is the result the
-admission rule was designed to force. The three exceptions, two credentials
-and one waiter, are the cases the design predicted, and are documented below
-with their forwarding addresses.
+admission rule was designed to force. One exception is left, a credential,
+documented below with its forwarding address. It was three: the design
+predicted two credentials and a waiter, and two of the three were withdrawn
+by ruling in two days. `aws_secretsmanager_secret_version` went on
+2026-08-16 because the marker goes into a tag rather than into the secret,
+and `aws_acm_certificate_validation` on 2026-08-17 because the resource
+gates whether the certificate is usable. Both are admission debt now, which
+is a worse-sounding place and a more honest one.
 
 ## Raw signals
 
@@ -177,8 +182,8 @@ token per row.
 | `wired` | in the fork's admission table (`internal/live/lint/admission.go`) and identity table (`internal/live/identity/table.go`) today | <!-- survey-gen:begin wired-count -->898<!-- survey-gen:end wired-count --> |
 | `ready` | admissible under the rule with no identity mechanism the fork lacks; wiring it is ordinary work (admission entry, identity entry, a list client where the marker path needs one) | 1 |
 | `needs-account-derived` | classification holds, but the import identity embeds the account or region, so wiring is blocked until an identity builder can substitute those components | 0 |
-| `ops` | excluded by the rule, forwarded to the lifecycle layer | 2 |
-| `unadmitted` | not excluded by the rule and not yet admissible: the identity carries a server-minted component and the type is untaggable, so there is nowhere to write the ownership marker (#233) | 1 |
+| `ops` | excluded by the rule, forwarded to the lifecycle layer | 1 |
+| `unadmitted` | not excluded by the rule and not yet admissible: no ratified row covers the type, whether because the identity carries a server-minted component with nowhere to write the ownership marker (#233) or simply because no batch has reached it | 2 |
 | `blocked-emulator` | admissible, but the e2e emulator cannot serve it, so the row cannot be proven live | 3 |
 | `unknown` | path not determined | 0 |
 
@@ -322,7 +327,7 @@ identity argument were derived like every other row's.
 | aws_cloudfront_origin_access_control | enumerable, unbindable | markerless | server-assigned OAC ID; registry-ratified (#40, #44, #65), outside this survey's provider-schema path, and the pinned floci image creates and lists OACs cleanly, so the earlier blocked-emulator note does not apply. Retracted 2026-08-16 by the markerless rule (#249): the row's own recovery story was "list and match on the required, AWS-enforced-unique `name` argument, since the type carries no tags", which is content matching rather than marker discovery - a route no leg of internal/live/discovery implements, since every leg binds a live object by reading the two marker tags. With no tags argument there is nowhere to write them, so the ratified route was never one the mechanism could take. The Path cell is the generalization of that retraction, landed 2026-08-17: this row's hand-written correction was the whole vocabulary's correction. | survey note, registry; docs |
 | aws_iam_access_key | moves to Ops | ops | server-assigned access key ID (AKIA...), and the secret half is unreadable after create. The REMAINDER batch briefly admitted it against this rule; #125 ruled for the exclusion and the admission was removed 2026-08-14 | survey note; schema |
 | aws_secretsmanager_secret_version | enumerable, unbindable | unadmitted | secret_id + server-assigned version_id (a UUID). Row corrected 2026-08-16: the hand exclusion was withdrawn by ruling - the ownership marker goes into a tag, never into the secret, so nothing about marking a version reads or exposes it and the credential rationale never applied here. Unadmitted now for the ordinary reason instead, recorded in tools/row-gen/rejected.json: untaggable with a server-minted identity component, so there is nowhere to write the marker (#233) | survey note; schema |
-| aws_acm_certificate_validation | moves to Ops | ops | certificate_arn, recording only that the wait finished | survey note; schema |
+| aws_acm_certificate_validation | parent-derived | unadmitted | certificate_arn, the sole required-for-import attribute, and a required argument of the type pointing at aws_acm_certificate. Row corrected 2026-08-17: the hand exclusion was withdrawn by ruling - the resource gates whether the certificate is usable, so an estate does care about it, and "waiter" described what the resource means rather than what can name it. Unadmitted now for the ordinary reason: no ratification batch has written it a row. `internal/live/identity`'s `Derivable` already admits it from the schemas, so a schema-backed run resolves it PARENT_DERIVED over the certificate's ARN today | survey note; schema |
 | aws_s3_bucket_versioning | client-named | wired | bucket (named singleton child) | roster fit; schema |
 | aws_s3_bucket_public_access_block | client-named | wired | bucket | roster fit; schema |
 | aws_s3_bucket_server_side_encryption_configuration | client-named | wired | bucket | roster fit; schema |
@@ -534,11 +539,16 @@ tracking reference or an explicit `permanent` marker, so a reader can tell
 which exceptions should shrink the count and which are fork design that
 will not (`TestExceptionTracking`).
 
-## The two the rule excludes
+## The one the rule excludes
 
-This section said "three" until 2026-08-16, and the type it lost is worth
-recording ahead of the two that remain, because it was excluded by a hand
-edit rather than by the rule.
+This section said "three" until 2026-08-16 and "two" until 2026-08-17, and
+the two types it lost are worth recording ahead of the one that remains,
+because both were excluded by a hand edit rather than by the rule. The
+pattern in the two withdrawals is the part to carry forward: an entry in
+`opsExcluded` is legitimate only when it records a fact about the
+resource's own contents that no schema carries. "This is a waiter" and
+"the marker would touch a secret" were judgments about how the resource is
+used, and neither survived the question of what can name it.
 
 `aws_secretsmanager_secret_version` was in `tools/survey-gen`'s
 `opsExcluded` map reading "credential: secret_id plus a server-assigned
@@ -557,12 +567,12 @@ every other server-minted composite is: its identity needs the server's
 argument there is nowhere to write the ownership marker. That is issue
 #233, and `tools/row-gen/rejected.json` now records it in those words.
 
-Exactly two of the 68 fail the admission rule, and they fail it
-permanently: the rule itself excludes them, and no later scope change
-readmits them. This is a
+Exactly one of the 68 fails the admission rule, and it fails it
+permanently: the rule itself excludes it, and no later scope change
+readmits it. This is a
 different kind of "not admitted" than the surveyed types that are merely
-not wired yet (4 of them at the 61 types wired today: the `ready` and
-`blocked-emulator` rows above), and `live/LIMITATIONS.md`'s
+not wired yet (the `ready`, `unadmitted` and `blocked-emulator` rows
+above), and `live/LIMITATIONS.md`'s
 `unadmitted-type` entry draws the same distinction.
 
 `aws_iam_access_key` is a credential: identity born server-side alongside a
@@ -579,12 +589,20 @@ the same forwarding `random_password` already has in
 `live/LIMITATIONS.md`, and OpenTofu's ephemeral resources and
 write-only attributes cover parts of the credential story natively.
 
-`aws_acm_certificate_validation` is a waiter in resource form:
-its entire job is to block until DNS validation completes, and its state
-entry records only that the wait finished once. Waiting belongs to the
-lifecycle layer's sequencing, the same forwarding address `time_sleep`
-has in `live/LIMITATIONS.md`.
+`aws_acm_certificate_validation` was in `opsExcluded` too, reading "waiter:
+records only that DNS validation finished; waiting belongs to the lifecycle
+layer". The maintainer withdrew it on 2026-08-17: the resource gates
+whether the certificate is usable, so an estate does care about it, and
+"waiter" described what the resource means rather than what can name it.
+The naming question has a plain answer. The provider's identity schema for
+the type requires exactly `certificate_arn`, which is a required argument
+of the type and refers to `aws_acm_certificate` - taggable, admitted, and
+discoverable by its markers. So the row classifies `parent-derived` from
+the schemas alone, the same shape `aws_s3_bucket_policy` has, and
+`internal/live/identity`'s `Derivable` was already admitting it while the
+artifact said Ops. It is unadmitted today only because no ratification
+batch has written it a row.
 
-The survey's main result is that the excluded set is one credential plus a
-waiter and the residue row is zero: after four admission
-paths and credentials-to-Ops, nothing in the AWS top set needs a store.
+The survey's main result is that the excluded set is one credential and the
+residue row is zero: after the admission paths and credentials-to-Ops,
+nothing in the AWS top set needs a store.
