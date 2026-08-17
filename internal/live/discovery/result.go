@@ -734,6 +734,44 @@ const (
 	// error: nothing about the run in front of the operator is wrong, and
 	// the resource simply sits outside removal coverage.
 	ProblemUnsweepableOwnedType ProblemKind = "UNSWEEPABLE_OWNED_TYPE"
+
+	// ProblemAmbiguousTagJoin is a listed resource whose own list call
+	// returned no ownership marker, and whose identifier matched more than
+	// one resource in the estate's tag index carrying a tofu-address that
+	// names this very type (issue #266, [markerIndex.join]).
+	//
+	// The join exists to attach the tags a list call dropped to the object
+	// they belong to. Two candidates means the data does not say which
+	// object was listed, and binding either would risk adopting the other's
+	// live resource - the one outcome worse than the defect the join fixes.
+	// So nothing is bound and the ARNs are named. An error, because two
+	// resources of one type sharing one identifier means the estate's own
+	// records disagree.
+	ProblemAmbiguousTagJoin ProblemKind = "AMBIGUOUS_TAG_JOIN"
+
+	// ProblemUnreadableMarker is a declared instance that went unbound
+	// while the run listed at least one live resource of its type whose
+	// ownership marker it could not read (issue #266).
+	//
+	// Unbound means the plan will propose creating it. That is the right
+	// answer for a greenfield instance and the wrong one for an instance
+	// whose live resource was on the table all along with its tags stripped
+	// off by the list call - and the two look identical in the output,
+	// which is how #266 shipped a run that created a duplicate per apply
+	// and reported the original as foreign in the same breath.
+	//
+	// The predicate is deliberately not "which types lose their tags on the
+	// list path". An honestly untagged resource of a type that keeps its
+	// tags produces byte-identical evidence, and that case is arguably
+	// correct - an unmarked object is not this estate's. The run cannot
+	// tell them apart, so it says what it saw.
+	//
+	// A warning: nothing here is known to be wrong, and refusing would
+	// refuse every genuine greenfield create in an account that has any
+	// untagged resource of the same type. When [markerIndex] can settle it
+	// - the tag index holds a resource marked for this exact address that
+	// no listed object matched - the detail says so outright.
+	ProblemUnreadableMarker ProblemKind = "UNREADABLE_MARKER"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.
@@ -742,7 +780,7 @@ const (
 // operator may be perfectly correct.
 func (k ProblemKind) Severity() Severity {
 	switch k {
-	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker:
+	case ProblemUnresolvedAccount, ProblemUnresolvedTaggedARN, ProblemUnsweepableOwnedType, ProblemDisplacedMarker, ProblemUnreadableMarker:
 		return SeverityWarning
 	}
 	return SeverityError
@@ -907,6 +945,14 @@ type TypeScan struct {
 	// object.
 	Refined int
 
+	// Joined is the number of listed resources that came back with no
+	// ownership marker of their own and had one attached from the estate's
+	// tag index instead (issue #266, [markerIndex.join]). It is the count
+	// of instances that would have gone unbound - and been proposed for
+	// creation over a live resource that already exists - on the pre-#266
+	// path, so it is worth seeing rather than hiding.
+	Joined int
+
 	// Sweep is true when this scan is part of the estate-wide sweep: a type
 	// the configuration declares nothing of, listed anyway because this
 	// estate may still own resources of it. Such a scan looks for markers
@@ -934,8 +980,12 @@ func (s TypeScan) String() string {
 	case SourceProvider:
 		source = " source=provider"
 	}
-	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s",
-		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source)
+	joined := ""
+	if s.Joined > 0 {
+		joined = fmt.Sprintf(" joined=%d", s.Joined)
+	}
+	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s%s",
+		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source, joined)
 }
 
 // BindingFor returns the binding for one declared instance.

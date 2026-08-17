@@ -118,6 +118,33 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 			continue
 		}
 
+		// Issue #266, the same join [scanType] makes on the native list
+		// path and for the same reason: a listed object with no readable
+		// marker is one a needs-discovery instance can never bind to. Here
+		// it also covers the case cloudControlTags' own GetResource
+		// refinement could not settle. See bindtags.go.
+		if tags[TagEstate] == "" {
+			joined, outcome := req.markers.join(ctx, typeName, importID)
+			switch outcome {
+			case joinBound:
+				tags, taggable = joined, true
+				scan.Joined++
+				log.Printf("[DEBUG] stateless/discovery: %s %q came back from Cloud Control with no ownership marker; joined one from the estate's tag index", typeName, importID)
+			case joinAmbiguous:
+				diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemAmbiguousTagJoin,
+					TypeName: typeName,
+					LiveIDs:  liveIDs(importID),
+					Detail: fmt.Sprintf(
+						"Cloud Control listed a %s (%s) carrying no ownership marker, and more than one resource in estate %q's tag index has that identifier and a tofu-address naming a %s: %s. Nothing in either answer says which is the listed object, so no marker was read off it. Retag or remove the duplicates.",
+						typeName, importID, req.Estate, typeName, strings.Join(req.markers.matchedARNs(typeName, importID), ", ")),
+				}))
+			}
+		}
+		if tags[TagEstate] == "" && !sweep {
+			decl.unreadable[typeName]++
+		}
+
 		if !taggable {
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,

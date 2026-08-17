@@ -504,9 +504,12 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 		inUniverse[t] = true
 	}
 
-	tagged, err := req.Tagging.GetResources(ctx, nil, []cloudcontrol.TagFilter{
-		{Key: TagEstate, Values: []string{req.Estate}},
-	})
+	// Issue #266 moved this call out of here and into [markerIndex], which
+	// [Discover] installs before the config-driven scan runs so that scan
+	// can join tags off the same answer. It is still one call: whoever asks
+	// first pays for it, and the sweep asks second whenever the scan needed
+	// it. Nothing else about this path changed.
+	tagged, err := req.markers.resources(ctx)
 	if err != nil {
 		for _, typeName := range universe {
 			diags = diags.Append(sweepGapDiag(res, SweepGap{

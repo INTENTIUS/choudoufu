@@ -3,14 +3,14 @@ set -euo pipefail
 
 # Create-over-existing, end to end against a real emulator.
 #
-# THIS SCRIPT PINS A DEFECT. Every assertion below describes what choudoufu
-# does today, not what it should do. Exit 0 means the defect is still there.
-# See "when this goes red" at the bottom for what to change when it is fixed.
+# THIS SCRIPT PINNED A DEFECT (issue #266) and now pins its fix. Read it in
+# that order, because every assertion below is the inverse of one that used to
+# be here, and the failure messages are written for whoever finds it red.
 #
-# The claim, in one sentence: a needs-discovery resource whose type loses its
-# tags on the provider's list path is invisible to marker discovery, so a
-# live-plan proposes CREATING a resource this estate already owns - and an
-# apply then creates a second one, carrying the same ownership marker as the
+# The defect, in one sentence: a needs-discovery resource whose type loses its
+# tags on the provider's list path was invisible to marker discovery, so a
+# live-plan proposed CREATING a resource the estate already owned - and an
+# apply then created a second one, carrying the same ownership marker as the
 # first, once per run, without an error.
 #
 # Two resources, differing in exactly one property. Both are
@@ -26,21 +26,23 @@ set -euo pipefail
 #
 # The control is what makes this a measurement rather than an anecdote. If
 # both were proposed for creation, the finding would be "this harness cannot
-# discover anything". The control binding and the subject not isolates the
-# tag-losing list path as the cause.
+# discover anything". The control binding and the subject not isolated the
+# tag-losing list path as the cause, and it still isolates it now that the
+# subject binds too: step 7 turns the fix off and the control keeps binding.
 #
-# What the run does NOT do is stay silent, and that is worth reading in the
-# output: it reports the estate's own role under "Foreign resources ... not
-# owned by estate", with "tags: (none)", because that is what the list call
-# said. The one live object choudoufu is looking for is on screen, named,
-# described as somebody else's.
-#
-# The data needed to bind it is on the wire in the same run. The estate-wide
+# What fixed it: the data was on the wire the whole time. The estate-wide
 # tagging sweep makes one GetResources call whose answer carries the role's
 # ARN and its tofu-estate/tofu-address tags; step 2 asserts that directly
-# through the AWS CLI. internal/live/discovery/tagging.go's sweepViaTagging
-# discards it, because a type the config-driven scan already covers is
-# skipped (`if !inUniverse[out.typeName] { continue }`).
+# through the AWS CLI. That call is now made before the config-driven scan
+# rather than after it (internal/live/discovery/bindtags.go, markerIndex), and
+# its tags are joined onto listed objects by identifier - so a listed role
+# that arrived with an empty tag map gets the marker it actually carries. No
+# ARN join table, no second API call.
+#
+# The join refuses rather than guesses: the tagged resource's own
+# tofu-address has to name the type being listed, it has to carry this
+# estate, and exactly one candidate may match. Step 7 pins what happens when
+# it cannot fire at all.
 #
 #   bash live/e2e/create-over/run.sh
 #
@@ -152,8 +154,10 @@ VPC_ID="$(awsl ec2 describe-vpcs --query "Vpcs[?CidrBlock==\`${VPC_CIDR}\`].VpcI
 log "  role $ROLE1 and vpc $VPC_ID live, both carrying this estate's markers"
 
 # And the markers are in the Resource Groups Tagging index too. This is not
-# scenery: it is the assertion that the run below HAS the answer available to
-# it in a call it already makes, and throws it away.
+# scenery: it is the premise of the whole fix. The run below reads that index
+# through a call it already makes, and joins its tags onto the listed objects
+# whose own list call dropped them. Step 7 takes the index away and asserts
+# what is left.
 SWEPT="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null || echo "")"
@@ -186,81 +190,110 @@ grep -qE '# aws_vpc\.control will be created' <<< "$PLAN_OUT" \
        fail "the CONTROL failed: aws_vpc.control is proposed for creation too, so this run discovered nothing at all and the subject's result says nothing about tag-losing list paths. Fix the harness before reading anything else here."; }
 log "  control: aws_vpc.control bound by its marker, not proposed for creation"
 
-# 4b. THE DEFECT. Read the failure message before changing this.
+# 4b. THE SUBJECT. The role's list call still returns no tags - nothing about
+# the provider changed - but the estate's tag index does carry them, and the
+# join in internal/live/discovery/bindtags.go attaches them to the listed
+# object by identifier. So the instance binds and there is nothing to create.
 grep -qE '# aws_iam_role\.subject will be created' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -vE '^\s*$' | tail -40
+       fail "aws_iam_role.subject is proposed for creation, which is issue #266 back. Applying that plan creates a second live role carrying the first one's ownership marker, once per run, without an error. The join lives in internal/live/discovery/bindtags.go; step 7 below runs the same fixture with the tag index switched off and pins what the honest fallback looks like, so compare the two outputs before deciding which half broke."; }
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" \
   || { printf '%s\n' "$PLAN_OUT" | grep -vE '^\s*$' | tail -40
-       fail "aws_iam_role.subject is NOT proposed for creation. That is GOOD NEWS and means the create-over defect this script pins has been fixed: marker discovery can now see a resource whose type loses its tags on the provider's list path. Invert steps 4b, 4c and 5 (the plan should propose nothing, and the apply should add nothing), and say in the commit which change did it."; }
-grep -qE 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Plan:'
-       fail "the plan summary is not 'Plan: 1 to add, 0 to change, 0 to destroy'. Something other than the pinned defect moved; read the plan before assuming either direction."; }
+       fail "the plan is not empty. aws_iam_role.subject is not being created (4b passed), so something else moved; read the plan before assuming either direction."; }
 
-# 4c. And the run has the live role on screen while it does it, filed under
-# the wrong heading. This is the assertion that the failure is not merely
-# "nothing was found" but "the object was found and called somebody else's".
-grep -qE 'Foreign resources: 1 live resource not owned by estate' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -vE '^\s*$' | tail -40
-       fail "the plan does not report exactly one foreign resource. The defect's signature is that the estate's own role is listed as unowned because its listed object arrived with no tags; if that changed, re-read the output."; }
-grep -q "$ROLE1" <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -vE '^\s*$' | tail -40
-       fail "the plan never names the live role $ROLE1, so it did not even list it - a different failure from the one this script pins"; }
-log "  defect: aws_iam_role.subject proposed for creation while $ROLE1 is on screen, reported as foreign"
+# 4c. And the estate's own role is no longer filed as somebody else's. Under
+# the defect this said "Foreign resources: 1 live resource not owned by
+# estate", naming the role the run was looking for.
+grep -qE '^Foreign resources: none' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Foreign resources:'
+       fail "the plan does not report 'Foreign resources: none'. The estate owns exactly two live resources and both carry its markers, so anything else here means one of them was read as unowned - the defect's own signature, even if the plan happens to be empty. Under the defect this line read 'Foreign resources: 1 live resource not owned by estate'."; }
+log "  subject: aws_iam_role.subject bound to $ROLE1 from the tag index; nothing proposed, nothing foreign"
 
-# ── 5. what an apply then does ──────────────────────────────────────────────
-# The plan is a proposal; this is the harm. A name_prefix role has no unique
-# name to collide on, so the create succeeds and the estate ends up with two
-# live roles carrying one ownership marker - which is the condition
-# live/MARKERS.md calls a collision, written by this tool into the cloud.
-log "=== 5. apply the proposal ==="
+# ── 5. an apply changes nothing ─────────────────────────────────────────────
+# The plan is a proposal; this is what it does. Under the defect this apply
+# added a role and left two live objects carrying one ownership marker - the
+# condition live/MARKERS.md calls a collision, written by this tool into the
+# cloud.
+log "=== 5. apply the (empty) proposal ==="
 APPLY2_OUT="$(cd "$MAIN" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY2_OUT" | tail -30
-  fail "the second apply failed. For a type whose name IS in the configuration the create-over defect surfaces here, as an AlreadyExists error; this fixture uses name_prefix precisely so that it does not, and a failure means the fixture changed."
+  fail "the second apply failed"
 }
-grep -qE 'Apply complete! Resources: 1 added' <<< "$APPLY2_OUT" \
-  || { printf '%s\n' "$APPLY2_OUT" | tail -20; fail "the second apply did not add exactly 1 resource"; }
+grep -qE 'Resources: 1 added' <<< "$APPLY2_OUT" \
+  && { printf '%s\n' "$APPLY2_OUT" | tail -20
+       fail "the second apply added a resource. That is the create-over defect doing its damage even though the plan looked clean; read both outputs."; }
 
 ROLES2="$(role_names)"
 COUNT2="$(wc -l <<< "$ROLES2" | tr -d ' ')"
-[ "$COUNT2" = "2" ] \
-  || fail "expected 2 $ROLE_PREFIX* roles after the second apply, got $COUNT2: $(tr '\n' ' ' <<< "$ROLES2")"
+[ "$COUNT2" = "1" ] \
+  || fail "expected exactly 1 $ROLE_PREFIX* role after the second apply, got $COUNT2: $(tr '\n' ' ' <<< "$ROLES2")"
 
-# Both carry the same marker. Asserted through the tagging index rather than
-# per-role tag reads, so one query answers "how many live objects claim this
-# address".
-DUPES="$(awsl resourcegroupstaggingapi get-resources \
+# One live object claims the address. Asserted through the tagging index
+# rather than per-role tag reads, so one query answers "how many live objects
+# claim this address" - the same query that returned 2 under the defect.
+CLAIMS="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-address,Values=aws_iam_role.subject" \
   --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null | tr '\t' '\n' | grep -c 'role/' || true)"
-[ "$DUPES" = "2" ] \
-  || fail "expected 2 live roles carrying tofu-address=aws_iam_role.subject, got $DUPES"
-log "  two live roles now carry tofu-address=aws_iam_role.subject:"
-while read -r r; do log "    $r"; done <<< "$ROLES2"
+[ "$CLAIMS" = "1" ] \
+  || fail "expected exactly 1 live role carrying tofu-address=aws_iam_role.subject, got $CLAIMS"
+log "  still one role, $ROLE1, and one live object claims aws_iam_role.subject"
 
-# ── 6. and it does not converge ─────────────────────────────────────────────
-# Neither role's marker is readable off the list path, so the next run is in
-# exactly the same position as the last one. The defect is not a one-off
-# double; it is one new resource per run, forever.
-log "=== 6. the next run proposes another one ==="
+# ── 6. and it converges ─────────────────────────────────────────────────────
+# The defect was not a one-off double: it was one new resource per run,
+# forever, because every run was in the same position as the last. So the
+# assertion that matters is the SECOND replan, from a deleted state file
+# again.
+log "=== 6. the next run proposes nothing either ==="
 rm -f "$MAIN/terraform.tfstate" "$MAIN/terraform.tfstate.backup"
 set +e
 PLAN3_OUT="$(cd "$MAIN" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN3_RC=$?
 set -e
 [ "$PLAN3_RC" -eq 0 ] || { printf '%s\n' "$PLAN3_OUT" | tail -30; fail "the third live-plan exited $PLAN3_RC"; }
-grep -qE 'Plan: 1 to add, 0 to change, 0 to destroy' <<< "$PLAN3_OUT" \
-  || { printf '%s\n' "$PLAN3_OUT" | grep -E '^Plan:'
-       fail "the third plan is not 'Plan: 1 to add'. If it now reports a collision or refuses, that is a partial fix and this step should be re-read rather than deleted."; }
-grep -qE 'Foreign resources: 2 live resources not owned by estate' <<< "$PLAN3_OUT" \
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN3_OUT" \
   || { printf '%s\n' "$PLAN3_OUT" | grep -vE '^\s*$' | tail -30
-       fail "the third plan does not report both roles as foreign"; }
-log "  a third role would be created; both existing ones still read as foreign"
+       fail "the third plan is not empty, so the run does not converge"; }
+grep -qE '^Foreign resources: none' <<< "$PLAN3_OUT" \
+  || { printf '%s\n' "$PLAN3_OUT" | grep -E '^Foreign resources:'
+       fail "the third plan does not report 'Foreign resources: none'"; }
+log "  converged: nothing to create, nothing foreign"
 
-# ── 7. no state file, ever ──────────────────────────────────────────────────
+# ── 7. fail closed, and say so ──────────────────────────────────────────────
+# The join reads the Resource Groups Tagging index. TOFU_LIVE_CLOUDCONTROL=off
+# takes that index away, which is also what a real account's indexing delay
+# looks like for a resource tagged seconds ago. The join must then find
+# nothing rather than guess - a wrong bind adopts somebody else's object and
+# is worse than the defect - so the run returns to proposing a create. What it
+# must NOT do is return to proposing it silently.
+log "=== 7. with the tag index off: degrade, and say so ==="
+rm -f "$MAIN/terraform.tfstate" "$MAIN/terraform.tfstate.backup"
+set +e
+PLAN4_OUT="$(cd "$MAIN" && TOFU_LIVE_CLOUDCONTROL=off "$TOFU" live-plan -input=false -no-color 2>&1)"
+PLAN4_RC=$?
+set -e
+[ "$PLAN4_RC" -eq 0 ] || { printf '%s\n' "$PLAN4_OUT" | tail -30; fail "the tag-index-off live-plan exited $PLAN4_RC"; }
+grep -qE '# aws_iam_role\.subject will be created' <<< "$PLAN4_OUT" \
+  || { printf '%s\n' "$PLAN4_OUT" | grep -vE '^\s*$' | tail -40
+       fail "with TOFU_LIVE_CLOUDCONTROL=off the plan does NOT propose creating aws_iam_role.subject. Either the join found the tags somewhere other than the tagging index - which would mean this step is no longer measuring the fallback - or the fixture changed. Do not delete this step to make it quiet."; }
+grep -q 'Unbound instance with unreadable live markers of its type' <<< "$PLAN4_OUT" \
+  || { printf '%s\n' "$PLAN4_OUT" | grep -vE '^\s*$' | tail -40
+       fail "the tag-index-off run proposes creating a resource that exists and says nothing about why it might be wrong. Degrading to the pre-fix behaviour is acceptable; degrading to it silently is the defect. The finding is discovery.ProblemUnreadableMarker."; }
+# The control still binds with the index off - its tags ride along on the
+# list call - so the finding is about the subject and nothing else.
+grep -qE '# aws_vpc\.control will be created' <<< "$PLAN4_OUT" \
+  && { printf '%s\n' "$PLAN4_OUT" | grep -vE '^\s*$' | tail -40
+       fail "with the tag index off the CONTROL stopped binding too, so this step is measuring a dead discovery pass rather than the join's fallback"; }
+log "  degraded to a create, with the finding on screen, control still bound"
+
+# ── 8. no state file, ever ──────────────────────────────────────────────────
 [ ! -f "$MAIN/terraform.tfstate" ] \
   || fail "a state file exists after live-plan - it must never be read or written"
 
 log ""
-log "=== PASS - the defect is present, as pinned ==="
+log "=== PASS - the create-over defect is fixed, and the fallback is honest ==="
 log ""
-log "When this goes red because aws_iam_role.subject stops being proposed for"
-log "creation, that is the fix landing. Invert 4b, 4c, 5 and 6: the plan should"
-log "propose nothing, the apply should add nothing, and there should still be"
-log "exactly one role. Keep the control in 4a exactly as it is."
+log "This script pinned the DEFECT until issue #266 was fixed; every assertion"
+log "above is now the fix. If 4b or 5 goes red, choudoufu is creating a second"
+log "live resource over one it already owns - read internal/live/discovery/"
+log "bindtags.go, and read step 7's output beside step 4's, because the two"
+log "differ only in whether the tag index was available."

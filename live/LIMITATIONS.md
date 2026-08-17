@@ -1426,6 +1426,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
+| - | - | discovery | Listed resource matched more than one tagged resource | error | `internal/live/discovery` | "Listed resource matched more than one tagged resource" |
 | - | - | discovery | Listed resource with no identity | error | `internal/live/discovery` | "Listed resource with no identity" |
 | - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
 | - | - | discovery | Live resource displaced from the address it is marked for | warning | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
@@ -1442,6 +1443,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Tagged resource's ARN could not be joined to a resource type | warning | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
 | - | - | discovery | Two live resources claiming one address | error | `internal/live/discovery` | "Two live resources claiming one address" |
 | - | - | discovery | Two live resources claiming one slot | error | `internal/live/discovery` | "Two live resources claiming one slot" |
+| - | - | discovery | Unbound instance with unreadable live markers of its type | warning | `internal/live/discovery` | "Unbound instance with unreadable live markers of its type" |
 | - | - | discovery | Unclassified discovery problem | error | `internal/live/discovery` | "Unclassified discovery problem" |
 | - | - | discovery | Unlistable marker-discovered type | error | `internal/live/discovery` | "Unlistable marker-discovered type" |
 | - | - | discovery | Unscoped account reconciliation refused | error | `internal/live/discovery` | "policy-scope" |
@@ -1572,7 +1574,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**178 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**180 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1788,6 +1790,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Listed resource matched more than one tagged resource
+
+**What.** A live resource was listed with no ownership marker of its own, and its identifier matched more than one resource in the estate's tag index whose marker names this very type. Attaching either one's tags would risk adopting the other's resource, so none was attached.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Listed resource with no identity
 
 **What.** A live resource carries this estate's markers but the listing returned nothing that identifies it, so it cannot be bound to a configuration address.
@@ -1911,6 +1921,14 @@ reserved for the limits wing's fixture directories, and
 #### Two live resources claiming one slot
 
 **What.** Two live resources carry the same tofu-slot marker within one fungible set.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unbound instance with unreadable live markers of its type
+
+**What.** A declared instance bound to nothing, so the plan proposes creating it, while the run listed live resources of its type whose ownership markers it could not read. One of them may be this instance's own resource, in which case applying creates a duplicate carrying the same marker instead of adopting it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
