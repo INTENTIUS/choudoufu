@@ -67,7 +67,7 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        704,
+	"CONCRETE":        713,
 	"NEEDS_DISCOVERY": 557,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -98,11 +98,11 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "eedb02a4b679494c20be8cb35093d3ca633df1f221431154c01222c91db281e1"
+const identityGoldenPinBodyDigest = "7a55ec8c052c81df44d9587d2d06fc18acd58c199f6102ab8a2069cb81c08945"
 
 const (
-	identityGoldenPinInstances = 1373
-	identityGoldenPinDirs      = 410
+	identityGoldenPinInstances = 1382
+	identityGoldenPinDirs      = 411
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
