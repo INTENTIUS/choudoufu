@@ -781,22 +781,28 @@ func validateRecordStorePath(raw string) string {
 // validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
 // "s3" key_prefix may not be used, or "" when it is fine.
 //
-// The rule that matters: two namespaces beside the records must stay
+// The rule that matters: three namespaces beside the records must stay
 // unreachable from an override. The receipts pattern (live/RECEIPTS.md)
-// owns "/tofu-receipts/<estate>/<effect>", and guided discovery's hint
+// owns "/tofu-receipts/<estate>/<effect>"; guided discovery's hint
 // (issue #109) owns "tofu-hints/<estate>" in the same store - see
-// internal/live/projection's hintNamespaceRoot, and note the stakes differ:
-// a record landing in the receipts namespace could collide with a receipt,
-// while a record prefix equal to the hint namespace would make orphan
-// discovery's listing of the record namespace see the hint key and try to
-// read it as a resource record. Namespace safety is
+// internal/live/projection's hintNamespaceRoot; and record-located
+// identities (issue #270) own "tofu-located/<estate>" - see that package's
+// locatedNamespaceRoot. The stakes differ across the three. A record
+// landing in the receipts namespace could collide with a receipt. A record
+// prefix equal to the hint namespace would make orphan discovery's listing
+// of the record namespace see the hint key and try to read it as a resource
+// record. A record prefix equal to the LOCATED namespace is the worst of
+// the three, because a record key with no configuration behind it is
+// proposed for destruction and a located key names a live cloud object the
+// record was never authority over. Namespace safety is
 // disjoint-by-construction for the default (the caller's own key prefix is
-// always rooted at a third literal, "tofu-records/<estate>" - see
+// always rooted at a fourth literal, "tofu-records/<estate>" - see
 // internal/live/projection.RecordKeyPrefix), but an operator-supplied
 // override is checked here at the segment level, the same "/"-delimited
 // hierarchy SSM parameter names and S3 key prefixes both already use: a
-// key_prefix whose first segment is exactly "tofu-receipts" or "tofu-hints"
-// is refused, whether or not it carries a leading or trailing slash.
+// key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints"
+// or "tofu-located" is refused, whether or not it carries a leading or
+// trailing slash.
 func validateRecordStoreKeyPrefix(raw string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
@@ -808,6 +814,9 @@ func validateRecordStoreKeyPrefix(raw string) string {
 	}
 	if first == "tofu-hints" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-hints\" segment: that namespace belongs to guided discovery's hint, which lives beside the records in the same store, and a record's keys must stay disjoint from it so the listing that finds removed record-backed resources can never mistake the hint for one of them."
+	}
+	if first == "tofu-located" {
+		return "The \"key_prefix\" argument must not begin with the \"tofu-located\" segment: that namespace holds the identities of live objects that have nowhere to carry an ownership marker (GitHub issue #270), and it is the one namespace whose keys must never be enumerable as records. A record key is read as the estate's inventory - a key with no configuration behind it is proposed for destruction - while a located key is only an answer to \"which object is this\". Overlapping the two would let a stale located key drive a cloud deletion."
 	}
 	return ""
 }
