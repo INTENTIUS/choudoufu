@@ -63,7 +63,6 @@ var untaggableAiLocation = []string{
 	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
 	// taggability per the provider schema survey (live/survey-full.json,
 	// v6.59.0 signals.taggable).
-	"aws_bedrockagentcore_gateway_rule",
 }
 
 func init() {

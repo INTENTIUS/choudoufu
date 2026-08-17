@@ -21,9 +21,6 @@ var untaggableIamEcr = []string{
 	// Registry-ratified IAM and ECR batch (#40, #44, issue #26): three
 	// singleton-per-account ECR types with no tags argument at all. See
 	// live/e2e/estates/iam-ecr/README.md, "Untaggable types".
-	"aws_ecr_registry_policy",
-	"aws_ecr_registry_scanning_configuration",
-	"aws_ecr_replication_configuration",
 	// Registry-ratified ECS/EKS batch (#40, #44, issue #65): the
 	// deferred aws_iam_group (its own old blocker, the doc gate, closed
 	// by #54) plus this batch's two untaggable ECS/EKS rows. See

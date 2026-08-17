@@ -21,7 +21,6 @@ var untaggableLambda = []string{
 	// Registry-ratified Lambda batch (#40, #44): the batch's one
 	// untaggable type. See live/e2e/estates/lambda/README.md,
 	// "Untaggable types".
-	"aws_lambda_layer_version",
 	// #175 reversal batch, 2026-08-15: taggability per the provider
 	// schema survey (live/survey-full.json, v6.59.0 signals.taggable).
 	"aws_lambda_permission",

@@ -29,9 +29,6 @@ var untaggableEc2Core = []string{
 	// block at all, plus aws_ebs_snapshot_block_public_access, a
 	// per-region singleton with no arguments at all beyond `state`. See
 	// live/e2e/estates/ec2-core/README.md, "Untaggable types".
-	"aws_network_interface_attachment",
-	"aws_network_interface_permission",
-	"aws_eip_association",
 	"aws_volume_attachment",
 	"aws_ebs_snapshot_block_public_access",
 }

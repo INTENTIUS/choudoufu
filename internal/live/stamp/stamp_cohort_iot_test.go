@@ -34,7 +34,6 @@ var untaggableIot = []string{
 	// vpc_configuration. See live/e2e/estates/iot/README.md,
 	// "Untaggable types".
 	"aws_iot_thing",
-	"aws_iot_topic_rule_destination",
 }
 
 func init() {
