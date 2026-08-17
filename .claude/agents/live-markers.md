@@ -346,9 +346,11 @@ one to three times. Two of those were buying nothing, so:
   per entry that no other count moved.
 
   But "upper bound" is true of **sites** and **false of the verdict**.
-  Measured over all 250 entries at one commit, schema-less then not:
+  Measured over all 250 entries at 0044177183, schema-less then not (the
+  figures first written here were measured at 7d66fa0968, before #200's fix
+  emptied the duplicate-identity class, and read 8461):
 
-      sites     8767 → 8461      blocked configurations   193 → 206
+      sites     8767 → 8427      blocked configurations   193 → 206
       instances 3587 → 3921
 
   **Blocked configurations rise by thirteen.** Thirteen configurations read
@@ -358,7 +360,8 @@ one to three times. Two of those were buying nothing, so:
   look like it unblocked something it did not.
 
   The default mode is also blind to **the whole stamp layer** (110 sites),
-  to `Two resources with the same identity` (34), and to any non-AWS estate —
+  to `Two resources with the same identity` (34 at 7d66fa0968, 0 today —
+  #200 emptied the class), and to any non-AWS estate —
   a `google_*` configuration measured with no google schema reports
   `unadmitted-type` for every resource in it, which is a property of the run.
 
