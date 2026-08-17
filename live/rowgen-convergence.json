@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 895,
-    "compared": 881,
+    "admitted_total": 896,
+    "compared": 882,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 789,
-    "adopted_unchanged_pct": 89.56,
+    "adopted_unchanged": 790,
+    "adopted_unchanged_pct": 89.57,
     "genuine_mismatches": 92,
     "annotated": 92,
     "unannotated_mismatches": 0,
@@ -13,9 +13,9 @@
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 14,
-      "adopted_unchanged": 9,
-      "adopted_unchanged_pct": 64.29
+      "compared": 15,
+      "adopted_unchanged": 10,
+      "adopted_unchanged_pct": 66.67
     },
     "ACMPCA": {
       "compared": 2,
@@ -1891,6 +1891,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "Ratified server-assigned: Bedrock mints the inference profile's identifier at create time, and the documented import example is that server string, distinct from the client-chosen name argument the fresh proposal client-names by. The ratified Reason records this as a correction of row-gen's own argument-composed reading."
+    },
+    {
+      "tf_type": "aws_bedrock_model_invocation_logging_configuration",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_bedrockagent_agent",

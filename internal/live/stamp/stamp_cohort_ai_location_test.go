@@ -50,6 +50,13 @@ var taggableAiLocation = []string{
 }
 
 var untaggableAiLocation = []string{
+	// Ratified from the import grammar: the Import section says "using the
+	// `id` set to the AWS Region" and the example is a bare region, so the
+	// identity is the run's region alone - the same single-cloud-value shape
+	// as aws_cloudwatch_otel_enrichment. Untaggable per
+	// live/survey-full.json's real-schema signal.
+	"aws_bedrock_model_invocation_logging_configuration",
+
 	// Registry-ratified AI services and Location batch (#40, #44,
 	// issue #65): three types with no tags argument at all —
 	// aws_bedrockagentcore_resource_policy's Attribute Reference
@@ -68,6 +75,8 @@ var untaggableAiLocation = []string{
 func init() {
 	registerCohortStamp(taggableAiLocation, untaggableAiLocation, func(s testSchemaSource) {
 		mergeCohortSchemas(s, testSchemaSource{
+			"aws_bedrock_model_invocation_logging_configuration": untaggedSchema("id"),
+
 			// Registry-ratified AI services and Location batch (#40, #44,
 			// issue #65). Taggable per the real provider's documented Argument
 			// Reference, except the three types below whose Argument/Attribute

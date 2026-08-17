@@ -1244,6 +1244,19 @@
       "id"
     ]
   },
+  "aws_bedrock_model_invocation_logging_configuration": {
+    "type": "aws_bedrock_model_invocation_logging_configuration",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_bedrockagent_agent": {
     "type": "aws_bedrockagent_agent",
     "server_assigned": true,

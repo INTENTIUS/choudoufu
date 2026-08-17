@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 895 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 896 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 575, client-named 476, composite 152, assembled 30) | 1233 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-895<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+896<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -83,10 +83,11 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_batch_compute_environment`, `aws_batch_job_definition`,
   `aws_batch_job_queue`, `aws_batch_scheduling_policy`,
   `aws_bcmdataexports_export`, `aws_bedrock_guardrail`,
-  `aws_bedrock_inference_profile`, `aws_bedrockagent_agent`,
-  `aws_bedrockagent_agent_alias`, `aws_bedrockagent_flow`,
-  `aws_bedrockagent_knowledge_base`, `aws_bedrockagent_prompt`,
-  `aws_bedrockagentcore_agent_runtime`,
+  `aws_bedrock_inference_profile`,
+  `aws_bedrock_model_invocation_logging_configuration`,
+  `aws_bedrockagent_agent`, `aws_bedrockagent_agent_alias`,
+  `aws_bedrockagent_flow`, `aws_bedrockagent_knowledge_base`,
+  `aws_bedrockagent_prompt`, `aws_bedrockagentcore_agent_runtime`,
   `aws_bedrockagentcore_agent_runtime_endpoint`,
   `aws_bedrockagentcore_api_key_credential_provider`,
   `aws_bedrockagentcore_browser`, `aws_bedrockagentcore_browser_profile`,

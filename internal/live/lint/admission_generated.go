@@ -102,6 +102,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_bcmdataexports_export":                                             {},
 	"aws_bedrock_guardrail":                                                 {},
 	"aws_bedrock_inference_profile":                                         {},
+	"aws_bedrock_model_invocation_logging_configuration":                    {},
 	"aws_bedrockagent_agent":                                                {},
 	"aws_bedrockagent_agent_alias":                                          {},
 	"aws_bedrockagent_flow":                                                 {},
