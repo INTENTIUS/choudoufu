@@ -117,6 +117,13 @@ and sat on an unmerged branch; its test file did not exist on main at all.
 above an artifact regeneration that does not contain it. Use `--graph`
 before concluding an artifact is stale.
 
+**"The generator converged, so the artifact is right."** `row-gen -emit`
+reads its own previous output and has at least two fixed points. A wrong
+retraction of 217 rows survived reverting the mutation and re-running twice,
+exiting 0 and converging each time; only `git checkout --` restored it. A
+two-run diff proves the generator is deterministic, not that its output is
+implied by its inputs. See #263 before quoting fixed-point-ness as evidence.
+
 **"Nothing moved."** Zero is also what a dead code path looks like.
 Instrument and confirm your code is reached before reporting no change — one
 agent found 63 hops reaching its function, 13 of them typed, which is what

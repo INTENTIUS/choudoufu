@@ -288,8 +288,19 @@ break it deliberately once and watch it go red.
 **Regenerate, never hand-merge, a generated artifact.** Two have conflicted
 on merge and both had to be regenerated.
 
-**Run a generator twice and diff before trusting its output.** One was
-silently nondeterministic through sporadic subprocess handshake failures.
+**Run a generator twice and diff, but know what that proves.** It catches
+nondeterminism, and one generator was silently nondeterministic through
+sporadic subprocess handshake failures. It does **not** prove the artifact is
+the one its inputs imply.
+
+`row-gen -emit` reads its own previous output — `markerlessRoster` looks up
+`identity.DefaultTable`, which is `table_generated.go` — and has more than
+one fixed point. A mutation retracted 217 rows; reverting the mutation and
+re-running did not restore them, and the wrong state survived a second run
+while exiting 0 and converging. Only `git checkout --` brought it back. So
+byte-identical across two runs means "this is *a* fixed point", not "this is
+correct". That is #263, and it matters because the two-run diff has been
+cited as the acceptance bar on several table changes.
 
 **`marksafe` guards `internal/live`.** A new call to a cty accessor needs a
 proof its receiver cannot be marked, `ContainsMarked` before anything that
