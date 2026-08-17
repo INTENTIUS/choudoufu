@@ -8,9 +8,9 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=384 instances=1339
+# shape: dirs=385 instances=1341
 # shape: class CONCRETE=676
-# shape: class NEEDS_DISCOVERY=551
+# shape: class NEEDS_DISCOVERY=553
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
 #
@@ -549,6 +549,8 @@ internal/live/providerscope/testdata/nested-default/mid/leaf	aws_s3_bucket.data	
 internal/live/providerscope/testdata/nested-passthrough	module.mid.module.leaf.aws_s3_bucket.data	CONCRETE	leaf-bucket	bucket=leaf-bucket
 internal/live/providerscope/testdata/nested-passthrough/mid	module.leaf.aws_s3_bucket.data	CONCRETE	leaf-bucket	bucket=leaf-bucket
 internal/live/providerscope/testdata/nested-passthrough/mid/leaf	aws_s3_bucket.data	CONCRETE	leaf-bucket	bucket=leaf-bucket
+live/e2e/create-over	aws_iam_role.subject	NEEDS_DISCOVERY		
+live/e2e/create-over	aws_vpc.control	NEEDS_DISCOVERY		
 live/e2e/dataread-projection/phase1	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed
 live/e2e/dataread-projection/phase2	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed
 live/e2e/dataread-projection/refused	aws_ssm_parameter.seed	CONCRETE	/dataread-projection/seed	name=/dataread-projection/seed

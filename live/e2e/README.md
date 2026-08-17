@@ -326,3 +326,47 @@ only path that detects an undeclared `aws_iam_role`. The gate was not costing
 the emulator tier its speed; it was costing it the removal. If a provider
 release changes that, run B starts proposing the destroy and fails with a
 message saying so.
+
+## The create-over harness
+
+`live/e2e/create-over/run.sh` pins a defect rather than a feature. Exit 0
+means the defect is still present; when it goes red, the fix has landed and
+the script names the assertions to invert.
+
+```
+just demo-create-over
+```
+
+Docker and the AWS CLI, port 4602, about a minute after the image is pulled.
+
+It is the other end of the tagging-sweep finding above. That one is about a
+resource whose block was deleted and which no run proposes destroying — a
+missing destroy. This one is about a resource whose block is still there: a
+`ClassNeedsDiscovery` instance of a tag-losing type cannot be found by its
+marker, so the plan proposes **creating** what the estate already owns.
+
+The fixture declares two resources that differ in exactly one property.
+Both are needs-discovery — `internal/live/check/testdata/identity-golden.txt`
+records both as `NEEDS_DISCOVERY` with no import identity — so both depend
+entirely on reading an ownership marker off a listed object.
+
+| | List path | Outcome |
+|---|---|---|
+| `aws_vpc.control` | `ec2:DescribeVpcs` returns the object's `TagSet` | marker read, instance bound, nothing proposed |
+| `aws_iam_role.subject` | `iam:ListRoles` returns no tags and the provider issues no `GetRole` per member | marker unreadable, instance unbound, creation proposed |
+
+The control is what makes the run a measurement. Both mutations have been
+checked: stripping the VPC's `tofu-estate` tag out of band fails step 4a, and
+replacing the role's `name_prefix` with a static `name` fails step 4b with the
+message that says the defect is fixed.
+
+| Step | Proves |
+|---|---|
+| apply | One VPC and one role exist, both carrying this estate's markers, read back with the AWS CLI. `get-resources` filtered to the estate holds **both** ARNs with their tags — the answer the run needs is on the wire in a call it already makes. |
+| live-plan | The control binds. The subject is proposed for creation, and the run prints the live role under *"Foreign resources … not owned by estate"* with `tags: (none)` — the object is on screen, named, and described as somebody else's. |
+| apply | The proposal is not refused. A second role is created, and two live roles now carry `tofu-address = aws_iam_role.subject` — the collision condition `live/MARKERS.md` describes, written into the cloud by this tool. |
+| re-plan | A third would be created. Neither existing role's marker is readable, so the defect is one new resource per run rather than a one-off double. |
+
+For a type whose name is in the configuration the same defect surfaces as an
+`AlreadyExists` error on apply. The fixture uses `name_prefix` deliberately,
+because the silent form is the one worth pinning.
