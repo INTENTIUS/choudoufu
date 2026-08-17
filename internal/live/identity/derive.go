@@ -28,10 +28,16 @@ import (
 // of the instance, decided by [Resolve] from the argument's expression.
 //
 // Nor does derivability say a type belongs in the stateless subset. An
-// aws_acm_certificate_validation is derivable by this rule and is excluded
-// from the subset anyway, because it is a waiter rather than a resource
-// (see live/SURVEY.md). Identity recoverability and subset membership
-// are different questions.
+// aws_iam_access_key is derivable in the weaker sense that a live read
+// could name it, and is excluded from the subset anyway, because the
+// secret half is unreadable after create (see live/SURVEY.md). Identity
+// recoverability and subset membership are different questions.
+//
+// This paragraph named aws_acm_certificate_validation until 2026-08-17,
+// when the maintainer withdrew that exclusion. That type is derivable by
+// this rule and now belongs in the subset - the survey classes it
+// parent-derived over the certificate's ARN - so it was the wrong example
+// for the point being made.
 type DerivableType struct {
 	// Type is the resource type name.
 	Type string

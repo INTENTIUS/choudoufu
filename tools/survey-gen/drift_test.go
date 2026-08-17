@@ -79,9 +79,20 @@ var surveyExpectations = []surveyExpectation{
 			// ruling; it has a native list resource and had always
 			// classified underneath the veto.
 			"enumerable, unbindable": 9,
-			"moves to Ops":           2,
-			"parent-derived":         4,
-			"account-derived":        2,
+			// 2 -> 1 and 4 -> 5 on 2026-08-17, one classifier change:
+			// aws_acm_certificate_validation's hand exclusion in
+			// opsExcluded was withdrawn by ruling. Classified from its
+			// own schema it is parent-derived - the provider's identity
+			// schema requires exactly certificate_arn, which is a
+			// required argument of the type and refers to
+			// aws_acm_certificate. Its resolution did not move: the type
+			// was never in identity.MarkerlessTypes and
+			// identity.Derivable already admitted it, so the resolver was
+			// already producing PARENT_DERIVED for it while the artifact
+			// said Ops.
+			"moves to Ops":    1,
+			"parent-derived":  5,
+			"account-derived": 2,
 		},
 	},
 	{
@@ -129,9 +140,13 @@ var surveyExpectations = []surveyExpectation{
 			// vpc block-public-access options) were sitting here because no
 			// enumeration leg reached them, and an identity-table entry that
 			// composes a cloud value outranks the enumeration question.
-			"moves to Ops":   580,
+			// 580 -> 579 and 47 -> 48 on 2026-08-17, the same single
+			// classifier change the survey.json block above records:
+			// aws_acm_certificate_validation off opsExcluded and onto
+			// parent-derived from its own schema.
+			"moves to Ops":   579,
 			"client-named":   117,
-			"parent-derived": 47,
+			"parent-derived": 48,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
 			"enumerable, unbindable": 142,
 			// aws_ecs_capacity_provider moved marker -> account-derived

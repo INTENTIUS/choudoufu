@@ -61,14 +61,20 @@ const (
 // opsExcluded is the one hand-written input to the classifier, per issue
 // #25's own design: "what legitimately stays hand-written: the
 // excluded-by-rule set ... credentials and waiters need the Ops judgment."
-// No schema says a secret is unreadable after create or that a resource is
-// a waiter, so these two carry their reason here instead of a derivation.
+// No schema says a secret is unreadable after create, so the one entry left
+// carries its reason here instead of a derivation.
 //
-// It is two rather than three since the maintainer's 2026-08-16 ruling on
-// aws_secretsmanager_secret_version, which used to sit here reading
-// "credential: secret_id plus a server-assigned version UUID, the secret
-// unreadable after create". The ownership marker goes into a TAG, never
-// into the secret, so nothing about marking a secret version reads or
+// It is one rather than three after two rulings that went the same way, and
+// the pattern in them is worth stating before the cases: an entry here is
+// legitimate only when it records a fact about the resource's own CONTENTS
+// that no schema carries. Neither "this is a waiter" nor "the marker would
+// touch a secret" is that; both were judgments about how the resource is
+// USED, and both were wrong.
+//
+// The maintainer's 2026-08-16 ruling removed aws_secretsmanager_secret_version,
+// which read "credential: secret_id plus a server-assigned version UUID, the
+// secret unreadable after create". The ownership marker goes into a TAG,
+// never into the secret, so nothing about marking a secret version reads or
 // exposes its contents and the credential-material rationale never applied
 // to it. It was also never on CLAUDE.md's sanctioned list, which is exactly
 // four types (aws_iam_access_key, aws_iot_certificate,
@@ -82,6 +88,23 @@ const (
 // composites, so it stays unadmitted for their reason - no marker-capable
 // argument, blocked on #233 - reached by derivation rather than by veto.
 //
+// The maintainer's 2026-08-17 ruling removed aws_acm_certificate_validation,
+// which read "waiter: records only that DNS validation finished; waiting
+// belongs to the lifecycle layer". The resource gates whether the
+// certificate is usable, so an estate does care about it, and "waiter" was a
+// statement about what the resource MEANS rather than about what can name
+// it. Classified from its own schema it lands on parent-derived: the
+// provider's identity schema for it requires exactly certificate_arn, which
+// is a required argument of the type and points at aws_acm_certificate - a
+// taggable, admitted type. That is the same shape as
+// aws_s3_bucket_policy's, where the parent genuinely IS the identity, and
+// unlike the parent-derived population refuted on 2026-08-17 (see
+// HANDOFF.md) this one is already in reach: identity.Derivable already
+// admits the type from the schemas, and the veto in
+// [identity.MarkerlessTypes] never covered it, so the row was Ops-labelled
+// while the resolver resolved it anyway. Removing the entry makes the
+// artifact agree with the code rather than changing what the code does.
+//
 // aws_iam_access_key stays because its distinguishing fact is not the
 // marker at all: the secret half is returned once at create and is
 // unreadable afterwards, so a live read cannot reconstruct what the
@@ -89,8 +112,7 @@ const (
 // resource's own contents, which no schema carries, and it is on the
 // sanctioned list.
 var opsExcluded = map[string]string{
-	"aws_iam_access_key":             "credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable",
-	"aws_acm_certificate_validation": "waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer",
+	"aws_iam_access_key": "credential: the secret half is unreadable after create, and an external holder makes set semantics inapplicable",
 }
 
 // Survey is the committed artifact: live/survey.json.

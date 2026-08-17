@@ -76,7 +76,7 @@
     },
     {
       "type": "aws_acm_certificate_validation",
-      "path": "moves to Ops",
+      "path": "parent-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -88,7 +88,7 @@
         ]
       },
       "admission": "schema",
-      "evidence": "excluded by hand per SURVEY.md's rule - waiter: records only that DNS validation finished; waiting belongs to the lifecycle layer"
+      "evidence": "identity fully client-assigned (certificate_arn), composed over other types' identities: certificate_arn (-> aws_acm_certificate)"
     },
     {
       "type": "aws_acmpca_certificate",
