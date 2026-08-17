@@ -205,6 +205,11 @@ var untaggableRemainder = []string{
 	"aws_datazone_environment_blueprint_configuration",
 	"aws_paymentcryptography_key_alias",
 	"aws_s3control_bucket_policy",
+	// The markerless-veto two-source exception (issue #274):
+	// graph_arn/account_id, both required for identity. Untaggable per
+	// live/survey-full.json (v6.59.0 signals.taggable) and the provider's
+	// own Argument Reference, which names no tags block.
+	"aws_detective_member",
 }
 
 func init() {
@@ -407,6 +412,8 @@ func init() {
 			"aws_datazone_form_type":                           untaggedSchema("id", "domain_identifier", "name", "revision"),
 			"aws_s3control_bucket_policy":                      untaggedSchema("id", "bucket"),
 			"aws_sesv2_contact_list":                           taggedSchema("id", "arn", "contact_list_name"),
+			// The markerless-veto two-source exception above.
+			"aws_detective_member": untaggedSchema("id", "graph_arn", "account_id"),
 
 			// The two arguments the identity row reads, plus the tags
 			// argument live/survey-full.json records the real schema as

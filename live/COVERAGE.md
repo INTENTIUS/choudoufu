@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 898 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 901 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 576, client-named 476, composite 152, assembled 30) | 1234 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 76 types | One one-character import-separator decision each. |
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-898<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+901<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -139,7 +139,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_cognito_identity_pool_provider_principal_tag`,
   `aws_cognito_identity_pool_roles_attachment`,
   `aws_cognito_identity_provider`, `aws_cognito_resource_server`,
-  `aws_cognito_user`, `aws_cognito_user_group`, `aws_cognito_user_in_group`,
+  `aws_cognito_risk_configuration`, `aws_cognito_user`,
+  `aws_cognito_user_group`, `aws_cognito_user_in_group`,
   `aws_cognito_user_pool`, `aws_cognito_user_pool_domain`,
   `aws_cognito_user_pool_ui_customization`,
   `aws_comprehend_document_classifier`, `aws_comprehend_entity_recognizer`,
@@ -167,7 +168,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_db_instance_role_association`, `aws_db_option_group`,
   `aws_db_parameter_group`, `aws_db_proxy`,
   `aws_db_proxy_default_target_group`, `aws_db_proxy_endpoint`,
-  `aws_db_subnet_group`, `aws_detective_graph`,
+  `aws_db_subnet_group`, `aws_detective_graph`, `aws_detective_member`,
   `aws_devopsguru_resource_collection`, `aws_dlm_lifecycle_policy`,
   `aws_dms_certificate`, `aws_dms_endpoint`, `aws_dms_event_subscription`,
   `aws_dms_replication_config`, `aws_dms_replication_instance`,
@@ -275,15 +276,15 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_kms_alias`, `aws_kms_external_key`, `aws_kms_key`,
   `aws_kms_replica_key`, `aws_lambda_capacity_provider`,
   `aws_lambda_code_signing_config`, `aws_lambda_event_source_mapping`,
-  `aws_lambda_function`, `aws_lambda_layer_version_permission`,
-  `aws_lambda_permission`, `aws_launch_configuration`, `aws_launch_template`,
-  `aws_lb`, `aws_lb_listener`, `aws_lb_listener_certificate`,
-  `aws_lb_listener_rule`, `aws_lb_target_group`,
-  `aws_lb_target_group_attachment`, `aws_lb_trust_store`,
-  `aws_lexv2models_bot`, `aws_lexv2models_bot_locale`, `aws_lightsail_bucket`,
-  `aws_lightsail_certificate`, `aws_lightsail_container_service`,
-  `aws_lightsail_database`, `aws_lightsail_disk`,
-  `aws_lightsail_distribution`, `aws_lightsail_domain`,
+  `aws_lambda_function`, `aws_lambda_function_event_invoke_config`,
+  `aws_lambda_layer_version_permission`, `aws_lambda_permission`,
+  `aws_launch_configuration`, `aws_launch_template`, `aws_lb`,
+  `aws_lb_listener`, `aws_lb_listener_certificate`, `aws_lb_listener_rule`,
+  `aws_lb_target_group`, `aws_lb_target_group_attachment`,
+  `aws_lb_trust_store`, `aws_lexv2models_bot`, `aws_lexv2models_bot_locale`,
+  `aws_lightsail_bucket`, `aws_lightsail_certificate`,
+  `aws_lightsail_container_service`, `aws_lightsail_database`,
+  `aws_lightsail_disk`, `aws_lightsail_distribution`, `aws_lightsail_domain`,
   `aws_lightsail_instance`, `aws_lightsail_lb`,
   `aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
   `aws_location_geofence_collection`, `aws_location_map`,

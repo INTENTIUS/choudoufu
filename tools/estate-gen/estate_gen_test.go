@@ -42,6 +42,13 @@ var lambdaTypes = []string{
 	"aws_lambda_code_signing_config",
 	"aws_lambda_event_source_mapping",
 	"aws_lambda_function",
+	// The markerless-veto two-source exception (issue #274): CloudFormation
+	// and the provider's own import docs, read independently of row-gen's
+	// classifier bucket, agree this type's identity (function_name +
+	// qualifier) is argument-built rather than server-minted. Joins the
+	// lambda cohort by the same defaultCohortTypes rule every other member
+	// does.
+	"aws_lambda_function_event_invoke_config",
 	// aws_lambda_layer_version was here until the markerless retraction
 	// (#249). It is server-assigned and carries no tags argument, so every
 	// instance would need marker discovery to be found again and there is

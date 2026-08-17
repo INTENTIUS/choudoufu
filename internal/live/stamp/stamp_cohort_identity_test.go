@@ -54,6 +54,11 @@ var untaggableIdentity = []string{
 	// has exactly three attributes - user, groups, id - and no tags among
 	// them.
 	"aws_iam_user_group_membership",
+	// The markerless-veto two-source exception (issue #274):
+	// user_pool_id + client_id, required for identity. Untaggable per
+	// live/survey-full.json (v6.59.0 signals.taggable) and the provider's
+	// own Argument Reference, which names no tags block.
+	"aws_cognito_risk_configuration",
 }
 
 func init() {
@@ -93,6 +98,8 @@ func init() {
 			"aws_ssoadmin_permissions_boundary_attachment":               untaggedSchema("id", "instance_arn", "permission_set_arn"),
 			// The PerElement admission above.
 			"aws_iam_user_group_membership": untaggedSchema("id", "user", "groups"),
+			// The markerless-veto two-source exception above.
+			"aws_cognito_risk_configuration": untaggedSchema("id", "user_pool_id", "client_id"),
 		})
 	})
 }
