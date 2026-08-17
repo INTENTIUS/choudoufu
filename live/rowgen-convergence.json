@@ -1,15 +1,15 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 890,
-    "compared": 876,
+    "admitted_total": 892,
+    "compared": 878,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 783,
-    "adopted_unchanged_pct": 89.38,
-    "genuine_mismatches": 93,
-    "annotated": 93,
+    "adopted_unchanged": 786,
+    "adopted_unchanged_pct": 89.52,
+    "genuine_mismatches": 92,
+    "annotated": 92,
     "unannotated_mismatches": 0,
-    "scrape_gap_mismatches": 24
+    "scrape_gap_mismatches": 23
   },
   "by_service": {
     "(no CFN model)": {
@@ -34,8 +34,8 @@
     },
     "ARCZonalShift": {
       "compared": 2,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
     },
     "AmazonMQ": {
       "compared": 2,
@@ -188,8 +188,8 @@
       "adopted_unchanged_pct": 50
     },
     "CloudWatch": {
-      "compared": 6,
-      "adopted_unchanged": 6,
+      "compared": 7,
+      "adopted_unchanged": 7,
       "adopted_unchanged_pct": 100
     },
     "CodeArtifact": {
@@ -323,9 +323,9 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 87,
-      "adopted_unchanged": 74,
-      "adopted_unchanged_pct": 85.06
+      "compared": 88,
+      "adopted_unchanged": 75,
+      "adopted_unchanged_pct": 85.23
     },
     "ECR": {
       "compared": 8,
@@ -1637,19 +1637,10 @@
     {
       "tf_type": "aws_arczonalshift_autoshift_observer_notification_status",
       "service": "ARCZonalShift",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "server-assigned",
-        "components"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "scrape_gap": true,
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "An account/region singleton whose import ID is the region name itself; the ratified row is a single Cloud region component with a deliberately empty IdentityAttrs. The registry reads it server-assigned, but nothing is minted - the identity is the cloud context. A Cloud component is outside every proposal bucket's vocabulary."
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_arczonalshift_zonal_autoshift_configuration",
@@ -2648,6 +2639,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_otel_enrichment",
+      "service": "CloudWatch",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },
@@ -9913,6 +9912,14 @@
       "service": "EC2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_block_public_access_options",
+      "service": "EC2",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },

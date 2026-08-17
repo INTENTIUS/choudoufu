@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // applyImportGrammarPrecedence is the rowgen-convergence upgrade: the
@@ -56,7 +58,11 @@ import (
 //     scrape's own per-segment ARN/URL template, when fully attributed,
 //     resolves the one shape no other bucket can express - components
 //     carrying Cloud region/account slots and mid-string literals. See its
-//     own doc comment for the two-tier evidence bar.
+//     own doc comment for the two-tier evidence bar. Immediately after it
+//     sits tryCloudSingletonID, its sibling for the degenerate case that
+//     rule structurally cannot reach: an ID that is a cloud property and
+//     has no tail at all, so there is no template to attribute and no
+//     argument to end on.
 //  2. tryArgumentReferenceConfirmedGuess: a proposal classify.go already
 //     filed evidence-only because its argument name was GUESSED (the CFN
 //     property name, snake-cased, backed by no schema or grammar) - the
@@ -154,6 +160,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		case p.Bucket != bucketClientNamed && tryGrammarComposite(p, g):
 		case p.Bucket != bucketClientNamed && tryDocumentedShorterForm(p, g):
 		case p.Bucket != bucketComposite && tryAssembledTemplate(p, g):
+		case tryCloudSingletonID(p, g):
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryDocNamedServerSegment(p, g):
@@ -590,6 +597,158 @@ func tryAssembledTemplate(p *proposal, g importGrammarRow) bool {
 	p.ArgSource = argSourceImportGrammar
 	p.Rule = "import-grammar precedence: the documented import ID is a full " + strings.ToUpper(t.Kind) + " template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)"
 	p.Notes = append(p.Notes, fmt.Sprintf("import docs template (%s) attributes every segment: %s", t.Kind, describeSegments(t.Segments)))
+	return true
+}
+
+// cloudSingletonComponents is tryCloudSingletonID's whole proposal: one
+// component that is the cloud property and nothing else. It is spelled as
+// bucketAssembled's own segment list rather than as a new bucket because
+// proposedFields already renders exactly this - a Cloud segment becomes
+// identity.Component{Cloud: ...} and contributes its upper-cased name to
+// the ImportSyntax - and a second bucket meaning "assembled, but from one
+// segment" would be the same shape under two names.
+func cloudSingletonComponents(cloud string) []idTemplateSegment {
+	return []idTemplateSegment{{Cloud: cloud}}
+}
+
+// cloudSingletonValues is this rule's vocabulary: the cloud properties a
+// run can answer from CONFIGURATION alone. internal/live/identity's
+// resolver answers CloudRegion from the resource's own effective region -
+// its `region` argument when it states one, otherwise the region its
+// resolved provider block statically declares - and deliberately answers
+// CloudAccountID from nothing at all; resolver.cloudValueFor's own doc
+// comment says so in as many words.
+//
+// That distinction is the whole reason this is a set and not the CloudValue
+// type itself. A row proposed over a property the resolver cannot answer
+// would send every instance of the type to NeedsDiscovery, on a type that
+// by construction has no other identity and (in this population) no tags
+// argument to carry a marker - so the admission would read as progress and
+// deliver a refusal at apply. The set grows when the resolver does, not
+// when the scrape does.
+var cloudSingletonValues = map[string]bool{"region": true}
+
+// tryCloudSingletonID is the rule for a per-account, per-region singleton:
+// the documented import ID is, in its entirety, a property of the cloud the
+// run is pointed at, so the identity is one Component{Cloud: ...} and there
+// is nothing of the resource's own in it. aws_ec2_allowed_images_settings
+// says it outright - "Since there is only one configuration per account and
+// region, region is used as the resource ID".
+//
+// This is tryAssembledTemplate's sibling and the reason that rule could not
+// cover the shape: it requires hasCloud AND hasArg and a trailing Argument
+// segment, because a template whose last segment is opaque reconstructs
+// nothing. Here there is no tail at all, and that is the finding rather
+// than a gap in it. The target row already ships -
+// aws_arczonalshift_autoshift_observer_notification_status, ratified as
+// Components{{Cloud: "region"}} with ImportSyntax "REGION" - and the
+// annotations.json ruling that carried it named this rule as its own exit:
+// "Retire when the vocabulary covers an unschemed example that IS a cloud
+// value (the region name itself as the whole ID)."
+//
+// FOUR REFUSALS, EACH OF WHICH DOES MEASURED WORK. Every one was checked by
+// removing it and rerunning the classification over all 1699 rows:
+//
+//  1. A schemed template (IDTemplate non-nil) is tryAssembledTemplate's,
+//     and a region inside an ARN is a segment, not the identity.
+//  2. ComposedOfArguments true is the doc naming the arguments the ID is
+//     built from, which outranks any reading of the example's own text -
+//     the hierarchy issue #135 established. It is the clause that refuses
+//     aws_account_region (region_name), aws_backup_region_settings and
+//     aws_rds_certificate (a `region` ARGUMENT, not the cloud property),
+//     and aws_notifications_notification_hub (notification_hub_region):
+//     eighteen rows in all, six of them region-shaped.
+//  3. A non-empty IdentitySchemaRequired is the provider's own identity
+//     schema naming an attribute of the resource's own that the identity
+//     needs. A cloud singleton's schema has no required attributes at all
+//     ("No required attributes for singleton identity", verbatim on
+//     aws_cloudwatch_otel_enrichment's page); a type whose schema requires
+//     one is stating that the ID is not the cloud property, whatever the
+//     example happens to look like. This is what refuses
+//     aws_organizations_account, whose required [id] is the member
+//     account's own twelve-digit ID.
+//  4. The sole ID part must not name a documented argument whose own
+//     cloud_default DISAGREES - see cloudSingletonPartAgrees.
+//
+// THE TIERING, which is tryAssembledTemplate's, restated for this rule's
+// evidence. A ratified row is the thing that ships, so this rule may fill a
+// gap but may not overturn a standing claim: a row already ratified
+// ServerAssigned is refused outright. Everything else - a type the table
+// does not cover at all, and a ratified row that makes no server-assigned
+// claim - is fair game, and the second half is not vacuous: it is what
+// retires the arczonalshift ruling above, by letting the fresh proposal
+// reproduce a row a human already ratified. aws_organizations_account is
+// outside this rule twice over, by refusal 3 and by this tier, and neither
+// mentions it by name.
+func tryCloudSingletonID(p *proposal, g importGrammarRow) bool {
+	if !cloudSingletonValues[g.SoleIDCloudValue] {
+		return false
+	}
+	if g.IDTemplate != nil {
+		return false // refusal 1
+	}
+	if g.ComposedOfArguments != nil && *g.ComposedOfArguments {
+		return false // refusal 2
+	}
+	if len(g.IdentitySchemaRequired) > 0 {
+		return false // refusal 3
+	}
+	if !cloudSingletonPartAgrees(g.SoleIDCloudValue, g) {
+		return false // refusal 4
+	}
+	if identity.DefaultTable[p.TFType].ServerAssigned {
+		return false // a standing server-assigned claim this evidence may not defeat
+	}
+	switch p.Bucket {
+	case bucketServerAssigned, bucketEvidenceOnly, bucketNeedsHandSeparator, bucketFoldChild:
+		// No positive finding that the ID reconstructs from configuration,
+		// so there is nothing here to overturn.
+	default:
+		return false
+	}
+
+	p.Bucket = bucketAssembled
+	p.Assembled = cloudSingletonComponents(g.SoleIDCloudValue)
+	p.CompositeArgs = nil
+	p.CompositeSep = ""
+	p.ArgName = ""
+	p.ArgSource = argSourceImportGrammar
+	p.Rule = "import-grammar precedence: the documented import ID is, in its entirety, the " + g.SoleIDCloudValue + " the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own"
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs example %q is a %s name and the page's Import section names no argument the ID composes from", g.ImportIDExample, g.SoleIDCloudValue))
+	return true
+}
+
+// cloudSingletonPartAgrees is tryCloudSingletonID's fourth refusal, and the
+// one clause there that is not obvious. When the scrape named the ID's sole
+// part, that token may suffix-match a documented configuration argument -
+// aws_vpc_block_public_access_options' token is "aws_region", which
+// suffix-matches the `region` argument 1517 of the 1699 rows carry. Read
+// naively that looks like the doc saying the ID is an argument, which would
+// refuse the type.
+//
+// It is only evidence AGAINST the cloud reading when the argument's own
+// documented cloud_default disagrees with the cloud property at stake. The
+// `region` argument's cloud_default IS "region" ("Defaults to the Region
+// set in the provider configuration"), so it confirms the reading rather
+// than defeating it - the argument and the cloud value are the same
+// identity seen from two sides, which is exactly what
+// identity.Component{Attrs: ["region"], Cloud: "region"} already means and
+// what emit.go's mergeCloudDefault fills in.
+//
+// An argument the docs say nothing about defaults to "" and therefore
+// disagrees, which is the refusing case.
+func cloudSingletonPartAgrees(cloud string, g importGrammarRow) bool {
+	if g.SoleIDPart == nil {
+		return true // the scrape named no part; there is nothing to disagree
+	}
+	for _, a := range g.ArgumentReference {
+		if a.Name != g.SoleIDPart.Token && !strings.HasSuffix(g.SoleIDPart.Token, "_"+a.Name) {
+			continue
+		}
+		if a.CloudDefault != cloud {
+			return false
+		}
+	}
 	return true
 }
 

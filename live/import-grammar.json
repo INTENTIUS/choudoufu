@@ -480,6 +480,7 @@
           "required": true
         }
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "account_id",
         "enabled",
@@ -10832,6 +10833,7 @@
           "cloud_default": "region"
         }
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "auto_scaling_configuration_arn",
         "region"
@@ -13887,6 +13889,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "status",
         "region"
@@ -14599,6 +14602,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "delegated_admin_account",
@@ -17434,6 +17438,7 @@
         "token": "region",
         "source": "argument"
       },
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "resource_type_opt_in_preference",
@@ -20033,6 +20038,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "logging_config",
@@ -33085,6 +33091,7 @@
         "token": "region",
         "source": "argument"
       },
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "storage_tier"
@@ -33834,6 +33841,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region"
       ]
@@ -50628,6 +50636,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "event_sources",
@@ -50815,6 +50824,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "kms_server_side_encryption",
@@ -58125,6 +58135,7 @@
           "required": false
         }
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "state",
@@ -78551,6 +78562,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "policy",
@@ -86420,6 +86432,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "event_configurations",
         "region"
@@ -89226,6 +89239,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "minimum_throughput_billing_commitment",
         "region",
@@ -101630,6 +101644,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "s3_destination",
@@ -112573,6 +112588,7 @@
         "token": "notification_hub_region",
         "source": "argument"
       },
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "notification_hub_region"
       ]
@@ -113232,6 +113248,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region"
       ]
@@ -113254,6 +113271,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region"
       ]
@@ -113292,6 +113310,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "all_regions",
         "region",
@@ -123650,6 +123669,7 @@
         "token": "region",
         "source": "argument"
       },
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "certificate_identifier",
         "region"
@@ -142835,6 +142855,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "status"
@@ -149207,6 +149228,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "opt_in_level",
         "opt_in_type",
@@ -162797,6 +162819,7 @@
         "token": "aws_region",
         "source": "attribute"
       },
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "region",
         "internet_gateway_block_mode"
@@ -173555,6 +173578,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "key_id",
         "region",
@@ -173999,6 +174023,7 @@
         "account_id",
         "region"
       ],
+      "sole_id_cloud_value": "region",
       "argument_names_any_depth": [
         "destination",
         "region"

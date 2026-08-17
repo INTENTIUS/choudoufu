@@ -8,8 +8,8 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=375 instances=1320
-# shape: class CONCRETE=658
+# shape: dirs=377 instances=1324
+# shape: class CONCRETE=662
 # shape: class NEEDS_DISCOVERY=550
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
@@ -62,6 +62,10 @@ internal/live/identity/testdata/cloud-scope-region-inherited	aws_cloudwatch_log_
 internal/live/identity/testdata/cloud-scope-region-inherited	aws_cloudwatch_log_group.inherited	CONCRETE	/aws/bedrock	name=/aws/bedrock
 internal/live/identity/testdata/cloud-scope-region-unknown	aws_cloudwatch_log_group.known	CONCRETE	/aws/bedrock	name=/aws/bedrock
 internal/live/identity/testdata/cloud-scope-region-unknown	aws_cloudwatch_log_group.unknown	CONCRETE	/aws/bedrock	name=/aws/bedrock
+internal/live/identity/testdata/cloud-singleton	aws_cloudwatch_otel_enrichment.override	CONCRETE	us-west-2	
+internal/live/identity/testdata/cloud-singleton	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
+internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
+internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.spelled	CONCRETE	eu-west-1	
 internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	estate-app	name=estate-app
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		

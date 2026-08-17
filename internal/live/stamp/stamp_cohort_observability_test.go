@@ -68,7 +68,7 @@ func init() {
 			// live/e2e/estates/observability/README.md.
 			"aws_cloudwatch_alarm_mute_rule":          taggedSchema("id", "name", "rule"),
 			"aws_cloudwatch_contributor_insight_rule": taggedSchema("id", "rule_name", "rule_definition"),
-			"aws_cloudwatch_otel_enrichment":          untaggedSchema("id"),
+			"aws_cloudwatch_otel_enrichment":          untaggedSchema("id", "region"),
 			"aws_cloudwatch_log_account_policy":       untaggedSchema("id", "policy_name", "policy_type", "policy_document"),
 			"aws_cloudwatch_log_anomaly_detector":     taggedSchema("id", "arn", "log_group_arn_list"),
 			"aws_cloudwatch_log_delivery":             taggedSchema("id", "delivery_source_name", "delivery_destination_arn"),

@@ -140,6 +140,15 @@ type Row struct {
 	// states nothing at all. See soleIDPart.
 	SoleIDPart *IDPart `json:"sole_id_part,omitempty"`
 
+	// SoleIDCloudValue names the cloud property the documented import ID
+	// IS, in its entirety - internal/live/identity.CloudValue's own
+	// spelling - for the per-account, per-region singleton settings
+	// resources whose whole identity is the Region the run is pointed at.
+	// Empty for every other example, which is nearly all of them. See
+	// cloudsingleton.go, including why the symmetric account-ID reading is
+	// deliberately not recorded.
+	SoleIDCloudValue string `json:"sole_id_cloud_value,omitempty"`
+
 	// ArgumentNamesAnyDepth is every Argument Reference bullet name on the
 	// page at any block depth, ArgumentReference's deliberately wider
 	// sibling. It is a refutation set and nothing should build an import
@@ -364,6 +373,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		ExclusiveGroups:        exclusiveGroups(section, argEntries, doc),
 		IDParts:                parts,
 		SoleIDPart:             sole,
+		SoleIDCloudValue:       soleIDCloudValue(idExample),
 		ArgumentNamesAnyDepth:  anyDepthArgs,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exampleRootLiterals(doc, tfType)),
 	}, true
