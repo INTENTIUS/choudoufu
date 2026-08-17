@@ -8,8 +8,8 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=376 instances=1323
-# shape: class CONCRETE=660
+# shape: dirs=380 instances=1332
+# shape: class CONCRETE=669
 # shape: class NEEDS_DISCOVERY=551
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
@@ -215,6 +215,15 @@ internal/live/identity/testdata/module-foreach-keyonly	module.user["bob"].aws_ia
 internal/live/identity/testdata/module-foreach-keyonly	module.user["carol"].aws_iam_user.this	CONCRETE	carol	name=carol
 internal/live/identity/testdata/module-foreach-var	module.user["alice"].aws_iam_user.this	CONCRETE	alice-admin	name=alice-admin
 internal/live/identity/testdata/module-foreach-var	module.user["bob"].aws_iam_user.this	CONCRETE	bob-reader	name=bob-reader
+internal/live/identity/testdata/module-foreach-var-collide	module.user["alice"].aws_iam_user.wrapped	CONCRETE	shared	name=shared
+internal/live/identity/testdata/module-foreach-var-collide	module.user["bob"].aws_iam_user.wrapped	CONCRETE	shared	name=shared
+internal/live/identity/testdata/module-foreach-var-collide/user	aws_iam_user.wrapped	CONCRETE	shared	name=shared
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.direct	CONCRETE	alice-admin	name=alice-admin
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.templated	CONCRETE	t-alice-admin	name=t-alice-admin
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.wrapped	CONCRETE	u-alice-admin	name=u-alice-admin
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["bob"].aws_iam_user.direct	CONCRETE	bob-reader	name=bob-reader
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["bob"].aws_iam_user.templated	CONCRETE	t-bob-reader	name=t-bob-reader
+internal/live/identity/testdata/module-foreach-var-wrapped	module.user["bob"].aws_iam_user.wrapped	CONCRETE	u-bob-reader	name=u-bob-reader
 internal/live/identity/testdata/module-output	aws_iam_role_policy.via_local	CONCRETE	worker:inline	name=inline,role=worker
 internal/live/identity/testdata/module-output	aws_iam_role_policy.via_object_output	CONCRETE	worker:second	name=second,role=worker
 internal/live/identity/testdata/module-output	aws_s3_bucket_policy.direct	CONCRETE	app-assets-store	bucket=app-assets-store
