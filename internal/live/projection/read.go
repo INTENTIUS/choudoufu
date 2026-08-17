@@ -128,7 +128,7 @@ func ReadInstances(ctx context.Context, cfg *configs.Config, resolutions []ident
 
 	b := newBuilder(ctx, cfg, provs, opts)
 
-	concrete, derived, needsDiscovery, cyclic, recordBacked := orderWork(resolutions)
+	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(resolutions)
 
 	// A resolution whose identity this run does not hold cannot be read, and
 	// saying so is the point: the second pass will refuse the reference that
@@ -150,6 +150,16 @@ func ReadInstances(ctx context.Context, cfg *configs.Config, resolutions []ident
 		b.omit(r.Addr, ReasonUnreadable, fmt.Sprintf(
 			"%s is a record-backed effect, whose prior state lives in this estate's record store rather than in the cloud, so there is no live object to read its attributes from.", r.Addr,
 		), "it is record-backed and has no live object to read.")
+	}
+
+	// A record-LOCATED instance (issue #270) is the opposite case to the
+	// record-backed one above: its object is in the cloud and is read from
+	// the cloud, and only the identity string comes from the store. So it
+	// is read here like any other, through the same one-question lookup the
+	// full projection uses. A run whose opts carry no LocatedStore gets
+	// materializeLocated's own refusal, not a silent skip.
+	for _, r := range located {
+		b.materializeLocated(ctx, r.Addr)
 	}
 
 	for _, r := range concrete {

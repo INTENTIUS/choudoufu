@@ -6,6 +6,8 @@
 package lint
 
 import (
+	"fmt"
+
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -80,4 +82,53 @@ func markerlessVetoed(resourceType string) bool {
 	}
 	_, vetoed := identity.MarkerlessTypes[resourceType]
 	return vetoed
+}
+
+// markerlessLocatedSupportExists is the load-bearing claim of the located
+// variant of the markerless refusal, factored out so a test can pin it by
+// value - the same device [recordStoreSupportExists] uses in
+// logical_type.go, and for the same reason: the failure mode this wording
+// exists to prevent is a false "not yet", and there are unbounded ways to
+// spell one and only one thing worth asserting, which is that the support
+// is here NOW.
+const markerlessLocatedSupportExists = "That support exists"
+
+// markerlessLocatedDetail is the [RuleMarkerlessType] refusal for a type
+// the record store COULD locate, raised only when no record_store is
+// declared.
+//
+// It is the plan-time error GitHub issue #270 requires, and the reason it
+// has to exist is the same reason internal/live/projection raises
+// "Record-backed instance with no record store": once tools/estate-plan can
+// demote markerless-type to a pre-onboarding finding, an operator who
+// writes the live block and forgets the store must still be stopped here,
+// by name, with the missing thing named. Demoting a refusal that had no
+// such backstop would be trading a refusal for a silent failure.
+//
+// The wording deliberately does NOT reuse the permanent markerless
+// sentence. That one says "No configuration edit changes that, and no
+// future batch reaches it", which is true of a type whose identity nothing
+// can hold and false of this one, where a single block is the whole fix.
+func markerlessLocatedDetail(resourceType string) string {
+	return fmt.Sprintf(
+		"resource type %q has nowhere to carry an ownership marker: %s. Applying a block of "+
+			"this type %s That is a fact about the MARKER, which answers \"may I delete "+
+			"this\" - it is not a fact about the identity, which answers \"which object is "+
+			"this\". For an object this estate created, choudoufu minted the identity, and a "+
+			"per-estate record can hold it. "+
+			"%s - GitHub issue #270's record-located identity - and this configuration has "+
+			"simply not turned it on, which is the only reason %s is refused here. Declare a "+
+			"record_store in the live block and it is admitted:\n\n"+
+			"  terraform {\n"+
+			"    live {\n"+
+			"      estate = \"my-estate\"\n"+
+			"      record_store \"ssm\" {}\n"+
+			"    }\n"+
+			"  }\n\n"+
+			"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket argument), or "+
+			"\"local\" (a directory beside the module). The record answers only which object "+
+			"this is; it is never read as permission to delete anything, and losing it "+
+			"proposes a create rather than a destroy.",
+		resourceType, identity.MarkerlessReason, UnfindableClause, markerlessLocatedSupportExists, resourceType,
+	)
 }

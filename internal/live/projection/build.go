@@ -133,6 +133,25 @@ type Options struct {
 	// under - ordinarily [RecordKeyPrefix](estate), or a record_store
 	// block's key_prefix override. Unused when RecordStore is nil.
 	RecordKeyPrefix string
+
+	// LocatedStore is where GitHub issue #270's record-located instances
+	// (identity.ClassRecordLocated) read their IMPORT IDENTITY from - not
+	// their state, which is read from the cloud like any other resource's.
+	//
+	// It is a separate field from [Options.RecordStore], and a
+	// [*LocatedStore] rather than a [staterecord.Store], because the two
+	// answer different questions and only one of them may ever be
+	// enumerated. See located.go: a located key lives under its own
+	// namespace root and this type exposes no List, so
+	// builder.discoverOrphanedRecords - which takes a staterecord.Store -
+	// cannot be handed one and cannot be given a located key by one. The
+	// underlying store is ordinarily the same one RecordStore holds.
+	//
+	// Nil means no store, and builder.materializeLocated then raises the
+	// "Record-located instance with no record store" error rather than
+	// guessing. internal/live/lint's admission gate is supposed to make
+	// that unreachable, the same way it does for record-backed.
+	LocatedStore *LocatedStore
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -192,17 +211,21 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	sort.Slice(b.recordVersions, func(i, j int) bool {
 		return b.recordVersions[i].Addr.String() < b.recordVersions[j].Addr.String()
 	})
+	sort.Slice(b.locatedVersions, func(i, j int) bool {
+		return b.locatedVersions[i].Addr.String() < b.locatedVersions[j].Addr.String()
+	})
 	sort.Slice(b.policyList, func(i, j int) bool {
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
 
 	res := &Result{
-		State:          b.state,
-		Materialized:   b.materialized,
-		Omitted:        b.omissionList,
-		Unowned:        b.unownedList,
-		RecordVersions: b.recordVersions,
-		Policy:         b.policyList,
+		State:           b.state,
+		Materialized:    b.materialized,
+		Omitted:         b.omissionList,
+		Unowned:         b.unownedList,
+		RecordVersions:  b.recordVersions,
+		LocatedVersions: b.locatedVersions,
+		Policy:          b.policyList,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -270,6 +293,14 @@ type builder struct {
 	// "" - a create assertion, exactly [staterecord.Store]'s own convention.
 	recordVersions []RecordVersion
 
+	// locatedVersions is recordVersions' counterpart for GitHub issue
+	// #270's located instances: the version read at plan time for every
+	// located record that already existed, so [WriteBack] can open its
+	// conditional Put with the right expected version. An instance with no
+	// entry here had no located record, which write-back reads as
+	// expectedVersion "" - a create assertion.
+	locatedVersions []RecordVersion
+
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
 	// standalone sentence and reads badly nested inside one.
@@ -283,7 +314,7 @@ type builder struct {
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
-	concrete, derived, needsDiscovery, cyclic, recordBacked := orderWork(resolutions)
+	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(resolutions)
 
 	for _, r := range needsDiscovery {
 		b.omit(r.Addr, ReasonNeedsDiscovery, needsDiscoveryDetail(r), needsDiscoveryCause(r))
@@ -295,6 +326,16 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 		b.materializeRecord(ctx, r.Addr, false)
 	}
 	b.discoverOrphanedRecords(ctx, declaredRecordBacked)
+
+	// GitHub issue #270's located instances run before the concrete ones so
+	// that a parent-derived formula naming a located parent finds it in
+	// b.live by the time the derived phase reads it - the same reason
+	// concrete runs before derived. There is deliberately no
+	// discoverOrphanedRecords counterpart: nothing enumerates the located
+	// namespace, which is the point of it.
+	for _, r := range located {
+		b.materializeLocated(ctx, r.Addr)
+	}
 
 	for _, r := range cyclic {
 		detail := fmt.Sprintf(
@@ -500,7 +541,17 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 // (identity.ClassRecordBacked), materialized from the record store rather
 // than from any of the other four lists' identity machinery - see
 // builder.materializeRecord.
-func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDiscovery, cyclic, recordBacked []identity.Resolution) {
+//
+// located holds GitHub issue #270's record-located instances
+// (identity.ClassRecordLocated). It is a list of its own and NOT part of
+// needsDiscovery, which is the whole reason this function has an explicit
+// case for the class rather than leaving it to the default below: marker
+// discovery is a tag sweep, a located type has no tag by definition, and
+// routing one there would make the run lint clean and then fail at apply
+// against internal/live/stamp's unmarked-apply refusal - a plan refusal
+// traded for an apply refusal, which is forbidden. See
+// TestOrderWorkRoutesLocatedExplicitly.
+func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDiscovery, cyclic, recordBacked, located []identity.Resolution) {
 	sorted := make([]identity.Resolution, len(resolutions))
 	copy(sorted, resolutions)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -516,6 +567,8 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 			pending = append(pending, r)
 		case identity.ClassRecordBacked:
 			recordBacked = append(recordBacked, r)
+		case identity.ClassRecordLocated:
+			located = append(located, r)
 		default:
 			needsDiscovery = append(needsDiscovery, r)
 		}
@@ -559,7 +612,7 @@ func orderWork(resolutions []identity.Resolution) (concrete, derived, needsDisco
 		pending = stuck
 	}
 
-	return concrete, derived, needsDiscovery, cyclic, recordBacked
+	return concrete, derived, needsDiscovery, cyclic, recordBacked, located
 }
 
 // Schemas is how [EmptyImportIdentityDiagnostics] learns which identity
@@ -606,7 +659,7 @@ type Schemas interface {
 // pins the empirical half over the configuration that shape describes.
 func CyclicIdentityDiagnostics(resolutions []identity.Resolution) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	_, _, _, cyclic, _ := orderWork(resolutions)
+	_, _, _, cyclic, _, _ := orderWork(resolutions)
 	for _, r := range cyclic {
 		detail := fmt.Sprintf(
 			"The identities of %s and the instances it derives from refer to each other in a cycle, so there is no order in which they can be read. This is a bug in identity resolution: a parent-derived identity must name parents that are resolvable first.",
@@ -637,7 +690,7 @@ func CyclicIdentityDiagnostics(resolutions []identity.Resolution) tfdiags.Diagno
 // guessing one would be worse than staying silent about it.
 func EmptyImportIdentityDiagnostics(cfg *configs.Config, resolutions []identity.Resolution, schemas Schemas) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	concrete, _, _, _, _ := orderWork(resolutions)
+	concrete, _, _, _, _, _ := orderWork(resolutions)
 	for _, r := range concrete {
 		if r.Undeclared {
 			continue

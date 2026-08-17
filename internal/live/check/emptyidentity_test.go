@@ -151,6 +151,14 @@ func TestEveryIdentityClassIsClassified(t *testing.T) {
 		identity.ClassParentDerived:  true,
 		identity.ClassNeedsDiscovery: false,
 		identity.ClassRecordBacked:   false,
+		// GitHub issue #270. A located resolution's ImportID is empty on
+		// purpose: the identity is a property of the estate's record
+		// store, which internal/live/identity does not read, so this class
+		// legitimately identifies nothing at THIS layer.
+		// internal/live/projection's materializeLocated is where it
+		// acquires one, and TestBuildMaterializesLocatedFromTheStore
+		// asserts that the string it acquires is the store's.
+		identity.ClassRecordLocated: false,
 	}
 
 	declared := identityClassesDeclaredInSource(t, flocitest.RepoRoot(t))

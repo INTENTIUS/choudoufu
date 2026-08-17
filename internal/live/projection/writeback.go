@@ -44,6 +44,25 @@ type WriteBackRequest struct {
 	// FinalState's stored objects before they can be re-encoded as a
 	// record payload.
 	Schemas *tofu.Schemas
+
+	// LocatedStore is where GitHub issue #270's record-located instances
+	// persist the answer to "which object is this". Nil makes the located
+	// half of [WriteBack] a no-op, the same way a nil Store does for the
+	// record-backed half.
+	//
+	// It is the point-lookup view, not a [staterecord.Store], for the
+	// reason located.go gives at length: nothing may be able to enumerate
+	// this namespace, and write-back does not need to - it iterates the
+	// FINAL STATE and the plan-time versions, both of which are lists of
+	// declared addresses, never a listing of the store.
+	LocatedStore *LocatedStore
+
+	// LocatedVersions is [Result.LocatedVersions] - the plan-time version
+	// of every located record that already existed. It plays exactly the
+	// role PriorVersions plays for record-backed instances, and is separate
+	// for the reason [Result.LocatedVersions] gives: the versions belong to
+	// different namespaces and are not interchangeable.
+	LocatedVersions []RecordVersion
 }
 
 // WriteBack persists every record-backed resource instance's post-apply
@@ -64,6 +83,8 @@ type WriteBackRequest struct {
 // alphabetically.
 func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
+
+	diags = diags.Append(writeBackLocated(ctx, req))
 
 	if req.Store == nil {
 		return diags

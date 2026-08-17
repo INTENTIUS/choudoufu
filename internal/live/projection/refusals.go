@@ -146,8 +146,20 @@ var refusals = []Refusal{
 		What:    "Two runs wrote the same record concurrently, so this run's write was rejected rather than overwriting the other's.",
 	},
 	{
+		Summary: "Cannot record a located identity",
+		What:    "An applied resource whose live object carries no ownership marker had no identity that could be written to the record store, so no later run could find it again and the next plan would propose creating a second one.",
+	},
+	{
+		Summary: "Cannot read a located record",
+		What:    "The record saying which live object a markerless resource owns could not be read: the store failed, the payload did not decode, or it names a different resource address. Reading on would bind the instance to another object's identity.",
+	},
+	{
 		Summary: "Record-backed instance with no record store",
 		What:    "An effect resource that keeps its whole state in a record was projected with no record_store configured, so there is nowhere to read its prior state from.",
+	},
+	{
+		Summary: SummaryLocatedNoStore,
+		What:    "A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.",
 	},
 	{
 		Summary: "Resolved instance missing from the configuration",

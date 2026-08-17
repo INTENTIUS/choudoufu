@@ -457,6 +457,14 @@ func resourceSchema(ctx context.Context, provider providers.Interface, providerA
 // Finding the live resource
 // ---------------------------------------------------------------------------
 
+// SummaryLocatedRenameUnsupported is the summary [mover.find] raises for a
+// record-located resource (GitHub issue #270): every path below rewrites a
+// marker, and such a resource has none.
+//
+// Exported so a test can name one string rather than two, the same reason
+// internal/live/projection exports its own summaries.
+const SummaryLocatedRenameUnsupported = "Renaming a record-located resource"
+
 // find locates the live resource carrying the old marker and materializes it,
 // returning the object that becomes the prior state of the write.
 //
@@ -481,6 +489,32 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 			tfdiags.Error,
 			"No identity resolution for the resource being renamed",
 			fmt.Sprintf("%s is declared but identity resolution produced nothing for it. This is a bug.", m.res.Anchor),
+		))
+	}
+
+	if resolution.Class == identity.ClassRecordLocated {
+		// GitHub issue #270. Both of this function's paths end in a marker
+		// rewrite, and a record-located resource has no marker: what says
+		// which object it is is a key in the estate's record store, keyed
+		// by the OLD address. Renaming it means moving that key, which is
+		// a different operation from anything below, and it is not built
+		// yet.
+		//
+		// Refused here, up front, rather than left to fail further in. The
+		// projection this function would otherwise build carries no
+		// located store, so it would stop with the "Record-located
+		// instance with no record store" internal-inconsistency wording -
+		// true of the projection and misleading to an operator whose
+		// configuration does declare one. A rename that got past either
+		// would be worse: the store would still name the old address, the
+		// next plan would read the new address unbound, and it would
+		// propose creating a second object.
+		return nil, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			SummaryLocatedRenameUnsupported,
+			fmt.Sprintf(
+				"A %s carries no ownership marker, so what says which live object %s owns is a record in this estate's record store rather than a tag. Renaming it means moving that record from %s to %s, which live-mv does not do yet. Nothing was searched and nothing was written. Until it does: destroy the resource under its old address and let the new one create it, or move the store key by hand.",
+				m.res.TypeName, m.res.Old, m.res.Old, m.res.New),
 		))
 	}
 

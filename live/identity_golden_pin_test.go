@@ -110,9 +110,20 @@ var identityGoldenPin = map[string]int{
 // one, so every pre-existing row's digest contribution is unchanged.
 const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311"
 
+// 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
+// the body digest unchanged. The new directory is
+// internal/live/check/testdata/stamp-untaggable-record-located, the
+// onboarded half of the stamp-gate split: a markerless type under a
+// record_store, which resolves RECORD_LOCATED. It contributes no row
+// because this sweep runs SCHEMA-LESS by design, and
+// identity.LocatedType fails closed with no schema - the credential
+// exclusion is readable only from a schema and a predicate that cannot run
+// must refuse. So the located class is a class this instrument cannot see,
+// which is stated here rather than discovered later from a suspiciously
+// stable digest.
 const (
 	identityGoldenPinInstances = 1385
-	identityGoldenPinDirs      = 412
+	identityGoldenPinDirs      = 413
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

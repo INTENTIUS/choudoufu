@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -197,4 +198,84 @@ func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 			"the way or that no configuration edit is needed - both false for a vetoed type",
 			got, OnboardingLanguageBlocked)
 	}
+}
+
+// TestStampGate_UntaggableTypeUnderARecordStoreIsAdmitted is the other side
+// of the split the test above now guards, and GitHub issue #270's claim
+// measured through the same instrument tools/refusal-probe uses.
+//
+// Same type, same schema, one block different: a record_store in the live
+// block. The type has nowhere to write a marker either way - that is a fact
+// about the MARKER, which answers "may I delete this". What the store
+// supplies is the other question, "which object is this", and for an object
+// choudoufu created it can, because choudoufu minted the ID.
+//
+// Four things are asserted, and the last two are the ones that would
+// otherwise let a bad fix look like a good one:
+//
+//   - the markerless refusal is gone, which is the change;
+//   - resolution classifies the instance RECORD_LOCATED rather than
+//     resolving it some other way;
+//   - stamp still does not fire. A located instance is not
+//     ClassNeedsDiscovery, so it is not in Result.DiscoveryCausesByBlock,
+//     so internal/live/stamp's mustStamp is false and the untaggable skip
+//     stays silent. If that chain broke, the run would lint clean and then
+//     stop at APPLY - a plan refusal traded for an apply refusal, which is
+//     exactly the trade this mechanism is forbidden to make;
+//   - the configuration is no longer language-blocked by this rule.
+func TestStampGate_UntaggableTypeUnderARecordStoreIsAdmitted(t *testing.T) {
+	const typeName = "aws_cloudfront_cache_policy"
+	schemas := map[string]providers.Schema{
+		typeName: {Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":      {Type: cty.String, Computed: true},
+				"name":    {Type: cty.String, Required: true},
+				"min_ttl": {Type: cty.Number, Optional: true},
+				// Still no tags: the type is as markerless as it ever was.
+			},
+		}},
+	}
+	if _, markerless := identity.MarkerlessTypes[typeName]; !markerless {
+		t.Fatalf("%s left identity.MarkerlessTypes, so this test no longer exercises the located path", typeName)
+	}
+
+	report := Dir(t.Context(), filepath.Join("testdata", "stamp-untaggable-record-located"), Context{Schemas: schemas})
+	if !report.Readable() {
+		t.Fatalf("fixture did not load: %s", report.Load.Diags.Error())
+	}
+
+	for _, f := range report.Findings {
+		switch {
+		case f.Layer == LayerLint && f.ID == string(lint.RuleMarkerlessType):
+			t.Errorf("the markerless refusal still fires under a record_store. A marker answers \"may I delete this\"; an identity answers \"which object is this\", and the store supplies the second.\n  %v", f.Sites)
+		case f.Layer == LayerLint && f.ID == string(lint.RuleUnadmittedType):
+			t.Errorf("the type fell through to unadmitted-type instead of being located:\n  %v", f.Sites)
+		case f.Layer == LayerStamp:
+			t.Errorf("stamp fired on a record-located type (%s/%s). A located instance has no marker to write and must never be asked for one, or the run lints clean and fails at apply.", f.Layer, f.ID)
+		}
+	}
+
+	var located int
+	for _, res := range report.Identities {
+		if res.Class == identity.ClassRecordLocated {
+			located++
+		}
+	}
+	if located != 1 {
+		t.Errorf("resolution produced %d RECORD_LOCATED instances, want 1; classes were %v", located, classesOf(report))
+	}
+
+	if got := ClassifyOnboarding(report.Readable(), refusalIDs(report.Findings)); got == OnboardingLanguageBlocked {
+		t.Errorf("ClassifyOnboarding = %q: the one refusal that put this configuration there is gone", got)
+	}
+}
+
+// classesOf renders the identity classes a report resolved, for a failure
+// message that says what happened instead of what did not.
+func classesOf(report Report) map[identity.Class]int {
+	out := map[identity.Class]int{}
+	for _, res := range report.Identities {
+		out[res.Class]++
+	}
+	return out
 }

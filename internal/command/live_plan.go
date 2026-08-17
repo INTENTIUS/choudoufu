@@ -386,6 +386,16 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, pol, reconcileVerified),
+		// Issue #270. The store above is already open for the hint, and a
+		// record-located instance needs it for a different and stricter
+		// reason: without it nothing can say which live object the
+		// instance owns, so live-plan would report the resource as
+		// uncreated rather than showing what it is. NewLocatedStore(nil,
+		// ...) is nil, so a store that would not open leaves this nil and
+		// the projection raises its own named refusal - which is the right
+		// answer here, unlike for the hint, where a missing store only
+		// costs time.
+		LocatedStore: projection.NewLocatedStore(hintStore, estate),
 	})
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.
