@@ -154,6 +154,24 @@ The shape of the work, as of the last sweep: **44 of 90 blocked deployments
 are one blocker from clean**, and several of those are one blocker at one site.
 Recompute rather than quoting that.
 
+**That list is ranked by fewest remaining blockers, which is "closest to done"
+and NOT "least complex".** The two get confused, including by people who have
+been working the list for a day. Everything ordinary cleared long ago and left
+it, so what remains is the hard tail by construction: an estate showing one
+blocker can be large and exotic, and simply have one thing left. On 2026-08-17
+the last three estates at the head of that list cost a whole new mechanism
+each - a record-carried identity, a name-binding discovery leg, and a managed
+read that is still unbuilt.
+
+**And a blocked estate is not the only work.** 28 real third-party estates pass
+`live-check` with zero refused sites, and as of 2026-08-17 exactly one of them
+had ever been run against a cloud. "live-check says clean" and "applies, loses
+its state file, and replans empty" are different claims, and only the second one
+is the product. The one crossing that had been done needed four deltas no
+offline instrument predicted, two of which became defects (#268, #269).
+Compute the passing set the same way you compute the blocked one, and treat it
+as a queue - see #274.
+
 Note what is *not* counted. `Resolves at plan time via a data-source read` is
 not a refusal — `dataread`'s own declaration says so, and `ClassifyOnboarding`
 lands such an estate on the data-read-eligible rung. It is printed against the
