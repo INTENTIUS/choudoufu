@@ -73,18 +73,27 @@ type installOptions struct {
 	// PinsPath is the checked-in module lock, see [modulePins].
 	PinsPath string
 
-	// RemoteModules keeps go-getter module sources ("github.com/org/repo",
-	// "git::https://...") in the installed manifest instead of dropping
-	// them.
+	// ModuleSources are the pinned go-getter repositories from
+	// live/corpus-manifest.json, mirrored locally so those calls install
+	// reproducibly. See tools/corpus-fetch/gitmirror.go.
+	ModuleSources []moduleSourcePin
+
+	// MirrorDir is where those mirrors are built, relative to Root.
+	MirrorDir string
+
+	// RemoteModules keeps EVERY go-getter module record in the installed
+	// manifest, including one whose repository no module_sources entry
+	// pins.
 	//
-	// It defaults off, and the default is the whole reproducibility
-	// argument. 133 of this corpus's 134 go-getter module calls carry no
-	// "?ref=", so go-getter clones a branch head: the corpus would then
-	// float on six third-party repositories' default branches with nothing
-	// to pin them to and no way to tell, which is the drift
-	// live/corpus-manifest.json's commit pins exist to prevent. Registry
-	// sources have no such problem - see [modulePins] - so they are always
-	// installed.
+	// It defaults off, and the default is the reproducibility argument.
+	// A pinned repository is installed from its local mirror and kept
+	// either way - that is what gitmirror.go exists for. What this flag
+	// admits is the rest: a go-getter source with no pin behind it clones
+	// a branch head over the network, so the corpus would float on
+	// somebody's default branch with no way to tell. Dropping those
+	// records leaves such calls exactly as unresolved as they were before
+	// module installation existed, and [installSummary.UnpinnedPackages]
+	// names them so the fix is to add the pin.
 	//
 	// Turning this on measures a larger surface at the cost of a corpus
 	// that can move under an unchanged tree. A run that used it says so.
@@ -107,6 +116,19 @@ type installSummary struct {
 	FloatingPackages []string
 	DroppedSources   map[string]int
 	Errors           []string
+
+	// Mirrors is how many pinned go-getter repositories were served from a
+	// local mirror, and MirrorErrors names any that could not be built.
+	// A failed mirror still has its rewrite registered, so its calls fail
+	// loudly per entry rather than silently reaching the network.
+	Mirrors      int
+	MirrorErrors []string
+
+	// UnpinnedPackages are the go-getter clone URLs a module record
+	// resolved to that no module_sources entry pins. Each is a repository
+	// this corpus reaches over the network at whatever its branch head is
+	// today, so each is a reason a number computed here may not reproduce.
+	UnpinnedPackages []string
 }
 
 // installModules installs every corpus entry's module tree into that
@@ -151,11 +173,35 @@ func installModules(ctx context.Context, manifest check.Manifest, opts installOp
 	reg := registry.NewClient(ctx, nil, httpClient)
 	fetcher := getmodules.NewPackageFetcher(ctx, nil)
 
+	// Mirrors before the rewrite is installed, because building one clones
+	// from the very URL the rewrite redirects.
+	mirrorBase, err := filepath.Abs(underRoot(opts.Root, opts.MirrorDir))
+	if err != nil {
+		return summary, err
+	}
+	mirrors := prepareMirrors(ctx, opts.ModuleSources, mirrorBase, &pins, opts.Log)
+	mirrored := map[string]bool{}
+	rebuilt := map[string]bool{}
+	for _, m := range mirrors {
+		if m.Rebuilt {
+			rebuilt[m.Pin.Repo] = true
+		}
+		if m.Err != nil {
+			summary.MirrorErrors = append(summary.MirrorErrors, fmt.Sprintf("%s: %v", m.Pin.Repo, m.Err))
+			continue
+		}
+		summary.Mirrors++
+		mirrored[m.Pin.Repo] = true
+	}
+	sort.Strings(summary.MirrorErrors)
+	defer withEnv(gitRewriteEnv(os.Getenv, mirrors))()
+
 	resolved := map[string]map[string]bool{}
+	unpinned := map[string]bool{}
 
 	for _, entry := range entries {
 		logf(opts.Log, "corpus-fetch: modules %s\n", entry.Name)
-		res, err := installOne(ctx, entry, reg, fetcher, opts)
+		res, err := installOne(ctx, entry, reg, fetcher, mirrored, rebuilt, opts)
 		if err != nil {
 			summary.Failed++
 			summary.Errors = append(summary.Errors, fmt.Sprintf("%s: %v", entry.Name, err))
@@ -168,6 +214,9 @@ func installModules(ctx context.Context, manifest check.Manifest, opts installOp
 		summary.Dropped += res.dropped
 		for source, n := range res.droppedSources {
 			summary.DroppedSources[source] += n
+		}
+		for _, repo := range res.unpinnedGit {
+			unpinned[repo] = true
 		}
 		for key, versions := range res.registryVersions {
 			if resolved[key] == nil {
@@ -212,6 +261,11 @@ func installModules(ctx context.Context, manifest check.Manifest, opts installOp
 	}
 	sort.Strings(summary.FloatingPackages)
 
+	for repo := range unpinned {
+		summary.UnpinnedPackages = append(summary.UnpinnedPackages, repo)
+	}
+	sort.Strings(summary.UnpinnedPackages)
+
 	if err := writeModulePins(opts.PinsPath, pins); err != nil {
 		return summary, err
 	}
@@ -224,10 +278,11 @@ type entryResult struct {
 	dropped          int
 	droppedSources   map[string]int
 	registryVersions map[string]map[string]bool
+	unpinnedGit      []string
 	errors           []string
 }
 
-func installOne(ctx context.Context, entry check.CorpusEntryRef, reg *registry.Client, fetcher *getmodules.PackageFetcher, opts installOptions) (entryResult, error) {
+func installOne(ctx context.Context, entry check.CorpusEntryRef, reg *registry.Client, fetcher *getmodules.PackageFetcher, mirrored, rebuilt map[string]bool, opts installOptions) (entryResult, error) {
 	res := entryResult{
 		droppedSources:   map[string]int{},
 		registryVersions: map[string]map[string]bool{},
@@ -258,7 +313,7 @@ func installOne(ctx context.Context, entry check.CorpusEntryRef, reg *registry.C
 	if err := os.MkdirAll(modsDir, 0o755); err != nil { //nolint:gosec // a cache directory, mirroring what init creates
 		return res, err
 	}
-	if err := absolutizeSnapshot(modsDir, entryDir); err != nil {
+	if err := absolutizeSnapshot(modsDir, entryDir, rebuilt); err != nil {
 		return res, err
 	}
 
@@ -292,15 +347,17 @@ func installOne(ctx context.Context, entry check.CorpusEntryRef, reg *registry.C
 	if err != nil {
 		return res, err
 	}
-	pruned, dropped, droppedSources, registryVersions := postProcess(installed, entryDir, opts.RemoteModules)
+	out := postProcess(installed, entryDir, mirrored, opts.RemoteModules)
 	// The root's own record is not a module call, and a snapshot that was
 	// never written has no root record either - hence the floor rather than
 	// a bare subtraction.
 	res.calls = max(0, len(installed)-1)
-	res.installed = max(0, len(pruned)-1)
-	res.dropped = dropped
-	res.droppedSources = droppedSources
-	res.registryVersions = registryVersions
+	res.installed = max(0, len(out.manifest)-1)
+	res.dropped = out.dropped
+	res.droppedSources = out.droppedSources
+	res.registryVersions = out.registryVersions
+	res.unpinnedGit = out.unpinnedGit
+	pruned := out.manifest
 
 	if err := pruned.WriteSnapshotToDir(modsDir); err != nil {
 		return res, err
@@ -317,40 +374,62 @@ func installOne(ctx context.Context, entry check.CorpusEntryRef, reg *registry.C
 //     relative records keep .corpus copyable to another path (the way a
 //     with/without measurement has to copy it) instead of silently
 //     resolving back to the original tree.
-//   - A go-getter record is dropped unless the caller asked to keep it,
-//     along with everything installed underneath it, which leaves those
-//     calls exactly as unresolved as they were before this existed. See
-//     [installOptions.RemoteModules].
+//   - A go-getter record whose repository no module_sources entry pins is
+//     dropped unless the caller asked to keep it, along with everything
+//     installed underneath it, which leaves those calls exactly as
+//     unresolved as they were before this existed. See
+//     [installOptions.RemoteModules]. A PINNED go-getter record is kept:
+//     it came from a local mirror at a frozen commit, so it is as
+//     reproducible as a registry record.
 //
 // It also collects the (registry package, version) pairs the surviving
-// records resolved to, which is what the lock freezes.
-func postProcess(installed modsdir.Manifest, entryDir string, keepRemote bool) (modsdir.Manifest, int, map[string]int, map[string]map[string]bool) {
-	out := make(modsdir.Manifest, len(installed))
-	droppedSources := map[string]int{}
-	registryVersions := map[string]map[string]bool{}
+// records resolved to, which is what the lock freezes, and the clone URLs of
+// any unpinned go-getter record it dropped, which is what tells a maintainer
+// which repository to pin next.
+type postProcessed struct {
+	manifest         modsdir.Manifest
+	dropped          int
+	droppedSources   map[string]int
+	registryVersions map[string]map[string]bool
+	unpinnedGit      []string
+}
+
+func postProcess(installed modsdir.Manifest, entryDir string, mirrored map[string]bool, keepRemote bool) postProcessed {
+	out := postProcessed{
+		manifest:         make(modsdir.Manifest, len(installed)),
+		droppedSources:   map[string]int{},
+		registryVersions: map[string]map[string]bool{},
+	}
+
+	keys := make([]string, 0, len(installed))
+	for key := range installed {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 
 	dropPrefixes := []string{}
-	if !keepRemote {
-		keys := make([]string, 0, len(installed))
-		for key := range installed {
-			keys = append(keys, key)
+	seenUnpinned := map[string]bool{}
+	for _, key := range keys {
+		if key == "" || sourceKind(installed[key].SourceAddr) != sourceGoGetter {
+			continue
 		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			if key == "" {
-				continue
-			}
-			if sourceKind(installed[key].SourceAddr) == sourceGoGetter {
-				dropPrefixes = append(dropPrefixes, key)
-			}
+		repo := gitCloneURL(installed[key].SourceAddr)
+		if mirrored[repo] {
+			continue
+		}
+		if repo != "" && !seenUnpinned[repo] {
+			seenUnpinned[repo] = true
+			out.unpinnedGit = append(out.unpinnedGit, repo)
+		}
+		if !keepRemote {
+			dropPrefixes = append(dropPrefixes, key)
 		}
 	}
 
-	dropped := 0
 	for key, record := range installed {
 		if key != "" && isUnder(key, dropPrefixes) {
-			dropped++
-			droppedSources[installed[key].SourceAddr]++
+			out.dropped++
+			out.droppedSources[installed[key].SourceAddr]++
 			continue
 		}
 		if record.Dir != "" && filepath.IsAbs(record.Dir) {
@@ -358,7 +437,7 @@ func postProcess(installed modsdir.Manifest, entryDir string, keepRemote bool) (
 				record.Dir = filepath.ToSlash(rel)
 			}
 		}
-		out[key] = record
+		out.manifest[key] = record
 
 		if key == "" {
 			continue
@@ -366,14 +445,14 @@ func postProcess(installed modsdir.Manifest, entryDir string, keepRemote bool) (
 		if addr, err := addrs.ParseModuleSource(record.SourceAddr); err == nil {
 			if regAddr, ok := addr.(addrs.ModuleSourceRegistry); ok && record.Version != nil {
 				k := packageKey(regAddr.Package.Namespace, regAddr.Package.Name, regAddr.Package.TargetSystem)
-				if registryVersions[k] == nil {
-					registryVersions[k] = map[string]bool{}
+				if out.registryVersions[k] == nil {
+					out.registryVersions[k] = map[string]bool{}
 				}
-				registryVersions[k][record.Version.String()] = true
+				out.registryVersions[k][record.Version.String()] = true
 			}
 		}
 	}
-	return out, dropped, droppedSources, registryVersions
+	return out
 }
 
 // absolutizeSnapshot rewrites an already-written modules.json so the
@@ -381,7 +460,18 @@ func postProcess(installed modsdir.Manifest, entryDir string, keepRemote bool) (
 // the file on disk holds relative paths that this has to undo first: without
 // it every run reinstalls everything, which is correct but pays the whole
 // download again and hides a genuine install failure among the noise.
-func absolutizeSnapshot(modsDir, entryDir string) error {
+//
+// It also evicts what a changed pin invalidated. A module record carries the
+// source address and, for a registry module, the resolved version - but a
+// go-getter record carries neither a version nor a commit, so editing
+// live/corpus-manifest.json's commit for a mirrored repository changes
+// nothing the reuse check can see. Measured before this eviction existed:
+// the mirror moved to the new commit and the installed tree stayed on the
+// old one, silently, which is the exact failure the pins are here to
+// prevent. A repository whose mirror was rebuilt this run therefore has its
+// records dropped and its installed directories removed, so the entry
+// reinstalls from the mirror that is actually there now.
+func absolutizeSnapshot(modsDir, entryDir string, rebuilt map[string]bool) error {
 	snapshot, err := modsdir.ReadManifestSnapshotForDir(modsDir)
 	if err != nil {
 		return err
@@ -389,13 +479,51 @@ func absolutizeSnapshot(modsDir, entryDir string) error {
 	if len(snapshot) == 0 {
 		return nil
 	}
+
+	keys := make([]string, 0, len(snapshot))
+	for key := range snapshot {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var stalePrefixes []string
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		if repo := gitCloneURL(snapshot[key].SourceAddr); repo != "" && rebuilt[repo] {
+			stalePrefixes = append(stalePrefixes, key)
+		}
+	}
+
 	for key, record := range snapshot {
 		if record.Dir != "" && !filepath.IsAbs(record.Dir) {
 			record.Dir = filepath.Join(entryDir, record.Dir)
 			snapshot[key] = record
 		}
+		if key == "" || !isUnder(key, stalePrefixes) {
+			continue
+		}
+		// Only ever under .terraform/modules. A local module's record
+		// points back into the checked-out corpus source tree, and
+		// removing that would destroy the pin corpus-fetch just verified -
+		// the same rule stripVCSDirs holds.
+		if dir := snapshot[key].Dir; dir != "" && isWithin(modsDir, dir) {
+			if err := os.RemoveAll(dir); err != nil {
+				return err
+			}
+		}
+		delete(snapshot, key)
 	}
 	return snapshot.WriteSnapshotToDir(modsDir)
+}
+
+// isWithin reports whether path sits inside root.
+func isWithin(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // stripVCSDirs removes the .git directory go-getter leaves behind in every
