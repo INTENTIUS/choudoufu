@@ -112,12 +112,28 @@ func TestStampGate_NoSchemasAtAllIsNotRefused(t *testing.T) {
 }
 
 // TestStampGate_GenuinelyUntaggableTypeStillRefuses is the mirror check the
-// #230 fix must not break: aws_cloudfront_cache_policy is server-assigned and
-// its real provider schema has no tags/tags_all argument at all - there is
-// nowhere to carry a marker, and no static identity either, so an unmarked
-// apply of it genuinely creates a resource this configuration can never find
-// again. Gating per type must not silently swallow a real "untaggable"
-// classification along with the "unknown" one issue #230 is about.
+// #230 fix must not break: aws_cloudfront_origin_access_control is
+// server-assigned and its real provider schema has no tags/tags_all argument
+// at all - there is nowhere to carry a marker, and no static identity
+// either, so an unmarked apply of it genuinely creates a resource this
+// configuration can never find again. Gating per type must not silently
+// swallow a real "untaggable" classification along with the "unknown" one
+// issue #230 is about.
+//
+// The type here used to be aws_cloudfront_cache_policy, and swapping it is
+// issue #272's own negative case rather than housekeeping. Both types are
+// untaggable, server-assigned, in one service, listed by Cloud Control the
+// same way, and reached by the same estates. What separates them is only the
+// WORDING of two AWS-authored texts: the cache policy's argument reference
+// and CloudFormation schema both call its name unique, and the origin access
+// control's call it neither - its create error names "the specified
+// parameters" rather than the name, which suggests the dedup key is the
+// whole tuple. So the cache policy became findable and this one did not.
+//
+// Keeping the fixture on the type that did NOT clear the bar is what makes
+// this test a pin on the bar itself. Widen the uniqueness rule far enough to
+// let a bare "A name to identify ..." through and this test goes red,
+// because the type it names would become admissible.
 //
 // The refusal is the same; the LAYER moved, and this test is the record of
 // why. Until #249 the block was admitted, resolved to ClassNeedsDiscovery,
@@ -150,11 +166,13 @@ func TestStampGate_NoSchemasAtAllIsNotRefused(t *testing.T) {
 // after it instead of before.
 func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 	schemas := map[string]providers.Schema{
-		"aws_cloudfront_cache_policy": {Block: &configschema.Block{
+		"aws_cloudfront_origin_access_control": {Block: &configschema.Block{
 			Attributes: map[string]*configschema.Attribute{
-				"id":      {Type: cty.String, Computed: true},
-				"name":    {Type: cty.String, Required: true},
-				"min_ttl": {Type: cty.Number, Optional: true},
+				"id":                                {Type: cty.String, Computed: true},
+				"name":                              {Type: cty.String, Required: true},
+				"origin_access_control_origin_type": {Type: cty.String, Required: true},
+				"signing_behavior":                  {Type: cty.String, Required: true},
+				"signing_protocol":                  {Type: cty.String, Required: true},
 				// Deliberately no "tags" or "tags_all": the real schema has
 				// none, which is the whole reason this type refuses.
 			},
@@ -188,7 +206,7 @@ func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("aws_cloudfront_cache_policy, genuinely untaggable with its own schema present, was not refused: %v", findingIDs(report))
+		t.Fatalf("aws_cloudfront_origin_access_control, genuinely untaggable with its own schema present, was not refused: %v", findingIDs(report))
 	}
 
 	if got := ClassifyOnboarding(report.Readable(), refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {

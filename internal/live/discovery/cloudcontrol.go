@@ -98,6 +98,18 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 
 	log.Printf("[DEBUG] stateless/discovery: listing %s via Cloud Control (%s), %d resources, client-side tag filtering (Cloud Control offers no server-side filter)", typeName, cfnType, len(descs))
 
+	// GitHub issue #272's leg, and it REPLACES the marker path below rather
+	// than running before it: a name-bound type has no tags argument, so
+	// every listed object would raise ProblemNoTags on the way past. See
+	// uniquename.go, which carries the whole argument for why matching a
+	// name AWS refuses to issue twice is not the content-match guess
+	// internal/live/foreign forbids.
+	if idx, byName := uniqueNameIndexFor(decl, typeName); byName {
+		diags = diags.Append(scanUniqueName(req, decl, typeName, cfnType, descs, idx, &scan, res))
+		res.Scans = append(res.Scans, scan)
+		return diags
+	}
+
 	for _, desc := range descs {
 		tags, taggable, refined := cloudControlTags(ctx, req, cfnType, desc)
 		if refined {

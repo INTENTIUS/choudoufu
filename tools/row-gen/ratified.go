@@ -116,6 +116,23 @@ type ratifiedRow struct {
 	IdentityObjectOnly bool                 `json:"identity_object_only,omitempty"`
 	Synthesized        bool                 `json:"synthesized,omitempty"`
 	Admits             identity.Admission   `json:"admits,omitempty"`
+
+	// UniqueName mirrors [identity.TypeIdentity.UniqueName]. It is here so
+	// the mirror stays lossless over the whole struct rather than over the
+	// fields a row happens to use today, and loadRatified REFUSES a stored
+	// row that sets it - the same treatment RecordBacked gets, for the same
+	// reason: a uniqueness claim is derived from two provider-authored texts
+	// (uniquename.go), and a hand-written one would be this fork asserting a
+	// guarantee AWS did not make. Nothing but the round-trip proof ever puts
+	// a value here.
+	UniqueName *ratifiedUniqueName `json:"unique_name,omitempty"`
+}
+
+// ratifiedUniqueName mirrors [identity.UniqueName] under the same contract as
+// [ratifiedRow].
+type ratifiedUniqueName struct {
+	Attrs    *[]string `json:"attrs,omitempty"`
+	Property string    `json:"property,omitempty"`
 }
 
 // ratifiedComponent mirrors [identity.Component] under the same contract as
@@ -143,6 +160,9 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 		IdentityObjectOnly: e.IdentityObjectOnly,
 		Synthesized:        e.Synthesized,
 		Admits:             e.Admits,
+	}
+	if e.UniqueName.Set() {
+		r.UniqueName = &ratifiedUniqueName{Attrs: strsPtr(e.UniqueName.Attrs), Property: e.UniqueName.Property}
 	}
 	if e.Components != nil {
 		comps := make([]ratifiedComponent, 0, len(e.Components))
@@ -177,6 +197,9 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 		IdentityObjectOnly: r.IdentityObjectOnly,
 		Synthesized:        r.Synthesized,
 		Admits:             r.Admits,
+	}
+	if r.UniqueName != nil {
+		e.UniqueName = identity.UniqueName{Attrs: strsValue(r.UniqueName.Attrs), Property: r.UniqueName.Property}
 	}
 	if r.Components != nil {
 		comps := make([]identity.Component, 0, len(*r.Components))
@@ -244,6 +267,9 @@ func loadRatified(path string) (map[string]identity.TypeIdentity, error) {
 		if row.RecordBacked {
 			return nil, fmt.Errorf("%s: %s is stored as RecordBacked, but a record-backed row is derived from %s and never ratified", path, key, logicalSchemasJSONRel)
 		}
+		if row.UniqueName != nil {
+			return nil, fmt.Errorf("%s: %s is stored with a unique_name, but that claim is derived by crossing %s with %s and is never ratified - see tools/row-gen/uniquename.go", path, key, registryJSONRel, importGrammarJSONRel)
+		}
 		out[key] = fromRatified(row)
 	}
 	return out, nil
@@ -267,14 +293,24 @@ func renderRatified(rows map[string]identity.TypeIdentity) ([]byte, error) {
 	return append(out, '\n'), nil
 }
 
-// ratifiedRowsOf is the non-RecordBacked half of a live table, which is
-// exactly what ratified.json holds. It exists so the migration and the
-// round-trip proof select the same set by the same rule rather than by two
-// copies of the condition.
+// ratifiedRowsOf is the ratified half of a live table, which is exactly what
+// ratified.json holds. It exists so the migration and the round-trip proof
+// select the same set by the same rule rather than by two copies of the
+// condition.
+//
+// Two classes of row are derived rather than ratified and so are excluded:
+// the RecordBacked ones ([recordBackedTypes], from live/logical-schemas.json)
+// and the unique-name ones ([uniqueNameRows], from live/registry.json and
+// live/import-grammar.json). Neither has any ratified content at all - a
+// RecordBacked row's only non-zero fields are its type and the flag, and a
+// unique-name row's prose is [uniqueNameReason], one templated sentence
+// covering the whole class - so storing either in the corpus would put a
+// generator's output into the file that exists to be a generator's input.
+// Both are recognised by a field only their own derivation sets.
 func ratifiedRowsOf(table map[string]identity.TypeIdentity) map[string]identity.TypeIdentity {
 	out := make(map[string]identity.TypeIdentity, len(table))
 	for t, e := range table {
-		if e.RecordBacked {
+		if e.RecordBacked || e.UniqueName.Set() {
 			continue
 		}
 		out[t] = e
@@ -308,8 +344,9 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
 	}
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar)
-	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), grammar, survey, setOf(vetoed))
+	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName)
+	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), uniqueName, grammar, survey, setOf(vetoed))
 	return rows, nil
 }
 
@@ -331,5 +368,6 @@ func mirroredStructs() []struct{ Live, Stored reflect.Type } {
 	return []struct{ Live, Stored reflect.Type }{
 		{reflect.TypeOf(identity.TypeIdentity{}), reflect.TypeOf(ratifiedRow{})},
 		{reflect.TypeOf(identity.Component{}), reflect.TypeOf(ratifiedComponent{})},
+		{reflect.TypeOf(identity.UniqueName{}), reflect.TypeOf(ratifiedUniqueName{})},
 	}
 }

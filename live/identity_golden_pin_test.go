@@ -74,8 +74,22 @@ var identityGoldenPin = map[string]int{
 	// three types the markerless-veto two-source exception newly admits.
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        716,
-	"NEEDS_DISCOVERY": 557,
+	"CONCRETE": 716,
+	// 561, up from 557 (issue #272): four ADDED rows, not a moved one -
+	// internal/live/check/testdata/unique-name-bound's new fixture, one
+	// instance each of aws_cloudfront_cache_policy,
+	// aws_cloudfront_origin_request_policy,
+	// aws_cloudfront_response_headers_policy and
+	// aws_route53_cidr_collection, the four types the unique-name exception
+	// newly admits.
+	//
+	// They join NEEDS_DISCOVERY rather than CONCRETE, and that is the right
+	// place for them: their identity is still the value CloudFront and Route
+	// 53 mint, and every one renders an EMPTY import ID. What changed is not
+	// that the identity became computable - it is that discovery can find
+	// the object without an ownership marker, by the name AWS refuses to
+	// issue twice.
+	"NEEDS_DISCOVERY": 561,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
@@ -108,11 +122,22 @@ var identityGoldenPin = map[string]int{
 // 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311"
+//
+// 2026-08-17 (issue #272): four ADDED rows, and one directory whose fixture
+// WAS edited - internal/live/check/testdata/stamp-untaggable-with-schema
+// swapped aws_cloudfront_cache_policy for
+// aws_cloudfront_origin_access_control, because the first is now admitted
+// and the fixture is about a type that is not. That directory contributes no
+// row to the golden in either spelling: both types refuse before resolution
+// runs, one at the markerless veto and one at the type's own admission, so
+// the swap changes nothing here. The four added rows are
+// internal/live/check/testdata/unique-name-bound's, and no pre-existing row
+// moved.
+const identityGoldenPinBodyDigest = "fb5bc2ce1ffb8ce080e7d469e8e15bfe48950b439d863d189f5f47ad871981dd"
 
 const (
-	identityGoldenPinInstances = 1385
-	identityGoldenPinDirs      = 412
+	identityGoldenPinInstances = 1389
+	identityGoldenPinDirs      = 413
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

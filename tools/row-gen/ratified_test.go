@@ -148,18 +148,26 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 		IdentityObjectOnly: true,
 		Synthesized:        true,
 		Admits:             identity.AdmitSchema,
+		// loadRatified refuses a stored unique_name for the same reason it
+		// refuses RecordBacked - the claim is derived by crossing two
+		// provider-authored texts (uniquename.go) and is never ratified - so
+		// like RecordBacked it travels through the conversion pair only.
+		UniqueName: identity.UniqueName{Attrs: []string{"name"}, Property: "SomeConfig/Name"},
 	}
 	assertEveryExportedFieldNonZero(t, reflect.ValueOf(full), "TypeIdentity")
 	assertEveryExportedFieldNonZero(t, reflect.ValueOf(full.Components[0]), "Component")
+	assertEveryExportedFieldNonZero(t, reflect.ValueOf(full.UniqueName), "UniqueName")
 
 	// Leg one: the conversion pair, over every field including RecordBacked.
 	if got := fromRatified(toRatified(full)); !reflect.DeepEqual(got, full) {
 		t.Errorf("toRatified/fromRatified changed a row in which every field is set\n got: %#v\nwant: %#v", got, full)
 	}
 
-	// Leg two: the file. Same row minus RecordBacked, which the ledger refuses.
+	// Leg two: the file. Same row minus the two derived fields, which the
+	// ledger refuses.
 	viaFile := full
 	viaFile.RecordBacked = false
+	viaFile.UniqueName = identity.UniqueName{}
 
 	cases := map[string]identity.TypeIdentity{
 		"every storable field set": viaFile,
@@ -343,9 +351,11 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	}
 	grammar := loadImportGrammarForTest(t)
 	survey := loadSurveyForTest(t)
-	vetoed := setOf(markerlessRoster(ratified, survey, loadAllForTest(t), grammar))
+	proposals := loadAllForTest(t)
+	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName))
 
-	rows, types := emittedRows(ratified, recordBacked, grammar, survey, vetoed)
+	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)
 	if err != nil {
 		t.Fatalf("renderIdentityFile: %v", err)

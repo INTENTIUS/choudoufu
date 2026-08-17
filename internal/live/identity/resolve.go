@@ -1005,12 +1005,24 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 
 	if entry.ServerAssigned {
-		return Resolution{
+		res := Resolution{
 			Addr:   addr,
 			Class:  ClassNeedsDiscovery,
 			Reason: entry.Reason,
 			Cause:  DiscoveryServerAssigned,
-		}, true
+		}
+		// The identity is still the provider's to mint - the class and the
+		// empty ImportID both stay - but for a row carrying
+		// [TypeIdentity.UniqueName] whose name this configuration actually
+		// states, the object is recognisable in a listing without a marker.
+		// See [DiscoveryUniqueName] for why that is a different answer, and
+		// [resolver.uniqueNameValue] for what it refuses.
+		if name, ok := r.uniqueNameValue(rc, entry, exp.scope(addr.Resource.Key), addr); ok {
+			res.Cause = DiscoveryUniqueName
+			res.CauseArgs = append([]string(nil), entry.UniqueName.Attrs...)
+			res.UniqueName = name
+		}
+		return res, true
 	}
 
 	if entry.RecordBacked {
@@ -3806,6 +3818,70 @@ func sortedResources(resources map[string]*configs.Resource) []*configs.Resource
 		return out[i].Addr().String() < out[j].Addr().String()
 	})
 	return out
+}
+
+// uniqueNameValue reads the account-unique name entry declares, out of this
+// instance's own configuration. ok is false whenever the value is anything
+// other than a string this run can compute today, and every one of those
+// refusals is silent - no diagnostic, no failed resolution.
+//
+// Silence is the contract, not an oversight. The caller's fallback is the
+// ordinary [DiscoveryServerAssigned] answer, which is exactly what this
+// instance was before [TypeIdentity.UniqueName] existed: it needs a marker,
+// and if it cannot carry one, internal/live/stamp refuses the apply and says
+// why. Raising a diagnostic here instead would turn a configuration that was
+// already refused into a configuration refused twice, with the second message
+// blaming an argument the author has set perfectly well.
+//
+// What it refuses, and why each is a refusal rather than a bind:
+//
+//   - the argument is absent, or evaluates to null. There is no name to
+//     match, so no listing can be searched for one.
+//   - the value is not wholly known - a reference to another resource's
+//     computed attribute, uuid(), a variable with no value here. The name
+//     exists but this run cannot say what it is, and matching on a value
+//     this run guessed at is the wrong-marker outcome the whole mechanism is
+//     built to avoid.
+//   - the value is marked sensitive. A name that binds a live object is
+//     compared against a listing and reported in a plan; a sensitive one has
+//     no business there, which is the same line [resolver.stringValue]
+//     draws.
+//   - the value is the empty string. AWS will not accept it as a name, so
+//     nothing in a listing can carry it - but a map lookup on "" would match
+//     any listed object whose own property was absent or empty, which is the
+//     multiple-match hazard arriving through the back door.
+func (r *resolver) uniqueNameValue(rc *configs.Resource, entry TypeIdentity, scope instScope, addr addrs.AbsResourceInstance) (string, bool) {
+	if !entry.UniqueName.Set() {
+		return "", false
+	}
+	schema := &hcl.BodySchema{}
+	for _, n := range entry.UniqueName.Attrs {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
+	}
+	content, _, diags := rc.Config.PartialContent(schema)
+	if diags.HasErrors() {
+		return "", false
+	}
+	attr := firstPresent(content.Attributes, entry.UniqueName.Attrs)
+	if attr == nil {
+		return "", false
+	}
+	val, evalDiags := r.evalPure(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range))
+	if evalDiags.HasErrors() || val == cty.NilVal {
+		return "", false
+	}
+	if val.IsMarked() || val.IsNull() || !val.IsWhollyKnown() {
+		return "", false
+	}
+	str, err := convert.Convert(val, cty.String)
+	if err != nil {
+		return "", false
+	}
+	s := str.AsString()
+	if s == "" {
+		return "", false
+	}
+	return s, true
 }
 
 func firstPresent(attrs hcl.Attributes, names []string) *hcl.Attribute {

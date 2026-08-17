@@ -701,6 +701,30 @@ const (
 	// as a substitute - see [composeCloudControlIdentifier].
 	ProblemUncomposableIdentifier ProblemKind = "UNCOMPOSABLE_IDENTIFIER"
 
+	// ProblemAmbiguousUniqueName is a name bind (issue #272,
+	// internal/live/discovery/uniquename.go) refused because the match was
+	// not unique, from either side: several live objects carrying one
+	// declared name, or several declared instances stating one name.
+	//
+	// It is an ERROR and it binds nothing. The whole justification for
+	// matching on a name at all is that AWS guarantees the name identifies
+	// one object; a run that finds two has just been shown the guarantee
+	// does not hold the way this fork read it, and picking one of them would
+	// be exactly the content-match guess internal/live/foreign refuses to
+	// make. See uniquename.go's own doc comment.
+	ProblemAmbiguousUniqueName ProblemKind = "AMBIGUOUS_UNIQUE_NAME"
+
+	// ProblemUnreadableUniqueName is a listed object of a name-bound type
+	// carrying no readable string where live/registry.json's own schema for
+	// the type says its name lives.
+	//
+	// It is diagnosed rather than skipped because the object may BE the one
+	// a declared instance is waiting for. Passing over it silently would
+	// leave that instance unbound, and an unbound instance is proposed for
+	// creation - so a listing this leg could not read would turn into a
+	// second live object beside the first.
+	ProblemUnreadableUniqueName ProblemKind = "UNREADABLE_UNIQUE_NAME"
+
 	// ProblemUnresolvedTaggedARN is a resource the tagging sweep
 	// ([Request.TaggingSweep], issue #51) found carrying this estate's
 	// marker, whose ResourceARN could not be joined to a (TF type,
@@ -953,6 +977,14 @@ type TypeScan struct {
 	// path, so it is worth seeing rather than hiding.
 	Joined int
 
+	// NameBound is the number of declared instances bound by the name AWS
+	// documents as unique for their type rather than by an ownership marker
+	// (issue #272, uniquename.go). It is reported rather than folded into
+	// Bound because it is the count of binds made on an exception to the
+	// marker rule, and an operator reading a scan line should be able to see
+	// how many of them a run made.
+	NameBound int
+
 	// Sweep is true when this scan is part of the estate-wide sweep: a type
 	// the configuration declares nothing of, listed anyway because this
 	// estate may still own resources of it. Such a scan looks for markers
@@ -983,6 +1015,9 @@ func (s TypeScan) String() string {
 	joined := ""
 	if s.Joined > 0 {
 		joined = fmt.Sprintf(" joined=%d", s.Joined)
+	}
+	if s.NameBound > 0 {
+		joined += fmt.Sprintf(" name-bound=%d", s.NameBound)
 	}
 	return fmt.Sprintf("%s%s %s/%s declared=%d listed=%d bound=%d other-estate=%d unclaimed=%d%s%s",
 		s.TypeName, kind, s.Filtering, s.Scope, s.Declared, s.Listed, s.Bound, s.OtherEstate, s.Unclaimed, source, joined)

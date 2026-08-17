@@ -5,7 +5,10 @@
 
 package identity
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // TypeIdentity is what this package knows about one resource type's
 // identity: whether the identity exists in configuration at all, how to
@@ -94,6 +97,75 @@ type TypeIdentity struct {
 	// ([AdmitConfigSignal]). Empty for a hand-written row, which is asserted
 	// rather than derived.
 	Admits Admission
+
+	// UniqueName is set when AWS itself guarantees that the name this
+	// type's configuration supplies identifies at most one object in the
+	// account and region an enumeration covers, so a live object can be
+	// recognised by that name instead of by an ownership marker. It is only
+	// ever set on a ServerAssigned row: a row whose identity the
+	// configuration already states has no need of it.
+	//
+	// It is the exception internal/live/uniquename's package comment argues
+	// for, and it is narrow on purpose. internal/live/foreign matches a live
+	// object's content against a declaration and refuses to bind on the
+	// result, because "inferring it from a content match would be exactly
+	// the guess the marker spec exists to forbid". That refusal is right for
+	// content in general - two objects can carry the same CIDR, the same
+	// policy document, the same anything. A name AWS refuses to issue twice
+	// is not content: "the cache policy called static-assets" names exactly
+	// one object in the account, so reading it off a listing is not
+	// inference, it is reading the identity the configuration already
+	// states.
+	//
+	// Nothing here is hand-maintained, and the guarantee's absence fails
+	// closed: tools/row-gen sets this only where the provider's own argument
+	// reference and the CloudFormation registry schema INDEPENDENTLY assert
+	// the name is unique (live/import-grammar.json's declared_unique and
+	// live/registry.json's unique_name_property, both computed by
+	// internal/live/uniquename.Asserted). A type with one source, or none,
+	// leaves this zero and never reaches the binding leg at all.
+	UniqueName UniqueName
+}
+
+// UniqueName says where a type's account-unique, client-supplied name lives
+// on both sides of the comparison a name bind makes: Attrs in the
+// configuration, Property in the live object.
+type UniqueName struct {
+	// Attrs names the configuration arguments carrying the name, in
+	// preference order, the same convention [Component.Attrs] uses. In
+	// practice one entry, "name" - the two-source rule only clears a
+	// REQUIRED argument literally called name, because an optional one is a
+	// name a configuration may leave out and a name the configuration does
+	// not state is a name no listing can be matched against.
+	Attrs []string
+
+	// Property is the path, inside a Cloud Control ResourceDescription's
+	// Properties map, at which the same name appears: "Name" at the top
+	// level, or a "/"-separated descent into a configuration sub-object
+	// ("CachePolicyConfig/Name"). It comes from the CloudFormation registry
+	// schema, which is also where the second half of the uniqueness evidence
+	// comes from - so a type whose registry schema does not carry the claim
+	// has no path here either, and cannot be bound by name even if the
+	// provider docs alone had said it was unique.
+	Property string
+}
+
+// Set reports whether this type may be bound by its name. Both halves are
+// required: an empty Property means no live object can be read, and empty
+// Attrs means no declaration can be compared against one. A caller must test
+// this rather than either field alone, which is what makes a partially
+// populated entry fail closed instead of half-binding.
+func (u UniqueName) Set() bool { return u.Property != "" && len(u.Attrs) > 0 }
+
+// PropertyPath is [UniqueName.Property] split into the segments a reader
+// descends through a Cloud Control Properties map. It returns nil for an
+// unset entry, so a caller that skipped [UniqueName.Set] still reads nothing
+// rather than reading the map's root.
+func (u UniqueName) PropertyPath() []string {
+	if u.Property == "" {
+		return nil
+	}
+	return strings.Split(u.Property, "/")
 }
 
 // Component is one piece of an import identity: a fixed separator (Literal,

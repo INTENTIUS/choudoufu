@@ -1247,6 +1247,8 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemUnsweepableOwnedType,
 		ProblemAmbiguousTagJoin,
 		ProblemUnreadableMarker,
+		ProblemAmbiguousUniqueName,
+		ProblemUnreadableUniqueName,
 	}
 	for _, kind := range kinds {
 		if problemSummaries[kind] == "" {

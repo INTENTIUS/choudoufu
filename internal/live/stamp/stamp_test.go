@@ -522,6 +522,18 @@ var (
 	// arithmetic to match a later retraction would erase what the batch
 	// actually found.
 	untaggableAdmittedTypes = []string{
+		// Issue #272's four: untaggable and server-assigned, which is the
+		// markerless veto's own predicate word for word, and admitted
+		// nonetheless because the provider's argument reference and the
+		// CloudFormation registry schema independently document their name
+		// as unique per account and region. They carry no tags argument -
+		// that is what put them in the veto - and discovery recognises them
+		// by that name instead (internal/live/discovery/uniquename.go).
+		"aws_cloudfront_cache_policy",
+		"aws_cloudfront_origin_request_policy",
+		"aws_cloudfront_response_headers_policy",
+		"aws_route53_cidr_collection",
+
 		// The other thirteen of wall/rejected4's WAF batch: no tags argument
 		// in the pinned v6.59.0 Argument Reference, no tags_all in the
 		// Attribute Reference, signals.taggable false in

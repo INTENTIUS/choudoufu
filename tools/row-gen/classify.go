@@ -112,6 +112,14 @@ type proposal struct {
 	ReadOnly          []string
 	CreateOnly        []string
 
+	// UniqueNameProp is live/registry.json's own unique_name_property for
+	// this type, carried through untouched: the path at which a name the
+	// CloudFormation schema itself calls unique lives in the resource's
+	// properties. It participates in no classification rule - uniquename.go
+	// crosses it with the provider documentation's independent claim and is
+	// its only reader.
+	UniqueNameProp string
+
 	// Enumeration story: list-free, parent-input (with the required
 	// inputs), or not listable.
 	Enumeration  string
@@ -224,6 +232,7 @@ func classifyMapped(tf, cfn string, e registryEntry, survey map[string]surveyEnt
 		PrimaryIdentifier: e.PrimaryIdentifier,
 		ReadOnly:          e.ReadOnlyProperties,
 		CreateOnly:        e.CreateOnlyProperties,
+		UniqueNameProp:    e.UniqueNameProperty,
 	}
 	p.Enumeration, p.ParentInputs = enumerationStory(e.Handlers.List, e.Handlers.ListRequiredInput)
 

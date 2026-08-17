@@ -45,9 +45,9 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | quantity | now | bound | denominator | tracker |
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
-| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 145, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 96 | at most 96 | `live/rowgen-convergence.json summary.admitted_total` at 901, floor 850 | #132 |
-| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 887, floor 800 | #132 |
+| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 141, floor 100 | #249 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 96 | at most 96 | `live/rowgen-convergence.json summary.admitted_total` at 905, floor 850 | #132 |
+| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 891, floor 800 | #132 |
 | [`unreached-types`](#unreached-types) | 615 | at most 615 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
@@ -86,7 +86,7 @@ veto reason: the provider mints this type's identity and the type has no tags ar
 - Measured on internal/live/identity.DefaultTable.
 - Held against internal/live/identity.MarkerlessTypes, and through it live/survey-full.json's signals.taggable. The two rosters are different derivations from different evidence even though one -emit run writes both: the table's rows come from the ratified rows plus the import-doc grammar, the veto from the provider survey's own taggability signal. internal/live/stamp's TestPinnedTaggabilityMatchesTheSurvey ties that signal to the run-time marker writer, so the chain ends at the provider schema rather than at another row-gen output.
 - Instrument: two in-process Go maps intersected. No artifact, no provider, no network.
-- Denominator `internal/live/identity.MarkerlessTypes`, measured at 145 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
+- Denominator `internal/live/identity.MarkerlessTypes`, measured at 141 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
 
 What the instrument cannot see:
 
@@ -105,12 +105,12 @@ tools/row-gen/annotations.json is a list of named extractor gaps that only ever 
 
 Now **96 rulings**, at most **96**. At the bound.
 
-every ruling names one of the 887 types the convergence artifact carries, over 901 admitted types.
+every ruling names one of the 891 types the convergence artifact carries, over 905 admitted types.
 
 - Measured on tools/row-gen/annotations.json.
 - Held against live/rowgen-convergence.json. Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
 - Instrument: the committed ledger read as JSON, cross-checked against the committed convergence artifact's type list.
-- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 901 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
+- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 905 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
 
 What the instrument cannot see:
 
@@ -134,12 +134,12 @@ Every admitted row tools/row-gen's classifier fails to reproduce carries a rulin
 
 Now **0 unruled mismatches**, at most **0**. At the bound.
 
-recomputed from 887 compared rows: 96 unmatched, every one of them named by one of the ledger's 96 rulings.
+recomputed from 891 compared rows: 96 unmatched, every one of them named by one of the ledger's 96 rulings.
 
 - Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.
 - Instrument: the committed convergence artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift half.
-- Denominator `live/rowgen-convergence.json summary.compared`, measured at 887 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
+- Denominator `live/rowgen-convergence.json summary.compared`, measured at 891 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
 
 What the instrument cannot see:
 
@@ -158,7 +158,7 @@ Every type the pinned provider serves is in one of three rosters - admitted by i
 
 Now **615 provider resource types**, at most **615**. At the bound.
 
-901 admitted, 80 hand-vetoed, 145 markerless-vetoed, over a roster of 1699.
+905 admitted, 80 hand-vetoed, 141 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.

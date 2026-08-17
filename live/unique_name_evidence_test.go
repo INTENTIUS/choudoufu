@@ -56,10 +56,19 @@ type uniqueNameEvidence struct {
 	// Property is where in a Cloud Control ResourceDescription's Properties
 	// map the name lives, which is what a binding leg would read.
 	Property string
-	// Markerless reports whether this type is currently vetoed as markerless.
-	// Only these types have anything to gain: a taggable type is already
-	// found by its marker, and one that names itself from configuration never
-	// reaches discovery at all.
+	// Markerless reports whether this type would be vetoed as markerless
+	// WITHOUT the mechanism this evidence feeds. Only these types have
+	// anything to gain: a taggable type is already found by its marker, and
+	// one that names itself from configuration never reaches discovery at
+	// all.
+	//
+	// It is a union of two states rather than a read of
+	// [identity.MarkerlessTypes] alone, and it has to be: a type the
+	// mechanism successfully rescued has LEFT that roster, so reading the
+	// roster would report the reach shrinking to nothing at the exact moment
+	// the mechanism started working. The second half - an admitted row
+	// carrying a UniqueName - is that same population seen from the other
+	// side.
 	Markerless bool
 }
 
@@ -134,7 +143,8 @@ func crossedUniqueNameEvidence(t *testing.T) []uniqueNameEvidence {
 		if !ok {
 			continue
 		}
-		_, markerless := identity.MarkerlessTypes[row.TFType]
+		_, vetoed := identity.MarkerlessTypes[row.TFType]
+		markerless := vetoed || identity.DefaultTable[row.TFType].UniqueName.Set()
 		out = append(out, uniqueNameEvidence{
 			TFType:     row.TFType,
 			CFN:        cfn,
@@ -297,20 +307,80 @@ func TestUniqueNameEvidenceReachesVetoedTypes(t *testing.T) {
 	}
 }
 
-// TestUniqueNameEvidenceIsNotActedOnYet holds the line this session
-// deliberately did not cross: the evidence exists, and nothing consumes it.
+// TestUniqueNameEvidenceIsActedOn is the successor to a test this file used
+// to carry, TestUniqueNameEvidenceIsNotActedOnYet, which asserted that no
+// type had been admitted on this evidence because the discovery leg that
+// would USE it did not exist. It does now
+// (internal/live/discovery/uniquename.go), so the assertion inverts: every
+// type the crossing reaches has to be admitted, carrying the evidence in its
+// own row, and off the veto's roster.
 //
-// Deleting this test is the right move in the same commit that lands the
-// discovery leg. Deleting it before then means some type is admitted on
-// evidence with no mechanism behind it, which is plan-and-create-only support
-// for exactly the population that cannot be found again.
-func TestUniqueNameEvidenceIsNotActedOnYet(t *testing.T) {
+// The three conditions are checked together on purpose. Each one alone is
+// satisfiable by a half-landed change - a row in the table with no UniqueName
+// on it would resolve and then be found by nothing; a UniqueName on a row
+// still named by MarkerlessTypes would leave two rosters disagreeing about
+// whether the type exists - and the failure mode of a half-landed change here
+// is plan-and-create-only support for exactly the population that cannot be
+// found again.
+func TestUniqueNameEvidenceIsActedOn(t *testing.T) {
+	reached := 0
 	for _, e := range crossedUniqueNameEvidence(t) {
 		if !e.Markerless {
+			// Taggable, or named from its own configuration: found already,
+			// and this mechanism has nothing to add. See
+			// TestUniqueNameEvidenceReachesVetoedTypes.
 			continue
 		}
-		if _, admitted := identity.DefaultTable[e.TFType]; admitted {
-			t.Errorf("%s is both markerless-vetoed and admitted; review this: if the binding leg has landed, retire this test in that commit rather than leaving the two rosters disagreeing", e.TFType)
+		reached++
+		row, admitted := identity.DefaultTable[e.TFType]
+		if !admitted {
+			t.Errorf("%s crosses the two-source bar and is still outside the admission table; the evidence reaches it and nothing acts on it", e.TFType)
+			continue
+		}
+		if row.UniqueName.Property != e.Property {
+			t.Errorf("%s is admitted with UniqueName.Property = %q, but the registry says the name lives at %q; discovery would read the wrong place",
+				e.TFType, row.UniqueName.Property, e.Property)
+		}
+		if !row.ServerAssigned {
+			t.Errorf("%s is admitted without ServerAssigned; its identity IS minted by the provider - the name is how the object is found, not what its import ID is", e.TFType)
+		}
+		if _, vetoed := identity.MarkerlessTypes[e.TFType]; vetoed {
+			t.Errorf("%s is both admitted and on the markerless veto's roster; the two must be disjoint", e.TFType)
+		}
+	}
+	if reached == 0 {
+		t.Fatal("no markerless-vetoed type was reached at all, so every assertion above passed over nothing")
+	}
+}
+
+// TestUnprovenUniqueNameTypesStayRefused is acceptance criterion (d) of issue
+// #272 and the permanent record of where the bar sits.
+//
+// TestUniqueNameEvidenceRefusesTheUnprovenTypes above checks that these types
+// do not clear the CROSSING. This checks the consequence: they are still
+// refused where a user meets them. The two are different claims, and only the
+// second is about what ships - a crossing that correctly excluded a type
+// while something else admitted it anyway would satisfy the first and none of
+// the point.
+func TestUnprovenUniqueNameTypesStayRefused(t *testing.T) {
+	// aws_cloudfront_origin_access_control is the worked example, and the
+	// reason it is worth naming a type in a test: it is the nearest possible
+	// neighbour of the two CloudFront policy types that DID clear - same
+	// service, same untaggability, same Cloud Control listing, same estates -
+	// and the only thing separating them is the wording of two texts AWS
+	// wrote. A rule loose enough to admit this type would be a rule reading
+	// "a name to identify X" as a uniqueness guarantee.
+	const unproven = "aws_cloudfront_origin_access_control"
+
+	if _, admitted := identity.DefaultTable[unproven]; admitted {
+		t.Errorf("%s is admitted; neither its provider argument reference nor its CloudFormation schema calls its name unique, and its create error names \"the specified parameters\" rather than the name - which suggests the dedup key is the whole configuration tuple, so a name match would bind the wrong object", unproven)
+	}
+	if _, vetoed := identity.MarkerlessTypes[unproven]; !vetoed {
+		t.Errorf("%s is no longer on the markerless veto's roster; it is untaggable and server-assigned and nothing has been shown to find it again, so the veto is exactly where it belongs", unproven)
+	}
+	for _, e := range crossedUniqueNameEvidence(t) {
+		if e.TFType == unproven {
+			t.Errorf("%s reached the crossing at all; both halves of the evidence have to make the claim and neither does", unproven)
 		}
 	}
 }
