@@ -1,224 +1,367 @@
-# Handoff
+# How to work this repository
 
-Rewritten 2026-08-16 after a 200-commit session. Read
-`.claude/agents/live-markers.md` before touching anything — it carries the
-verification budget, the two stall rules, and the splitting rule, all of
-which were learned expensively.
+This file is the standing playbook. It says what the work is for, what makes
+a change acceptable, and how to take a task from the tracker to a merge.
 
-**Work lives in the tracker.** `gh issue list -R INTENTIUS/choudoufu` — a
-bare `gh` hits opentofu/opentofu. This file carries only what rots within a
-session. Do not put findings here; a prior version was wrong four separate
-times.
+It deliberately carries **no ladder table, no site counts and no rankings**.
+Three earlier versions did. Each was stale within the hour, and one carried
+two rows that were wrong at the moment they were written. Every number in
+this project has been wrong at least once while being quoted confidently, so
+the numbers live in artifacts that regenerate and in the tracker, and this
+file tells you how to compute them.
 
-## Recompute, never carry forward
+Read `.claude/agents/live-markers.md` next for the operational detail, and
+`.claude/skills/measuring-the-wall/SKILL.md` before producing any figure.
 
-    just corpus && python3 -c "import json;print({c['class']:c['configs'] for c in json.load(open('live/corpus-refusals.json'))['ladder']['classes']})"
+---
 
-**Deliberately no ladder table in this file.** Two earlier versions carried
-one; it was stale within twenty minutes both times, and once carried two
-rows that were wrong at the moment they were written.
+## What the product is
 
-Two caveats that must travel with any ladder number:
+choudoufu is a fork of OpenTofu that replaces the state file with ordinary
+cloud tags. Each resource carries its own ownership record, so AWS itself can
+say what an estate contains and your existing IAM decides who may read or
+change it. An estate is inherited by being granted access to it: handover is
+granting a role, splitting an estate in two is rewriting tags.
 
-- `checked_layers` is **lint, identity, dataread, stamp**. `discovery` and
-  `projection` are unchecked. `clean` means "nothing in four of six layers
-  refused it", not "this applies end to end".
-- Every `clean` estate still ships a `backend` or `cloud` block.
-  `state-backend` was demoted to a warning (#214), so `backendOnly` can
-  structurally never be true again.
+Three concrete pieces do the three jobs a state file does. Which real
+resource an address refers to is a **marker**, a tag on the resource. Values
+AWS has nowhere to put go in a `record_store`. Effects that leave nothing
+behind to read back get a **receipt** that tracks staleness.
 
-The supportable sentence is *"N of 145 pass the four offline checks this
-instrument runs"*.
+Everything outside live markers is stock OpenTofu, from fork point
+`03743ce6e8`.
 
-## Ranking — assign from #178's greedy table
+**The thing to hold on to: the product's output is a string in a cloud tag.**
+Not a verdict, not a count. A marker that is wrong is worse than a marker
+that was refused, because a wrong one gets written to a real resource and
+adopts or displaces something. Keep that straight and most of the rest of
+this file follows from it.
 
-Recomputed by re-implementing `ClassifyOnboarding` in Python (0 mismatches
-against the Go classifier) over the **56 winnable estates**: the 65
-language-blocked minus 9 that stock OpenTofu refuses identically for missing
-tfvars, which is parity, not defect.
+## What the campaign is
 
-**Do not rank by corpus-wide config count** — it counts the 105 fixtures
-that are not rate-capable published deployments. **Do not rank by
-sole-blocker count either**: `Module output not supported in static context`
-frees 1 estate alone and **+10** at greedy step 10. Use the marginal
-ordering.
+`choudoufu live-check` reads a configuration directory with no cloud
+credentials and says whether the estate can be onboarded. Type coverage is
+rarely what stops a configuration. A `count.index` in a resource name, a
+`for_each` keyed by CIDRs, an identity argument read from a data source, a
+module output used in a static context — each of those stops one first.
 
-Two facts that reframe the campaign:
+That set of refusals is the **language wall**, and burning it down is the
+campaign. The measure is how many real published deployments go from refused
+to onboardable, not how many refusal sites disappear.
 
-- **When it was computed, every open wall issue was sole blocker on 0.**
-  Every class that *was* someone's sole blocker was untracked. #233 and #234
-  now exist for them.
-- **#233 is step 1, +9** — the largest sole-blocker count in the campaign.
-  It entered the ladder only when stamp became a checked layer, so it
-  predates no triage.
+The corpus is a set of third-party configurations pinned in
+`live/corpus-manifest.json` and materialized by `tools/corpus-fetch`. Only a
+subset are rate-capable published deployments; the rest are fixtures.
+Ranking against the wrong denominator has happened repeatedly, so establish
+which population a number is over before you use it, and count it rather than
+quoting a count from a document. The manifest holds globs, not entries, so
+even the corpus size is a measurement.
 
-**Every wall-issue title still says "blocks N of 79".** Those were honest
-when written — an agent recovered the LB=79 artifact and recomputed all 26,
-and every one matched. The population has since moved. Do not read a title
-as a current number.
+---
 
-**#236 is the process defect**: eight issues closed COMPLETED with no
-measured improvement, holding 6 sole blockers. One re-verification (#186)
-upheld its closure, by falsification rather than by accepting the
-attribution. The rest did not.
+## The standing bar
 
-## The instrument overstates, and by how much
+Four rules. They are the maintainer's, they are not negotiable inside a task,
+and a change that violates one gets reverted regardless of how green it is.
 
-Agents measure with **`tools/refusal-probe`** (built this session so nobody
-rebuilds it a thirteenth time):
+### Everything must be derived
 
-    go run ./tools/refusal-probe -out before.json      # 19.6s, all 250 entries
-    go run ./tools/refusal-probe -diff before.json,after.json
-    go run ./tools/refusal-probe -entry .corpus/vpc -v
+This is a generator. Identity tables, admission rulings and import grammars
+are produced by `tools/row-gen`, `tools/survey-gen`, `tools/importdocs-gen`,
+`tools/mapping-gen` and `tools/estate-gen` from provider schemas, scraped
+documentation and CloudFormation metadata.
 
-It writes where you point it, so several agents can measure concurrently in
-one tree — `just corpus` cannot. It reports per-entry and per-refusal-ID
-deltas and flags entries that got **worse**.
+**A fix that names a concrete `aws_*` type in generator control flow is the
+wrong fix.** It buys one cohort and leaves the next one to be hand-wired
+again by somebody who no longer knows why the first one was.
 
-The default mode runs **without provider schemas**: it sees the sites a fix
-clears and not the ones that surface underneath. #196's first half claimed
-11 sites cleared and delivered 10046 → 10046, fourteen merely relabelled;
-its second half claimed 60 from a **per-entry probe against real schemas**
-and delivered exactly 60. The difference is the instrument, not luck.
+Hand-wiring is cheating even when it works. The right move is to find the
+property the type actually has, derive the rule from it, and then report how
+many *other* types the rule reaches. If the answer equals the number you set
+out to fix, you have written a hand-list with extra steps, and you should say
+so rather than land it.
 
-**But "upper bound" is true of sites and false of the verdict**, and this
-corrects what the file used to say. Both modes, all 250 entries, recomputed
-at 0044177183 (the figures first written here were measured at 7d66fa0968,
-before #200's fix emptied the duplicate-identity class, and read 8461):
+A worked example of the shape: sibling references between resources were
+hand-wired per type pair until they were re-derived as generic
+`<base>_ids`/`<base>_arns` arguments, which deleted the hand-wiring and
+covered pairs nobody had enumerated.
 
-    sites     8767 → 8427      blocked configurations   193 → 206
-    instances 3587 → 3921
+### Parity is the bar
 
-**Blocked configurations rise by thirteen.** Thirteen configurations read as
-unblocked in the default mode that a real run refuses, because a rule
-needing a schema returns false without one and a false there is not evidence
-of anything. A fix validated only against the default mode can look like it
+Match stock OpenTofu and go no further. If upstream accepts a configuration
+that we refuse, that is a defect, and the fix is to accept it rather than to
+document the refusal.
+
+The corollary catches people out: **refusing is not automatically the safe
+answer.** A refusal that stock does not make is its own defect. Before
+landing a new refusal, run the same configuration through stock and say what
+it did.
+
+This rule has already killed work in flight. Invented values in a corpus
+generator were removed under it, on the ground that stock produces nothing
+there either.
+
+### A wrong marker outranks a missing one
+
+Ordering for triage. A refusal is visible and annoying. A fabricated or
+misdirected marker is silent, gets written to a real resource, and can adopt
+another instance's object or leak one.
+
+So a defect that produces a wrong rendered identity outranks a whole class of
+refusals by count, every time.
+
+### No claim without a measurement
+
+A closed issue needs a closing comment naming the number that changed and the
+commit it was computed at. Twelve issues were once closed with a figure and
+six of those figures were right; the rest argued from a comparison rather
+than a run.
+
+---
+
+## Where the work is
+
+**The tracker, not this file.** `gh issue list -R INTENTIUS/choudoufu`.
+
+A bare `gh` in this clone resolves to `opentofu/opentofu`, silently and
+without an error. Either pass `-R INTENTIUS/choudoufu` every time or run
+`gh repo set-default INTENTIUS/choudoufu` once.
+
+Issue titles carry figures that were honest when written and have since
+moved. Populations have been recomputed twice. **Do not read a title as a
+current number**, and do not rank off one without recomputing.
+
+Two ranking mistakes that have both been made here:
+
+- Ranking by how many estates *carry* a refusal, and calling it the number it
+  is a sole blocker on. Those differ by an order of magnitude.
+- Ranking by sole-blocker count when marginal cover was the question. One
+  class freed one estate alone and nine more once other classes were cleared.
+  Use the greedy marginal ordering.
+
+---
+
+## Picking up a task
+
+The sequence below works from a cold start with no memory of prior sessions.
+
+**1. Establish where main actually is.**
+
+```
+git log --graph --oneline -15
+git status --porcelain
+```
+
+`git log --oneline` orders by date, not ancestry. It will happily show a fix
+above an artifact that does not contain it. Use `--graph`.
+
+**2. Confirm the tree is green before you touch it.**
+
+```
+just ci
+```
+
+Read the exit code from a file, never from the tail of a compound command.
+One background wrapper reported exit 0 while its log said 1, because the
+status belonged to a trailing `echo`.
+
+**3. Scout before you fix.** Re-verify the issue's claim against the code.
+Roughly half the briefs written in this repo have been materially wrong, and
+several agents found out only after committing to an approach. A report with
+no commit is a good outcome.
+
+In particular, check the issue is not already fixed:
+
+```
+git merge-base --is-ancestor <sha> main
+```
+
+`git log --grep` proves only that a commit exists somewhere. An issue was
+once closed citing a commit that sat on an unmerged branch whose test file
+did not exist on main.
+
+**4. Split anything over about thirty minutes.** Long tasks here are almost
+never harder tasks; they are two jobs in one slot. Scouting is a separate job
+from fixing. Hand back the half you did with enough detail that the next slot
+starts from a correct brief.
+
+**5. Work in a worktree.**
+
+```
+git worktree add ../wt/<name> -b wall/<name> main
+```
+
+---
+
+## Measuring
+
+Read `.claude/skills/measuring-the-wall/SKILL.md` first. It is the catalogue
+of every way a number here has been wrong.
+
+Two instruments, answering different questions. You usually want both.
+
+**`tools/refusal-probe` counts refusals.**
+
+```
+go run ./tools/refusal-probe -out before.json          # ~20s, all 250 entries
+go run ./tools/refusal-probe -diff before.json,after.json
+go run ./tools/refusal-probe -entry .corpus/vpc -v
+go run ./tools/refusal-probe -schemas -out before.json # ~2.5min warm
+```
+
+It writes where you point it, so several people can measure concurrently in
+one tree. `just corpus` cannot.
+
+The default mode runs without provider schemas. It is blind to the whole
+stamp layer, to every rule that returns false when schemas are nil, and to
+non-AWS estates. **Its bound is asymmetric**: it over-reports sites and
+under-reports the verdict, because blocked configurations rise once schemas
+are present. A fix validated only against the default mode can look like it
 unblocked something it did not.
 
-    go run ./tools/refusal-probe -schemas -out before.json   # ~2.5min warm
+**`TestIdentityGolden` pins the rendered value.**
 
-`-schemas` also reports the per-site **cause**, which three agents each
-hand-built before it existed. `-diff` refuses to compare the two modes.
+```
+env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
+```
 
-Other blind spots: the default mode cannot see the stamp layer at all (110
-sites), nor `Two resources with the same identity` (34 at 7d66fa0968, 0
-today — #200 emptied the class), nor any non-AWS
-estate; and an entry with registry module calls measures roughly a sixth of
-its refusal surface — one went 59 sites → 394 once its modules were
-installed.
+1320 rendered identities across 375 configuration directories in under a
+second, with no generator, schemas or network. Address, class, `ImportID`,
+identity attributes.
 
-## Binding rules (maintainer directives)
+This is the only instrument here that measures what a marker will say rather
+than whether something refused. Six defects shipped green because nothing did
+that. **If your change moves a line, explain it. Do not run `-update` to make
+it quiet** — and the shape pin in `live/identity_golden_pin_test.go` will
+stop you anyway.
 
-- **Parity is the bar.** Match stock OpenTofu, go no further. If upstream
-  accepts what we refuse, that is a defect.
-- **Everything must be derived.** A fix naming a concrete type in control
-  flow buys one cohort. Make every brief report how many OTHER things it
-  moved.
-- **A type in `rejected.json` is debt.** Sanctioned exclusions are exactly
-  four: `aws_iam_access_key`, `aws_iot_certificate`,
-  `aws_ivs_playback_key_pair`, `aws_appstream_directory_config`.
-  `aws_secretsmanager_secret_version` was removed from that list by ruling —
-  the marker goes in a tag, not in the secret.
-- **Non-AWS is refused explicitly** (#243), derived from the marker grammar
-  rather than a provider check.
-- **Fable is forbidden for subagents.** Pass an explicit `model` on every
-  spawn.
-- **A closed issue needs a closing comment with the number that changed.**
+### Two numbers, not one
 
-## What the audits are for
+Report **sites and instances** together. Sites falling means the analyzer
+stopped complaining. Instances rising means resources that could not be
+identified now can.
 
-Ten adversarial audits have found **twenty-five real defects in work that
-was green, committed and believed finished**. **CI caught none of them.**
-Tests here are a regression gate, not a defect-finder. An extra audit pass
-buys more than an extra CI run.
+But instances rising is not by itself good news, and this is the sharpest
+lesson available. Reverting a known conversion defect fabricated three
+identities and lost two correct ones, and the instance count went **up**.
+Every aggregate this repository records called that regression an
+improvement. Only a value assertion separates the two.
 
-The two worst this session, both found by audit and neither by CI: four
-`sensitive = true` variables that **crashed the run** out of `check.Dir`,
-and a for-comprehension over a list that silently resolved two instances
-with fabricated keys while reporting `readable=true blocked=false` and zero
-findings.
+### Caveats that travel with any ladder figure
 
-`internal/live/marksafe` now derives the mark-unsafe cty surface by
-reflection and requires every call site to carry a proof. It caught two real
-regressions in its first day. **Any new call to `AsString`, `True`, `False`,
-`ElementIterator` and friends needs a guard**, and a new package under
-`internal/live` must be classified.
+`checked_layers` is lint, identity, dataread and stamp. `discovery` and
+`projection` are unchecked, so `clean` means "nothing in four of six layers
+refused it". The supportable sentence is *"N of the rate-capable
+deployments pass the four offline checks this instrument runs"*.
 
-## Open, highest value first
+The corpus does not install registry modules by default, so an entry with
+module calls measures a fraction of its refusal surface and every per-entry
+number for it is a floor.
 
-- **#244 — wrong marker, the most serious open defect.** `checkOwnership`
-  reads only `tofu-estate` and never compares `tofu-address`; discovery
-  skips a declared address deferring to a projection check that does not
-  exist. Result: an instance adopts another instance's live object, the plan
-  rewrites that object's address marker, and the displaced object is leaked.
-  Stock destroys and recreates; nothing leaks. Fix must use
-  `markers.AddressMatches` and must not break `moved` blocks, which
-  legitimately leave the old address on the object until the tag is
-  rewritten — `moved.Origins(moved.Honoured(cfg), addr)` is the acceptable
-  set.
-- **#233 step 1 (+9 estates).** Bucket E stays refused; both escape hatches
-  were refuted by the provider's own data. CLOUD's severity needs the
-  account ID, which has no source today.
-- **#245 — the admission denominator is 1699, not 86.** 944 admitted + 86
-  vetoed + 669 unreached, exact. The schema fallback rescues 60, so 609 are
-  hard errors. `rejected.json` is a veto set, not a coverage ledger.
-- **#187 bucket 2** — 22 ACM sites, 3 sole-blocked, the whole of greedy
-  step 2.
-- **#193 stays open**: stock accepts all 13 sites. Shapes C and D (7 of 13)
-  have no offline answer.
+---
 
-## Pins
+## Landing a change
 
-floci (fork lane, lex00/floci, `/Users/alex/Documents/checkouts/floci`):
+**Assert on rendered identities.** `res.ImportID` and `res.IdentityValues`,
+never a predicate boolean. Predicates have been green while markers were
+wrong six times; a duplicate-marker bug shipped with a passing analyzer.
 
-- fork main `6f030e96`; published image
-  **`sha256:a1c729f445a96fce8858ac45318d5188b5c2afc76a06e819f234326d52e6bd5f`**,
-  which is what `live/floci-image` now pins.
-- **#229 is fixed and the fix is verified from this side.** The failure mode
-  was *not indexed*: `ResourceGroupsTaggingService` read a map only 2 of 64
-  services wrote to. The fix unions it with a live read of every service's
-  stores through `StorageFactory`. Re-probed on the new digest 2026-08-16:
-  `floci-capability-gen -mode=tagging` is 7/7 implemented (was 0/7), and
-  `TestTaggingSweepAgainstFloci` now asserts its bind instead of skipping -
-  `listed=1 source=tagging`, orphan found, `other-estate=0`.
-- **The union index honours `TagFilters`**, which the floci-side oracle could
-  not show because it probes unfiltered. Direct probe across two estates:
-  3 hits unfiltered, 2 for `tofu-estate=alpha`, 1 for `beta`, 0 for an absent
-  value, 3 key-only, 0 for an absent key, and `ResourceTypeFilters` narrows
-  too. So `sweepViaTagging` sees no foreign-estate ARNs and cannot raise
-  spurious `ProblemUnsweepableOwnedType`/`ProblemUnresolvedTaggedARN`.
-- **`live/cohort-acceptance.json` has NOT been re-measured** and still records
-  `sha256:1362e856…`. It is listed in `staleFlociMeasurements` with that
-  reason; the re-measure is its own slot.
-- `live/cohort-acceptance.json` is **4 pass / 27 fail of 31**, not 3/28, and
-  all 27 failures are `phase: "apply"`. Those runs predate the
-  `!isEmulatorEndpoint` gate, so they had `TaggingSweep=true` against a blind
-  index. The verdicts stand; the 4 passes' removal leg was inert.
-- `TaggingSweep=false` does **not** disable the removal leg — it chooses how
-  candidates are gathered, one `GetResources` versus ~950 per-type List
-  calls. The gate's cost is time and coverage, not correctness.
+**Assert the instance count separately from the key set.** One bug's entire
+signature was two instances where OpenTofu makes three.
 
-## Traps (all live, several burned this session)
+**Mutation-check every boundary fixture.** Remove the stated obstacle and
+only that, and confirm the case then resolves. Otherwise you have proved the
+case refuses, not that it refuses for the reason you claimed. The same
+technique applied to a guard is how you find out the guard is decorative: one
+compatibility leg turned out to be untested at the layer where it mattered,
+and only a deliberate mutation revealed it.
 
-- `env -u PWD` for every go command (symlink trap).
-- **Read every exit code from a file.** A background wrapper reported exit 0
-  today while its log said 1 — the compound command's status was the
-  trailing `echo`'s.
-- Never pipe a generator into `head` — SIGPIPE.
-- **Run a generator twice and diff before trusting an artifact.**
-- **Verify a closure with `git merge-base --is-ancestor`, not `git log
-  --grep`.** #227 was closed citing a commit that was never on main; a
-  matching grep only proves the commit exists somewhere.
-- **A generated artifact conflicts on merge — regenerate, never hand-merge.**
-  `live/rowgen-convergence.json` and `live/survey-full.json` both did.
-- `.gitignore`'s `/.corpus/` does **not** match a symlink named `.corpus`.
-- A new tool binary needs a `.gitignore` entry; `TestEveryToolHasAGitignoreEntry`
-  enforces it.
-- Cohort ownership split is enforced: `GENERATED.md` and `.tf` are
-  estate-gen's; `README.md` is hand-owned.
-- `live/rowgen-convergence.json` is NOT coverage.
-- **Two agent branches can merge cleanly in text and still be semantically
-  incompatible.** One wrote a test against a signature the other changed;
-  another carried expectations that predated a classifier fix.
-- **A test nothing runs is not a test.** `live/e2e/record-store/` was red on
-  main and wired to no recipe, no CI step, no README mention.
+**A test nothing runs is not a test.** One harness sat red on main for weeks,
+wired to no `just` recipe, no CI step and no README mention. Wire it, then
+break it deliberately once and watch it go red.
+
+**Regenerate, never hand-merge, a generated artifact.** Two have conflicted
+on merge and both had to be regenerated.
+
+**Run a generator twice and diff before trusting its output.** One was
+silently nondeterministic through sporadic subprocess handshake failures.
+
+**`marksafe` guards `internal/live`.** A new call to a cty accessor needs a
+proof its receiver cannot be marked, `ContainsMarked` before anything that
+iterates, and a new package under `internal/live` must be classified. Note
+the asymmetry it exists for: a marked element hoists its mark to the
+container only for a set.
+
+---
+
+## What is enforced, and what is not
+
+Prose is re-read only by whoever happens to read it, and this project keeps
+discovering that its prose was stale. So rules get converted into tests
+whenever they can be. When you find yourself writing a rule into a document,
+ask first whether it can be a test.
+
+The pattern to copy, in `live/`:
+
+| Guard | What it holds |
+|---|---|
+| `TestCIRunsEveryForkOwnedTestPackage`, `TestCIExclusionsAreReal` | every fork-owned test package is in CI's glob, or excluded with a reason |
+| `TestFlociMeasurementsMatchThePinOrSayWhyNot` | a measurement is current, or its exception still applies |
+| `TestIdentityGoldenShapeIsPinned` | the golden's shape, so `-update` alone cannot silence a regression |
+| `TestUnreachedTypeRatchet` and siblings | admission debt does not grow; `universeFloor` is the anti-tamper leg |
+| `TestEveryToolHasAGitignoreEntry`, `TestNoCompiledBinaryIsTracked` | no multi-megabyte binary lands in a commit again |
+| `TestOperationalBriefIsTracked` | the brief cannot go back to being untracked local state |
+
+What they have in common is worth copying deliberately. Each is a registry
+checked against the tree rather than a hand-list. Each exception is written
+in Go and carries its reason. Each fails in **both** directions: when the
+thing it guards moves, and when the guard itself stops describing anything
+real. A pin on something that no longer exists passes forever.
+
+Some rules stay prose because they are about judgment rather than about the
+tree: parity, splitting long work, and the worktree hygiene below. Those
+depend on being read.
+
+---
+
+## Traps
+
+Every one of these has been hit, most more than once.
+
+- **`env -u PWD` on every go command.** The checkout is reachable by two
+  spellings through a symlink.
+- **Read exit codes from a file.**
+- **Never pipe a generator into `head`.** SIGPIPE.
+- **Never `git stash` here.** The stack is shared across worktrees. Use
+  `git show <sha> | git apply -R` and restore afterwards.
+- **Never prune a worktree by whether its branch merged.** A branch with no
+  commits is trivially an ancestor of main. A prune loop on that predicate
+  destroyed five running agents' work in one command.
+- **`.gitignore` needs `/.corpus`, not `/.corpus/`.** Agents symlink the
+  corpus into worktrees rather than refetching 250 repositories, and a
+  directory pattern does not match a symlink.
+- **A new tool binary needs a `.gitignore` entry.**
+- **Cohort ownership is split**: `GENERATED.md` and `.tf` belong to
+  `estate-gen`; `README.md` is hand-owned.
+- **Two branches can merge cleanly in text and be semantically
+  incompatible.** One wrote a test against a signature another had changed.
+  Run the tests on the merge result, not on the branch.
+- **Shell substitution in a `-m` commit message** will eat things like
+  `${count.index}`. Use `-F` with a message file.
+
+---
+
+## Session-perishable state
+
+Anything that rots faster than this file lives elsewhere on purpose.
+
+- Work items and their current figures: the tracker.
+- Ladder and refusal figures: regenerate with `just corpus`, or measure with
+  `refusal-probe` against the tree you are on.
+- Pinned floci image, provider pins and their drift guards: `live/floci-image`
+  and the tests in `live/pins_drift_test.go` and `live/flociimage_test.go`,
+  which fail if a measurement outlives its stated reason.
+- Adversarial audits have found real defects in work that was green,
+  committed and believed finished, and CI caught none of them. An extra audit
+  pass buys more than an extra CI run. Treat that as a standing option, not a
+  one-off.
