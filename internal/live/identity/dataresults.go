@@ -11,6 +11,8 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 )
@@ -40,6 +42,10 @@ type dataResultsIndex map[string]map[string]cty.Value
 // generic dynamic-value refusal, pointing the user at their configuration
 // for a defect in the calling code.
 func buildDataResultsIndex(results map[string]cty.Value) (dataResultsIndex, []string) {
+	return buildResultsIndex(results, addrs.DataResourceMode)
+}
+
+func buildResultsIndex(results map[string]cty.Value, mode addrs.ResourceMode) (dataResultsIndex, []string) {
 	if len(results) == 0 {
 		return nil, nil
 	}
@@ -60,7 +66,7 @@ func buildDataResultsIndex(results map[string]cty.Value) (dataResultsIndex, []st
 
 	for _, key := range keys {
 		addr, diags := addrs.ParseAbsResourceInstanceStr(key)
-		if diags.HasErrors() || addr.Resource.Resource.Mode != addrs.DataResourceMode {
+		if diags.HasErrors() || addr.Resource.Resource.Mode != mode {
 			bad = append(bad, key)
 			continue
 		}
@@ -167,4 +173,49 @@ func (r *resolver) dataLookupFor(modInst addrs.ModuleInstance) configs.StaticDat
 		val, ok := byRes[addr.String()]
 		return val, ok
 	}
+}
+
+// managedCovered reports whether trav names an ATTRIBUTE of a managed
+// resource the caller's live read covers in the module instance being
+// resolved (issue #187, [Context.ManagedResults]). It is what
+// [resolver.isSymbolic] consults before deciding a managed reference has to
+// take the resource-expansion route.
+//
+// It is deliberately coarser than [configs.lookupCoversTraversal], which
+// decides the same question against the value itself and runs a moment
+// later inside the evaluator: a reference this admits and that refuses ends
+// up refused either way, with the evaluator's own message rather than the
+// expansion path's. What it must not do is admit a bare whole-resource
+// reference, which is the one shape the expansion path answers and an
+// evaluated value cannot.
+func (r *resolver) managedCovered(trav hcl.Traversal) bool {
+	if r.dataIndex == nil {
+		return false
+	}
+	byRes := r.dataIndex[r.modInst.String()]
+	if len(byRes) == 0 {
+		return false
+	}
+	ref, diags := addrs.ParseRef(trav)
+	if diags.HasErrors() || len(ref.Remaining) == 0 {
+		// A bare whole-resource reference - for_each = aws_subnet.this -
+		// keeps the route it has always had, where the instance keys come
+		// from the parent block's own expansion. Only a reference that goes
+		// on to name an attribute has anything a read could answer.
+		return false
+	}
+	var res addrs.Resource
+	switch subj := ref.Subject.(type) {
+	case addrs.Resource:
+		res = subj
+	case addrs.ResourceInstance:
+		res = subj.Resource
+	default:
+		return false
+	}
+	if res.Mode != addrs.ManagedResourceMode {
+		return false
+	}
+	_, ok := byRes[res.String()]
+	return ok
 }
