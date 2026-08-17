@@ -220,3 +220,97 @@ func TestBlockedVerdictNeverClaimsBackendRemains(t *testing.T) {
 		t.Errorf("the blocked verdict is missing:\n%s", out)
 	}
 }
+
+// The stage lists next. All three are printed from three slices, and one of
+// them can go empty: GitHub issue #261 asked whether the discovery stage
+// still belongs in Unchecked, and was closed partly on the argument that
+// emptying that list would make this report overstate the run. Part of that
+// argument was this renderer, which printed "Not checked: %s." with no guard
+// at all - correct only for as long as the list stayed non-empty, and
+// asserted on by nothing.
+
+// TestNotCheckedNamesTheStagesWhenThereAreAny is the ordinary case, pinned so
+// that the empty-list branch below cannot be satisfied by dropping the line
+// altogether.
+func TestNotCheckedNamesTheStagesWhenThereAreAny(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Instances: 1,
+		Checked:   []string{"lint", "identity"},
+		Partial:   []string{"projection"},
+		Unchecked: []string{"discovery"},
+	})
+
+	if !strings.Contains(out, "Not checked: discovery.") {
+		t.Errorf("the report does not name the stage nobody looked at:\n%s", out)
+	}
+	if !strings.Contains(out, "Partly checked: projection.") {
+		t.Errorf("the report does not name the partly checked stage:\n%s", out)
+	}
+	if !strings.Contains(out, "not a promise that an apply succeeds") {
+		t.Errorf("the caveat is missing:\n%s", out)
+	}
+}
+
+// TestNotCheckedLineIsNotPrintedWhenNothingIsUnchecked is the branch that had
+// no reader. An empty list rendered "Not checked: ." - a sentence naming no
+// stage, which reads as a formatting bug and tells a user nothing.
+//
+// The caveat has to survive it. A run with no wholly-unchecked stage still
+// makes no cloud calls and still has partly-checked stages whose remaining
+// refusals need one, so "a clean result is not a promise that an apply
+// succeeds" is true either way and is the part that matters.
+func TestNotCheckedLineIsNotPrintedWhenNothingIsUnchecked(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Instances: 1,
+		Checked:   []string{"lint", "identity", "dataread", "stamp", "discovery"},
+		Partial:   []string{"projection"},
+		Unchecked: nil,
+	})
+
+	if strings.Contains(out, "Not checked:") {
+		t.Errorf("the report still prints a \"Not checked\" line with nothing to name:\n%s", out)
+	}
+	if !strings.Contains(out, "not a promise that an apply succeeds") {
+		t.Errorf("the caveat went away with the stage list; it is true whether or not a stage is wholly unchecked:\n%s", out)
+	}
+	if !strings.Contains(out, "makes no cloud calls") {
+		t.Errorf("the report no longer says it made no cloud calls:\n%s", out)
+	}
+	if !strings.Contains(out, "Partly checked: projection.") {
+		t.Errorf("the partly checked stage went missing:\n%s", out)
+	}
+}
+
+// TestSourcelessSiteRendersAsNothingRatherThanABlankLine covers the shape
+// every projection finding has today. internal/live/projection raises both of
+// the refusals internal/live/check computes offline with tfdiags.Sourceless,
+// so the site carries no file, no line and no address, and the example loop
+// printed four spaces and a newline for it.
+func TestSourcelessSiteRendersAsNothingRatherThanABlankLine(t *testing.T) {
+	out := renderLiveCheck(t, LiveCheckReport{
+		Dir: ".", Blocked: true, Sites: 1, Instances: 1,
+		Findings: []LiveCheckFinding{{
+			Title:     "Empty import identity",
+			Layer:     "projection",
+			SiteCount: 1,
+			Examples:  []LiveCheckSite{{}},
+			Remedy:    "A resource resolved to an import identity with no content, which no provider can import.",
+			DocsRef:   `live/LIMITATIONS.md, "Empty import identity"`,
+		}},
+		Checked:   []string{"lint"},
+		Partial:   []string{"projection"},
+		Unchecked: []string{"discovery"},
+	})
+
+	for i, line := range strings.Split(out, "\n") {
+		if line != "" && strings.TrimSpace(line) == "" {
+			t.Errorf("line %d is whitespace only (%q); a site with no position and no address must print nothing:\n%s", i+1, line, out)
+		}
+	}
+	if !strings.Contains(out, "Empty import identity  (1 site(s), projection)") {
+		t.Errorf("the finding's own heading is missing, so the site count is no longer reported:\n%s", out)
+	}
+	if !strings.Contains(out, "which no provider can import") {
+		t.Errorf("the remedy is what carries the content for a sourceless finding, and it is missing:\n%s", out)
+	}
+}
