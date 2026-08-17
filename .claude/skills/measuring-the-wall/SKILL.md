@@ -170,19 +170,32 @@ never on a predicate boolean.** Predicates have been green while markers
 were wrong six times. A duplicate-marker bug had a passing analyzer.
 
 There is now one instrument that does this at scale.
-`internal/live/check.TestIdentityGolden` pins 1320 rendered identities —
-address, class, `ImportID`, identity attributes — across 375 configuration
-directories, in 0.6s with no generator, schemas or network. **If your change
-moves a line in `testdata/identity-golden.txt`, explain it. Do not run
-`-update` to make it quiet.** A moved line is the only signal here that
-distinguishes a fix from a plausible-looking regression.
+`internal/live/check.TestIdentityGolden` pins the rendered identity —
+address, class, `ImportID`, identity attributes — of every managed resource
+instance the in-repo fixtures resolve, in under a second with no generator,
+schemas or network. **If your change moves a line in
+`testdata/identity-golden.txt`, explain it. Do not run `-update` to make it
+quiet.** A moved line is the only signal here that distinguishes a fix from
+a plausible-looking regression.
 
-Its bound is written into its own doc and you should know it: 550 of the
-1320 render an empty value, because their identity needs a live account or
-a server-assigned ID. It covers the 658 CONCRETE and the 95 symbolic
-formulas. Eight of the eleven classified defect shapes fail it
-automatically; three present as an *added* line and are only surfaced to
-somebody reading the diff.
+Its current size is in the `# shape:` block at the top of the golden and in
+`live/identity_golden_pin_test.go`. Do not repeat it here — this paragraph
+carried 1320 instances over 375 directories for a day after it was 1335
+over 382, which is this document's own subject.
+
+Its bound is worth knowing and is stable in shape rather than in count:
+roughly two rows in five render an empty value, because their identity
+needs a live account or a server-assigned ID, so the file covers the
+CONCRETE rows and the symbolic PARENT_DERIVED formulas and nothing else.
+Eight of the eleven classified defect shapes fail it automatically; three
+present as an *added* line and are only surfaced to somebody reading the
+diff.
+
+Two legs hold it. The counts are pinned in
+`live/identity_golden_pin_test.go`, and so is a sha256 over the rows. The
+digest exists because the counts alone were defeated: an audit rewrote 35
+rendered `ImportID`s, ran `-update`, and every count came back
+byte-identical.
 
 **Assert the instance count separately from the key set.** One bug's whole
 signature was two instances where OpenTofu makes three.

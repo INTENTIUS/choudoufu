@@ -7,6 +7,8 @@ package check
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -67,9 +69,13 @@ import (
 // offline analysis knows that account, so both the right identity and the
 // wrong one classify NEEDS_DISCOVERY here and neither renders. Every type
 // whose identity needs a live account, a server-assigned ID, or a parent's
-// real ID is invisible to this file in the same way: 550 of the 1320
-// instances it pins are NEEDS_DISCOVERY with nothing in the value column. It
-// covers the 658 that are CONCRETE and the 95 whose formula is symbolic.
+// real ID is invisible to this file in the same way: roughly two rows in five
+// are NEEDS_DISCOVERY or RECORD_BACKED with nothing in the value column. It
+// covers the CONCRETE rows and the PARENT_DERIVED ones whose formula is
+// symbolic. The exact split is the "# shape:" block at the top of the golden
+// and the pin in live/identity_golden_pin_test.go; it is not repeated here,
+// because the version of this sentence that named 550, 1320, 658 and 95
+// outlived all four.
 //
 // The second is the direction-of-merit problem, reproduced exactly. With the
 // fix reverted, the sweep resolved 1321 instances against 1320 - the count
@@ -206,7 +212,7 @@ func renderIdentityGolden(t *testing.T, root string, dirs []string) string {
 	buf.WriteString("# touched now renders a different identity. An ADDED line is the\n")
 	buf.WriteString("# campaign working, and its value is still worth reading.\n")
 	buf.WriteString("#\n")
-	buf.WriteString(identityGoldenShapeBlock(len(dirs), instances, classCounts))
+	buf.WriteString(identityGoldenShapeBlock(len(dirs), instances, classCounts, body.String()))
 	buf.WriteString("#\n")
 	buf.WriteString("# dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes\n")
 	buf.WriteString(body.String())
@@ -227,7 +233,14 @@ func renderIdentityGolden(t *testing.T, root string, dirs []string) string {
 //
 // The counts are computed from the same walk that writes the body, so a
 // hand-edited header disagrees with a recount of its own rows.
-func identityGoldenShapeBlock(dirs, instances int, classCounts map[string]int) string {
+//
+// The digest is the leg that makes the pin cover VALUES and not only counts.
+// An audit defeated the counts-only version in one edit: injecting a defect
+// that rewrote 35 rendered ImportIDs and running -update left dirs, instances
+// and every class count byte-identical, so both this test and the pin in live/
+// went green over 35 changed markers. A count cannot see a value move, and the
+// value is the product's whole output.
+func identityGoldenShapeBlock(dirs, instances int, classCounts map[string]int, body string) string {
 	classes := make([]string, 0, len(classCounts))
 	for class := range classCounts {
 		classes = append(classes, class)
@@ -239,7 +252,18 @@ func identityGoldenShapeBlock(dirs, instances int, classCounts map[string]int) s
 	for _, class := range classes {
 		fmt.Fprintf(&b, "# shape: class %s=%d\n", class, classCounts[class])
 	}
+	fmt.Fprintf(&b, "# shape: body-sha256=%s\n", identityGoldenBodyDigest(body))
 	return b.String()
+}
+
+// identityGoldenBodyDigest hashes the rows and nothing else - not the header,
+// which would make the digest depend on itself.
+//
+// It is checkout-stable for the same reason the rows are: scrubIdentityGolden
+// has already replaced this checkout's absolute path, and the walk is sorted.
+func identityGoldenBodyDigest(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(sum[:])
 }
 
 // renderedIdentity is the string this resolution would put into the world,

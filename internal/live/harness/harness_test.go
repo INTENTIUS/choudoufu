@@ -21,6 +21,89 @@ func testRepo(t *testing.T) *Repo {
 	return r
 }
 
+// registeredBurndownIDs and registeredAssumptionIDs are the census, and they
+// are the leg that makes this package fail when it stops describing anything.
+//
+// Every other check here iterates the registry, so all of them pass over an
+// empty one. An audit deleted unreachedTypes() from Burndown - the ratchet
+// bounding the 621 provider types in no roster, which is the project's
+// headline admission debt - ran `just harness`, and the whole tree went green:
+// ValidateBurndown had nothing to reject, MeasureAll had nothing to measure,
+// TestEveryBurndownEntryIsInTheDocument had nothing to look for, and the
+// document's diff was a clean 27-line deletion that reads as tidying.
+//
+// This is the same both-directions census live/derivation_guard_test.go's
+// generatedTypeLiteralFiles and live/ci_coverage_test.go's ciExcludedPackages
+// use, for the same reason: a registry is only a guard while something knows
+// what it is supposed to contain.
+//
+// ADDING an ID here is routine - add the entry, add the line. REMOVING one is
+// the deliberate act: it says a quantity this project was driving somewhere is
+// no longer being driven, and it belongs in its own commit saying which and
+// why.
+var registeredBurndownIDs = []string{
+	"mapping-unclassified",
+	"markerless-veto-admitted-overlap",
+	"rowgen-annotation-rulings",
+	"rowgen-unannotated-mismatches",
+	"unreached-types",
+}
+
+var registeredAssumptionIDs = []string{
+	"checked-layers-are-lint-identity-dataread-stamp",
+	"credential-exclusions-are-exactly-four",
+	"measurement-artifacts-are-commit-dated",
+	"onboarding-non-blocking-ids",
+}
+
+// TestRegistriesHoldWhatTheyAreRegisteredToHold fails in both directions: an
+// entry added without being claimed, and an entry deleted without being
+// claimed. The second is the one that matters, because every other test in
+// this file passes over an empty registry.
+func TestRegistriesHoldWhatTheyAreRegisteredToHold(t *testing.T) {
+	check := func(t *testing.T, kind string, got, want []string) {
+		t.Helper()
+		have := map[string]bool{}
+		for _, id := range got {
+			have[id] = true
+		}
+		expect := map[string]bool{}
+		for _, id := range want {
+			expect[id] = true
+		}
+		for _, id := range want {
+			if !have[id] {
+				t.Errorf("%s %q is registered in this file but no longer in the registry.\n"+
+					"Deleting an entry deletes a bound nobody is watching any more, and every other check in this "+
+					"package passes over a registry that has lost it. If the quantity genuinely stopped mattering, "+
+					"say so in the commit that removes both lines.", kind, id)
+			}
+		}
+		for _, id := range got {
+			if !expect[id] {
+				t.Errorf("%s %q is in the registry and not in this file's census.\n"+
+					"Add it - the census is what stops the registry being emptied one reasonable-looking edit at a time.", kind, id)
+			}
+		}
+	}
+
+	t.Run("burndown", func(t *testing.T) {
+		var ids []string
+		for _, e := range Burndown() {
+			ids = append(ids, e.ID)
+		}
+		check(t, "burndown entry", ids, registeredBurndownIDs)
+	})
+
+	t.Run("assumptions", func(t *testing.T) {
+		var ids []string
+		for _, a := range Assumptions() {
+			ids = append(ids, a.ID)
+		}
+		check(t, "assumption", ids, registeredAssumptionIDs)
+	})
+}
+
 // TestBurndownRegistryIsWellFormed runs the registry's own shape checks over
 // the shipped entries. Everything ValidateBurndown rejects is a way an entry
 // could look complete and prove nothing.
