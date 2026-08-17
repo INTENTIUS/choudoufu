@@ -212,6 +212,20 @@ go run ./tools/refusal-probe -schemas -out before.json # ~2.5min warm
 It writes where you point it, so several people can measure concurrently in
 one tree. `just corpus` cannot.
 
+A fresh worktree has no `.corpus` - it is gitignored - and a sweep there used
+to report 31 in-repo fixtures with exit 0 and nothing else said. The probe now
+refuses unless every manifest source expands to something on disk and every
+fetched source sits at the commit the manifest pins. Get the corpus with `just
+corpus-fetch`, or symlink one in from a checkout that already has it.
+`-allow-partial-corpus` measures anyway and stamps the sweep, and `-diff` will
+not compare a stamped sweep against a full one.
+
+`-diff` refuses any pair whose difference is not the change under test: two
+trees, two manifests, one side schema-backed, two provider versions, or two
+different sets of entries. It reports - without refusing - the inputs that are
+allowed to move and still change the meaning: module install state, var files,
+and per-provider acquisition.
+
 The default mode runs without provider schemas. It is blind to the whole
 stamp layer, to every rule that returns false when schemas are nil, and to
 non-AWS estates. **Its bound is asymmetric**: it over-reports sites and

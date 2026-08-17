@@ -150,7 +150,17 @@ func TestDiffRefusesToCompareAcrossSchemaModes(t *testing.T) {
 		return path
 	}
 
-	base := run{Manifest: "live/corpus-manifest.json", Root: "."}
+	// ProbeVersion and RootPath are set because a sweep always records them
+	// now and -diff refuses a file that does not: an absent field
+	// unmarshals to a zero that compares equal to the other side's absent
+	// field, which is the gap guards_test.go closes.
+	base := run{
+		ProbeVersion: probeVersion,
+		Manifest:     "live/corpus-manifest.json",
+		Root:         ".",
+		RootPath:     "/tree",
+		ManifestSHA:  "aaaa",
+	}
 	without := write("without.json", base)
 	with := base
 	with.Schemas = true
