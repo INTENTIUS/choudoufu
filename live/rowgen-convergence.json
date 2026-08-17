@@ -1,21 +1,21 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 896,
-    "compared": 882,
+    "admitted_total": 897,
+    "compared": 883,
     "not_in_mapped_set": 14,
     "adopted_unchanged": 790,
-    "adopted_unchanged_pct": 89.57,
-    "genuine_mismatches": 92,
-    "annotated": 92,
+    "adopted_unchanged_pct": 89.47,
+    "genuine_mismatches": 93,
+    "annotated": 93,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 23
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 15,
+      "compared": 16,
       "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 66.67
+      "adopted_unchanged_pct": 62.5
     },
     "ACMPCA": {
       "compared": 2,
@@ -5552,6 +5552,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_user_group_membership",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=none); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "The documented import ID is a scalar segment followed by ONE SEGMENT PER ELEMENT of a collection-typed argument (user1/group1/group2), so the number of segments is a property of the configuration rather than of the type. Every grammar rule in importprecedence.go compares a fixed segment count against a fixed argument count, and this row has two arguments against three example segments, so the arity check refuses. Closing the gap needs the classifier to know that `groups` is a COLLECTION: the provider's schema says set(string), but the only per-argument facts the scrape carries are the argument's name and whether it is required, and live/survey-full.json carries signals rather than attribute types. The ratified row states the shape the doc states in prose (\"the user name and group names separated by /\")."
     },
     {
       "tf_type": "aws_iam_user_policy",

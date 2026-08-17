@@ -1090,7 +1090,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// one - which requires every failing component to have actually been
 	// reached and diagnosed, not just the first.
 	failed := false
-	for _, comp := range entry.Components {
+	for i, comp := range entry.Components {
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
 			// provider documents as defaulting to that same cloud property.
@@ -1216,6 +1216,18 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		ident := r.identifier(addr, attr.Name, attr.Range)
 		expr := attr.Expr
+		if comp.PerElement {
+			// One segment per element, joined by whatever separator the
+			// preceding component supplies. See [Component.PerElement].
+			got, ok := r.perElementParts(expr, scope, attr, ident, precedingSeparator(entry.Components, i))
+			if !ok {
+				failed = true
+				continue
+			}
+			parts = append(parts, got...)
+			addTo(comp.identityAttrFor(attr.Name), got)
+			continue
+		}
 		if comp.SoleElement {
 			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
 			if !ok {

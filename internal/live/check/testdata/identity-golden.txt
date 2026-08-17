@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=403 instances=1359
-# shape: class CONCRETE=692
+# shape: dirs=404 instances=1371
+# shape: class CONCRETE=704
 # shape: class NEEDS_DISCOVERY=555
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=ce4ce8da112a2ee6b79ab328b64023c3a4edf7237e23bdce36da4f18615091a0
+# shape: body-sha256=65ef5360163aa2998b5405643c621059ee166f795b64dd41a52eeec3b07ae438
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -283,6 +283,18 @@ internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_rule.nightly	CO
 internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_target.nightly	CONCRETE	ops-bus/nightly-sweep/sweep	event_bus_name=ops-bus,rule=nightly-sweep,target_id=sweep
 internal/live/identity/testdata/parent-attr-composite	aws_s3_bucket_policy.data	CONCRETE	vol-0123456789abcdef0	bucket=vol-0123456789abcdef0
 internal/live/identity/testdata/parent-attr-composite	aws_volume_attachment.data	CONCRETE	/dev/sdh:vol-0123456789abcdef0:i-0123456789abcdef0	device_name=/dev/sdh,instance_id=i-0123456789abcdef0,volume_id=vol-0123456789abcdef0
+internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_admins	CONCRETE	infra-admins	name=infra-admins
+internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_deploy_playground	CONCRETE	infra-deploy-playground	name=infra-deploy-playground
+internal/live/identity/testdata/per-element-groups	aws_iam_group.infra_team	CONCRETE	infra-team	name=infra-team
+internal/live/identity/testdata/per-element-groups	aws_iam_group.rustc_perf	CONCRETE	rustc-perf	name=rustc-perf
+internal/live/identity/testdata/per-element-groups	aws_iam_user.users["Kobzol"]	CONCRETE	Kobzol	name=Kobzol
+internal/live/identity/testdata/per-element-groups	aws_iam_user.users["pietroalbini"]	CONCRETE	pietroalbini	name=pietroalbini
+internal/live/identity/testdata/per-element-groups	aws_iam_user.users["shepmaster"]	CONCRETE	shepmaster	name=shepmaster
+internal/live/identity/testdata/per-element-groups	aws_iam_user_group_membership.from_var	CONCRETE	jtgeibel/alpha/zeta	groups=alpha/zeta,user=jtgeibel
+internal/live/identity/testdata/per-element-groups	aws_iam_user_group_membership.inline	CONCRETE	carols10cents/infra-admins/rustc-perf	groups=infra-admins/rustc-perf,user=carols10cents
+internal/live/identity/testdata/per-element-groups	aws_iam_user_group_membership.users["Kobzol"]	CONCRETE	Kobzol/infra-team/rustc-perf	groups=infra-team/rustc-perf,user=Kobzol
+internal/live/identity/testdata/per-element-groups	aws_iam_user_group_membership.users["pietroalbini"]	CONCRETE	pietroalbini/infra-admins	groups=infra-admins,user=pietroalbini
+internal/live/identity/testdata/per-element-groups	aws_iam_user_group_membership.users["shepmaster"]	CONCRETE	shepmaster/infra-deploy-playground/infra-team	groups=infra-deploy-playground/infra-team,user=shepmaster
 internal/live/identity/testdata/provider-region-collision	aws_sqs_queue.elsewhere	NEEDS_DISCOVERY		
 internal/live/identity/testdata/provider-region-collision	aws_sqs_queue.explicit	NEEDS_DISCOVERY		
 internal/live/identity/testdata/provider-region-collision	aws_sqs_queue.inherited	NEEDS_DISCOVERY		

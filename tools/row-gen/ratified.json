@@ -5691,6 +5691,28 @@
       "name"
     ]
   },
+  "aws_iam_user_group_membership": {
+    "type": "aws_iam_user_group_membership",
+    "components": [
+      {
+        "attrs": [
+          "user"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "groups"
+        ],
+        "identity_attr": "*",
+        "per_element": true
+      }
+    ],
+    "import_syntax": "USERNAME/GROUPNAME1/GROUPNAME2..."
+  },
   "aws_iam_user_policy": {
     "type": "aws_iam_user_policy",
     "components": [
