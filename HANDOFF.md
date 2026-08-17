@@ -703,6 +703,66 @@ would otherwise rediscover.
   anywhere. Whether the name identifies the object is an evidence question -
   if AWS does not enforce uniqueness, matching on name could adopt an object
   the operator made by hand.
+- **REFUTED 2026-08-17, same day, by measurement: the parent-derived ruling
+  has a qualifying population of ZERO.** Do not re-open it without new
+  evidence. Three independent checks:
+  (1) The intersection of `MarkerlessTypes` with `tools/row-gen/ratified.json`
+  is 0 of 148, and `emittedRows` ships only ratified rows - so sparing a type
+  from the veto does not put it in `DefaultTable`. It falls through to
+  `SynthesizeTypeIdentity`, which refuses it anyway, and the refusal merely
+  changes from `markerless-type` to `unadmitted-type`. Same estates, same
+  sites.
+  (2) The wire protocol carries no exclusion groups at all.
+  `docs/plugin-protocol/tfplugin6.9.proto`'s `Attribute` has eleven fields and
+  none of them is `ExactlyOneOf` / `ConflictsWith` / `AtLeastOneOf` /
+  `RequiredWith`. Those are enforced provider-side at `ValidateResourceConfig`
+  and never reach this fork. So the ExactlyOneOf half of the ruling cannot be
+  implemented as stated, and would not have reached `aws_eip_association`
+  anyway, which has no identity schema at all.
+  (3) CloudFormation's own model refutes the parent story per type.
+  `AWS::GlobalAccelerator::Listener` has primary identifier `[ListenerArn]`
+  with `ListenerArn` read-only; `AcceleratorArn` is a create-only INPUT, not
+  part of the identifier, and an accelerator carries many listeners.
+  `AWS::EC2::EIPAssociation` is primary `[Id]`, read-only. Contrast
+  `AWS::S3::BucketPolicy`, primary `[Bucket]` with no read-only properties -
+  that is the shape where a parent genuinely is the identity, and those types
+  are already admitted. Of the 148 markerless types, 4 have an identifier free
+  of read-only properties and 0 of those link to an eligible parent.
+  The "51 types with a required argument pointing at a taggable admitted
+  parent" figure is real but measures the wrong side: a required ARGUMENT is
+  about "may I delete this", and the ruling was stated over "which object is
+  this".
+- **RULED 2026-08-17: the record store MAY hold an identity for an object
+  that carries no marker, because an ID is not a permission.** The reasoning,
+  because it is the part worth keeping. `live/MARKERS.md:579` claims the
+  marker is an ordinary tag "so IAM can condition on it directly through
+  `aws:ResourceTag`, with no second permission model to keep in sync". For an
+  UNTAGGABLE type that condition can never match, so the published estate
+  grant already conveys nothing on such an object - the governance claim is
+  not available for these types today, and storing an ID takes nothing away.
+  This holds for governance WITHIN an estate as well as across estates, and
+  the within-estate half is the one to check first, because it is the finer
+  claim: granting a principal rights over one declared address means
+  conditioning on `aws:ResourceTag/tofu-address`, and an untaggable object
+  carries that tag no more than it carries `tofu-estate`. Both grants are
+  unavailable for it, for the same reason, and MARKERS.md publishes both
+  without saying so.
+  The split is therefore: "may I delete this" stays with IAM, scoped by ARN or
+  resource policy, and was never choudoufu's to give for an untaggable type;
+  "which object is this" is what the record answers, and only that. A record
+  entry must never be read as delete authority.
+  The failure mode is better than a state file's and that is why the trade is
+  acceptable. Lose the record and the declared instance reads unbound, finds
+  nothing, and a CREATE is proposed, while `internal/live/foreign` surfaces
+  the existing object as unclaimed - and by construction an unclaimed resource
+  "can never enter the prior state and the plan engine has nothing to propose
+  destroying". A lost record risks an announced duplicate. It does not risk a
+  silent deletion.
+  Note what this does NOT license: the guided-discovery hint written to the
+  same store stays non-authoritative (`guided.go:21-24`, a bad hint "never
+  changes what the sweep does ... it only changes cost",
+  `TestGuided_equivalence`). A record that carries identity is a different
+  class from a hint and must not be conflated with one.
 - **Framing for that design, from the maintainer: choudoufu has to have an
   ANSWER here, and the answer may be a toggle rather than a rule.** Worth
   writing down because it changes what the fix is aiming at.
