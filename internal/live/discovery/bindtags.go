@@ -253,9 +253,18 @@ func (m *markerIndex) join(ctx context.Context, typeName, importID string) (map[
 		if obj.tags[TagEstate] != m.estate {
 			continue
 		}
-		if len(matched) > 0 && matched[0].arn == obj.arn {
-			// The same resource reached under two keys (its ARN and its
-			// resource-id segment). One object, not an ambiguity.
+		if containsARN(matched, obj.arn) {
+			// The same resource seen twice - GetResources paginates, and a
+			// paginated list can repeat an entry across pages. One object,
+			// not an ambiguity.
+			//
+			// Checked against every match rather than only the first. That
+			// is not a bug fix: an audit of the first-only form found the
+			// two agree on every verdict, because a bucket that reaches a
+			// second distinct ARN is already ambiguous and stays ambiguous
+			// either way. It is written this way so the invariant the
+			// reader needs - matched holds distinct ARNs - is true of the
+			// code rather than of an argument about it.
 			continue
 		}
 		matched = append(matched, obj)
@@ -269,6 +278,15 @@ func (m *markerIndex) join(ctx context.Context, typeName, importID string) (map[
 	default:
 		return nil, joinAmbiguous
 	}
+}
+
+func containsARN(objs []markerObject, arn string) bool {
+	for _, o := range objs {
+		if o.arn == arn {
+			return true
+		}
+	}
+	return false
 }
 
 // matchedARNs is what [markerIndex.join] matched, for a diagnostic that has
@@ -328,6 +346,15 @@ func (m *markerIndex) marksAddress(typeName, escaped string) []string {
 //
 // Returns false when the type had nothing unreadable, which is the ordinary
 // case and the one where a create is unambiguously right.
+//
+// Bound, so nobody reads more into a silent run than is there: [bind] calls
+// this for a plain declared instance and for a for_each instance, both of
+// which reach the "nothing claims this address" branch. A count block's
+// instances do not - they are matched as a set by [bindCountBlock], which
+// has its own vocabulary for a set that came back short - so a count
+// instance going unbound over an unreadable object of its type is still
+// silent. The join itself is unaffected: it runs at scan time and binds a
+// count block's members exactly like anything else.
 func unreadableMarkerProblem(req Request, decl *declared, typeName, escaped string, addr addrs.AbsResourceInstance) (Problem, bool) {
 	if marked := req.markers.marksAddress(typeName, escaped); len(marked) > 0 {
 		return Problem{

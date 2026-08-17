@@ -231,6 +231,57 @@ func TestTagJoinRefusesAnAmbiguousMatch(t *testing.T) {
 	}
 }
 
+// TestTagJoinBindsAMemberOfACountBlock. The join runs at scan time, before
+// anything knows a resource is part of a set, so a count block's members go
+// through it exactly like a plain instance. Worth pinning because
+// unreadableMarkerProblem's own reach stops short of count blocks - the
+// finding does, the join does not, and those are easy to conflate.
+func TestTagJoinBindsAMemberOfACountBlock(t *testing.T) {
+	cloud := newFakeCloud()
+	want := ownAllDiscovered(cloud)
+	stripTags(t, cloud, "aws_eip", "eipalloc-1")
+
+	srv := &taggingServer{}
+	markedARN(srv, "arn:aws:ec2:us-east-1:000000000000:eip-allocation/eipalloc-1", `aws_eip.pool:1`)
+
+	res, diags := discoverFixture(t, cloud, taggingRequest(t, srv))
+	assertNoErrors(t, diags)
+	assertBound(t, res, want)
+
+	scan, _ := res.ScanFor("aws_eip")
+	if scan.Joined != 1 {
+		t.Errorf("aws_eip scan Joined=%d, want 1", scan.Joined)
+	}
+}
+
+// TestTagJoinTreatsARepeatedARNAsOneObject. GetResources paginates and a
+// paginated list can repeat an entry, which must not read as two resources
+// claiming one identifier. The repeat is deliberately not adjacent: a dedup
+// that only looked at the previous match would pass the adjacent case and
+// fail this one.
+func TestTagJoinTreatsARepeatedARNAsOneObject(t *testing.T) {
+	const arn = "arn:aws:ec2:us-east-1:000000000000:vpc/vpc-1"
+	tags := map[string]string{TagEstate: estateName, TagAddress: `aws_vpc.main`}
+
+	objs, byKey := indexTagged([]cloudcontrol.TaggedResource{
+		{ResourceARN: arn, Tags: tags},
+		{ResourceARN: "arn:aws:ec2:us-east-1:000000000000:vpc/vpc-9", Tags: map[string]string{
+			TagEstate: estateName, TagAddress: `aws_vpc.other`,
+		}},
+		{ResourceARN: arn, Tags: tags},
+	})
+	idx := &markerIndex{estate: estateName, objs: objs, byKey: byKey}
+	idx.once.Do(func() {})
+
+	got, outcome := idx.join(context.Background(), "aws_vpc", "vpc-1")
+	if outcome != joinBound {
+		t.Fatalf("join = %v, want joinBound - a repeated ARN is one object", outcome)
+	}
+	if got[TagAddress] != `aws_vpc.main` {
+		t.Errorf("join returned tags %v", got)
+	}
+}
+
 // TestTagJoinIgnoresAnotherEstatesMarker: the GetResources call is filtered
 // server-side, but a filter is a request and the index is the authority on
 // what it holds.
