@@ -192,7 +192,8 @@ func TestPostProcessDropsGoGetterAndRelativizes(t *testing.T) {
 		},
 	}
 
-	out, dropped, droppedSources, registryVersions := postProcess(installed, entryDir, false)
+	res := postProcess(installed, entryDir, nil, false)
+	out, dropped, droppedSources, registryVersions := res.manifest, res.dropped, res.droppedSources, res.registryVersions
 
 	if dropped != 2 {
 		t.Errorf("dropped %d records, want 2 (the go-getter call and its descendant)", dropped)
@@ -237,12 +238,53 @@ func TestPostProcessKeepsGoGetterWhenAsked(t *testing.T) {
 		"":       {Key: "", Dir: entryDir},
 		"shared": {Key: "shared", SourceAddr: "github.com/alphagov/x", Dir: filepath.Join(entryDir, ".terraform", "modules", "shared")},
 	}
-	out, dropped, _, _ := postProcess(installed, entryDir, true)
-	if dropped != 0 {
-		t.Errorf("dropped %d with -remote-modules, want 0", dropped)
+	res := postProcess(installed, entryDir, nil, true)
+	if res.dropped != 0 {
+		t.Errorf("dropped %d with -remote-modules, want 0", res.dropped)
 	}
-	if _, ok := out["shared"]; !ok {
+	if _, ok := res.manifest["shared"]; !ok {
 		t.Error("the go-getter record was dropped despite -remote-modules")
+	}
+	if len(res.unpinnedGit) != 1 || res.unpinnedGit[0] != "https://github.com/alphagov/x.git" {
+		t.Errorf("unpinned go-getter repositories = %v, want the one kept record's clone URL", res.unpinnedGit)
+	}
+}
+
+// TestPostProcessKeepsAPinnedGoGetterRecord is the half of the go-getter
+// rule that the drop-everything default used to make unreachable: a
+// repository live/corpus-manifest.json pins was installed from a local
+// mirror at a frozen commit, so its record is as reproducible as a registry
+// record and must survive with no flag.
+func TestPostProcessKeepsAPinnedGoGetterRecord(t *testing.T) {
+	entryDir := filepath.Join(string(filepath.Separator), "corpus", "entry")
+	installed := modsdir.Manifest{
+		"":       {Key: "", Dir: entryDir},
+		"pinned": {Key: "pinned", SourceAddr: "github.com/alphagov/terraform-govuk-tfe-workspacer", Dir: filepath.Join(entryDir, ".terraform", "modules", "pinned")},
+		"pinned.child": {
+			Key:        "pinned.child",
+			SourceAddr: "./child",
+			Dir:        filepath.Join(entryDir, ".terraform", "modules", "pinned", "child"),
+		},
+		"floating": {Key: "floating", SourceAddr: "github.com/somebody/unpinned", Dir: filepath.Join(entryDir, ".terraform", "modules", "floating")},
+	}
+	mirrored := map[string]bool{"https://github.com/alphagov/terraform-govuk-tfe-workspacer.git": true}
+
+	res := postProcess(installed, entryDir, mirrored, false)
+
+	if _, ok := res.manifest["pinned"]; !ok {
+		t.Error("a pinned go-getter record was dropped")
+	}
+	if _, ok := res.manifest["pinned.child"]; !ok {
+		t.Error("a module reached through a pinned go-getter record was dropped")
+	}
+	if _, ok := res.manifest["floating"]; ok {
+		t.Error("an unpinned go-getter record survived")
+	}
+	if res.dropped != 1 {
+		t.Errorf("dropped %d records, want 1 (the unpinned one only)", res.dropped)
+	}
+	if len(res.unpinnedGit) != 1 || res.unpinnedGit[0] != "https://github.com/somebody/unpinned.git" {
+		t.Errorf("unpinned = %v, want only the repository no module_sources entry names", res.unpinnedGit)
 	}
 }
 

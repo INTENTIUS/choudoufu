@@ -52,12 +52,17 @@ func run() error {
 		force         = flag.Bool("force", false, "re-clone even when the pinned commit is already checked out")
 		modules       = flag.Bool("modules", true, "install each entry's registry modules into its .terraform/modules, the directory internal/live/check.Load reads (#254)")
 		modulePinPath = flag.String("module-pins", "live/corpus-module-pins.json", "checked-in module lock: the frozen registry version listing a ranged version constraint resolves against, so an install does not float with whatever a module author published today")
-		remoteModules = flag.Bool("remote-modules", false, "also keep go-getter module sources (github.com/org/repo). They carry no ref in 133 of this corpus's 134 such calls, so the corpus then floats on somebody's default branch; a run that uses this cannot be compared with one that does not")
+		mirrorDir     = flag.String("module-mirrors", ".corpus/_modules", "where the manifest's pinned go-getter module sources are mirrored, so those calls install from a frozen commit instead of a branch head")
+		remoteModules = flag.Bool("remote-modules", false, "also keep go-getter module records whose repository the manifest does not pin. Those clone a branch head over the network, so the corpus then floats on somebody's default branch and a run that uses this cannot be compared with one that does not")
 		quiet         = flag.Bool("quiet", false, "suppress the per-entry module install log")
 	)
 	flag.Parse()
 
 	manifest, err := check.ReadManifest(underRoot(*root, *manifestPath))
+	if err != nil {
+		return err
+	}
+	moduleSources, err := readModuleSources(underRoot(*root, *manifestPath))
 	if err != nil {
 		return err
 	}
@@ -105,6 +110,8 @@ func run() error {
 	summary, err := installModules(context.Background(), manifest, installOptions{
 		Root:          *root,
 		PinsPath:      underRoot(*root, *modulePinPath),
+		ModuleSources: moduleSources,
+		MirrorDir:     *mirrorDir,
 		RemoteModules: *remoteModules,
 		Log:           logOut,
 	})
@@ -129,10 +136,23 @@ func renderInstallSummary(s installSummary, remote bool) string {
 		fmt.Fprintf(&b, "corpus-fetch: %d package(s) were queried but resolved to nothing installable, so they are unpinned: %s\n",
 			len(s.FloatingPackages), strings.Join(s.FloatingPackages, ", "))
 	}
+	fmt.Fprintf(&b, "corpus-fetch: %d pinned go-getter module source(s) served from a local mirror.\n", s.Mirrors)
+	if len(s.MirrorErrors) > 0 {
+		fmt.Fprintf(&b, "corpus-fetch: %d mirror(s) could not be built. Every call to them fails below rather than\n"+
+			"  reaching the network, so no entry is measured against an unpinned tree:\n", len(s.MirrorErrors))
+		for _, e := range s.MirrorErrors {
+			fmt.Fprintf(&b, "    %s\n", e)
+		}
+	}
+	if len(s.UnpinnedPackages) > 0 {
+		fmt.Fprintf(&b, "corpus-fetch: %d go-getter repositor(ies) are not pinned by live/corpus-manifest.json's\n"+
+			"  module_sources. Add them there to measure the calls that reach them: %s\n",
+			len(s.UnpinnedPackages), strings.Join(s.UnpinnedPackages, ", "))
+	}
 	switch {
 	case remote:
-		b.WriteString("corpus-fetch: go-getter sources were KEPT (-remote-modules). This corpus is not reproducible:\n" +
-			"  a branch head can move under it with no change to this repository.\n")
+		b.WriteString("corpus-fetch: unpinned go-getter sources were KEPT (-remote-modules). This corpus is not\n" +
+			"  reproducible: a branch head can move under it with no change to this repository.\n")
 	case s.Dropped > 0:
 		sources := make([]string, 0, len(s.DroppedSources))
 		for source, n := range s.DroppedSources {

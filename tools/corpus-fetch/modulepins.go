@@ -58,14 +58,17 @@ import (
 // re-locking in the same commit, the same deliberateness a provider pin bump
 // already requires.
 //
-// # What is NOT pinned
+// # The go-getter half
 //
-// Nothing here pins a go-getter source ("github.com/org/repo"), because
-// there is no version listing to freeze: go-getter clones a branch head. In
-// this corpus 133 of the 134 such calls carry no "?ref=", so installing
-// them would make the corpus float on six third-party repositories' default
-// branches. They are therefore left uninstalled by default; see
-// [installOptions.RemoteModules].
+// A go-getter source ("github.com/org/repo") has no version listing to
+// freeze, so it is pinned differently: live/corpus-manifest.json's
+// "module_sources" names the repository and the commit, corpus-fetch builds
+// a bare mirror of it, and git's url.<base>.insteadOf points the clone at
+// the mirror. [modulePins.GitMirrors] records the ref NAMES that mirror must
+// serve and the commit each was pinned at. See tools/corpus-fetch/gitmirror.go
+// for why the mirror is built from commits rather than checked out from
+// refs, and for the ".git" suffix that keeps registry downloads out of the
+// rewrite.
 type modulePins struct {
 	Comment []string `json:"_comment,omitempty"`
 
@@ -82,6 +85,36 @@ type modulePins struct {
 	// calls to a non-default host, so the collision is documented rather
 	// than defended against.
 	Packages map[string][]string `json:"packages"`
+
+	// GitMirrors maps a pinned module source's clone URL - the "repo" of a
+	// live/corpus-manifest.json "module_sources" entry - to the refs its
+	// local mirror serves.
+	//
+	// It is recorded on the first fetch and read on every later one, so the
+	// remote's ref resolution is consulted exactly once per repository. A
+	// repository that moves a tag afterwards cannot change what this corpus
+	// measures, because the mirror fetches each ref by the commit recorded
+	// here rather than by name.
+	GitMirrors map[string]gitMirrorRefs `json:"git_mirrors,omitempty"`
+}
+
+// gitMirrorRefs is the ref set one mirror serves.
+type gitMirrorRefs struct {
+	// DefaultBranch is the branch name HEAD points at, so that a bare
+	// "git clone" of the mirror behaves like a clone of the real
+	// repository and a "?ref=<default branch>" call resolves.
+	DefaultBranch string `json:"default_branch"`
+
+	// Tags maps a tag name to the commit it pointed at when the pin was
+	// taken - the peeled commit for an annotated tag, which is what
+	// go-getter's "rev-parse refs/tags/<name>^{commit}" resolves against.
+	//
+	// Every tag is recorded rather than only the ones this corpus happens
+	// to reference today, because which tags a configuration names is a
+	// property of the configuration and changes when a corpus source pin is
+	// bumped. These repositories carry 17 tags between them, so recording
+	// the lot costs nothing.
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // packageKey builds the [modulePins.Packages] key from a package's three
@@ -141,12 +174,19 @@ var modulePinsComment = []string{
 	"DELETE an entry, which is how a package is deliberately re-locked to",
 	"whatever the registry offers today.",
 	"",
-	"Each value is the frozen version listing corpus-fetch serves to the",
-	"module installer in place of the registry's own, so that a ranged",
-	"version constraint in a corpus configuration resolves to the same",
-	"release on every run. See the doc comment on modulePins in",
+	"Each packages value is the frozen version listing corpus-fetch serves",
+	"to the module installer in place of the registry's own, so that a",
+	"ranged version constraint in a corpus configuration resolves to the",
+	"same release on every run. See the doc comment on modulePins in",
 	"tools/corpus-fetch/modulepins.go for why a listing is pinned rather",
 	"than a resolution, and for what this does not cover.",
+	"",
+	"git_mirrors records the refs each pinned go-getter module source's",
+	"local mirror serves, and the commit each ref was pinned at. The",
+	"repositories and their default-branch commits are named in",
+	"live/corpus-manifest.json under module_sources; this file holds only",
+	"what corpus-fetch discovered about them. Deleting an entry re-derives",
+	"it from the remote on the next fetch.",
 }
 
 // pinnedVersions is an http.RoundTripper that answers the module registry's

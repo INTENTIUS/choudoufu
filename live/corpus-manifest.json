@@ -270,5 +270,70 @@
       "glob": ".corpus/cloud-platform/terraform/global-resources",
       "origin": "published deployment"
     }
+  ],
+
+  "_module_sources_comment": [
+    "Every git repository a corpus module call reaches through go-getter,",
+    "pinned to a commit. corpus-fetch mirrors each one under",
+    ".corpus/_modules and points git's url.<base>.insteadOf at the mirror",
+    "for the duration of the module install, so a source written as",
+    "github.com/org/repo installs from a frozen commit instead of whatever",
+    "that repository's default branch holds today. Without this the corpus",
+    "floated: counted on 2026-08-16 by walking each resolved entry through",
+    "its local module sources, 135 of its 284 non-local module calls are",
+    "go-getter sources and 134 of those carry no ?ref= at all.",
+    "",
+    "Six of these seven are named by a corpus entry directly. The seventh,",
+    "cisagov/s3-read-role-tf-module, is reached only from inside another",
+    "go-getter module, which is why a census of the corpus's own .tf files",
+    "does not find it and why corpus-fetch reports unpinned repositories",
+    "from the records the installer actually wrote.",
+    "",
+    "repo is the clone URL go-getter hands to git, which is the .git",
+    "spelling. That suffix is load-bearing and not cosmetic: the OpenTofu",
+    "registry serves module downloads as",
+    "git::https://github.com/<org>/<repo>?ref=<commit> with no .git, so",
+    "keying the rewrite on the .git spelling leaves every registry install",
+    "untouched. See tools/corpus-fetch/gitmirror.go.",
+    "",
+    "commit is the repository's default-branch head at the moment the pin",
+    "was taken (2026-08-16), which is what an unpinned run would have",
+    "installed that day. The ref names each mirror serves are recorded",
+    "separately in live/corpus-module-pins.json, which corpus-fetch writes.",
+    "",
+    "A go-getter call whose repository is not listed here is reported by",
+    "corpus-fetch and has its module record dropped, so it stays as",
+    "unresolved as it was before module installation existed rather than",
+    "silently floating into a measurement."
+  ],
+  "module_sources": [
+    {
+      "repo": "https://github.com/alphagov/terraform-govuk-tfe-workspacer.git",
+      "commit": "b2d87762eeae6ca07a6f58288789584808b78b02"
+    },
+    {
+      "repo": "https://github.com/cisagov/cert-read-role-tf-module.git",
+      "commit": "ea2c7bc970fe4a107518638ba8b86ff847c29b25"
+    },
+    {
+      "repo": "https://github.com/cisagov/instance-cw-alarms-tf-module.git",
+      "commit": "14cd22a0be78a84fb2171ca3ead399929060f779"
+    },
+    {
+      "repo": "https://github.com/cisagov/s3-read-role-tf-module.git",
+      "commit": "c20cafd7e42cf3b4ef1cb8e103910069c9be27f6"
+    },
+    {
+      "repo": "https://github.com/cisagov/session-manager-tf-module.git",
+      "commit": "16241f02b088fd68971dbcff6c8907a7f2206707"
+    },
+    {
+      "repo": "https://github.com/cisagov/terraform-state-read-role-tf-module.git",
+      "commit": "b2425d125f94dc0552a8be03015afbfbbf8c3683"
+    },
+    {
+      "repo": "https://github.com/ministryofjustice/cloud-platform-terraform-global-resources-auth0.git",
+      "commit": "6eeb662df9879f49097e533ef8ea7567f23af600"
+    }
   ]
 }
