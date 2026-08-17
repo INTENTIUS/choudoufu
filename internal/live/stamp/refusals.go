@@ -88,6 +88,10 @@ var refusals = []Refusal{
 		What:    "Stamping was given no provider schemas, so which types can carry a marker cannot be read. A caller error, not a configuration one.",
 	},
 	{
+		Summary: SummarySharedBody,
+		What:    "Two resources in the configuration reached one HCL body, so the ownership marker written for one of them would be the marker the other carries too. A module source called more than once is parsed once - every call shares the syntax tree - and each call is supposed to get its own body for a resource's arguments; this fires when one did not. It is a defect in how the run loaded the configuration rather than a fault in the configuration, and it is a hard error because a marker shared between two live objects is worse than no marker at all.",
+	},
+	{
 		Summary: SummaryUnmarkedApply,
 		What:    "Markers could not be written, on a resource whose instances can only ever be found by their ownership marker. It is the error form of the two warnings above - \"Ownership markers not stamped\" and \"Ownership marker could not be checked\" - because applying this one unmarked would create a live object no later run could recognise as this estate's.",
 	},

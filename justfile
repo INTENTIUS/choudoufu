@@ -93,6 +93,19 @@ demo-per-element:
 demo-record-located:
     bash live/e2e/record-located/run.sh
 
+# Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
+# module seven times, and every one of the seven hosted zones used to come
+# back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
+# seven real objects, after an apply that reported success. The seven
+# markers are read off the zones with the AWS CLI rather than out of the
+# plan, because the plan showed the right values while the cloud got the
+# wrong ones. Point TOFU_BIN at a binary built before
+# internal/live/stamp/sharedbody.go and step 4 fails with all seven
+# collapsed. Needs Docker, the AWS CLI and a populated .corpus; runs on its
+# own port (4606) so it can run beside `just demo`.
+demo-repeated-module:
+    bash live/e2e/repeated-module/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
