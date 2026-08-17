@@ -196,7 +196,7 @@ Everything an offline report says is derived from four fully checked analysis pa
 - `partial: projection (2 of 27 refusals)`
 - `unchecked: discovery`
 
-Evidence: internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers and UncheckedLayers, cross-checked against the committed corpus artifact's own header. internal/live/check's TestLayersClassifyEveryLivePackage is what forbids a new package joining no list; this holds the three lists themselves to their recorded contents. Projection moved from unchecked to partial when #224's two exported provider-free entry points finally got a caller; discovery is 4-of-25 checkable and wiring it is #261.
+Evidence: internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers and UncheckedLayers, cross-checked against all three of the committed corpus artifact's own header lists, share included. internal/live/check's TestLayersClassifyEveryLivePackage is what forbids a new package joining no list; this holds the three lists themselves to their recorded contents. Projection moved from unchecked to partial when #224's two exported provider-free entry points finally got a caller. Discovery stays wholly unchecked, and #261's plan to move it was measured and refused: of the four refusals its provider-free declared scan can raise, two are caller-bug guards check.Analyze cannot trip, one ("One marker value for two declared addresses") needs two declared addresses escaping to one marker value, which markerkey's excluded runes and #178's reversible key escaping make unreachable for anything identity resolves, and the fourth measures the same quantity as lint.RuleOverlongAddress, an already fully checked layer - see internal/live/check's TestLintCoversTheDeclaredScan.
 
 Tracker: #102
 

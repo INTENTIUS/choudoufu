@@ -190,9 +190,27 @@ func (r *Repo) Rejected() (*Rejected, error) {
 
 // Corpus is the part of live/corpus-refusals.json this package reads: which
 // analysis layers the artifact says it covered.
+//
+// All three lists, not two. The artifact grew a third
+// ("partially_checked_layers") when [check.PartiallyCheckedLayers] arrived,
+// and this struct kept reading two - so an artifact could name a stage as
+// partly checked, with a share this package never compared against the code
+// that computed it, and the assumption below would still pass. A field a
+// reader does not read is a claim nobody holds.
 type Corpus struct {
-	CheckedLayers   []string `json:"checked_layers"`
-	UncheckedLayers []string `json:"unchecked_layers"`
+	CheckedLayers   []string        `json:"checked_layers"`
+	PartialLayers   []CorpusPartial `json:"partially_checked_layers"`
+	UncheckedLayers []string        `json:"unchecked_layers"`
+}
+
+// CorpusPartial is one partly-checked stage as the artifact records it. The
+// share - how many of the stage's refusals the run computed, out of how many
+// the stage has - is the whole content of "partly", so it is pinned rather
+// than the layer name alone.
+type CorpusPartial struct {
+	Layer    string   `json:"layer"`
+	Refusals []string `json:"refusals"`
+	Total    int      `json:"total"`
 }
 
 // Corpus reads live/corpus-refusals.json.
