@@ -238,6 +238,8 @@ func TestRefineAppliesTheScopeRulingOnlyWhenNoAWSTypeIsLeft(t *testing.T) {
 			"type:aws_iam_user_group_membership": 1}, ActionAdmit},
 		{"one aws type among foreign ones keeps the blocker in scope", map[string]int{
 			"type:google_storage_bucket": 1, "type:aws_s3_bucket_inventory": 1}, ActionAdmit},
+		{"two aws types among foreign ones, still in scope", map[string]int{
+			"type:kubernetes_namespace_v1": 1, "type:aws_ec2_tag": 1, "type:aws_default_vpc": 1}, ActionAdmit},
 		{"no type-shaped cause at all", map[string]int{"reference:data_source": 1}, ActionAdmit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -245,9 +247,19 @@ func TestRefineAppliesTheScopeRulingOnlyWhenNoAWSTypeIsLeft(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("refine(unadmitted-type, %v) action = %s, want %s", tc.causes, got, tc.want)
 			}
-			if (note != "") != (got == ActionRule) {
-				t.Errorf("a reclassified blocker must carry its reason and an unchanged one must not; "+
-					"action=%s note=%q", got, note)
+			// A note is owed whenever refine says something the ID alone does
+			// not: either it reclassified the blocker, or it left the action
+			// alone and flagged that this estate still cannot reach zero.
+			// The only silent case is the one the ID already settles.
+			mixed := strings.HasPrefix(note, "MIXED SCOPE:")
+			switch {
+			case got == ActionRule && note == "":
+				t.Error("a reclassified blocker must carry the reason it was reclassified")
+			case got == ActionAdmit && note != "" && !mixed:
+				t.Errorf("an unchanged action may only carry a MIXED SCOPE note; got %q", note)
+			}
+			if mixed && !anyAWS(causeTypes(tc.causes)) {
+				t.Error("MIXED SCOPE claims in-scope work exists, so at least one aws_ type must be present")
 			}
 		})
 	}
@@ -285,6 +297,10 @@ func TestDriveableSortsRuledAndUnsetVariableEstatesToTheBack(t *testing.T) {
 			Causes:   map[string]map[string]int{"unadmitted-type": {"type:sentry_project": 1}}},
 		{Name: "unset-var", Origin: ratePopulation, Blocked: true, Sites: 1, UnsetVarSites: 1,
 			Refusals: map[string]int{"Non-static count expression": 1}},
+		{Name: "mixed-scope", Origin: ratePopulation, Blocked: true, Sites: 1,
+			Refusals: map[string]int{"unadmitted-type": 1},
+			Causes: map[string]map[string]int{"unadmitted-type": {
+				"type:aws_secretsmanager_secret_version": 1, "type:google_service_account": 1}}},
 		{Name: "driveable", Origin: ratePopulation, Blocked: true, Sites: 9,
 			Refusals: map[string]int{"unadmitted-type": 1},
 			Causes:   map[string]map[string]int{"unadmitted-type": {"type:aws_s3_bucket_inventory": 1}}},
@@ -294,8 +310,8 @@ func TestDriveableSortsRuledAndUnsetVariableEstatesToTheBack(t *testing.T) {
 	if len(unknown) != 0 {
 		t.Fatalf("unexpected unmapped refusals: %v", unknown)
 	}
-	if len(plan) != 3 {
-		t.Fatalf("all three estates stay in the plan and in the blocked count, got %d", len(plan))
+	if len(plan) != 4 {
+		t.Fatalf("every estate stays in the plan and in the blocked count, got %d", len(plan))
 	}
 	if plan[0].Name != "driveable" {
 		t.Errorf("first line = %q, want %q - the driveable estate leads even though it carries "+
@@ -304,6 +320,26 @@ func TestDriveableSortsRuledAndUnsetVariableEstatesToTheBack(t *testing.T) {
 	for _, e := range plan[1:] {
 		if e.driveable() {
 			t.Errorf("%s sorted to the back but reports driveable", e.Name)
+		}
+	}
+	// The mixed-scope estate is the subtle one: its blocker is real ADMIT
+	// work that buys OTHER estates, so the action must not be downgraded -
+	// but this estate cannot reach zero while the rest of the blocker is out
+	// of scope, so it must not head the queue either.
+	for _, e := range plan {
+		if e.Name != "mixed-scope" {
+			continue
+		}
+		if e.Blockers[0].Action != ActionAdmit {
+			t.Errorf("mixed-scope action = %s, want %s - the aws_ half is still admission debt",
+				e.Blockers[0].Action, ActionAdmit)
+		}
+		if !e.Blockers[0].Unreachable {
+			t.Error("mixed-scope blocker must be marked unreachable; without it the estate " +
+				"sorts ahead of work that can actually finish")
+		}
+		if e.driveable() {
+			t.Error("mixed-scope reports driveable, but clearing its admission work leaves it blocked")
 		}
 	}
 }

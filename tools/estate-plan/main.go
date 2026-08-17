@@ -292,6 +292,12 @@ type blocker struct {
 	// its ID, or what an assignee has to know before taking it. Empty for
 	// the common case where the ID settles it.
 	Note string
+
+	// Unreachable is set when part of this blocker cannot be cleared by any
+	// work in this repository, so the estate carrying it cannot reach zero
+	// however much of the rest is done. The blocker is still real work - the
+	// in-scope half of it buys other estates - but this one will not move.
+	Unreachable bool
 }
 
 // refine adjusts a blocker from its causes.
@@ -335,9 +341,19 @@ func refine(id string, causes map[string]int, action Action) (Action, string) {
 		// admission check - so the effects vocabulary (null_resource,
 		// terraform_data, time_*, random_*) cannot be caught by the prefix
 		// test below.
-		if foreign := nonAWS(types); len(foreign) > 0 && !anyAWS(types) {
+		foreign := nonAWS(types)
+		if len(foreign) > 0 && !anyAWS(types) {
 			return ActionRule, "every unadmitted type here belongs to another provider (" +
 				strings.Join(foreign, ", ") + "); AWS-only is a maintainer ruling (#5), so this estate is out of scope rather than unbuilt"
+		}
+		if len(foreign) > 0 {
+			// Mixed. The aws_ types are real admission debt and doing them
+			// buys other estates, so the action stays ADMIT and the blocker
+			// keeps its place. This estate, though, cannot reach zero while
+			// the others are out of scope, so it must not head the queue -
+			// which is the same reason a wholly-foreign estate does not.
+			return action, "MIXED SCOPE: the aws_ types here are real admission debt, but this blocker also names " +
+				strings.Join(foreign, ", ") + ", which #5 rules out of scope - so clearing the admission work will not clear THIS estate"
 		}
 
 	case "logical-resource":
@@ -520,6 +536,13 @@ func (e estate) driveable() bool {
 		return false
 	}
 	for _, bl := range e.Blockers {
+		if bl.Unreachable {
+			// One blocker nothing here can finish is enough: the estate
+			// cannot reach zero, which is the only thing that onboards it.
+			return false
+		}
+	}
+	for _, bl := range e.Blockers {
 		if bl.Action != ActionRule {
 			return true
 		}
@@ -555,6 +578,7 @@ func buildPlan(s sweep) ([]estate, []string) {
 				continue
 			}
 			b.Action, b.Note = refine(id, e.Causes[id], act)
+			b.Unreachable = strings.HasPrefix(b.Note, "MIXED SCOPE:")
 			blockingSites += sites
 			est.Blockers = append(est.Blockers, b)
 		}
