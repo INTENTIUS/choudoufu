@@ -145,15 +145,40 @@ Recompute rather than quoting that.
 ### The loop
 
 1. `just estate-plan`.
-2. Take the top estate. If it is marked with unresolved modules, its blockers
-   are a floor — run `just corpus-fetch` first or pick the next one.
+2. Take the top estate. Selection is **by fewest blockers and nothing else** —
+   not by which estate the emulator happens to support. If it is marked with
+   unresolved modules its blockers are a floor, so run `just corpus-fetch`
+   first or take the next one.
 3. For each blocker, the matrix below says what kind of work it is.
 4. Drive **every** blocker on that estate to zero. A partial estate is worth
-   nothing on the ladder.
-5. Verify on that entry alone: `go run ./tools/refusal-probe -entry <path> -v`.
-   The estate is done when it reads `blocked=false`. Not when a class is
-   cleared, not when sites fall.
-6. Regenerate, commit, go to 1.
+   nothing.
+5. **Offline gate**: `go run ./tools/refusal-probe -entry <path> -v` reads
+   `blocked=false`.
+6. **The real gate: make it run.** Stand the estate up against floci and
+   assert the product's own claims — `live-plan` is exact, `apply` succeeds,
+   a second plan is empty, and the markers land on the right objects.
+   `live/e2e/tagging-sweep/run.sh` and `live/e2e/create-over/run.sh` are the
+   working shape; each is wired to a `just` recipe and each fails for a stated
+   reason rather than by exit code alone.
+7. Regenerate, commit, go to 1.
+
+**Step 5 is not step 6, and the gap between them is where the worst defects
+live.** `blocked=false` means four fully-checked layers plus 2 of projection's
+27 refusals. Discovery is unchecked and 21 of its 25 refusals need a cloud. An
+estate can read clean and still be wrong: #266 was exactly that — every
+offline check passed while `live-plan` proposed creating a resource the estate
+already owned, once per run, forever.
+
+**When floci cannot serve what the estate needs, that is a floci work item and
+not a reason to skip the estate.** The lane exists and was exercised today:
+fix it in the fork (`lex00/floci`), publish to ghcr, re-pin `live/floci-image`,
+and re-verify from this side rather than trusting the fix. #229 went through it
+end to end — `floci-capability-gen -mode=tagging` 0/7 to 7/7, with the tagging
+sweep's bind asserted afterwards instead of skipped.
+
+**If a capability is genuinely beyond the emulator, the estate goes to live
+AWS.** Ask first, naming the estate and what it will create; that is real
+infrastructure and real spend, and it is not standing authorization.
 
 An estate whose blockers are all `RULE` is **not driveable**. Say so, skip it,
 and do not spend a slot proving it again.
