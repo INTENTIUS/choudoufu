@@ -158,6 +158,20 @@ type Entry struct {
 	// type's. Thin coverage by design of the upstream data, not of this
 	// parser - see relationships.go.
 	Relationships []Relationship `json:"relationships,omitempty"`
+
+	// UniqueNameProperty is the path, from the resource root, of the
+	// client-supplied Name property whose own schema description states the
+	// name is unique across an account and region - "CachePolicyConfig/Name"
+	// for AWS::CloudFront::CachePolicy. Empty for the overwhelming majority
+	// of types, which make no such claim.
+	//
+	// This is the registry half of the two-source evidence GitHub issue #272
+	// requires before a live object may be bound by matching a declared name
+	// against a listing. The other half is the provider's own argument
+	// reference, which importdocs-gen records as DeclaredUnique. Neither is
+	// acted on alone. See extractUniqueName, and internal/live/uniquename for
+	// the rule both halves share.
+	UniqueNameProperty string `json:"unique_name_property,omitempty"`
 }
 
 // parseType parses one raw schema (as extractSchemas keys it, by typeName)
@@ -207,6 +221,12 @@ func parseType(raw []byte) (Entry, error) {
 		return Entry{}, fmt.Errorf("%s: reading relationshipRef annotations: %w", schema.TypeName, err)
 	}
 	e.Relationships = rels
+
+	uniq, err := extractUniqueName(raw)
+	if err != nil {
+		return Entry{}, fmt.Errorf("%s: reading the unique-name claim: %w", schema.TypeName, err)
+	}
+	e.UniqueNameProperty = uniq
 
 	return e, nil
 }

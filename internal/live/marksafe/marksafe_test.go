@@ -54,6 +54,7 @@ var guardedPackages = []string{
 	"slots",
 	"stamp",
 	"staterecord",
+	"uniquename",
 }
 
 // deferredPackages read CLOUD OBJECTS - a live read's response, a prior

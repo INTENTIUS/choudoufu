@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/uniquename"
 )
 
 // candidateSeparators is the closed set of join characters this tool will
@@ -229,6 +231,27 @@ type ArgumentRefEntry struct {
 	// state a Required argument's own value can be in.
 	ServerAssignedIfAbsent bool `json:"server_assigned_if_absent,omitempty"`
 
+	// DeclaredUnique is true when the bullet's own prose states that the
+	// value the configuration supplies for this argument is unique across
+	// the account and region a run is pointed at: "Unique name used to
+	// identify the cache policy", "This name must be unique within your AWS
+	// account".
+	//
+	// It is the provider-documentation half of the two-source evidence
+	// GitHub issue #272 requires before a live object may be bound by
+	// matching this argument against a listing, and it is deliberately only
+	// half. The other half is the CloudFormation registry schema's own
+	// description of the same property, which registry-gen records as
+	// UniqueNameProperty. Neither source is acted on alone: at hashicorp/aws
+	// 6.59.0 this flag is true on the `name` argument of 111 resource types
+	// and the registry agrees about 9 of them.
+	//
+	// The judgement is [uniquename.Asserted]'s, shared verbatim with
+	// registry-gen so the two texts are read by one rule rather than two
+	// that could drift. Its doc comment carries every phrasing the rule
+	// deliberately refuses.
+	DeclaredUnique bool `json:"declared_unique,omitempty"`
+
 	// CloudDefault is set when the bullet's own prose states that omitting
 	// this argument selects a property of the cloud the run is pointed at
 	// rather than a value the configuration could name: "account-id" for
@@ -400,6 +423,7 @@ func argumentReferenceEntries(doc string) []ArgumentRefEntry {
 			Required:               required,
 			ForceNew:               forceNewPhraseRe.MatchString(paren),
 			ServerAssignedIfAbsent: !required && serverAssignedIfAbsent(bodies[name]),
+			DeclaredUnique:         uniquename.Asserted(bodies[name]),
 		}
 		if !required {
 			entry.CloudDefault = cloudDefault(bodies[name])
