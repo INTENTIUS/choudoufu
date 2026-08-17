@@ -734,12 +734,16 @@ would otherwise rediscover.
   this".
 - **RULED 2026-08-17: the record store MAY hold an identity for an object
   that carries no marker, because an ID is not a permission.** The reasoning,
-  because it is the part worth keeping. `live/MARKERS.md:579` claims the
-  marker is an ordinary tag "so IAM can condition on it directly through
+  because it is the part worth keeping. `live/MARKERS.md` claimed the marker
+  is an ordinary tag "so IAM can condition on it directly through
   `aws:ResourceTag`, with no second permission model to keep in sync". For an
   UNTAGGABLE type that condition can never match, so the published estate
   grant already conveys nothing on such an object - the governance claim is
   not available for these types today, and storing an ID takes nothing away.
+  That claim has since been scoped where it is made: see MARKERS.md's "What
+  this grant cannot reach", which carries the derived figure - 221 of the 884
+  admitted AWS types are untaggable, across 77 CloudFormation services, and
+  the grant governs the other 663.
   This holds for governance WITHIN an estate as well as across estates, and
   the within-estate half is the one to check first, because it is the finer
   claim: granting a principal rights over one declared address means
