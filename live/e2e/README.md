@@ -370,3 +370,55 @@ message that says the defect is fixed.
 For a type whose name is in the configuration the same defect surfaces as an
 `AlreadyExists` error on apply. The fixture uses `name_prefix` deliberately,
 because the silent form is the one worth pinning.
+
+## The corpus-crossing harness
+
+`live/e2e/corpus-crossing/run.sh` runs somebody else's production
+configuration. `.corpus/mastino/global/dns` is 63 instances of DataCite's
+Route 53 estate, written for their own account and not for us; it has passed
+`live-check` with zero refused sites for as long as the corpus has held it,
+and until this harness existed it had never been run against anything.
+
+```
+just demo-corpus-crossing
+```
+
+Docker, the AWS CLI, a populated `.corpus` (`just corpus-fetch`), port 4605,
+about four minutes.
+
+What the estate contributes that a generated fixture cannot is not scale.
+It is three shapes nobody would think to write on purpose.
+
+- `aws_route53_zone.production` and `aws_route53_zone.internal` are **both
+  named `datacite.org`**. The hosted zone ID is server-assigned, so nothing
+  in the configuration separates them and only the `tofu-address` marker
+  does. `production-ns` and `internal-ns` then share a name *and* a type,
+  differing in nothing but the zone ID each inherited, and step 6 asserts the
+  run rendered two distinct apex NS identities rather than one twice.
+- 59 of the 63 instances are `aws_route53_record`, which has no `tags`
+  argument. They carry no marker, cannot carry one, and do not need one: the
+  identity re-derives from the declaration plus the zone's ID on every run.
+  Four marker carriers, 59 instances with none, in one estate.
+- Names a fixture author would not invent: a wildcard label
+  (`*.blog.datacite.org`, which Route 53 stores escaped as `\052`), a name
+  written relative to its zone (`_lovable.strategy`), a label repeating the
+  zone name inside itself (`datacite.org._domainkey.datacite.org`), and two
+  names spelled with the trailing dot Route 53 itself uses.
+
+The identity assertion takes its expectation from Route 53 rather than from
+choudoufu: every string the run rendered must name a hosted zone that exists,
+or a record set that exists *in the zone that identity names*. Both spellings
+Route 53 accepts are allowed and nothing else is.
+
+Steps 4 and 7 pin defects rather than features, so exit 0 means each is still
+true and a red one means somebody fixed it.
+
+| Step | Pins |
+|---|---|
+| 4 | `allow_overwrite` is a create-time argument Route 53 never returns, and under markers there is no state file to remember it. The ten `wp-prod-staging` records show an in-place update on every run, and applying that update does not settle it — the same ten come back. |
+| 7 | A record whose `name` carries Route 53's own trailing dot renders an import identity carrying that dot. The import succeeds, so the instance binds a real record by a wrong name; the plan then proposes destroying and recreating it, once per run. Step 7 restores the dot deliberately and asserts the identity check fires **on the string**, not on the count. |
+
+The deltas the estate needs before it can run at all are applied by the
+script, each asserting that it matched, and each labelled with what kind it
+is: an ordinary onboarding edit, an emulator flag, an emulator gap, or a
+defect. `run.sh`'s header says what each one is and why.
