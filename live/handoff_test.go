@@ -125,6 +125,72 @@ func TestHandoffFiguresMatchTheirPins(t *testing.T) {
 	}
 }
 
+// TestHandoffCarriesNoConflictMarkers is the cheapest guard here and it exists
+// because the omission was live on main for two merges.
+//
+// Resolving two golden re-pins in a row, I ran a regex over HANDOFF.md that
+// collapsed all three conflict variants to identical text and left the <<<<<<<
+// / ======= / >>>>>>> lines in place. The citation legs above were all green -
+// every path, recipe and test name still resolved, and the figure was correct
+// three times over - so nothing failed, and the file was pushed. A subagent
+// reading it for instructions found it.
+//
+// The lesson generalises past this file: a guard that checks only what a
+// document CITES will not notice that the document is malformed. This is the
+// well-formedness half.
+//
+// Repository-wide rather than HANDOFF-only, because the same edit shape
+// reaches any hand-owned markdown, and a generated artifact carrying these
+// would be worse still.
+func TestHandoffCarriesNoConflictMarkers(t *testing.T) {
+	root := repoRoot(t)
+
+	// Deliberately not a single regexp over the three: ======= alone appears
+	// as a legitimate markdown setext underline, so it only counts when the
+	// other two are present in the same file.
+	starts := regexp.MustCompile(`(?m)^<{7} `)
+	ends := regexp.MustCompile(`(?m)^>{7} `)
+	middles := regexp.MustCompile(`(?m)^={7}$`)
+
+	var checked int
+	for _, rel := range conflictScannedFiles {
+		b, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Errorf("%s is listed for conflict scanning and could not be read: %s\n"+
+				"Remove it from conflictScannedFiles or restore it; a scan over a file that is not there passes forever.", rel, err)
+			continue
+		}
+		checked++
+		text := string(b)
+		nStart, nEnd := len(starts.FindAllString(text, -1)), len(ends.FindAllString(text, -1))
+		if nStart == 0 && nEnd == 0 {
+			continue
+		}
+		t.Errorf("%s carries %d unresolved merge-conflict start marker(s), %d end marker(s) and %d bare ======= line(s).\n"+
+			"Every citation in it can still resolve while it says the same thing three times, which is how this shipped: "+
+			"the checks above pass and the document is unreadable.",
+			rel, nStart, nEnd, len(middles.FindAllString(text, -1)))
+	}
+	if checked < len(conflictScannedFiles) {
+		t.Errorf("scanned %d of %d listed files; the rest are missing and this guard is weaker than it looks", checked, len(conflictScannedFiles))
+	}
+}
+
+// conflictScannedFiles are the hand-owned documents an agent or a fresh
+// session reads for instructions, plus the artifacts a bad merge would
+// corrupt silently. Generated markdown is deliberately included: a conflict
+// marker inside a generated span means somebody hand-merged instead of
+// regenerating, which is its own standing rule.
+var conflictScannedFiles = []string{
+	"HANDOFF.md",
+	".claude/agents/live-markers.md",
+	".claude/skills/measuring-the-wall/SKILL.md",
+	"live/HARNESS.md",
+	"live/LIMITATIONS.md",
+	"live/MARKERS.md",
+	"README.md",
+}
+
 func readHandoff(t *testing.T, root string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(root, handoffPath))
