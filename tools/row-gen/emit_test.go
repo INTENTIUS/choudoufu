@@ -89,15 +89,19 @@ func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
 // generated file that does not survive the round trip (reordering,
 // formatting, a comment).
 //
-// It does NOT catch a semantic hand-edit of the generated tables, and an
-// earlier version of this comment claimed it did. buildEmitFiles renders its
-// expected value FROM identity.DefaultTable, which is compiled from
-// table_generated.go, which is the file under test - so a hand edit moves
-// both sides of the comparison identically. Measured: changing one row's
-// Components to name an argument no provider schema has left this test
-// green.
+// It also, since issue #263's cure, catches a semantic hand-edit of the
+// generated tables - and for most of this test's life it did NOT, which is
+// worth stating because two earlier versions of this comment got the claim
+// wrong in both directions. buildEmitFiles used to render its expected value
+// FROM identity.DefaultTable, compiled from table_generated.go, which is the
+// file under test: a hand edit moved both sides of the comparison
+// identically, and changing one row's Components to name an argument no
+// provider schema has left this test green. buildEmitFiles now renders from
+// tools/row-gen/ratified.json, which is external to every file it compares,
+// so that edit fails here.
 //
-// The tests that do catch it, all of which failed on that same edit:
+// The other tests that catch it, all of which failed on that same edit even
+// then:
 //
 //   - TestNoRatifiedRowNamesAnUnknownArgument (sources_test.go) - checks
 //     every ratified row's arguments against the provider schema and the
@@ -107,7 +111,10 @@ func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
 //
 // The general question worth asking of any drift test here: what external
 // source does it consult? One whose expected value derives from the thing it
-// checks is measuring agreement with itself.
+// checks is measuring agreement with itself. The len(identity.DefaultTable)
+// comparison below is now such a source rather than a tautology, for the
+// same reason: it holds ratified.json's emitted key set against the
+// committed table's.
 func TestEmitFilesMatchCommitted(t *testing.T) {
 	root, err := repoRoot()
 	if err != nil {
@@ -117,7 +124,7 @@ func TestEmitFilesMatchCommitted(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 	grammar := loadImportGrammarForTest(t)
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, identityPart, lintPart, err := buildEmitFiles(loadRatifiedForTest(t), proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -163,7 +170,7 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	_, identityPart, lintPart, err := buildEmitFiles(loadRatifiedForTest(t), proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -224,7 +231,8 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	// Find an unreproduced admitted type from the same comparison the gate
 	// itself runs. Every one of them must be ruled for -emit to work at
 	// all, so the first is as good as any.
-	art := buildConvergence(proposals, annotations)
+	emittedTable := loadEmittedTableForTest(t, proposals)
+	art := buildConvergence(emittedTable, proposals, annotations)
 	matched := make(map[string]bool, len(art.Types))
 	for _, row := range art.Types {
 		matched[row.TFType] = row.Matched
@@ -232,12 +240,12 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	// A RecordBacked row is exempt from the gate by derivation, so it is
 	// never a candidate victim - deleting its (now non-existent) ruling
 	// would prove nothing about the gate.
-	recordBacked, err := recordBackedRows(loadLogicalSchemasForTest(t))
+	recordBacked, err := recordBackedRows(loadRatifiedForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("recordBackedRows: %v", err)
 	}
 	victim := ""
-	for _, tf := range identity.AdmittedTypes() {
+	for _, tf := range sortedRatifiedKeys(emittedTable) {
 		if !matched[tf] && !recordBacked[tf] {
 			victim = tf
 			break
@@ -254,7 +262,7 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	delete(broken, victim)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, _, _, err := buildEmitFiles(loadRatifiedForTest(t), proposals, broken, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err == nil {
 		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
 	}
@@ -274,7 +282,7 @@ func TestEmitRendersValidGo(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, _, _, err := buildEmitFiles(loadRatifiedForTest(t), proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

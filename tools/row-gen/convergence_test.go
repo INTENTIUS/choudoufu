@@ -222,7 +222,7 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadAnnotations: %v", err)
 	}
-	fresh := buildConvergence(proposals, annotations)
+	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
 
 	committed := loadCommittedConvergence(t)
 

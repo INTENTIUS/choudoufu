@@ -107,10 +107,22 @@ func TestEmitGateFiresOnAnInputDrivenRetraction(t *testing.T) {
 	}
 
 	err := retractionRefusal(retracted, allowRetractionFlag)
-	for _, want := range []string{victim, allowRetractionFlag, "CANNOT undo", identityTableRel} {
+	// ratifiedJSONRel is in this list because of what the message used to
+	// say. Before -emit read the ratified corpus from a file no generator
+	// writes, the refusal told the operator that re-running CANNOT undo the
+	// drop and sent them to `git checkout --` on the generated tables. That
+	// is now false, and a refusal that misdescribes the recovery is worse
+	// than one that says nothing: it points away from the file that actually
+	// holds the rows. Requiring the corpus path here is what keeps the two
+	// from drifting apart again.
+	for _, want := range []string{victim, allowRetractionFlag, identityTableRel, ratifiedJSONRel} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal does not mention %q:\n%v", want, err)
 		}
+	}
+	if strings.Contains(err.Error(), "CANNOT undo") {
+		t.Errorf("the refusal still claims re-running cannot undo the retraction, which stopped being true "+
+			"when the corpus moved to %s - re-emitting after fixing the cause restores these rows:\n%v", ratifiedJSONRel, err)
 	}
 }
 
@@ -150,7 +162,7 @@ func TestEmitAddsNoRowTheTableDoesNotAlreadyHold(t *testing.T) {
 // are exactly emittedRows' key set.
 func emitPartitionForTest(t *testing.T, survey map[string]surveyEntry) emitPartition {
 	t.Helper()
-	_, identityPart, _, err := buildEmitFiles(loadAllForTest(t), loadAnnotationsForTest(t), loadImportGrammarForTest(t), survey, loadLogicalSchemasForTest(t))
+	_, identityPart, _, err := buildEmitFiles(loadRatifiedForTest(t), loadAllForTest(t), loadAnnotationsForTest(t), loadImportGrammarForTest(t), survey, loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

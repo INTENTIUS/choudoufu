@@ -131,7 +131,7 @@ func TestRecordBackedDerivationRefusesToDropARow(t *testing.T) {
 		mutated.Providers = append(mutated.Providers, p)
 	}
 
-	backed, err := recordBackedRows(mutated)
+	backed, err := recordBackedRows(loadRatifiedForTest(t), mutated)
 	if err == nil {
 		t.Fatalf("recordBackedRows accepted evidence deriving %d rows where the table carries more; "+
 			"the drop guard is not firing", len(backed))

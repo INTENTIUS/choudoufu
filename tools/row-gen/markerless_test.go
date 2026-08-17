@@ -72,7 +72,7 @@ func TestMarkerlessRosterNeedsSurveyMembership(t *testing.T) {
 		{TFType: "aws_not_in_survey", Bucket: bucketServerAssigned},
 	}
 
-	got := markerlessRoster(survey, proposals, nil)
+	got := markerlessRoster(nil, survey, proposals, nil)
 	want := []string{"aws_untaggable_sa"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Errorf("markerlessRoster = %v, want %v - a type outside live/survey-full.json must never be "+
@@ -103,7 +103,7 @@ func TestMarkerlessRosterSpares442ServerAssignedTaggableRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vetoed := setOf(markerlessRoster(survey, proposals, importGrammar))
+	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar))
 
 	var spared, caught int
 	for _, typeName := range identity.AdmittedTypes() {

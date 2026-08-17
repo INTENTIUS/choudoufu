@@ -32,7 +32,7 @@
 //	go run ./tools/row-gen -service Lambda
 //
 // -convergence switches to a second mode entirely (rowgen-convergence): for
-// every type internal/live/identity.DefaultTable already admits, it diffs a
+// every type -emit would admit, it diffs a
 // fresh proposal against the ratified entry and writes
 // live/rowgen-convergence.json, the one artifact this tool does write - a
 // measurement of its own proposals against ground truth, not a row for
@@ -94,7 +94,7 @@ func repoRoot() (string, error) {
 
 func main() {
 	service := flag.String("service", "", "restrict the report to one CFN service batch (e.g. Lambda); empty prints every batch")
-	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against internal/live/identity.DefaultTable's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
+	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against tools/row-gen/ratified.json's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), instead of printing anything to paste by hand (see emit.go)")
@@ -221,7 +221,12 @@ func runConvergence(out, errOut *os.File) error {
 		return fmt.Errorf("reading %s: %w", annotationsJSONRel, err)
 	}
 
-	art := buildConvergence(proposals, annotations)
+	emitted, err := loadEmittedTable(root, proposals)
+	if err != nil {
+		return err
+	}
+
+	art := buildConvergence(emitted, proposals, annotations)
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
 		for _, p := range problems {
@@ -259,7 +264,7 @@ func runConvergence(out, errOut *os.File) error {
 // the number is, not only in a document somebody has to think to open.
 const notACoverageMetric = `
   NOT A COVERAGE METRIC. This compares row-gen's fresh proposal against the
-  human-ratified row in internal/live/identity.DefaultTable. The ratified row
+  human-ratified row in tools/row-gen/ratified.json. The ratified row
   is what ships - emit.go copies every field verbatim - so a mismatch is
   generator-autonomy debt, not a failure any user experiences, and driving
   adopted-unchanged to 100% would only mean the generator had memorised a

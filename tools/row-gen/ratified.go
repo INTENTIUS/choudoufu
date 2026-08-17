@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 
@@ -20,20 +21,31 @@ import (
 //
 // # Why it exists
 //
-// -emit copies every non-RecordBacked row verbatim out of
-// [identity.DefaultTable], which is -emit's own output from the previous run
-// (emit.go's [emittedRows]). The fresh classifier contributes no row, ever.
-// Measured at 5502e8a3de: empty DefaultTable's literal and run -emit twice and
-// the result is a 14-row table - exactly [recordBackedTypes]' derived set -
-// byte-identical across both runs, exit 0, converged, 878 AWS rows gone. That
-// 14-row table is as much a fixed point of -emit as the 892-row one, so a
-// wrong retraction cannot be undone by regenerating: reverting the cause and
-// re-emitting re-emits the smaller table, because the smaller table is now the
-// input. Only `git checkout --` restores it. That is issue #263.
+// -emit copies every non-RecordBacked row verbatim out of the corpus
+// [buildEmitFiles] hands it (emit.go's [emittedRows]); the fresh classifier
+// contributes no row, ever. That corpus used to be [identity.DefaultTable] -
+// -emit's own output from the previous run. Measured at 5502e8a3de: empty
+// DefaultTable's literal and run -emit twice and the result is a 14-row table
+// - exactly [recordBackedTypes]' derived set - byte-identical across both
+// runs, exit 0, converged, 878 AWS rows gone. That 14-row table is as much a
+// fixed point of -emit as the 892-row one, so a wrong retraction could not be
+// undone by regenerating: reverting the cause and re-emitting re-emitted the
+// smaller table, because the smaller table was now the input. Only
+// `git checkout --` restored it. That is issue #263.
 //
-// ratified.json is the cure. Once the ratified corpus lives in a file no
-// generator writes, reverting the cause of a retraction restores the rows,
-// because the rows were never the generator's to lose.
+// ratified.json is the cure and -emit now reads it. The ratified corpus lives
+// in a file no generator writes, so reverting the cause of a retraction
+// restores the rows - they were never the generator's to lose. Three reads
+// moved together to make that true: [emittedRows]' corpus, [markerlessRoster]'s
+// server-assignment verdict, and [buildConvergence]'s population. Two did not,
+// and both are comparisons against what currently ships rather than statements
+// about what is ratified: retraction.go's gate and [recordBackedRows]'
+// dropped-row check.
+//
+// The other half of what this buys is the workflow. Adding a row used to mean
+// hand-editing a file stamped "Code generated ... DO NOT EDIT" that is this
+// generator's own output. It is now an edit to this file followed by a
+// regeneration.
 //
 // # Why a file naming 878 resource types is not the hand-wiring the standing
 // rule forbids
@@ -265,6 +277,37 @@ func ratifiedRowsOf(table map[string]identity.TypeIdentity) map[string]identity.
 		out[t] = e
 	}
 	return out
+}
+
+// loadEmittedTable is the read-only half of -emit: the exact rows -emit would
+// write, without writing them. It is what the measuring modes (-convergence,
+// -propose) compare the fresh classifier against, so that the population they
+// measure and the population -emit ships can never be two different sets.
+//
+// It deliberately uses [recordBackedTypes] rather than [recordBackedRows]:
+// the derived set is identical, but recordBackedRows also runs -emit's
+// dropped-row refusal, and a mode that writes nothing should not fail on a
+// condition only a write can cause.
+func loadEmittedTable(root string, proposals []proposal) (map[string]identity.TypeIdentity, error) {
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", surveyJSONRel, err)
+	}
+	logical, err := loadLogicalSchemas(filepath.Join(root, logicalSchemasJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
+	}
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar)
+	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), grammar, survey, setOf(vetoed))
+	return rows, nil
 }
 
 // sortedRatifiedKeys is the corpus' key order for any message that lists

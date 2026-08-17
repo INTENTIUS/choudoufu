@@ -49,7 +49,7 @@ import (
 // sources actually decides admission for the type in question, and the
 // distinction is load-bearing:
 //
-//   - for a type internal/live/identity.DefaultTable already admits, the
+//   - for a type tools/row-gen/ratified.json already carries, the
 //     RATIFIED ROW decides. That row is what ships, so it is what
 //     determines whether resolution reaches discovery;
 //   - for every other type, the CLASSIFIER's own bucket decides, because
@@ -64,12 +64,14 @@ import (
 // types. The ratified row is the one that knows.
 //
 // Two independent measurements agree on the five, which is also the whole of
-// what this file's DefaultTable read is worth: dropping the tier and running
-// -emit retracts exactly five types, and emitting from an emptied
-// DefaultTable grows MarkerlessTypes from 148 to 153 with the same five
-// names. Note the second of those is only measurable by emptying the table,
-// because this lookup reads -emit's own previous output - see
-// retraction.go for what that costs.
+// what this file's corpus read is worth: dropping the tier and running
+// -emit retracts exactly five types, and emitting from an emptied corpus
+// grows MarkerlessTypes from 148 to 153 with the same five names.
+//
+// The corpus is tools/row-gen/ratified.json, passed in. It used to be
+// [identity.DefaultTable] - this generator's own previous output - which is
+// why the second of those measurements could only be taken by emptying the
+// committed table. See ratified.go and issue #263.
 
 // markerlessReason is the whole ruling, stated once. It is a rule and not
 // 121 separate judgements, so it is written once and every vetoed type
@@ -102,7 +104,10 @@ func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, clas
 // vetoed by the absence of a signal: a missing entry would decode as
 // taggable=false, and reading that as evidence of untaggability would veto
 // on silence. Survey membership is the precondition, not a fallback.
-func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
+// ratified is the ratified corpus, passed in rather than read out of
+// [identity.DefaultTable] here (issue #263): a type's admission is decided by
+// tools/row-gen/ratified.json, not by whatever -emit last wrote.
+func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
 	classified := make(map[string]bool, len(proposals))
 	documented := make(map[string]bool, len(proposals))
 	for _, p := range proposals {
@@ -128,7 +133,7 @@ func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, impor
 	}
 	var out []string
 	for typeName, entry := range survey {
-		row, admitted := identity.DefaultTable[typeName]
+		row, admitted := ratified[typeName]
 		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName]) {
 			out = append(out, typeName)
 		}

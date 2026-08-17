@@ -288,7 +288,11 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("reading %s: %w", annotationsJSONRel, err)
 	}
-	art := buildConvergence(proposals, annotations)
+	emittedTable, err := loadEmittedTable(root, proposals)
+	if err != nil {
+		return "", "", err
+	}
+	art := buildConvergence(emittedTable, proposals, annotations)
 	stats := ruleAdoption(art.Types)
 	qualifying := qualifyingRules(stats)
 
@@ -310,7 +314,11 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
 	}
-	vetoed := setOf(markerlessRoster(survey, proposals, importGrammar))
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return "", "", fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
+	}
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar))
 
 	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 

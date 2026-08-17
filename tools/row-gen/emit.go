@@ -41,31 +41,37 @@ import (
 // boilerplate a human is meant to rewrite during ratification (reportHeader's
 // own non-goals), and reconstructing it mechanically would silently diverge
 // from whatever prose actually got ratified. So every field of every emitted
-// row is copied verbatim from [identity.DefaultTable], the ground truth this
-// binary already reads (classifyAll's own admitted-set seed does the same).
-// Once the fragments are gone that ground truth is this mode's own previous
-// output, which makes -emit a fixed point: running it twice changes nothing.
+// row is copied verbatim from the ratified corpus.
 //
-// "A fixed point" and not "THE fixed point, so the artifact is implied by the
-// inputs" - the two have been read as one thing and they are not (issue
-// #263). Measured at 5502e8a3de: empty DefaultTable's literal, run -emit
-// twice, and the result is a 14-row table - exactly recordBackedRows' derived
-// set - byte-identical across both runs, exit 0, converged, and 878 AWS rows
-// gone. Every fixed-point and convergence check in this repository is
-// satisfied there. Running -emit twice and diffing says the tree sits at some
-// fixed point; it says nothing about which one, because the classifier
-// contributes no row and the corpus [emittedRows] copies from is the file
-// being overwritten. retraction.go is the gate that follows from that, and
-// retraction_test.go pins both directions of the self-reference.
+// # Where that corpus lives, which is issue #263
 //
-// tools/row-gen/ratified.json is the cure and it is now committed: the same
-// 878 rows in a file no generator writes, proven to render the committed
-// table byte for byte (ratified.go). [emittedRows] takes the corpus as an
-// argument so switching to it is one call site here - but only one of three,
-// because [buildConvergence] and [markerlessRoster] read
-// [identity.DefaultTable] on their own account too, and a from-empty -emit
-// has to satisfy the #132 unruled gate that [buildConvergence]'s verdict
-// feeds. Until all three move, this comment still describes the tree.
+// It used to be [identity.DefaultTable] - this mode's own output from the
+// previous run. That made -emit a fixed point, in the sense that running it
+// twice changed nothing. It did NOT make the artifact implied by the inputs,
+// and the two were read as one thing. Measured at 5502e8a3de: empty
+// DefaultTable's literal, run -emit twice, and the result is a 14-row table
+// - exactly recordBackedRows' derived set - byte-identical across both runs,
+// exit 0, converged, and 878 AWS rows gone. Every fixed-point and
+// convergence check in this repository was satisfied there, because the
+// classifier contributes no row and the corpus being copied from was the
+// file being overwritten. Only `git checkout --` restored it.
+//
+// tools/row-gen/ratified.json is the cure: the same 878 rows in a file no
+// generator writes, proven to render the committed table byte for byte
+// (ratified.go, TestRatifiedRendersTheCommittedIdentityTable). runEmit loads
+// it and hands it down, and the three reads that used to reach for the
+// committed table have all moved onto it - [emittedRows] for the rows
+// themselves, [markerlessRoster] for the server-assignment verdict that
+// decides its veto, and [buildConvergence] for the population whose
+// unreproduced half the #132 gate below refuses. Deleting a row from
+// table_generated.go and re-emitting now restores it, because the row was
+// never this generator's to lose.
+//
+// Two reads deliberately did NOT move, and both are comparisons against what
+// currently ships rather than statements about what is ratified:
+// runEmit's own retraction gate (retraction.go), which has to know what the
+// committed table holds to notice a row leaving it, and recordBackedRows'
+// dropped-row check below, for the same reason over the derived half.
 //
 // Three fields are the deliberate exceptions, all recomputed by
 // renderIdentityFile on every run rather than copied, because nothing ever
@@ -125,12 +131,16 @@ type emitPartition struct {
 // runEmit is -emit's entry point: builds the same classified mapped set and
 // convergence comparison -convergence measures, then writes the two files
 // that declare [identity.DefaultTable] and admittedTypesV0. See this file's
-// own doc comment for why the values come from [identity.DefaultTable] itself
+// own doc comment for why the values come from tools/row-gen/ratified.json
 // rather than from the fresh proposal.
 func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
+	}
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
 	}
 	proposals, err := loadProposals(root)
 	if err != nil {
@@ -153,21 +163,23 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 		return fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
 	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey, logical)
+	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
 	if err != nil {
 		return err
 	}
 
-	// retraction.go's gate, ahead of every write: a row that leaves the
-	// table cannot be brought back by re-running this generator, because the
-	// table is its own input. emitPartition's two halves are exactly
-	// emittedRows' key set, split by the convergence verdict.
+	// retraction.go's gate, ahead of every write: a type that stops being
+	// admitted stops resolving for every user who names it, so the drop has
+	// to be deliberate. identity.AdmittedTypes() stays the baseline here on
+	// purpose - the gate's question is what leaves the SHIPPED table, and only
+	// the shipped table knows what ships today. emitPartition's two halves are
+	// exactly emittedRows' key set, split by the convergence verdict.
 	emitted := append(append([]string(nil), identityPart.Generated...), identityPart.Override...)
 	if retracted := retractedTypes(identity.AdmittedTypes(), emitted); len(retracted) > 0 {
 		if !allowRetraction {
 			return retractionRefusal(retracted, allowRetractionFlag)
 		}
-		fmt.Fprintf(errOut, "row-gen -emit: %s: retracting %d admitted type(s), unrecoverable by re-running:\n  %s\n",
+		fmt.Fprintf(errOut, "row-gen -emit: %s: retracting %d admitted type(s):\n  %s\n",
 			allowRetractionFlag, len(retracted), strings.Join(retracted, "\n  "))
 	}
 
@@ -198,27 +210,27 @@ var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, ma
 // evidence, it returns the two generated files' contents by repo-relative
 // path, plus the two convergence measurements the summary line and tests
 // both want the counts of.
-func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
-	art := buildConvergence(proposals, annotations)
+// ratified is the ratified corpus - tools/row-gen/ratified.json, an input no
+// generator writes. Everything below derives from it rather than from
+// [identity.DefaultTable]; see this file's own doc comment and issue #263.
+func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+	recordBacked, err := recordBackedRows(ratified, logical)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, err
+	}
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar)
+	rows, types := emittedRows(ratified, recordBacked, grammar, survey, setOf(vetoed))
+
+	// The convergence comparison runs over the rows about to be written, not
+	// over the ones last written: a row that is ratified but not yet in the
+	// committed table - the shape adding a row now takes - has to be compared
+	// or the #132 gate below demands an annotation for it on no evidence.
+	art := buildConvergence(rows, proposals, annotations)
 
 	matched := make(map[string]bool, len(art.Types))
 	for _, row := range art.Types {
 		matched[row.TFType] = row.Matched
 	}
-
-	recordBacked, err := recordBackedRows(logical)
-	if err != nil {
-		return nil, emitPartition{}, emitPartition{}, err
-	}
-	vetoed := markerlessRoster(survey, proposals, grammar)
-	// The ratified corpus. Today it is read back out of [identity.DefaultTable],
-	// which is this generator's own previous output - that is issue #263's
-	// self-reference, and ratified.go is the file that ends it. The seam is
-	// here so that the switch to loadRatified is one argument rather than a
-	// rewrite of emittedRows, and so that
-	// TestRatifiedRendersTheCommittedIdentityTable can prove the stored corpus
-	// renders the committed table byte for byte before anything depends on it.
-	rows, types := emittedRows(ratifiedRowsOf(identity.DefaultTable), recordBacked, grammar, survey, setOf(vetoed))
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is
 	// only emittable when annotations.json records why - otherwise a row
@@ -293,25 +305,34 @@ func setOf(types []string) map[string]bool {
 }
 
 // recordBackedRows is the RecordBacked half of the emitted table, derived
-// from live/logical-schemas.json rather than copied from
-// [identity.DefaultTable] (see [recordBackedTypes] for the rule).
+// from live/logical-schemas.json rather than copied from the ratified corpus
+// (see [recordBackedTypes] for the rule).
 //
 // It also refuses two shapes outright rather than letting them through as a
-// silent table change. A currently-RecordBacked row the derivation does not
-// reproduce would be a row DROPPED from the admission table by a generator
-// run - a type that resolves today and would stop, which is the one thing a
-// change of this kind must never do quietly. And a derived type the table
-// already carries as an ordinary, non-record row would mean two evidence
-// sources claiming the same type, which no prefix in the input providers can
-// produce today and which should stop the run if it ever can.
-func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
+// silent table change, and the two read different sources on purpose.
+//
+// The first is a derived type the RATIFIED CORPUS also carries as an
+// ordinary, non-record row: two evidence sources claiming one type, which no
+// prefix in the input providers can produce today and which should stop the
+// run if it ever can. That question is about what is ratified, so it asks
+// ratified.json - which is also the only place a hand edit can now introduce
+// the collision. (loadRatified already refuses a stored row that declares
+// itself RecordBacked, so the corpus half of this pair is always the ordinary
+// kind.)
+//
+// The second is a currently-RecordBacked row the derivation does not
+// reproduce: a row DROPPED from the admission table by a generator run, a
+// type that resolves today and would stop. That question is about what
+// SHIPS, so it stays on [identity.DefaultTable] - and it has to, because
+// ratified.json holds no record-backed row to compare against.
+func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logicalSchemas) (map[string]bool, error) {
 	derived := recordBackedTypes(logical)
 	backed := make(map[string]bool, len(derived))
 	for _, t := range derived {
-		if row, ok := identity.DefaultTable[t]; ok && !row.RecordBacked {
+		if _, ok := ratified[t]; ok {
 			return nil, fmt.Errorf(
-				"row-gen -emit: %s derives RecordBacked from %s, but %s already admits it as an ordinary row - two evidence sources are claiming one type",
-				t, logicalSchemasJSONRel, identityTableRel)
+				"row-gen -emit: %s derives RecordBacked from %s, but %s already ratifies it as an ordinary row - two evidence sources are claiming one type",
+				t, logicalSchemasJSONRel, ratifiedJSONRel)
 		}
 		backed[t] = true
 	}
@@ -362,11 +383,10 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 // corpus, with mergeServerAssigned's, mergeCloudDefault's and
 // mergeIdentityAttrs' three recomputed fields layered over it.
 //
-// ratified is that corpus, passed in rather than read from
-// [identity.DefaultTable] here. Which corpus the caller supplies is what
-// issue #263 turns on: [identity.DefaultTable] is this generator's own
-// previous output, and tools/row-gen/ratified.json is an input no generator
-// writes. See ratified.go.
+// ratified is that corpus, and it is tools/row-gen/ratified.json - an input
+// no generator writes. It used to be [identity.DefaultTable], this
+// generator's own previous output, which is the whole of issue #263. See
+// ratified.go.
 func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
 	rows := make(map[string]identity.TypeIdentity, len(ratified)+len(recordBacked))
 	for _, t := range sortedRatifiedKeys(ratified) {
@@ -451,9 +471,9 @@ func nonRecordBacked(types []string, recordBacked map[string]bool) []string {
 // live/logical-schemas.json, and every other row is a verbatim copy of the
 // ratified entry with three recomputed fields layered over it.
 //
-// Every field but two is copied verbatim from the currently-compiled
-// [identity.DefaultTable], as this file's own doc comment has always
-// promised. The exceptions are mergeServerAssigned's own field,
+// Every field but two is copied verbatim from tools/row-gen/ratified.json,
+// as this file's own doc comment has always promised of whatever corpus was
+// supplying the rows. The exceptions are mergeServerAssigned's own field,
 // [identity.Component.ServerAssignedIfAbsent] (#190), mergeCloudDefault's
 // [identity.Component.Attrs] on a component that also names a cloud property
 // (#241), and mergeIdentityAttrs'
