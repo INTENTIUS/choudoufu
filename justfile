@@ -69,6 +69,17 @@ demo-tagging-sweep:
 demo-create-over:
     bash live/e2e/create-over/run.sh
 
+# Component.PerElement end to end: a set-valued identity tail rendered one
+# sorted segment per element, binding a live object with no state file and no
+# tag - aws_iam_user_group_membership is untaggable, so the identity has no
+# carrier and re-derives from the declaration. Two of the three memberships
+# declare their groups OUT OF ORDER, and the run asserts the declared-order
+# string never appears: a set has no order on the wire, so only the rendered
+# string can tell a sorted identity from a copied one. Needs Docker and the
+# AWS CLI; runs on its own port (4604) so it can run beside `just demo`.
+demo-per-element:
+    bash live/e2e/per-element/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=408 instances=1372
-# shape: class CONCRETE=704
+# shape: dirs=409 instances=1381
+# shape: class CONCRETE=713
 # shape: class NEEDS_DISCOVERY=556
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=a452325a5e96c2420a1431f974ff44aa0d1296ced3451f8873bca743a8fe4768
+# shape: body-sha256=ad77aa89008370580ad6479a0438bbae2806f1295c3239083407d6435da908c8
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1381,6 +1381,15 @@ live/e2e/limits/remote-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-re
 live/e2e/limits/terraform-data	terraform_data.trigger	RECORD_BACKED		
 live/e2e/limits/time-sleep	time_sleep.wait	RECORD_BACKED		
 live/e2e/limits/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	limits-undeclared-provider-alias	bucket=limits-undeclared-provider-alias
+live/e2e/per-element	aws_iam_group.groups["pe-e2e-alpha"]	CONCRETE	pe-e2e-alpha	name=pe-e2e-alpha
+live/e2e/per-element	aws_iam_group.groups["pe-e2e-mike"]	CONCRETE	pe-e2e-mike	name=pe-e2e-mike
+live/e2e/per-element	aws_iam_group.groups["pe-e2e-zulu"]	CONCRETE	pe-e2e-zulu	name=pe-e2e-zulu
+live/e2e/per-element	aws_iam_user.users["pe-e2e-pair"]	CONCRETE	pe-e2e-pair	name=pe-e2e-pair
+live/e2e/per-element	aws_iam_user.users["pe-e2e-solo"]	CONCRETE	pe-e2e-solo	name=pe-e2e-solo
+live/e2e/per-element	aws_iam_user.users["pe-e2e-trio"]	CONCRETE	pe-e2e-trio	name=pe-e2e-trio
+live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-pair"]	CONCRETE	pe-e2e-pair/pe-e2e-alpha/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-zulu,user=pe-e2e-pair
+live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-solo"]	CONCRETE	pe-e2e-solo/pe-e2e-mike	groups=pe-e2e-mike,user=pe-e2e-solo
+live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-trio"]	CONCRETE	pe-e2e-trio/pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu,user=pe-e2e-trio
 live/e2e/record-store	null_resource.trigger	RECORD_BACKED		
 live/e2e/record-store	random_pet.name	RECORD_BACKED		
 live/e2e/record-store	terraform_data.replacement	RECORD_BACKED		
