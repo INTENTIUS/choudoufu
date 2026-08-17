@@ -1394,11 +1394,11 @@ refused, and each says so in its own entry.
 | Configs | Sites | Layer | Refusal | Severity | Raised by | Documented at |
 |---|---|---|---|---|---|---|
 | 109 | 1136 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 99 | 4589 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
+| 101 | 4596 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 66 | 482 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 60 | 283 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
+| 60 | 267 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 46 | 669 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
-| 44 | 320 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 43 | 293 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 33 | 128 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
 | 23 | 47 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 21 | 76 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
@@ -1406,8 +1406,8 @@ refused, and each says so in its own entry.
 | 18 | 59 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
 | 17 | 320 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
 | 17 | 36 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 13 | 44 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
-| 10 | 38 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
 | 5 | 16 | lint | child-module | error | `internal/live/lint` | "child-module" |
 | 5 | 10 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
@@ -1602,7 +1602,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 99 configurations in the measured corpus, at 4589 sites.
+**How often.** Blocked 101 configurations in the measured corpus, at 4596 sites.
 
 #### Unable to compute static value
 
@@ -1618,7 +1618,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 44 configurations in the measured corpus, at 320 sites.
+**How often.** Blocked 43 configurations in the measured corpus, at 293 sites.
 
 #### Unresolvable identity
 
@@ -1668,6 +1668,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 17 configurations in the measured corpus, at 36 sites.
 
+#### Identity not resolvable from configuration
+
+**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 13 configurations in the measured corpus, at 44 sites.
+
 #### Non-static count expression
 
 **What.** A count expression evaluates to null, or to a value not knowable from configuration alone.
@@ -1675,14 +1683,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
-
-#### Identity not resolvable from configuration
-
-**What.** An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 10 configurations in the measured corpus, at 38 sites.
 
 #### Data source not readable before resolution
 
