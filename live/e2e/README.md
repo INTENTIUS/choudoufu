@@ -6,12 +6,14 @@ markers and the feature's live demo
 covers running it in one command, reading its output as a human or a
 machine, and what the branch's claim means as a single exit code.
 
-There are two smaller harnesses beside it, both documented at the bottom of
+There are three smaller harnesses beside it, all documented at the bottom of
 this file. `live/e2e/record-store/` is issue #73's record-backed lifecycle,
 the only end-to-end exercise that class has, and it needs neither Docker nor
 AWS. `live/e2e/dataread-projection/` is issue #193's read side, a data source
 resolved from a managed resource's own configured argument and read against
-the emulator; it needs Docker and the AWS CLI.
+the emulator. `live/e2e/tagging-sweep/` is issue #255's estate-wide tagging
+sweep, the production candidate path, which until that issue no emulator run
+could reach. The last two need Docker and the AWS CLI.
 
 ## Quickstart
 
@@ -273,3 +275,54 @@ The harness fails on a build without the read side, which is what makes it a
 test rather than a demonstration: with the managed branch removed from
 `reader.lookupFor`, step 4 refuses with *"Data source not readable before
 resolution … Unable to use aws_ssm_parameter.seed in static context"*.
+
+## The tagging-sweep harness
+
+`live/e2e/tagging-sweep/run.sh` is issue #255: a full-estate `live-plan`
+gathering its removal candidates from **one** Resource Groups Tagging API
+call, through the command wiring rather than a hand-built
+`discovery.Request`.
+
+```
+just demo-tagging-sweep
+```
+
+It needs Docker and the AWS CLI, and runs on port 4601 rather than 4566 or
+4599 so all three harnesses can run at once. Well under a minute after the
+image is pulled.
+
+Why it did not exist before. `internal/command/live_plan.go` turned
+`TaggingSweep` off for any loopback endpoint, on the strength of a real gap
+in an older emulator pin — and loopback is what `live/e2e/run.sh` and
+`internal/live/flocitest.Endpoint` both use. So the only configuration that
+could have covered the branch was the one configuration excluded from it. The
+emulator gap was fixed (`lex00/floci#229`) and the pin moved; the gate
+stayed, with a test asserting its source line. That gate is gone, and what
+decides the question now is
+`internal/command/tagging_sweep_premise_test.go`, which reads
+`live/floci-capabilities.json`'s `tagging-sweep` rows for whatever digest
+`live/floci-image` pins.
+
+The fixture declares two IAM roles and then deletes one block. Nothing on
+disk names the deleted role and there is no state file, so the estate-wide
+sweep is the only thing that can find it.
+
+| Step | Proves |
+|---|---|
+| apply | Both roles exist, read back with the AWS CLI rather than from `choudoufu`'s output, and `resourcegroupstaggingapi get-resources` filtered to the estate holds the demo role's ARN — visibility to the tagging API specifically, which is a different question from visibility to `iam:ListRoleTags`. |
+| run A | With the block deleted, `live-plan` proposes exactly one destroy, names the live role, leaves the still-declared role alone, and its debug log shows the sweep going through the Tagging API. |
+| run B | The same run under `TOFU_LIVE_CLOUDCONTROL=off` — the documented lever that skips the whole Cloud Control/tagging block — must **not** print that line, which is what keeps run A's assertion from being vacuous, and must still list `aws_iam_role` per type, so it is a control for the candidate source rather than for the sweep's existence. |
+| cost | Both wall clocks are printed and neither is asserted. One `GetResources` is not measurably faster than the per-type sweep against a local emulator; a threshold here would be flaky and a quoted speedup would be a number nobody measured. |
+
+Run B also records a finding the fixture was not built to look for, and it is
+asserted rather than left as a note. The per-type sweep does not propose the
+removal **at all**, and the reason is not the emulator: the AWS provider's
+`aws_iam_role` list resource (6.58.0) builds its objects from `iam:ListRoles`
+and issues no `GetRole` per member — zero `GetRole` requests reach the wire
+during the `ListResource` call — and `iam:ListRoles` returns no tags, on
+floci and on real AWS alike. A listed role therefore carries an empty tag
+map, no ownership marker can be read off it, and the tagging sweep is the
+only path that detects an undeclared `aws_iam_role`. The gate was not costing
+the emulator tier its speed; it was costing it the removal. If a provider
+release changes that, run B starts proposing the destroy and fails with a
+message saying so.

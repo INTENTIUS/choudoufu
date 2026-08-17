@@ -51,6 +51,14 @@ demo:
 demo-records:
     bash live/e2e/record-store/run.sh
 
+# Issue #255's estate-wide tagging sweep end to end: a resource's block
+# deleted, the live resource found through ONE Resource Groups Tagging API
+# call by the command wiring a user actually runs, and a control run showing
+# the per-type fallback cannot see it at all. Needs Docker and the AWS CLI;
+# runs on its own port (4601) so it can run beside `just demo`.
+demo-tagging-sweep:
+    bash live/e2e/tagging-sweep/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
