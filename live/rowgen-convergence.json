@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 905,
-    "compared": 891,
+    "admitted_total": 907,
+    "compared": 893,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 795,
-    "adopted_unchanged_pct": 89.23,
+    "adopted_unchanged": 797,
+    "adopted_unchanged_pct": 89.25,
     "genuine_mismatches": 96,
     "annotated": 96,
     "unannotated_mismatches": 0,
@@ -13,9 +13,9 @@
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 16,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 62.5
+      "compared": 18,
+      "adopted_unchanged": 12,
+      "adopted_unchanged_pct": 66.67
     },
     "ACMPCA": {
       "compared": 2,
@@ -5453,6 +5453,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_iam_account_alias",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_iam_group",
       "service": "IAM",
       "proposed_bucket": "client-named",
@@ -8432,6 +8443,17 @@
       "service": "RUM",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_account_public_access_block",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],

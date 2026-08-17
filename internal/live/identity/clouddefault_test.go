@@ -175,6 +175,11 @@ func TestCloudDefaultAttrIsSingleSourced(t *testing.T) {
 		// AWS provider".
 		"aws_glue_user_defined_function":           "catalog_id",
 		"aws_s3control_storage_lens_configuration": "account_id",
+		// aws_s3_account_public_access_block's account_id says "Defaults to
+		// automatically determined account ID of the Terraform AWS
+		// provider" - the same wording as s3control_storage_lens_configuration's
+		// bullet above, quoted from the same v6.59.0 doc page.
+		"aws_s3_account_public_access_block": "account_id",
 	}
 	for typeName, wantAttr := range want {
 		if got[typeName] != wantAttr {

@@ -26,6 +26,10 @@ var untaggableIamEcr = []string{
 	// by #54) plus this batch's two untaggable ECS/EKS rows. See
 	// live/e2e/estates/ecs-eks/README.md, "Untaggable types".
 	"aws_iam_group",
+	// aws_iam_account_alias: an account-level singleton, one alias per AWS
+	// account. Its Argument Reference names only account_alias (Required);
+	// "This resource exports no additional attributes" and no tags block.
+	"aws_iam_account_alias",
 }
 
 func init() {
@@ -49,6 +53,10 @@ func init() {
 			// no tags block at all, and the deferred aws_iam_group (#54
 			// unblocked it; IAM groups have no TagGroup API to begin with).
 			"aws_iam_group": untaggedSchema("id", "arn", "name"),
+			// account-public-access-block batch (issue #73's parity ruling):
+			// aws_iam_account_alias, an account-level singleton with no
+			// tags block in its Argument Reference.
+			"aws_iam_account_alias": untaggedSchema("account_alias"),
 		})
 	})
 }
