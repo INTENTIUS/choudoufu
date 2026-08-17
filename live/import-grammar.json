@@ -9,9 +9,9 @@
     "no_import_section": 0,
     "rows": 1699,
     "alias_rows": 6,
-    "composed_true": 717,
+    "composed_true": 719,
     "composed_false": 232,
-    "composed_unsure": 750,
+    "composed_unsure": 748,
     "separator_known": 437,
     "separator_unsure": 1262
   },
@@ -14323,7 +14323,7 @@
       ],
       "sole_id_part": {
         "token": "the query ID",
-        "source": "own-id"
+        "source": "argument"
       },
       "argument_names_any_depth": [
         "region",
@@ -39708,8 +39708,11 @@
       "tf_type": "aws_computeoptimizer_recommendation_preferences",
       "import_id_example": "Ec2Instance,AccountId,123456789012",
       "separator": ",",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "resource_type",
+        "scope"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import recommendation preferences using the resource type, scope name and scope value. For example:\n\n```terraform\nimport {\n  to = aws_computeoptimizer_recommendation_preferences.example\n  id = \"Ec2Instance,AccountId,123456789012\"\n}\n```\n\nUsing `terraform import`, import recommendation preferences using the resource type, scope name and scope value. For example:\n\n```console\n% terraform import aws_computeoptimizer_recommendation_preferences.example Ec2Instance,AccountId,123456789012\n```",
       "example_arguments": [
         {
@@ -39786,6 +39789,11 @@
           "required": false
         }
       ],
+      "arguments_in_doc_order": [
+        "resource_type",
+        "scope",
+        "scope"
+      ],
       "id_parts": [
         {
           "token": "the resource type",
@@ -39793,11 +39801,11 @@
         },
         {
           "token": "scope name",
-          "source": "unknown"
+          "source": "argument"
         },
         {
           "token": "scope value",
-          "source": "unknown"
+          "source": "argument"
         }
       ],
       "argument_names_any_depth": [
@@ -41213,7 +41221,7 @@
         },
         {
           "token": "Lex (V1) bot name",
-          "source": "unknown"
+          "source": "argument"
         },
         {
           "token": "Lex (V1) bot region",
@@ -62758,6 +62766,10 @@
         "account_id",
         "region"
       ],
+      "sole_id_part": {
+        "token": "the repository name",
+        "source": "argument"
+      },
       "argument_names_any_depth": [
         "region",
         "repository",
@@ -65156,6 +65168,10 @@
           "force_new": true
         }
       ],
+      "sole_id_part": {
+        "token": "their association IDs",
+        "source": "attribute"
+      },
       "argument_names_any_depth": [
         "region",
         "allocation_id",
@@ -80287,6 +80303,10 @@
           "required": false
         }
       ],
+      "sole_id_part": {
+        "token": "their IDs",
+        "source": "attribute"
+      },
       "argument_names_any_depth": [
         "region",
         "actions",
@@ -82509,8 +82529,11 @@
       "tf_type": "aws_iam_user_group_membership",
       "import_id_example": "user1/group1/group2",
       "separator": "/",
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "groups",
+        "user"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import IAM user group membership using the user name and group names separated by `/`. For example:\n\n```terraform\nimport {\n  to = aws_iam_user_group_membership.example1\n  id = \"user1/group1/group2\"\n}\n```\n\nUsing `terraform import`, import IAM user group membership using the user name and group names separated by `/`. For example:\n\n```console\n% terraform import aws_iam_user_group_membership.example1 user1/group1/group2\n```",
       "example_arguments": [
         {
@@ -82541,6 +82564,10 @@
           "name": "groups",
           "required": true
         }
+      ],
+      "arguments_in_doc_order": [
+        "user",
+        "groups"
       ],
       "argument_names_any_depth": [
         "user",
@@ -134990,6 +135017,10 @@
         "account_id",
         "region"
       ],
+      "sole_id_part": {
+        "token": "S3 Bucket name",
+        "source": "argument"
+      },
       "argument_names_any_depth": [
         "bucket",
         "region",
@@ -135048,6 +135079,10 @@
         "account_id",
         "region"
       ],
+      "sole_id_part": {
+        "token": "the bucket name",
+        "source": "argument"
+      },
       "argument_names_any_depth": [
         "bucket",
         "policy",
@@ -135140,6 +135175,10 @@
         "account_id",
         "region"
       ],
+      "sole_id_part": {
+        "token": "the bucket name",
+        "source": "argument"
+      },
       "argument_names_any_depth": [
         "block_public_acls",
         "block_public_policy",
@@ -147799,7 +147838,7 @@
         },
         {
           "token": "VPC ID",
-          "source": "unknown"
+          "source": "argument"
         }
       ],
       "argument_names_any_depth": [
@@ -149564,6 +149603,10 @@
           "required": true
         }
       ],
+      "sole_id_part": {
+        "token": "the domain name",
+        "source": "argument"
+      },
       "argument_names_any_depth": [
         "region",
         "domain"
@@ -149900,7 +149943,7 @@
       "composed_of_arguments": true,
       "arguments": [
         "identity",
-        "name"
+        "policy"
       ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```terraform\nimport {\n  to = aws_ses_identity_policy.example\n  id = \"example.com|example\"\n}\n```\n\nUsing `terraform import`, import SES Identity Policies using the identity and policy name, separated by a pipe character (`|`). For example:\n\n```console\n% terraform import aws_ses_identity_policy.example 'example.com|example'\n```",
       "example_arguments": [
@@ -149952,7 +149995,7 @@
       ],
       "arguments_in_doc_order": [
         "identity",
-        "name"
+        "policy"
       ],
       "id_parts": [
         {

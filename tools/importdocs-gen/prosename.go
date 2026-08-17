@@ -291,12 +291,12 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 			continue
 		}
 		for _, a := range requiredNames {
-			if normalize(a) == cand {
+			if plainNameMatches(cand, a) {
 				return IDPart{Token: part, Source: idPartSourceArgument}, a
 			}
 		}
 		for _, a := range attrNames {
-			if normalize(a) == cand {
+			if plainNameMatches(cand, a) {
 				return IDPart{Token: part, Source: idPartSourceAttribute}, ""
 			}
 		}
@@ -305,6 +305,74 @@ func attributePlainPart(part, tfType string, requiredNames, attrNames []string) 
 		return IDPart{Token: part, Source: idPartSourceOwnID}, ""
 	}
 	return IDPart{Token: part, Source: idPartSourceUnknown}, ""
+}
+
+// plainNameMatches reports whether a normalized word-run from the prose names
+// the argument arg.
+//
+// Exact equality is the base case and was the whole rule. It misses the two
+// ways documentation prose routinely differs from an argument name, both of
+// them properties of English rather than of any one type:
+//
+//   - the prose adds a generic head noun the argument leaves off. "the user
+//     name" for `user`, "the analysis ID" for `analysis`. The sentence needs
+//     a noun; the schema name is the noun already.
+//   - the prose pluralizes where the argument does not, or the reverse.
+//     "group names" for `groups`.
+//
+// Both are applied to the CANDIDATE only, never to the argument, and only
+// after exact equality has failed. The argument name is the ground truth and
+// is never rewritten to meet the prose halfway.
+//
+// The bar for widening this at all: a wrong marker outranks a missing one, so
+// a looser match that attributes a segment to the wrong argument is worse
+// than no attribution. Neither rule can attribute a segment to an argument
+// that does not exist, and the caller still requires every part to resolve
+// and every resolved name to be distinct before it uses any of them.
+func plainNameMatches(cand, arg string) bool {
+	want := normalize(arg)
+	if want == "" || cand == "" {
+		return false
+	}
+	for _, form := range []string{cand, trimGenericHead(cand)} {
+		if form == "" {
+			continue
+		}
+		if form == want || singularEqual(form, want) {
+			return true
+		}
+	}
+	return false
+}
+
+// genericHeads are the nouns documentation appends to a schema name to make a
+// sentence read. They are only ever REMOVED from the end of a candidate, and
+// only when something is left, so "the name" and "the id" cannot collapse to
+// nothing and match everything.
+var genericHeads = []string{"identifiers", "identifier", "names", "name", "ids", "id", "arns", "arn", "numbers", "number", "values", "value"}
+
+func trimGenericHead(cand string) string {
+	for _, head := range genericHeads {
+		if len(cand) > len(head) && strings.HasSuffix(cand, head) {
+			return cand[:len(cand)-len(head)]
+		}
+	}
+	return ""
+}
+
+// singularEqual reports whether two normalized names differ only by a
+// trailing "s" or "es". It is deliberately this crude: an English pluralizer
+// would introduce its own misfires, and the only forms observed in the
+// provider's own import prose are the regular ones.
+func singularEqual(a, b string) bool {
+	if len(a) > len(b) {
+		a, b = b, a
+	}
+	switch b {
+	case a + "s", a + "es":
+		return true
+	}
+	return false
 }
 
 // namesOwnIdentifier reports whether a run of words names the resource's
