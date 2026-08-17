@@ -156,11 +156,18 @@ func checkedLayersAreFour() Assumption {
 			"three times (#156, #164, #171): a check whose unit does not match the unit of the thing " +
 			"it guards.",
 		Evidence: "internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers and " +
-			"UncheckedLayers, cross-checked against the committed corpus artifact's own header. " +
-			"internal/live/check's TestLayersClassifyEveryLivePackage is what forbids a new package " +
-			"joining no list; this holds the three lists themselves to their recorded contents. " +
-			"Projection moved from unchecked to partial when #224's two exported provider-free entry " +
-			"points finally got a caller; discovery is 4-of-25 checkable and wiring it is #261.",
+			"UncheckedLayers, cross-checked against all three of the committed corpus artifact's own " +
+			"header lists, share included. internal/live/check's TestLayersClassifyEveryLivePackage is " +
+			"what forbids a new package joining no list; this holds the three lists themselves to " +
+			"their recorded contents. Projection moved from unchecked to partial when #224's two " +
+			"exported provider-free entry points finally got a caller. Discovery stays wholly " +
+			"unchecked, and #261's plan to move it was measured and refused: of the four refusals its " +
+			"provider-free declared scan can raise, two are caller-bug guards check.Analyze cannot " +
+			"trip, one (\"One marker value for two declared addresses\") needs two declared addresses " +
+			"escaping to one marker value, which markerkey's excluded runes and #178's reversible key " +
+			"escaping make unreachable for anything identity resolves, and the fourth measures the " +
+			"same quantity as lint.RuleOverlongAddress, an already fully checked layer - see " +
+			"internal/live/check's TestLintCoversTheDeclaredScan.",
 		Tracker:  "#102",
 		Recorded: []string{"checked: lint, identity, dataread, stamp", "partial: projection (2 of 27 refusals)", "unchecked: discovery"},
 		Check: func(r *Repo) (string, error) {
@@ -205,6 +212,31 @@ func checkedLayersAreFour() Assumption {
 						"every number in that artifact was measured over a different set of passes than the "+
 						"one a run would use today",
 					CorpusJSON, c.CheckedLayers, c.UncheckedLayers, gotChecked, gotUnchecked)
+			}
+			// The artifact's third list, on the same terms as the other two.
+			// It carried "partially_checked_layers" from the day the third
+			// bucket existed and nothing read it, so an artifact could have
+			// been measured with projection checked at 1 of 27 - or with a
+			// fourth stage partly checked - while this assumption reported
+			// agreement on the two lists it happened to look at. The share
+			// is compared, not only the layer name, for the same reason the
+			// code-side loop above compares it.
+			gotArtifactPartial := make([]string, 0, len(c.PartialLayers))
+			for _, pl := range c.PartialLayers {
+				gotArtifactPartial = append(gotArtifactPartial, pl.Layer)
+			}
+			if !sameSlice(gotArtifactPartial, wantPartial) {
+				return "", fmt.Errorf(
+					"%s says it partly checked %v, and the code partly checks %v",
+					CorpusJSON, gotArtifactPartial, gotPartial)
+			}
+			for _, pl := range c.PartialLayers {
+				if got, want := len(pl.Refusals), wantPartialRefusals[pl.Layer]; got != want {
+					return "", fmt.Errorf(
+						"%s measured %s at %d of %d refusals, recorded as %d; that artifact's numbers "+
+							"came from a narrower or wider offline pass than a run does today",
+						CorpusJSON, pl.Layer, got, pl.Total, want)
+				}
 			}
 			return fmt.Sprintf("code and %s agree on %d checked, %d partially checked (%d of %d refusals) and %d unchecked layers",
 				CorpusJSON, len(gotChecked), len(gotPartial),
