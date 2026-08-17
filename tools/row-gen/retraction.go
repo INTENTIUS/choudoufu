@@ -17,12 +17,21 @@ import (
 // -emit is a fixed point over already-ratified rows, not a fresh derivation
 // - main.go's package comment has always said so, and emit.go's
 // [emittedRows] is where it is literally true: every non-RecordBacked row is
-// copied verbatim out of [identity.DefaultTable], which is the file -emit
-// itself wrote on the previous run. The ratified rows have no other home.
-// tools/row-gen/annotations.json carries the RULINGS that justify a row
-// diverging from the fresh classifier, not the rows; the fresh classifier
-// deliberately does not reconstruct a ratified row's fields (see emit.go's
-// own doc comment on why templated Reason prose must not be regenerated).
+// copied verbatim out of the corpus [buildEmitFiles] hands it, and that
+// corpus is still [identity.DefaultTable] - the file -emit itself wrote on the
+// previous run. tools/row-gen/annotations.json carries the RULINGS that
+// justify a row diverging from the fresh classifier, not the rows; the fresh
+// classifier deliberately does not reconstruct a ratified row's fields (see
+// emit.go's own doc comment on why templated Reason prose must not be
+// regenerated).
+//
+// tools/row-gen/ratified.json now holds those 878 rows as an input no
+// generator writes, proven byte-for-byte equal to what the committed table
+// renders (ratified.go, and TestRatifiedRendersTheCommittedIdentityTable).
+// -emit does not read it yet: the corpus argument [emittedRows] takes is the
+// seam, and moving it also means moving [buildConvergence]'s and
+// [markerlessRoster]'s own DefaultTable reads, which is a change of its own.
+// Until that lands, everything below still describes the tree.
 //
 // The consequence, measured on a clean tree at 5502e8a3de: emptying
 // DefaultTable's literal and running -emit twice produces a 14-row table -
