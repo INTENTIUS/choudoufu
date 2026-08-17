@@ -100,7 +100,7 @@ func TestFlociTypeCapability(t *testing.T) {
 // "implemented", on the strength of "ListResources(X) succeeded". Succeeding
 // is not answering: floci's ListResources returns an empty
 // ResourceDescriptions, cleanly, for a type whose objects demonstrably
-// exist. Measured against the pinned image on 2026-08-17: create a cache
+// exist. Measured against sha256:a1c729f4 on 2026-08-17: create a cache
 // policy through CloudFront's own API and `cloudfront list-cache-policies`
 // returns it (Quantity 1), while `cloudcontrol list-resources --type-name
 // AWS::CloudFront::CachePolicy` returns []. A discovery leg reading the old
@@ -115,17 +115,28 @@ func TestFlociTypeCapability(t *testing.T) {
 // from internal/live/identity.AdmittedTypes joined through the registry,
 // and a test is the right place to hold it to a known answer.
 func TestCloudControlListRowsRecordAnAnswerNotACall(t *testing.T) {
-	for _, tfType := range []string{
-		"aws_cloudfront_cache_policy", // AWS::CloudFront::CachePolicy
-		"aws_route53_cidr_collection", // AWS::Route53::CidrCollection
-		"aws_ecs_task_definition",     // AWS::ECS::TaskDefinition
-	} {
+	// AWS::ECS::TaskDefinition has moved to the other side of this guard.
+	// lex00/floci bda9bc3d backed ListResources' default branch with the
+	// service's own store, and the pin moved to sha256:ff1bc407 with it, so
+	// the create/list round trip now closes for the type that hard-errored two
+	// corpus estates. It stays in this test, asserting the opposite, because a
+	// row that goes back to claiming a bare call is the defect either way.
+	answers := map[string]bool{
+		"aws_cloudfront_cache_policy": false, // AWS::CloudFront::CachePolicy
+		"aws_route53_cidr_collection": false, // AWS::Route53::CidrCollection
+		"aws_ecs_task_definition":     true,  // AWS::ECS::TaskDefinition
+	}
+	for tfType, enumerates := range answers {
 		entry, ok := FlociTypeCapability(pinnedDigest, tfType, "cloudcontrol-list")
 		if !ok {
 			t.Errorf("%s has no cloudcontrol-list row at the pinned digest; it is meant to carry the probe's finding", tfType)
 			continue
 		}
-		if entry.Status == FlociImplemented {
+		switch {
+		case enumerates && entry.Status != FlociImplemented:
+			t.Errorf("%s cloudcontrol-list = %q, but the emulator's list does find an object it just created: %s",
+				tfType, entry.Status, entry.Evidence)
+		case !enumerates && entry.Status == FlociImplemented:
 			t.Errorf("%s cloudcontrol-list = implemented, but the emulator's list cannot find an object it just created: %s",
 				tfType, entry.Evidence)
 		}
