@@ -368,6 +368,36 @@ of every way a number here has been wrong.
 
 Two instruments, answering different questions. You usually want both.
 
+**Before either: the corpus measures the PUBLISHED form of every estate, and
+choudoufu is a thing you migrate to.** Not one of the 145 entries declares a
+`live` block or a `record_store`; each still carries the backend it was
+published with, and a module may declare one or the other but never both. So a
+refusal that the onboarding edit clears is not a language wall - it is the
+estate not having been onboarded, which is true of all of them.
+
+Two consequences, and both have already cost a slot here.
+
+Choudoufu does not care whether a type is taggable. Taggability is about the
+MARKER, which answers "may I delete this". What decides whether an estate can
+run is whether the identity is DERIVABLE, and for an object choudoufu created
+it is, because choudoufu minted the ID. Framing a wall as "untaggable" measures
+the marker and reports it as an identity problem.
+
+And when a finding is cleared by an operator edit rather than by a change in
+this repository, measure the ONBOARDED form: copy the estate out of `.corpus`,
+swap the published backend for a live block, and run the probe on the copy.
+`5e6cf9c86f` did exactly this - `blocked=0, sites=0, 13 instances` on an estate
+that reads blocked in published form - and it is the only measurement that
+answers the question. An agent that measured the published form and reported
+"nothing cleared" was measuring an unmigrated config against a migrated-platform
+capability.
+
+The demotion that follows is only safe when the promise is enforced downstream.
+`5e6cf9c86f` could demote because `internal/live/projection` raises
+"Record-backed instance with no record store" as an ERROR at plan time, so an
+operator who writes the live block and forgets the store is stopped by name.
+Without that guard the demotion trades a refusal for a silent failure.
+
 **`tools/refusal-probe` counts refusals.**
 
 ```
