@@ -122,6 +122,23 @@ demo-corpus-message-queue:
 demo-corpus-crossing:
     bash live/e2e/corpus-crossing/run.sh
 
+# Issue #274's step 6, on a terraform-aws-modules EXAMPLE rather than one
+# org's private estate: .corpus/iam/examples/iam-policy, the configuration a
+# new user copies first when they reach for the aws provider. Two
+# aws_iam_policy instances behind the iam-policy module - one from a literal
+# policy document, one from a rendered aws_iam_policy_document data source -
+# applied, stripped of their state file, and replanned empty twice, with
+# both rendered identities checked against IAM's own answer. The estate
+# needed no provider pin and no backend edit, and its root outputs mean
+# OpenTofu never prints a literal "Plan: 0 to add" line on any run against
+# it - see the script's header for why, and why step 5 asserts the absence
+# of a resource action header instead. BREAK=1 corrupts one expected
+# identity string and the run must then fail in step 5 and nowhere else.
+# Needs Docker, the AWS CLI and a populated .corpus (`just corpus-fetch`);
+# runs on its own port (4680) so it can run beside `just demo`.
+demo-corpus-iam-policy:
+    bash live/e2e/corpus-iam-policy/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on

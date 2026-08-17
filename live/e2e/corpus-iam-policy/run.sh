@@ -32,6 +32,18 @@ set -uo pipefail
 # would - not a string nothing could produce, but the CORRECT policy ARN with
 # the wrong module's suffix - and step 5 must be the only step that goes red.
 #
+# ONE MORE THING THIS ESTATE FOUND: it declares root `output` blocks, and
+# live-plan holds no state between runs, so there is never a prior output
+# baseline to diff against. Every run therefore shows a permanent "Changes to
+# Outputs" section, and OpenTofu's renderer omits the "Plan: N to add, N to
+# change, N to destroy" line entirely whenever 0 resources change but the
+# outputs section is non-empty - it does not print "Plan: 0 to add, 0 to
+# change, 0 to destroy" either. A plan-summary grep that looks for that
+# exact line, as every earlier corpus-crossing script does, silently fails
+# on this shape of estate. Step 5 below asserts the absence of any resource
+# action header ("will be created" / "will be updated" / "will be
+# destroyed") instead, which is unaffected by whether outputs changed.
+#
 #   bash live/e2e/corpus-iam-policy/run.sh
 #
 # Needs Docker and the AWS CLI. .corpus is read, never written: the estate is
@@ -163,11 +175,14 @@ plan_into() {
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
-grep -qE '^Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT" \
-  || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "the plan is not empty of resource changes"; }
+# Not a "Plan:" grep - see the header comment. This estate has root outputs,
+# live-plan carries no state to diff them against, and the summary line is
+# never printed while that is true, empty plan or not.
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
   || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the plan reports foreign resources"; }
-log "  0 to add, 0 to change, 0 to destroy; nothing foreign"
+log "  no resource change proposed; nothing foreign"
 
 WANT=("$POLICY1_ARN" "$POLICY2_ARN")
 if [ "${BREAK:-}" = "1" ]; then
@@ -190,8 +205,8 @@ log "  both rendered identities asserted, and no third"
 log "=== 6. the next run proposes nothing, and applying it adds nothing ==="
 PLAN2_OUT="$(plan_into 2>&1)"; PLAN2_RC=$?
 [ "$PLAN2_RC" -eq 0 ] || { printf '%s\n' "$PLAN2_OUT" | tail -30; fail "the second live-plan exited $PLAN2_RC"; }
-grep -qE '^Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN2_OUT" \
-  || { grep -E '^Plan:' <<< "$PLAN2_OUT"; fail "the second plan is not empty, so the run does not converge"; }
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN2_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$PLAN2_OUT"; fail "the second plan proposes a resource change, so the run does not converge"; }
 
 APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY2_OUT" | tail -30; fail "the second apply failed"; }
