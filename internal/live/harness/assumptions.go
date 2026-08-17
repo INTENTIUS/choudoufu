@@ -147,28 +147,50 @@ func onboardingNonBlockingIDs() Assumption {
 func checkedLayersAreFour() Assumption {
 	return Assumption{
 		ID: "checked-layers-are-lint-identity-dataread-stamp",
-		Claim: "Everything an offline report says is derived from four analysis passes - lint, identity, " +
-			"dataread and stamp - and the two live-path stages it cannot see, discovery and projection, " +
-			"are named as unchecked rather than omitted.",
+		Claim: "Everything an offline report says is derived from four fully checked analysis passes - lint, " +
+			"identity, dataread and stamp - plus projection, which is checked only where it needs no cloud, " +
+			"and discovery, which is not checked at all. All three lists are named rather than omitted.",
 		Consequence: "A clean verdict is a narrow claim, and how narrow is exactly this list. A pass " +
 			"added to internal/live and joined to neither list makes every clean count overstate, " +
 			"silently, in the direction that looks like progress. This is the shape that has appeared " +
 			"three times (#156, #164, #171): a check whose unit does not match the unit of the thing " +
 			"it guards.",
-		Evidence: "internal/live/check/catalog.go's CheckedLayers and UncheckedLayers, cross-checked " +
-			"against the committed corpus artifact's own header. internal/live/check's " +
-			"TestLayersClassifyEveryLivePackage is what forbids a new package joining neither list; " +
-			"this holds the two lists themselves to their recorded contents.",
+		Evidence: "internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers and " +
+			"UncheckedLayers, cross-checked against the committed corpus artifact's own header. " +
+			"internal/live/check's TestLayersClassifyEveryLivePackage is what forbids a new package " +
+			"joining no list; this holds the three lists themselves to their recorded contents. " +
+			"Projection moved from unchecked to partial when #224's two exported provider-free entry " +
+			"points finally got a caller; discovery is 4-of-25 checkable and wiring it is #261.",
 		Tracker:  "#102",
-		Recorded: []string{"checked: lint, identity, dataread, stamp", "unchecked: discovery, projection"},
+		Recorded: []string{"checked: lint, identity, dataread, stamp", "partial: projection (2 of 27 refusals)", "unchecked: discovery"},
 		Check: func(r *Repo) (string, error) {
 			wantChecked := []string{"lint", "identity", "dataread", "stamp"}
-			wantUnchecked := []string{"discovery", "projection"}
+			wantPartial := []string{"projection"}
+			wantPartialRefusals := map[string]int{"projection": 2}
+			wantUnchecked := []string{"discovery"}
 
 			gotChecked := layerStrings(check.CheckedLayers())
+			partial := check.PartiallyCheckedLayers()
+			gotPartial := make([]string, 0, len(partial))
+			for _, pl := range partial {
+				gotPartial = append(gotPartial, string(pl.Layer))
+			}
 			gotUnchecked := layerStrings(check.UncheckedLayers())
 			if !sameSlice(gotChecked, wantChecked) {
 				return "", fmt.Errorf("check.CheckedLayers() is %v, recorded as %v", gotChecked, wantChecked)
+			}
+			if !sameSlice(gotPartial, wantPartial) {
+				return "", fmt.Errorf("check.PartiallyCheckedLayers() is %v, recorded as %v", gotPartial, wantPartial)
+			}
+			// The share, not just the name. "Partly checked" is a claim about
+			// how much, and a stage quietly going from 2 of 27 to 1 of 27
+			// narrows every clean verdict without moving any list.
+			for _, pl := range partial {
+				if got, want := len(pl.Refusals), wantPartialRefusals[string(pl.Layer)]; got != want {
+					return "", fmt.Errorf("%s checks %d of its %d refusals offline, recorded as %d; "+
+						"the layer is still partly checked but by a different amount, so every clean verdict moved with it",
+						pl.Layer, got, pl.Total, want)
+				}
 			}
 			if !sameSlice(gotUnchecked, wantUnchecked) {
 				return "", fmt.Errorf("check.UncheckedLayers() is %v, recorded as %v", gotUnchecked, wantUnchecked)
@@ -184,8 +206,9 @@ func checkedLayersAreFour() Assumption {
 						"one a run would use today",
 					CorpusJSON, c.CheckedLayers, c.UncheckedLayers, gotChecked, gotUnchecked)
 			}
-			return fmt.Sprintf("code and %s agree on %d checked and %d unchecked layers",
-				CorpusJSON, len(gotChecked), len(gotUnchecked)), nil
+			return fmt.Sprintf("code and %s agree on %d checked, %d partially checked (%d of %d refusals) and %d unchecked layers",
+				CorpusJSON, len(gotChecked), len(gotPartial),
+				len(partial[0].Refusals), partial[0].Total, len(gotUnchecked)), nil
 		},
 	}
 }

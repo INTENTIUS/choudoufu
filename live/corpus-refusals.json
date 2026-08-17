@@ -431,8 +431,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 11,
-      "sites": 117,
+      "instances": 12,
+      "sites": 113,
       "unresolved_modules": 4,
       "unset_variables": 0,
       "schemas": true,
@@ -473,8 +473,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 22,
-      "sites": 44,
+      "instances": 23,
+      "sites": 40,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -494,8 +494,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 10,
-      "sites": 99,
+      "instances": 11,
+      "sites": 95,
       "unresolved_modules": 2,
       "unset_variables": 0,
       "schemas": true,
@@ -3762,8 +3762,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 14,
-      "sites": 13,
+      "instances": 17,
+      "sites": 7,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4406,8 +4406,8 @@
       "origin": "terraform-aws-modules",
       "blocked": true,
       "loaded": true,
-      "instances": 43,
-      "sites": 281,
+      "instances": 52,
+      "sites": 257,
       "unresolved_modules": 1,
       "unset_variables": 0,
       "schemas": true,
@@ -9247,31 +9247,13 @@
     },
     {
       "layer": "identity",
-      "id": "Dynamic value in static context",
-      "title": "Dynamic value in static context",
-      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
-      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
-      "raised_by": "internal/configs",
-      "configs": 47,
-      "sites": 338,
-      "examples": [
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:195",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:196",
-        ".corpus/alb/examples/complete-alb/main.tf:197"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
       "id": "Unable to compute static value",
       "title": "Unable to compute static value",
       "what": "Something an identity argument, a count or a for_each depends on could not be computed. It is the trailing half of another refusal: the diagnostic before it names what actually failed, and this one names the chain that led there.",
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 46,
-      "sites": 690,
+      "sites": 669,
       "examples": [
         ".corpus/alb/main.tf:231",
         ".corpus/alb/main.tf:243",
@@ -9283,13 +9265,31 @@
     },
     {
       "layer": "identity",
+      "id": "Dynamic value in static context",
+      "title": "Dynamic value in static context",
+      "what": "An identity argument, a count or a for_each reads a value that only exists once something has been applied: another resource's attribute, or a data source. It is the catch-all of the static-context checks - a module output and a provider function each get their own refusal instead.",
+      "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+      "raised_by": "internal/configs",
+      "configs": 44,
+      "sites": 320,
+      "examples": [
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:195",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:196",
+        ".corpus/alb/examples/complete-alb/main.tf:197"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
       "id": "Unresolvable identity",
       "title": "Unresolvable identity",
       "what": "An identity could not be built because a reference it depends on failed; the reference's own error explains why.",
       "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
       "raised_by": "internal/live/identity",
       "configs": 33,
-      "sites": 131,
+      "sites": 128,
       "examples": [
         ".corpus/cool-assessment/operations_routing.tf:21",
         ".corpus/cool-assessment/operations_routing.tf:29",
@@ -10698,8 +10698,8 @@
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 3849,
-    "sites": 8488,
+    "instances": 3864,
+    "sites": 8446,
     "refusals_fired": 24,
     "refusals_in_set": 126,
     "configs_without_schemas": 3,
@@ -10732,8 +10732,8 @@
       "loaded": 74,
       "blocked": 71,
       "clean": 3,
-      "instances": 745,
-      "sites": 6168,
+      "instances": 760,
+      "sites": 6126,
       "reads_as": "ranking"
     }
   ],
@@ -11400,9 +11400,18 @@
     "dataread",
     "stamp"
   ],
+  "partially_checked_layers": [
+    {
+      "layer": "projection",
+      "refusals": [
+        "Cyclic parent-derived identities",
+        "Empty import identity"
+      ],
+      "total": 27
+    }
+  ],
   "unchecked_layers": [
-    "discovery",
-    "projection"
+    "discovery"
   ],
   "schemas": {
     "present": true,

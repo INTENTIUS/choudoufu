@@ -249,10 +249,15 @@ improvement. Only a value assertion separates the two.
 
 ### Caveats that travel with any ladder figure
 
-`checked_layers` is lint, identity, dataread and stamp. `discovery` and
-`projection` are unchecked, so `clean` means "nothing in four of six layers
-refused it". The supportable sentence is *"N of the rate-capable
-deployments pass the four offline checks this instrument runs"*.
+Layers come in three lists, not two. Lint, identity, dataread and stamp are
+fully checked. **Projection is partly checked**: 2 of its 27 refusals need
+no cloud, and the rest do. **Discovery is unchecked**, though 4 of its 25 are
+computable offline and wiring them is #261; the other 21 are verdicts about
+listed cloud objects and genuinely cannot be reached without one.
+
+So `clean` does not mean "this onboards". The supportable sentence names the
+share: *"N of the rate-capable deployments pass the offline checks this
+instrument runs, which is four full passes plus 2 of projection's 27."*
 
 The corpus does not install registry modules by default, so an entry with
 module calls measures a fraction of its refusal surface and every per-entry
