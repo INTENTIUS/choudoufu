@@ -74,8 +74,14 @@ var identityGoldenPin = map[string]int{
 	// three types the markerless-veto two-source exception newly admits.
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        716,
-	"NEEDS_DISCOVERY": 557,
+	"CONCRETE": 716,
+	// 558, up from 557 (issue #270): one ADDED row, aws_vpc.control in the
+	// new live/e2e/record-located fixture. It is the only resource in that
+	// directory this instrument can see - the three record-located ones
+	// need a schema and this sweep has none, per the note on
+	// identityGoldenPinDirs below - and it is in the fixture precisely so
+	// the e2e run has a needs-discovery type to sweep for.
+	"NEEDS_DISCOVERY": 558,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
@@ -105,10 +111,10 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-// 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
-// comment above) - a fresh fixture directory, not an edit to an existing
-// one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311"
+// 2026-08-17 (issue #270): one ADDED row, live/e2e/record-located
+// aws_vpc.control. `git diff` on the golden shows a single insertion and no
+// modified line, so no pre-existing row's contribution moved.
+const identityGoldenPinBodyDigest = "bf67289961d6fa75aeb7dc5b15ea6a5087b81a9e83fce1ef2dbcec09b4a219d6"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -121,9 +127,19 @@ const identityGoldenPinBodyDigest = "9033545f6134524ad57f414783c8b8374afe68e0df5
 // must refuse. So the located class is a class this instrument cannot see,
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
+// 2026-08-17 (issue #270, the crossing): dirs 413 -> 414 and instances
+// 1385 -> 1386. The new directory is live/e2e/record-located, the floci
+// harness that stands the located class up against a real emulator. Same
+// blindness as above and it is worth restating on the fixture that exists
+// to defeat it: of that directory's four resources this sweep records ONE,
+// aws_vpc.control, because the three record-located ones need a schema to
+// be admitted at all. The counts here therefore say nothing about whether
+// the crossing works - `just demo-record-located` is what says that, by
+// reading the rendered identity out of a run against the emulator and
+// checking it against the emulator's own answer.
 const (
-	identityGoldenPinInstances = 1385
-	identityGoldenPinDirs      = 413
+	identityGoldenPinInstances = 1386
+	identityGoldenPinDirs      = 414
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

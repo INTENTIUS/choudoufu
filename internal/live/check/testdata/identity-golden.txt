@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=413 instances=1385
+# shape: dirs=414 instances=1386
 # shape: class CONCRETE=716
-# shape: class NEEDS_DISCOVERY=557
+# shape: class NEEDS_DISCOVERY=558
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=9033545f6134524ad57f414783c8b8374afe68e0df5c4814a294977b945ca311
+# shape: body-sha256=bf67289961d6fa75aeb7dc5b15ea6a5087b81a9e83fce1ef2dbcec09b4a219d6
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1394,6 +1394,7 @@ live/e2e/per-element	aws_iam_user.users["pe-e2e-trio"]	CONCRETE	pe-e2e-trio	name
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-pair"]	CONCRETE	pe-e2e-pair/pe-e2e-alpha/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-zulu,user=pe-e2e-pair
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-solo"]	CONCRETE	pe-e2e-solo/pe-e2e-mike	groups=pe-e2e-mike,user=pe-e2e-solo
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-trio"]	CONCRETE	pe-e2e-trio/pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu,user=pe-e2e-trio
+live/e2e/record-located	aws_vpc.control	NEEDS_DISCOVERY		
 live/e2e/record-store	null_resource.trigger	RECORD_BACKED		
 live/e2e/record-store	random_pet.name	RECORD_BACKED		
 live/e2e/record-store	terraform_data.replacement	RECORD_BACKED		

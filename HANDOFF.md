@@ -437,9 +437,15 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1385 rendered identities across 413 configuration directories in under a
+1386 rendered identities across 414 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
+
+Because it runs schema-less, it cannot see `RECORD_LOCATED` at all —
+`identity.LocatedType` fails closed with no schema, so a located resource
+contributes no row. `just demo-record-located` is that class's instrument
+instead, and it reads the rendered identity out of a run against a real
+emulator.
 
 This is the only instrument here that measures what a marker will say rather
 than whether something refused. Six defects shipped green because nothing did
