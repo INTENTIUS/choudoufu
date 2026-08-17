@@ -20,10 +20,16 @@ import (
 // The table lookup runs first and unconditionally, so a type the table
 // already covers never depends on schemas being present at all, and the
 // veto cannot contradict a ratified row. Where the two disagree the row
-// wins, which is what keeps the veto's arrival from retracting anything on
-// its own: the roster and the table overlap today (live/admission_coverage_test.go's
-// markerlessAdmittedOverlapMax), and every type in that overlap keeps the
-// support its row describes until row-gen stops emitting the row.
+// wins - which is what kept the veto's arrival from retracting anything on
+// its own, while 77 vetoed types were still admitted.
+//
+// The two sets are disjoint now: tools/row-gen's -emit filters the emitted
+// rows by the same roster, and live/admission_coverage_test.go's
+// markerlessAdmittedOverlapMax holds that at zero (#249). So this ordering
+// decides nothing today. It stays because it is the safe direction if the
+// overlap ever returns: a row that reached the table by a route -emit does
+// not filter still describes support a ratification batch signed off on,
+// and this function is not where that argument should be had.
 //
 // The veto sits ahead of the schema fallback and not behind it because a
 // type row-gen retracts leaves the table and lands in front of

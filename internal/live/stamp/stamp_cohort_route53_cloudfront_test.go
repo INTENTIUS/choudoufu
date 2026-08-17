@@ -50,9 +50,7 @@ var untaggableRoute53Cloudfront = []string{
 	"aws_route53_key_signing_key",
 	"aws_route53_zone_association",
 	"aws_route53_resolver_firewall_rule",
-	"aws_route53_resolver_rule_association",
 	"aws_cloudfront_monitoring_subscription",
-	"aws_cloudfront_origin_access_control",
 	"aws_cloudfront_realtime_log_config",
 }
 

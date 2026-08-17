@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 967,
-    "compared": 953,
+    "admitted_total": 890,
+    "compared": 876,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 858,
-    "adopted_unchanged_pct": 90.03,
-    "genuine_mismatches": 95,
-    "annotated": 95,
+    "adopted_unchanged": 783,
+    "adopted_unchanged_pct": 89.38,
+    "genuine_mismatches": 93,
+    "annotated": 93,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 24
   },
@@ -48,18 +48,18 @@
       "adopted_unchanged_pct": 100
     },
     "ApiGateway": {
-      "compared": 20,
-      "adopted_unchanged": 18,
-      "adopted_unchanged_pct": 90
+      "compared": 19,
+      "adopted_unchanged": 17,
+      "adopted_unchanged_pct": 89.47
     },
     "ApiGatewayV2": {
-      "compared": 5,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 80
+      "compared": 4,
+      "adopted_unchanged": 3,
+      "adopted_unchanged_pct": 75
     },
     "AppConfig": {
-      "compared": 8,
-      "adopted_unchanged": 8,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "AppFlow": {
@@ -93,8 +93,8 @@
       "adopted_unchanged_pct": 100
     },
     "Athena": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "AuditManager": {
@@ -128,9 +128,9 @@
       "adopted_unchanged_pct": 85.71
     },
     "BedrockAgentCore": {
-      "compared": 16,
-      "adopted_unchanged": 13,
-      "adopted_unchanged_pct": 81.25
+      "compared": 15,
+      "adopted_unchanged": 12,
+      "adopted_unchanged_pct": 80
     },
     "Billing": {
       "compared": 1,
@@ -178,8 +178,8 @@
       "adopted_unchanged_pct": 100
     },
     "CloudFront": {
-      "compared": 20,
-      "adopted_unchanged": 20,
+      "compared": 12,
+      "adopted_unchanged": 12,
       "adopted_unchanged_pct": 100
     },
     "CloudTrail": {
@@ -188,8 +188,8 @@
       "adopted_unchanged_pct": 50
     },
     "CloudWatch": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "CodeArtifact": {
@@ -198,8 +198,8 @@
       "adopted_unchanged_pct": 25
     },
     "CodeBuild": {
-      "compared": 5,
-      "adopted_unchanged": 5,
+      "compared": 4,
+      "adopted_unchanged": 4,
       "adopted_unchanged_pct": 100
     },
     "CodeCommit": {
@@ -253,8 +253,8 @@
       "adopted_unchanged_pct": 100
     },
     "Connect": {
-      "compared": 13,
-      "adopted_unchanged": 13,
+      "compared": 12,
+      "adopted_unchanged": 12,
       "adopted_unchanged_pct": 100
     },
     "ControlTower": {
@@ -288,8 +288,8 @@
       "adopted_unchanged_pct": 100
     },
     "DataZone": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "Detective": {
@@ -298,14 +298,14 @@
       "adopted_unchanged_pct": 100
     },
     "DevOpsGuru": {
-      "compared": 2,
-      "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
     },
     "DirectConnect": {
-      "compared": 9,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 44.44
+      "compared": 6,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 16.67
     },
     "DocDB": {
       "compared": 5,
@@ -323,13 +323,13 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 93,
-      "adopted_unchanged": 80,
-      "adopted_unchanged_pct": 86.02
+      "compared": 87,
+      "adopted_unchanged": 74,
+      "adopted_unchanged_pct": 85.06
     },
     "ECR": {
-      "compared": 11,
-      "adopted_unchanged": 11,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "ECS": {
@@ -338,8 +338,8 @@
       "adopted_unchanged_pct": 100
     },
     "EFS": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "EKS": {
@@ -363,8 +363,8 @@
       "adopted_unchanged_pct": 100
     },
     "ElastiCache": {
-      "compared": 9,
-      "adopted_unchanged": 9,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "ElasticBeanstalk": {
@@ -423,8 +423,8 @@
       "adopted_unchanged_pct": 100
     },
     "GlobalAccelerator": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "Glue": {
@@ -463,8 +463,8 @@
       "adopted_unchanged_pct": 100
     },
     "Inspector": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "InspectorV2": {
@@ -483,8 +483,8 @@
       "adopted_unchanged_pct": 100
     },
     "IoT": {
-      "compared": 12,
-      "adopted_unchanged": 12,
+      "compared": 11,
+      "adopted_unchanged": 11,
       "adopted_unchanged_pct": 100
     },
     "KMS": {
@@ -523,8 +523,8 @@
       "adopted_unchanged_pct": 100
     },
     "Lambda": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 6,
+      "adopted_unchanged": 6,
       "adopted_unchanged_pct": 100
     },
     "Lex": {
@@ -543,9 +543,9 @@
       "adopted_unchanged_pct": 100
     },
     "Logs": {
-      "compared": 13,
-      "adopted_unchanged": 12,
-      "adopted_unchanged_pct": 92.31
+      "compared": 12,
+      "adopted_unchanged": 11,
+      "adopted_unchanged_pct": 91.67
     },
     "M2": {
       "compared": 2,
@@ -553,8 +553,8 @@
       "adopted_unchanged_pct": 0
     },
     "MSK": {
-      "compared": 9,
-      "adopted_unchanged": 9,
+      "compared": 8,
+      "adopted_unchanged": 8,
       "adopted_unchanged_pct": 100
     },
     "MWAA": {
@@ -563,8 +563,8 @@
       "adopted_unchanged_pct": 0
     },
     "Macie": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "MediaLive": {
@@ -608,8 +608,8 @@
       "adopted_unchanged_pct": 100
     },
     "Notifications": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "NotificationsContacts": {
@@ -733,18 +733,18 @@
       "adopted_unchanged_pct": 100
     },
     "Route53": {
-      "compared": 8,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 75
+      "compared": 7,
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 71.43
     },
     "Route53Profiles": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "Route53RecoveryControl": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "Route53RecoveryReadiness": {
@@ -753,9 +753,9 @@
       "adopted_unchanged_pct": 100
     },
     "Route53Resolver": {
-      "compared": 10,
-      "adopted_unchanged": 9,
-      "adopted_unchanged_pct": 90
+      "compared": 7,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 85.71
     },
     "S3": {
       "compared": 9,
@@ -768,13 +768,13 @@
       "adopted_unchanged_pct": 100
     },
     "S3Files": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "S3Outposts": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "S3Tables": {
@@ -788,8 +788,8 @@
       "adopted_unchanged_pct": 100
     },
     "SES": {
-      "compared": 13,
-      "adopted_unchanged": 13,
+      "compared": 12,
+      "adopted_unchanged": 12,
       "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
@@ -798,9 +798,9 @@
       "adopted_unchanged_pct": 100
     },
     "SNS": {
-      "compared": 3,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 66.67
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "SQS": {
       "compared": 2,
@@ -808,14 +808,14 @@
       "adopted_unchanged_pct": 50
     },
     "SSM": {
-      "compared": 8,
-      "adopted_unchanged": 8,
+      "compared": 7,
+      "adopted_unchanged": 7,
       "adopted_unchanged_pct": 100
     },
     "SSMContacts": {
-      "compared": 4,
-      "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "compared": 2,
+      "adopted_unchanged": 2,
+      "adopted_unchanged_pct": 100
     },
     "SSMIncidents": {
       "compared": 2,
@@ -848,9 +848,9 @@
       "adopted_unchanged_pct": 100
     },
     "SecurityHub": {
-      "compared": 13,
-      "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 84.62
+      "compared": 7,
+      "adopted_unchanged": 6,
+      "adopted_unchanged_pct": 85.71
     },
     "SecurityLake": {
       "compared": 2,
@@ -873,13 +873,13 @@
       "adopted_unchanged_pct": 100
     },
     "Shield": {
-      "compared": 3,
-      "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 66.67
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "StepFunctions": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "StorageGateway": {
@@ -903,8 +903,8 @@
       "adopted_unchanged_pct": 88.89
     },
     "VerifiedPermissions": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 1,
+      "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
     "VpcLattice": {
@@ -913,13 +913,13 @@
       "adopted_unchanged_pct": 100
     },
     "WAF": {
-      "compared": 7,
-      "adopted_unchanged": 7,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "WAFRegional": {
-      "compared": 11,
-      "adopted_unchanged": 11,
+      "compared": 4,
+      "adopted_unchanged": 4,
       "adopted_unchanged_pct": 100
     },
     "WAFv2": {
@@ -1085,18 +1085,6 @@
       "service": "Amplify",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_api_gateway_account",
-      "service": "ApiGateway",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
       "matched": true,
       "annotated": false
     },
@@ -1342,17 +1330,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_apigatewayv2_routing_rule",
-      "service": "ApiGatewayV2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_apigatewayv2_stage",
       "service": "ApiGatewayV2",
       "proposed_bucket": "needs-hand-separator",
@@ -1431,22 +1408,6 @@
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_appconfig_extension_association",
-      "service": "AppConfig",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_appconfig_hosted_configuration_version",
-      "service": "AppConfig",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1709,14 +1670,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_athena_named_query",
-      "service": "Athena",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2071,14 +2024,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_bedrockagentcore_gateway_rule",
-      "service": "BedrockAgentCore",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_bedrockagentcore_harness",
       "service": "BedrockAgentCore",
       "proposed_bucket": "server-assigned",
@@ -2268,14 +2213,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_cloudfront_cache_policy",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_cloudfront_connection_function",
       "service": "CloudFront",
       "proposed_bucket": "server-assigned",
@@ -2294,14 +2231,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_continuous_deployment_policy",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2335,14 +2264,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_key_group",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2381,41 +2302,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_cloudfront_origin_access_control",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_origin_access_identity",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_origin_request_policy",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_public_key",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_cloudfront_realtime_log_config",
       "service": "CloudFront",
       "proposed_bucket": "assembled",
@@ -2424,14 +2310,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudfront_response_headers_policy",
-      "service": "CloudFront",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -2774,29 +2652,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_cloudwatch_otel_enrichment",
-      "service": "CloudWatch",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_cloudwatch_query_definition",
-      "service": "Logs",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_codeartifact_domain",
       "service": "CodeArtifact",
       "proposed_bucket": "server-assigned",
@@ -2883,18 +2738,6 @@
       "service": "CodeBuild",
       "proposed_bucket": "assembled",
       "proposed_rule": "import-grammar precedence: the documented import ID is a full ARN template; scheme literals, Cloud region/account slots and every tail segment attributed per-segment by the scrape (issue #172)",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_codebuild_source_credential",
-      "service": "CodeBuild",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -3314,14 +3157,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_connect_instance_storage_config",
-      "service": "Connect",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_connect_phone_number",
       "service": "Connect",
       "proposed_bucket": "server-assigned",
@@ -3659,14 +3494,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_datazone_form_type",
-      "service": "DataZone",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_db_event_subscription",
       "service": "RDS",
       "proposed_bucket": "client-named",
@@ -3776,14 +3603,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_devopsguru_notification_channel",
-      "service": "DevOpsGuru",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -3997,30 +3816,6 @@
     },
     {
       "tf_type": "aws_dx_gateway",
-      "service": "DirectConnect",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_dx_hosted_private_virtual_interface",
-      "service": "DirectConnect",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_dx_hosted_public_virtual_interface",
-      "service": "DirectConnect",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_dx_hosted_transit_virtual_interface",
       "service": "DirectConnect",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -4539,39 +4334,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_ecr_registry_policy",
-      "service": "ECR",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_ecr_registry_scanning_configuration",
-      "service": "ECR",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_ecr_replication_configuration",
-      "service": "ECR",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_ecr_repository",
       "service": "ECR",
       "proposed_bucket": "client-named",
@@ -4735,14 +4497,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_efs_mount_target",
-      "service": "EFS",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_egress_only_internet_gateway",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -4758,17 +4512,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_eip_association",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
@@ -4904,17 +4647,6 @@
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_elasticache_global_replication_group",
-      "service": "ElastiCache",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
       ],
       "matched": true,
       "annotated": false
@@ -5292,30 +5024,6 @@
     },
     {
       "tf_type": "aws_globalaccelerator_cross_account_attachment",
-      "service": "GlobalAccelerator",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_globalaccelerator_endpoint_group",
-      "service": "GlobalAccelerator",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_globalaccelerator_listener",
       "service": "GlobalAccelerator",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -5996,17 +5704,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_inspector_assessment_target",
-      "service": "Inspector",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_inspector_assessment_template",
       "service": "Inspector",
       "proposed_bucket": "server-assigned",
@@ -6187,18 +5884,6 @@
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_iot_topic_rule_destination",
-      "service": "IoT",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
       ],
       "matched": true,
       "annotated": false
@@ -6434,17 +6119,6 @@
       "service": "Lambda",
       "proposed_bucket": "client-named",
       "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_lambda_layer_version",
-      "service": "Lambda",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -6817,14 +6491,6 @@
       "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
-      "tf_type": "aws_macie2_account",
-      "service": "Macie",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_macie2_classification_job",
       "service": "(no CFN model)",
       "proposed_bucket": "evidence-only",
@@ -7070,17 +6736,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_msk_configuration",
-      "service": "MSK",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_msk_replicator",
       "service": "MSK",
       "proposed_bucket": "server-assigned",
@@ -7257,17 +6912,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_network_acl_association",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_network_acl_rule",
       "service": "EC2",
       "proposed_bucket": "composite",
@@ -7285,29 +6929,6 @@
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_network_interface_attachment",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_network_interface_permission",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
       ],
       "matched": true,
       "annotated": false
@@ -7576,14 +7197,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_notifications_event_rule",
-      "service": "Notifications",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -8380,14 +7993,6 @@
       "annotation_reason": "The canonical arity trap: the documented example is ROUTETABLEID_DESTINATION where the destination segment is an either-or of three mutually-exclusive arguments (cidr, ipv6 cidr, prefix list), so the ratified row's second component is a preference list. The fail-closed derivation refuses exactly this shape by design (deriveCompositeWithSeparator's arity check exists because of this row), and no proposal bucket has a preference-list component."
     },
     {
-      "tf_type": "aws_route53_cidr_collection",
-      "service": "Route53",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_route53_cidr_location",
       "service": "Route53",
       "proposed_bucket": "composite",
@@ -8441,14 +8046,6 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_route53_resolver_dnssec_config",
-      "service": "Route53Resolver",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -8524,27 +8121,7 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_route53_resolver_query_log_config_association",
-      "service": "Route53Resolver",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_route53_resolver_rule",
-      "service": "Route53Resolver",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_route53_resolver_rule_association",
       "service": "Route53Resolver",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -8605,14 +8182,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_route53profiles_resource_association",
-      "service": "Route53Profiles",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_route53recoverycontrolconfig_cluster",
       "service": "Route53RecoveryControl",
       "proposed_bucket": "server-assigned",
@@ -8633,14 +8202,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_route53recoverycontrolconfig_routing_control",
-      "service": "Route53RecoveryControl",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -8908,26 +8469,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_s3files_mount_target",
-      "service": "S3Files",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)",
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_s3outposts_endpoint",
-      "service": "S3Outposts",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -9390,21 +8931,6 @@
       "annotation_reason": "The classifier files this type evidence-only with no proposal at all (mapping-gen declined a CFN model: both AWS::EC2::SecurityGroupIngress/Egress are already claimed by the split per-direction successor types), and even a fresh evidence-driven attempt cannot reach a pastable composite: the documented import ID has a fixed five-argument prefix (security_group_id, type, protocol, from_port, to_port) followed by a VARIABLE number of trailing source/destination segments (one or more of cidr_blocks, ipv6_cidr_blocks, prefix_list_ids, self, source_security_group_id, joined by the same underscore). Every composite rule in tools/row-gen/importprecedence.go arity-checks the documented example's segment count against a FIXED argument list before accepting a shape (tryGrammarComposite's own doc comment: 'a wrongly-ordered [proposal] would be a worse regression'); this example splits into 6+ segments against a 5-argument grammar row, so every rule declines rather than guess how many trailing segments belong or which argument each maps to - exactly the discipline the aws_route trap exists to enforce, applied here to segment COUNT rather than order. The ratified row hand-derives only what is provably correct from the 6.59.0 cache: the five fixed scalar arguments as ordered, literal-underscore-joined Components (matching every trailing example in the type's own Import section), plus a source component whose Attrs name every non-boolean source argument in the Argument Reference's own order (cidr_blocks, ipv6_cidr_blocks, prefix_list_ids, source_security_group_id) with SoleElement set (Component.SoleElement, added alongside this batch): the identity resolves cleanly both for the scalar source_security_group_id case (verified against the doc's own 'sg-7472697374616e_ingress_all_0_65536_sg-6176657279' example) and for the common single-CIDR/single-ipv6/single-prefix-list case (verified against the doc's own 'sg-6e616f6d69_ingress_tcp_8000_8000_10.0.3.0/24' example - a one-element cidr_blocks list), since SoleElement unwraps a static one-element list/set construct before internal/live/identity/resolve.go's stringValue would otherwise hard-refuse the list-to-string conversion regardless of length. It still refuses cleanly - never silently truncates - for a multi-element or non-static list source (the doc's own multi-CIDR examples), which SoleElement's own arity check declines rather than pick an element order the AWS API, not the configuration, actually decides. The boolean self argument is deliberately left out of the source Attrs: its literal ID token is the word 'self', not the boolean's own string conversion ('true'), which Component has no vocabulary to substitute, so including it would silently emit a wrong import ID instead of refusing. IdentityAttrs is ratified empty: the type's own id is an undocumented computed value distinct from the AWS-assigned sgr-… rule ID its two successor types (aws_vpc_security_group_ingress_rule/_egress_rule, both admitted) use, and security_group_rule_id is documented empty whenever a rule carries more than one source, so neither attribute is a reliable cross-reference source."
     },
     {
-      "tf_type": "aws_securityhub_account",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
-    },
-    {
       "tf_type": "aws_securityhub_account_v2",
       "service": "SecurityHub",
       "proposed_bucket": "server-assigned",
@@ -9453,14 +8979,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_securityhub_configuration_policy",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_securityhub_configuration_policy_association",
       "service": "SecurityHub",
       "proposed_bucket": "client-named",
@@ -9487,28 +9005,6 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The derivation already lands the Identity Schema's connector_id; the ratified entry additionally pairs the exported id attribute as an alias for the same value. The id-alias equivalence is asserted by the ratifiers, not stated in any structured source - issue #44's stated derivation non-goal."
-    },
-    {
-      "tf_type": "aws_securityhub_finding_aggregator",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_securityhub_insight",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
     },
     {
       "tf_type": "aws_securityhub_member",
@@ -9538,17 +9034,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_securityhub_organization_configuration",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_securityhub_standards_control",
       "service": "(no CFN model)",
       "proposed_bucket": "client-named",
@@ -9567,17 +9052,6 @@
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "cosmetic_notes": [
         "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_securityhub_standards_subscription",
-      "service": "SecurityHub",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
@@ -9769,17 +9243,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_sesv2_account_vdm_attributes",
-      "service": "SES",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_sesv2_configuration_set",
       "service": "SES",
       "proposed_bucket": "client-named",
@@ -9846,17 +9309,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_sfn_alias",
-      "service": "StepFunctions",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_sfn_state_machine",
       "service": "StepFunctions",
       "proposed_bucket": "server-assigned",
@@ -9865,14 +9317,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_shield_proactive_engagement",
-      "service": "Shield",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -9925,17 +9369,6 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_sns_topic_subscription",
-      "service": "SNS",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
@@ -10004,14 +9437,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_ssm_maintenance_window_task",
-      "service": "SSM",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_ssm_parameter",
       "service": "SSM",
       "proposed_bucket": "client-named",
@@ -10076,32 +9501,6 @@
       "proposed_rule": "import-grammar precedence: the provider's own Terraform 1.12+ Identity Schema names a different required import identity attribute than the legacy Import section's example implied",
       "matched": true,
       "annotated": false
-    },
-    {
-      "tf_type": "aws_ssmcontacts_contact_channel",
-      "service": "SSMContacts",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_ssmcontacts_plan",
-      "service": "SSMContacts",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "mismatch_classes": [
-        "identity-attrs"
-      ],
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
-      "matched": false,
-      "annotated": true,
-      "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
     },
     {
       "tf_type": "aws_ssmcontacts_rotation",
@@ -10479,26 +9878,10 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_verifiedpermissions_policy",
-      "service": "VerifiedPermissions",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_verifiedpermissions_policy_store",
       "service": "VerifiedPermissions",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_verifiedpermissions_policy_template",
-      "service": "VerifiedPermissions",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -10530,17 +9913,6 @@
       "service": "EC2",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_vpc_block_public_access_options",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "import-syntax-wording"
-      ],
       "matched": true,
       "annotated": false
     },
@@ -10587,14 +9959,6 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_vpc_endpoint_connection_notification",
-      "service": "EC2",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
     },
@@ -10977,51 +10341,7 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_waf_byte_match_set",
-      "service": "WAF",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_waf_ipset",
-      "service": "WAF",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_waf_rule",
-      "service": "WAF",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_waf_size_constraint_set",
-      "service": "WAF",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_waf_sql_injection_match_set",
       "service": "WAF",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -11043,50 +10363,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_waf_xss_match_set",
-      "service": "WAF",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_byte_match_set",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_geo_match_set",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_ipset",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_wafregional_rate_based_rule",
       "service": "WAFRegional",
       "proposed_bucket": "server-assigned",
@@ -11098,40 +10374,7 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_wafregional_regex_pattern_set",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_wafregional_rule",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_size_constraint_set",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_sql_injection_match_set",
       "service": "WAFRegional",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
@@ -11157,17 +10400,6 @@
       "service": "WAFRegional",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: Argument Reference's own Required arguments, separator and order recovered from the documented example string",
-      "matched": true,
-      "annotated": false
-    },
-    {
-      "tf_type": "aws_wafregional_xss_match_set",
-      "service": "WAFRegional",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
       "matched": true,
       "annotated": false
     },

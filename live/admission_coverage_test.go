@@ -49,17 +49,18 @@ import (
 // may be in none of internal/live/identity.DefaultTable,
 // tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 //
-// Measured at 621 on 2026-08-16 against hashicorp/aws 6.59.0: 953 aws_ rows
-// admitted, 81 vetoed by hand, 44 vetoed by the markerless rule and counted
+// Measured at 621 on 2026-08-16 against hashicorp/aws 6.59.0: 876 aws_ rows
+// admitted, 81 vetoed by hand, 121 vetoed by the markerless rule and counted
 // by neither of the other two rosters, 621 unreached, summing to
 // live/survey-full.json's 1699 exactly.
 //
 // It stood at 665 before the markerless rule landed (#249), and at 649 while
 // that rule read only the CloudFormation registry's own verdict. The rule
-// now vetoes 150 types in total; 77 of those are rows the table still admits
-// (see markerlessAdmittedOverlapMax) and 29 the hand ledger had already
-// reached, so only the remaining 44 - types no batch had looked at, now
-// pre-empted - move this count.
+// vetoes 150 types in total, of which 29 the hand ledger had already reached;
+// the remaining 121 move this count. That split used to read 44 and 77,
+// because 77 vetoed types were still admitted; -emit now retracts them, so
+// they moved from the admitted column to the vetoed one and this difference
+// did not move at all - which is the property this constant exists to have.
 //
 // The 649 -> 621 step is the second evidence source. For a type
 // CloudFormation does not model the registry states nothing, so the
@@ -273,25 +274,30 @@ func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 // generated table still admits that the markerless rule vetoes, and it is a
 // ratchet down to zero.
 //
-// It is not zero today and the reason is recorded rather than assumed. The
-// rule (tools/row-gen/markerless.go) is derived and is applied in full to
-// what may be admitted NEXT - tools/row-gen's PROPOSE stage cannot offer a
-// vetoed type, and the count below is the whole of what a batch has already
-// let through. Retracting those rows is a separate change, because it
-// converts their refusal from internal/live/stamp's hard unmarked-apply
-// error into internal/live/lint's unadmitted-type finding, and
-// internal/live/check.ClassifyOnboarding (ladder.go's own switch) counts
-// unadmitted-type as NON-blocking - so the retraction on its own would move
-// corpus estates up the onboarding ladder while no configuration became any
-// more applyable. It also empties 21 cohort estates under live/e2e of
-// resources whose ratification evidence lives in hand-owned READMEs. Both
-// need answering before the rows come out; see issue #249.
+// It reached zero on 2026-08-16 (issue #249). It stood at 77 for as long as
+// the rule (tools/row-gen/markerless.go) was applied only to what may be
+// admitted NEXT - tools/row-gen's PROPOSE stage has never been able to offer
+// a vetoed type - while 77 rows an earlier batch let through stayed in the
+// table. tools/row-gen's -emit now filters the emitted rows by the same
+// roster, so the two rosters are disjoint by construction and this test is
+// the anti-tamper leg for that.
 //
-// Measured at 77 on 2026-08-16 against hashicorp/aws 6.59.0. Lowering it is
-// the point. Raising it means a batch admitted a type the rule vetoes,
-// which PROPOSE cannot do and a hand-pasted row can, and it needs to be a
-// deliberate edit rather than a silent one.
-const markerlessAdmittedOverlapMax = 77
+// The retraction waited on internal/live/lint's RuleMarkerlessType, because
+// on its own it would have been a measurement change dressed as a support
+// change: a plain unadmitted-type finding is NON-blocking in
+// internal/live/check.ClassifyOnboarding (ladder.go's own switch), so corpus
+// estates would have climbed the onboarding ladder while no configuration
+// became any more applyable. RuleMarkerlessType is blocking and fires ahead
+// of RuleUnadmittedType, and it is consulted before
+// identity.SynthesizeTypeIdentity so a retracted row cannot fall through to
+// schema-fallback admission. The ladder moves the other way as a result,
+// which is the honest direction for a change that removes support.
+//
+// Zero is now the ceiling AND the floor: a non-zero count means a row for a
+// vetoed type reached the table by some route -emit does not filter, which a
+// hand-pasted row can do and PROPOSE cannot, and it needs to be a deliberate
+// edit rather than a silent one.
+const markerlessAdmittedOverlapMax = 0
 
 // TestMarkerlessVetoOverlapWithAdmittedDoesNotGrow is the anti-tamper leg
 // for the third roster, and the debt marker for the rows the rule has not

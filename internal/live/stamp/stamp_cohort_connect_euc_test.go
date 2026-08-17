@@ -77,7 +77,6 @@ var untaggableConnectEuc = []string{
 	// v6.59.0 signals.taggable).
 	"aws_appstream_fleet_stack_association",
 	"aws_appstream_user",
-	"aws_connect_instance_storage_config",
 }
 
 func init() {

@@ -67,8 +67,6 @@ var untaggableNetworkingAdvanced = []string{
 	"aws_networkmanager_link_association",
 	"aws_networkmanager_prefix_list_association",
 	"aws_networkmanager_transit_gateway_registration",
-	"aws_globalaccelerator_endpoint_group",
-	"aws_globalaccelerator_listener",
 	"aws_vpclattice_auth_policy",
 	"aws_vpclattice_resource_policy",
 }

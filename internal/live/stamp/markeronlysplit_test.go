@@ -32,6 +32,26 @@ import (
 //
 // Only untaggable types appear at all: a taggable one carries the marker and
 // never reaches this refusal, which is the marker path working.
+//
+// The FIRST bucket is empty as of the markerless retraction (#249) and must
+// stay that way. "ServerAssigned and untaggable" is the markerless rule's
+// own predicate word for word, so a shipped table that still admitted such a
+// type would be admitting a type nothing can ever find again - the whole
+// point of the retraction. That flips this bucket's assertion: the other
+// three must be populated, and this one must be empty for a reason the test
+// checks against [identity.MarkerlessTypes] rather than accepting on
+// silence. See TestMarkerOnlyUnconditionalBucketIsEmptyByVeto.
+//
+// The refusal wording it used to serve is NOT dead, which is why the
+// rendering half below still exercises it. internal/live/lint admits a type
+// the generated table does not cover when the provider's identity schema
+// settles it (identity.SynthesizeTypeIdentity), and lint's markerless veto
+// can only pre-empt that for a type the roster names - which is every type
+// live/survey-full.json covers, and no type it does not. A provider release
+// that adds an untaggable server-assigned type, or any type from a provider
+// this fork has never surveyed, still reaches the unconditional wall through
+// the fallback. The branch is unreachable from the shipped TABLE, not from a
+// run.
 
 type markerOnlyBuckets struct {
 	unconditional []string
@@ -86,13 +106,18 @@ func markerOnlySplit(t *testing.T) markerOnlyBuckets {
 
 // TestMarkerOnlySplitIsDerivedAndPopulated is the split itself: it holds
 // without any list of type names, and every bucket that the refusal wording
-// distinguishes has somebody in it.
+// distinguishes, and that the shipped table can still reach, has somebody in
+// it.
 //
 // A bucket falling to zero is not a pass. It means either the provider
 // stopped publishing that shape or the derivation stopped seeing it, and in
 // both cases a branch of UnmarkedDiscoveryDetail is now unreachable while
 // its test still renders it from hand-built arguments - which is exactly how
 // a message defect stays green here.
+//
+// The unconditional bucket is the deliberate exception and is checked in the
+// opposite direction by TestMarkerOnlyUnconditionalBucketIsEmptyByVeto; see
+// this file's own doc comment.
 func TestMarkerOnlySplitIsDerivedAndPopulated(t *testing.T) {
 	b := markerOnlySplit(t)
 
@@ -100,7 +125,6 @@ func TestMarkerOnlySplitIsDerivedAndPopulated(t *testing.T) {
 		name  string
 		types []string
 	}{
-		{"unconditional (ServerAssigned, untaggable)", b.unconditional},
 		{"conditional (ServerAssignedIfAbsent, untaggable)", b.conditional},
 		{"cloud component with an argument, untaggable", b.cloudArgument},
 		{"cloud component with no argument, untaggable", b.cloudBare},
@@ -179,11 +203,83 @@ func TestMarkerOnlySplitDecidesWhetherAnEditExists(t *testing.T) {
 	// is the half that matters for safety - a sentence offering an edit
 	// that does not exist sends an operator to change a configuration that
 	// will refuse identically afterwards.
-	if len(b.unconditional) == 0 {
-		t.Fatal("no unconditional types to check the negative half against")
+	//
+	// Its population is [identity.MarkerlessTypes], not b.unconditional:
+	// since #249 the shipped table admits none of these, and the wall is
+	// reached through internal/live/lint's schema fallback for a type the
+	// roster cannot pre-empt. Reading the roster keeps the guard anchored to
+	// a real, non-empty set instead of skipping when the bucket empties.
+	if len(identity.MarkerlessTypes) == 0 {
+		t.Fatal("identity.MarkerlessTypes is empty; the population this half guards has vanished, not been fixed")
 	}
 	got := UnmarkedDiscoveryDetail(addr, identity.BlockDiscovery{Cause: identity.DiscoveryServerAssigned})
 	if strings.Contains(got, "needs no marker at all") || strings.Contains(got, "Setting ") {
 		t.Errorf("the server-assigned wall was offered a configuration edit:\n  %s", got)
+	}
+}
+
+// TestMarkerOnlyUnconditionalBucketIsEmptyByVeto is the inverted assertion
+// for the one bucket the markerless retraction emptied (#249).
+//
+// Emptiness on its own proves nothing - a derivation that stopped reading
+// ServerAssigned would produce exactly the same zero - so this test refuses
+// to accept it on silence. It re-derives the bucket's own predicate over
+// live/survey-full.json's whole type roster rather than over the admission
+// table, which gives it a population that does not depend on the table at
+// all, and then requires two things of it:
+//
+//   - it is non-empty, so the predicate still finds the shape the provider
+//     publishes. A zero here means the derivation broke, and that is the
+//     failure the old populated-bucket assertion was catching;
+//   - every member is in [identity.MarkerlessTypes] and none is admitted.
+//     That is the retraction stated as an invariant: the veto's roster and
+//     the table are disjoint over exactly this predicate.
+//
+// The three inputs are independent of one another - the provider's own
+// taggability signal, tools/row-gen's generated veto roster, and the
+// generated admission table - so no edit to any one of them can make this
+// test agree with itself.
+func TestMarkerOnlyUnconditionalBucketIsEmptyByVeto(t *testing.T) {
+	if got := markerOnlySplit(t).unconditional; len(got) > 0 {
+		t.Errorf("%d admitted type(s) are still ServerAssigned and untaggable: %v - "+
+			"nothing finds these objects again, which is what the markerless rule "+
+			"(tools/row-gen/markerless.go) exists to refuse; retract the row rather than raising this",
+			len(got), got)
+	}
+
+	survey := readSurveyTaggable(t)
+	var shape, unrostered, stillAdmitted []string
+	for name, taggable := range survey {
+		if taggable {
+			continue
+		}
+		entry, ok := identity.LookupType(name)
+		if ok && entry.ServerAssigned {
+			// Admitted and matching the predicate: caught above, and
+			// recorded here too so the two failures name the same set.
+			stillAdmitted = append(stillAdmitted, name)
+		}
+		if _, vetoed := identity.MarkerlessTypes[name]; !vetoed {
+			continue
+		}
+		shape = append(shape, name)
+		if _, admitted := identity.LookupType(name); admitted {
+			unrostered = append(unrostered, name)
+		}
+	}
+	sort.Strings(shape)
+	sort.Strings(unrostered)
+	sort.Strings(stillAdmitted)
+
+	if len(shape) == 0 {
+		t.Error("no type in live/survey-full.json is both untaggable and on the markerless roster; " +
+			"the bucket above is empty because the derivation stopped seeing the shape, not because the veto removed it")
+	}
+	if len(unrostered) > 0 {
+		t.Errorf("%d type(s) are on the markerless roster and still admitted: %v - "+
+			"the roster and internal/live/identity.DefaultTable must be disjoint", len(unrostered), unrostered)
+	}
+	if len(stillAdmitted) > 0 {
+		t.Errorf("%d untaggable ServerAssigned type(s) remain in the admission table: %v", len(stillAdmitted), stillAdmitted)
 	}
 }

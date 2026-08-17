@@ -177,7 +177,7 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 		return nil, emitPartition{}, emitPartition{}, err
 	}
 	vetoed := markerlessRoster(survey, proposals, grammar)
-	rows, types := emittedRows(recordBacked, grammar, survey)
+	rows, types := emittedRows(recordBacked, grammar, survey, setOf(vetoed))
 
 	// Issue #132's gate: a row the fresh classifier does not reproduce is
 	// only emittable when annotations.json records why - otherwise a row
@@ -291,19 +291,28 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 // emittedRows builds every row the identity table will carry, and the sorted
 // type list that keys it.
 //
-// markerless.go's derived veto does NOT filter here yet, and the reason is
-// recorded rather than left to be rediscovered: 77 rows this table already
-// admits are types that rule vetoes, and dropping them is a separate change
-// with its own consequences (issue #249). It converts their refusal from
-// internal/live/stamp's hard unmarked-apply error into lint's
-// unadmitted-type finding, which internal/live/check's ClassifyOnboarding
-// counts as NON-blocking - so the retraction, on its own, would move
-// estates up the onboarding ladder without any configuration becoming
-// applyable. It also empties 21 cohort estates of resources whose
-// ratification evidence lives in hand-owned READMEs. The veto is derived
-// and measured here; applying it to this table needs those two answered
-// first. [MarkerlessAdmittedOverlapMax] in live/admission_coverage_test.go
-// is the ratchet that keeps the gap from growing meanwhile.
+// markerless.go's derived veto FILTERS here (issue #249): a type the rule
+// vetoes gets no row, whether or not a ratification batch had already
+// written one. The veto is a rule about what the mechanism can do, so it
+// has to reach backwards as well as forwards - a row admitted before the
+// rule existed is not evidence against it, and leaving those rows in place
+// meant the table promised support for types whose every instance would
+// reach internal/live/stamp's unmarked-apply refusal at apply time.
+//
+// Retraction alone would have been a measurement change dressed as a
+// support change: lint's plain unadmitted-type finding is NON-blocking in
+// internal/live/check's ClassifyOnboarding, so estates would have climbed
+// the onboarding ladder while nothing became applyable. That is why
+// lint.RuleMarkerlessType had to land first. It is blocking, it fires
+// ahead of RuleUnadmittedType, and it sits between this table and
+// [identity.SynthesizeTypeIdentity] so a retracted row cannot fall through
+// to schema-fallback admission instead. With that in place the ladder moves
+// the honest way: a configuration naming a vetoed type reports itself
+// blocked, which is what it is.
+//
+// markerlessAdmittedOverlapMax in live/admission_coverage_test.go is the
+// ratchet, now at zero, and it fails upwards: a hand-pasted row for a
+// vetoed type would be caught there as well as silently dropped here.
 //
 // The two halves come from different places on purpose. A RecordBacked row is
 // derived whole - its only non-zero fields are Type and RecordBacked, because
@@ -312,11 +321,14 @@ func recordBackedRows(logical logicalSchemas) (map[string]bool, error) {
 // [identity.DefaultTable], the ratified ground truth this file's own doc
 // comment describes, with mergeServerAssigned's, mergeCloudDefault's and
 // mergeIdentityAttrs' three recomputed fields layered over it.
-func emittedRows(recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry) (map[string]identity.TypeIdentity, []string) {
+func emittedRows(recordBacked map[string]bool, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
 	rows := make(map[string]identity.TypeIdentity, len(identity.DefaultTable)+len(recordBacked))
 	for _, t := range identity.AdmittedTypes() {
 		if identity.DefaultTable[t].RecordBacked {
 			continue // re-derived below, never copied
+		}
+		if vetoed[t] {
+			continue // markerless: no marker can attach, so no row
 		}
 		rows[t] = mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(identity.DefaultTable[t], grammar[t]), grammar[t]), survey[t])
 	}

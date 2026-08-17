@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/stamp"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -111,14 +112,42 @@ func TestStampGate_NoSchemasAtAllIsNotRefused(t *testing.T) {
 }
 
 // TestStampGate_GenuinelyUntaggableTypeStillRefuses is the mirror check the
-// fix must not break: aws_cloudfront_cache_policy is ClassNeedsDiscovery
-// (server-assigned) and its real provider schema has no tags/tags_all
-// argument at all - there is nowhere to carry a marker, and no static
-// identity either, so an unmarked apply of it genuinely creates a resource
-// this configuration can never find again. With ITS OWN schema present, that
-// must still be a hard refusal: gating per type must not silently swallow a
-// real "untaggable" classification along with the "unknown" one issue #230
-// is about.
+// #230 fix must not break: aws_cloudfront_cache_policy is server-assigned and
+// its real provider schema has no tags/tags_all argument at all - there is
+// nowhere to carry a marker, and no static identity either, so an unmarked
+// apply of it genuinely creates a resource this configuration can never find
+// again. Gating per type must not silently swallow a real "untaggable"
+// classification along with the "unknown" one issue #230 is about.
+//
+// The refusal is the same; the LAYER moved, and this test is the record of
+// why. Until #249 the block was admitted, resolved to ClassNeedsDiscovery,
+// and refused at apply-planning time by internal/live/stamp's
+// SummaryUnmarkedApply - which is a refusal delivered after admission has
+// already said yes. The markerless retraction takes the row out of the
+// admission table and internal/live/lint's RuleMarkerlessType refuses it up
+// front, before resolution runs at all. That is the same fact stated one
+// layer earlier, and it is stated to an author reading a findings list
+// rather than to an operator watching an apply stop.
+//
+// What this test asserts, then, is that the refusal did not evaporate in the
+// move. Three things have to hold together, and any one of them alone would
+// pass while the mechanism was broken:
+//
+//   - the type is refused, at LayerLint with RuleMarkerlessType;
+//   - the refusal is BLOCKING - ClassifyOnboarding puts the configuration on
+//     language-blocked. A non-blocking finding here would be the failure the
+//     retraction was held back for: the rows would leave the table, the
+//     estates would climb the ladder, and nothing would have become
+//     applyable;
+//   - the refusal carries the same consequence sentence stamp used, so the
+//     one fact keeps the one wording (#111).
+//
+// Stamp must NOT also fire. Not because a second refusal would be wrong, but
+// because it cannot happen: with no table row, resolution never classifies
+// the block and stamp is never asked. A stamp finding here would mean
+// something re-admitted the type behind the veto - which is exactly what
+// internal/live/lint's schema fallback would do if the veto were consulted
+// after it instead of before.
 func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 	schemas := map[string]providers.Schema{
 		"aws_cloudfront_cache_policy": {Block: &configschema.Block{
@@ -139,14 +168,33 @@ func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 
 	var found bool
 	for _, f := range report.Findings {
-		if f.Layer == LayerStamp && f.ID == stamp.SummaryUnmarkedApply {
-			found = true
-			if len(f.Sites) == 0 {
-				t.Error("refusal has no sites")
+		if f.Layer == LayerStamp {
+			t.Errorf("stamp refused a type the admission table no longer carries (%s/%s); "+
+				"with no row there is nothing to resolve and nothing to stamp, so something admitted it "+
+				"behind internal/live/lint's markerless veto", f.Layer, f.ID)
+		}
+		if f.Layer != LayerLint || f.ID != string(lint.RuleMarkerlessType) {
+			continue
+		}
+		found = true
+		if len(f.Sites) == 0 {
+			t.Error("refusal has no sites")
+		}
+		for _, site := range f.Sites {
+			if !strings.Contains(site.Detail, lint.UnfindableClause) {
+				t.Errorf("the markerless refusal does not carry internal/live/lint.UnfindableClause, "+
+					"the shared sentence internal/live/stamp says to an operator about the same fact:\n  %s", site.Detail)
 			}
 		}
 	}
 	if !found {
 		t.Fatalf("aws_cloudfront_cache_policy, genuinely untaggable with its own schema present, was not refused: %v", findingIDs(report))
+	}
+
+	if got := ClassifyOnboarding(report.Readable(), refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {
+		t.Errorf("ClassifyOnboarding = %q, want %q: a configuration naming a type with nowhere to write a marker "+
+			"is blocked, and a rung above this one would promise either that ratification is all that stands in "+
+			"the way or that no configuration edit is needed - both false for a vetoed type",
+			got, OnboardingLanguageBlocked)
 	}
 }

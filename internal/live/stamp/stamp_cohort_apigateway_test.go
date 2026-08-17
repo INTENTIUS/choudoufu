@@ -35,7 +35,6 @@ var untaggableApigateway = []string{
 	// nine types with no tags argument at all, confirmed against the
 	// provider's documented Argument Reference for each. See
 	// live/e2e/estates/apigateway/README.md, "Untaggable types".
-	"aws_api_gateway_account",
 	"aws_api_gateway_base_path_mapping",
 	"aws_api_gateway_documentation_version",
 	"aws_api_gateway_gateway_response",
@@ -43,7 +42,6 @@ var untaggableApigateway = []string{
 	"aws_api_gateway_model",
 	"aws_api_gateway_rest_api_policy",
 	"aws_api_gateway_usage_plan_key",
-	"aws_apigatewayv2_routing_rule",
 	// Fold-child batch (issue #68): all seven carry no tags argument,
 	// confirmed against each type's own Argument Reference. See
 	// live/e2e/estates/apigateway/README.md and

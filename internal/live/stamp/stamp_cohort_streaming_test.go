@@ -38,7 +38,6 @@ var untaggableStreaming = []string{
 	// and aws_appflow_connector_profile's exports only arn and
 	// credentials_arn. See live/e2e/estates/streaming/README.md,
 	// "Untaggable types".
-	"aws_msk_configuration",
 	"aws_appflow_connector_profile",
 	// #175 ratification batch (PROPOSE, issue #65), 2026-08-15:
 	// taggability per the provider schema survey (live/survey-full.json,

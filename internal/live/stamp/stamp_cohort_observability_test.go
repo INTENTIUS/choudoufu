@@ -40,14 +40,12 @@ var untaggableObservability = []string{
 	// argument in the pinned provider's own wire schema, confirmed
 	// against each type's documented Argument Reference. See
 	// live/e2e/estates/observability/README.md, "Untaggable types".
-	"aws_cloudwatch_otel_enrichment",
 	"aws_cloudwatch_log_account_policy",
 	"aws_cloudwatch_log_metric_filter",
 	"aws_cloudwatch_log_resource_policy",
 	"aws_cloudwatch_log_stream",
 	"aws_cloudwatch_log_subscription_filter",
 	"aws_cloudwatch_log_transformer",
-	"aws_cloudwatch_query_definition",
 	"aws_cloudwatch_event_api_destination",
 	"aws_cloudwatch_event_archive",
 	"aws_cloudwatch_event_connection",

@@ -506,30 +506,31 @@ var (
 		"aws_sfn_state_machine",
 		"aws_ebs_volume",
 	}
+	// The markerless retraction (#249, 2026-08-16) removed 77 entries from
+	// this list and from the per-cohort slices appended to it below: every
+	// type that was both untaggable and ServerAssigned left the admission
+	// table, because there is no marker to write and nothing else finds the
+	// object again. What is left here is the other untaggable population -
+	// types whose identity their own configuration names, which resolve
+	// without discovery ever running and so never needed a marker.
+	//
+	// The per-batch comments below still describe the batch AS RATIFIED, so
+	// a count in one of them ("five types with no tags argument at all") is
+	// the batch's own number and no longer the number of lines under it.
+	// They are left as written rather than recounted: the sentence is
+	// evidence about a ratification that happened, and rewriting its
+	// arithmetic to match a later retraction would erase what the batch
+	// actually found.
 	untaggableAdmittedTypes = []string{
 		// The other thirteen of wall/rejected4's WAF batch: no tags argument
 		// in the pinned v6.59.0 Argument Reference, no tags_all in the
 		// Attribute Reference, signals.taggable false in
 		// live/survey-full.json.
-		"aws_waf_byte_match_set",
-		"aws_waf_ipset",
-		"aws_waf_size_constraint_set",
-		"aws_waf_sql_injection_match_set",
-		"aws_waf_xss_match_set",
-		"aws_wafregional_byte_match_set",
-		"aws_wafregional_geo_match_set",
-		"aws_wafregional_ipset",
-		"aws_wafregional_regex_pattern_set",
-		"aws_wafregional_size_constraint_set",
-		"aws_wafregional_sql_injection_match_set",
 		"aws_wafregional_web_acl_association",
-		"aws_wafregional_xss_match_set",
 		"aws_amplify_domain_association",
 		"aws_backup_restore_testing_selection",
 		"aws_bedrockagentcore_workload_identity",
-		"aws_codebuild_source_credential",
 		"aws_cognito_user_pool_ui_customization",
-		"aws_elasticache_global_replication_group",
 		"aws_emr_studio_session_mapping",
 		"aws_glue_catalog_table_optimizer",
 		"aws_glue_user_defined_function",
@@ -543,21 +544,13 @@ var (
 		"aws_ses_receipt_rule",
 		"aws_ses_receipt_rule_set",
 		"aws_ses_template",
-		"aws_vpc_block_public_access_options",
 		// Same batch as the taggable additions above; survey-full.json reports
 		// signals.taggable false for each of these.
-		"aws_devopsguru_notification_channel",
-		"aws_dx_hosted_private_virtual_interface",
-		"aws_dx_hosted_public_virtual_interface",
-		"aws_dx_hosted_transit_virtual_interface",
 		"aws_dynamodb_global_secondary_index",
 		"aws_dynamodb_kinesis_streaming_destination",
 		"aws_elasticache_user_group_association",
 		"aws_lightsail_domain",
 		"aws_msk_single_scram_secret_association",
-		"aws_network_acl_association",
-		"aws_s3outposts_endpoint",
-		"aws_vpc_endpoint_connection_notification",
 		"aws_route",
 		"aws_route_table_association",
 		"aws_s3_bucket_policy",

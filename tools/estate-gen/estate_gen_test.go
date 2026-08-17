@@ -42,7 +42,13 @@ var lambdaTypes = []string{
 	"aws_lambda_code_signing_config",
 	"aws_lambda_event_source_mapping",
 	"aws_lambda_function",
-	"aws_lambda_layer_version",
+	// aws_lambda_layer_version was here until the markerless retraction
+	// (#249). It is server-assigned and carries no tags argument, so every
+	// instance would need marker discovery to be found again and there is
+	// nowhere to write the marker; tools/row-gen's -emit no longer emits a
+	// row for it, and defaultCohortTypes reads the admission table, so it
+	// leaves this list by the same derivation that put the rest here.
+	//
 	// Admitted by wall/rejected3's parity batch, which verified 65 rejected
 	// types against the v6.59.0 doc cache and admitted 28. This type joins the
 	// lambda cohort by the same defaultCohortTypes rule every other member
