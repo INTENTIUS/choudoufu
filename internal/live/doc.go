@@ -34,12 +34,27 @@
 //  3. Parent-derived: identity is a composite key built from already-admitted
 //     parents, such as a route keyed by route table and destination, or an
 //     association keyed by subnet and route table.
-//  4. List and content match: the provider's list protocol enumerates
-//     candidates and binding proceeds by content; identical siblings bind
-//     as a fungible set (see Count below).
 //
-// A resource type with none of these four paths is out of the stateless
+// A resource type with none of these three paths is out of the stateless
 // subset and is rejected by lint before a projection is ever built.
+//
+// There used to be a fourth, "list and content match: the provider's list
+// protocol enumerates candidates and binding proceeds by content". No such
+// path exists. Nothing in internal/live/discovery binds by content: the Cloud
+// Control leg lists an object, refines it with GetResource, and DISCARDS it
+// when neither carried tags (cloudcontrol.go's ProblemNoTags, an error). The
+// paragraph on foreign resources below says the same thing in the opposite
+// direction - a content match is "surfaced for explicit adoption and never
+// bound automatically" - and the two sat twenty lines apart contradicting
+// each other, with the promise also reaching a user through lint's
+// unadmitted-type refusal.
+//
+// Enumerability is still a real and separately useful fact about a type: it
+// is what a sweep needs to notice an undeclared object at all. It is not an
+// admission path, because admission is about naming the object this
+// configuration means, and a listing that cannot read a marker names nothing.
+// tools/survey-gen records the enumeration fact under its own label for that
+// reason.
 //
 // # Foreign resources
 //

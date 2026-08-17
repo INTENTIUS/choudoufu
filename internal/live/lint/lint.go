@@ -412,8 +412,8 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 					"neither the provider's identity schema nor this configuration's own "+
 					"arguments settled its identity either. A type participates only if "+
 					"its identity is recoverable from the live system with no memory, by "+
-					"one of the four admission paths: client-assigned identity, marker, "+
-					"parent-derived, or list plus content match. Two things can change "+
+					"one of the three admission paths: client-assigned identity, marker, "+
+					"or parent-derived. Two things can change "+
 					"that. If this type's identity argument is one the provider lets you "+
 					"omit, setting it explicitly on every block of this type admits it - "+
 					"a *_prefix argument in place of the name itself is the usual reason "+
