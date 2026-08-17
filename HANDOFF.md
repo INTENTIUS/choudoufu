@@ -616,6 +616,23 @@ would otherwise rediscover.
   (projection.PlanInstances, pluginschema.AcquireSession,
   check.Context.ManagedResults); the probe wiring is not, because a change
   that clears a refusal and loses a marker is the wrong trade.
+- **The ACM gap and the lost instance are ONE defect, diagnosed: an unknown
+  REFUSES where a deferral CLASSIFIES.** Planning rust-lang-org loses
+  `module.certificate.aws_acm_certificate_validation.cert`, which resolved
+  PARENT_DERIVED with an empty ImportID and afterwards does not resolve at
+  all. The cause is not the plan: before it, a reference to the unexpanded
+  record block defers; after it, the block expands and its unknown-until-apply
+  values refuse. More information made the answer worse. The two refusals that
+  appear one layer down are the same thing seen from the other side.
+  So one fix covers all of it - treat an identity value that is unknown
+  BECAUSE it comes from a resource this run planned the way a direct reference
+  to that resource is already treated.
+  The obstacle is provenance: an unset required variable also evaluates to an
+  unknown, and deferring THAT would reverse #183's honesty. cty marks are the
+  natural carrier and the codebase already treats marks as first-class
+  (`marksafe`), but `val.IsMarked()` is itself a refusal condition in several
+  paths in resolve.go, so a provenance mark would refuse in exactly the places
+  it needs to pass. That interaction is the design, and it is the next slot.
 - **Superseded, kept for the reasoning:** A scout concluded that deriving the `for_each` key set would only
   reveal the identity refusal underneath, because the record's `name` and
   `type` come from `resource_record_name`/`_type` and are known only after
