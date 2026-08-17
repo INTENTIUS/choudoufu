@@ -45,11 +45,13 @@ type Corpus struct {
 	// corpus has no rate-capable population.
 	Ladder *LadderSummary `json:"ladder,omitempty"`
 
-	// Checked and Unchecked are the layers behind every number above,
-	// repeated here so the artifact carries its own scope. See
-	// [UncheckedLayers].
-	Checked   []Layer `json:"checked_layers"`
-	Unchecked []Layer `json:"unchecked_layers"`
+	// Checked, Partial and Unchecked are the layers behind every number
+	// above, repeated here so the artifact carries its own scope. See
+	// [PartiallyCheckedLayers] for why there are three lists rather than
+	// two.
+	Checked   []Layer        `json:"checked_layers"`
+	Partial   []PartialLayer `json:"partially_checked_layers"`
+	Unchecked []Layer        `json:"unchecked_layers"`
 }
 
 // CorpusEntry is one configuration's line in the table.
@@ -264,6 +266,7 @@ const maxExamples = 5
 func NewCorpus() *Corpus {
 	return &Corpus{
 		Checked:   CheckedLayers(),
+		Partial:   PartiallyCheckedLayers(),
 		Unchecked: UncheckedLayers(),
 	}
 }

@@ -149,6 +149,7 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		Sites:          report.Sites(),
 		Schemas:        report.Schemas,
 		Checked:        layerNames(report.Checked),
+		Partial:        partialLayerNames(report.Partial),
 		Unchecked:      layerNames(report.Unchecked),
 		UnsetVariables: report.Load.UnsetVariables(),
 	}
@@ -252,6 +253,20 @@ func condense(s string) string {
 		return s[:idx+1]
 	}
 	return strings.TrimSpace(s[:limit]) + "..."
+}
+
+// partialLayerNames renders a partially checked stage as the share it is -
+// "projection (2 of 27 refusals; the rest need a cloud)" - rather than as a
+// bare name. A reader who sees only the name cannot tell a stage this
+// command runs two refusals of from one it runs all but two of, and the
+// difference is the whole point of the third list.
+func partialLayerNames(layers []check.PartialLayer) []string {
+	names := make([]string, 0, len(layers))
+	for _, layer := range layers {
+		names = append(names, fmt.Sprintf("%s (%d of %d refusals; the rest need a cloud)",
+			layer.Layer, len(layer.Refusals), layer.Total))
+	}
+	return names
 }
 
 func layerNames(layers []check.Layer) []string {

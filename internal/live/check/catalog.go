@@ -60,24 +60,80 @@ const (
 	LayerDiscovery Layer = "discovery"
 
 	// LayerProjection is internal/live/projection, which materializes prior
-	// state from what discovery bound. Not run here for the same reason.
+	// state from what discovery bound.
+	//
+	// Partly run here, which is why it is in [PartiallyCheckedLayers] rather
+	// than in either of the other two lists. Most of the stage is a live
+	// read and cannot be seen offline, but two of its refusals are decided
+	// before any provider is asked for anything - see
+	// [projection.CyclicIdentityDiagnostics] and
+	// [projection.EmptyImportIdentityDiagnostics], both of which take
+	// resolutions (and, for the second, a schema) and no provider handle.
+	// Listing the whole stage as unchecked understated what this instrument
+	// can see; listing it as checked would overstate it by twenty-five
+	// refusals.
 	LayerProjection Layer = "projection"
 )
 
-// CheckedLayers are the passes [Analyze] runs. Everything a report says is
-// derived from these four and nothing else.
+// CheckedLayers are the passes [Analyze] runs in full. Everything a report
+// says about these four is derived from running them and nothing else.
 func CheckedLayers() []Layer { return []Layer{LayerLint, LayerIdentity, LayerDataread, LayerStamp} }
 
 // UncheckedLayers are the live-path stages a configuration still has to
-// survive that [Analyze] cannot see, because each of them needs a cloud.
+// survive that [Analyze] cannot see at all, because they need a cloud.
 //
 // This list is the reason a clean report is a narrow claim rather than a
 // promise. It is asserted against the packages that actually exist by
 // TestLayersClassifyEveryLivePackage, so a new stage cannot appear in
 // internal/live without someone deciding whether this instrument sees it.
 func UncheckedLayers() []Layer {
-	return []Layer{LayerDiscovery, LayerProjection}
+	return []Layer{LayerDiscovery}
 }
+
+// PartialLayer is one live-path stage [Analyze] runs part of.
+type PartialLayer struct {
+	// Layer is the stage.
+	Layer Layer `json:"layer"`
+
+	// Refusals are the refusal IDs [Analyze] computes offline, sorted. A
+	// finding under this layer is always one of these; anything else in the
+	// stage's registry is still unseen.
+	Refusals []string `json:"refusals"`
+
+	// Total is how many refusals the stage's registry carries, so a reader
+	// of a report can see the share rather than take "partly" on trust.
+	Total int `json:"total"`
+}
+
+// PartiallyCheckedLayers are the stages [Analyze] runs some of.
+//
+// The two-bucket split this replaces made every headline number carry a
+// caveat that was wrong in both directions at once: "projection is
+// unchecked" was the sentence, and it was true of twenty-five of that
+// stage's refusals and false of two that [Analyze] can and now does
+// compute. A stage is rarely all-or-nothing, so the report says which part.
+//
+// The IDs are spelled here rather than exported from the stage because the
+// stage raises them as diagnostic summaries; TestPartialLayerRefusalsAreRegistered
+// pins each one against that stage's own registry, so a rename there is a
+// test failure here rather than a finding that silently reads unregistered.
+func PartiallyCheckedLayers() []PartialLayer {
+	return []PartialLayer{{
+		Layer: LayerProjection,
+		Refusals: []string{
+			RefusalCyclicIdentities,
+			RefusalEmptyImportIdentity,
+		},
+		Total: len(projection.Refusals()),
+	}}
+}
+
+// The projection refusals [Analyze] computes offline. See
+// [PartiallyCheckedLayers].
+const (
+	RefusalCyclicIdentities    = "Cyclic parent-derived identities"
+	RefusalEmptyImportIdentity = "Empty import identity"
+)
 
 // Refusal is one thing the live path can refuse, in a shape that does not
 // care which package produced it.
@@ -384,6 +440,21 @@ func lookup(layer Layer, id string) (Refusal, bool) {
 				What:     refusal.What,
 				DocsRef:  refusal.DocsRef(),
 				RaisedBy: RaisedByStamp,
+			}, true
+		}
+	case LayerProjection:
+		// Reachable since [Analyze] began computing the two offline
+		// projection refusals. Without this case they would have been
+		// reported under Registered=false - a finding in no table, which is
+		// what TestCorpusArtifactHasNoUnregisteredRefusals asserts against.
+		if refusal, ok := projection.LookupRefusal(id); ok {
+			return Refusal{
+				Layer:    LayerProjection,
+				ID:       refusal.Summary,
+				Title:    refusal.Summary,
+				What:     refusal.What,
+				DocsRef:  refusal.DocsRef(),
+				RaisedBy: RaisedByProjection,
 			}, true
 		}
 	}

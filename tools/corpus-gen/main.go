@@ -493,6 +493,16 @@ func renderTable(artifact Artifact) string {
 	fmt.Fprintf(&b, "\nChecked: %s. Not checked: %s.\n",
 		strings.Join(layerNames(artifact.Checked), ", "),
 		strings.Join(layerNames(artifact.Unchecked), ", "))
+	for _, partial := range artifact.Partial {
+		// Named on its own line rather than folded into either list above.
+		// A partly checked stage read as checked overstates the run by
+		// however many of its refusals still need a cloud, and read as
+		// unchecked understates it by the ones this run computed; the share
+		// is the only rendering that is true of both.
+		fmt.Fprintf(&b, "Partly checked: %s - %d of %d refusals (%s); the rest need a cloud.\n",
+			partial.Layer, len(partial.Refusals), partial.Total,
+			strings.Join(partial.Refusals, "; "))
+	}
 	b.WriteString("The unchecked stages each need a cloud. Nothing above says a corpus entry applies cleanly.\n")
 
 	return b.String()

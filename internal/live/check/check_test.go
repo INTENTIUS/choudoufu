@@ -119,7 +119,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 	}
 
 	classified := map[string]bool{}
-	for _, layer := range append(CheckedLayers(), UncheckedLayers()...) {
+	for _, layer := range allClassifiedLayers() {
 		classified[string(layer)] = true
 	}
 
@@ -328,14 +328,72 @@ func TestReportNamesWhatItDidNotCheck(t *testing.T) {
 	if len(report.Unchecked) == 0 {
 		t.Fatal("report names no unchecked layers; a clean verdict would then read as a promise about stages nobody looked at")
 	}
+	if len(report.Partial) == 0 {
+		t.Fatal("report names no partially checked layers; projection has been one since Analyze began computing its two offline refusals")
+	}
 
+	// The three lists must be disjoint, in all three pairings. A stage in
+	// two of them makes the caveat unreadable: a reader cannot tell whether
+	// "projection" in the not-checked line refers to the whole stage or to
+	// the part the partial line already accounted for.
+	seen := map[Layer]string{}
+	for _, layer := range report.Checked {
+		seen[layer] = "checked"
+	}
+	for _, p := range report.Partial {
+		if where, dup := seen[p.Layer]; dup {
+			t.Errorf("%s is reported as both %s and partially checked", p.Layer, where)
+		}
+		seen[p.Layer] = "partially checked"
+	}
 	for _, layer := range report.Unchecked {
-		for _, checked := range report.Checked {
-			if layer == checked {
-				t.Errorf("%s is reported as both checked and unchecked", layer)
+		if where, dup := seen[layer]; dup {
+			t.Errorf("%s is reported as both %s and unchecked", layer, where)
+		}
+	}
+}
+
+// TestPartialLayerRefusalsAreRegistered is what keeps [PartiallyCheckedLayers]
+// honest against the stage it describes.
+//
+// The IDs there are string literals, because the stage raises them as
+// diagnostic summaries and exports no constant for either. A literal that
+// stops matching - a reworded summary in internal/live/projection - would
+// leave the report claiming to check a refusal that no longer exists under
+// that name, while the finding [Analyze] actually raises reads as
+// unregistered. So each one is looked up in that stage's own registry, which
+// is the external source: mutating the constant to anything the registry
+// does not carry fails here.
+func TestPartialLayerRefusalsAreRegistered(t *testing.T) {
+	for _, p := range PartiallyCheckedLayers() {
+		if len(p.Refusals) == 0 {
+			t.Errorf("%s is listed as partially checked but names no refusals it checks", p.Layer)
+		}
+		if p.Total <= len(p.Refusals) {
+			t.Errorf("%s claims %d checked refusals of %d total; a partial layer that checks all of them belongs in CheckedLayers", p.Layer, len(p.Refusals), p.Total)
+		}
+		for _, id := range p.Refusals {
+			refusal, ok := lookup(p.Layer, id)
+			if !ok {
+				t.Errorf("%s is listed as a checked refusal of the %s layer, but that layer's registry does not carry it", id, p.Layer)
+				continue
+			}
+			if refusal.What == "" {
+				t.Errorf("%s resolves in the %s registry with no description", id, p.Layer)
 			}
 		}
 	}
+}
+
+// allClassifiedLayers is every layer any of the three lists names. The
+// package's completeness guards walk this rather than two of the three
+// lists, which is how projection stayed uncovered once already.
+func allClassifiedLayers() []Layer {
+	out := append([]Layer(nil), CheckedLayers()...)
+	for _, p := range PartiallyCheckedLayers() {
+		out = append(out, p.Layer)
+	}
+	return append(out, UncheckedLayers()...)
 }
 
 // TestUnreadableDirectoryIsNotClean covers the distinction the command's
