@@ -85,6 +85,9 @@ func runRender() error {
 	if err := renderLimitationsMD(root); err != nil {
 		return err
 	}
+	if err := renderMarkersMD(root); err != nil {
+		return err
+	}
 	return renderContractMDX(root)
 }
 

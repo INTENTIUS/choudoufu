@@ -45,14 +45,16 @@
 // admission table, with no provider and no network: live/SURVEY.md's
 // raw-signal counts sentence, Summary path-count table and wired-count
 // cell; live/LIMITATIONS.md's five residue-roster spans and its
-// untaggable-admitted entry (issue #54); and
+// untaggable-admitted entry (issue #54); live/MARKERS.md's two estate-grant
+// governance spans, which say how much of the admitted table an IAM
+// condition on a marker tag reaches and name what it cannot; and
 // live/COVERAGE.md's admitted-set count and type
 // enumeration (issue #54):
 //
 //	go run ./tools/survey-gen -render
 //
-// See render.go, residue_render.go, untaggable_render.go and
-// contract_render.go.
+// See render.go, residue_render.go, untaggable_render.go,
+// governance_render.go and contract_render.go.
 //
 // A -accept flag stamps the written artifact's header with today's date
 // (the "accepted" field), the only way that field is ever written -
