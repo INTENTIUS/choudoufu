@@ -102,7 +102,7 @@ const identityGoldenPinBodyDigest = "fc79cc75789a441a04c151d9f44b28bf264d5aabedc
 
 const (
 	identityGoldenPinInstances = 1341
-	identityGoldenPinDirs      = 385
+	identityGoldenPinDirs      = 387
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
@@ -111,7 +111,7 @@ const (
 	// root, tighten the file filter, and the numbers fall to something you
 	// then re-pin, with each individual edit looking reasonable. This is the
 	// number that must never go down. It is deliberately well below the
-	// current 384 so that removing fixtures is not an event, and far enough
+	// current 387 so that removing fixtures is not an event, and far enough
 	// above zero that narrowing the walk to nothing is.
 	identityGoldenSweepFloor = 300
 )

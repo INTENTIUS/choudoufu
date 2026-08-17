@@ -490,9 +490,14 @@ func renderTable(artifact Artifact) string {
 		}
 	}
 
-	fmt.Fprintf(&b, "\nChecked: %s. Not checked: %s.\n",
-		strings.Join(layerNames(artifact.Checked), ", "),
-		strings.Join(layerNames(artifact.Unchecked), ", "))
+	// Same shape as internal/command/views' live-check report, and empty for
+	// the same reason: Unchecked is a list that can be emptied, and "Not
+	// checked: ." is what the unconditional version prints when it is.
+	fmt.Fprintf(&b, "\nChecked: %s.", strings.Join(layerNames(artifact.Checked), ", "))
+	if len(artifact.Unchecked) > 0 {
+		fmt.Fprintf(&b, " Not checked: %s.", strings.Join(layerNames(artifact.Unchecked), ", "))
+	}
+	b.WriteString("\n")
 	for _, partial := range artifact.Partial {
 		// Named on its own line rather than folded into either list above.
 		// A partly checked stage read as checked overstates the run by
@@ -503,7 +508,10 @@ func renderTable(artifact Artifact) string {
 			partial.Layer, len(partial.Refusals), partial.Total,
 			strings.Join(partial.Refusals, "; "))
 	}
-	b.WriteString("The unchecked stages each need a cloud. Nothing above says a corpus entry applies cleanly.\n")
+	if len(artifact.Unchecked) > 0 {
+		b.WriteString("The unchecked stages each need a cloud. ")
+	}
+	b.WriteString("Nothing above says a corpus entry applies cleanly.\n")
 
 	return b.String()
 }

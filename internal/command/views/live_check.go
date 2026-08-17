@@ -222,9 +222,19 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 			}
 		default:
 			for _, site := range finding.Examples {
-				if site.Address != "" {
+				switch {
+				case site.Location == "" && site.Address == "":
+					// A site with neither a position nor an address has
+					// nothing to show, and printing it produced a line of
+					// four spaces. internal/live/projection raises both of
+					// the refusals internal/live/check computes offline with
+					// tfdiags.Sourceless, so this is every site of every
+					// projection finding today. The remedy and the docs
+					// reference below carry what is known about it.
+					continue
+				case site.Address != "":
 					fmt.Fprintf(&b, "    %s  %s\n", site.Location, site.Address)
-				} else {
+				default:
 					fmt.Fprintf(&b, "    %s\n", site.Location)
 				}
 			}
@@ -247,8 +257,23 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 	if len(rep.Partial) > 0 {
 		fmt.Fprintf(&b, "Partly checked: %s.\n", strings.Join(rep.Partial, ", "))
 	}
-	fmt.Fprintf(&b, "Not checked: %s. Each of those needs a cloud, and this command makes no cloud calls,\n", strings.Join(rep.Unchecked, ", "))
-	b.WriteString("so a clean result above is not a promise that an apply succeeds.\n")
+	// The caveat survives an empty Unchecked list; the sentence naming the
+	// stages does not.
+	//
+	// "Not checked: ." is what the unconditional version printed once
+	// Unchecked went empty, and issue #261 was closed partly on the argument
+	// that emptying that list would make this report overstate the run.
+	// Nothing asserted on the text, so the argument rested on a renderer
+	// nobody had read. What is true either way is the last clause: no stage
+	// here makes a cloud call, and the partly-checked stages still have
+	// refusals that need one. That is what has to keep printing.
+	if len(rep.Unchecked) > 0 {
+		fmt.Fprintf(&b, "Not checked: %s. Each of those needs a cloud, and this command makes no cloud calls,\n", strings.Join(rep.Unchecked, ", "))
+		b.WriteString("so a clean result above is not a promise that an apply succeeds.\n")
+	} else {
+		b.WriteString("No stage went entirely unchecked. This command still makes no cloud calls, so a clean\n")
+		b.WriteString("result above is not a promise that an apply succeeds.\n")
+	}
 
 	if !rep.Schemas {
 		b.WriteString("\nNo provider schemas were available, so resource types were judged from the built-in\n")

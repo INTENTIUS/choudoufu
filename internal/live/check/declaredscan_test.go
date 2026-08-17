@@ -53,10 +53,18 @@ import (
 //
 // So the pass computes nothing [Analyze] does not already compute, and moving
 // discovery out of the unchecked list on the strength of it would empty that
-// list entirely - which is what "choudoufu live-check" and tools/corpus-gen
-// both render as "Not checked: ." followed by a sentence about stages that
-// need a cloud. Twenty-one of discovery's twenty-five refusals still need
-// one. The narrow claim has to stay legible, so the stage stays named.
+// list entirely. Twenty-one of discovery's twenty-five refusals still need a
+// cloud. The narrow claim has to stay legible, so the stage stays named.
+//
+// This paragraph used to carry a second reason: that "choudoufu live-check"
+// and tools/corpus-gen would both render the emptied list as "Not checked: ."
+// followed by a sentence about stages that need a cloud. That was true and is
+// no longer - both renderers now drop the sentence when there is nothing to
+// name, under test (TestNotCheckedLineIsNotPrintedWhenNothingIsUnchecked in
+// internal/command/views). It was a reason not to empty the list by accident,
+// never a reason not to empty it; leaving it here would have made a fixed
+// defect look like a standing argument. The reason above is the one that
+// stands.
 //
 // If lint's rule is ever narrowed, or discovery's declared scan grows a
 // refusal that is genuinely its own, these tests go red and the decision is

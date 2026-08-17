@@ -184,6 +184,16 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// a configuration carrying one does not onboard. Expect the clean count
 	// to fall when this first runs; that is the instrument seeing a stage it
 	// was previously blind to, not a regression.
+	//
+	// Only the second of the two can fire from here. A cycle among
+	// parent-derived identities is refused inside identity resolution first,
+	// as "Circular identity reference", and the resolutions that survive
+	// that can never contain one - see
+	// [projection.CyclicIdentityDiagnostics]' own doc comment for the
+	// argument, and TestAnalyzeCannotReachCyclicParentDerivedIdentities for
+	// the fixture. It is still computed here: this is the check that would
+	// catch a bug in identity resolution letting one through, and a check
+	// that finds nothing is exactly what a working invariant looks like.
 	if result != nil {
 		// Set here rather than in the initializer above, deliberately. It is
 		// the record that this pass ran, so it must be written by the code

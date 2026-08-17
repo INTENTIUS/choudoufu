@@ -239,7 +239,11 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1341 rendered identities across 385 configuration directories in under a
+<<<<<<< HEAD
+1341 rendered identities across 387 configuration directories in under a
+=======
+1341 rendered identities across 387 configuration directories in under a
+>>>>>>> wall/projfix
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
