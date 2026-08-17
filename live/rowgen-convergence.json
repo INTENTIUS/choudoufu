@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 893,
-    "compared": 879,
+    "admitted_total": 895,
+    "compared": 881,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 787,
-    "adopted_unchanged_pct": 89.53,
+    "adopted_unchanged": 789,
+    "adopted_unchanged_pct": 89.56,
     "genuine_mismatches": 92,
     "annotated": 92,
     "unannotated_mismatches": 0,
@@ -593,8 +593,8 @@
       "adopted_unchanged_pct": 100
     },
     "Neptune": {
-      "compared": 3,
-      "adopted_unchanged": 3,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "NetworkFirewall": {
@@ -6875,6 +6875,22 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_cluster",
+      "service": "Neptune",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_neptune_cluster_instance",
+      "service": "Neptune",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
       "matched": true,
       "annotated": false
     },

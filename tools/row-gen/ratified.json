@@ -7274,6 +7274,32 @@
     ],
     "import_syntax": "NATGATEWAYID,ALLOCATIONID"
   },
+  "aws_neptune_cluster": {
+    "type": "aws_neptune_cluster",
+    "components": [
+      {
+        "attrs": [
+          "cluster_identifier"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "CLUSTER_IDENTIFIER"
+  },
+  "aws_neptune_cluster_instance": {
+    "type": "aws_neptune_cluster_instance",
+    "components": [
+      {
+        "attrs": [
+          "identifier"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "IDENTIFIER"
+  },
   "aws_neptune_cluster_parameter_group": {
     "type": "aws_neptune_cluster_parameter_group",
     "components": [

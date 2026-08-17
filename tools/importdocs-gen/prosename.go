@@ -96,7 +96,26 @@ func proseNamedArgument(section string, args []ArgumentRefEntry, attrNames []str
 	var requiredNames []string
 	for i, a := range args {
 		argNames[i] = a.Name
-		if a.Required {
+		// Required, or documented as named by the provider when the
+		// configuration omits it. The second is the same claim in the other
+		// direction: "If omitted, Terraform will assign a random, unique
+		// identifier" says the argument IS the resource's name, and that the
+		// configuration may decline to choose it. Component's own
+		// ServerAssignedIfAbsent models exactly that, so a row can carry it.
+		//
+		// The required-only discipline this widens exists to keep three
+		// misfires out - "using the region" naming the provider-wide meta
+		// argument, and two of that shape - and it still does. An optional
+		// argument with no such sentence stays out; the doc has to say the
+		// provider names it.
+		//
+		// aws_neptune_cluster is the shape. Its Import section says "using
+		// the cluster identifier" in plain words where aws_docdb_cluster and
+		// aws_rds_cluster - the same row shape, already ratified - write
+		// "using the `cluster_identifier`" and resolve through the backtick
+		// reader. The scrape already knows cluster_identifier is
+		// server-assigned-if-absent; only this candidate set did not.
+		if a.Required || a.ServerAssignedIfAbsent {
 			requiredNames = append(requiredNames, a.Name)
 		}
 	}

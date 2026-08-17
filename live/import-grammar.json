@@ -9,9 +9,9 @@
     "no_import_section": 0,
     "rows": 1699,
     "alias_rows": 6,
-    "composed_true": 719,
+    "composed_true": 721,
     "composed_false": 232,
-    "composed_unsure": 748,
+    "composed_unsure": 746,
     "separator_known": 437,
     "separator_unsure": 1262
   },
@@ -107145,8 +107145,10 @@
       "tf_type": "aws_neptune_cluster",
       "import_id_example": "my-cluster",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "cluster_identifier"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_neptune_cluster` using the cluster identifier. For example:\n\n```terraform\nimport {\n  to = aws_neptune_cluster.example\n  id = \"my-cluster\"\n}\n```\n\nUsing `terraform import`, import `aws_neptune_cluster` using the cluster identifier. For example:\n\n```console\n% terraform import aws_neptune_cluster.example my-cluster\n```",
       "example_arguments": [
         {
@@ -107454,8 +107456,10 @@
       "tf_type": "aws_neptune_cluster_instance",
       "import_id_example": "my-instance",
       "separator": null,
-      "composed_of_arguments": null,
-      "arguments": null,
+      "composed_of_arguments": true,
+      "arguments": [
+        "identifier"
+      ],
       "evidence_excerpt": "## Import\n\nIn Terraform v1.5.0 and later, use an [`import` block](https://developer.hashicorp.com/terraform/language/import) to import `aws_neptune_cluster_instance` using the instance identifier. For example:\n\n```terraform\nimport {\n  to = aws_neptune_cluster_instance.example\n  id = \"my-instance\"\n}\n```\n\nUsing `terraform import`, import `aws_neptune_cluster_instance` using the instance identifier. For example:\n\n```console\n% terraform import aws_neptune_cluster_instance.example my-instance\n```",
       "example_arguments": [
         {

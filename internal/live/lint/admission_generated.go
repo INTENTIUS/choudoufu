@@ -543,6 +543,8 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_mwaa_environment":                                                  {},
 	"aws_nat_gateway":                                                       {},
 	"aws_nat_gateway_eip_association":                                       {},
+	"aws_neptune_cluster":                                                   {},
+	"aws_neptune_cluster_instance":                                          {},
 	"aws_neptune_cluster_parameter_group":                                   {},
 	"aws_neptune_parameter_group":                                           {},
 	"aws_neptune_subnet_group":                                              {},

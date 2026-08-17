@@ -26,10 +26,10 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 893 types | Nothing at lint. Runtime support varies by type; see the layers below. |
-| Pastable proposals (server-assigned 575, client-named 474, composite 152, assembled 30) | 1231 types | A ratification batch: paste, fixture, test. |
+| Admitted (the shipped table) | 895 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Pastable proposals (server-assigned 575, client-named 476, composite 152, assembled 30) | 1233 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
-| Evidence-only | 318 types | An identity-argument name no current evidence source states. |
+| Evidence-only | 316 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
 | Of those, with no CloudFormation model | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-893<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+895<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_acm_certificate`,
   `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -303,7 +303,8 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_msk_topic`, `aws_msk_vpc_connection`, `aws_mskconnect_connector`,
   `aws_mskconnect_custom_plugin`, `aws_mskconnect_worker_configuration`,
   `aws_mwaa_environment`, `aws_nat_gateway`,
-  `aws_nat_gateway_eip_association`, `aws_neptune_cluster_parameter_group`,
+  `aws_nat_gateway_eip_association`, `aws_neptune_cluster`,
+  `aws_neptune_cluster_instance`, `aws_neptune_cluster_parameter_group`,
   `aws_neptune_parameter_group`, `aws_neptune_subnet_group`,
   `aws_network_acl`, `aws_network_acl_rule`, `aws_network_interface`,
   `aws_network_interface_sg_attachment`, `aws_networkfirewall_firewall`,

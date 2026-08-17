@@ -10,6 +10,14 @@ package stamp
 // not, and the caricature schema each one is checked against. Registered by
 // init below; see contributing/LIVE-TABLES.md.
 var taggableDatabases = []string{
+	// Ratified alongside aws_docdb_cluster and aws_rds_cluster, whose row
+	// shape they share exactly: the identity is an Optional+Computed
+	// identifier the docs describe as "If omitted, Terraform will assign a
+	// random, unique identifier", which Component.ServerAssignedIfAbsent
+	// models. Taggable per live/survey-full.json's real-schema signal.
+	"aws_neptune_cluster",
+	"aws_neptune_cluster_instance",
+
 	// Registry-ratified databases batch (#40, #44, issue #65): every
 	// ratified type in this batch except the three OpenSearchServerless
 	// policy types below (untaggableAdmittedTypes) carries a top-level
@@ -74,6 +82,9 @@ var untaggableDatabases = []string{
 func init() {
 	registerCohortStamp(taggableDatabases, untaggableDatabases, func(s testSchemaSource) {
 		mergeCohortSchemas(s, testSchemaSource{
+			"aws_neptune_cluster":          taggedSchema("id", "arn", "cluster_identifier"),
+			"aws_neptune_cluster_instance": taggedSchema("id", "arn", "identifier", "cluster_identifier"),
+
 			// Registry-ratified databases batch (#40, #44, issue #65).
 			// Taggable/untaggable per the real provider's documented Argument
 			// Reference for each type, confirmed against the generated
