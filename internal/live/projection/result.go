@@ -151,6 +151,22 @@ const (
 	// plan proposes creating what the configuration declares. A warning
 	// diagnostic accompanies every omission with this reason.
 	ReasonUnowned Reason = "UNOWNED"
+
+	// ReasonUnreadable means the instance has no live cloud object to read
+	// attributes from at all - a GitHub issue #73 record-backed effect,
+	// whose prior state is a record rather than a resource. It is produced
+	// only by [ReadInstances]; a projection hydrates such an instance from
+	// the record store instead, so it is never omitted for this reason.
+	ReasonUnreadable Reason = "UNREADABLE"
+
+	// ReasonIncompleteBlock means the instance itself was read, and was then
+	// dropped because another instance of the same resource block was not.
+	// A resource whose instances are only partly known has no aggregate
+	// value - see [dropIncompleteBlocks] for why a partial one is a wrong
+	// answer and not merely a smaller one. Produced only by
+	// [ReadInstances]: a projection records instances one at a time and has
+	// no aggregate to keep whole.
+	ReasonIncompleteBlock Reason = "INCOMPLETE_BLOCK"
 )
 
 // Has reports whether the projection contains an object for the given

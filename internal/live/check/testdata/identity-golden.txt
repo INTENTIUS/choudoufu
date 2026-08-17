@@ -511,6 +511,9 @@ internal/live/projection/testdata/chain	aws_route_table_association.a	PARENT_DER
 internal/live/projection/testdata/chain	aws_subnet.a	NEEDS_DISCOVERY		
 internal/live/projection/testdata/derived	aws_route.internet_gateway	PARENT_DERIVED	${aws_route_table.main.id}_0.0.0.0/0	destination_cidr_block=0.0.0.0/0,route_table_id=${aws_route_table.main.id}
 internal/live/projection/testdata/derived	aws_route_table.main	NEEDS_DISCOVERY		
+internal/live/projection/testdata/expanded	aws_cloudwatch_log_group.app["a"]	CONCRETE	/ours/a	name=/ours/a
+internal/live/projection/testdata/expanded	aws_cloudwatch_log_group.app["b"]	CONCRETE	/ours/b	name=/ours/b
+internal/live/projection/testdata/expanded	aws_kms_key.root	NEEDS_DISCOVERY		
 internal/live/projection/testdata/named	aws_cloudwatch_log_group.app	CONCRETE	/ours/logs	name=/ours/logs
 internal/live/projection/testdata/named	aws_s3_bucket_policy.data	CONCRETE	ownership-unit-data	bucket=ownership-unit-data
 internal/live/projection/testdata/named-moved	aws_cloudwatch_log_group.app	CONCRETE	/ours/logs	name=/ours/logs
