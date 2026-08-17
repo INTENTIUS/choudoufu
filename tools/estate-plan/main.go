@@ -28,11 +28,20 @@
 //
 // # Population
 //
-// Only "published deployment" entries count. The corpus also holds in-repo
-// fixtures and terraform-aws-modules examples, which read as ranking signal
-// and not as a rate - onboarding a module example is not onboarding anybody's
-// infrastructure. Ranking against the wrong denominator is the single most
-// repeated measurement error in this project.
+// The rate line - "N blocked of M rate-capable deployments" - is computed
+// over "published deployment" entries alone. The corpus also holds in-repo
+// fixtures and terraform-aws-modules examples; folding either into that count
+// would rank progress against the wrong denominator, which is the single
+// most repeated measurement error in this project, because onboarding a
+// module example is not onboarding anybody's infrastructure.
+//
+// The module examples are still assignable work, and they are printed as
+// their own queue below the rate: the published deployments in this corpus
+// call these same modules throughout (cloud-platform and
+// govuk-infrastructure do it repeatedly), so an example's blockers exercise
+// resource shapes that sit inside real, rate-counted estates. Queueing that
+// work is not the same claim as counting it, and the two are kept visibly
+// apart for exactly that reason.
 package main
 
 import (
@@ -219,7 +228,15 @@ type sweepEntry struct {
 // ratePopulation is the only origin that counts as progress. See the package
 // doc: a module example onboarding is not somebody's infrastructure
 // onboarding.
-const ratePopulation = "published deployment"
+//
+// modulePopulation is queued work, not rate. It is a distinct constant
+// rather than "not ratePopulation" precisely so that widening the rate
+// filter (say, to "everything") cannot silently start counting modules too -
+// buildModuleQueue and buildPlan each name the origin they want.
+const (
+	ratePopulation   = "published deployment"
+	modulePopulation = "terraform-aws-modules"
+)
 
 func main() {
 	in := flag.String("in", "", "refusal-probe -out JSON to plan from (required)")
@@ -255,12 +272,15 @@ func main() {
 	}
 
 	plan, unknown := buildPlan(s, schemas)
-	if len(unknown) > 0 {
+	modules, moduleUnknown := buildModuleQueue(s, schemas)
+
+	unknownAll := mergeUnknown(unknown, moduleUnknown)
+	if len(unknownAll) > 0 {
 		// Not fatal: a new refusal should not stop the plan being read. But
 		// it is printed first, because an unmapped blocker is a blocker
-		// nobody has decided how to act on.
-		fmt.Printf("UNMAPPED REFUSALS (%d) - add them to blockerAction with a reason:\n", len(unknown))
-		for _, id := range unknown {
+		// nobody has decided how to act on, in either queue.
+		fmt.Printf("UNMAPPED REFUSALS (%d) - add them to blockerAction with a reason:\n", len(unknownAll))
+		for _, id := range unknownAll {
 			fmt.Printf("  %s\n", id)
 		}
 		fmt.Println()
@@ -295,6 +315,48 @@ func main() {
 		}
 		fmt.Println()
 	}
+
+	// The module-example queue is printed separately from the rate plan
+	// above, and every line in it says so on its own - not just in this
+	// header - so a line copied out of context still cannot read as a
+	// published deployment. None of these count in the rate line or in
+	// summarise(plan): see the package doc under Population.
+	fmt.Printf("terraform-aws-modules EXAMPLES (queued work, EXCLUDED FROM THE RATE): %d blocked of %d\n\n",
+		len(modules), moduleTotal(s))
+
+	m := *top
+	if *all || m > len(modules) {
+		m = len(modules)
+	}
+	for _, e := range modules[:m] {
+		fmt.Printf("   %d blocker(s), %d site(s)%s  %s  [module example, not a deployment]\n", len(e.Blockers), e.Sites, moduleNote(e.Modules), e.Name)
+		for _, bl := range e.Blockers {
+			fmt.Printf("      [%-6s] %-3d  %s\n", bl.Action, bl.Sites, bl.ID)
+		}
+		for _, bl := range e.Informs {
+			fmt.Printf("      [%-6s] %-3d  %s (not a blocker; must still succeed at plan time)\n", bl.Action, bl.Sites, bl.ID)
+		}
+		fmt.Println()
+	}
+}
+
+// mergeUnknown dedupes and sorts the unmapped-refusal IDs from both queues,
+// so one refusal missing from blockerAction is reported once even if it
+// fired in both a published deployment and a module example.
+func mergeUnknown(a, b []string) []string {
+	set := map[string]bool{}
+	for _, id := range a {
+		set[id] = true
+	}
+	for _, id := range b {
+		set[id] = true
+	}
+	out := make([]string, 0, len(set))
+	for id := range set {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
 }
 
 type blocker struct {
@@ -645,11 +707,26 @@ func (e estate) driveable() bool {
 // block them, then by total sites, then by name so the order is stable across
 // runs and two people planning from one sweep see the same first line.
 func buildPlan(s sweep, schemas map[string]providers.Schema) ([]estate, []string) {
+	return buildQueue(s, ratePopulation, schemas)
+}
+
+// buildModuleQueue mirrors buildPlan exactly, over the module-example origin
+// instead of the rate one. It shares buildQueue with buildPlan rather than
+// reimplementing the filter, so the two populations cannot drift apart by
+// one of them growing a rule the other lacks.
+func buildModuleQueue(s sweep, schemas map[string]providers.Schema) ([]estate, []string) {
+	return buildQueue(s, modulePopulation, schemas)
+}
+
+// buildQueue is buildPlan's and buildModuleQueue's shared engine. origin
+// selects which population it builds - the caller names it, so no predicate
+// here can widen silently to cover both at once.
+func buildQueue(s sweep, origin string, schemas map[string]providers.Schema) ([]estate, []string) {
 	var out []estate
 	unknownSet := map[string]bool{}
 
 	for _, e := range s.Entries {
-		if e.Origin != ratePopulation || !e.Blocked {
+		if e.Origin != origin || !e.Blocked {
 			continue
 		}
 		est := estate{Name: e.Name, Sites: e.Sites, Modules: e.Modules}
@@ -811,6 +888,16 @@ func rateTotal(s sweep) int {
 	n := 0
 	for _, e := range s.Entries {
 		if e.Origin == ratePopulation {
+			n++
+		}
+	}
+	return n
+}
+
+func moduleTotal(s sweep) int {
+	n := 0
+	for _, e := range s.Entries {
+		if e.Origin == modulePopulation {
 			n++
 		}
 	}

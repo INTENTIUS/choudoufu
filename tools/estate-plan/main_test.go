@@ -173,6 +173,50 @@ func TestUnmappedRefusalIsReportedNotSwallowed(t *testing.T) {
 	}
 }
 
+// TestModuleExamplesQueuedNotRated is the load-bearing guard for the split
+// between the rate and the module-example work queue. It pins three things
+// at once: rateTotal never counts a terraform-aws-modules entry, buildPlan
+// (the rate queue) never returns one, and buildModuleQueue returns exactly
+// the module entries and none of the rate ones. A population predicate that
+// goes vacuous - matching every origin instead of just its own - fails this
+// test, because the module entry would then leak into rateTotal and plan.
+func TestModuleExamplesQueuedNotRated(t *testing.T) {
+	entryType := func(name, origin string, blocked bool, sites int, refusals map[string]int) sweepEntry {
+		return sweepEntry{Name: name, Origin: origin, Blocked: blocked, Sites: sites, Refusals: refusals}
+	}
+
+	s := sweep{Entries: []sweepEntry{
+		entryType("real-estate", ratePopulation, true, 3, map[string]int{"unadmitted-type": 3}),
+		entryType("clean-estate", ratePopulation, false, 0, nil),
+		entryType(".corpus/iam/examples/iam-role", modulePopulation, true, 5, map[string]int{"unadmitted-type": 5}),
+		entryType(".corpus/vpc/examples/clean", modulePopulation, false, 0, nil),
+		entryType("some-fixture", "in-repo fixture", true, 1, map[string]int{"unadmitted-type": 1}),
+	}}
+
+	if got := rateTotal(s); got != 2 {
+		t.Fatalf("rateTotal = %d, want 2: a module example (and a fixture) must not count toward the rate-capable total", got)
+	}
+	if got := moduleTotal(s); got != 2 {
+		t.Fatalf("moduleTotal = %d, want 2", got)
+	}
+
+	plan, unknown := buildPlan(s, nil)
+	if len(unknown) != 0 {
+		t.Fatalf("fixture uses refusals with no action: %v", unknown)
+	}
+	if len(plan) != 1 || plan[0].Name != "real-estate" {
+		t.Fatalf("buildPlan = %+v, want just real-estate: a module example must never appear in the rate plan", plan)
+	}
+
+	modules, unknown := buildModuleQueue(s, nil)
+	if len(unknown) != 0 {
+		t.Fatalf("fixture uses refusals with no action: %v", unknown)
+	}
+	if len(modules) != 1 || modules[0].Name != ".corpus/iam/examples/iam-role" {
+		t.Fatalf("buildModuleQueue = %+v, want just the one blocked module example: a rate deployment or fixture must never appear in the module queue", modules)
+	}
+}
+
 type corpusArtifact struct {
 	Refusals []struct {
 		ID      string `json:"id"`
