@@ -293,6 +293,34 @@ type Component struct {
 	PerElement bool
 }
 
+// PerElementShrinkCaveat records what a per-element identity does NOT
+// promise, because the gap is invisible in a green run and belongs beside the
+// field rather than in a commit message.
+//
+// The identity IS the set. So removing an element changes the identity, and a
+// resource whose set shrinks resolves to a DIFFERENT object than the one it
+// owns. For aws_iam_user_group_membership, whose docs say it "can be used
+// multiple times with the same user for non-overlapping groups", the concrete
+// shape is:
+//
+//	groups = ["a", "b"]  ->  groups = ["a"]
+//
+// The resolved identity becomes user/a, which imports cleanly because the user
+// really is in group a, and reads back groups = ["a"] - so the plan is empty
+// and membership in b is never revoked. Stock computes old-minus-new against
+// its state and revokes it. The set argument is not ForceNew; updating it in
+// place is the resource's whole purpose.
+//
+// This is an inference from the provider's own documentation - that a
+// non-overlapping second resource is supported at all requires the read to
+// filter to the set the ID names - and it was not confirmed against the
+// provider's source, which is not available offline here. It is written down
+// rather than acted on for that reason. Confirming it makes this either a
+// refusal when a per-element identity would shrink, or a documented
+// limitation; leaving it unwritten makes it neither.
+const PerElementShrinkCaveat = "removing an element changes the identity, so a shrinking " +
+	"per-element set resolves to a different object and the removal is never applied"
+
 // SameNameIdentity is [Component.IdentityAttr] for the ordinary case: the
 // identity attribute is the argument that supplied the value, under its own
 // name. It is not an attribute name and no schema has one - the character is

@@ -66,7 +66,7 @@ func (r *resolver) perElementParts(expr hcl.Expression, scope instScope, attr *h
 			ident.Subject, attr.Name)
 		return nil, false
 	}
-	canonicaliseElements(elems)
+	elems = canonicaliseElements(elems)
 
 	var out []Part
 	for i, e := range elems {
@@ -83,7 +83,7 @@ func (r *resolver) perElementParts(expr hcl.Expression, scope instScope, attr *h
 // all-or-nothing rule. An element that waits on a live value (any Part with
 // a Parent) has no key, and one such element leaves the whole sequence in
 // the order the configuration wrote it.
-func canonicaliseElements(elems [][]Part) {
+func canonicaliseElements(elems [][]Part) [][]Part {
 	keyed := make([]struct {
 		key   string
 		parts []Part
@@ -93,7 +93,7 @@ func canonicaliseElements(elems [][]Part) {
 		for _, p := range e {
 			if p.Parent != nil {
 				// No key for this element, so no key for the sequence.
-				return
+				return elems
 			}
 			buf.WriteString(p.Literal)
 		}
@@ -105,9 +105,30 @@ func canonicaliseElements(elems [][]Part) {
 	// permuted out from under it - the comparison would be against whatever
 	// element happens to sit at that index now, not the one being compared.
 	sort.SliceStable(keyed, func(a, b int) bool { return keyed[a].key < keyed[b].key })
-	for i := range keyed {
-		elems[i] = keyed[i].parts
+
+	// Collapse equal elements, on the same evidence the sort rests on. The
+	// soundness argument for reordering at all is that the provider parses
+	// the tail back into a SET, so permuting it changes nothing the provider
+	// sees. A set collapses duplicates too, and that half was missed: two
+	// equal elements render one segment each, so `groups = ["a", "a"]` -
+	// reachable through a list-typed variable, a concat or a flatten, since a
+	// set-typed variable is already deduped by cty before it arrives - built
+	// `user/a/a` where the object's own ID is `user/a`. That is a wrong
+	// rendered identity, which outranks a missing one.
+	//
+	// Only ever applied together with the sort, so the same all-or-nothing
+	// condition covers both: an element with no key returns early above and
+	// the sequence is left exactly as written.
+	out := make([][]Part, 0, len(keyed))
+	var last string
+	for i, k := range keyed {
+		if i > 0 && k.key == last {
+			continue
+		}
+		last = k.key
+		out = append(out, k.parts)
 	}
+	return out
 }
 
 // elementParts expands a collection-valued identity argument into one

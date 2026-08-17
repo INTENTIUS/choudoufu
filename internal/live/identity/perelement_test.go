@@ -87,9 +87,40 @@ func TestPerElementLeavesUnkeyableOrderAlone(t *testing.T) {
 		t.Errorf("canonicaliseElements reordered a sequence containing an element with no key: %v", elems)
 	}
 
-	all := [][]Part{{{Literal: "zeta"}}, {{Literal: "alpha"}}}
-	canonicaliseElements(all)
-	if all[0][0].Literal != "alpha" || all[1][0].Literal != "zeta" {
+	all := canonicaliseElements([][]Part{{{Literal: "zeta"}}, {{Literal: "alpha"}}})
+	if len(all) != 2 || all[0][0].Literal != "alpha" || all[1][0].Literal != "zeta" {
 		t.Errorf("canonicaliseElements left a fully-keyed sequence unsorted: %v", all)
+	}
+}
+
+// TestPerElementCollapsesEqualElements pins the other half of the argument
+// that licenses reordering at all.
+//
+// Sorting is sound because the provider parses the tail back into a SET, so
+// permutation changes nothing it sees. A set collapses duplicates on the same
+// evidence, and rendering both would emit a segment the object's own ID does
+// not have - a wrong identity, not a missing one. Reachable whenever the
+// elements come from a list rather than a set: a list-typed variable, a
+// concat, a flatten.
+func TestPerElementCollapsesEqualElements(t *testing.T) {
+	got := canonicaliseElements([][]Part{
+		{{Literal: "b"}}, {{Literal: "a"}}, {{Literal: "b"}}, {{Literal: "a"}},
+	})
+	if len(got) != 2 {
+		t.Fatalf("got %d elements, want 2 - equal elements are one segment, because the "+
+			"provider parses the tail into a set: %v", len(got), got)
+	}
+	if got[0][0].Literal != "a" || got[1][0].Literal != "b" {
+		t.Errorf("got %v, want [a b] - deduplication must not disturb the canonical order", got)
+	}
+
+	// The all-or-nothing rule covers both operations together: one unkeyable
+	// element and the sequence is left exactly as written, duplicates and all.
+	unkeyed := canonicaliseElements([][]Part{
+		{{Literal: "b"}}, {{Parent: &ParentRef{Attr: "arn"}}}, {{Literal: "b"}},
+	})
+	if len(unkeyed) != 3 {
+		t.Errorf("got %d elements, want 3 - an element with no key withdraws BOTH the sort "+
+			"and the collapse, because neither can be justified without keys", len(unkeyed))
 	}
 }
