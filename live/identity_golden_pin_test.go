@@ -77,10 +77,32 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
+<<<<<<< HEAD
 	"CONCRETE":        726,
-	"NEEDS_DISCOVERY": 572,
-	"PARENT_DERIVED":  95,
+	"NEEDS_DISCOVERY": 580,
+	"PARENT_DERIVED":  96,
 	"RECORD_BACKED":   17,
+=======
+	"CONCRETE": 723,
+	// 570, up from 562 (issue #271): eight ADDED rows, one per new fixture
+	// directory, each of them that fixture's own aws_acm_certificate.cert.
+	// A certificate's identity is its ARN, minted at create, so
+	// NEEDS_DISCOVERY is what it has always resolved to and these eight say
+	// nothing new about the mechanism - they are the by-product of every
+	// #271 fixture needing a certificate to point at. No pre-existing row
+	// changed class; see the digest below.
+	"NEEDS_DISCOVERY": 580,
+	// 96, up from 95 (issue #271):
+	// internal/live/identity/testdata/managed-read-direct-arg's
+	// aws_cloudwatch_log_group.app, whose name is
+	// aws_acm_certificate.cert.arn. Resolved with no managed results - which
+	// is what this sweep does - that is the ordinary symbolic-reference path
+	// and it renders the formula ${aws_acm_certificate.cert.arn}. The
+	// fixture exists for what happens when a run DOES hold managed results,
+	// which this instrument never does.
+	"PARENT_DERIVED":  96,
+	"RECORD_BACKED":  17,
+>>>>>>> worktree-agent-a9c1b8c34c1638e75
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -108,17 +130,46 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
+<<<<<<< HEAD
 // 2026-08-17: three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "1fdaea1879372e1a52e74eb8e43c23db570f5fd592443a4160e5733baf58f10a"
+const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
 
 // 2026-08-17: dirs 424 -> 425, instances 1397 -> 1400. The new
 // directory is internal/live/identity/testdata/omit-if-absent (see
 // identityGoldenPin's own comment above).
 const (
-	identityGoldenPinInstances = 1410
-	identityGoldenPinDirs      = 427
+	identityGoldenPinInstances = 1419
+	identityGoldenPinDirs      = 435
+=======
+// 2026-08-17 (issue #271): nine ADDED rows across eight new fixture
+// directories, and zero MODIFIED ones. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 9 added, 0
+// removed". That zero is the load-bearing half: the sibling-apply
+// classification #271 added is gated on a run holding managed results, this
+// sweep supplies none, and so not one pre-existing marker moved.
+const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
+
+// 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
+// the body digest unchanged. The new directory is
+// internal/live/check/testdata/stamp-untaggable-record-located, the
+// onboarded half of the stamp-gate split: a markerless type under a
+// record_store, which resolves RECORD_LOCATED. It contributes no row
+// because this sweep runs SCHEMA-LESS by design, and
+// identity.LocatedType fails closed with no schema - the credential
+// exclusion is readable only from a schema and a predicate that cannot run
+// must refuse. So the located class is a class this instrument cannot see,
+// which is stated here rather than discovered later from a suspiciously
+// stable digest.
+// 2026-08-17 (issue #271): dirs 424 -> 432 and instances 1397 -> 1406. Eight
+// new fixture directories for the sibling-apply discriminator, contributing
+// eight certificates and one log group. Both numbers rise by exactly what the
+// eight directories hold.
+const (
+	identityGoldenPinInstances = 1419
+	identityGoldenPinDirs      = 435
+>>>>>>> worktree-agent-a9c1b8c34c1638e75
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

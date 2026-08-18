@@ -7,7 +7,10 @@ package identity
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -52,24 +55,242 @@ func planCertResult() map[string]cty.Value {
 // tells users to write ("define the map keys statically in your configuration
 // and place apply-time results only in the map values"), so the instance set
 // has to come out.
-// The block expands: the diagnostics that remain are per-INSTANCE ones naming
-// the expanded address, where before there was one refusal about the whole
-// block's key set. Those per-instance refusals are the second half of #187 and
-// are not what this test is about; what it pins is that the key set is no
-// longer the thing being refused.
+// The block expands, and the instances it expands to are classified rather
+// than refused: their name and type come from a value the provider does not
+// fill in until the certificate is applied, which is
+// [DiscoverySiblingApply]. What this pins is both halves - the key set is no
+// longer the thing being refused, AND each instance renders the empty import
+// ID that says "nothing here knows what this object is called", never a
+// plausible-looking string.
 func TestForEachMapKeysKnownValuesUnknownExpands(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-foreach"), nil)
 
-	_, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult()})
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult()})
 	if hasSummary(diags, "Non-static for_each expression") {
 		t.Fatalf("the key set is still being refused: %s", diags.Err())
 	}
-	if diags.Err() == nil {
-		t.Fatal("nothing refused at all; the fixture's record name is unknown until apply and its identity cannot be rendered from it")
+	if diags.HasErrors() {
+		t.Fatalf("refused: %s", diags.Err())
 	}
-	// Named per instance, which is only possible if the instance exists.
-	if !hasSummary(diags, `aws_route53_record.cert_validation["example.com"]`) {
-		t.Errorf("no diagnostic names an expanded instance, so the block did not expand: %s", diags.Err())
+
+	var got []string
+	for _, res := range result.All() {
+		if res.Addr.Resource.Resource.Type != "aws_route53_record" {
+			continue
+		}
+		got = append(got, fmt.Sprintf("%s %s %q cause=%s args=%v",
+			res.Addr, res.Class, res.ImportID, res.Cause, res.CauseArgs))
+	}
+	sort.Strings(got)
+	want := []string{
+		`aws_route53_record.cert_validation["example.com"] NEEDS_DISCOVERY "" cause=SIBLING_APPLY args=[aws_acm_certificate.cert name type]`,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("resolved %d route53 record instance(s):\n  %s\nwant %d:\n  %s",
+			len(got), strings.Join(got, "\n  "), len(want), strings.Join(want, "\n  "))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("instance %d rendered\n  %s\nwant\n  %s", i, got[i], want[i])
+		}
+	}
+}
+
+// TestSiblingApplyNeedsTheManagedResult is the refusal half of the test
+// above, and it is the one that says the classification is not simply "an
+// unknown identity argument is fine now".
+//
+// The identical configuration, resolved with nothing in hand, must still
+// refuse - at the key set, because without the certificate's planned value
+// there is no key set either. A run that classified this would have
+// reclassified every unset-variable configuration in the corpus along with
+// it.
+func TestSiblingApplyNeedsTheManagedResult(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-foreach"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{})
+	if !diags.HasErrors() {
+		t.Fatal("resolved a for_each over a computed sibling attribute with no managed results in hand")
+	}
+	if !hasSummary(diags, "Non-static for_each expression") {
+		t.Fatalf("refused for some other reason: %s", diags.Err())
+	}
+	if result != nil {
+		for _, res := range result.All() {
+			if res.Addr.Resource.Resource.Type == "aws_route53_record" {
+				t.Errorf("%s was classified anyway, as %v with import ID %q and cause %s",
+					res.Addr, res.Class, res.ImportID, res.Cause)
+			}
+		}
+	}
+}
+
+// TestSiblingApplyDoesNotSwallowAnUnrelatedRefusal is the fail-closed half.
+//
+// The same shape with a second identity argument that is broken for a reason
+// no apply will settle - zone_id read from a required root variable this
+// loader refuses outright - must stay a REFUSAL. The classification is
+// all-or-nothing on purpose: a component failing for an unrelated reason
+// standing beside a sibling-apply one would otherwise have its diagnostic
+// withdrawn along with the others and vanish.
+func TestSiblingApplyDoesNotSwallowAnUnrelatedRefusal(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-foreach-broken-sibling"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult()})
+	if !diags.HasErrors() {
+		t.Fatal("a resource whose zone_id cannot be evaluated at all resolved anyway")
+	}
+	if result != nil {
+		for _, res := range result.All() {
+			if res.Addr.Resource.Resource.Type == "aws_route53_record" {
+				t.Errorf("%s was classified as %v (cause %s) despite an unrelated component failing",
+					res.Addr, res.Class, res.Cause)
+			}
+		}
+	}
+}
+
+// TestSiblingApplyFromADirectReference is the discriminator's other leg: an
+// identity argument that names the covered resource's attribute itself, with
+// no for_each anywhere. It is the shape that needs no expansion to carry the
+// provenance, and it is here because every other test in this file exercises
+// the each-carried leg only.
+//
+// # A worse answer than the same configuration gets with no results at all
+//
+// Resolved with NOTHING in hand this fixture's log group comes back
+// PARENT_DERIVED, carrying the formula ${aws_acm_certificate.cert.arn} -
+// which is a better answer than the classification below, because marker
+// discovery can render it once the certificate is found. See
+// internal/live/check/testdata/identity-golden.txt, where that is the line
+// this fixture contributes.
+//
+// The cause is [resolver.managedCovered], not this file: a reference it
+// admits stops being symbolic, so the expansion path that built the formula
+// is never reached, and before this classification existed the same input
+// produced a flat refusal instead. So the change here is an improvement on
+// what a run holding managed results got, and the remaining gap - a covered
+// reference whose value is unknown should fall BACK to the symbolic path
+// rather than forward to a classification - is a separate fix.
+func TestSiblingApplyFromADirectReference(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-direct-arg"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: map[string]cty.Value{
+			"aws_acm_certificate.cert": cty.ObjectVal(map[string]cty.Value{
+				"arn":         cty.UnknownVal(cty.String),
+				"domain_name": cty.StringVal("example.com"),
+			}),
+		},
+	})
+	if diags.HasErrors() {
+		t.Fatalf("refused: %s", diags.Err())
+	}
+	res := resolutionAt(t, result, "aws_cloudwatch_log_group.app")
+	got := fmt.Sprintf("%s %q cause=%s args=%v", res.Class, res.ImportID, res.Cause, res.CauseArgs)
+	const want = `NEEDS_DISCOVERY "" cause=SIBLING_APPLY args=[aws_acm_certificate.cert name]`
+	if got != want {
+		t.Errorf("rendered\n  %s\nwant\n  %s", got, want)
+	}
+}
+
+// TestSiblingApplyNotClaimedForAKnownSibling is that leg's refusal half: the
+// covered resource's value is wholly KNOWN, and the unknown in the same
+// argument comes from a data source instead.
+//
+// Attributing it to the certificate would tell an operator to apply something
+// that is already applied. The rule asks whether the covered VALUE is unknown,
+// not whether the expression happens to mention a covered resource, and this
+// is where that distinction is pinned.
+func TestSiblingApplyNotClaimedForAKnownSibling(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-known-plus-data"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: map[string]cty.Value{
+			"aws_acm_certificate.cert": cty.ObjectVal(map[string]cty.Value{
+				"domain_name": cty.StringVal("example.com"),
+			}),
+		},
+		DataResults: map[string]cty.Value{
+			"data.aws_region.current": cty.ObjectVal(map[string]cty.Value{
+				"name": cty.UnknownVal(cty.String),
+			}),
+		},
+	})
+	if !diags.HasErrors() {
+		t.Fatal("an identity argument holding an unknown data-source value resolved anyway")
+	}
+	if result != nil {
+		for _, res := range result.All() {
+			if res.Addr.Resource.Resource.Type == "aws_cloudwatch_log_group" {
+				t.Errorf("%s was classified as %v (cause %s, import ID %q); the certificate it names is wholly known and is not what this run is waiting on",
+					res.Addr, res.Class, res.Cause, res.ImportID)
+			}
+		}
+	}
+}
+
+// TestSiblingApplyNotClaimedForANonEachArgument is the each-carried leg's
+// refusal half. The block's for_each IS managed-derived, so the expansion
+// carries the provenance, and the argument that fails reads a data source
+// rather than each.*.
+//
+// Without the rule that the each-carried provenance applies only to an
+// argument reading each.*, this instance would be reported as waiting on a
+// certificate that has nothing to do with its missing zone.
+func TestSiblingApplyNotClaimedForANonEachArgument(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-foreach-data-arg"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{
+		ManagedResults: planCertResult(),
+		DataResults: map[string]cty.Value{
+			"data.aws_route53_zone.main": cty.ObjectVal(map[string]cty.Value{
+				"zone_id": cty.UnknownVal(cty.String),
+			}),
+		},
+	})
+	if !diags.HasErrors() {
+		t.Fatal("an identity argument holding an unknown data-source value resolved anyway")
+	}
+	if result != nil {
+		for _, res := range result.All() {
+			if res.Addr.Resource.Resource.Type == "aws_route53_record" {
+				t.Errorf("%s was classified as %v (cause %s, import ID %q); its zone_id came from a data source, not from the certificate",
+					res.Addr, res.Class, res.Cause, res.ImportID)
+			}
+		}
+	}
+}
+
+// TestSiblingApplyIsNotReachedThroughAVariable is the #183 guard expressed in
+// this package: an identity argument that reads a root variable is never
+// attributed to the managed read, even when the block's for_each genuinely
+// was built from one.
+//
+// It matters because internal/live/check's loader substitutes an unknown for
+// an unset required variable, so under THAT loader `name = var.record_name`
+// arrives at exactly the branch this classification lives in. The rule
+// refuses to attribute anything whose expression names a variable, and this
+// is where that is pinned.
+func TestSiblingApplyIsNotReachedThroughAVariable(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-foreach-var-arg"), map[string]cty.Value{
+		"record_name": cty.UnknownVal(cty.String),
+	})
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult()})
+	if !diags.HasErrors() {
+		t.Fatal("an identity argument reading a variable with no known value resolved anyway")
+	}
+	if !hasSummary(diags, "Non-static identity argument") {
+		t.Fatalf("refused for some other reason: %s", diags.Err())
+	}
+	if result != nil {
+		for _, res := range result.All() {
+			if res.Addr.Resource.Resource.Type == "aws_route53_record" {
+				t.Errorf("%s was classified as %v with cause %s; an unknown reached through a variable must never be attributed to a managed read",
+					res.Addr, res.Class, res.Cause)
+			}
+		}
 	}
 }
 

@@ -533,7 +533,11 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1410 rendered identities across 427 configuration directories in under a
+<<<<<<< HEAD
+1419 rendered identities across 435 configuration directories in under a
+=======
+1419 rendered identities across 435 configuration directories in under a
+>>>>>>> worktree-agent-a9c1b8c34c1638e75
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
