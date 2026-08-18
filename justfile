@@ -425,6 +425,24 @@ demo-corpus-root-dns-zones:
 demo-corpus-mobile-backend:
     bash live/e2e/corpus-mobile-backend/run.sh
 
+# Issue #274's step 6, on GOV.UK's own smallest estate:
+# .corpus/govuk-infrastructure/terraform/deployments/service-linked-roles,
+# one aws_iam_service_linked_role and nothing else - no data sources, no
+# modules. IAM decides the role's name, not this configuration, so the only
+# way a second run finds the one it already owns is to enumerate the
+# account and read a marker off what comes back. variables-common.tf is the
+# same real symlink demo-corpus-mobile-backend's own comment documents,
+# shared across every govuk-infrastructure deployment, and it declares
+# seven variables this estate never reads - all seven get a tfvars value
+# because OpenTofu requires one regardless. Applied, state file deleted,
+# replanned empty twice, and the one rendered identity checked as a string
+# against IAM's own answer. BREAK=1 corrupts the expected identity and the
+# run must catch it in step 5 and nowhere else. Needs Docker, the AWS CLI
+# and a populated .corpus; runs on its own port (4707) so it can run beside
+# `just demo`.
+demo-corpus-service-linked-roles:
+    bash live/e2e/corpus-service-linked-roles/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
