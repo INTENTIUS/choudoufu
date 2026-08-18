@@ -80,19 +80,43 @@ set -uo pipefail
 # THE BLOCKER THIS SCRIPT PINS NOW, discovered only once #301 stopped
 # masking it: with all four deltas applied, apply succeeds (4 added, then 0
 # added / 2 changed once the record store settles force_detach_policies),
-# but a replan is NOT empty. floci does not merge the provider-level
-# `default_tags` block into `aws_iam_role.this` or
-# `aws_iam_openid_connect_provider.this` at create time, though it reports
-# them present on a subsequent read - so every replan proposes adding the
-# four `var.tags` keys (managed-by, group, subproject, githubRepo) back.
-# The choudoufu-written marker tags (tofu-estate, tofu-address, tofu-slot)
-# round-trip perfectly in the same diff, which is what pins this as a
-# floci/default_tags gap and not a marker-writing defect: the ONLY thing
-# missing is exactly the set of tags the PROVIDER's own default_tags merge
-# is responsible for, never touched by anything in internal/live. This is
-# a genuinely different, orthogonal blocker from #301 and needs its own
-# issue rather than a fix folded into this one - filing it is left to
-# whoever picks this script back up.
+# but a replan is NOT empty - it proposes adding the four `var.tags` keys
+# (managed-by, group, subproject, githubRepo) back on both the role and the
+# OIDC provider. The choudoufu-written marker tags (tofu-estate,
+# tofu-address, tofu-slot) round-trip perfectly in the same diff, which is
+# what pins this as a tags gap and not a marker-writing defect.
+#
+# ISSUE #287 ITEM 8 ORIGINALLY BLAMED THIS ON floci, ON THE THEORY THAT
+# CreateRole/CreateOpenIDConnectProvider never merge the provider's
+# `default_tags` block in at create time. THAT DIAGNOSIS IS WRONG, verified
+# directly against floci's own storage rather than inferred from the plan
+# output: a floci build instrumented to log every CreateRole,
+# CreateOpenIDConnectProvider, GetRole and GetOpenIDConnectProvider call
+# showed the create requests arriving from the provider with all six tags
+# already merged (four var.tags keys plus the two markers - default_tags
+# merging is the AWS PROVIDER's own client-side job, done before the
+# request ever reaches floci), floci storing all six, and every single
+# GetRole/GetOpenIDConnectProvider call throughout the entire run -
+# including the exact calls backing the plan that shows the spurious diff -
+# reporting all six back correctly. No TagRole/UntagRole/
+# TagOpenIDConnectProvider/UntagOpenIDConnectProvider call ever fires, so
+# nothing after create touches the stored tags either. The gap also isn't
+# the second apply or the record store: a plan run immediately after the
+# FIRST apply (before the record store ever settles force_detach_policies)
+# already shows the same 2-change diff. A hand-built plain-terraform
+# repro with the identical shape (default_tags = the same map as an
+# explicit `tags` argument threaded through one level of module, the
+# module's resource written as `tags = merge(var.tags, {markers})` -
+# exactly what internal/live/stamp's rewrite produces for a bare `tags =
+# var.tags` argument it cannot append to directly) does NOT reproduce the
+# drift against the same floci build, so this isn't a plain
+# terraform-provider-aws default_tags quirk either. The defect is
+# somewhere in choudoufu's OWN plan pipeline - most likely in how the
+# "current" value it renders for a stamped resource's `tags` attribute is
+# derived - not in floci and not in the provider. See issue #287's item 8
+# thread for the full trace; the floci-side fix this item asked for would
+# have been dead code against already-correct behavior, the same shape as
+# item 4's "does not reproduce" finding on that same issue.
 #
 # This script does not edit `policy_arn` to route around the sibling
 # reference, and does not disable `default_tags` to route around the new
@@ -292,16 +316,16 @@ grep -qE 'Apply complete! Resources: 0 added, [0-9]+ changed, 0 destroyed' <<< "
   || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the second apply proposed adding or destroying something - expected only in-place changes"; }
 log "  $(grep -E 'Apply complete' <<< "$APPLY2_OUT" | head -1)"
 
-# ── 5. the pinned blocker: floci does not merge default_tags into these ────
-#      two IAM resource types at create time ────────────────────────────────
-log "=== 5. replan: the pinned default_tags gap, and nothing else ==="
+# ── 5. the pinned blocker: choudoufu's own plan renders a spurious tags ────
+#      diff on these two IAM resource types after a clean create ──────────
+log "=== 5. replan: the pinned tags-diff gap, and nothing else ==="
 PLAN_OUT="$(plan_into 2>&1)"
 [ ! -f "$EST/terraform.tfstate" ] || fail "the plan wrote a state file"
 
 CHANGES="$(grep -cE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT")"
 [ "$CHANGES" = "2" ] || {
   grep -E '^  # .+ will be' <<< "$PLAN_OUT"
-  fail "the plan proposes $CHANGES resource changes, expected exactly 2 (the OIDC provider's and the role's tags). If this is 0, the default_tags gap has been fixed upstream in floci or the provider - rewrite this script into a real crossing (state deletion, live-plan empty twice, BREAK=1 negative control) per every other script in live/e2e, and close out this pin."
+  fail "the plan proposes $CHANGES resource changes, expected exactly 2 (the OIDC provider's and the role's tags). If this is 0, the tags-diff gap has been fixed - rewrite this script into a real crossing (state deletion, live-plan empty twice, BREAK=1 negative control) per every other script in live/e2e, and close out this pin."
 }
 grep -qE '^  # module\.iam_github_oidc_provider\.aws_iam_openid_connect_provider\.this\[0\] will be updated in-place' <<< "$PLAN_OUT" \
   || fail "expected the OIDC provider's in-place update - the corpus pin may have moved"
@@ -333,12 +357,17 @@ CHANGES2="$(grep -cE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN2_O
 log "  a second replan proposes the identical 2 changes - stable, not growing"
 
 log ""
-log "=== #301 CROSSED; BLOCKED ON A SEPARATE, UNRELATED FLOCI GAP ==="
+log "=== #301 CROSSED; BLOCKED ON A SEPARATE, UNRELATED TAGS-DIFF GAP ==="
 log ""
 log "The each.value language wall (issue #301) is fixed and this estate now"
 log "applies on the first try, four resources, no discovery pass needed. What"
-log "remains is floci not merging provider-level default_tags into"
-log "aws_iam_role/aws_iam_openid_connect_provider at create time - a"
-log "different, narrower gap that deserves its own issue rather than a fix"
-log "folded into this one. The ownership markers themselves are stable"
-log "throughout, which is what distinguishes this from a choudoufu defect."
+log "remains is a spurious tags diff choudoufu's own plan renders for"
+log "aws_iam_role/aws_iam_openid_connect_provider after a clean create -"
+log "verified NOT to be floci (every CreateRole/CreateOpenIDConnectProvider/"
+log "GetRole/GetOpenIDConnectProvider call throughout the run reports the"
+log "full, correctly-merged tag set) and NOT a plain terraform-provider-aws"
+log "default_tags quirk either (a hand-built plain-terraform repro with the"
+log "identical shape does not reproduce it). A different, narrower gap in"
+log "choudoufu's own plan pipeline that deserves its own issue rather than a"
+log "fix folded into this one. The ownership markers themselves are stable"
+log "throughout, which is what distinguishes this from a marker defect."
