@@ -67,31 +67,77 @@ adds a `live` block, applies, and choudoufu manages it from then on with no
 state file anywhere, with markers on every taggable resource and derivables
 hanging off tagged parents.
 
-The nearer goal, and the one every open task now serves, is that
-`tools/estate-gen` produces **properly marked estates of varying complexity,
-all of which work** - plan exact, apply succeeds, second plan empty, markers
-on the right objects.
+The nearer goal, and the one every open task now serves, is that a small,
+popularity-weighted set of **real** OSS Terraform and OpenTofu estates - not
+synthetic fixtures - runs the full migration cleanly through five stages:
+cold deploy with no choudoufu involved, `choudoufu live-import` adoption, an
+empty replan with the rendered identities asserted by value, a genuine
+no-op apply, and a drift injected out of band that reconverges to exactly
+the object mutated and nothing else. `live/corpus-crossing-manifest.json`
+is the record of which estates clear which stage and why the rest do not,
+yet - read it for current state; nothing here restates it.
 
-### Adoption is a different question, and the corpus only measures that one
+This replaced `tools/estate-gen`'s exhaustive synthetic-cohort campaign as
+the driving instrument on 2026-08-18, on measured evidence rather than a
+preference. The highest-leverage fixes found that night - a live-import
+walker that skipped every resource inside a `module` block, a type-admission
+check that ran per declared block instead of per resolved instance, a floci
+bug that silently replaced a stamped resource's tags instead of merging them
+- were all found by crossing real, popular modules, and each one generalized
+to every other estate using the same idiom, because popular code reuses a
+small number of idioms heavily. estate-gen's own synthetic cohorts, run the
+same night against the same floci, failed almost entirely on narrow,
+non-generalizing gaps in floci's coverage of exotic AWS services nobody's
+real Terraform reaches for. Exhaustive synthetic coverage does not have the
+generalizing property; popular real code does.
+
+`tools/estate-gen` keeps a narrower, still-real job: exhaustive **static**
+coverage - does every admitted type at least render a schema-valid
+configuration - without needing Docker or floci at all. That is cheap and
+still catches real things. It is not the number that says whether the
+product works.
+
+### Sourcing a real estate
+
+Two lanes. Terraform-popular: the `examples/` directories inside the
+most-downloaded modules on the Terraform Registry, `terraform-aws-modules/*`
+first, pinned by tag and commit in `live/corpus-manifest.json` -
+popularity-weighted by construction, not by which estate happened to be lying
+around. OpenTofu-native: real, actively-maintained projects that describe
+themselves as built for OpenTofu specifically, not merely compatible with it
+- sourced by GitHub search and the Powered-by-OpenTofu and awesome-opentofu
+lists, since there is no download-count proxy at OpenTofu's current scale the
+way there is for Terraform. This lane exists for a reason narrower than "more
+samples": it is the only one that can exercise OpenTofu-only surface -
+provider `for_each`, state encryption, `.tofu`-suffixed files, OCI-sourced
+modules and providers - which no Terraform-authored estate, however popular,
+will ever reach.
+
+### Adoption is a different question, and the offline corpus only measures that one
 
 `choudoufu live-check` reads a configuration directory with no cloud
 credentials and says whether an estate could be **adopted**: taken over as it
 stands, with no markers on anything. That is the hardest thing this fork ever
-does, and every offline instrument here measures it, because every corpus
-entry is somebody else's published configuration with a backend block and no
-`live` block.
+does, and every offline instrument here measures it, because every
+`live/corpus-manifest.json` entry is somebody else's published configuration
+with a backend block and no `live` block.
 
 Adopting cold means deriving an identity for an object nobody has marked. A
-migrated estate has the marker already, so a whole family of these refusals is
-about a problem the product does not have.
+migrated estate has the marker already, so a whole family of these refusals
+is about a problem the product does not have.
 
 **Do not read an offline corpus figure as a statement about the product
-working.**
+working.** That is what the live crossing pipeline is for instead - it
+actually declares the `live` block, actually migrates, actually asserts an
+apply and a reconvergence. `live/corpus-manifest.json` (offline, adoption
+only) and `live/corpus-crossing-manifest.json` (live, the real pipeline) are
+pinned separately and answer different questions. A pass in one is not a pass
+in the other.
 
-The corpus is pinned in `live/corpus-manifest.json` and materialized by
-`tools/corpus-fetch`. Only a subset are rate-capable published deployments;
-the rest are fixtures and module examples. Establish which population a number
-is over before you use it, and count it rather than quoting a count.
+The corpus is materialized by `tools/corpus-fetch`. Only a subset are
+rate-capable published deployments; the rest are fixtures and module
+examples. Establish which population a number is over before you use it, and
+count it rather than quoting a count.
 
 ---
 
@@ -108,7 +154,7 @@ are produced by `tools/row-gen`, `tools/survey-gen`, `tools/importdocs-gen`,
 documentation and CloudFormation metadata.
 
 **A fix that names a concrete `aws_*` type in generator control flow is the
-wrong fix.** It buys one cohort and leaves the next to be hand-wired by
+wrong fix.** It buys one estate and leaves the next to be hand-wired by
 somebody who no longer knows why the first one was.
 
 The right move is to find the property the type actually has, derive the rule
@@ -119,11 +165,21 @@ extra steps, and you should say so rather than land it.
 The worked example: sibling references between resources were hand-wired per
 type pair until they were re-derived as generic `<base>_ids`/`<base>_arns`
 arguments, which deleted the hand-wiring and covered pairs nobody had
-enumerated.
+enumerated. A second one from the live-crossing campaign: a resource block
+whose `count`/`for_each` provably resolves to zero instances was refused for
+admission per-block rather than per-instance, until `blockHasNoInstances`
+read the answer off the same expansion signal identity resolution already
+trusted - one generic predicate, not a growing list of count-gated type names.
 
 Where a ruling genuinely cannot be derived it goes into a named ledger with
 its evidence and a ratchet, never into a generated file.
 `contributing/LIVE-TABLES.md` says which ledger and why.
+`live/derivation_guard_test.go` makes this mechanical rather than a rule
+someone has to remember: every place a concrete provider type name is
+hand-wired in Go carries a registered reason and an exact count
+(`TestEveryTypeLiteralSurfaceIsRegistered`), and a name assembled at runtime
+to dodge that registry is caught separately
+(`TestNoTypeNameIsAssembledFromLiterals`).
 
 ### Parity is the bar
 
@@ -142,12 +198,20 @@ silent, gets written to a real resource, and can adopt another instance's
 object or leak one.
 
 **And a wrong identity is invisible to every verdict-level check.** This was
-measured: `live/e2e/per-element` was run against floci with the canonicalising
-sort in `internal/live/identity/perelement.go` deliberately removed. The plan
-stayed empty, the second apply added nothing, and the foreign sweep came back
-clean, because the provider splits that import ID on `/` and puts the tail in
-a set, and a set has no order. Only the assertion on the rendered string
-caught it.
+measured twice, five months apart. First: `live/e2e/per-element` was run
+against floci with the canonicalising sort in
+`internal/live/identity/perelement.go` deliberately removed. The plan stayed
+empty, the second apply added nothing, and the foreign sweep came back clean,
+because the provider splits that import ID on `/` and puts the tail in a set,
+and a set has no order. Only the assertion on the rendered string caught it.
+Second, and worse: a floci bug replaced a stamped resource's tags outright on
+an incremental update instead of merging them, so `apply` silently dropped
+`tofu-address`/`tofu-estate` from the live object while the plan choudoufu
+showed, and the exit code, were both clean.
+`internal/live/lifecycle/marker_tag_merge_live_test.go`'s
+`TestMarkerSurvivesIncrementalTagUpdate` pins the second one; it is gated
+behind `TF_FLOCI_TEST`/`TF_ACC` because it needs a real emulator, not because
+it matters less.
 
 Convergence is not evidence that an identity is right. Assert the rendered
 identity itself.
@@ -164,8 +228,9 @@ a run.
 ## Why the offline corpus keeps pulling work the wrong way
 
 `tools/estate-plan` ranks blocked, unmigrated, third-party estates by fewest
-remaining blockers. It is a legitimate instrument for the adoption campaign
-and it is not an assignment for the product. Four reasons, all structural:
+remaining blockers. It is a legitimate instrument for the offline adoption
+campaign and it is not an assignment for the product. Four reasons, all
+structural:
 
 1. It can only measure the PUBLISHED form. No corpus entry declares a `live`
    block or a `record_store`, so nothing it prints describes a migrated
@@ -177,11 +242,22 @@ and it is not an assignment for the product. Four reasons, all structural:
    also keeps the code people actually write from reaching the top line.
 4. Nothing there measures whether a migrated estate APPLIES.
 
-`just onboarding-gap` narrows (1) and does not close it. It applies
-`internal/live/onboard`'s computed edit - a live sidecar declaring
-`record_store "local"`, backend or cloud block removed - and re-analyzes the
-text. The result still describes an estate where **no resource carries a
-marker**. Onboarded form is not migrated form.
+The live crossing pipeline does not share these four failure modes, and that
+is by design rather than luck: it DOES declare a `live` block and actually
+migrate; sourcing is popularity-first, not fewest-blockers-first, so the
+estate at the top of the list is the one the most people already run, not the
+one with the least left to fix; `terraform-aws-modules` examples are the
+lane's own primary source rather than excluded from it; and the whole point of
+stages four and five is measuring whether a migrated estate applies and
+reconverges. Read this section as the reason those five stages exist, not as
+an argument against sourcing from real estates at all.
+
+`just onboarding-gap` narrows (1) for the offline corpus and does not close
+it. It applies `internal/live/onboard`'s computed edit - a live sidecar
+declaring `record_store "local"`, backend or cloud block removed - and
+re-analyzes the text. The result still describes an estate where **no
+resource carries a marker**. Onboarded form is not migrated form; only an
+actual `live-import` against a running cloud does that.
 
 **Never assign by refusal class.** That was tried for a full day: 1570 sites
 cleared, the ladder unmoved. The median blocked estate carries about two
@@ -193,46 +269,45 @@ blocker, never an assignment; the `wall-class` label is retired.
 
 ## Where the work is
 
-The unit of progress is **an estate that works**, and the cheapest supply of
-those is the generator.
-
-`tools/estate-gen` already writes marker tag values into every taggable
-resource of its 32 cohorts. It does not yet emit a `live` block, a sidecar or
-a `record_store`, so not one cohort is a live configuration and the fork's own
-path never runs over them as estates. That is issue #291 and it is the head of
-the queue.
+The unit of progress is **a real, popular estate crossed clean**, and
+`live/corpus-crossing-manifest.json` is where each one's progress is
+recorded - never in this file.
 
 ### The loop
 
-1. Take the next cohort or estate from #291's list, in increasing complexity.
-2. Make it a real estate: sidecar, `record_store`, markers on every taggable
-   resource, derivables hanging off tagged parents.
-3. **Offline gate**: `go run ./tools/refusal-probe -entry <path> -v` reads
-   `blocked=false`.
-4. **The real gate: make it run.** Stand it up against floci and assert the
-   product's own claims - `live-plan` is exact, `apply` succeeds, a second
-   plan is empty, and the markers land on the right objects.
-   `live/e2e/tagging-sweep/run.sh` and `live/e2e/create-over/run.sh` are the
-   working shape; each is wired to a `just` recipe and each fails for a stated
-   reason rather than by exit code alone.
-5. When a refusal fires on a resource that carries a marker, that is #289, not
-   an analysis gap. Read it before writing a derivation.
-6. Regenerate, commit, next cohort.
-
-**Step 3 is not step 4, and the gap between them is where the worst defects
-live.** `blocked=false` means four fully-checked layers plus 2 of projection's
-27 refusals. Discovery is unchecked and 21 of its 25 refusals need a cloud.
-#266 was exactly that: every offline check passed while `live-plan` proposed
-creating a resource the estate already owned, once per run, forever.
-
-**When floci cannot serve what an estate needs, that is a floci work item and
-not a reason to skip the estate.** Fix it in the fork (`lex00/floci`), publish
-to ghcr, re-pin `live/floci-image`, and re-verify from this side rather than
-trusting the fix. #229 went through it end to end.
-
-**If a capability is genuinely beyond the emulator, the estate goes to live
-AWS.** Ask first, naming the estate and what it will create. That is real
-infrastructure and real spend, and it is not standing authorization.
+1. Pick the next estate. A module several OTHER popular modules depend on
+   (security-group, vpc) beats an isolated one, because a fix found there
+   reaches every dependent; an estate close to its own five-stage pass beats
+   a fresh one with an unexplored blocker.
+2. **Cold deploy**: plain `terraform apply` (or `tofu apply` for an
+   OpenTofu-native estate), unmodified, no `live` block, no choudoufu
+   involved - the honest proof the estate is real and buildable, and the
+   source of genuinely unmarked live infrastructure the next stage adopts.
+   Onboarding deltas (a provider pin, the emulator's connection flags) are
+   expected and asserted; a resource-shape change needs the script's own
+   header to say exactly why.
+3. **Migrate**: `choudoufu live-import -approve` against the cold state.
+4. **Test plan**: delete the state file, `choudoufu live-plan`, and assert
+   the plan is EMPTY *and* assert a representative set of rendered identity
+   strings against the AWS CLI's own answer - "a wrong marker outranks a
+   missing one," above, is why the second half is not optional.
+5. **Test apply**: apply the empty plan; assert a genuine no-op by comparing
+   the estate's tagged-object count before and after.
+6. **Drift and reconverge**: mutate one live object out of band, directly
+   against floci, replan, and assert the diff proposes fixing exactly that
+   one object and nothing else. `BREAK=1` corrupts the assertion and must
+   make the script fail, or the check was never load-bearing.
+7. When a stage refuses on a genuine choudoufu gap, fix it generically - the
+   decision matrix below still applies. Confirm the fix reaches more than the
+   one estate that found it before calling it done; if it does not, say so
+   rather than routing around the estate to make a number move.
+8. When floci cannot serve what the estate needs, that is a floci work item
+   and not a reason to skip the estate. See "Traps" for the specific ways
+   this has gone wrong.
+9. Record the real result in `live/corpus-crossing-manifest.json` yourself,
+   from the crossing's own verified output - not from a report taken at face
+   value. That file is orchestrator-maintained on purpose, so concurrent
+   crossings never fight over one JSON file's sort order.
 
 ### The decision matrix
 
@@ -241,16 +316,12 @@ it should have been is what decides the work.
 
 | Action | The identity is | The fix is | Done when |
 |---|---|---|---|
-| `ADOPTION-ONLY` | on the resource, as a marker | classify, do not refuse (#289) | the estate plans with the marker binding it |
+| `ADOPTION-ONLY` | on the resource, as a marker | classify, do not refuse | the estate plans with the marker binding it |
 | `DERIVE` | in the configuration, and the analysis does not reach it | extend the static evaluation | the value renders; assert on `ImportID`, never a boolean |
 | `ADMIT` | knowable, but the type has no table row | a generator reaches it, or a ruling says it cannot | the row emits and `-convergence` exits 0 |
 | `DEFER` | not knowable at plan time at all | read it, record it, or order around it | the estate plans without it, and the marker is right when it lands |
 | `RULE` | refused on purpose | a maintainer decision, not code | out of scope; skip the estate |
 | `PARITY` | absent for stock too | nothing | confirm stock refuses identically, then stop |
-
-`ADOPTION-ONLY` is the row that is new and the row that is largest.
-`tools/estate-plan`'s `blockerAction` does not carry it yet; #289 says which
-refusals belong in it and which do not.
 
 The distinction that decides the row: **the marker names an object, so it
 answers an identity-value refusal. It cannot answer an expansion refusal,**
@@ -261,7 +332,9 @@ means an unknown address. `count` and `for_each` stay analysis or parity work.
 
 `gh issue list -R INTENTIUS/choudoufu`. A bare `gh` in this clone resolves to
 `opentofu/opentofu`, silently. Pass `-R INTENTIUS/choudoufu` or run
-`gh repo set-default INTENTIUS/choudoufu` once.
+`gh repo set-default INTENTIUS/choudoufu` once. The same trap exists one
+level down: a bare `gh issue create` inside `~/checkouts/floci` resolves to
+`floci-io/floci` (upstream) rather than the fork; pass `-R lex00/floci`.
 
 An issue title's figure was honest when written and several populations have
 been recomputed since. Never rank off one without recomputing.
@@ -285,6 +358,15 @@ above an artifact that does not contain it. Use `--graph`.
 ```
 just ci
 ```
+
+This is the fast tier, deliberately, not a full-module test run over the
+whole module: everything under `internal/live/`, `tools/`, `live/`, `cmd/`
+and `internal/command/` is every fork-owned package, and a full-module run
+walks several hundred packages inherited from upstream OpenTofu that this
+fork's own changes never touch. Every real regression the live-crossing
+campaign has actually hit surfaced inside the fast tier's own scope. Reserve
+a full-module run for a
+periodic wider checkpoint, not for routine post-merge verification.
 
 Read the exit code from a file, never from the tail of a compound command.
 One background wrapper reported exit 0 while its log said 1, because the
@@ -314,21 +396,33 @@ from fixing.
 git worktree add ../wt/<name> -b live/<name> main
 ```
 
+Base it on **local** `main`, not `origin/main`. This clone's `origin/main` has
+gone stale by hundreds of commits at a stretch this session, and a worktree
+built from it silently loses every fix landed since - see "Traps."
+
 ---
 
 ## Measuring
 
-Two instruments, answering different questions. You usually want both, and
-you should know what neither of them can see.
+Three instruments, answering different questions. You usually want the one
+that matches the estate you are working on, and you should know what none of
+them can see.
 
-**Before either: the corpus measures the PUBLISHED form, and choudoufu is a
-thing you migrate to.** Not one entry declares a `live` block or a
-`record_store`. So a refusal that the onboarding edit clears is not a language
-wall, it is the estate not having been onboarded, which is true of all of
-them - and a refusal that a *marker* would clear is not one either, which is
-what nothing currently measures.
+**Before any of them: the offline corpus measures the PUBLISHED form, and
+choudoufu is a thing you migrate to.** Not one `live/corpus-manifest.json`
+entry declares a `live` block or a `record_store`. So a refusal that the
+onboarding edit clears is not a language wall, it is the estate not having
+been onboarded, which is true of all of them - and a refusal that a *marker*
+would clear is not one either.
 
-**`tools/refusal-probe` counts refusals.**
+**`live/corpus-crossing-manifest.json` records the live pipeline.** Per
+estate, per stage - `pass`, `fail`, or `not_run`, where `not_run` means the
+estate's own script does not yet exercise that stage, which is itself a gap
+worth closing rather than a silent pass. Update it from a script's own real,
+verified output, in an isolated worktree, never by editing it directly from
+two concurrent crossings at once.
+
+**`tools/refusal-probe` counts refusals** in the offline corpus.
 
 ```
 go run ./tools/refusal-probe -out before.json          # ~20s, no schemas
@@ -347,14 +441,14 @@ returns false when schemas are nil. Its bound is asymmetric: it over-reports
 sites and under-reports the verdict.
 
 A fresh worktree has no `.corpus`; it is gitignored. Get it with
-`just corpus-fetch`, or symlink one in. `-diff` refuses any pair whose
-difference is not the change under test.
+`just corpus-fetch`, or symlink one in - the pattern is in the comment above
+`/.corpus` in `.gitignore`. `-diff` refuses any pair whose difference is not
+the change under test.
 
 **What the probe cannot tell you today**: which resource type a refusal fired
 on, for anything in the identity layer. `check.Site.Type` is populated only by
 the type-shaped lint rules, so the cause axis reads `reference:*` or empty for
-every identity refusal. That is #290, and it is why #289 is priced in types
-rather than in sites.
+every identity refusal.
 
 **`TestIdentityGolden` pins the rendered value.**
 
@@ -366,10 +460,21 @@ env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
-This is the only instrument here that measures what a marker will say rather
-than whether something refused. Six defects shipped green because nothing did
-that. **If your change moves a line, explain it. Do not run `-update` to make
-it quiet** - `TestIdentityGoldenShapeIsPinned` will stop you anyway.
+This is the only offline instrument that measures what a marker will say
+rather than whether something refused. Six defects shipped green because
+nothing did that. **If your change moves a line, explain it. Do not run
+`-update` to make it quiet** - `TestIdentityGoldenShapeIsPinned` will stop you
+anyway.
+
+**A cohort's or a crossing's real verdict is never the test-runner's own
+checkmark.** `TestCohortAcceptance`'s per-cohort subtest reports `--- PASS`
+for behaving as recorded, which includes a cohort recorded as failing - the
+real verdict is the `<name>: pass/fail (phase ...)` line one grep away
+(`acceptance_live_test.go:77:`), and the parent test only fails when a
+previously-passing cohort regresses. A crossing script is the same shape from
+the other direction: read its own `PASS`/`FAIL` output line, never infer it
+from an exit code alone, and never trust a stage's "pass" from a script that
+has not been re-run since the fix it depends on landed.
 
 ### Two numbers, not one
 
@@ -396,8 +501,8 @@ worse by site count, explain each, and do not revert on that number alone.
 
 Layers come in three lists, not two. Lint, identity, dataread and stamp are
 fully checked. **Projection is partly checked**: 2 of its 27 refusals need no
-cloud. **Discovery is unchecked**, though 4 of its 25 are computable offline
-(#261); the other 21 are verdicts about listed cloud objects.
+cloud. **Discovery is unchecked**, though 4 of its 25 are computable offline;
+the other 21 are verdicts about listed cloud objects.
 
 So `clean` does not mean "this onboards", and it certainly does not mean "this
 applies". The corpus does not install registry modules by default, so an entry
@@ -422,7 +527,18 @@ guard is how you find out the guard is decorative.
 wired to no `just` recipe, no CI step and no README mention. Wire it, then
 break it deliberately once and watch it go red.
 
-**Regenerate, never hand-merge, a generated artifact.**
+**Regenerate, never hand-merge, a generated artifact** - with one narrow,
+verified exception. Reconciling two branches that each independently added a
+digest block to `live/floci-capabilities.json` is safe to splice at the JSON
+level (parse both, insert the one new block, re-sort) rather than re-running
+the generator against every prior digest again, provided you diff the result
+programmatically and confirm every other digest's block is byte-identical
+before committing. Doing this with a general-purpose JSON writer instead of
+the generator's own has broken the file's escaping twice: the rest of the
+file uses Go's default HTML-safe `encoding/json` escaping (`<`, `>`, `&` as
+`<`/`>`/`&`), and a writer that does not replicate that
+produces a multi-thousand-line spurious diff around every unrelated ASCII
+comparison operator already in the file.
 
 **Run a generator twice and diff, but know what that proves.** It catches
 nondeterminism. It does **not** prove the artifact is the one its inputs
@@ -451,10 +567,12 @@ first whether it can be a test.
 | `TestIdentityGoldenShapeIsPinned` | the golden's shape, so `-update` alone cannot silence a regression |
 | `TestBurndownBoundsHold` | every migrated ratchet, each computing its own number and pinning the denominator it is a fraction of |
 | `TestEveryToolHasAGitignoreEntry`, `TestNoCompiledBinaryIsTracked` | no multi-megabyte binary lands in a commit again |
-| `TestOperationalBriefIsTracked` | the brief cannot go back to being untracked local state |
+| `TestOperationalBriefIsTracked`, `TestLocalAgentStateStaysUntracked` | `.claude/agents/`, `.claude/skills/` and `.claude/scripts/` survive a fresh clone; nothing else under `.claude/` does |
 | `TestMarkerlessVetoNeverContradictsClientNaming` | the marker stays delete permission and does not become identity |
 | `TestRejectedLedgerIsDisjointFromAdmitted` | a type cannot be both admitted and vetoed |
 | `TestCauseCatalogCoversEveryCause` | a new discovery cause appears in the probe's breakdown without an edit |
+| `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name in Go carries a registered reason and count, and none is built at runtime to dodge the registry |
+| `TestMarkerSurvivesIncrementalTagUpdate` | a stamped resource's markers survive an incremental tag update through a real emulator - gated behind `TF_FLOCI_TEST`/`TF_ACC` |
 
 The bounds those ratchets used to carry as scattered constants live in
 `internal/live/harness`, one entry each, computing their number at run time
@@ -473,6 +591,42 @@ pin on something that no longer exists passes forever.
 
 Every one of these has been hit, most more than once.
 
+- **`origin/main` is not `main`.** This clone's `origin/main` goes stale by
+  hundreds of commits at a stretch, because most sessions push nothing while
+  they work. "Fetch main and base a worktree on it" has repeatedly resolved
+  to `origin/main` by mistake, silently dropping every fix landed since -
+  including, twice, a regression that had already been fixed and merged.
+  Base worktrees on local `main` explicitly: `git log --oneline -1 main` in
+  the shared checkout, not `origin/main`.
+- **The same trap exists one repository over.** `~/checkouts/floci`'s own
+  `origin/main` goes stale the same way when a fix is merged locally and not
+  pushed. Two independent fixes landed as sibling branches off the same
+  stale base more than once, each one silently regressing the other until
+  reconciled by hand.
+- **Never push floci's `origin/main` unless publishing genuinely needs it.**
+  A pushed branch triggers `ghcr-publish.yml` and republishes `:latest` at
+  whatever digest happens to be on `main` at that moment - which has dropped
+  an unrelated, already-merged fix mid-session. Build and `docker buildx
+  build --push` an explicit `ghcr.io/lex00/floci:<sha>` tag instead; it is
+  sufficient for a re-pin and does not race anything else touching that
+  branch.
+- **A capability-manifest block regenerated from a stale worktree fails
+  silently plausible-looking tests.** `tools/floci-capability-gen` gained
+  a stricter evidence methodology partway through this campaign (self-
+  expanding the service watchlist, requiring a create/list round trip
+  before a `cloudcontrol-list` row can claim `implemented`); a worktree
+  built from a commit before that landed regenerates a digest's block with
+  the old, looser methodology, and `TestFlociServiceCapability`,
+  `TestCloudControlListRowsRecordAnAnswerNotACall`,
+  `TestNoCloudControlListRowClaimsImplementedOnABareCall` and
+  `TestCloudControlListGateSkipsForAListThatCannotFindWhatExists`
+  (`internal/live/flocitest`) all fail together. This has happened twice.
+  The fix is the same as any stale-worktree problem: regenerate the one
+  digest's block again from a worktree on current local `main`.
+- **A subtest checkmark is not the verdict.** See "Measuring," above -
+  `TestCohortAcceptance` and any crossing script both report their real
+  result on their own printed line, never on the test runner's summary
+  alone.
 - **`env -u PWD` on every go command.** The checkout is reachable by two
   spellings through a symlink.
 - **Read exit codes from a file.**
@@ -490,7 +644,11 @@ Every one of these has been hit, most more than once.
 - **`just estate-plan` is not a recipe.** Only `just estate-plan-from <sweep>`
   is. Run the tool directly for a fresh plan.
 - **Two branches can merge cleanly in text and be semantically
-  incompatible.** Run the tests on the merge result, not on the branch.
+  incompatible.** Run the tests on the merge result, not on the branch. Two
+  branches that each independently extend the same constructor's parameter
+  list are worse: git resolves the conflict by position, and the wrong
+  resolution still compiles - only the tests that actually exercise the
+  newly-added parameters catch a field wired to the wrong position.
 - **Shell substitution in a `-m` commit message** will eat things like
   `${count.index}`. Use `-F` with a message file.
 
@@ -501,70 +659,47 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
-### 1. #291 - estate-gen must produce estates, not fixtures
+### 1. The wall repeated across several estates at once
 
-32 cohorts, 685 resource blocks, 522 already carrying marker tags, and not one
-cohort declaring a `live` block or a `record_store`. Adding the sidecar and
-the store turns the generator's whole output into estates the fork's own path
-can run, at a scale hand-written crossings will never reach.
+`aws_default_network_acl`, `aws_default_route_table` and
+`aws_default_security_group` are unadmitted, and terraform-aws-vpc's own
+default-object-adoption pattern - `manage_default_*`, true by default in its
+own flagship examples - means every crossing that pulls that module in,
+directly or as a dependency, hits the identical wall. It is the single most
+repeated blocker `live/corpus-crossing-manifest.json` currently records.
+Fixing it does not finish any one estate alone; it removes the same wall from
+under several at once, which is exactly the leverage this campaign exists to
+find. Read the tracker for whether it has already landed before starting it
+again.
 
-This is the head of the queue because it supplies the test bed everything else
-needs, and because "properly marked estates of varying complexity, all of
-which work" is the goal state.
+### 2. The core set
 
-### 2. #289 - the resolver ignores the marker it stamps
+A small, deliberately chosen set of estates - the plainest reference shape,
+an S3 bucket, an IAM role, a security group, a Lambda function - are the ones
+worth driving all the way to a genuine five-of-five pass before this project
+is shown to anyone outside it. `live/corpus-crossing-manifest.json` says
+which ones currently clear which stage and why the rest do not; do not trust
+a stale count copied here instead.
 
-221 taggable admitted types have their identity composed from configuration,
-and every one of them carries a marker in a migrated estate. `identity`
-consults the marker on one condition only, `entry.ServerAssigned`, so the
-other 221 are refused for a cold identity they do not need. 198 of them are
-enumerable, which is the gate; the remaining 23 must keep the refusal.
+Not every remaining blocker in that set is a bug. A `local_file` resource
+correctly refused (no cloud counterpart to reconcile against; already ruled
+on) and a residue gap on two S3 attributes whose provider `Read()` needs
+genuinely-remembered prior state a stateless discovery run cannot supply are
+both legitimate reasons to scope an estate around one resource rather than
+force it through - the same way the OpenTofu-native crossing scoped itself to
+the one host role with a real provisioning off switch. That is a documented,
+deliberate choice, not a workaround to be embarrassed about, as long as the
+script's own header says which resource and why.
 
-#290 is its measurement prerequisite and is small: identity refusals carry no
-resource type, so the change cannot be priced in sites until they do.
+### 3. Broaden the OpenTofu-native lane
 
-### 3. #274 - cross the estates that have never run
-
-Seventeen of the 28 passing estates are crossed for real - applied, state
-deleted, replanned empty twice, identities asserted from the run's own trace,
-not a live-check pass. Eleven are not, as of 17eea1f02b: one attempted and
-explicitly blocked (`corpus-ecs-taskdef`'s `analytics-worker` target can't
-stand up as authored - floci cannot answer 2 of its 12 data sources), ten
-with no crossing script at all - three named directly in #274
-(govuk-infrastructure's `security` and `elasticache`, mastino's
-`crossref-orcid-agent`), mastino's `datafile-generator` (`analytics-worker`'s
-sibling, the identical 12-data-source shape, never run), and six more among
-#274's own unnamed "fourteen more at 1-4 instances" (its full ranked list is
-not checked into the tree; a fresh `refusal-probe -schemas` sweep would name
-them - two attempts this session did not complete inside a bounded slot).
-`live/e2e/`'s non-`corpus-*`-prefixed crossings count too:
-`repeated-module` (simpleinfra/dns), `per-element` (team-members-access) and
-`lambda-residue` (check-links) are three of the seventeen, which is why a
-plain count of `corpus-*` directories undercounts. Every crossing so far has
-found something no offline instrument could see, including all three of the
-wrong-marker defects fixed on 2026-08-17.
-
-### 4. #245 - admission, which migration does not fix
-
-A type with no row is unadmitted whether or not the resource carries a marker,
-because nothing sweeps for a type the configuration cannot declare. See
-`live/HARNESS.md`'s `unreached-types` entry for the current count of AWS
-types in neither the identity table nor the veto ledger - not restated here,
-because a copy goes stale the moment a batch lands and nothing would say so
-(issue #256 item 3: this line read "669" for multiple batches after the real
-count had moved to 613).
-
-### 5. #284, then #288, then #287
-
-#284 is the `managedCovered` fallback, and without it the second pass is a net
-loss: it demotes `aws_acm_certificate_validation` from PARENT_DERIVED to
-NEEDS_DISCOVERY, and that type is untaggable, so the demotion becomes a hard
-stamp refusal.
-
-#288 is `aws_wafv2_web_acl`, which has no list operation and no Cloud Control
-fallback, and may be a class rather than a type - nobody has counted admitted
-types with neither route. #287 is what keeps #272's unique-name binding
-unverifiable against a cloud.
+One estate crossed so far, against a Terraform-popular lane that started with
+ten modules already pinned by tag and commit before crossing began. The
+OpenTofu-native lane has no equivalent ready-made list - there is no
+download-count proxy at OpenTofu's current scale - so sourcing has to stay
+active rather than exhaust a prepared queue: GitHub search for real,
+maintained projects that describe themselves as built for OpenTofu, plus the
+Powered-by-OpenTofu and awesome-opentofu lists.
 
 ### Loose ends worth an hour, not a slot
 
@@ -605,21 +740,38 @@ least once from prose alone.
   rewriting every guard.
 - **A blanket "defer every unknown" was measured and rejected.** It frees five
   rate-capable estates, all of them govuk-aws unset-variable estates that #183
-  rules must stay blocked, and moves rate-capable instances not at all: 2584
-  before, 2584 after.
+  rules must stay blocked, and moves rate-capable instances not at all.
 - **Receipts never migrate onto the record store.** A receipt's value must
   stay readable with `aws ssm get-parameter` by someone with no binary.
   `live/RECEIPTS.md` has the four guards.
+- **choudoufu's own stamp/apply seam was traced end to end and found
+  correct.** A silent marker-loss defect looked structurally like exactly the
+  risk `internal/live/stamp/doc.go` names - `apply`'s own re-plan throwing
+  away the marker-injection seam. It was traced through
+  `internal/live/stamp`, `internal/live/projection/build.go`'s
+  `configuredTagsSeed`, and `NodeApplyableResourceInstance`'s re-plan, and
+  none of them were it. The real cause was a floci bug: S3 Control's
+  `TagResource` did a full tag replace where real AWS merges. Do not re-open
+  this seam from a marker-loss symptom alone without a fresh, real
+  reproduction first - the first reproduction attempt for this exact defect
+  also failed to trigger it, because it avoided the one code path the bug
+  actually lived in.
 
 ## Session-perishable state
 
 Anything that rots faster than this file lives elsewhere on purpose.
 
 - Work items and their current figures: the tracker.
-- Refusal figures: regenerate with `just corpus`, or measure with
-  `refusal-probe` against the tree you are on.
+- Which real estate clears which stage and why the rest do not:
+  `live/corpus-crossing-manifest.json`.
+- Refusal figures over the offline corpus: regenerate with `just corpus`, or
+  measure with `refusal-probe` against the tree you are on.
 - Pinned floci image and provider pins: `live/floci-image` and the tests in
   `live/pins_drift_test.go` and `live/flociimage_test.go`.
+- Whether a background subagent is still working or has stalled:
+  `.claude/scripts/agent-progress.sh <task-id>...` (or `just agent-progress`)
+  reports write-age and the last few real commands without pulling a full
+  transcript into context.
 - Adversarial audits have found real defects in work that was green,
   committed and believed finished, and CI caught none of them. An extra audit
   pass buys more than an extra CI run. Treat that as a standing option.
