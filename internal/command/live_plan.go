@@ -1807,6 +1807,10 @@ func statelessResolve(ctx context.Context, config *configs.Config, provs project
 			errorCount(secondDiags), errorCount(firstDiags))
 		return first, firstDiags
 	}
+	if downgraded := downgradedToDiscovery(first, second); downgraded != "" {
+		log.Printf("[TRACE] live: the second resolution pass downgraded %s to needs-discovery; keeping the first pass", downgraded)
+		return first, firstDiags
+	}
 	return second, secondDiags
 }
 
@@ -1822,6 +1826,47 @@ func errorCount(diags tfdiags.Diagnostics) int {
 		}
 	}
 	return n
+}
+
+// downgradedToDiscovery names an instance the first pass resolved to a
+// computable identity and the second pass demoted to [identity.
+// ClassNeedsDiscovery], or "" when there is none. It is the half of the
+// ratchet that counting error diagnostics cannot see, and it is measured
+// rather than hypothetical.
+//
+// Supplying [identity.Context.ManagedResults] makes a reference to a covered
+// managed resource evaluable, so [identity.resolver.isSymbolic] stops routing
+// it down the symbolic-formula path. For an argument whose covered value is
+// UNKNOWN that trades a working formula for a discovery request. Measured on
+// simpleinfra's shared acm-certificate module against the real AWS provider
+// 6.59.0: aws_acm_certificate_validation.cert resolves
+// "PARENT_DERIVED ${aws_acm_certificate.cert.arn}" on a first pass and
+// NEEDS_DISCOVERY/SIBLING_APPLY on a second. That type is untaggable, so the
+// demotion turns into a hard stamp refusal one stage later - a refusal this
+// function's caller never sees, because internal/live/stamp runs downstream
+// of it. Counting identity's own errors would therefore have called a net
+// LOSS a net win.
+//
+// The right fix is in internal/live/identity: a covered reference whose value
+// is unknown should fall back to the symbolic path, so the formula survives.
+// Until it does, this keeps the second pass from being enabled at a cost.
+func downgradedToDiscovery(first, second *identity.Result) string {
+	if first == nil || second == nil {
+		return ""
+	}
+	was := make(map[string]identity.Class, first.Len())
+	for _, r := range first.All() {
+		was[r.Addr.String()] = r.Class
+	}
+	for _, r := range second.All() {
+		if r.Class != identity.ClassNeedsDiscovery {
+			continue
+		}
+		if prior, ok := was[r.Addr.String()]; ok && prior != identity.ClassNeedsDiscovery {
+			return r.Addr.String()
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------

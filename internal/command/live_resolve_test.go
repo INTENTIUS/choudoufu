@@ -209,6 +209,53 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) 
 	}
 }
 
+// TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance is
+// the half of the ratchet that counting error diagnostics cannot see, and it
+// is measured rather than hypothetical: simpleinfra's shared acm-certificate
+// module, against the real AWS provider 6.59.0, resolves
+// aws_acm_certificate_validation.cert as PARENT_DERIVED on a first pass and
+// NEEDS_DISCOVERY/SIBLING_APPLY on a second, because supplying managed
+// results makes the reference evaluable instead of symbolic. That type is
+// untaggable, so the demotion becomes a hard refusal in internal/live/stamp -
+// downstream of where the two passes are compared.
+//
+// So the second pass here clears one refusal and raises none, which the error
+// count calls a win, and it must still be rejected.
+func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *testing.T) {
+	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-downgrade"))
+	prov := &certPlanningProvider{known: true}
+
+	kept, keptDiags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	if prov.plans == 0 {
+		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
+	}
+
+	// The rendered identity, not the verdict. PARENT_DERIVED with the formula
+	// is the answer marker discovery can still render; NEEDS_DISCOVERY is the
+	// one that becomes a stamp refusal on an untaggable type.
+	var got string
+	for _, res := range kept.All() {
+		if res.Addr.String() == "aws_cloudwatch_log_group.app" {
+			formula := ""
+			if res.Formula != nil {
+				formula = res.Formula.String()
+			}
+			got = fmt.Sprintf("%s %q", res.Class, formula)
+		}
+	}
+	const want = `PARENT_DERIVED "${aws_acm_certificate.cert.arn}"`
+	if got != want {
+		t.Errorf("aws_cloudwatch_log_group.app resolved to %s, want %s - the second pass traded a "+
+			"renderable formula for a discovery request and was accepted anyway", got, want)
+	}
+
+	// And the first pass's own refusal is still there, which is what says the
+	// first pass was kept whole rather than merged with the second.
+	if !keptDiags.HasErrors() {
+		t.Error("the run came back clean; the first pass's for_each refusal should have been kept along with its resolution")
+	}
+}
+
 func renderDiags(diags tfdiags.Diagnostics) []string {
 	out := make([]string, 0, len(diags))
 	for _, d := range diags {
