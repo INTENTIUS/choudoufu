@@ -21,45 +21,102 @@ set -uo pipefail
 #   5. DRIFT + RECONVERGE  mutate one live object out of band, replan,
 #                     assert the diff proposes fixing exactly that object.
 #
-# WHAT THIS RUN ACTUALLY FOUND, first pass (before any fix in this branch):
-# stage 2 reported "0 of 1 resource instance(s) are eligible for stamping"
-# and "7 resource instance(s) in a non-root module were not considered
-# (root module only, v1; see issue #59)". Every real resource this module
-# creates - the IAM role, its inline log policy, the Lambda function, the
-# CloudWatch log group - lives under module.lambda_function.*, because
-# calling a published module is how essentially every real Terraform root
-# module uses one. `internal/live/liveimport/ratify.go` skipped every
+# WHAT THIS RUN ACTUALLY FOUND, first pass (before any fix, since superseded
+# below): stage 2 reported "0 of 1 resource instance(s) are eligible for
+# stamping" and "7 resource instance(s) in a non-root module were not
+# considered (root module only, v1; see issue #59)". Every real resource
+# this module creates - the IAM role, its inline log policy, the Lambda
+# function, the CloudWatch log group - lives under module.lambda_function.*,
+# because calling a published module is how essentially every real Terraform
+# root module uses one. `internal/live/liveimport/ratify.go` skipped every
 # non-root module wholesale, a restriction its own comments attributed to
 # issue #59 - which is CLOSED, and whose closing scope explicitly gave the
 # other four root-only walkers (identity, discovery, stamp, projection, mv)
-# real module traversal. `live-import` was never updated to match; this was
-# a live regression against a shipped capability, not a documented gap. See
-# the fix in internal/live/liveimport/ratify.go (this branch) - three real
-# AWS resources now stamp correctly with module-qualified tofu-address tags,
-# verified below by reading the tags directly with the AWS CLI.
+# real module traversal. `live-import` was never updated to match; that was
+# a live regression against a shipped capability, not a documented gap.
+# Fixed in internal/live/liveimport/ratify.go - three real AWS resources
+# stamp correctly with module-qualified tofu-address tags, verified below
+# by reading the tags directly with the AWS CLI.
 #
-# Fixing that uncovers a SECOND, separate, real blocker at stage 3:
-# `choudoufu live-plan` refuses the estate outright with "Resource type is
+# Fixing that uncovered a SECOND blocker at stage 3, filed as #303:
+# `choudoufu live-plan` refused the estate outright with "Resource type is
 # outside the live-markers subset" for aws_lambda_function_url.this and
 # aws_lambda_function_recursion_config.this - even though both have
 # `count = ... ? 1 : 0` with the `? 1` condition statically false in this
 # example (var.create_lambda_function_url defaults to false;
 # var.recursive_loop defaults to null, and the config never overrides
-# either), so stock OpenTofu creates zero instances of either type and
-# would never even need their schema. Type admission here runs once per
-# declared resource block, not once per resolved instance, so a provably-
-# zero-instance block still has to pass admission before ANYTHING in the
-# estate plans - a parity gap against the standing bar in HANDOFF.md
-# ("if upstream accepts a configuration we refuse, that is a defect").
-# This is NOT this branch's fix to make (see this run's own report for why:
-# it needs a general static-count-is-zero evaluator feeding the identity
-# walker, which is a materially different, larger piece of work than the
-# module-scope fix above, and nothing in this repository already has it).
+# either), so stock OpenTofu creates zero instances of either type. Type
+# admission ran once per declared resource block, not once per resolved
+# instance, so a provably-zero-instance block still had to pass admission
+# before ANYTHING in the estate planned - a parity gap against the standing
+# bar in HANDOFF.md ("if upstream accepts a configuration we refuse, that is
+# a defect"). #303 IS NOW FIXED AND MERGED (`blockHasNoInstances`,
+# internal/live/lint/admission.go): re-run against current main confirms
+# neither type is mentioned anywhere in live-plan's diagnostics any more -
+# not as an error, not as a warning.
+#
+# That fix uncovers a THIRD, different, and genuinely LAST blocker at stage
+# 3, and this one is not a bug: `local_file.archive_plan`
+# (module.lambda_function's package.tf:44, `count = var.create &&
+# var.create_package ? 1 : 0`, both true by default and neither overridden
+# in this example, so a real, non-zero instance) refuses with "Logical
+# resource is not admitted" / Rule: logical-resource. That is DELIBERATE,
+# investigated, and load-bearing product behavior, not an oversight: issues
+# #237 and #238 (both closed 2026-08-18) put `local_file` through exactly
+# this question - whether the `ClassOtherRefused` default it falls to in
+# `internal/live/lint/logical_type.go` is a gap or a verdict - and #238's own
+# closing comment states the answer explicitly: "local_file deliberately
+# left OTHER_REFUSED with a documented reason: neither of lint's two classes
+# fits it correctly (its identity is argument-derived, not record-backed,
+# and promoting it would silently reopen a count.index collision hazard a
+# dedicated test already guards) - a genuine third-classification gap, not
+# an omission, correctly left open rather than forced." A local_file's
+# identity is the filename it writes to the LOCAL DISK of whatever machine
+# ran apply - not a cloud object, nothing to tag, nothing an AWS CLI call
+# could ever read back to confirm it still exists. There genuinely is no
+# live counterpart for a stateless replan to observe or reconcile against,
+# which is exactly the condition #73's whole design premise requires a
+# record (not a live read) to stand in for - and no class in
+# logical_type.go yet covers "argument-derived identity that is still
+# safe" (local_file's own comment names that missing class by name). This
+# is real, separate product work - a fourth LogicalClass, not a one-line
+# reclassification - and is deliberately NOT this run's fix to make.
+#
+# SCOPING CONSIDERED AND REJECTED: could this estate route around local_file
+# the way live/e2e/corpus-vpc-complete/run.sh and
+# live/e2e/corpus-sumaform-aws/run.sh route around their own out-of-scope
+# resources, by picking a different module input? The module does expose
+# `create_package = false` + `local_existing_package = <a pre-built zip>`,
+# which skips package.tf's local_file/null_resource/data.external trio
+# entirely. Rejected: unlike sumaform's `provision = false` (which picks
+# between the module's own equally-real, already-published deployment
+# modes to route around an infra-emulation gap in floci, not around
+# choudoufu's own admission policy), swapping to a pre-built zip would
+# replace the actual thing "simple" demonstrates - the module's own
+# packaging pipeline, the default path essentially every real minimal
+# deployment of this module takes - with a materially different
+# bring-your-own-zip scenario this corpus entry was never meant to test.
+# That is not a low-plumbing scoping decision; it would misrepresent what
+# real users of this exact example do by default. Left as a real, reported
+# block instead.
+#
+# One piece of good news this investigation turned up: issue #275 (closed
+# 2026-08-18) built a residue mechanism specifically for arguments like
+# aws_lambda_function's own `filename`/`source_code_hash`/`publish` - pure
+# configuration inputs with no API-readable counterpart, which would
+# otherwise propose the same phantom update forever under a stateless
+# replan - gated on a configured `record_store`. This estate already
+# declares one (see step 4 below), so once local_file gets its own
+# identity class, nothing here should re-hit #275's problem on the Lambda
+# function itself; the local_file admission gap looks like the whole
+# remaining distance to a clean stage 3.
+#
 # So this script currently proves stages 1 and 2 for real and stops at
-# stage 3 with the actual product error - stages 4 and 5 are unwritten
-# because there is nothing running yet for them to exercise. Once the
-# stage-3 blocker clears, complete stage 3's identity assertions and add 4
-# and 5 following live/e2e/reference-ec2-vpc/run.sh's shape.
+# stage 3 with the actual, current product error - stages 4 and 5 remain
+# unwritten below (present as dead code, never yet executed) because there
+# is nothing running yet for them to exercise. Once local_file gets a real
+# identity class, complete stage 3's identity assertions and confirm 4 and
+# 5 actually run, following live/e2e/reference-ec2-vpc/run.sh's shape.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -271,25 +328,26 @@ rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 if [ "$PLAN_RC" -ne 0 ]; then
   log ""
-  log "STAGE 3 (test plan): BLOCKED - a real, separate product limitation, not a"
-  log "  script or floci problem. choudoufu live-plan refuses this estate before"
-  log "  proposing anything, on two resource blocks whose count is statically"
-  log "  zero in this example (aws_lambda_function_url.this and"
-  log "  aws_lambda_function_recursion_config.this both use"
-  log "  \`count = ... ? 1 : 0\` where the condition is a var with a false/null"
-  log "  default this example never overrides), because type admission here"
-  log "  runs per declared resource BLOCK, not per resolved instance. The"
-  log "  actual error:"
+  log "STAGE 3 (test plan): BLOCKED - #303's zero-count admission gap is"
+  log "  CONFIRMED FIXED (neither aws_lambda_function_url.this nor"
+  log "  aws_lambda_function_recursion_config.this appears anywhere in the"
+  log "  diagnostics below any more), but a THIRD, different, real blocker"
+  log "  remains, and it is deliberate product behavior, not a bug: see this"
+  log "  script's own header for the full investigation and why local_file's"
+  log "  refusal is correct and its scoping was rejected. The actual error:"
   log ""
-  printf '%s\n' "$PLAN_OUT" | grep -B1 -A2 "^Error:" | head -60
+  printf '%s\n' "$PLAN_OUT" | grep -B1 -A6 "^Error:" | head -60
   log ""
   log "STAGE 4 (test apply): NOT REACHED"
   log "STAGE 5 (drift and reconverge): NOT REACHED"
   log ""
   log "Stages 1 and 2 are real, verified passes - see above. Stage 3's block is"
-  log "reported, not routed around; see this run's final report for the fix"
-  log "this needs (a static-count-is-zero evaluator ahead of type admission)"
-  log "and why it is out of scope for the module-scope fix this branch makes."
+  log "reported, not routed around: local_file.archive_plan (package.tf:44,"
+  log "inside module.lambda_function) has no live counterpart to observe or"
+  log "reconcile against, and issues #237/#238 already ruled this a genuine,"
+  log "correctly-deferred third-classification gap (an argument-derived-but-"
+  log "safe LogicalClass logical_type.go does not have yet), not an omission"
+  log "to route around here."
   exit 1
 fi
 
