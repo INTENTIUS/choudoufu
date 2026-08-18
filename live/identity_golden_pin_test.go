@@ -142,7 +142,18 @@ var identityGoldenPin = map[string]int{
 	// NEEDS_DISCOVERY; the fixture's OTHER new row
 	// (module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"])
 	// is PARENT_DERIVED instead, see below.
-	"NEEDS_DISCOVERY": 614,
+	//
+	// 616, up from 614: live/e2e/estates/apigateway gained two supporting
+	// resources, aws_subnet.apigateway and aws_vpc.apigateway
+	// (tools/estate-gen's aws_lb override needed a real subnet for
+	// aws_lb.apigateway's own subnets argument - "one of `subnet_mapping,
+	// subnets` must be specified" - and a subnet needs a VPC for its own
+	// vpc_id). Both are server-assigned AWS types with no client-supplied
+	// identity, so both render NEEDS_DISCOVERY, the same class every other
+	// supporting aws_subnet/aws_vpc pair in this golden already carries
+	// (e.g. live/e2e/estates/ec2-networking's aws_subnet.ec2-networking,
+	// aws_vpc.ec2-networking).
+	"NEEDS_DISCOVERY": 616,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -225,7 +236,12 @@ var identityGoldenPin = map[string]int{
 // sweep) and module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"]
 // (PARENT_DERIVED, the bare each.value -> sibling arn formula #301 exists
 // for).
-const identityGoldenPinBodyDigest = "de6be4a7d02c659bd30535aca20be6e038b758e543fbd72c56e9dd1e39d9bafe"
+//
+// 2026-08-18: two ADDED rows, no dirs change (both land in the existing
+// live/e2e/estates/apigateway directory) - aws_subnet.apigateway and
+// aws_vpc.apigateway, both NEEDS_DISCOVERY. See identityGoldenPin's own
+// comment above.
+const identityGoldenPinBodyDigest = "f98c87622e773b616a8b9b73ac0c3dca7232adb39398d164c38d21401546d17f"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -337,8 +353,10 @@ const identityGoldenPinBodyDigest = "de6be4a7d02c659bd30535aca20be6e038b758e543f
 // (.../attach) - two directories, two instances (the sibling policy and
 // the role-policy-attachment whose bare each.value now resolves through
 // it). See identityGoldenPin's own comment above for the class breakdown.
+// 2026-08-18: instances 1470 -> 1472, dirs unchanged at 454 (both new rows
+// land in the existing live/e2e/estates/apigateway directory).
 const (
-	identityGoldenPinInstances = 1470
+	identityGoldenPinInstances = 1472
 	identityGoldenPinDirs      = 454
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as

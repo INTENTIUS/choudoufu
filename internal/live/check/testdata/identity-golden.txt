@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=454 instances=1470
+# shape: dirs=454 instances=1472
 # shape: class CONCRETE=742
-# shape: class NEEDS_DISCOVERY=614
+# shape: class NEEDS_DISCOVERY=616
 # shape: class PARENT_DERIVED=97
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=de6be4a7d02c659bd30535aca20be6e038b758e543fbd72c56e9dd1e39d9bafe
+# shape: body-sha256=f98c87622e773b616a8b9b73ac0c3dca7232adb39398d164c38d21401546d17f
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -781,6 +781,8 @@ live/e2e/estates/apigateway	aws_apigatewayv2_domain_name.app	CONCRETE	tofu-apiga
 live/e2e/estates/apigateway	aws_apigatewayv2_stage.app	PARENT_DERIVED	${aws_apigatewayv2_api.app.id}/tofu-apigateway-cohort-apigatewayv2-stage	api_id=${aws_apigatewayv2_api.app.id},name=tofu-apigateway-cohort-apigatewayv2-stage
 live/e2e/estates/apigateway	aws_apigatewayv2_vpc_link.app	NEEDS_DISCOVERY		
 live/e2e/estates/apigateway	aws_lb.apigateway	NEEDS_DISCOVERY		
+live/e2e/estates/apigateway	aws_subnet.apigateway	NEEDS_DISCOVERY		
+live/e2e/estates/apigateway	aws_vpc.apigateway	NEEDS_DISCOVERY		
 live/e2e/estates/aps	aws_prometheus_alert_manager_definition.app	PARENT_DERIVED	${aws_prometheus_workspace.app.id}	workspace_id=${aws_prometheus_workspace.app.id}
 live/e2e/estates/aps	aws_prometheus_query_logging_configuration.app	PARENT_DERIVED	${aws_prometheus_workspace.app.id}	workspace_id=${aws_prometheus_workspace.app.id}
 live/e2e/estates/aps	aws_prometheus_scraper.app	NEEDS_DISCOVERY		

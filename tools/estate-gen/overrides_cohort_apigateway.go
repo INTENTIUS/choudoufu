@@ -308,6 +308,36 @@ var typeOverridesApigateway = map[string]typeOverride{
 			mbp.Body().SetAttributeRaw("any_of", exprTokens(`["/"]`))
 		},
 	},
+	// aws_lb is never coverage in any cohort that renders it today (this
+	// one and ec2-networking both pull it in only as a supporting ARN
+	// donor), so a NeedsSupporting entry on this override itself is never
+	// read - planCohort only consults NeedsSupporting for types already in
+	// the coverage set when it runs (gen.go's planCohort, the loop right
+	// after sortedRequested). aws_api_gateway_vpc_link's own override below
+	// is what pulls in the aws_subnet sibling this Apply reads.
+	"aws_lb": {
+		Reasons: []string{
+			`neither subnets nor subnet_mapping is schema-Required (both Optional in the wire schema), so the required-only pass leaves both unset and terraform validate refuses with "one of ` + "`subnet_mapping,subnets`" + ` must be specified" - a provider-side ExactlyOneOf-shaped rule the doc page states as a NOTE ("one of either subnets or subnet_mapping is required") rather than as schema.Required; live/import-grammar.json already extracts it as an exclusive_groups entry for aws_lb ([["subnet_mapping","subnets"]]), which estate-gen does not yet consume generically (a wider fix than this one cohort's gap). aws_api_gateway_vpc_link's v1 VPC Link only accepts a Network Load Balancer as its target ("List of network load balancer arns" - api_gateway_vpc_link.html.markdown), and ec2-networking's own aws_lb feeds a network_load_balancer_arns argument too, so load_balancer_type is set to network here rather than left at the application default - which also means one subnet is sufficient (floci's ElbV2Service only enforces the two-Availability-Zone rule for type "application").`,
+		},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			body.SetAttributeRaw("load_balancer_type", exprTokens(`"network"`))
+			if subnet, ok := g.byType["aws_subnet"]; ok {
+				body.SetAttributeRaw("subnets", exprTokens(fmt.Sprintf("[%s.id]", subnet)))
+			}
+		},
+	},
+	"aws_api_gateway_vpc_link": {
+		Reasons: []string{
+			`target_arns names a real Network Load Balancer (this type's own doc example pairs it with one, subnet_mapping and all), but nothing else in this cohort renders a subnet or VPC for that load balancer to attach to - the same gap aws_lb's own override above exists to close. NeedsSupporting pulls in aws_lb, aws_subnet and aws_vpc so the referenced load balancer can actually create against floci instead of 400ing with "one of subnet_mapping,subnets must be specified"; description and target_arns are set to exactly what seedFromExample already supplied before this type carried an override (seedFromExample is suppressed for any overridden type, so this Apply keeps carrying them by hand).`,
+		},
+		NeedsSupporting: []string{"aws_lb", "aws_subnet", "aws_vpc"},
+		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
+			if lb, ok := g.byType["aws_lb"]; ok {
+				body.SetAttributeRaw("target_arns", exprTokens(fmt.Sprintf("[%s.arn]", lb)))
+			}
+			body.SetAttributeRaw("description", exprTokens(`"example description"`))
+		},
+	},
 }
 
 func init() { registerCohortOverrides(typeOverridesApigateway) }

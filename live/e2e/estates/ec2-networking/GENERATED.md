@@ -59,7 +59,7 @@ go run ./tools/estate-gen -cohort ec2-networking -types aws_customer_gateway,aws
 | `aws_vpn_connection.app` | coverage | none |
 | `aws_vpn_gateway.app` | coverage | none |
 | `aws_eip.ec2-networking` | supporting, not coverage | none |
-| `aws_lb.ec2-networking` | supporting, not coverage | none |
+| `aws_lb.ec2-networking` | supporting, not coverage | neither subnets nor subnet_mapping is schema-Required (both Optional in the wire schema), so the required-only pass leaves both unset and terraform validate refuses with "one of `subnet_mapping,subnets` must be specified" - a provider-side ExactlyOneOf-shaped rule the doc page states as a NOTE ("one of either subnets or subnet_mapping is required") rather than as schema.Required; live/import-grammar.json already extracts it as an exclusive_groups entry for aws_lb ([["subnet_mapping","subnets"]]), which estate-gen does not yet consume generically (a wider fix than this one cohort's gap). aws_api_gateway_vpc_link's v1 VPC Link only accepts a Network Load Balancer as its target ("List of network load balancer arns" - api_gateway_vpc_link.html.markdown), and ec2-networking's own aws_lb feeds a network_load_balancer_arns argument too, so load_balancer_type is set to network here rather than left at the application default - which also means one subnet is sufficient (floci's ElbV2Service only enforces the two-Availability-Zone rule for type "application"). |
 | `aws_route_table.ec2-networking` | supporting, not coverage | none |
 | `aws_security_group.ec2-networking` | supporting, not coverage | none |
 | `aws_subnet.ec2-networking` | supporting, not coverage | none |
