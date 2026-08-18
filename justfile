@@ -544,6 +544,19 @@ demo-corpus-crossref-related-agent:
 demo-reference-ec2-vpc:
     bash live/e2e/reference-ec2-vpc/run.sh
 
+# The five-stage real-estate crossing pipeline (cold deploy -> migrate ->
+# test plan -> test apply -> drift and reconverge) against
+# .corpus/s3-bucket/examples/complete, terraform-aws-modules/terraform-aws-
+# s3-bucket's flagship example: 32 instances across 5 module calls and 15
+# aws_s3_bucket_* types. Found and fixed on the way: a floci routing bug
+# (PUT /{bucket}?accelerate falling through to bucket creation, PR #53) and
+# two admission gaps (aws_s3_bucket_accelerate_configuration and
+# _request_payment_configuration, ratified from row-gen's own proposal).
+# Needs Docker, the AWS CLI, terraform on PATH, and a populated .corpus;
+# runs on its own port (4715).
+demo-corpus-s3-bucket-complete:
+    bash live/e2e/corpus-s3-bucket-complete/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
