@@ -74,6 +74,15 @@ type Scope struct {
 	PlanTimestamp time.Time
 
 	ProviderFunctions ProviderFunction
+
+	// FuncOverrides replaces named entries of the base function table (both
+	// the bare name and its core:: namespaced alias) after every other
+	// construction step, for a caller that needs to change what a specific
+	// function does in THIS scope without touching every scope in the
+	// process (internal/live/dataread's #193 length()/keys() guard is the
+	// first caller - see managedproj.go's doc). nil, the default, changes
+	// nothing.
+	FuncOverrides map[string]function.Function
 }
 
 type ProviderFunction func(context.Context, addrs.ProviderFunction, tfdiags.SourceRange) (*function.Function, tfdiags.Diagnostics)
