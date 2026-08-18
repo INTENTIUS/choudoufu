@@ -3003,6 +3003,38 @@ this is a standing property of what the stamping pass can and cannot
 inject into a shared configuration body. (`internal/live/stamp/stamp.go`,
 `SkipModuleKeyed` and `moduleKeyedResource`.)
 
+**A `count`'d module call is stamped when it has exactly one instance, and
+refused when it has more.** `count` on a module block is answered
+differently from `for_each`, and the difference is not a preference: a
+`for_each`'d call has a supported hand-written idiom, and a `count`'d call
+does not. `RuleChildModule` refuses a module call whose own arguments read
+`count.index` (see "child-module" above), so no variable can carry an
+instance's index into the child module, so no hand-written marker inside it
+can vary per instance either. Nothing but the stamping pass can produce a
+correct address there. So stamping resolves the call's `count` itself, with
+`identity.ChildModuleCountKeys` - the same evaluation identity resolution
+uses to decide the call's instances exist at all - and takes one of three
+paths. A `count` of exactly 1 is stamped with that instance's key, so the
+marker on `live/e2e/limits/child-module/counted`'s VPC reads
+`module.counted[0].aws_vpc.main`, which is the address identity resolution
+computes for it; this is also the `count = var.enabled ? 1 : 0` idiom's on
+branch. A `count` of 0 has no instances, so the module's resources are not
+walked at all and nothing is stamped or reported - the same reading
+`resolver.walkModule` gives it by recursing once per instance key. Anything
+else - a `count` above 1, or one this pass cannot evaluate - is
+`SkipModuleKeyed`, exactly as a `for_each`'d call is, and its forwarding
+address is to replace `count` with `for_each`, move the module's resources
+into the root module, or give the module an estate of its own.
+
+Before this, stamping read only a module call's `for_each` and qualified
+every resource under a `count`'d call with the UNKEYED module path. A
+`count = 1` module therefore carried `module.counted.aws_vpc.main`, an
+address discovery never looks for; a `count = 3` module put one literal
+address onto three real cloud objects, which is GitHub issue #280's defect
+by a third route. Both are wrong markers rather than missing ones.
+(`internal/live/stamp/stamp.go`, `childExpansion` and `markerBase`;
+`internal/live/stamp/modulecontext_test.go`.)
+
 **Marker discovery goes through one provider configuration per run.** An
 estate's managed resources may span several provider configurations, and the
 sweep handles that. `statelessDiscover` runs one discovery pass per

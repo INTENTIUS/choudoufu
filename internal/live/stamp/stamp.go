@@ -387,7 +387,7 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	s := &stamper{req: req, res: res}
 
 	var pending []*rewrite
-	for _, mr := range moduleResources(req.Config) {
+	for _, mr := range moduleResources(ctx, req.Config) {
 		rw, resDiags := s.resource(ctx, mr.rc, mr.mod, mr.modInst, mr.keyedAncestor)
 		diags = diags.Append(resDiags)
 		if rw != nil {
@@ -417,25 +417,49 @@ type moduleResource struct {
 	modInst addrs.ModuleInstance
 
 	// keyedAncestor is true when rc is declared inside a module call that
-	// sets for_each - directly, or through any ancestor module call - at
-	// any depth (59c, issue #59 phase 3). It is what tells [stamper.resource]
-	// to take the "cannot compute a per-instance marker" path instead of the
-	// ordinary one.
+	// expands to more than one instance, or to a number of instances this
+	// pass cannot determine - directly, or through any ancestor module call,
+	// at any depth. It is what tells [stamper.resource] to take the "cannot
+	// compute a per-instance marker" path instead of the ordinary one.
 	//
-	// modInst deliberately stays the *unkeyed* self instance
-	// ([identity.ModuleInstance]) even for such a resource, one visit per rc
-	// rather than one per instance: unlike the five walkers that read the
-	// live system, this package rewrites the configuration file's own text,
-	// and a for_each'd module's several instances share exactly one
-	// *hclsyntax.Body for their tags argument. There is no way to inject two
-	// different literal tofu-address values into one shared body - only an
-	// expression that varies per real module instance could, and building
-	// one would mean rewriting the module call block to pass a variable
-	// through from its own each.key, which is configuration surgery well
-	// beyond a tags argument and is not something this pass attempts. See
-	// [stamper.moduleKeyedResource].
+	// The reason is that this pass rewrites the configuration file's own
+	// text, and a module call's several instances share exactly one
+	// *hclsyntax.Body for a resource's tags argument. There is no way to
+	// inject two different literal tofu-address values into one shared body -
+	// only an expression that varies per real module instance could, and the
+	// two meta-arguments differ in whether the operator can even write one by
+	// hand. See [stamper.moduleKeyedResource] and [moduleExpansion].
 	keyedAncestor bool
 }
+
+// moduleExpansion is what one module call's own count or for_each means for
+// the subtree beneath it: how many instances it has, and whether the single
+// [addrs.ModuleInstance] this pass walks with can name one of them.
+//
+// The three outcomes exist because a module call's instances share one
+// configuration body, so the only question that matters here is whether
+// exactly ONE instance reads that body.
+type moduleExpansion int
+
+const (
+	// expansionSingle: the call has exactly one instance and this pass knows
+	// its key, so the resources beneath it have one determined address each
+	// and are stamped exactly as a root resource is. A static call is this,
+	// with no key at all; so is count = 1, whose one instance is [0].
+	expansionSingle moduleExpansion = iota
+
+	// expansionMany: the call has several instances, or a number this pass
+	// cannot determine, and they share one body. No literal is right for all
+	// of them: [stamper.moduleKeyedResource].
+	expansionMany
+
+	// expansionNone: the call has no instances at all (count = 0). Nothing
+	// beneath it will ever exist in the cloud, so the subtree is not walked -
+	// the same reading [identity.resolver.walkModule] gives it by recursing
+	// once per instance key and so not at all. Stamping it would file a
+	// must-stamp error over a module the operator has switched off.
+	expansionNone
+)
 
 // moduleResources walks the whole static module tree in deterministic order
 // - one module's resources, sorted by name, then its children in name order
@@ -450,15 +474,14 @@ type moduleResource struct {
 // great deal to lose - a spurious marker-conflict diagnostic, or worse, a
 // rewrite applied twice - by visiting the same *configs.Resource more than
 // once.
-func moduleResources(cfg *configs.Config) []moduleResource {
-	return moduleResourcesFrom(cfg, false)
+func moduleResources(ctx context.Context, cfg *configs.Config) []moduleResource {
+	return moduleResourcesFrom(ctx, cfg, addrs.RootModuleInstance, false)
 }
 
-func moduleResourcesFrom(cfg *configs.Config, keyedAncestor bool) []moduleResource {
+func moduleResourcesFrom(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, keyedAncestor bool) []moduleResource {
 	if cfg == nil || cfg.Module == nil {
 		return nil
 	}
-	modInst := identity.ModuleInstance(cfg)
 	mod := cfg.Module
 
 	names := make([]string, 0, len(mod.ManagedResources))
@@ -472,13 +495,69 @@ func moduleResourcesFrom(cfg *configs.Config, keyedAncestor bool) []moduleResour
 		out = append(out, moduleResource{rc: mod.ManagedResources[name], mod: mod, modInst: modInst, keyedAncestor: keyedAncestor})
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
-		childKeyed := keyedAncestor
-		if call, ok := mod.ModuleCalls[name]; ok && call != nil && call.ForEach != nil {
-			childKeyed = true
+		expansion, key := childExpansion(ctx, mod, name)
+		if expansion == expansionNone {
+			continue
 		}
-		out = append(out, moduleResourcesFrom(cfg.Children[name], childKeyed)...)
+		childKeyed := keyedAncestor || expansion == expansionMany
+		out = append(out, moduleResourcesFrom(ctx, cfg.Children[name], modInst.Child(name, key), childKeyed)...)
 	}
 	return out
+}
+
+// childExpansion reads one module call's own count or for_each and reports
+// what [moduleExpansion] it is, together with the instance key to walk with
+// when there is exactly one instance.
+//
+// count and for_each are answered asymmetrically, and the asymmetry is not a
+// preference: it is what internal/live/lint already enforces about the two.
+//
+// A for_each'd call is always [expansionMany], even when its key set has one
+// member, because the operator has a supported way to write the marker by
+// hand - thread the call's own each.key through as a variable and interpolate
+// it - and [stamper.moduleKeyedResource] trusts exactly that. Computing the
+// value here instead would start VERIFYING those hand-written markers, and an
+// interpolation this pass cannot read statically would become a hard
+// "uncheckable marker" error on an estate that works today.
+//
+// A count'd call has no such idiom: lint's RuleChildModule refuses a module
+// call whose own arguments read count.index (live/LIMITATIONS.md,
+// "child-module"), so no variable can carry an instance's index into the
+// child, so no hand-written marker inside it can vary per instance either.
+// Nothing but this pass can produce a correct address there, which is why a
+// count'd call is resolved rather than refused whenever resolving it is
+// possible: a count of exactly 1 is [expansionSingle] at key [0] - the
+// admitted shape live/e2e/limits/child-module/counted has carried since
+// issue #195, and the "count = var.enabled ? 1 : 0" idiom's on branch - a
+// count of 0 is [expansionNone], and anything else, including a count this
+// pass cannot evaluate, is [expansionMany].
+func childExpansion(ctx context.Context, mod *configs.Module, name string) (moduleExpansion, addrs.InstanceKey) {
+	call, ok := mod.ModuleCalls[name]
+	if !ok || call == nil {
+		return expansionSingle, addrs.NoKey
+	}
+	switch {
+	case call.Count != nil:
+		keys, diag := identity.ChildModuleCountKeys(ctx, mod, fmt.Sprintf("module %q", name), call.Count)
+		switch {
+		case diag != nil:
+			// Not evaluable here. Lint's RuleChildModule has already refused
+			// this configuration for the same reason; reaching it anyway must
+			// not write a literal that stands for an unknown number of
+			// instances.
+			return expansionMany, addrs.NoKey
+		case len(keys) == 0:
+			return expansionNone, addrs.NoKey
+		case len(keys) == 1:
+			return expansionSingle, keys[0]
+		default:
+			return expansionMany, addrs.NoKey
+		}
+	case call.ForEach != nil:
+		return expansionMany, addrs.NoKey
+	default:
+		return expansionSingle, addrs.NoKey
+	}
 }
 
 // stamper carries one pass's inputs and accumulates its result.
@@ -806,9 +885,10 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 }
 
 // moduleKeyedResource is [stamper.resource]'s whole handling of a taggable
-// resource declared inside a for_each'd module (directly, or through an
-// ancestor call): see [SkipModuleKeyed] and [moduleResource.keyedAncestor]
-// for why neither writing nor verifying a marker is attempted here.
+// resource declared inside a module call with more than one instance
+// (directly, or through an ancestor call): see [SkipModuleKeyed],
+// [moduleResource.keyedAncestor] and [childExpansion] for why neither writing
+// nor verifying a marker is attempted here.
 //
 // A resource that already declares a tags argument is trusted as written -
 // the operator (or a generator such as tools/estate-gen's -module-wrap
@@ -829,11 +909,14 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 	body, ok := rc.Config.(*hclsyntax.Body)
 	hasTags := ok && body.Attributes != nil && body.Attributes[tagsArgument] != nil
 	detail := fmt.Sprintf(
-		"%s is declared inside a module call that expands with for_each, so its %s and %s markers cannot be computed here: "+
+		"%s is declared inside a module call with more than one instance, so its %s and %s markers cannot be computed here: "+
 			"the module's instances share one configuration body for the resource's tags argument, and there is no single "+
-			"literal address that is right for all of them. Declare tags = { %s = ..., %s = ... } by hand, building the "+
-			"address from a variable the module call passes through from its own each.key (the ordinary way a value that "+
-			"must vary per module instance reaches a child module's resources) - see live/LIMITATIONS.md, \"child-module\".",
+			"literal address that is right for all of them. For a for_each'd call, declare tags = { %s = ..., %s = ... } by "+
+			"hand, building the address from a variable the module call passes through from its own each.key (the ordinary "+
+			"way a value that must vary per module instance reaches a child module's resources). For a count'd call there is "+
+			"no such variable to build one from - a module call whose own arguments read count.index is itself refused - so "+
+			"replace count with for_each, or move the module's resources into the root module, or give the module an estate "+
+			"of its own. See live/LIMITATIONS.md, \"child-module\".",
 		addr, TagEstate, TagAddress, TagEstate, TagAddress,
 	)
 	if hasTags {
@@ -1423,8 +1506,28 @@ func objectKeyLiteral(keyExpr hclsyntax.Expression) (string, bool) {
 // overwhelming common case: a block whose keys do not need Encode, or whose
 // keys this pass cannot read statically at all (the same narrower-evaluator
 // gap [stamper.chunkCount] already documents for continuation-tag sizing).
+// markerBase is the address every tofu-address value in this package is built
+// on: the resource block's own address, qualified by the MODULE INSTANCE path
+// it is declared under rather than by the module path.
+//
+// The distinction only shows up under a module call this pass resolved to a
+// single keyed instance ([childExpansion]'s expansionSingle for count = 1),
+// and there it is the whole point: internal/live/identity addresses that
+// resource as "module.counted[0].aws_vpc.main" (resolve.go's walkModule, one
+// recursion per instance key), and a marker spelled "module.counted.aws_vpc.
+// main" is not a marker discovery will ever match - it is a wrong marker on a
+// real object, not a missing one.
+//
+// It is deliberately NOT the address used to key [Request.NeedsDiscovery],
+// [Request.PolicyUntag], [Result.Stamped] or [Result.Skipped]: those are
+// addrs.ConfigResource, one entry per resource BLOCK, and
+// [addrs.ModuleInstance.Module] drops the keys again for them.
+func markerBase(rc *configs.Resource, modInst addrs.ModuleInstance) string {
+	return addrs.AbsResource{Module: modInst, Resource: rc.Addr()}.String()
+}
+
 func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool, hclsyntax.Expression) {
-	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
+	base := markerBase(rc, modInst)
 	rng := rc.DeclRange
 
 	switch {
@@ -1521,7 +1624,7 @@ func forEachNeedsKeyLookup(keys []string) bool {
 // issue #178 never did (see live/MARKERS.md, "for_each key migration").
 func (s *stamper) forEachLookupAddressExpr(rc *configs.Resource, modInst addrs.ModuleInstance, keys []string) (hclsyntax.Expression, string) {
 	rng := rc.DeclRange
-	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
+	base := markerBase(rc, modInst)
 	prefix := discovery.EscapeAddress(base + `["`)
 
 	// Sorted, so that two runs over one configuration produce identical
@@ -1677,7 +1780,7 @@ func templateChunkMarkers(full hclsyntax.Expression, display string, n int, rng 
 // as before continuation tags existed. That is a known, pre-existing gap
 // shared with lint's own overlong check, not a new one this package opens.
 func (s *stamper) chunkCount(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance) int {
-	base := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}.String()
+	base := markerBase(rc, modInst)
 
 	var prefix string
 	var longest int
@@ -1866,7 +1969,7 @@ func (s *stamper) slotExpr(rc *configs.Resource) (hclsyntax.Expression, string, 
 	}
 
 	rng := rc.DeclRange
-	prefix := discovery.EscapeAddress(addrs.ConfigResource{Module: s.modInst.Module(), Resource: rc.Addr()}.String() + "[")
+	prefix := discovery.EscapeAddress(markerBase(rc, s.modInst) + "[")
 
 	keys := make([]string, 0, len(s.req.Slots))
 	for key := range s.req.Slots {
