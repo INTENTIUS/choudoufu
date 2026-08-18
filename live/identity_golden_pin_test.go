@@ -85,7 +85,15 @@ var identityGoldenPin = map[string]int{
 	// nothing new about the mechanism - they are the by-product of every
 	// #271 fixture needing a certificate to point at. No pre-existing row
 	// changed class; see the digest below.
-	"NEEDS_DISCOVERY": 580,
+	// 581, up from 580 (issue #284): one ADDED row,
+	// internal/live/check/testdata/managed-result-foreach-var-key's own
+	// aws_acm_certificate.cert. That fixture is the #183 guard for an unset
+	// variable inside a for_each comprehension's KEY, and its certificate is
+	// there only so the comprehension has something to iterate; a
+	// certificate's identity is its ARN, minted at create, so
+	// NEEDS_DISCOVERY is what it has always resolved to. The route53 record
+	// beside it contributes nothing, which is the point of the fixture.
+	"NEEDS_DISCOVERY": 581,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -129,7 +137,18 @@ var identityGoldenPin = map[string]int{
 // removed". That zero is the load-bearing half: the sibling-apply
 // classification #271 added is gated on a run holding managed results, this
 // sweep supplies none, and so not one pre-existing marker moved.
-const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
+// 2026-08-17 (issue #284): ONE added row and zero modified ones.
+// TestIdentityGolden's own diff, read before this line was edited, reported
+// the single line
+// "internal/live/check/testdata/managed-result-foreach-var-key
+// aws_acm_certificate.cert NEEDS_DISCOVERY" as the whole of the change. The
+// second fixture directory this issue adds,
+// internal/live/projection/testdata/plan-aliased, contributes no row at all -
+// its provider is a stub with no admitted types - so it moves dirs and
+// nothing else. Zero modified is the load-bearing half: the second resolution
+// pass #284 builds lives in internal/command and is gated on a run holding
+// managed results, which this sweep never does.
+const identityGoldenPinBodyDigest = "8733abd68626d005932be2fcd4e5ab881c2b7ed5d1b2592571d5c08f28a08038"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -147,8 +166,14 @@ const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86
 // eight certificates and one log group. Both numbers rise by exactly what the
 // eight directories hold.
 const (
-	identityGoldenPinInstances = 1419
-	identityGoldenPinDirs      = 435
+	// 2026-08-17 (issue #284): dirs 435 -> 437 and instances 1419 -> 1420.
+	// Two new fixture directories -
+	// internal/live/check/testdata/managed-result-foreach-var-key, which
+	// contributes its certificate, and
+	// internal/live/projection/testdata/plan-aliased, which contributes
+	// nothing because its stub provider serves no admitted type.
+	identityGoldenPinInstances = 1420
+	identityGoldenPinDirs      = 437
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
