@@ -279,6 +279,64 @@ demo-corpus-cloudwatch-splunk:
 demo-corpus-iam-read-only-policy:
     bash live/e2e/corpus-iam-read-only-policy/run.sh
 
+# Issue #274's crossing, smallest-by-instance-count of a second batch:
+# .corpus/mastino/prod-eu-west/services/raw-resolution-logs, one
+# aws_s3_bucket. Needs no version override - its client-supplied bucket name
+# never calls ListBuckets, so the release #269 flags for having no list
+# resources never bites. A REAL FINDING, not hidden: the estate's deprecated
+# `acl = "private"` argument never round-trips through the provider's Read,
+# so live-plan never reaches a fully empty second plan - confirmed
+# reproducing byte-for-byte under plain, unmodified `terraform import` +
+# `terraform plan` against the same floci, with zero choudoufu code in the
+# path. Steps 5-6 assert this explicitly: the update is bounded to exactly
+# the known acl/force_destroy attributes, never a create, a destroy, or
+# anything else, and the rendered identity (the literal bucket name) is
+# checked against S3's own answer both times. BREAK=1 corrupts the expected
+# identity and the run must catch it in step 5 and nowhere else. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4700)
+# so it can run beside `just demo`.
+demo-corpus-raw-resolution-logs:
+    bash live/e2e/corpus-raw-resolution-logs/run.sh
+
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/crossref-agent,
+# four resources (a CloudWatch event rule and target driving a Lambda
+# function, with its EventBridge invoke permission) - the first Lambda-based
+# estate this campaign crosses. All four types are client-named and literal,
+# so no version override is needed even though `version = "~> 5"` resolves
+# to the release #269 flags. Needs a Lambda execution role, a VPC, two
+# subnets and a security group seeded through the AWS CLI over the estate's
+# own (untouched) data-source reads. The estate's own deprecated
+# `runtime = "nodejs14.x"` is applied as written; floci does not enforce
+# AWS's since-added rejection of new functions on that runtime. Applied,
+# state file deleted, replanned empty twice, all 4 rendered identities
+# checked against the emulator's own answer. BREAK=1 corrupts the expected
+# identity and the run must catch it in step 5 and nowhere else. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4701)
+# so it can run beside `just demo`.
+demo-corpus-crossref-agent:
+    bash live/e2e/corpus-crossref-agent/run.sh
+
+# Issue #274's crossing: .corpus/govuk-aws/terraform/projects/infra-root-dns-zones,
+# two aws_route53_zone instances (internal + external) from GDS's Terraform
+# 0.12-era module. Its provider pin - `version = "2.46.0"` as a bare
+# provider-block argument, no required_providers at all - has no darwin_arm64
+# package for this machine, so it is replaced with a real required_providers
+# block pinned to 6.59.0, the same #269-shape fix as demo-corpus-cloudwatch-splunk.
+# The estate's own `data "terraform_remote_state"` read (an S3-backed state
+# file from another team's VPC module) is kept as written; a real S3 object
+# holding a minimal, hand-written state file is seeded to answer it. Applied,
+# state file deleted, replanned with no resource change proposed twice (the
+# estate declares root outputs, so - like demo-corpus-iam-read-only-policy -
+# a permanent "Changes to Outputs" section is expected and the assertion
+# checks for the absence of a resource action header rather than for
+# "Plan:"). Both rendered identities (the real zone IDs, since
+# aws_route53_zone is ServerAssigned) checked against Route 53's own answer.
+# BREAK=1 corrupts the expected identity and the run must catch it in step 5
+# and nowhere else. Needs Docker, the AWS CLI and a populated .corpus; runs
+# on its own port (4702) so it can run beside `just demo`.
+demo-corpus-root-dns-zones:
+    bash live/e2e/corpus-root-dns-zones/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
