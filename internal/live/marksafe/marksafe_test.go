@@ -42,6 +42,9 @@ var guardedPackages = []string{
 	"markerkey",
 	"mdspan",
 	"moved",
+	// Rewrites a module's source text and touches no cty.Value at all, so
+	// it is held to zero rather than deferred: it has nothing to defer.
+	"onboard",
 	"passthrough",
 	"pins",
 	"pluginschema",

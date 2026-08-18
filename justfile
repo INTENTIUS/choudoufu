@@ -315,6 +315,33 @@ estate-plan sweep="/tmp/choudoufu-sweep.json":
 estate-plan-from sweep:
     go run ./tools/estate-plan -in {{sweep}}
 
+# How much of the wall is the estate not having been onboarded.
+#
+# Everything else here measures the ADOPTION question - can a stranger's
+# published configuration be taken over exactly as it stands - because every
+# corpus entry is somebody else's published configuration and not one of the
+# 250 declares a live block or a record_store. The primary goal is the other
+# thing: someone writes ordinary Terraform, adds a live block, applies, and
+# the fork manages it with no state file.
+#
+# This measures both forms of every entry in one sweep. internal/live/onboard
+# computes the edit - a live sidecar declaring record_store "local", and the
+# backend or cloud block removed - in memory, so nothing is written into
+# .corpus, which is shared by every worktree.
+#
+# It is offline: check.Analyze over edited text, and nothing more. An estate
+# reading "cleared by onboarding" has cleared the offline gate, not the real
+# one; live/e2e is where "applies, loses its state file, replans empty" is
+# still proved one estate at a time.
+#
+# ~3 min warm. -schemas is not optional: identity.LocatedType fails closed
+# without them, so markerless-type reads as surviving onboarding when a
+# record_store answers it.
+#
+# Both forms of every corpus entry: what onboarding clears, and what it does not.
+onboarding-gap sweep="/tmp/choudoufu-onboarded.json":
+    go run ./tools/refusal-probe -schemas -onboarded -quiet -out {{sweep}}
+
 # Fetch the third-party corpus pinned in live/corpus-manifest.json into .corpus/
 # (gitignored), and install each entry's registry modules into its own
 # .terraform/modules. Needs network; run once.
