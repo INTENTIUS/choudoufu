@@ -163,6 +163,9 @@ func (s *Session) Close(ctx context.Context) error {
 // schemas, and leaves the plugin RUNNING for the caller to use. The caller
 // must Close the returned Session.
 func AcquireSession(ctx context.Context, req Request) (*Session, error) {
+	if req.WorkDir == "" {
+		return nil, fmt.Errorf("pluginschema: Request.WorkDir must be set; a caller that has not chosen a work directory should not have this package pick one for it (the current directory is the worst available guess, since that may be the checkout itself)")
+	}
 
 	log := req.Log
 	if log == nil {
