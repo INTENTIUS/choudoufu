@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1011,
-    "compared": 997,
+    "admitted_total": 1030,
+    "compared": 1016,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 854,
-    "adopted_unchanged_pct": 85.66,
+    "adopted_unchanged": 873,
+    "adopted_unchanged_pct": 85.93,
     "genuine_mismatches": 143,
     "annotated": 143,
     "unannotated_mismatches": 0,
@@ -13,9 +13,9 @@
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 49,
-      "adopted_unchanged": 43,
-      "adopted_unchanged_pct": 87.76
+      "compared": 66,
+      "adopted_unchanged": 60,
+      "adopted_unchanged_pct": 90.91
     },
     "ACMPCA": {
       "compared": 2,
@@ -643,8 +643,8 @@
       "adopted_unchanged_pct": 100
     },
     "ObservabilityAdmin": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "OpenSearchServerless": {
@@ -808,8 +808,8 @@
       "adopted_unchanged_pct": 100
     },
     "SES": {
-      "compared": 13,
-      "adopted_unchanged": 13,
+      "compared": 14,
+      "adopted_unchanged": 14,
       "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
@@ -1555,6 +1555,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_apprunner_default_auto_scaling_configuration_version",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_apprunner_observability_configuration",
       "service": "AppRunner",
       "proposed_bucket": "server-assigned",
@@ -1775,6 +1783,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_auditmanager_account_registration",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },
@@ -3880,6 +3896,14 @@
       "annotation_reason": "tryOpaqueOverride promotes to server-assigned because the page's one documented import form is a single ARN/account-ID string that does not split against the registry's two-part primaryIdentifier ['GraphArn','MemberId'] under any known separator - the ARN itself contains colons, so no single-character split recovers it. The doc's own prose states the ID's two segments explicitly ('the ARN of the graph followed by the account ID of the member account'), both graph_arn and account_id are Required top-level arguments, and the registry's primaryIdentifier carries no read-only property. The registry and the doc's own words agree the identity is two supplied values joined by '/'; the scrape's structured IDParts/SoleIDPart attribution never fired because the ARN template's tail segments are Unattributed rather than named, not because the doc disagrees (issue #274's markerless-veto two-source exception). The ratified row takes graph_arn + '/' + account_id, matching the doc's own stated order."
     },
     {
+      "tf_type": "aws_devopsguru_event_sources_config",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_devopsguru_resource_collection",
       "service": "DevOpsGuru",
       "proposed_bucket": "server-assigned",
@@ -3896,6 +3920,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The registry reads the identity wholly read-only, but the documented import ID (AWS_CLOUD_FORMATION) is a VALUE of the type argument's enum, and the ratified row client-names by that argument. No name-token match can connect an enum value to its argument; the ratifiers read the argument's documented value list."
+    },
+    {
+      "tf_type": "aws_devopsguru_service_integration",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_directory_service_conditional_forwarder",
@@ -4251,6 +4283,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ec2_allowed_images_settings",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },
@@ -5584,6 +5624,14 @@
       "annotation_reason": "The ratified components assemble the registry ARN, decomposed into arn:aws:glue: + region + account + :registry/ + the registry_name argument. The #172 template decomposes the example fully and attributes the tail to registry_name - but only by the contextual example-usage-value signal (Example Usage sets registry_name = \"example\" and the tail is 'example'), and the standing proposal is rule-1 server-assigned (Arn wholly read-only), which the contextual tier must not overturn."
     },
     {
+      "tf_type": "aws_glue_resource_policy",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_glue_schema",
       "service": "Glue",
       "proposed_bucket": "server-assigned",
@@ -5774,6 +5822,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_iam_account_password_policy",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the fixed word \"iam-account-password-policy\" every account shares - an account singleton whose identity is a literal, not a server-minted id, whatever the CFN registry's primaryIdentifier claims",
       "matched": true,
       "annotated": false
     },
@@ -6262,6 +6318,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_iot_event_configurations",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_iot_policy",
       "service": "IoT",
       "proposed_bucket": "client-named",
@@ -6458,6 +6522,14 @@
       "service": "Cassandra",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_kinesis_account_settings",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },
@@ -7132,6 +7204,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
+    },
+    {
+      "tf_type": "aws_macie2_classification_export_configuration",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_macie2_classification_job",
@@ -7957,6 +8037,30 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_enrichment",
+      "service": "ObservabilityAdmin",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_evaluation",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_observabilityadmin_telemetry_evaluation_for_organization",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     },
@@ -9887,6 +9991,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_sagemaker_servicecatalog_portfolio_status",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_sagemaker_space",
       "service": "SageMaker",
       "proposed_bucket": "assembled",
@@ -10370,6 +10482,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_servicequotas_auto_management",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_servicequotas_service_quota",
       "service": "(no CFN model)",
       "proposed_bucket": "composite",
@@ -10423,6 +10543,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sesv2_account_vdm_attributes",
+      "service": "SES",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the fixed word \"ses-account-vdm-attributes\" every account shares - an account singleton whose identity is a literal, not a server-minted id, whatever the CFN registry's primaryIdentifier claims",
       "matched": true,
       "annotated": false
     },
@@ -10600,6 +10728,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_spot_datafeed_subscription",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the fixed word \"spot-datafeed-subscription\" every account shares - an account singleton whose identity is a literal, not a server-minted id, whatever the CFN registry's primaryIdentifier claims",
       "matched": true,
       "annotated": false
     },
@@ -12073,6 +12209,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_xray_encryption_config",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_xray_group",
       "service": "XRay",
       "proposed_bucket": "server-assigned",
@@ -12103,6 +12247,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_xray_trace_segment_destination",
+      "service": "(no CFN model)",
+      "proposed_bucket": "assembled",
+      "proposed_rule": "import-grammar precedence: the documented import ID is, in its entirety, the region the run is pointed at - a per-account, per-region singleton whose identity is the cloud context and nothing of the resource's own",
       "matched": true,
       "annotated": false
     }
