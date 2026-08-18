@@ -208,7 +208,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	"tools/estate-gen/overrides_cohort_iam_ecr.go":              {Reason: estateGenCohortReason, Data: 4, Code: 1},
 	"tools/estate-gen/overrides_cohort_identity.go":             {Reason: estateGenCohortReason, Data: 18, Code: 2},
 	"tools/estate-gen/overrides_cohort_iot.go":                  {Reason: estateGenCohortReason, Data: 4, Code: 0},
-	"tools/estate-gen/overrides_cohort_lambda.go":               {Reason: estateGenCohortReason, Data: 6, Code: 1},
+	"tools/estate-gen/overrides_cohort_lambda.go":               {Reason: estateGenCohortReason, Data: 4, Code: 0},
 	"tools/estate-gen/overrides_cohort_media.go":                {Reason: estateGenCohortReason, Data: 2, Code: 0},
 	"tools/estate-gen/overrides_cohort_messaging.go":            {Reason: estateGenCohortReason, Data: 8, Code: 4},
 	"tools/estate-gen/overrides_cohort_networking_advanced.go":  {Reason: estateGenCohortReason, Data: 30, Code: 23},
@@ -234,8 +234,16 @@ const (
 	// 424 -> 423, same day: survey-gen's opsExcluded lost
 	// aws_acm_certificate_validation when the maintainer withdrew the
 	// waiter exclusion. One literal deleted, none moved.
-	typeLiteralDataTotal = 423
-	typeLiteralCodeTotal = 125
+	// 423 -> 421 data, 125 -> 124 code, on 2026-08-18 (issue #136): deleted
+	// the orphaned aws_lambda_layer_version override
+	// (tools/estate-gen/overrides_cohort_lambda.go) - that type was
+	// retracted from admission entirely by issue #249 (identity.MarkerlessTypes),
+	// not merely unfixtured, so the override had nothing left to apply to.
+	// Two Data literals (the map key and its NeedsSupporting: []string{"aws_s3_bucket"}
+	// entry) and one Code-classed g.byType["aws_s3_bucket"] lookup inside
+	// the deleted Apply closure, all deleted, none moved.
+	typeLiteralDataTotal = 421
+	typeLiteralCodeTotal = 124
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and
