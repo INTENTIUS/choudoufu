@@ -509,8 +509,6 @@ func initCommands(
 		"internal-plugin": {},
 		"push":            {},
 		"live-mv":         {},
-		"live-plan":       {},
-		"live-import":     {},
 	}
 }
 

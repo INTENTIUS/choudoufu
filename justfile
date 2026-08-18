@@ -524,6 +524,20 @@ demo-corpus-govuk-root-dns:
 demo-corpus-crossref-related-agent:
     bash live/e2e/corpus-crossref-related-agent/run.sh
 
+# The reference project: VPC, subnet, internet gateway, security group, EC2
+# instance - the plainest "getting started" AWS shape, checked both
+# directions. GREENFIELD: write it with a live block from the start, apply,
+# every object's markers read back through the AWS CLI directly (not
+# choudoufu's own report), plan empty, plan empty again with the local
+# record_store deleted entirely. ADOPTION: the identical shapes applied
+# first with plain stock terraform (real state, zero markers, confirmed via
+# the AWS CLI), then migrated with "choudoufu live-import -approve" and
+# replanned empty. Not from a corpus - hand-written, no version pins beyond
+# the ordinary #269 gap every other estate needs. Needs Docker and the AWS
+# CLI; runs on two ports (4712, 4713) so it can run beside `just demo`.
+demo-reference-ec2-vpc:
+    bash live/e2e/reference-ec2-vpc/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
