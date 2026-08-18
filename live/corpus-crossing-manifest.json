@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 5,
-    "cold_deploy": { "pass": 4, "fail": 1, "not_run": 0 },
-    "migrate": { "pass": 3, "fail": 1, "not_run": 1 },
-    "test_plan": { "pass": 1, "fail": 3, "not_run": 1 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 4 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 5 }
+    "estates": 6,
+    "cold_deploy": { "pass": 5, "fail": 1, "not_run": 0 },
+    "migrate": { "pass": 4, "fail": 1, "not_run": 1 },
+    "test_plan": { "pass": 1, "fail": 4, "not_run": 1 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 5 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 6 }
   },
   "estates": [
     {
@@ -74,6 +74,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed 9717459fd3 (2026-08-18). Crossed by an agent whose worktree, like the original rds-complete-postgres crossing, predates the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here ('3 of 4 root-module resources stamped, 50 non-root instances not considered') because that's what the agent's own stale base observed. Given rds-complete-postgres's own re-verification confirmed cec3c4b9b1 generalizes cleanly to a different estate's module-nested resources, this row very likely also improves once re-verified against current main - flagged for the same re-verification treatment, not yet done. test_plan independently fails on unadmitted default_*/VPN-gateway types (overlapping #305's pattern), undeclared-record-store logical resources, and 7 correctly-conservative count-index refusals (element() over a list, which the checker cannot statically prove injective - not a defect). Two real, generalizing floci gaps found and fixed but NOT YET merged/published: EKS worker AMI discovery (AWS-owned AMI catalog lookup, owner 602401143452/801119661308, evaluated unconditionally by every terraform-aws-eks version) and AutoScalingGroup SuspendProcesses/ResumeProcesses (unimplemented, but the AWS provider calls SuspendProcesses unconditionally around ASG creation on default settings - blocks any aws_autoscaling_group apply, not just EKS's). Filed as lex00/floci#55, PR lex00/floci#56, pushed but not merged - the currently-pinned floci image predates both fixes."
+    },
+    {
+      "dir": "live/e2e/corpus-s3-bucket-complete",
+      "source": "terraform-aws-modules/terraform-aws-s3-bucket examples/complete (tag v5.9.1), its flagship example",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 1398574b03 (2026-08-18), 32 instances across 5 module calls. Three real fixes landed on the way: (1) two new admitted types ratified (aws_s3_bucket_accelerate_configuration, _request_payment_configuration - row-gen's own [client-named] proposal, no provider Identity Schema for either), (2) live-import's ratify.go now consults the same schema-based admission fallback internal/live/lint already used at plan time, so it can read sibling types (aws_s3_bucket_acl etc.) a plain live-plan already admitted, and (3) a floci routing bug where PUT /{bucket}?accelerate fell through to bucket creation and 409'd on every apply - fixed on the fork (lex00/floci PR #53, published digest sha256:905c9c67..., not yet merged/reconciled into the combined image). migrate genuinely passes (6 of 32 stamped: the four buckets, IAM role, KMS key; a residue-classification apply in stage 2c left all four bucket markers intact). test_plan blocked by a NEWLY-FOUND, SEVERE defect, filed as #306: choudoufu apply can silently drop a stamped resource's tofu-address/tofu-estate tags from the live object even though the plan shown is correct, for any resource whose own config declares an explicit tags argument (not an edge case - HANDOFF.md ranks a wrong/lost marker above every other defect class). Isolated, minimal repro included in the issue, ruled out floci and the already-fixed #287 item 8 default_tags collision directly. Worked around here by removing the one estate tags block that triggers it; even past that, two more sites (module.s3_bucket's canned acl and website.routing_rules) never converge because their provider Read() needs genuinely-remembered prior state a stateless discovery run can't supply - not attempted, removing acl would desync the estate's own resource count from the honestly cold-deployed original. #306 is now the highest-priority open item this pipeline has surfaced: it undermines the stage-4 no-op-apply guarantee every other crossing in this manifest depends on."
     }
   ]
 }
