@@ -435,3 +435,34 @@ func composeCloudControlIdentifier(ti identity.TypeIdentity, parts []string) (st
 	}
 	return b.String(), true
 }
+
+// importIDFromARN derives a TF import identity for ti's type from one of
+// its own ARNs: arnStr itself when the type's identity IS its ARN
+// (IdentityAttrs[0] == "arn", the same check [joinTaggedResource] made
+// inline before this was factored out), or the ARN's parsed resource-id
+// segment, composed exactly as a Cloud Control ListResources identifier
+// would be ([resolveCloudControlImportID]) - because an ARN's resource id
+// never carries Cloud Control's "|" separator, this always takes that
+// function's single-part branch.
+//
+// Shared by [joinTaggedResource] (the tag sweep's ARN-to-TF-type-and-id
+// join, issue #51) and [scanTypeMarkerFallback] (the declared-resource
+// marker-index fallback for a type with no list route at all, issue #293):
+// both already know which TF type the ARN belongs to - one from the curated
+// [arnJoinTable], the other from the tag itself - and only need this last
+// step, deriving the identifier a claimant can be built from.
+//
+// ok is false whenever the ARN cannot be parsed at all, its resource field
+// carries no id segment, or the identity table's Components could not
+// account for what Cloud Control's composer expects - never a guess.
+func importIDFromARN(ti identity.TypeIdentity, arnStr string) (importID, identityAttr string, ok bool) {
+	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
+		return arnStr, "arn", true
+	}
+	a, parsed := cloudcontrol.ParseARN(arnStr)
+	if !parsed || a.ResourceID == "" {
+		return "", "", false
+	}
+	importID, composed := resolveCloudControlImportID(ti.Type, a.ResourceID)
+	return importID, "id", composed
+}

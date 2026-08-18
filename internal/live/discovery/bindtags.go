@@ -15,6 +15,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // This file is GitHub issue #266: the tag join that keeps a run from
@@ -416,4 +418,111 @@ func markerJoinKeys(arn string) []string {
 // for every AWS naming scheme is the same resource written two ways.
 func markerJoinKey(id string) string {
 	return strings.TrimPrefix(id, "/")
+}
+
+// ---------------------------------------------------------------------------
+// The declared-resource fallback for a type with no list route at all
+// ---------------------------------------------------------------------------
+
+// scanTypeMarkerFallback is issue #293: [scanType]'s declared-resource
+// branch reaches this only when a type has no list route whatsoever - no
+// native list resource, and [cloudControlSource] found no working Cloud
+// Control enumeration either (unmapped, mapped to a type Cloud Control
+// cannot list, or mapped to one that needs scoping input this fork does not
+// supply, live/registry.json's Roster.EnumerationSource collapsing all
+// three into one "false"). Before that reaches its refusal
+// (ProblemTypeNotListable), a taggable type has one more place to look: the
+// estate's tag index this call's [markerIndex] already holds (issue #266)
+// answers "which live resources carry this estate's marker" independent of
+// whether their own type can ever be listed, because GetResources is keyed
+// by ARN and tag, not by a per-type list call.
+//
+// This is deliberately not [markerIndex.join] or [markerIndex.marksAddress]:
+// there is no listed object here to join a marker onto (that is the whole
+// problem), and the caller does not yet know which declared address, if
+// any, a given tagged resource belongs to (that is what filing decides). So
+// this walks every tagged resource whose own marker names typeName -
+// [markerObject.markerType], read once when the index was built, straight
+// off the tofu-address tag itself, needing no ARN-service table the way
+// [joinTaggedResource]'s older #51 mechanism does - and files each one
+// through [fileTaggingCandidate], the exact per-resource rules
+// [scanTypeCloudControl] and the tag sweep already apply: malformed-marker
+// checks, decl matching, orphan filing. Only the candidate source and the
+// route to an import ID change; what a candidate means once found does not.
+//
+// ok is false only when the index itself could not answer at all - no
+// Tagging client, or its one GetResources call failed - in which case the
+// caller's existing refusal is the honest answer, exactly as it was before
+// this fallback existed. ok is true whenever the index was consulted, even
+// if it found nothing of typeName for this estate: an empty answer from a
+// working index is "no live resources of this type exist yet", the same
+// fact a normal empty list result would report, and every declared
+// instance of typeName is then treated as new - propose create - rather
+// than refused.
+//
+// Never reached for the sweep: a swept type that cannot be listed already
+// gets its own soft finding (SweepGapNotListable), and conflating that with
+// this fallback would either duplicate [sweepViaTagging]'s own coverage of
+// the same estate-wide index (when TaggingSweep is set) or silently narrow
+// SweepGapNotListable's meaning (when it is not). The caller gates on
+// !sweep before calling this.
+func scanTypeMarkerFallback(ctx context.Context, req Request, decl *declared, typeName string, res *Result) (tfdiags.Diagnostics, bool) {
+	var diags tfdiags.Diagnostics
+
+	if !req.markers.available(ctx) {
+		return diags, false
+	}
+
+	ti, tableOK := identity.LookupType(typeName)
+
+	var candidates []taggedCandidate
+	for _, obj := range req.markers.objs {
+		if obj.markerType != typeName || obj.tags[TagEstate] != req.Estate {
+			continue
+		}
+		if !tableOK {
+			// Unreachable for today's population - every type this
+			// fallback is gated to run for comes from
+			// identity/table_generated.go's ServerAssigned rows (issue
+			// #293's own survey) - but a tagged resource whose type has no
+			// table row cannot have an import ID composed for it here
+			// either way, so it is skipped rather than trusted with a
+			// zero-value ti.
+			continue
+		}
+		importID, identityAttr, composed := importIDFromARN(ti, obj.arn)
+		if !composed {
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemUncomposableIdentifier,
+				TypeName: typeName,
+				LiveIDs:  liveIDs(obj.arn),
+				Detail: fmt.Sprintf(
+					"The estate's tag index found a %s (%s) carrying estate %q's ownership marker, but %s has no list route of any kind and its identity table entry could not compose a TF import identity from the ARN's resource id. See internal/live/discovery/cloudcontrol.go's importIDFromARN.",
+					typeName, obj.arn, req.Estate, typeName),
+			}))
+			continue
+		}
+		candidates = append(candidates, taggedCandidate{
+			importID:     importID,
+			identityAttr: identityAttr,
+			tags:         obj.tags,
+		})
+	}
+
+	log.Printf("[DEBUG] stateless/discovery: %s has no list route; the estate's tag index found %d resource(s) of it", typeName, len(candidates))
+
+	for _, c := range candidates {
+		diags = diags.Append(fileTaggingCandidate(req, decl, typeName, c, res))
+	}
+
+	res.Scans = append(res.Scans, TypeScan{
+		TypeName:  typeName,
+		Declared:  len(decl.types[typeName]),
+		Source:    SourceTagging,
+		Filtering: FilterServerSide,
+		Scope:     ScopeEstate,
+		Listed:    len(candidates),
+	})
+
+	return diags, true
 }

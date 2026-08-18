@@ -74,6 +74,25 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
+			// Issue #293: an ordinary role and a service-linked role share
+			// the ARN's "role" resource-type segment, and before
+			// [iamRoleEntry] existed this ARN resolved to AWS::IAM::Role
+			// unconditionally - crossing issue #293's own
+			// service-linked-roles corpus estate against floci produced
+			// exactly this: a "Malformed ownership marker" error over a
+			// live role whose tofu-address correctly named
+			// aws_iam_service_linked_role. The "aws-service-role/" prefix
+			// is IAM's own, real ARN grammar for the family
+			// (confirmed against the ARN floci itself returned for a real
+			// aws_iam_service_linked_role), not a guess.
+			name:             "iam service-linked role: aws-service-role/ prefix disambiguates from an ordinary role",
+			arn:              "arn:aws:iam::123456789012:role/aws-service-role/es.amazonaws.com/AWSServiceRoleForEs",
+			wantTypeName:     "aws_iam_service_linked_role",
+			wantIdentityAttr: "arn",
+			wantImportIsARN:  true,
+			wantOK:           true,
+		},
+		{
 			name:             "s3 bucket: bare ARN, no resource-type segment",
 			arn:              "arn:aws:s3:::my-estate-bucket",
 			wantTypeName:     "aws_s3_bucket",
