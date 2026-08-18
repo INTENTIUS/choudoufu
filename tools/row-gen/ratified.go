@@ -347,8 +347,13 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
 	}
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
+	}
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName)
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, schemaFacts))
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch)
 	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), uniqueName, grammar, survey, setOf(vetoed))
 	return rows, nil
 }

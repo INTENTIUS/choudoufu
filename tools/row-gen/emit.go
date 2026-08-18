@@ -162,8 +162,12 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
 	}
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
+	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		return err
 	}
@@ -202,18 +206,18 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
-// run, annotations.json's rulings and live/import-grammar.json's own
-// evidence, it returns the two generated files' contents by repo-relative
-// path, plus the two convergence measurements the summary line and tests
-// both want the counts of.
+// run, annotations.json's rulings, live/import-grammar.json's own evidence
+// and live/registry-schema-facts.json's, it returns the generated files'
+// contents by repo-relative path, plus the two convergence measurements the
+// summary line and tests both want the counts of.
 // ratified is the ratified corpus - tools/row-gen/ratified.json, an input no
 // generator writes. Everything below derives from it rather than from
 // [identity.DefaultTable]; see this file's own doc comment and issue #263.
-func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas, schemaFacts map[string]schemaFactEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	recordBacked, err := recordBackedRows(ratified, logical)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
@@ -221,9 +225,12 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	// Computed before the roster and handed to it: uniquename.go's rule
 	// decides which types leave the veto, and markerlessRoster must skip
 	// exactly those. See uniquename.go for the two independent texts the
-	// rescue requires.
+	// rescue requires. contentMatchRoster is the other bypass (issue #272):
+	// computed here too so the same set reaches both markerlessRoster and
+	// this file's own render below.
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName)
+	contentMatchRows := contentMatchRoster(proposals, grammar, schemaFacts)
+	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatchSet(contentMatchRows))
 	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, setOf(vetoed))
 
 	// The convergence comparison runs over the rows about to be written, not
@@ -298,6 +305,10 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", markerlessTableRel, err)
 	}
+	contentMatchSrc, err := renderContentMatchFile(contentMatchRows)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", contentMatchTableRel, err)
+	}
 
 	// GitHub issue #289's roster. Computed over the ratified rows about to
 	// ship (types, the map buildEmitFiles is already building for
@@ -317,6 +328,7 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		logicalTableRel:              logicalSrc,
 		markerlessTableRel:           markerlessSrc,
 		discoverableFallbackTableRel: discoverableFallbackSrc,
+		contentMatchTableRel:         contentMatchSrc,
 	}, identityPart, lintPart, nil
 }
 

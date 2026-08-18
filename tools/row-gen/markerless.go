@@ -94,12 +94,19 @@ const markerlessReason = "the provider mints this type's identity and the type h
 	"so every instance would need marker discovery to be found again and there is nowhere to write the marker"
 
 // markerless reports whether the one rule vetoes this type: untaggable, and
-// server-assigned by whichever source decides admission for it.
+// server-assigned by whichever source decides admission for it - unless
+// issue #272's content-match rule has already proven the type findable
+// without a marker at all.
 //
 // admittedRow is the ratified row and admitted says whether there is one;
 // classifiedServerAssigned is the classifier's own verdict and
 // docServerMinted the provider documentation's, both consulted only when
-// no row exists. taggable is live/survey-full.json's signal.
+// no row exists. taggable is live/survey-full.json's signal. contentMatch
+// is whether contentMatchRoster's two-source rule qualified this type
+// (identity.ContentMatchTypes membership) - a marker is what every OTHER
+// untaggable server-assigned type needs to be found again, and a type here
+// has a substitute for it, so the veto's whole premise ("nowhere to write
+// the marker, and nothing else identifies the object") does not hold.
 //
 // sourcesAgreeComposed is the two-sources-agreeing exception (issue #274):
 // CloudFormation's registry model and the provider's own import
@@ -120,18 +127,20 @@ const markerlessReason = "the provider mints this type's identity and the type h
 // stays silent and the ordinary veto stands, because a wrong marker
 // outranks a missing one.
 //
-// boundByName is the second exception (issue #272), and it is a different
-// claim from sourcesAgreeComposed: that one says the identity is built from
-// configuration after all, so the type was never in the veto's population;
-// this one accepts every word of the veto - the identity IS minted and there
-// IS nowhere to write a marker - and says the object is still recognisable,
-// because AWS refuses to issue its name twice. It is checked LAST, after
-// every other exception, because it is the only one that admits a type the
-// veto's own premises hold of, and it must therefore be the one whose
-// evidence is read most narrowly. uniquename.go computes it, and calls this
-// function with it false to establish the veto would otherwise fire.
-func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted, sourcesAgreeComposed, boundByName bool) bool {
-	if taggable {
+// boundByName is the third exception (issue #272's unique-name rule), and
+// it is a different claim from either of the other two: sourcesAgreeComposed
+// says the identity is built from configuration after all, so the type was
+// never in the veto's population; contentMatch says a substitute for the
+// marker already exists; this one accepts every word of the veto - the
+// identity IS minted and there IS nowhere to write a marker - and says the
+// object is still recognisable, because AWS refuses to issue its name
+// twice. It is checked LAST, after every other exception, because it is the
+// only one that admits a type the veto's own premises hold of, and it must
+// therefore be the one whose evidence is read most narrowly. uniquename.go
+// computes it, and calls this function with it false to establish the veto
+// would otherwise fire.
+func markerless(taggable, contentMatch, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted, sourcesAgreeComposed, boundByName bool) bool {
+	if taggable || contentMatch {
 		return false
 	}
 	if admitted {
@@ -202,11 +211,15 @@ func sourcesAgree(typeName string, byType map[string]proposal, importGrammar map
 // ratified is the ratified corpus, passed in rather than read out of
 // [identity.DefaultTable] here (issue #263): a type's admission is decided by
 // tools/row-gen/ratified.json, not by whatever -emit last wrote.
-// boundByName is uniqueNameRows' key set: the types issue #272's rule
-// rescues, computed once by that file and handed in rather than recomputed,
-// so the roster and the rows can never disagree about which types they are
-// talking about.
-func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow, boundByName map[string]identity.TypeIdentity) []string {
+// boundByName is uniqueNameRows' key set: the types issue #272's unique-name
+// rule rescues, computed once by that file and handed in rather than
+// recomputed, so the roster and the rows can never disagree about which
+// types they are talking about. contentMatch is contentMatchRoster's own
+// qualifying set, keyed by TF type - issue #272's other bypass. Passed in
+// rather than recomputed here for the same reason: buildEmitFiles computes
+// it once and hands the same set to this function and to the content-match
+// table's own render.
+func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow, boundByName map[string]identity.TypeIdentity, contentMatch map[string]bool) []string {
 	byType := indexByType(proposals)
 	classified, documented := serverAssignmentVerdicts(proposals, importGrammar)
 	var out []string
@@ -214,7 +227,7 @@ func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[stri
 		row, admitted := ratified[typeName]
 		agree := sourcesAgree(typeName, byType, importGrammar)
 		_, named := boundByName[typeName]
-		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName], agree, named) {
+		if markerless(entry.Signals.Taggable, contentMatch[typeName], admitted, row, classified[typeName], documented[typeName], agree, named) {
 			out = append(out, typeName)
 		}
 	}

@@ -1173,13 +1173,44 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 	ts, ok := schemas.Get(typeName)
 	if !ok {
-		// No native list resource. Before refusing, see whether Cloud
-		// Control can enumerate this type instead (issue #47): the mapped
-		// CFN type has to exist and be listable with no required input, and
-		// a caller has to have configured a Cloud Control client at all -
-		// nil Request.CloudControl is "the fallback does not apply here",
-		// not an error, so every existing caller that never heard of Cloud
-		// Control keeps today's refusal unchanged.
+		// No native list resource. Before falling to the tag-based Cloud
+		// Control leg, see whether issue #272's content-match leg applies:
+		// a type in [identity.ContentMatchTypes] carries no tags argument
+		// at all, so routing it through [scanTypeCloudControl] would only
+		// ever produce [ProblemNoTags] - every listed candidate genuinely
+		// has no Tags property to read. The same nil-CloudControl guard
+		// applies here as below: a caller that never configured one gets
+		// today's refusal unchanged.
+		//
+		// Gated on NOT already unique-name eligible: [uniqueNameIndexFor]
+		// answers the same "is a bare listed name enough to bind this
+		// instance" question content-match does, from the ratified row's
+		// own [identity.TypeIdentity.UniqueName] rather than a fresh
+		// per-instance re-evaluation, and it is the mechanism admission
+		// itself already resolved this type onto (Resolution.Cause
+		// [identity.DiscoveryUniqueName]). Content-match's own role is
+		// rescuing a type the veto would otherwise refuse outright - see
+		// [markerless]'s doc comment - not standing in for a binding a
+		// ratified row already performs. Both legs currently qualify the
+		// same handful of CloudFront/Route53 types (the two-source
+		// uniqueness proof that admits a row is the same evidence
+		// contentMatchRoster reads), so without this guard content-match
+		// would shadow scanUniqueName inside [scanTypeCloudControl] below
+		// and that function would never run for them.
+		if req.CloudControl != nil {
+			if binding, ok := identity.ContentMatchTypes[typeName]; ok {
+				if _, byName := uniqueNameIndexFor(decl, typeName); !byName {
+					return scanTypeContentMatch(ctx, req, decl, typeName, binding, res, sweep)
+				}
+			}
+		}
+		// Before refusing, see whether Cloud Control can enumerate this
+		// type instead (issue #47): the mapped CFN type has to exist and be
+		// listable with no required input, and a caller has to have
+		// configured a Cloud Control client at all - nil Request.CloudControl
+		// is "the fallback does not apply here", not an error, so every
+		// existing caller that never heard of Cloud Control keeps today's
+		// refusal unchanged.
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
 			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep)
 		}
@@ -2254,4 +2285,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
 	ProblemAmbiguousTagJoin:       "Listed resource matched more than one tagged resource",
 	ProblemUnreadableMarker:       "Unbound instance with unreadable live markers of its type",
+	ProblemAmbiguousContentMatch:  "Content match found more than one live candidate",
 }

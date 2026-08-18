@@ -128,7 +128,7 @@ func uniqueNameStageCounts(t *testing.T) (vetoed, docHalf, registryHalf, crossed
 			continue
 		}
 		agree := sourcesAgree(typeName, byType, grammar)
-		if !markerless(entry.Signals.Taggable, false, identity.TypeIdentity{}, classified[typeName], documented[typeName], agree, false) {
+		if !markerless(entry.Signals.Taggable, false, false, identity.TypeIdentity{}, classified[typeName], documented[typeName], agree, false) {
 			continue
 		}
 		vetoed = append(vetoed, typeName)

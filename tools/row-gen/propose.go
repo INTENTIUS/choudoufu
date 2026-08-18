@@ -318,7 +318,12 @@ func buildProposeReport(root string) (report, summary string, err error) {
 	if err != nil {
 		return "", "", fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
 	}
-	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar, uniqueNameRows(ratified, survey, proposals, importGrammar)))
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		return "", "", fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
+	}
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, importGrammar, schemaFacts))
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar, uniqueNameRows(ratified, survey, proposals, importGrammar), contentMatch))
 
 	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 

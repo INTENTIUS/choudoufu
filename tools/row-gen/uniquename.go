@@ -119,7 +119,7 @@ func uniqueNameRows(ratified map[string]identity.TypeIdentity, survey map[string
 		// the answer is no, this type is not refused for the reason this
 		// rule answers and has nothing to gain from it.
 		agree := sourcesAgree(typeName, byType, importGrammar)
-		if !markerless(entry.Signals.Taggable, false, identity.TypeIdentity{}, classified[typeName], documented[typeName], agree, false) {
+		if !markerless(entry.Signals.Taggable, false, false, identity.TypeIdentity{}, classified[typeName], documented[typeName], agree, false) {
 			continue
 		}
 		p, ok := byType[typeName]

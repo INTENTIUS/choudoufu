@@ -12,7 +12,9 @@
     "with_required": 1434,
     "with_enums": 840,
     "enum_members": 13183,
-    "enums_unattributed": 0
+    "enums_unattributed": 0,
+    "with_unique_name_property": 374,
+    "unique_name_property_declared_unique": 40
   },
   "types": [
     {
@@ -275,7 +277,13 @@
         "Workspace",
         "Data",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::APS::Scraper",
@@ -769,7 +777,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AccessAnalyzer::Analyzer",
@@ -1087,7 +1101,13 @@
       "required": [
         "EngineType",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AmazonMQ::ConfigurationAssociation",
@@ -1547,6 +1567,12 @@
           "apigateway:PATCH",
           "apigateway:PUT"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
       }
     },
     {
@@ -1997,7 +2023,13 @@
       },
       "required": [
         "RestApiId"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::ApiGateway::RequestValidator",
@@ -2080,6 +2112,12 @@
           "iam:PassRole",
           "s3:GetObject"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -2250,6 +2288,12 @@
           "apigateway:PUT",
           "s3:getObject"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -2356,7 +2400,13 @@
         "AuthorizerType",
         "ApiId",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ApiGatewayV2::Deployment",
@@ -2508,7 +2558,13 @@
         "ApiId",
         "Schema",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ApiGatewayV2::PortalProduct",
@@ -2703,7 +2759,13 @@
       "required": [
         "SubnetIds",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::Application",
@@ -2733,7 +2795,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::ConfigurationProfile",
@@ -2777,7 +2845,13 @@
             "BYPASS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::Deployment",
@@ -2869,7 +2943,13 @@
             "SSM_DOCUMENT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::Environment",
@@ -2913,7 +2993,13 @@
             "BYPASS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::ExperimentDefinition",
@@ -2963,7 +3049,13 @@
             "ARCHIVED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::Extension",
@@ -2994,7 +3086,13 @@
       "required": [
         "Name",
         "Actions"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppConfig::ExtensionAssociation",
@@ -3817,7 +3915,13 @@
             "PER_CONTACT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppIntegrations::DataIntegration",
@@ -3885,7 +3989,13 @@
         "Name",
         "KmsKey",
         "SourceURI"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppIntegrations::EventIntegration",
@@ -3915,7 +4025,13 @@
         "Name",
         "EventBridgeBus",
         "EventFilter"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppMesh::GatewayRoute",
@@ -4498,6 +4614,12 @@
           "appstream:UntagResource",
           "appstream:UpdateStack"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -4723,7 +4845,13 @@
             "ENABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppSync::DomainName",
@@ -4807,7 +4935,13 @@
         "ApiId",
         "DataSourceName",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppSync::GraphQLApi",
@@ -4842,7 +4976,13 @@
       "required": [
         "Name",
         "AuthenticationType"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppSync::GraphQLSchema",
@@ -4886,7 +5026,14 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Runtime",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AppSync::SourceApiAssociation",
@@ -5430,7 +5577,13 @@
             "REGEX"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Athena::CapacityReservation",
@@ -5480,7 +5633,13 @@
             "UPDATE_PENDING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Athena::DataCatalog",
@@ -5580,7 +5739,13 @@
             "FEDERATED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Athena::NamedQuery",
@@ -5601,7 +5766,13 @@
       "required": [
         "Database",
         "QueryString"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Athena::PreparedStatement",
@@ -5704,7 +5875,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AuditManager::Assessment",
@@ -5808,7 +5985,13 @@
             "Custom"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::AutoScaling::AutoScalingGroup",
@@ -8031,7 +8214,13 @@
             "FIFO"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Batch::ServiceEnvironment",
@@ -8112,7 +8301,13 @@
             "RESTRICTED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::Agent",
@@ -9055,7 +9250,13 @@
             "SUBDOMAINS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::EnforcedGuardrailConfiguration",
@@ -9261,7 +9462,13 @@
             "BEDROCK_RERANKING_MODEL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::FlowAlias",
@@ -9304,7 +9511,13 @@
             "Manual"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::FlowVersion",
@@ -9429,7 +9642,13 @@
             "BEDROCK_RERANKING_MODEL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::Guardrail",
@@ -9634,7 +9853,13 @@
             "NONE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::GuardrailVersion",
@@ -9868,7 +10093,13 @@
             "S3"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::KnowledgeBasePolicy",
@@ -9958,7 +10189,13 @@
             "CHAT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::PromptVersion",
@@ -10011,7 +10248,13 @@
             "CHAT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Bedrock::ResourcePolicy",
@@ -10134,7 +10377,13 @@
             "EXTERNAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::BrowserCustom",
@@ -10200,7 +10449,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::BrowserProfile",
@@ -10363,7 +10618,13 @@
             "gp3"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::CodeInterpreterCustom",
@@ -10422,7 +10683,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::ConfigurationBundle",
@@ -10478,7 +10745,14 @@
       "required": [
         "BundleName",
         "Components"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "CreatedBy",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::Dataset",
@@ -11731,7 +12005,13 @@
             "DELETE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::OnlineEvaluationConfig",
@@ -11931,7 +12211,13 @@
             "EXTERNAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::PaymentManager",
@@ -12008,7 +12294,13 @@
             "AWS_IAM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::Policy",
@@ -12073,7 +12365,13 @@
             "IGNORE_ALL_FINDINGS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::PolicyEngine",
@@ -12129,7 +12427,13 @@
             "DELETE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::ResourcePolicy",
@@ -12349,7 +12653,13 @@
             "DELETING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::BedrockAgentCore::WorkloadIdentity",
@@ -12380,7 +12690,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::BedrockMantle::Project",
@@ -12414,7 +12730,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Billing::BillingView",
@@ -12725,7 +13047,13 @@
             "TIERING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Braket::SpendingLimit",
@@ -13113,7 +13441,13 @@
       "required": [
         "Name",
         "Rule"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Cases::Domain",
@@ -13152,7 +13486,13 @@
             "CreationFailed"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Cases::Field",
@@ -13205,7 +13545,13 @@
             "Custom"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Cases::Layout",
@@ -13235,7 +13581,13 @@
       "required": [
         "Content",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Cases::Template",
@@ -13274,7 +13626,13 @@
             "Inactive"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Cassandra::Keyspace",
@@ -13841,7 +14199,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Chime::AppInstanceBot",
@@ -13901,7 +14265,13 @@
             "NONE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Chime::AppInstanceUser",
@@ -15841,7 +16211,13 @@
             "dualstack"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::CachePolicy",
@@ -15866,7 +16242,14 @@
       },
       "required": [
         "CachePolicyConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "CachePolicyConfig",
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::CloudFront::CloudFrontOriginAccessIdentity",
@@ -15954,7 +16337,13 @@
             "IN_PROGRESS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::ConnectionGroup",
@@ -15987,7 +16376,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::ContinuousDeploymentPolicy",
@@ -16199,7 +16594,13 @@
             "self-hosted"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::Function",
@@ -16234,7 +16635,13 @@
         "Name",
         "FunctionConfig",
         "FunctionCode"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::KeyGroup",
@@ -16259,7 +16666,14 @@
       },
       "required": [
         "KeyGroupConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "KeyGroupConfig",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::KeyValueStore",
@@ -16292,7 +16706,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::MonitoringSubscription",
@@ -16345,7 +16765,14 @@
       },
       "required": [
         "OriginAccessControlConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "OriginAccessControlConfig",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::OriginRequestPolicy",
@@ -16370,7 +16797,14 @@
       },
       "required": [
         "OriginRequestPolicyConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "OriginRequestPolicyConfig",
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::CloudFront::PublicKey",
@@ -16395,7 +16829,14 @@
       },
       "required": [
         "PublicKeyConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "PublicKeyConfig",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::RealtimeLogConfig",
@@ -16425,7 +16866,13 @@
         "EndPoints",
         "Fields",
         "SamplingRate"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::CloudFront::ResponseHeadersPolicy",
@@ -16450,7 +16897,14 @@
       },
       "required": [
         "ResponseHeadersPolicyConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "ResponseHeadersPolicyConfig",
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::CloudFront::StreamingDistribution",
@@ -16507,7 +16961,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudFront::VpcOrigin",
@@ -16563,7 +17023,14 @@
             "dualstack"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "VpcOriginEndpointConfig",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudHSM::Cluster",
@@ -16759,7 +17226,13 @@
             "DAYS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudTrail::EventDataStore",
@@ -16847,7 +17320,13 @@
             "TagContext"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudTrail::ResourcePolicy",
@@ -17033,7 +17512,13 @@
             "EXPIRED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CloudWatch::AnomalyDetector"
@@ -17220,6 +17705,12 @@
           "cloudwatch:UntagResource",
           "iam:PassRole"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -17290,7 +17781,13 @@
       },
       "required": [
         "DomainName"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CodeArtifact::PackageGroup",
@@ -17385,7 +17882,13 @@
       "required": [
         "RepositoryName",
         "DomainName"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CodeBuild::Fleet",
@@ -17752,7 +18255,13 @@
             "S3Bucket"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CodePipeline::CustomActionType",
@@ -17906,7 +18415,13 @@
             "SECRETS_MANAGER"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CodePipeline::Webhook",
@@ -17955,7 +18470,13 @@
             "UNAUTHENTICATED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::CodeStar::GitHubRepository",
@@ -19231,7 +19752,13 @@
             "Inactive"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Config::AggregationAuthorization",
@@ -19404,7 +19931,13 @@
       },
       "required": [
         "ConnectorConfiguration"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Config::DeliveryChannel",
@@ -19576,7 +20109,13 @@
             "OFFLINE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::ApprovedOrigin",
@@ -19656,7 +20195,13 @@
             "CAMPAIGN"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::ContactFlowModule",
@@ -19686,7 +20231,13 @@
         "InstanceArn",
         "Name",
         "Content"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::ContactFlowModuleAlias",
@@ -19713,7 +20264,13 @@
         "ContactFlowModuleId",
         "ContactFlowModuleVersion",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::ContactFlowModuleVersion",
@@ -19835,7 +20392,13 @@
             "VALUE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::DataTableAttribute",
@@ -20257,7 +20820,13 @@
             "YEARLY"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::Instance",
@@ -20624,7 +21193,13 @@
       "required": [
         "InstanceArn",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::Prompt",
@@ -20657,7 +21232,13 @@
       "required": [
         "InstanceArn",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::Queue",
@@ -20719,7 +21300,13 @@
             "AGENT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::QuickConnect",
@@ -20771,7 +21358,13 @@
             "FLOW"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::RoutingProfile",
@@ -20842,7 +21435,13 @@
             "EMAIL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::Rule",
@@ -20953,7 +21552,13 @@
             "EMAIL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::SecurityKey",
@@ -21082,7 +21687,13 @@
             "INACTIVE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::TestCase",
@@ -21129,7 +21740,13 @@
             "CHAT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::TrafficDistributionGroup",
@@ -21172,7 +21789,13 @@
             "UPDATE_IN_PROGRESS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::User",
@@ -21278,7 +21901,13 @@
       "required": [
         "Name",
         "InstanceArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::UserHierarchyStructure",
@@ -21329,7 +21958,13 @@
         "Template",
         "Actions",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Connect::ViewVersion",
@@ -21427,7 +22062,13 @@
             "VERDANA"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ConnectCampaigns::Campaign",
@@ -21463,7 +22104,13 @@
         "DialerConfig",
         "Name",
         "OutboundCallConfig"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ConnectCampaignsV2::Campaign",
@@ -23417,7 +24064,13 @@
             "Datetime"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataBrew::Job",
@@ -23531,7 +24184,13 @@
             "CHECK_ALL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataBrew::Project",
@@ -23578,7 +24237,13 @@
             "RANDOM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataBrew::Recipe",
@@ -23611,7 +24276,13 @@
       "required": [
         "Name",
         "Steps"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataBrew::Ruleset",
@@ -23665,7 +24336,13 @@
             "PERCENTAGE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataBrew::Schedule",
@@ -23698,7 +24375,13 @@
       "required": [
         "Name",
         "CronExpression"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataExchange::DataSet",
@@ -23752,7 +24435,13 @@
             "ENTITLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataPipeline::Pipeline",
@@ -23796,7 +24485,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataSync::Agent",
@@ -24771,7 +25466,13 @@
             "NONE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::Connection",
@@ -24843,7 +25544,13 @@
             "PROJECT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::DataSource",
@@ -24907,7 +25614,13 @@
             "EXCLUDE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::Domain",
@@ -24999,7 +25712,13 @@
             "MANUAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::DomainUnit",
@@ -25027,7 +25746,13 @@
         "DomainIdentifier",
         "Name",
         "ParentDomainUnitIdentifier"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::Environment",
@@ -25083,7 +25808,13 @@
             "INACCESSIBLE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::EnvironmentActions",
@@ -25111,7 +25842,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::EnvironmentBlueprintConfiguration",
@@ -25174,7 +25911,13 @@
         "AwsAccountId",
         "AwsAccountRegion",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::FormType",
@@ -25210,7 +25953,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::GroupProfile",
@@ -25460,7 +26209,13 @@
             "PROJECT_CONTRIBUTOR"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::ProjectMembership",
@@ -25593,7 +26348,13 @@
         "Name",
         "SubscriptionTargetConfig",
         "Type"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DataZone::UserProfile",
@@ -26416,7 +27177,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DevOpsAgent::Asset",
@@ -26618,7 +27385,13 @@
             "DELETE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::DevOpsAgent::Service",
@@ -27198,7 +27971,13 @@
         "VpcSettings",
         "Size",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::DocDB::DBCluster"
@@ -28993,7 +29772,14 @@
             "enabled"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "State",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EC2::InstanceConnectEndpoint",
@@ -34280,7 +35066,13 @@
             "scheduler"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::EKS::FargateProfile",
@@ -34497,7 +35289,13 @@
       },
       "required": [
         "SecurityConfiguration"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMR::Step",
@@ -34511,7 +35309,13 @@
         "HadoopJarStep",
         "ActionOnFailure",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMR::Studio",
@@ -34570,7 +35374,13 @@
             "OPTIONAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMR::StudioSessionMapping",
@@ -34738,7 +35548,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMRContainers::SecurityConfiguration",
@@ -34798,7 +35614,13 @@
             "EKS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMRContainers::VirtualCluster",
@@ -34828,7 +35650,13 @@
       "required": [
         "Name",
         "ContainerProvider"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EMRServerless::Application",
@@ -34933,7 +35761,13 @@
             "X86_64"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::EVS::Environment",
@@ -35677,7 +36511,14 @@
       },
       "required": [
         "ApplicationName"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Tier",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ElasticLoadBalancing::LoadBalancer",
@@ -35860,6 +36701,12 @@
           "elasticloadbalancing:SetSecurityGroups",
           "elasticloadbalancing:SetSubnets"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
       }
     },
     {
@@ -35898,6 +36745,12 @@
           "elasticloadbalancing:RegisterTargets",
           "elasticloadbalancing:RemoveTags"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -35930,6 +36783,12 @@
           "s3:GetObject",
           "s3:GetObjectVersion"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -36586,7 +37445,13 @@
             "PATCH"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Events::Archive",
@@ -36679,7 +37544,13 @@
             "PUT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Events::Endpoint",
@@ -36806,7 +37677,13 @@
             "OFF"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Events::EventBusPolicy",
@@ -36880,7 +37757,13 @@
             "ENABLED_WITH_ALL_CLOUDTRAIL_MANAGEMENT_EVENTS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Evidently::Experiment",
@@ -37466,7 +38349,13 @@
             "ONTAP"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FSx::Snapshot",
@@ -37539,7 +38428,13 @@
             "SUSPENDED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Forecast::Dataset",
@@ -37830,7 +38725,14 @@
             "USERAGENT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "EventType",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::EntityType",
@@ -37863,7 +38765,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::EventType",
@@ -37994,7 +38902,13 @@
             "USERAGENT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::Label",
@@ -38027,7 +38941,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::List",
@@ -38065,7 +38985,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::Outcome",
@@ -38098,7 +39024,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::FraudDetector::Variable",
@@ -38193,7 +39125,13 @@
             "USERAGENT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GameLift::Alias",
@@ -38233,7 +39171,13 @@
             "TERMINAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GameLift::Build",
@@ -38277,7 +39221,13 @@
             "WINDOWS_2022"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GameLift::ContainerFleet",
@@ -38607,7 +39557,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GameLift::Fleet",
@@ -38830,7 +39786,13 @@
             "MANUAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GameLift::GameServerGroup",
@@ -39002,7 +39964,13 @@
             "LOCATION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::GameLift::Location",
@@ -39085,7 +40053,13 @@
             "WITH_QUEUE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::GameLift::MatchmakingRuleSet",
@@ -39118,7 +40092,13 @@
       "required": [
         "Name",
         "RuleSetBody"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::GameLift::Script",
@@ -39153,7 +40133,13 @@
       },
       "required": [
         "StorageLocation"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GlobalAccelerator::Accelerator",
@@ -39213,7 +40199,13 @@
             "DUAL_STACK"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GlobalAccelerator::CrossAccountAttachment",
@@ -39245,7 +40237,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GlobalAccelerator::EndpointGroup",
@@ -39387,7 +40385,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::Catalog",
@@ -39505,7 +40509,13 @@
             "DATA_LOCATION_ACCESS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::Classifier",
@@ -39527,6 +40537,12 @@
           "glue:GetClassifier",
           "glue:UpdateClassifier"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -39570,7 +40586,13 @@
       "required": [
         "Role",
         "Targets"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::CustomEntityType",
@@ -39596,6 +40618,12 @@
           "glue:GetCustomEntityType",
           "glue:TagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -39655,7 +40683,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Glue::Database",
@@ -39702,7 +40736,14 @@
       "required": [
         "DatabaseInput",
         "CatalogId"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "DatabaseInput",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::DevEndpoint",
@@ -39874,7 +40915,13 @@
             "R.8X"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::MLTransform",
@@ -39923,7 +40970,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::Schema",
@@ -39982,7 +41035,13 @@
             "PROTOBUF"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::SchemaVersion",
@@ -40050,7 +41109,13 @@
       "required": [
         "EncryptionConfiguration",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::Table",
@@ -40126,7 +41191,13 @@
       "required": [
         "Type",
         "Actions"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::UsageProfile",
@@ -40158,7 +41229,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Glue::UserDefinedFunction",
@@ -40243,6 +41320,12 @@
           "glue:UntagResource",
           "glue:UpdateWorkflow"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -40393,7 +41476,13 @@
             "VERSION_UPDATE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Greengrass::ConnectorDefinition",
@@ -40880,7 +41969,13 @@
         "MinimumViableContactDurationSeconds",
         "DataflowEdges",
         "TrackingConfigArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::GuardDuty::Detector",
@@ -42018,7 +43113,13 @@
             "ADVANCED_HD"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVS::EncoderConfiguration",
@@ -42045,6 +43146,12 @@
           "ivs:TagResource",
           "ivs:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -42091,7 +43198,13 @@
             "INACTIVE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVS::PlaybackKeyPair",
@@ -42117,6 +43230,12 @@
           "ivs:TagResource",
           "ivs:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -42145,6 +43264,12 @@
           "ivs:UntagResource",
           "ivs:UpdatePlaybackRestrictionPolicy"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -42171,6 +43296,12 @@
           "ivs:TagResource",
           "ivs:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -42272,7 +43403,13 @@
             "LATEST"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVS::Stage",
@@ -42328,7 +43465,13 @@
             "LATEST"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVS::StorageConfiguration",
@@ -42367,7 +43510,13 @@
       },
       "required": [
         "S3"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVS::StreamKey",
@@ -42469,7 +43618,13 @@
             "ACTIVE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IVSChat::Room",
@@ -42506,7 +43661,13 @@
             "DENY"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IdentityStore::Group",
@@ -42619,7 +43780,13 @@
             "TEST"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::ContainerRecipe",
@@ -42700,7 +43867,13 @@
             "st1"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::DistributionConfiguration",
@@ -42758,7 +43931,13 @@
             "ECR"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::Image",
@@ -42806,7 +43985,13 @@
             "ABORT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::ImagePipeline",
@@ -42875,7 +44060,13 @@
             "ENABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::ImageRecipe",
@@ -42927,7 +44118,13 @@
             "st1"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::InfrastructureConfiguration",
@@ -42984,7 +44181,13 @@
             "host"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::LifecyclePolicy",
@@ -43065,7 +44268,13 @@
             "COUNT"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ImageBuilder::Workflow",
@@ -43118,7 +44327,13 @@
             "DISTRIBUTION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Inspector::AssessmentTarget",
@@ -43290,7 +44505,13 @@
             "GITHUB"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::InspectorV2::CodeSecurityScanConfiguration",
@@ -43363,7 +44584,13 @@
             "SCA"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::InspectorV2::Connector",
@@ -43455,7 +44682,13 @@
             "SUBSCRIPTION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::InspectorV2::Filter",
@@ -43514,7 +44747,13 @@
             "NOT_EQUALS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Interconnect::Connection",
@@ -44117,7 +45356,13 @@
             "TOPIC_FILTER"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::IoT::DomainConfiguration",
@@ -44294,7 +45539,14 @@
       },
       "required": [
         "MetricName"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "AggregationType",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoT::Job",
@@ -46766,7 +48018,13 @@
             "SnsTopic"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::IoTWireless::DeviceProfile",
@@ -46791,6 +48049,12 @@
           "iotwireless:TagResource",
           "iotwireless:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -46829,7 +48093,13 @@
         "LoRaWAN",
         "FirmwareUpdateImage",
         "FirmwareUpdateRole"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoTWireless::MulticastGroup",
@@ -46860,7 +48130,13 @@
       },
       "required": [
         "LoRaWAN"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoTWireless::NetworkAnalyzerConfiguration",
@@ -46908,7 +48184,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoTWireless::PartnerAccount",
@@ -46971,6 +48253,12 @@
           "iotwireless:TagResource",
           "iotwireless:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -47010,7 +48298,13 @@
             "UPDATE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoTWireless::WirelessDevice",
@@ -47070,7 +48364,13 @@
             "LoRaWAN"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::IoTWireless::WirelessDeviceImportTask",
@@ -47148,7 +48448,13 @@
       },
       "required": [
         "LoRaWAN"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::KMS::Alias",
@@ -47453,7 +48759,13 @@
             "ZIP"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::KafkaConnect::WorkerConfiguration",
@@ -47485,7 +48797,13 @@
       "required": [
         "Name",
         "PropertiesFileContent"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Kendra::DataSource",
@@ -47764,7 +49082,13 @@
             "JSON"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Kendra::Index",
@@ -47987,7 +49311,13 @@
             "PROVISIONED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Kinesis::StreamConsumer",
@@ -48488,7 +49818,13 @@
             "SINGLE_MASTER"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::KinesisVideo::Stream",
@@ -48528,7 +49864,13 @@
             "WARM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::LakeFormation::DataCellsFilter",
@@ -48552,7 +49894,13 @@
         "DatabaseName",
         "TableName",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::LakeFormation::DataLakeSettings"
@@ -48724,7 +50072,13 @@
         "FunctionName",
         "FunctionVersion",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lambda::CapacityProvider",
@@ -49333,7 +50687,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Lambda::NetworkConnector",
@@ -49644,7 +51004,13 @@
             "VALIDATING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lex::Bot",
@@ -50131,7 +51497,13 @@
       "required": [
         "Name",
         "Rules"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lightsail::Alarm",
@@ -50345,7 +51717,13 @@
             "RelationalDatabaseSnapshot"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lightsail::Disk",
@@ -50491,7 +51869,14 @@
         "BundleId",
         "DefaultCacheBehavior",
         "Origin"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Origin",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lightsail::Domain",
@@ -50613,7 +51998,14 @@
             "Failed"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "State",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Lightsail::InstanceSnapshot",
@@ -51250,7 +52642,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Logs::DeliverySource",
@@ -51302,7 +52700,13 @@
             "RESOURCE_DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Logs::Destination",
@@ -51667,7 +53071,13 @@
             "PPL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Logs::ResourcePolicy",
@@ -52113,7 +53523,13 @@
             "dual"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MPA::ApprovalTeam",
@@ -53052,7 +54468,13 @@
             "UNKNOWN_ERROR"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Macie::CustomDataIdentifier",
@@ -53080,7 +54502,13 @@
       "required": [
         "Name",
         "Regex"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Macie::FindingsFilter",
@@ -53119,7 +54547,13 @@
             "NOOP"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Macie::Session",
@@ -53317,7 +54751,13 @@
             "udp"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::BridgeOutput",
@@ -53352,7 +54792,13 @@
             "udp"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::BridgeSource",
@@ -53386,7 +54832,13 @@
             "udp"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::Flow",
@@ -53663,7 +55115,13 @@
             "480p"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::FlowEntitlement",
@@ -53730,7 +55188,13 @@
             "static-key"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::FlowOutput",
@@ -53852,7 +55316,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaConnect::FlowSource",
@@ -53924,7 +55394,13 @@
             "srt-caller"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::FlowVpcInterface",
@@ -53963,7 +55439,13 @@
         "RoleArn",
         "SubnetId",
         "SecurityGroupIds"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaConnect::Gateway",
@@ -54003,7 +55485,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::RouterInput",
@@ -54194,7 +55682,13 @@
             "GLOBAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::RouterNetworkInterface",
@@ -54251,7 +55745,13 @@
             "VPC"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConnect::RouterOutput",
@@ -54418,7 +55918,13 @@
             "GLOBAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConvert::JobTemplate",
@@ -54455,7 +55961,13 @@
       },
       "required": [
         "SettingsJson"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaConvert::Queue"
@@ -54504,7 +56016,13 @@
             "UNASSIGNING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::CloudWatchAlarmTemplate",
@@ -54588,7 +56106,13 @@
             "missing"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaLive::CloudWatchAlarmTemplateGroup",
@@ -54616,7 +56140,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaLive::Cluster",
@@ -54675,7 +56205,13 @@
             "EC2"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::EventBridgeRuleTemplate",
@@ -54725,7 +56261,13 @@
             "MEDIACONNECT_FLOW_STATUS_CHANGE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaLive::EventBridgeRuleTemplateGroup",
@@ -54753,7 +56295,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaLive::Input"
@@ -54807,7 +56355,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::Multiplexprogram",
@@ -54891,7 +56445,13 @@
             "DELETE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::Node",
@@ -54975,7 +56535,13 @@
             "DEREGISTERED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::SdiSource",
@@ -55035,7 +56601,13 @@
             "QUAD"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaLive::SignalMap",
@@ -55167,7 +56739,13 @@
             "NOT_READY"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::MediaPackage::Asset",
@@ -56314,7 +57892,13 @@
             "NONE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::MediaTailor::SourceLocation",
@@ -56773,7 +58357,13 @@
         "Description",
         "Family",
         "Parameters"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Neptune::DBInstance",
@@ -56876,7 +58466,13 @@
         "Family",
         "Description",
         "Parameters"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Neptune::DBSubnetGroup",
@@ -58464,7 +60060,13 @@
             "DELETING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::ODB::CloudAutonomousVmCluster",
@@ -59062,7 +60664,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ObservabilityAdmin::OrganizationCentralizationRule",
@@ -59708,7 +61316,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Omics::ReferenceStore",
@@ -59740,7 +61354,13 @@
             "KMS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Omics::RunGroup",
@@ -59833,7 +61453,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Omics::VariantStore",
@@ -60126,7 +61752,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::AccessPolicy",
@@ -60163,7 +61795,13 @@
             "data"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::Collection",
@@ -60231,7 +61869,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::CollectionGroup",
@@ -60280,7 +61924,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::CollectionIndex",
@@ -60440,7 +62090,13 @@
             "retention"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::SecurityConfig",
@@ -60481,7 +62137,13 @@
             "iamfederation"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::SecurityPolicy",
@@ -60524,7 +62186,13 @@
             "network"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchServerless::VpcEndpoint",
@@ -60601,7 +62269,13 @@
         "Name",
         "VpcId",
         "SubnetIds"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchService::Application",
@@ -60644,7 +62318,13 @@
             "opensearchDashboards.dashboardAdmin.groups"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::OpenSearchService::Domain",
@@ -60865,7 +62545,13 @@
       "required": [
         "Name",
         "ParentId"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Organizations::Policy",
@@ -60928,7 +62614,13 @@
             "UPGRADE_ROLLOUT_POLICY"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Organizations::ResourcePolicy",
@@ -61608,7 +63300,13 @@
             "SLURM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::PCS::ComputeNodeGroup",
@@ -61747,7 +63445,13 @@
             "UPDATE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::PCS::Queue",
@@ -61803,7 +63507,13 @@
             "UPDATE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Panorama::ApplicationInstance",
@@ -61898,7 +63608,13 @@
             "PROCESSING_REMOVAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Panorama::Package",
@@ -62238,7 +63954,13 @@
             "Users"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Personalize::DatasetGroup",
@@ -62271,7 +63993,13 @@
             "VIDEO_ON_DEMAND"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Personalize::EventTracker",
@@ -62302,7 +64030,13 @@
       "required": [
         "Name",
         "DatasetGroupArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Personalize::Schema",
@@ -62335,7 +64069,13 @@
             "VIDEO_ON_DEMAND"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Personalize::Solution",
@@ -62368,7 +64108,13 @@
             "Minimize"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Pinpoint::ADMChannel",
@@ -64090,7 +65836,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::QuickSight::Analysis",
@@ -65320,7 +67072,13 @@
             "NORMAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::QuickSight::ApprovalPolicy",
@@ -66993,7 +68751,13 @@
             "MILLISECOND"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::QuickSight::DataSource",
@@ -67534,7 +69298,13 @@
             "DATA_SET"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::QuickSight::Template",
@@ -69201,7 +70971,13 @@
         "Name",
         "ResourceType",
         "PolicyTemplate"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::RAM::ResourceShare",
@@ -69257,7 +71033,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::RDS::CustomDBEngineVersion",
@@ -70581,7 +72363,13 @@
             "http"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Rbin::Rule",
@@ -71928,7 +73716,13 @@
       "required": [
         "RoleArn",
         "KinesisVideoStream"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHub::App",
@@ -72053,7 +73847,13 @@
             "RoleBased"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHub::ResiliencyPolicy",
@@ -72184,7 +73984,13 @@
             "BACKUP_AND_RESTORE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHubV2::Service",
@@ -72271,7 +74077,13 @@
             "INITIALIZING"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHubV2::ServiceFunction",
@@ -72316,7 +74128,13 @@
             "USER"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHubV2::System",
@@ -72368,7 +74186,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResilienceHubV2::UserJourney",
@@ -72394,7 +74218,13 @@
       "required": [
         "SystemIdentifier",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResourceExplorer2::DefaultViewAssociation",
@@ -72556,7 +74386,13 @@
             "CLOUDFORMATION_STACK_1_0"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ResourceGroups::TagSyncTask",
@@ -72613,6 +74449,12 @@
           "robomaker:TagResource",
           "robomaker:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -72652,7 +74494,13 @@
             "ARMHF"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::RoboMaker::RobotApplication",
@@ -72718,7 +74566,13 @@
             "Dashing"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::RoboMaker::RobotApplicationVersion",
@@ -72839,7 +74693,13 @@
             "Foxy"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::RoboMaker::SimulationApplicationVersion",
@@ -73039,7 +74899,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Route53::DNSSEC",
@@ -73174,6 +75040,12 @@
           "route53:UpdateHostedZoneComment",
           "route53:UpdateHostedZoneFeatures"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -73226,7 +75098,13 @@
             "INACTIVE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Route53::RecordSet",
@@ -73692,7 +75570,13 @@
             "SHARED_BY_ME"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Profiles::ProfileAssociation",
@@ -73730,7 +75614,13 @@
         "ResourceId",
         "ProfileId",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Profiles::ProfileResourceAssociation",
@@ -73769,7 +75659,13 @@
         "ProfileId",
         "Name",
         "ResourceArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53RecoveryControl::Cluster",
@@ -73818,7 +75714,13 @@
             "PENDING_DELETION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53RecoveryControl::ControlPanel",
@@ -73862,7 +75764,13 @@
             "PENDING_DELETION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53RecoveryControl::RoutingControl",
@@ -73902,7 +75810,13 @@
             "PENDING_DELETION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53RecoveryControl::SafetyRule",
@@ -74131,7 +76045,13 @@
             "INACTIVE_OWNER_ACCOUNT_CLOSED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::FirewallRuleGroup",
@@ -74253,7 +76173,13 @@
             "INACTIVE_OWNER_ACCOUNT_CLOSED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::FirewallRuleGroupAssociation",
@@ -74311,7 +76237,13 @@
             "INACTIVE_OWNER_ACCOUNT_CLOSED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::OutpostResolver",
@@ -74365,7 +76297,13 @@
             "FAILED_DELETION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::ResolverConfig",
@@ -74515,7 +76453,13 @@
             "DUALSTACK"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::ResolverQueryLoggingConfig",
@@ -74578,7 +76522,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation",
@@ -74680,7 +76630,13 @@
             "DELEGATE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Route53Resolver::ResolverRuleAssociation",
@@ -74705,7 +76661,13 @@
       "required": [
         "VPCId",
         "ResolverRuleId"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::S3::AccessGrant",
@@ -74862,7 +76824,13 @@
             "VPC"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::S3::Bucket",
@@ -75364,7 +77332,13 @@
       },
       "required": [
         "Regions"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::S3::MultiRegionAccessPointPolicy",
@@ -75564,7 +77538,13 @@
             "AbortMultipartUpload"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::S3Express::BucketPolicy",
@@ -75938,7 +77918,13 @@
       },
       "required": [
         "ObjectLambdaConfiguration"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::S3ObjectLambda::AccessPointPolicy",
@@ -75995,7 +77981,13 @@
         "Bucket",
         "Name",
         "VpcConfiguration"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::S3Outposts::Bucket",
@@ -76572,7 +78564,13 @@
             "LONG"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SCN::Namespace",
@@ -76605,7 +78603,13 @@
       "required": [
         "InstanceId",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SDB::Domain"
@@ -76642,6 +78646,12 @@
           "ses:TagResource",
           "ses:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -76671,7 +78681,14 @@
       "required": [
         "ConfigurationSetName",
         "EventDestination"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "EventDestination",
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SES::ContactList",
@@ -78181,7 +80198,13 @@
             "MANUAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::CloudConnector",
@@ -78312,7 +80335,13 @@
             "NewVersion"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::MaintenanceWindow",
@@ -78344,7 +80373,13 @@
         "Schedule",
         "Duration",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::MaintenanceWindowTarget",
@@ -78371,7 +80406,13 @@
         "WindowId",
         "ResourceType",
         "Targets"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::MaintenanceWindowTask",
@@ -78403,7 +80444,13 @@
         "Priority",
         "TaskType",
         "TaskArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::OpsItem",
@@ -78495,7 +80542,13 @@
             "StringList"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::PatchBaseline",
@@ -78625,7 +80678,13 @@
             "BLOCK"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSM::ResourceDataSync",
@@ -78869,7 +80928,13 @@
             "SUN"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSMGuiConnect::Preferences",
@@ -78997,7 +81062,13 @@
             "INVOLVED_RESOURCES"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSMQuickSetup::ConfigurationManager",
@@ -79270,7 +81341,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSO::ApplicationAssignment",
@@ -79405,7 +81482,13 @@
             "ACTIVE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SSO::InstanceAccessControlAttributeConfiguration",
@@ -79490,7 +81573,13 @@
       "required": [
         "Name",
         "InstanceArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SageMaker::Action",
@@ -81134,7 +83223,13 @@
             "ShadowMode"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SageMaker::MlflowApp",
@@ -81195,7 +83290,13 @@
             "Deleted"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SageMaker::MlflowTrackingServer",
@@ -82080,7 +84181,13 @@
             "fiddler"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SageMaker::Pipeline",
@@ -83317,6 +85424,12 @@
           "secretsmanager:UntagResource",
           "secretsmanager:UpdateSecret"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -83405,7 +85518,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityAgent::Application",
@@ -83666,7 +85785,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityAgent::TargetDomain",
@@ -84097,7 +86222,13 @@
             "CUSTOM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityHub::Connector",
@@ -84141,7 +86272,13 @@
             "SUBSCRIPTION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityHub::ConnectorV2",
@@ -84199,7 +86336,13 @@
             "SUBSCRIPTION"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityHub::DelegatedAdmin",
@@ -84380,7 +86523,13 @@
             "DAYS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SecurityHub::OrganizationConfiguration",
@@ -84928,7 +87077,13 @@
         "Author",
         "Description",
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ServiceCatalog::AcceptedPortfolioShare",
@@ -85034,7 +87189,13 @@
             "EXTERNAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ServiceCatalog::CloudFormationProvisionedProduct",
@@ -85475,7 +87636,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ServiceCatalogAppRegistry::AttributeGroup",
@@ -85504,7 +87671,13 @@
       "required": [
         "Name",
         "Attributes"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ServiceCatalogAppRegistry::AttributeGroupAssociation",
@@ -85615,7 +87788,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::ServiceDiscovery::Service",
@@ -85655,6 +87834,12 @@
           "servicediscovery:UpdateService",
           "servicediscovery:UpdateServiceAttributes"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -85812,7 +87997,13 @@
             "DISABLED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Shield::ProtectionGroup",
@@ -85979,7 +88170,13 @@
       "required": [
         "Name",
         "RoleArn"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::StepFunctions::Activity",
@@ -86123,7 +88320,13 @@
             "CANARY"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::StepFunctions::StateMachineVersion",
@@ -86426,7 +88629,13 @@
             "LambdaLayer"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Synthetics::Group",
@@ -86460,7 +88669,13 @@
       },
       "required": [
         "Name"
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::SystemsManagerSAP::Application",
@@ -86684,7 +88899,13 @@
             "DELETED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Timestream::InfluxDBInstance",
@@ -86788,7 +89009,13 @@
             "FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": true
+      }
     },
     {
       "type_name": "AWS::Timestream::ScheduledQuery",
@@ -86934,7 +89161,13 @@
             "MEASURE"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Transcribe::VocabularyFilter",
@@ -88995,7 +91228,13 @@
             "REGIONAL"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::WAFv2::RuleGroup",
@@ -89813,6 +92052,12 @@
           "wellarchitected:TagResource",
           "wellarchitected:UntagResource"
         ]
+      },
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
       }
     },
     {
@@ -90464,7 +92709,13 @@
             "SMS"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::Wisdom::MessageTemplateVersion",
@@ -90547,7 +92798,13 @@
             "UPDATE_FAILED"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::WorkSpaces::ConnectionAlias",
@@ -90836,7 +93093,13 @@
             "CUSTOM"
           ]
         }
-      ]
+      ],
+      "unique_name_property": {
+        "path": [
+          "Name"
+        ],
+        "declared_unique": false
+      }
     },
     {
       "type_name": "AWS::WorkSpacesWeb::BrowserSettings",

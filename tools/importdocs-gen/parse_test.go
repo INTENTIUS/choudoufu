@@ -299,3 +299,93 @@ func TestArgumentReferenceEntries_ServerAssignedIfAbsent(t *testing.T) {
 		})
 	}
 }
+
+// TestArgumentReferenceEntries_DeclaredUnique pins issue #272's
+// provider-documentation source against the real doc shapes that motivated
+// it: the two CloudFront types the issue's evidence names as PROVEN unique
+// (quoted verbatim from the cached v6.59.0 docs), the one it names as NOT
+// proven (the permanent negative case the issue asks for -
+// aws_cloudfront_origin_access_control's own wording says "a name", never
+// "unique"), and two real "do/does not need to be unique" denials found
+// elsewhere in the same cache (aws_cleanrooms_collaboration,
+// aws_prometheus_scraper) that a bare keyword match would have gotten
+// backwards.
+func TestArgumentReferenceEntries_DeclaredUnique(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  string
+		want bool
+	}{
+		{
+			// aws_cloudfront_cache_policy.html.markdown:49, one of the
+			// issue's two worked PROVEN examples.
+			name: "cache policy - proven unique",
+			doc: "## Argument Reference\n\n" +
+				"* `name` - (Required) Unique name used to identify the cache policy.\n",
+			want: true,
+		},
+		{
+			// aws_cloudfront_origin_request_policy.html.markdown:45, the
+			// issue's second worked PROVEN example.
+			name: "origin request policy - proven unique",
+			doc: "## Argument Reference\n\n" +
+				"* `name` - (Required) Unique name to identify the origin request policy.\n",
+			want: true,
+		},
+		{
+			// aws_cloudfront_origin_access_control.html.markdown:33 - the
+			// issue's own worked NOT-proven negative case, kept here as the
+			// permanent regression the issue text asks for: no "unique"
+			// anywhere in the bullet.
+			name: "origin access control - not proven (permanent negative case)",
+			doc: "## Argument Reference\n\n" +
+				"* `name` - (Required) A name that identifies the Origin Access Control.\n",
+			want: false,
+		},
+		{
+			// aws_cleanrooms_collaboration.html.markdown:51 - an explicit
+			// denial in the same clause as the word "unique", which a bare
+			// keyword match would misread as a positive.
+			name: "explicit denial - do not need to be unique",
+			doc: "## Argument Reference\n\n" +
+				"* `name` - (Required) - Name of the collaboration.  Collaboration names do not need to be unique.\n",
+			want: false,
+		},
+		{
+			// prometheus_scraper.html.markdown:310 - the "does not" spelling
+			// of the same denial, on an Optional argument.
+			name: "explicit denial - does not need to be unique",
+			doc: "## Argument Reference\n\n" +
+				"* `alias` - (Optional) Name to associate with the managed scraper. This is for your use, and does not need to be unique.\n",
+			want: false,
+		},
+		{
+			// A negation earlier in the bullet, about something else
+			// entirely, must not suppress a real later claim - the
+			// clause-boundary rule declaredUniqueNegatedRe enforces.
+			name: "unrelated negation does not suppress a later positive claim",
+			doc: "## Argument Reference\n\n" +
+				"* `name` - (Required) Spaces are not allowed. The name must be unique within the account.\n",
+			want: true,
+		},
+		{
+			// No mention of uniqueness at all.
+			name: "no uniqueness claim",
+			doc: "## Argument Reference\n\n" +
+				"* `comment` - (Optional) Description for the cache policy.\n",
+			want: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			entries := argumentReferenceEntries(tc.doc)
+			if len(entries) == 0 {
+				t.Fatalf("no entries parsed from %q", tc.doc)
+			}
+			got := entries[0].DeclaredUnique
+			if got != tc.want {
+				t.Errorf("DeclaredUnique = %v, want %v (entry: %+v)", got, tc.want, entries[0])
+			}
+		})
+	}
+}

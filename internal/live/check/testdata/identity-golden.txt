@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=449 instances=1456
-# shape: class CONCRETE=736
-# shape: class NEEDS_DISCOVERY=607
+# shape: dirs=451 instances=1463
+# shape: class CONCRETE=737
+# shape: class NEEDS_DISCOVERY=613
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=59ff423719b88b0e06e4b4f4fbc6609e977ae6377dbe0c56bdc6b43781416610
+# shape: body-sha256=ffcbf37e5a6f6742dc220a6ca1a210550b1314fa465749cdc03e5e9f9a754f2f
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -52,6 +52,13 @@ internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.west	CONCRETE	tofu-alia
 internal/live/discovery/testdata/alias-e2e	aws_vpc.east	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/alias-e2e	aws_vpc.west	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/cloudcontrol-e2e	aws_glue_registry.demo	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-e2e	aws_cloudfront_realtime_log_config.x	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_cloudfront_cache_policy.dynamic	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_cloudfront_cache_policy.empty	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_cloudfront_cache_policy.from_local	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_cloudfront_cache_policy.literal	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_cloudfront_cache_policy.no_name	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_s3_bucket.other	CONCRETE	irrelevant	bucket=irrelevant
 internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-module-walk	module.counted[1].aws_eip.pool[0]	NEEDS_DISCOVERY		

@@ -92,7 +92,7 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE": 736,
+	"CONCRETE": 737,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -122,7 +122,7 @@ var identityGoldenPin = map[string]int{
 	// class, same rendered values, net zero. See
 	// internal/live/identity/markerfallback.go's own doc comment for why
 	// aws_iam_user could not stay: it is taggable and enumerable too.
-	"NEEDS_DISCOVERY": 607,
+	"NEEDS_DISCOVERY": 613,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -185,7 +185,7 @@ var identityGoldenPin = map[string]int{
 // ADDED rows, a class-preserving rename (aws_iam_user.team ->
 // aws_iam_group.team in two fixtures) made so those two tests keep
 // exercising the general refusal shape rather than #289's new answer.
-const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377dbe0c56bdc6b43781416610"
+const identityGoldenPinBodyDigest = "ffcbf37e5a6f6742dc220a6ca1a210550b1314fa465749cdc03e5e9f9a754f2f"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -257,9 +257,34 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // row (local_sensitive_file is a logical type, not an AWS resource), so it
 // contributes a directory and zero golden instance lines - same shape as
 // local_file's own fixture.
+// 2026-08-18 (merge of #272): dirs 449 -> 451, instances 1456 -> 1463,
+// CONCRETE 736 -> 737, NEEDS_DISCOVERY 607 -> 613. #272's branch was based
+// on a commit roughly 190 commits behind main and its own golden diff could
+// not be hand-merged with everything landed since, so the file was
+// regenerated fresh against the fully-merged code per this repository's
+// standing rule. Two new fixture directories -
+// internal/live/discovery/testdata/contentmatch-e2e and
+// contentmatch-static - exercise the new content-match discovery leg: six
+// NEEDS_DISCOVERY instances (the policy itself, unresolvable from
+// configuration alone) and one CONCRETE instance (an unrelated
+// aws_s3_bucket fixture neighbour). Every other line in the golden is
+// byte-identical to the pre-merge file; the diff is a pure addition of
+// these seven rows, matching dirs +2 and instances +7 exactly.
+// 2026-08-18 (same merge, discovered fixing the merge's own test breakage):
+// dirs and instances unchanged; digest only. Two independently-evolved
+// mechanisms - the earlier unique-name binding (uniquename.go) and #272's
+// own content-match - both qualified the same four CloudFront/Route53
+// types from the same two-source uniqueness evidence, so scanType's
+// dispatch now defers to unique-name (the admission-backed leg) whenever
+// both apply; see discovery.go's own doc comment. That moved
+// contentmatch-e2e's fixture off aws_cloudfront_cache_policy, which cleared
+// unique-name's bar and so stopped reaching content-match through the real
+// dispatch this test exists to exercise, onto
+// aws_cloudfront_realtime_log_config, which does not. Same directory, same
+// class, one address swapped for another - net zero on every count above.
 const (
-	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 449
+	identityGoldenPinInstances = 1463
+	identityGoldenPinDirs      = 451
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

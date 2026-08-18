@@ -8,7 +8,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
+	"strings"
 )
 
 // This file is issue #155. The CloudFormation schemas carry considerably
@@ -78,6 +80,15 @@ type SchemaFactCounts struct {
 	// attribute to a named property or definition. A counted gap, never a
 	// silent omission - the same rule relationships.go holds itself to.
 	EnumsUnattributed int `json:"enums_unattributed"`
+
+	// WithUniqueNameProperty is how many types carry a resource-owned
+	// "Name" property with a non-empty description (see
+	// [UniqueNameProperty] and [findUniqueNameProperty]), and
+	// UniqueNamePropertyDeclaredUnique the subset whose description states
+	// the value must be unique - issue #272's CFN-registry evidence
+	// source. Measured at v6.59.0: 374 and 40 respectively.
+	WithUniqueNameProperty           int `json:"with_unique_name_property"`
+	UniqueNamePropertyDeclaredUnique int `json:"unique_name_property_declared_unique"`
 }
 
 // SchemaFact is one type's extracted facts. Every field is omitempty: a type
@@ -96,6 +107,62 @@ type SchemaFact struct {
 
 	// Enums are the declared enum-valued properties.
 	Enums []SchemaEnum `json:"enums,omitempty"`
+
+	// UniqueNameProperty is this type's own client-supplied "Name"
+	// property, when it has one - see [UniqueNameProperty].
+	UniqueNameProperty *UniqueNameProperty `json:"unique_name_property,omitempty"`
+}
+
+// UniqueNameProperty is one type's own client-supplied "Name" property -
+// the resource's own top-level Name, or the Name nested one level inside
+// the single object a top-level property wraps (the CloudFront cache/
+// origin-request policy shape: a top-level CachePolicyConfig property that
+// is a plain $ref to definitions.CachePolicyConfig, itself carrying Name) -
+// together with whether its own description states the value must be
+// unique. See [findUniqueNameProperty] for the structural rule and issue
+// #272 for what this feeds: tools/row-gen's two-source admission rule
+// cross-checks DeclaredUnique here against the provider's own Argument
+// Reference (tools/importdocs-gen's ArgumentRefEntry.DeclaredUnique), and
+// only where both agree may a live object's property stand in for an
+// ownership marker.
+//
+// It is deliberately narrower than "any property named Name anywhere in
+// the schema". A "Name" nested inside an array-valued (repeated) sub-block
+// - AWS::ResilienceHub::App's EventSubscriptions, AWS::MediaConnect::
+// Gateway's Networks, AWS::SageMaker::ModelPackage's
+// AdditionalInferenceSpecifications - names one member of a list, not the
+// resource's own identity, and is never a candidate: [findUniqueNameProperty]
+// skips any top-level property that carries "items" for exactly this
+// reason.
+//
+// Measured at v6.59.0: this file's structural rule (resource-owned, either
+// top level or a single wrapped config object) finds a Name property with
+// a non-empty description on 374 types
+// ([SchemaFactCounts.WithUniqueNameProperty]); of those, 40 have
+// [declaredUniqueText]'s negation-aware test on their description
+// ([SchemaFactCounts.UniqueNamePropertyDeclaredUnique]) - see
+// tools/row-gen for the cross-check that reads that count against the
+// provider's own docs. An unstructured scan for comparison (any "Name"
+// property anywhere in a schema, no structural gate, matched with a bare
+// substring test for "unique" and no negation-awareness) finds 58 types,
+// not the same 40: the issue's own list of "12+ other resource types"
+// names four of the difference (aws-sagemaker-modelpackage,
+// aws-iotsitewise-assetmodel, aws-mediaconnect-gateway,
+// aws-resiliencehub-app), and the structural gate excludes all four -
+// each one's own top-level Name, where it has one at all, says nothing
+// about uniqueness, even though a list member's Name does.
+type UniqueNameProperty struct {
+	// Path is the property's location, in Cloud Control's own nesting: a
+	// one-element path for a top-level Name, a two-element path
+	// ["CachePolicyConfig", "Name"] for one wrapped in the resource's
+	// single mutable-config object.
+	Path []string `json:"path"`
+
+	// DeclaredUnique is whether the property's own "description" text
+	// states the value must be unique - see declaredUniqueText, this
+	// package's own copy of tools/importdocs-gen's negation-aware test,
+	// applied to the registry's prose instead of the provider's.
+	DeclaredUnique bool `json:"declared_unique"`
 }
 
 // SchemaEnum is one enum-valued property and its legal members.
@@ -162,6 +229,12 @@ func buildSchemaFacts(pin SpecPin, schemas map[string][]byte) (SchemaFacts, erro
 				art.Counts.EnumMembers += len(e.Members)
 			}
 		}
+		if fact.UniqueNameProperty != nil {
+			art.Counts.WithUniqueNameProperty++
+			if fact.UniqueNameProperty.DeclaredUnique {
+				art.Counts.UniqueNamePropertyDeclaredUnique++
+			}
+		}
 		art.Types = append(art.Types, fact)
 	}
 	return art, nil
@@ -211,7 +284,122 @@ func parseSchemaFacts(raw []byte) (SchemaFact, int, error) {
 
 	enums, unattributed := extractEnums(raw)
 	fact.Enums = enums
+
+	uniqueProp, err := findUniqueNameProperty(raw)
+	if err != nil {
+		return SchemaFact{}, 0, fmt.Errorf("finding the resource-owned Name property: %w", err)
+	}
+	fact.UniqueNameProperty = uniqueProp
+
 	return fact, unattributed, nil
+}
+
+// uniqueNamePropSchema is the slice of raw schema [findUniqueNameProperty]
+// reads: just enough of "properties" and "definitions" to find one
+// resource-owned "Name" property and its own description, never the whole
+// schema shape [factsSchema] and [cfnSchema] already type.
+type uniqueNamePropSchema struct {
+	Properties  map[string]uniqueNamePropNode `json:"properties"`
+	Definitions map[string]uniqueNamePropNode `json:"definitions"`
+}
+
+type uniqueNamePropNode struct {
+	Description string                        `json:"description"`
+	Ref         string                        `json:"$ref"`
+	Items       json.RawMessage               `json:"items"`
+	Properties  map[string]uniqueNamePropNode `json:"properties"`
+}
+
+// definitionRefPrefix is the only $ref shape these schemas use for a
+// same-document pointer - relative refs into another file do not appear in
+// the CloudFormation Registry bundle.
+const definitionRefPrefix = "#/definitions/"
+
+// findUniqueNameProperty finds the resource's own client-supplied "Name"
+// property, structurally rather than by name-matching anywhere in the
+// tree - see [UniqueNameProperty]'s doc comment for why the distinction
+// matters and what it measurably changes.
+//
+// Two shapes qualify, tried in that order:
+//
+//  1. A top-level "properties.Name" - the common case (AWS::EKS::Cluster,
+//     AWS::Athena::DataCatalog, and 37 more at v6.59.0).
+//  2. A top-level property that is a plain (non-array) $ref to a
+//     "definitions" entry, when THAT entry itself has a "Name" property -
+//     the CloudFront cache/origin-request/origin-access-control/response-
+//     headers-policy shape, where CFN wraps the whole mutable config in one
+//     object. A top-level property carrying "items" (an array) is skipped
+//     outright: that is a repeated sub-block (AWS::ResilienceHub::App's
+//     EventSubscriptions, AWS::MediaConnect::Gateway's Networks), and a
+//     "Name" nested inside one names a member of the list, not the
+//     resource itself.
+//
+// Iteration order over shape 2's candidate properties is the sorted
+// property name, not Go's own randomized map order, so that a schema
+// carrying more than one qualifying wrapped property (none does today)
+// still gets a reproducible answer rather than one that varies by run.
+//
+// Returns nil, nil when neither shape is present - the honest "this type
+// has no property here" answer, not an error.
+func findUniqueNameProperty(raw []byte) (*UniqueNameProperty, error) {
+	var doc uniqueNamePropSchema
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("parsing schema: %w", err)
+	}
+
+	if top, ok := doc.Properties["Name"]; ok && top.Description != "" {
+		return &UniqueNameProperty{
+			Path:           []string{"Name"},
+			DeclaredUnique: declaredUniqueText(top.Description),
+		}, nil
+	}
+
+	names := make([]string, 0, len(doc.Properties))
+	for name := range doc.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, pname := range names {
+		pval := doc.Properties[pname]
+		if len(pval.Items) > 0 {
+			continue // an array-valued property wraps a repeated sub-block, not the resource's own singleton config
+		}
+		defName, ok := strings.CutPrefix(pval.Ref, definitionRefPrefix)
+		if !ok {
+			continue
+		}
+		def, ok := doc.Definitions[defName]
+		if !ok {
+			continue
+		}
+		nameProp, ok := def.Properties["Name"]
+		if !ok || nameProp.Description == "" {
+			continue
+		}
+		return &UniqueNameProperty{
+			Path:           []string{pname, "Name"},
+			DeclaredUnique: declaredUniqueText(nameProp.Description),
+		}, nil
+	}
+	return nil, nil
+}
+
+// uniqueRe and uniqueNegatedRe mirror tools/importdocs-gen's
+// declaredUniqueRe and declaredUniqueNegatedRe exactly - the same
+// negation-aware test, applied to the registry's prose instead of the
+// provider's Argument Reference. Kept as a separate copy rather than a
+// shared import: two ten-line regexes are cheaper to duplicate than a new
+// internal package a single generator-only signal would justify, and the
+// two are read from different generators (registry-gen, importdocs-gen)
+// that already do not share code today.
+var uniqueRe = regexp.MustCompile(`(?i)\bunique\b`)
+var uniqueNegatedRe = regexp.MustCompile(`(?i)\b(?:not|n't)\b[^.]{0,40}\bunique\b`)
+
+// declaredUniqueText reports whether a schema property's own description
+// states that its value must be unique.
+func declaredUniqueText(desc string) bool {
+	return uniqueRe.MatchString(desc) && !uniqueNegatedRe.MatchString(desc)
 }
 
 // extractEnums walks a raw schema for every enum, wherever it sits.

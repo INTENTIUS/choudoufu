@@ -26,35 +26,36 @@ func TestMarkerlessRule(t *testing.T) {
 	}}
 
 	for _, tc := range []struct {
-		name       string
-		taggable   bool
-		admitted   bool
-		row        identity.TypeIdentity
-		classified bool
-		documented bool
-		agree      bool
-		named      bool
-		want       bool
+		name         string
+		taggable     bool
+		contentMatch bool
+		admitted     bool
+		row          identity.TypeIdentity
+		classified   bool
+		documented   bool
+		agree        bool
+		named        bool
+		want         bool
 	}{
-		{"admitted, untaggable, row says server-assigned", false, true, serverAssigned, false, false, false, false, true},
-		{"unadmitted, untaggable, classifier says server-assigned", false, false, identity.TypeIdentity{}, true, false, false, false, true},
-		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, identity.TypeIdentity{}, false, true, false, false, true},
+		{"admitted, untaggable, row says server-assigned", false, false, true, serverAssigned, false, false, false, false, true},
+		{"unadmitted, untaggable, classifier says server-assigned", false, false, false, identity.TypeIdentity{}, true, false, false, false, true},
+		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, false, identity.TypeIdentity{}, false, true, false, false, true},
 
-		{"taggable and server-assigned is the mechanism working", true, true, serverAssigned, true, true, false, false, false},
-		{"untaggable but named from configuration needs no marker", false, true, clientNamed, false, false, false, false, false},
-		{"untaggable with a conditional component is a different problem", false, true, ifAbsent, false, false, false, false, false},
-		{"admitted: the ratified row overrules the classifier", false, true, clientNamed, true, false, false, false, false},
-		{"admitted: the ratified row overrules the docs too", false, true, clientNamed, false, true, false, false, false},
-		{"unadmitted and neither source says server-assigned", false, false, identity.TypeIdentity{}, false, false, false, false, false},
+		{"taggable and server-assigned is the mechanism working", true, false, true, serverAssigned, true, true, false, false, false},
+		{"untaggable but named from configuration needs no marker", false, false, true, clientNamed, false, false, false, false, false},
+		{"untaggable with a conditional component is a different problem", false, false, true, ifAbsent, false, false, false, false, false},
+		{"admitted: the ratified row overrules the classifier", false, false, true, clientNamed, true, false, false, false, false},
+		{"admitted: the ratified row overrules the docs too", false, false, true, clientNamed, false, true, false, false, false},
+		{"unadmitted and neither source says server-assigned", false, false, false, identity.TypeIdentity{}, false, false, false, false, false},
 
 		// sourcesAgreeComposed (issue #274): CloudFormation's registry and
 		// the provider's own import docs, read independently of the
 		// classifier's bucket, both say the identity is argument-built.
 		// That outranks a single-source verdict that produced the veto.
-		{"unadmitted, untaggable, sources agree overrules the classifier's server-assigned call", false, false, identity.TypeIdentity{}, true, false, true, false, false},
-		{"unadmitted, untaggable, sources agree overrules the docs' minted segment", false, false, identity.TypeIdentity{}, false, true, true, false, false},
-		{"unadmitted, untaggable, sources agree and nothing else fired anyway", false, false, identity.TypeIdentity{}, false, false, true, false, false},
-		{"admitted: the ratified row overrules sources agreeing too", false, true, serverAssigned, false, false, true, false, true},
+		{"unadmitted, untaggable, sources agree overrules the classifier's server-assigned call", false, false, false, identity.TypeIdentity{}, true, false, true, false, false},
+		{"unadmitted, untaggable, sources agree overrules the docs' minted segment", false, false, false, identity.TypeIdentity{}, false, true, true, false, false},
+		{"unadmitted, untaggable, sources agree and nothing else fired anyway", false, false, false, identity.TypeIdentity{}, false, false, true, false, false},
+		{"admitted: the ratified row overrules sources agreeing too", false, false, true, serverAssigned, false, false, true, false, true},
 
 		// boundByName (issue #272): the veto's premises all hold - the
 		// identity is minted, the type is untaggable - and the type is
@@ -62,23 +63,30 @@ func TestMarkerlessRule(t *testing.T) {
 		// configuration states twice, so a listing finds the object without
 		// a marker. It is the only exception that spares a type the veto is
 		// otherwise right about.
-		{"unadmitted, untaggable, bound by name overrules the classifier's server-assigned call", false, false, identity.TypeIdentity{}, true, false, false, true, false},
-		{"unadmitted, untaggable, bound by name overrules the docs' minted segment", false, false, identity.TypeIdentity{}, false, true, false, true, false},
-		{"unadmitted, untaggable, bound by name and nothing else fired anyway", false, false, identity.TypeIdentity{}, false, false, false, true, false},
+		{"unadmitted, untaggable, bound by name overrules the classifier's server-assigned call", false, false, false, identity.TypeIdentity{}, true, false, false, true, false},
+		{"unadmitted, untaggable, bound by name overrules the docs' minted segment", false, false, false, identity.TypeIdentity{}, false, true, false, true, false},
+		{"unadmitted, untaggable, bound by name and nothing else fired anyway", false, false, false, identity.TypeIdentity{}, false, false, false, true, false},
 		// The order between the two exceptions is not observable and must
 		// not be: both spare the type, and a case where they disagree does
 		// not exist.
-		{"unadmitted, untaggable, both exceptions fire", false, false, identity.TypeIdentity{}, true, true, true, true, false},
+		{"unadmitted, untaggable, both exceptions fire", false, false, false, identity.TypeIdentity{}, true, true, true, true, false},
 		// An ADMITTED row is untouched by boundByName. A ratified row is
 		// what ships for its type, and uniqueNameRows refuses every type the
 		// corpus carries - so a true here could only come from a caller that
 		// had stopped believing that, and the veto must not follow it.
-		{"admitted: the ratified row overrules bound-by-name too", false, true, serverAssigned, false, false, false, true, true},
+		{"admitted: the ratified row overrules bound-by-name too", false, false, true, serverAssigned, false, false, false, true, true},
+
+		// Issue #272's other bypass: the same untaggable, admitted,
+		// server-assigned shape as the very first case above, except the
+		// type has cleared the two-source content-match proof - and that
+		// alone flips the verdict, exactly the way taggable alone does.
+		{"admitted, untaggable, server-assigned, but content-match qualified", false, true, true, serverAssigned, false, false, false, false, false},
+		{"unadmitted, untaggable, classifier says server-assigned, but content-match qualified", false, true, false, identity.TypeIdentity{}, true, false, false, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := markerless(tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree, tc.named); got != tc.want {
-				t.Errorf("markerless(taggable=%v, admitted=%v, row=%+v, classified=%v, documented=%v, sourcesAgreeComposed=%v, boundByName=%v) = %v, want %v",
-					tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree, tc.named, got, tc.want)
+			if got := markerless(tc.taggable, tc.contentMatch, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree, tc.named); got != tc.want {
+				t.Errorf("markerless(taggable=%v, contentMatch=%v, admitted=%v, row=%+v, classified=%v, documented=%v, sourcesAgreeComposed=%v, boundByName=%v) = %v, want %v",
+					tc.taggable, tc.contentMatch, tc.admitted, tc.row, tc.classified, tc.documented, tc.agree, tc.named, got, tc.want)
 			}
 		})
 	}
@@ -102,7 +110,7 @@ func TestMarkerlessRosterNeedsSurveyMembership(t *testing.T) {
 		{TFType: "aws_not_in_survey", Bucket: bucketServerAssigned},
 	}
 
-	got := markerlessRoster(nil, survey, proposals, nil, nil)
+	got := markerlessRoster(nil, survey, proposals, nil, nil, nil)
 	want := []string{"aws_untaggable_sa"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Errorf("markerlessRoster = %v, want %v - a type outside live/survey-full.json must never be "+
@@ -174,7 +182,7 @@ func TestMarkerlessRosterSourcesAgreeSparesTheVeto(t *testing.T) {
 		},
 	}
 
-	vetoed := setOf(markerlessRoster(nil, survey, proposals, importGrammar, nil))
+	vetoed := setOf(markerlessRoster(nil, survey, proposals, importGrammar, nil, nil))
 
 	if vetoed["aws_test_agree_composite"] {
 		t.Error("aws_test_agree_composite: registry and docs agree the identity is argument-built, but the roster still vetoes it")
@@ -213,7 +221,12 @@ func TestMarkerlessRosterSpares442ServerAssignedTaggableRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar, uniqueNameRows(loadRatifiedForTest(t), survey, proposals, importGrammar)))
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, importGrammar, schemaFacts))
+	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar, uniqueNameRows(loadRatifiedForTest(t), survey, proposals, importGrammar), contentMatch))
 
 	var spared, caught int
 	for _, typeName := range identity.AdmittedTypes() {
@@ -273,7 +286,7 @@ func TestMarkerlessRosterTwoSourcesAgreement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar, uniqueNameRows(loadRatifiedForTest(t), survey, proposals, importGrammar)))
+	vetoed := setOf(markerlessRoster(loadRatifiedForTest(t), survey, proposals, importGrammar, uniqueNameRows(loadRatifiedForTest(t), survey, proposals, importGrammar), nil))
 
 	for _, spared := range []string{
 		"aws_cognito_risk_configuration",

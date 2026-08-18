@@ -466,6 +466,48 @@ const PerElementShrinkCaveat = "removing an element changes the identity, so a s
 // per instance, once the argument is chosen.
 const SameNameIdentity = "*"
 
+// ContentMatchBinding names issue #272's discovery leg for a type this
+// package treats as [TypeIdentity.ServerAssigned]: the provider mints the
+// identity, so [Resolve] always classifies [ClassNeedsDiscovery], but the
+// type carries no tags argument, so no ownership marker can be written on
+// it either. Ordinarily that conjunction is what [MarkerlessTypes] vetoes -
+// there is no way to find the object again after creating it. A type here
+// is the one exception: its identity-bearing argument is proven unique
+// within the account by two independent sources agreeing (the provider's
+// own Argument Reference and the CloudFormation Registry's property
+// description - see tools/row-gen's two-source derivation), so matching a
+// live object's own property against that argument's declared value is not
+// a guess. It is reading the identity the configuration already states.
+//
+// internal/live/discovery's content-match leg is the consumer: given a
+// binding, it lists CFNType through Cloud Control, reads each candidate's
+// PropertyPath, and binds a needs-discovery instance to the one candidate
+// whose value equals the instance's own Argument. Zero matches leaves the
+// instance unbound, same as an ordinary create. Two or more matches is a
+// refusal (internal/live/discovery.ProblemAmbiguousContentMatch), never a
+// guess - the one absolute rule this mechanism holds itself to.
+//
+// [ContentMatchTypes] is the generated roster; nothing here is maintained
+// by hand.
+type ContentMatchBinding struct {
+	// Argument is the resource's own top-level configuration argument to
+	// read and match on - "name" for every type admitted through this
+	// mechanism today.
+	Argument string
+
+	// CFNType is the CloudFormation Registry type Cloud Control lists to
+	// find candidates, e.g. "AWS::CloudFront::CachePolicy".
+	CFNType string
+
+	// PropertyPath is the listed candidate's own Properties path to the
+	// matching value, in Cloud Control's own nesting: a one-element path
+	// for a top-level property, a two-element path
+	// ["CachePolicyConfig", "Name"] for one wrapped in the resource's
+	// single mutable-config object - the shape every type admitted through
+	// this mechanism today has.
+	PropertyPath []string
+}
+
 // CloudValue names one property of the cloud a run is against, for a
 // [Component] whose value the configuration does not carry.
 //

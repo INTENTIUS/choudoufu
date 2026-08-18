@@ -296,8 +296,9 @@ func TestEmitDoesNotReadTheTableItWrites(t *testing.T) {
 	grammar := loadImportGrammarForTest(t)
 	survey := loadSurveyForTest(t)
 	logical := loadLogicalSchemasForTest(t)
+	schemaFacts := loadSchemaFactsForTest(t)
 
-	before, _, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
+	before, _, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		t.Fatalf("buildEmitFiles over the committed tree: %v", err)
 	}
@@ -306,7 +307,7 @@ func TestEmitDoesNotReadTheTableItWrites(t *testing.T) {
 	identity.DefaultTable = map[string]identity.TypeIdentity{}
 	defer func() { identity.DefaultTable = saved }()
 
-	after, part, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical)
+	after, part, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		t.Fatalf("buildEmitFiles over an EMPTIED identity.DefaultTable: %v\n"+
 			"-emit still depends on the table it writes; the corpus is supposed to be %s", err, ratifiedJSONRel)
@@ -354,7 +355,8 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	survey := loadSurveyForTest(t)
 	proposals := loadAllForTest(t)
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
-	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName))
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, loadSchemaFactsForTest(t)))
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch))
 
 	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)

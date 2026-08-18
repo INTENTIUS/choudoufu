@@ -258,6 +258,7 @@ const (
 // past this guard. So the exempt set is exact rather than a rule: a fourth
 // generated file, or a hand-written one that grows the header, fails here.
 var generatedTypeLiteralFiles = []string{
+	"internal/live/identity/contentmatch_generated.go",
 	"internal/live/identity/discoverablefallback_generated.go",
 	"internal/live/identity/markerless_generated.go",
 	"internal/live/identity/table_generated.go",
