@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 1,
-    "cold_deploy": { "pass": 1, "fail": 0, "not_run": 0 },
-    "migrate": { "pass": 1, "fail": 0, "not_run": 0 },
-    "test_plan": { "pass": 1, "fail": 0, "not_run": 0 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 0 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 1 }
+    "estates": 2,
+    "cold_deploy": { "pass": 2, "fail": 0, "not_run": 0 },
+    "migrate": { "pass": 2, "fail": 0, "not_run": 0 },
+    "test_plan": { "pass": 1, "fail": 1, "not_run": 0 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 1 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 2 }
   },
   "estates": [
     {
@@ -22,6 +22,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Verified end-to-end 2026-08-17/18. Predates the drift-and-reconverge stage being added to the pipeline shape; needs a follow-up pass to add it, same as every other pre-existing corpus-* script."
+    },
+    {
+      "dir": "live/e2e/corpus-lambda-simple",
+      "source": "terraform-aws-modules/terraform-aws-lambda examples/simple (tag v8.8.1)",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed f6a9f899d0 (2026-08-18), which also fixed a real generalizing bug on the way: live-import's Ratify loop skipped every resource inside a module block (regressed behind closed issue #59's child-module admission, which named five other root-only walkers but never live-import). module.lambda_function.{aws_lambda_function,aws_iam_role,aws_cloudwatch_log_group} now stamp correctly - this affects every real module usage, not just this estate, since virtually all published Terraform modules nest their resources under a module block. test_plan blocked on a separate, still-open gap: two resource blocks (aws_lambda_function_url, aws_lambda_function_recursion_config) use count = var.enable_x ? 1 : 0 with the var false/unset, so stock OpenTofu creates zero instances of either, but choudoufu's type-admission check runs per declared block rather than per resolved instance and refuses the plan outright. A local_file resource is also refused (outside the live-markers subset). Recommended next slot: a static count-is-zero evaluator feeding type admission - likely high-leverage, since count-gated optional-feature resources are an extremely common module idiom, not specific to this one."
     }
   ]
 }
