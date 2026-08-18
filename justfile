@@ -157,6 +157,51 @@ demo-corpus-iam-policy:
 demo-corpus-oidc-provider:
     bash live/e2e/corpus-oidc-provider/run.sh
 
+# Issue #274's step 6 on a government department's own root module:
+# .corpus/govuk-infrastructure/terraform/deployments/chat-evaluation-ci. Same
+# server-assigned-ARN subject as demo-corpus-oidc-provider and a different
+# estate - GDS's hand-written root rather than a module example - so it adds
+# a provider-level default_tags block the markers have to merge into rather
+# than replace, two names derived from variable defaults, and the #268 delta
+# in its Terraform Cloud `cloud {}` form. Four instances, applied, state file
+# deleted, replanned empty twice, every identity checked as a string against
+# IAM's own answer, and step 7 asserts IAM still holds ONE OIDC provider.
+# BREAK=1 drops the "-policy" suffix off one expected ARN and step 5 must be
+# the only step that goes red. Needs Docker, the AWS CLI, outbound HTTPS to
+# GitHub for the estate's own tls_certificate read, and a populated .corpus;
+# runs on its own port (4693) so it can run beside `just demo`.
+demo-corpus-govuk-oidc:
+    bash live/e2e/corpus-govuk-oidc/run.sh
+
+# Issue #274's cloudfront leg, and the first live-cloud contact for the
+# unique-name discovery mechanism (aws_cloudfront_cache_policy,
+# aws_cloudfront_origin_request_policy - "unique-name" in
+# live/survey-full.json), landed the same day this script did. It found and
+# fixed a real bug: EVERY unique-name type failed its first apply
+# unconditionally, before discovery ever ran, because
+# internal/command/live_plan.go's statelessStampGaps re-derived stamping
+# severity without consulting identity.DiscoveryCause.BindsByName() the way
+# internal/live/stamp's own mustStamp() already did. Step 5 pins the fix and
+# fails on the pre-fix message if it regresses.
+#
+# The FULL 16-instance .corpus/govuk-infrastructure cloudfront estate does
+# NOT cross: it spans two provider configurations (default and an aliased
+# us-east-1 "global" one) with discovery-needing resources on both sides,
+# and live-plan discovers through one provider configuration per run -
+# live/LIMITATIONS.md's documented v0 bound. Step 3 asserts that refusal
+# rather than restructuring the estate around it. Step 6 isolates the two
+# unique-name resources (extracted verbatim, not retyped) and finds a
+# SEPARATE, floci-only gap: Cloud Control's List/GetResource for these two
+# types answers with a flat Properties shape, not AWS's own documented one
+# (Name nested under CachePolicyConfig / OriginRequestPolicyConfig -
+# live/registry.json's unique_name_property), so the crossing itself
+# (delete state, replan empty) cannot complete against floci - choudoufu
+# correctly refuses rather than binding wrong. Needs Docker, the AWS CLI and
+# a populated .corpus; runs on its own port (4694) so it can run beside
+# `just demo`.
+demo-corpus-cloudfront:
+    bash live/e2e/corpus-cloudfront/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
