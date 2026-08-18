@@ -228,10 +228,21 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 	"acm": {"certificate": single("AWS::CertificateManager::Certificate")},
 	// states's ARN service is "states"; the CFN service segment is
 	// StepFunctions. Same story as acm above.
-	"states":     {"stateMachine": single("AWS::StepFunctions::StateMachine")},
-	"logs":       {"log-group": single("AWS::Logs::LogGroup")},
-	"dynamodb":   {"table": single("AWS::DynamoDB::Table")},
-	"ecs":        {"cluster": single("AWS::ECS::Cluster")},
+	"states":   {"stateMachine": single("AWS::StepFunctions::StateMachine")},
+	"logs":     {"log-group": single("AWS::Logs::LogGroup")},
+	"dynamodb": {"table": single("AWS::DynamoDB::Table")},
+	"ecs": {
+		"cluster": single("AWS::ECS::Cluster"),
+		// A task definition's ARN is task-definition/{family}:{revision}
+		// (confirmed against ecs_task_definition.html.markdown's "## Import"
+		// section, the same doc issue #298 already read for the identity
+		// side of this type). This entry is only the sweep's ARN-to-CFN-type
+		// join; composing the import ID itself is a separate concern
+		// [importIDFromARN] already handles for this type by reading its
+		// ImportSyntax ("TASKDEFINITIONARN") rather than anything in this
+		// table.
+		"task-definition": single("AWS::ECS::TaskDefinition"),
+	},
 	"cloudwatch": {"alarm": single("AWS::CloudWatch::Alarm")},
 	"lambda":     {"function": single("AWS::Lambda::Function")},
 	"elasticloadbalancing": {

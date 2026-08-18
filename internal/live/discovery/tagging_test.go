@@ -233,6 +233,28 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
+			// This ARN shape is the one .corpus/mastino/prod-eu-west's
+			// sitemaps-generator estate carries for real (issue #298's
+			// e2e crossing found it), and it used to warn "no CFN type is
+			// known for ARN service \"ecs\" and resource segment
+			// \"task-definition\"" from the tagging sweep because
+			// arnJoinTable had a row for ecs's "cluster" segment but not
+			// its "task-definition" one - a coverage gap in this table,
+			// not an inherent hand-maintenance need (#298 fixed the
+			// separate, already-admitted-instance identity-composition
+			// path; this is the sweep's join over an ARN it merely
+			// stumbles across). aws_ecs_task_definition's identity IS its
+			// ARN here, the same as aws_lambda_function is not: see
+			// [importIDFromARN]'s ImportSyntax-based
+			// "TASKDEFINITIONARN" rule, not this table.
+			name:             "ecs task definition: was the arnJoinTable coverage gap issue #298's own agent found",
+			arn:              "arn:aws:ecs:eu-west-1:000000000000:task-definition/sitemaps-generator:1",
+			wantTypeName:     "aws_ecs_task_definition",
+			wantIdentityAttr: "arn",
+			wantImportIsARN:  true,
+			wantOK:           true,
+		},
+		{
 			name:          "unknown service entirely",
 			arn:           "arn:aws:glue:us-east-1:123456789012:table/db/tbl",
 			wantOK:        false,
