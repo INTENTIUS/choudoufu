@@ -139,7 +139,6 @@ var MarkerlessTypes = map[string]struct{}{
 	"aws_servicecatalog_provisioning_artifact":          {},
 	"aws_servicecatalog_service_action":                 {},
 	"aws_servicecatalog_tag_option":                     {},
-	"aws_sesv2_account_vdm_attributes":                  {},
 	"aws_sesv2_configuration_set_event_destination":     {},
 	"aws_sfn_alias":                                     {},
 	"aws_shield_proactive_engagement":                   {},

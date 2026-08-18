@@ -78,6 +78,18 @@ type importGrammarRow struct {
 	// the vocabulary is the region alone.
 	SoleIDCloudValue string `json:"sole_id_cloud_value"`
 
+	// SoleIDLiteralValue mirrors tools/importdocs-gen/literalsingleton.go's
+	// Row field of the same name: the fixed word the documented import ID
+	// IS, in its entirety, when the Import section itself says so with "the
+	// word `...`" - SoleIDCloudValue's constant sibling, for the
+	// account-singleton types whose whole identity is neither a cloud
+	// property nor a configuration argument but one literal every account
+	// shares. Empty for all but three of the 1699 rows.
+	// tryLiteralSingletonID is its one reader; see that function and
+	// literalsingleton.go's own doc comment for why "the word" is the
+	// signal and not merely the token matching the example.
+	SoleIDLiteralValue string `json:"sole_id_literal_value"`
+
 	// EvidenceExcerpt is the Import section's own text, pinned verbatim at
 	// scrape time (tools/importdocs-gen/artifact.go's Evidence). Issue #176's
 	// R3 corroboration reads its "using ..." sentences the same way

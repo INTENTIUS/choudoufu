@@ -62,7 +62,17 @@ import (
 //     sits tryCloudSingletonID, its sibling for the degenerate case that
 //     rule structurally cannot reach: an ID that is a cloud property and
 //     has no tail at all, so there is no template to attribute and no
-//     argument to end on.
+//     argument to end on. Immediately after tryCloudSingletonID sits
+//     tryLiteralSingletonID (issue #282), the constant-literal sibling of
+//     both: an ID that is neither a cloud property nor a configuration
+//     argument but a fixed word every account shares
+//     (live/import-grammar.json's sole_id_literal_value,
+//     aws_sesv2_account_vdm_attributes' "ses-account-vdm-attributes").
+//     Unlike its two siblings, this rule is licensed to overturn a
+//     CFN-registry server-assigned PROPOSAL outright (never a ratified
+//     claim) because the provider doc's own explicit "the word `X`"
+//     statement is stronger, more direct evidence than the registry's
+//     read-only-property inference - see that function's own doc comment.
 //  2. tryArgumentReferenceConfirmedGuess: a proposal classify.go already
 //     filed evidence-only because its argument name was GUESSED (the CFN
 //     property name, snake-cased, backed by no schema or grammar) - the
@@ -161,6 +171,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 		case p.Bucket != bucketClientNamed && tryDocumentedShorterForm(p, g):
 		case p.Bucket != bucketComposite && tryAssembledTemplate(p, g):
 		case tryCloudSingletonID(p, g):
+		case tryLiteralSingletonID(p, g):
 		case p.Bucket == bucketEvidenceOnly && tryArgumentReferenceConfirmedGuess(p, g):
 		case p.Bucket != bucketClientNamed && p.Bucket != bucketComposite && tryArgumentReferenceValueMatch(p, g):
 		case p.Bucket == bucketNeedsHandSeparator && tryDocNamedServerSegment(p, g):
@@ -754,6 +765,107 @@ func cloudSingletonPartAgrees(cloud string, g importGrammarRow) bool {
 			return false
 		}
 	}
+	return true
+}
+
+// literalSingletonComponents is tryLiteralSingletonID's whole proposal: one
+// component that is the fixed literal and nothing else - the constant
+// sibling of cloudSingletonComponents above, for the same rendering reason
+// that function's own doc comment states.
+func literalSingletonComponents(literal string) []idTemplateSegment {
+	return []idTemplateSegment{{Literal: literal}}
+}
+
+// tryLiteralSingletonID is the rule for an account singleton whose
+// documented import ID is not a property of the run's cloud context (that
+// is tryCloudSingletonID's shape) but a fixed WORD every account shares -
+// live/import-grammar.json's sole_id_literal_value, populated by
+// tools/importdocs-gen/literalsingleton.go from the Import section's own
+// "using the word `...`" statement, cross-checked there against the page's
+// own worked example (see that file's doc comment for why the word choice
+// is the signal and not merely the token matching the example, and why the
+// cross-check makes the three rows it accepts zero-false-positive over the
+// full 6.59.0 cache).
+//
+// aws_sesv2_account_vdm_attributes is the reason this rule exists (issue
+// #282): the CFN registry's primaryIdentifier ⊆ readOnlyProperties signal
+// (AWS::SES::VdmAttributes' VdmAttributesResourceId) is CFN's ordinary "the
+// provider mints this" claim - correct about the CloudFormation model,
+// wrong about what `terraform import` actually takes. The provider's own
+// docs say the import ID is the constant word "ses-account-vdm-attributes",
+// identical for every account. A wrong identity on an account singleton is
+// worse than an unadmitted type: ratified as the registry proposes, it
+// would name every account's object under a server-minted id sitting where
+// the real, shared import ID belongs - this repo's own standing bar ranks a
+// wrong marker above a missing one for exactly this shape.
+//
+// UNLIKE tryCloudSingletonID, this rule carries no analogue of that rule's
+// fourth refusal (cloudSingletonPartAgrees, "the sole part might actually
+// name an argument whose cloud_default disagrees"): a doc's own explicit
+// "the word `X`" statement, already cross-checked against the page's worked
+// example by literalsingleton.go, is direct evidence of the ID's entire
+// content, not an inference from a token's shape - there is no comparably
+// deceptive middle case to guard against here the way there is for a
+// region-shaped token that might be an argument in disguise.
+//
+// The other three refusals ARE this rule's too, for the reasons
+// tryCloudSingletonID states them:
+//
+//  1. A schemed template (IDTemplate non-nil) means any literal present is
+//     a segment inside a longer ID, not the identity in its own right.
+//  2. ComposedOfArguments true is the doc's own structured field saying the
+//     ID is built from configuration - contradicting sole_id_literal_value
+//     would be a doc inconsistency this rule refuses rather than resolves
+//     by picking a side, the same discipline literalsingleton.go itself
+//     already applies when the word token and the worked example disagree.
+//  3. A non-empty IdentitySchemaRequired is the provider's own identity
+//     schema naming an attribute of the resource's own the identity needs,
+//     directly contradicting a constant-literal reading.
+//
+// THE TIERING is tryCloudSingletonID's, restated for this evidence, with
+// the one deliberate difference issue #282 calls for made explicit: a row
+// already ratified ServerAssigned in identity.DefaultTable is still refused
+// outright (a human ratification outranks this scrape, same as every other
+// rule in this file) - but an UNRATIFIED CFN-registry server-assigned
+// PROPOSAL is exactly what this rule exists to overturn. That is not a
+// departure from tryCloudSingletonID's own tiering: its switch already
+// treats bucketServerAssigned as "no positive finding that the ID
+// reconstructs from configuration" rather than a standing claim (the
+// arczonalshift ruling it retires was exactly this shape), and this rule's
+// switch mirrors it verbatim.
+func tryLiteralSingletonID(p *proposal, g importGrammarRow) bool {
+	if g.SoleIDLiteralValue == "" {
+		return false
+	}
+	if g.IDTemplate != nil {
+		return false // refusal 1
+	}
+	if g.ComposedOfArguments != nil && *g.ComposedOfArguments {
+		return false // refusal 2
+	}
+	if len(g.IdentitySchemaRequired) > 0 {
+		return false // refusal 3
+	}
+	if identity.DefaultTable[p.TFType].ServerAssigned {
+		return false // a standing ratified claim this evidence may not defeat
+	}
+	switch p.Bucket {
+	case bucketServerAssigned, bucketEvidenceOnly, bucketNeedsHandSeparator, bucketFoldChild:
+		// No positive finding that the ID reconstructs from configuration,
+		// so there is nothing here to overturn - see tryCloudSingletonID's
+		// own switch, which this mirrors exactly.
+	default:
+		return false
+	}
+
+	p.Bucket = bucketAssembled
+	p.Assembled = literalSingletonComponents(g.SoleIDLiteralValue)
+	p.CompositeArgs = nil
+	p.CompositeSep = ""
+	p.ArgName = ""
+	p.ArgSource = argSourceImportGrammar
+	p.Rule = fmt.Sprintf("import-grammar precedence: the documented import ID is, in its entirety, the fixed word %q every account shares - an account singleton whose identity is a literal, not a server-minted id, whatever the CFN registry's primaryIdentifier claims", g.SoleIDLiteralValue)
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs state the import ID using the word `%s`, cross-checked by the scrape against the page's own worked example", g.SoleIDLiteralValue))
 	return true
 }
 
