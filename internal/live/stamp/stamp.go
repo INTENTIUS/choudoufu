@@ -1059,6 +1059,22 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 				addr, name, name)
 		}
 
+	case identity.DiscoverySiblingApply:
+		// CauseArgs[0] is the sibling block, the rest are the arguments
+		// waiting on it. See [identity.DiscoverySiblingApply]. The next step
+		// this offers is unlike every other cause's: it is not an edit to the
+		// configuration, it is the order the two resources are applied in,
+		// and the configuration is already correct as written.
+		if sibling := arg(0); sibling != "" {
+			waiting := "one of its identity arguments"
+			if len(disco.Args) > 1 {
+				waiting = orListBare(disco.Args[1:])
+			}
+			return fmt.Sprintf(
+				"%s takes %s from %s, which the provider does not fill in until %s has been applied, so this run cannot say what the object will be called. The ownership marker is the only handle left. Applying %s first makes the identity computable from a read of it and needs no marker at all; applying both together and "+lint.UnfindableClause,
+				addr, waiting, sibling, sibling, sibling)
+		}
+
 	case identity.DiscoveryNamePrefix:
 		if base, prefix := arg(0), arg(1); base != "" && prefix != "" {
 			return fmt.Sprintf(

@@ -116,6 +116,37 @@ const (
 	// as bindable would be the wrong-marker outcome this whole mechanism is
 	// built to avoid.
 	DiscoveryUniqueName DiscoveryCause = "UNIQUE_NAME"
+
+	// DiscoverySiblingApply is GitHub issue #187's answer for an instance
+	// whose identity the configuration WOULD determine, except that one of
+	// its arguments reads a value the provider does not fill in until
+	// another resource in this same configuration has been applied.
+	//
+	// The carrier is the ACM/Route53 validation pattern:
+	//
+	//	for_each = { for dvo in aws_acm_certificate.cert.domain_validation_options : ... }
+	//	name     = each.value.name
+	//
+	// Measured against the real AWS provider (internal/live/projection's
+	// TestPlanInstancesAgainstTheAWSProvider): PlanResourceChange fills each
+	// element's domain_name, so the INSTANCE KEYS are known before anything
+	// exists, and leaves resource_record_name unknown, so the record's own
+	// name is not.
+	//
+	// It is deliberately not [DiscoveryServerAssigned], and the difference is
+	// not cosmetic. aws_route53_record's identity is ordinarily computable
+	// from its own arguments; nothing about the type is server-minted. What
+	// is unknown is one argument, this run, because a sibling has not been
+	// applied yet - and once that sibling exists, a read of it makes the
+	// identity computable with no marker involved. Reporting it as
+	// server-assigned would tell the operator there is no way back when the
+	// way back is "apply the certificate".
+	//
+	// [Resolution.CauseArgs] holds the sibling resource block first,
+	// module-relative and rendered the way the configuration writes it, then
+	// the identity arguments that wait on it, in component order. The slice
+	// is therefore at least one long and index 0 is always the sibling.
+	DiscoverySiblingApply DiscoveryCause = "SIBLING_APPLY"
 )
 
 // AllDiscoveryCauses is every cause this package can produce, in a stable
@@ -130,6 +161,7 @@ func AllDiscoveryCauses() []DiscoveryCause {
 		DiscoveryNameOmitted,
 		DiscoveryNamePrefix,
 		DiscoveryUniqueName,
+		DiscoverySiblingApply,
 	}
 }
 

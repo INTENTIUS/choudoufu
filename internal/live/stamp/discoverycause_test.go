@@ -100,8 +100,8 @@ func TestUnmarkedDiscoveryDetail_uniqueNameIsNotRefused(t *testing.T) {
 }
 
 // TestUnmarkedDiscoveryDetail_everyCauseIsToldApart is the whole point of
-// [identity.DiscoveryCause] reaching this package: four causes, four
-// sentences, and the three that have a next step say what it is.
+// [identity.DiscoveryCause] reaching this package: one sentence per cause,
+// and every cause that has a next step says what it is.
 //
 // It iterates [identity.AllDiscoveryCauses] rather than a list written here,
 // so a cause added to identity with no sentence of its own fails this test
@@ -111,6 +111,7 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 		identity.DiscoveryCloudUnknown: {string(identity.CloudAccountID)},
 		identity.DiscoveryNameOmitted:  {"name"},
 		identity.DiscoveryNamePrefix:   {"name", "name_prefix"},
+		identity.DiscoverySiblingApply: {"aws_acm_certificate.cert", "name"},
 	}
 	// What the operator must be able to read out of each sentence. The
 	// server-assigned pair share one, deliberately: there is no
@@ -123,6 +124,11 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 		identity.DiscoveryCloudUnknown:     {"AWS account ID", "property of the cloud this run is pointed at"},
 		identity.DiscoveryNameOmitted:      {"sets no name", "Setting name to a value this configuration chooses"},
 		identity.DiscoveryNamePrefix:       {"named through name_prefix", "Naming it with name instead of name_prefix"},
+		// The one cause whose next step is not an edit to the configuration.
+		// The configuration is already right; what this run lacks is the
+		// sibling, so the sentence has to name it and say applying it first
+		// is the way out. See [identity.DiscoverySiblingApply].
+		identity.DiscoverySiblingApply: {"takes name from aws_acm_certificate.cert", "Applying aws_acm_certificate.cert first"},
 	}
 
 	details := make(map[identity.DiscoveryCause]string)
@@ -167,8 +173,8 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 	for cause, detail := range details {
 		distinct[detail] = append(distinct[detail], cause)
 	}
-	if len(distinct) != 4 {
-		t.Errorf("expected 4 distinct sentences across %d causes, got %d: %v", len(details), len(distinct), distinct)
+	if len(distinct) != 5 {
+		t.Errorf("expected 5 distinct sentences across %d causes, got %d: %v", len(details), len(distinct), distinct)
 	}
 }
 

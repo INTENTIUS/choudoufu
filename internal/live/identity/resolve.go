@@ -640,10 +640,16 @@ func (r *resolver) deriveScopeContextNames(typeName string) []string {
 // contributing a partial value that would compare unequal to itself.
 func (r *resolver) probeString(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (string, bool) {
 	mark := len(r.diags)
+	sibMark := len(r.pendingSiblingApply)
 	mod, curCfg, modInst, eval := r.mod, r.curCfg, r.modInst, r.eval
 	parts, ok := r.resolveExpr(expr, scope, ident)
 	r.mod, r.curCfg, r.modInst, r.eval = mod, curCfg, modInst, eval
 	r.diags = r.diags[:mark:mark]
+	// The diagnostics this probe raised are gone, so the indexes any
+	// sibling-apply refusal recorded into them are gone too. Dropping the
+	// refusals with them is what stops a later withdrawal from removing a
+	// diagnostic that is now something else entirely.
+	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 	if !ok {
 		return "", false
 	}
@@ -683,14 +689,18 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		schemas:     rctx.Schemas,
 		recordStore: recordStoreConfiguredIn(cfg),
 		dataIndex:   dataIndex,
-		expansions:  make(map[string]*expansion),
-		expFailed:   make(map[string]bool),
-		expVisit:    make(map[string]bool),
-		insts:       make(map[string]Resolution),
-		instFailed:  make(map[string]bool),
-		instVisit:   make(map[string]bool),
-		synth:       make(map[string]*TypeIdentity),
-		scopeCtx:    make(map[string][]string),
+		// Measured on the index rather than on len(rctx.ManagedResults) so
+		// that an entry the index could not use - already reported as a
+		// caller error just below - does not switch the classification on.
+		managedResults: len(mgIndex) > 0,
+		expansions:     make(map[string]*expansion),
+		expFailed:      make(map[string]bool),
+		expVisit:       make(map[string]bool),
+		insts:          make(map[string]Resolution),
+		instFailed:     make(map[string]bool),
+		instVisit:      make(map[string]bool),
+		synth:          make(map[string]*TypeIdentity),
+		scopeCtx:       make(map[string][]string),
 	}
 	// A result the index could not use is the calling code's defect, not
 	// the configuration's, and it must not vanish: dropped silently it
@@ -772,6 +782,25 @@ type resolver struct {
 	// resource, and nil when the caller passed none. See
 	// [buildDataResultsIndex].
 	dataIndex dataResultsIndex
+
+	// managedResults is whether the caller supplied any
+	// [Context.ManagedResults] at all. It is the first condition of the
+	// provenance discriminator in managedprovenance.go and the reason that
+	// whole classification is inert for a run with no provider on the line -
+	// which is every offline corpus run, and which is what keeps #183's
+	// cohort of unset root variables where it is.
+	//
+	// A separate field rather than a scan of dataIndex: the two seams share
+	// one index (see [newResolver]), so "the index has entries" cannot
+	// answer "the caller performed a managed read".
+	managedResults bool
+
+	// pendingSiblingApply records the identity arguments this instance could
+	// not compute BECAUSE a managed result this run obtained is unknown until
+	// a sibling resource is applied, together with the index of the
+	// diagnostic each one raised. See [resolver.stringValue] and
+	// [DiscoverySiblingApply]; [resolver.resolveInstance] consumes it.
+	pendingSiblingApply []siblingApplyRefusal
 
 	// signal is the whole configuration's naming signal, collected before
 	// classification starts because the schema fallback's verdict depends on
@@ -1136,7 +1165,27 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// one - which requires every failing component to have actually been
 	// reached and diagnosed, not just the first.
 	failed := false
+	// The sibling-apply bookkeeping (issue #187, [DiscoverySiblingApply]).
+	// sibMark is where this instance's own refusals start, so a nested
+	// resolution's entries are never read as this one's; hardFailed records
+	// that at least one component failed for a reason a sibling's apply will
+	// NOT settle, which is what keeps a genuinely broken argument a refusal
+	// rather than turning it into a discovery.
+	sibMark := len(r.pendingSiblingApply)
+	hardFailed := false
+	var sibArgs []string
+	fail := func(sibBefore int, argName string) {
+		failed = true
+		if len(r.pendingSiblingApply) == sibBefore {
+			hardFailed = true
+			return
+		}
+		if argName != "" {
+			sibArgs = append(sibArgs, argName)
+		}
+	}
 	for i, comp := range entry.Components {
+		sibBefore := len(r.pendingSiblingApply)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
 			// provider documents as defaulting to that same cloud property.
@@ -1150,7 +1199,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			if attr := r.cloudComponentAttr(comp, attrs, scope, addr); attr != nil {
 				got, ok := r.resolveExpr(attr.Expr, scope, r.identifier(addr, attr.Name, attr.Range))
 				if !ok {
-					failed = true
+					fail(sibBefore, attr.Name)
 					continue
 				}
 				parts = append(parts, got...)
@@ -1225,7 +1274,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			r.errorf(rc.DeclRange, "Identity argument not set",
 				"%s has no value for %s, so its import identity (%s) cannot be built.",
 				addr.String(), orList(comp.Attrs), entry.ImportSyntax)
-			failed = true
+			fail(sibBefore, "")
 			continue
 		}
 		// attr is present in the body, but the name/name_prefix convention
@@ -1267,7 +1316,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// preceding component supplies. See [Component.PerElement].
 			got, ok := r.perElementParts(expr, scope, attr, ident, precedingSeparator(entry.Components, i))
 			if !ok {
-				failed = true
+				fail(sibBefore, attr.Name)
 				continue
 			}
 			parts = append(parts, got...)
@@ -1277,22 +1326,35 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		if comp.SoleElement {
 			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
 			if !ok {
-				failed = true
+				fail(sibBefore, attr.Name)
 				continue
 			}
 			expr = narrowed
 		}
 		got, ok := r.resolveExpr(expr, scope, ident)
 		if !ok {
-			failed = true
+			fail(sibBefore, attr.Name)
 			continue
 		}
 		parts = append(parts, got...)
 		addTo(comp.identityAttrFor(attr.Name), got)
 	}
 	if failed {
+		// Issue #187's second half. Every component that failed did so for
+		// one reason - a value this run's own managed results supplied, which
+		// the provider leaves unknown until a sibling resource is applied -
+		// and that is a different fact from an identity this configuration
+		// cannot express. The refusals raised for it are withdrawn and the
+		// instance is classified instead, so that the operator is told which
+		// sibling it is waiting on rather than that their argument is not
+		// static. See [DiscoverySiblingApply].
+		if res, ok := r.siblingApplyResolution(addr, sibMark, sibArgs, hardFailed); ok {
+			return res, true
+		}
+		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 		return Resolution{}, false
 	}
+	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 
 	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
 	res.cloudScope = cloudScope
@@ -1644,7 +1706,7 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		mark := len(r.diags)
 		val, ok := r.evalStatic(expr, scope, ident)
 		if ok {
-			s, ok := r.stringValue(val, expr, ident)
+			s, ok := r.stringValueIn(val, expr, scope, ident)
 			if !ok {
 				return nil, false
 			}
@@ -2383,7 +2445,28 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 	return val, diags
 }
 
+// siblingApplyRefusal is one identity argument [resolver.stringValue] refused
+// because a managed value this run obtained is unknown until a sibling
+// resource is applied: which argument, which sibling, and where the
+// diagnostic it raised sits in r.diags.
+//
+// The diagnostic is raised exactly as it always was. It is REMOVED, by index,
+// only if the whole instance turns out to have failed for this reason and
+// nothing else - see [resolver.instanceNeedsSiblingApply]. Raising it first
+// and withdrawing it later, rather than suppressing it up front, is what
+// keeps #221's guarantee that a component failing for an unrelated reason
+// still reports its own refusal beside this one.
+type siblingApplyRefusal struct {
+	arg     string
+	sibling string
+	diagIdx int
+}
+
 func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs.StaticIdentifier) (string, bool) {
+	return r.stringValueIn(val, expr, instScope{}, ident)
+}
+
+func (r *resolver) stringValueIn(val cty.Value, expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (string, bool) {
 	if val.IsMarked() {
 		r.errorf(expr.Range(), "Identity derived from a sensitive value",
 			"%s is derived from a sensitive value. An import identity is written to logs and plan output, so it cannot be sensitive. If the value is not genuinely secret - a data source such as tfe_outputs that marks its whole result sensitive is the common case - wrap it in nonsensitive(...) to use it here.", ident.Subject)
@@ -2397,6 +2480,19 @@ func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs
 	if !val.IsWhollyKnown() {
 		r.errorf(expr.Range(), "Non-static identity argument",
 			"%s cannot be evaluated from configuration alone. Every part of an identity must be a constant, or derived from variables, locals and pure functions, or a reference to another resource's identity attribute. A function that returns a different value on each call - uuid(), timestamp(), bcrypt() - evaluates to an unknown value here, including when it is reached through a local or written in .tf.json.", ident.Subject)
+		// The diagnostic above is unchanged and stays. What is recorded here
+		// is only WHERE the unknown came from, for the caller that may
+		// withdraw it: an unknown this run's own managed results supplied is
+		// a value waiting on a sibling's apply, which is a different fact
+		// from an argument the configuration cannot express. See
+		// managedprovenance.go and [DiscoverySiblingApply].
+		if sib, ok := r.managedFrom(expr, scope); ok {
+			r.pendingSiblingApply = append(r.pendingSiblingApply, siblingApplyRefusal{
+				arg:     ident.Subject,
+				sibling: sib,
+				diagIdx: len(r.diags) - 1,
+			})
+		}
 		return "", false
 	}
 	str, err := convert.Convert(val, cty.String)
@@ -2761,6 +2857,17 @@ type expansion struct {
 	// [resolver.namedLeaf] builds - is a further extension this fix does
 	// not make.
 	keyOnly bool
+
+	// managedFrom is the managed resource block, module-relative, whose
+	// covered-but-not-wholly-known value this expansion's for_each was built
+	// from. Empty when the for_each drew on nothing of the sort, which is
+	// every expansion in a run that supplied no [Context.ManagedResults].
+	//
+	// It is the provenance carrier for each.key and each.value: an identity
+	// argument written `each.value.name` names no resource at all, so nothing
+	// in the argument itself can say where its unknown came from. See
+	// managedprovenance.go.
+	managedFrom string
 }
 
 func (e *expansion) hasKey(key addrs.InstanceKey) bool {
@@ -2798,7 +2905,7 @@ func (e *expansion) describe(res addrs.Resource) string {
 // direct one already does, rather than fabricate a value nothing here
 // actually knows.
 func (e *expansion) scope(key addrs.InstanceKey) instScope {
-	sc := instScope{key: key, eachParent: e.eachParent}
+	sc := instScope{key: key, eachParent: e.eachParent, managedFrom: e.managedFrom}
 	switch {
 	case e.counted:
 		idx, ok := key.(addrs.IntKey)
@@ -2862,6 +2969,12 @@ type instScope struct {
 	//
 	// A pointer, not a value: elemBinding carries an instScope of its own.
 	eachValueExpr *elemBinding
+
+	// managedFrom is [expansion.managedFrom] carried down to the instance,
+	// so that an identity argument reading each.* can say where its unknown
+	// came from. Empty for every scope built anywhere else, which is what
+	// makes an instScope{} literal - and there are dozens - inert.
+	managedFrom string
 }
 
 func (r *resolver) expansionFor(rc *configs.Resource) (*expansion, bool) {
@@ -3269,6 +3382,12 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 
 	ty := val.Type()
 	exp := &expansion{eachValues: make(map[addrs.InstanceKey]cty.Value)}
+	// Provenance, recorded once for every instance this expansion will
+	// produce: the key set came out of a managed value this run obtained,
+	// and the element values that came with it may be unknown until that
+	// sibling is applied. Empty for any run that supplied no managed
+	// results. See managedprovenance.go.
+	exp.managedFrom, _ = r.managedFromExpr(expr)
 	switch {
 	case ty.IsMapType(), ty.IsObjectType():
 		elems := make(map[string]cty.Value)
