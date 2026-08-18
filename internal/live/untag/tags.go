@@ -24,27 +24,22 @@ import (
 // Duplicated rather than imported - see this package's doc comment for why.
 
 // taggable reports whether a resource type carries the tag map the marker
-// spec describes: a top-level "tags" attribute of a string map that a
-// write is allowed to set. Read from the schema, never from a list of type
-// names, the same way internal/live/stamp and internal/live/liveimport
-// both read it.
-func taggable(block *configschema.Block) bool {
-	attr, ok := block.Attributes["tags"]
-	if !ok || attr == nil {
-		return false
-	}
-	if !attr.Optional && !attr.Required {
-		// Computed-only: the provider owns the value and nothing here can
-		// set it.
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
-}
+// spec describes. It is [markers.Taggable] and nothing else, the same way
+// internal/live/stamp's taggable is, because "can this type carry a marker"
+// has to have one answer across every path that writes one.
+//
+// It was a copy until this line: the shape test - top-level, settable,
+// map(string) - written out again here, in internal/live/liveimport and in
+// internal/live/mv, each with the same four clauses and its own comment
+// saying it matched the others. When issue #243 gave [markers.TagSurface] a
+// fifth clause ([markers.VocabularyRefusal], which refuses a tags map whose
+// keys the provider has documented as its own namespace), stamping stopped
+// writing markers into those maps and these three copies did not. A release
+// path is a write path: it reads the marker back off the object and asks the
+// provider to put the object back without it, so a type the copy admitted
+// and markers.Taggable refuses was one this package would act on and
+// stamping would never have marked.
+func taggable(block *configschema.Block) bool { return markers.Taggable(block) }
 
 // tagsFromObj reads a resource object's tags, deferring to
 // [markers.TagsOf] for the actual read - the same "tags_all" then "tags"

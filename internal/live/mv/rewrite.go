@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -294,24 +295,11 @@ func tagsFromListed(obj cty.Value) (map[string]string, bool) {
 }
 
 // settableTags reports whether a resource type carries the tag map the marker
-// spec describes: a top-level "tags" attribute of a string map that
-// configuration is allowed to set. Read from the schema rather than from a
-// list of type names, for the same reason stamping reads it from the schema.
-func settableTags(block *configschema.Block) bool {
-	attr, ok := block.Attributes["tags"]
-	if !ok || attr == nil {
-		return false
-	}
-	if !attr.Optional && !attr.Required {
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
-}
+// spec describes. It is [markers.Taggable] and nothing else, for the reason
+// internal/live/untag's taggable spells out: live-mv REWRITES a marker on a
+// live object, so admitting a type stamping refuses would move an address
+// into a tag map the provider owns the key space of.
+func settableTags(block *configschema.Block) bool { return markers.Taggable(block) }
 
 // withTags returns the object with its tags attribute replaced.
 func withTags(block *configschema.Block, obj cty.Value, tags map[string]string) (cty.Value, error) {

@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -31,27 +32,12 @@ import (
 // package's own tests rather than assumed identical forever.
 
 // taggable reports whether a resource type carries the tag map the marker
-// spec describes: a top-level "tags" attribute of a string map that
-// configuration is allowed to set. Read from the schema, never from a list
-// of type names, for the same reason
-// [github.com/intentius/choudoufu/internal/live/stamp] reads it that way.
-func taggable(block *configschema.Block) bool {
-	attr, ok := block.Attributes["tags"]
-	if !ok || attr == nil {
-		return false
-	}
-	if !attr.Optional && !attr.Required {
-		// Computed-only: the provider owns the value and configuration
-		// cannot set it.
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
-}
+// spec describes. It is [markers.Taggable] and nothing else, for the reason
+// internal/live/untag's taggable spells out: this is the predicate that
+// decides whether a marker may be written onto a real object, and it had
+// three independent implementations that fell a clause behind the one
+// stamping uses.
+func taggable(block *configschema.Block) bool { return markers.Taggable(block) }
 
 // tagsFromObject reads the marker tags off a resource object read from the
 // live system. "tags" is read after "tags_all" so that an explicitly set tag
