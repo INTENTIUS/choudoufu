@@ -922,6 +922,19 @@
     ],
     "import_syntax": "DOMAIN_NAME,SERVICE_ARN"
   },
+  "aws_apprunner_default_auto_scaling_configuration_version": {
+    "type": "aws_apprunner_default_auto_scaling_configuration_version",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_apprunner_observability_configuration": {
     "type": "aws_apprunner_observability_configuration",
     "server_assigned": true,
@@ -1237,6 +1250,19 @@
       "id",
       "name"
     ]
+  },
+  "aws_auditmanager_account_registration": {
+    "type": "aws_auditmanager_account_registration",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   },
   "aws_auditmanager_assessment": {
     "type": "aws_auditmanager_assessment",
@@ -3864,6 +3890,19 @@
     ],
     "import_syntax": "GRAPHARN/ACCOUNTID"
   },
+  "aws_devopsguru_event_sources_config": {
+    "type": "aws_devopsguru_event_sources_config",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_devopsguru_resource_collection": {
     "type": "aws_devopsguru_resource_collection",
     "components": [
@@ -3878,6 +3917,19 @@
     "identity_attrs": [
       "type"
     ]
+  },
+  "aws_devopsguru_service_integration": {
+    "type": "aws_devopsguru_service_integration",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   },
   "aws_directory_service_conditional_forwarder": {
     "type": "aws_directory_service_conditional_forwarder",
@@ -4321,6 +4373,19 @@
     "identity_attrs": [
       "id"
     ]
+  },
+  "aws_ec2_allowed_images_settings": {
+    "type": "aws_ec2_allowed_images_settings",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   },
   "aws_ec2_capacity_reservation": {
     "type": "aws_ec2_capacity_reservation",
@@ -5935,6 +6000,19 @@
       "id"
     ]
   },
+  "aws_glue_resource_policy": {
+    "type": "aws_glue_resource_policy",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_glue_schema": {
     "type": "aws_glue_schema",
     "server_assigned": true,
@@ -6167,6 +6245,15 @@
     "identity_attrs": [
       "account_alias"
     ]
+  },
+  "aws_iam_account_password_policy": {
+    "type": "aws_iam_account_password_policy",
+    "components": [
+      {
+        "literal": "iam-account-password-policy"
+      }
+    ],
+    "import_syntax": "iam-account-password-policy"
   },
   "aws_iam_group": {
     "type": "aws_iam_group",
@@ -6718,6 +6805,19 @@
       "name"
     ]
   },
+  "aws_iot_event_configurations": {
+    "type": "aws_iot_event_configurations",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_iot_policy": {
     "type": "aws_iot_policy",
     "components": [
@@ -6984,6 +7084,19 @@
       }
     ],
     "import_syntax": "KEYSPACE_NAME/TABLE_NAME"
+  },
+  "aws_kinesis_account_settings": {
+    "type": "aws_kinesis_account_settings",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   },
   "aws_kinesis_analytics_application": {
     "type": "aws_kinesis_analytics_application",
@@ -8006,6 +8119,19 @@
     "reason": "the M2 service assigns this identity at create time; no argument reconstructs it.",
     "import_syntax": "ENVIRONMENTID"
   },
+  "aws_macie2_classification_export_configuration": {
+    "type": "aws_macie2_classification_export_configuration",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_macie2_classification_job": {
     "type": "aws_macie2_classification_job",
     "server_assigned": true,
@@ -9011,6 +9137,45 @@
     "identity_attrs": [
       "arn"
     ]
+  },
+  "aws_observabilityadmin_telemetry_enrichment": {
+    "type": "aws_observabilityadmin_telemetry_enrichment",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
+  "aws_observabilityadmin_telemetry_evaluation": {
+    "type": "aws_observabilityadmin_telemetry_evaluation",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
+  "aws_observabilityadmin_telemetry_evaluation_for_organization": {
+    "type": "aws_observabilityadmin_telemetry_evaluation_for_organization",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   },
   "aws_observabilityadmin_telemetry_pipeline": {
     "type": "aws_observabilityadmin_telemetry_pipeline",
@@ -11530,6 +11695,19 @@
       "project_name"
     ]
   },
+  "aws_sagemaker_servicecatalog_portfolio_status": {
+    "type": "aws_sagemaker_servicecatalog_portfolio_status",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_sagemaker_space": {
     "type": "aws_sagemaker_space",
     "components": [
@@ -12252,6 +12430,19 @@
     ],
     "import_syntax": "APPLICATIONID,ATTRIBUTEGROUPID"
   },
+  "aws_servicequotas_auto_management": {
+    "type": "aws_servicequotas_auto_management",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_servicequotas_service_quota": {
     "type": "aws_servicequotas_service_quota",
     "components": [
@@ -12359,6 +12550,15 @@
     "identity_attrs": [
       "name"
     ]
+  },
+  "aws_sesv2_account_vdm_attributes": {
+    "type": "aws_sesv2_account_vdm_attributes",
+    "components": [
+      {
+        "literal": "ses-account-vdm-attributes"
+      }
+    ],
+    "import_syntax": "ses-account-vdm-attributes"
   },
   "aws_sesv2_configuration_set": {
     "type": "aws_sesv2_configuration_set",
@@ -12614,6 +12814,15 @@
     "identity_attrs": [
       "arn"
     ]
+  },
+  "aws_spot_datafeed_subscription": {
+    "type": "aws_spot_datafeed_subscription",
+    "components": [
+      {
+        "literal": "spot-datafeed-subscription"
+      }
+    ],
+    "import_syntax": "spot-datafeed-subscription"
   },
   "aws_spot_fleet_request": {
     "type": "aws_spot_fleet_request",
@@ -14420,6 +14629,19 @@
     ],
     "import_syntax": "USERSETTINGSARN,PORTALARN"
   },
+  "aws_xray_encryption_config": {
+    "type": "aws_xray_encryption_config",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
+  },
   "aws_xray_group": {
     "type": "aws_xray_group",
     "server_assigned": true,
@@ -14458,5 +14680,18 @@
     "identity_attrs": [
       "rule_name"
     ]
+  },
+  "aws_xray_trace_segment_destination": {
+    "type": "aws_xray_trace_segment_destination",
+    "components": [
+      {
+        "attrs": [
+          "region"
+        ],
+        "cloud": "region"
+      }
+    ],
+    "import_syntax": "REGION",
+    "identity_attrs": []
   }
 }
