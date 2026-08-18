@@ -27,13 +27,12 @@ set -uo pipefail
 # considered". cec3c4b9b1 (found independently crossing terraform-aws-
 # modules/terraform-aws-lambda's "simple" example, live/e2e/corpus-lambda-
 # simple/run.sh) removed the root-only skip; Ratify now walks every module.
-# Re-verified against this estate below: migrate now stamps 23 of 39
+# Re-verified against this estate below: migrate now stamps 26 of 39
 # resources for real, confirmed by reading the primary DB instance's tags
 # directly through the AWS CLI.
 #
-# TWO STILL-OPEN DEFECTS, both filed, both surfaced by this crossing, both
-# now hit for real in stage 3 below (test plan) rather than demonstrated
-# separately:
+# ONE STILL-OPEN DEFECT, filed, surfaced by this crossing, hit for real in
+# stage 3 below (test plan):
 #
 #   #304 (identity: count-index-in-tag can't trace a static lookup() into a
 #   module's own bundled table). A real live-plan against the really-
@@ -63,25 +62,22 @@ set -uo pipefail
 #   exactly 7 count-index-in-tag sites, not 35, and asserts that count
 #   rather than repeating the stale one.
 #
-#   #305 (admission: aws_default_network_acl/aws_default_route_table/
-#   aws_default_security_group are unadmitted). aws_default_network_acl,
-#   aws_default_route_table and aws_default_security_group - the VPC
-#   module's "adopt the account's default objects" resources, created by
-#   this estate exactly as terraform-aws-modules/vpc creates them for most
-#   of its users - are unadmitted types: "not in the live-markers admission
-#   table, and neither the provider's identity schema nor this
-#   configuration's own arguments settled its identity either" (rule
-#   unadmitted-type). The refusal's own text names why: these default_*
-#   adopters have no CFN resource and no identity schema of their own, so
-#   nothing but a hand-ratified table entry can say what identifies one.
-#   A real live-plan refuses exactly these 3 sites - this estate's applied
-#   INSTANCE count of default_* adopters (see stage 1's resource list). An
-#   earlier draft of this script counted 5, including aws_default_vpc and
-#   aws_vpn_gateway_attachment declared at count = 0 in module.vpc blocks
-#   this estate's own variables never enable; bc9ef26638 ("a resource block
-#   with a provably-zero count/for_each has no instance to refuse admission
-#   on", already on main) stopped those two from refusing at all, so a real
-#   run today never sees them either.
+# #305 (admission: aws_default_network_acl/aws_default_route_table/
+# aws_default_security_group were unadmitted) is FIXED. aws_default_network_
+# acl, aws_default_route_table and aws_default_security_group - the VPC
+# module's "adopt the account's default objects" resources, created by this
+# estate exactly as terraform-aws-modules/vpc creates them for most of its
+# users - are now ratified server-assigned in the admission table, the same
+# shape as their non-default siblings aws_network_acl/aws_route_table/
+# aws_security_group, and resolve through their own tofu-address marker
+# once stamped. This estate's applied INSTANCE count of default_* adopters
+# is 3 (see stage 1's resource list); an earlier draft of this script
+# counted 5, including aws_default_vpc and aws_vpn_gateway_attachment
+# declared at count = 0 in module.vpc blocks this estate's own variables
+# never enable, which bc9ef26638 ("a resource block with a provably-zero
+# count/for_each has no instance to refuse admission on", already on main)
+# stopped from refusing at all - moot now that the 3 real sites resolve
+# cleanly too.
 #
 # TWO REAL FLOCI GAPS (genuine emulator gaps, not choudoufu bugs, filed and
 # worked around with documented deltas so stage 1 can still stand the
@@ -101,19 +97,21 @@ set -uo pipefail
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
 #   stage 1  cold deploy   PASS - real, verified, unmarked infrastructure.
-#   stage 2  migrate       PASS - real: 23 of 39 resource instances stamped
-#                          for real (18 VERIFIED + 5 DRIFTED), the other 16
+#   stage 2  migrate       PASS - real: 26 of 39 resource instances stamped
+#                          for real (20 VERIFIED + 6 DRIFTED), the other 13
 #                          correctly skipped (13 UNTAGGABLE by provider
-#                          schema, 3 UNADMITTED_TYPE per #305), all asserted
-#                          against live-import's own report AND confirmed
-#                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by exactly #304 (7 sites) and
-#                          #305 (3 sites) - specific counts and resource
-#                          addresses asserted against a real live-plan run
-#                          on the really-migrated estate, state file
-#                          deleted first, with a BREAK=1 negative control.
+#                          schema; #305's default_* trio is admitted now and
+#                          stamped above), all asserted against live-import's
+#                          own report AND confirmed independently through
+#                          the AWS CLI.
+#   stage 3  test plan     BLOCKED, for real, by exactly #304 (7 sites) -
+#                          #305 no longer contributes any refusal - specific
+#                          counts and resource addresses asserted against a
+#                          real live-plan run on the really-migrated estate,
+#                          state file deleted first, with a BREAK=1 negative
+#                          control.
 #   stage 4  test apply    NOT RUN - depends on stage 3, which does not
-#                          produce a clean plan while #304/#305 stand.
+#                          produce a clean plan while #304 stands.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
 # A partial, honestly-reported pass is the point: this is the real, current
@@ -132,11 +130,11 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt the expected stage-3 #304/#305 site
-#                counts and one expected unadmitted-type name, proving
-#                those assertions are load-bearing rather than a grep that
-#                always matches. Stages 1 and 2 are unaffected and still
-#                pass; stage 3 is the one that must fail.
+#   BREAK        set to 1 to corrupt the expected stage-3 #304 site count
+#                and the #305-fixed unadmitted-type count, proving those
+#                assertions are load-bearing rather than a grep that always
+#                matches. Stages 1 and 2 are unaffected and still pass;
+#                stage 3 is the one that must fail.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -155,8 +153,8 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 ESTATE="rds-complete-postgres"
 REGION="eu-west-1"
 INSTANCES=39
-ELIGIBLE=23
-SKIPPED=16
+ELIGIBLE=26
+SKIPPED=13
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -312,16 +310,21 @@ VERIFIED_N="$(grep -oE '^VERIFIED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9
 DRIFTED_N="$(grep -oE '^DRIFTED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNTAGGABLE_N="$(grep -oE '^UNTAGGABLE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
-[ "${VERIFIED_N:-0}" = "18" ] || fail "expected 18 VERIFIED, got ${VERIFIED_N:-0}"
-[ "${DRIFTED_N:-0}" = "5" ] || fail "expected 5 DRIFTED, got ${DRIFTED_N:-0}"
+[ "${VERIFIED_N:-0}" = "20" ] || fail "expected 20 VERIFIED, got ${VERIFIED_N:-0}"
+[ "${DRIFTED_N:-0}" = "6" ] || fail "expected 6 DRIFTED, got ${DRIFTED_N:-0}"
 [ "${UNTAGGABLE_N:-0}" = "13" ] || fail "expected 13 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
-[ "${UNADMITTED_N:-0}" = "3" ] || fail "expected 3 UNADMITTED_TYPE (#305), got ${UNADMITTED_N:-0}"
-grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among UNADMITTED_TYPE"
-log "  $ELIGIBLE of $INSTANCES eligible (18 VERIFIED + 5 DRIFTED); $SKIPPED skipped"
-log "  (13 UNTAGGABLE by provider schema + 3 UNADMITTED_TYPE, #305); nothing"
-log "  written yet"
+[ "${UNADMITTED_N:-0}" = "0" ] || fail "expected 0 UNADMITTED_TYPE (#305 fixed), got ${UNADMITTED_N:-0}"
+# #305 fixed: the default_* trio (3 sites) is now admitted, so it must
+# appear in the eligible (VERIFIED or DRIFTED) block, never in
+# UNADMITTED_TYPE (which no longer exists in this estate's report at all).
+ELIGIBLE_BLOCK="$(sed -n '/^VERIFIED (/,/^UNTAGGABLE (/p' <<< "$IMPORT_OUT")"
+for addr in 'module.vpc.aws_default_network_acl.this[0]' 'module.vpc.aws_default_route_table.default[0]' \
+            'module.vpc.aws_default_security_group.this[0]'; do
+  grep -qF "$addr" <<< "$ELIGIBLE_BLOCK" || fail "expected $addr among VERIFIED/DRIFTED (#305 fixed) - not found"
+done
+log "  $ELIGIBLE of $INSTANCES eligible (20 VERIFIED + 6 DRIFTED); $SKIPPED skipped"
+log "  (13 UNTAGGABLE by provider schema); #305's default_* trio is admitted"
+log "  now and eligible above; nothing written yet"
 
 log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
@@ -357,7 +360,7 @@ log "  something that would otherwise be there"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #304 and/or #305 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #304 may be fixed too now; update this script"; }
 # choudoufu wraps its "In module.X, ... RESOURCE.NAME:" context lines at a
 # fixed column when captured non-interactively, sometimes splitting the
 # resource name onto its own line. Flattened to one line per diagnostic
@@ -378,15 +381,14 @@ PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< 
 # 35, since 35 is not what a real run produces and re-planting a stale
 # number would only repeat the mistake this whole follow-up exists to fix.
 WANT_CIDX_N=7
+WANT_DEFAULT_N=0
 WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security_group)
 if [ "${BREAK:-}" = "1" ]; then
   WANT_CIDX_N=8
-  WANT_TYPES[1]="aws_default_dhcp_options"
+  WANT_DEFAULT_N=1
   log "  BREAK=1: expecting 8 count-index-in-tag sites (one more than the"
-  log "           real 7, #304) and aws_default_dhcp_options among the #305"
-  log "           unadmitted-type refusals - a real AWS default-object type,"
-  log "           same shape as the other two, just not one this estate's"
-  log "           lint pass actually names. Both wrong. This step must fail."
+  log "           real 7, #304) and 1 unadmitted-type site (there should be"
+  log "           0 now - #305 is fixed). Neither is real. This step must fail."
 fi
 
 CIDX_N="$(grep -c '^Error: count.index is not available in resource arguments$' <<< "$PLAN_OUT")"
@@ -399,24 +401,22 @@ log "  modules/security-group's lookup()-into-its-own-rules-table pattern,"
 log "  refused even though it is fully static."
 
 DEFAULT_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-[ "$DEFAULT_N" = "3" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected 3 unadmitted-type sites (#305), got $DEFAULT_N"; }
+[ "$DEFAULT_N" = "$WANT_DEFAULT_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_DEFAULT_N unadmitted-type sites (#305 fixed), got $DEFAULT_N"; }
+# #305 fixed: none of the three default-object types may appear among the
+# unadmitted-type refusals any more - each resolves through its own
+# tofu-address marker instead (stage 2 stamped all three sites).
 for t in "${WANT_TYPES[@]}"; do
   grep -qE "In module\.[a-z_]+, ${t}\." <<< "$PLAN_FLAT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t among the unadmitted-type refusals (#305)"; }
+    && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "$t still appears among the unadmitted-type refusals - #305 is not actually fixed"; }
 done
-log "  #305 confirmed: exactly 3 unadmitted-type sites, all three default-"
-log "  object adopters this estate actually creates (aws_default_"
-log "  network_acl, aws_default_route_table, aws_default_security_group)."
-log "  This script's earlier draft counted 5, including aws_default_vpc and"
-log "  aws_vpn_gateway_attachment declared at count=0 in module.vpc blocks"
-log "  this estate's variables never enable; bc9ef26638 (already on main:"
-log "  \"a resource block with a provably-zero count/for_each has no"
-log "  instance to refuse admission on\") stopped those two from refusing at"
-log "  all, so a real run today never sees them."
+log "  #305 confirmed fixed: zero unadmitted-type sites - all three default-"
+log "  object adopters this estate creates (aws_default_network_acl,"
+log "  aws_default_route_table, aws_default_security_group) now resolve"
+log "  via their own tofu-address marker."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #304 (7 sites) and #305 (3 sites),"
-log "the specific counts and resource addresses asserted above, nothing new"
+log "STAGE 3 (test_plan): BLOCKED for real - #304 (7 sites) only; #305 is"
+log "fixed, the specific counts and resource addresses asserted above"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -426,7 +426,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #304 and #305 (choudoufu, see header)"
+log "  stage 3  test_plan          BLOCKED - #304 only; #305 fixed (choudoufu, see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
@@ -434,4 +434,4 @@ log "39 real resources, real emulator, real unmarked infrastructure, real"
 log "migration. Every assertion above reads live-import's or live-plan's own"
 log "output, or a tag read straight through the AWS CLI - never choudoufu's"
 log "own self-report. Run again with BREAK=1: stages 1 and 2 still pass and"
-log "stage 3's #304/#305 site-count assertions are the ones that fail."
+log "stage 3's #304 and #305-fixed site-count assertions are the ones that fail."
