@@ -100,7 +100,7 @@ var identityGoldenPin = map[string]int{
 	// nothing new about the mechanism - they are the by-product of every
 	// #271 fixture needing a certificate to point at. No pre-existing row
 	// changed class; see the digest below.
-	"NEEDS_DISCOVERY": 580,
+	"NEEDS_DISCOVERY": 589,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -152,7 +152,7 @@ var identityGoldenPin = map[string]int{
 // or quic_server_id before this fix, so no pre-existing marker's rendered
 // string moved - only the three fresh fixtures exercising the newly
 // admitted optional components contributed rows.
-const identityGoldenPinBodyDigest = "7475ab76bbf688f9a88001539b28a757bd21a2ef899bcbb41173f126136ee874"
+const identityGoldenPinBodyDigest = "7eb01dd80dde1a273bde8451d08ce24fb0e5933936ab2449a165eefb12087c7b"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -175,8 +175,8 @@ const identityGoldenPinBodyDigest = "7475ab76bbf688f9a88001539b28a757bd21a2ef899
 // contributing two, two and four instances respectively. Both numbers rise
 // by exactly what the three directories hold.
 const (
-	identityGoldenPinInstances = 1427
-	identityGoldenPinDirs      = 438
+	identityGoldenPinInstances = 1436
+	identityGoldenPinDirs      = 443
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
