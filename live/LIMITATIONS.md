@@ -1360,11 +1360,35 @@ change that: the signal is absent at the source, not missed by the sweep.
 purpose, so the day the schema starts carrying a signal, the claim gets
 rewritten rather than silently going stale.
 
-**Forwarding address.** Set these arguments knowingly and let the diff
-stand, since it re-sends the same value and converges. For secrets
-specifically, the better answer is the one `live/RECEIPTS.md` documents: keep the secret
-in a secret manager and reference it by pointer, so the perpetually
-re-proposed value is at least not a literal in configuration.
+**And that unwarned class now has somewhere to live.** The paragraph above
+says a schema-derived check cannot see `aws_s3_object.content`, and that
+remains true. GitHub issue #275 answered the other half: the signal is
+absent from the schema, so it is taken from the PROVIDER instead. An estate
+that declares a `record_store` gets a fifth namespace in it,
+`tofu-residue/<estate>`, and each apply puts every applied object to its
+provider twice - once with a prior carrying only the identity, once with
+the applied object - and records exactly the arguments whose two answers
+prove the provider does not manage them. The next cold replan fills those
+back in and the perpetual diff stops. `aws_lambda_function.filename`,
+`source_code_hash` and `publish` are the founding cases, and
+`aws_route53_record.allow_overwrite` is the one
+`live/e2e/corpus-crossing/run.sh` used to pin as a defect and now pins as a
+before-and-after. The value stored is what the APPLY produced and never
+what the configuration declares, so editing the zip still plans; the record
+never overwrites a value the provider gave, so real drift still plans; and
+the write-only and sensitive classes above are excluded by name, because a
+value the protocol forbids returning is not made returnable by writing it
+down and a secret does not belong in a record. See
+`internal/live/projection/residue.go`.
+
+**Forwarding address.** An estate with no `record_store` keeps the behavior
+this section describes: set these arguments knowingly and let the diff
+stand, since it re-sends the same value and converges. An estate that
+declares one keeps the write-only and sensitive halves of it, which no
+mechanism here will ever carry. For secrets specifically, the better answer
+is the one `live/RECEIPTS.md` documents: keep the secret in a secret
+manager and reference it by pointer, so the perpetually re-proposed value
+is at least not a literal in configuration.
 
 ## Every refusal, enumerated
 
@@ -1569,6 +1593,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
+| - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
@@ -1597,6 +1622,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
 | - | - | projection | Record-located instance with no record store | error | `internal/live/projection` | "Record-located instance with no record store" |
+| - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | 0 | 0 | stamp | No configuration to stamp | error | `internal/live/stamp` | "No configuration to stamp" |
@@ -1607,7 +1633,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**188 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**190 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2631,6 +2657,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Argument values could not be recorded
+
+**What.** An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot decode a persisted record
 
 **What.** A record read from the record store could not be decoded into the type it describes - a record written by a different version of this tool, or one edited by hand.
@@ -2850,6 +2884,14 @@ reserved for the limits wing's fixture directories, and
 #### Record-located instance with no record store
 
 **What.** A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Residue record could not be read
+
+**What.** An estate's residue record - the argument values an earlier apply sent that the provider's read never gives back (GitHub issue #275) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. The plan continues from what the provider returned, so those arguments are proposed for update again.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

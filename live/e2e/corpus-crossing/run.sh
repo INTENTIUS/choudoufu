@@ -32,14 +32,19 @@ set -uo pipefail
 #      zone name inside itself (datacite.org._domainkey.datacite.org), and
 #      two names spelled with the trailing dot Route 53 itself uses.
 #
-# Steps 4 and 5 are not decoration; each pins a defect this estate found on
-# its first contact with a cloud, so that the day it stops being true the
-# script says so instead of going quiet:
+# Steps 4 and 7 are not decoration; each is a defect this estate found on its
+# first contact with a cloud, kept so that the day it stops being true the
+# script says so instead of going quiet. Step 4 has since stopped being
+# true, and now shows both halves:
 #
 #   step 4  allow_overwrite is a create-time argument Route 53 never returns.
-#           Under markers there is no state file to remember it, so the ten
-#           wp-prod-staging records show an in-place update on EVERY run, and
-#           applying that update does not settle it.
+#           With no record_store there is no state file to remember it, so the
+#           ten wp-prod-staging records show an in-place update on EVERY run,
+#           and applying that update does not settle it. The step then adds a
+#           record_store and shows the same ten settle after one apply, with
+#           the estate's own allow_overwrite left exactly as DataCite wrote
+#           it. It used to end by DELETING that argument; issue #275 is what
+#           inverted it.
 #
 #   step 7  a record whose name is spelled with Route 53's own trailing dot
 #           renders an import identity carrying that dot. The import
@@ -67,7 +72,11 @@ set -uo pipefail
 # estate is copied out first and every delta below lands on the copy.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-SRC="$ROOT/.corpus/mastino/global/dns"
+# CORPUS_DIR exists because .corpus is populated in the main checkout and a
+# git worktree does not have one. It is READ from and never written to,
+# which is why pointing it at a shared checkout is safe.
+CORPUS_DIR="${CORPUS_DIR:-$ROOT/.corpus}"
+SRC="$CORPUS_DIR/mastino/global/dns"
 WORK="$(mktemp -d)"
 EST="$WORK/estate"
 FLOCI_PORT="${FLOCI_PORT:-4605}"
@@ -290,14 +299,52 @@ grep -qE 'Resources: 0 added, 10 changed' <<< "$APPLY2" \
 plan_into "$WORK/plan-aow2.log" || fail "the second allow_overwrite plan exited non-zero"
 grep -qE '^Plan: 0 to add, 10 to change, 0 to destroy' "$WORK/plan-aow2.log" \
   || { grep -E '^Plan:|^No changes' "$WORK/plan-aow2.log"
-       fail "the allow_overwrite diff SETTLED after an apply. That is a better world than the one this step was written in - re-read it and invert it."; }
+       fail "the allow_overwrite diff SETTLED after an apply, with no record_store declared. There is nowhere for the value to live in that configuration, so this is not the fix below arriving early - re-read it."; }
 log "  applying it does not settle it: the same 10 come back. Nothing on the"
 log "  wire changes; the plan is simply never empty while the argument is there."
 
-sed -i.bak 's|^  allow_overwrite = true$|  # DELTA 8 (was allow_overwrite = true)|' "$EST/main.tf"
-rm -f "$EST"/*.bak
-grep -q 'DELTA 8' "$EST/main.tf" || fail "DELTA 8 did not match the estate's own allow_overwrite"
-log "  DELTA 8  allow_overwrite removed                 (CHOUDOUFU DEFECT)"
+# DELTA 8, and this is the INVERSION issue #275 earned. This step used to end
+# by DELETING the estate's own allow_overwrite, with the note "CHOUDOUFU
+# DEFECT" - the argument had nowhere to live, so the only way past it was to
+# take it out of somebody else's configuration.
+#
+# It has somewhere to live now. A record_store gives the estate a residue
+# namespace, and one apply through it classifies allow_overwrite by putting
+# each record to the provider twice - once with a prior carrying only the
+# identity, once with the applied object - and recording it because the
+# provider answers nothing for it either way. The argument stays exactly as
+# DataCite wrote it.
+#
+# It is one block and nothing else. The estate is unchanged from here on.
+perl -0pi -e 's/^(  live \{\n    estate = "mastino-global-dns"\n)/$1\n    record_store "local" {\n      path = ".tofu-records" # DELTA 8\n    }\n/m' "$EST/terraform.tf"
+grep -q 'DELTA 8' "$EST/terraform.tf" || { cat "$EST/terraform.tf"; fail "DELTA 8 did not reach the live block"; }
+grep -q 'allow_overwrite = true' "$EST/main.tf" \
+  || fail "the estate's own allow_overwrite is gone; this step now measures nothing"
+log "  DELTA 8  record_store \"local\" added              (issue #275)"
+
+APPLY_R="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
+  printf '%s\n' "$APPLY_R" | grep -E '^Error|^│' | head -20; fail "the apply through the record store failed"; }
+grep -qE 'Resources: 0 added, 10 changed' <<< "$APPLY_R" \
+  || { grep -E 'Apply complete' <<< "$APPLY_R"; fail "expected the same 0 added, 10 changed"; }
+
+# Read the record off disk, not through choudoufu. It must carry
+# allow_overwrite and it must NOT carry name, type or ttl - those Route 53
+# answers are the provider's to give, and a stored copy of one is a second
+# opinion that would make the plan go empty over real drift.
+RESKEY="$(grep -rl '"allow_overwrite"' "$EST/.tofu-records" 2>/dev/null | head -1)"
+[ -n "$RESKEY" ] || { find "$EST/.tofu-records" -type f | head -20; fail "no residue record carrying allow_overwrite was written"; }
+case "$RESKEY" in *tofu-residue*) ;; *) fail "the allow_overwrite record landed outside the tofu-residue namespace: $RESKEY";; esac
+for forbidden in '"name"' '"type"' '"ttl"' '"records"'; do
+  grep -q "$forbidden" "$RESKEY" && { cat "$RESKEY"; fail "the residue record carries $forbidden, which Route 53 answers"; }
+done
+log "  residue recorded under tofu-residue/, carrying allow_overwrite and nothing Route 53 answers"
+
+plan_into "$WORK/plan-aow3.log" || fail "the post-record_store plan exited non-zero"
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan-aow3.log" \
+  || { grep -E '^Plan:|^No changes' "$WORK/plan-aow3.log"
+       grep -E '^ +[+~-] ' "$WORK/plan-aow3.log" | head -20
+       fail "allow_overwrite still shows a diff with a record_store declared. If this is now 10 again, the residue mechanism (issue #275) has stopped reaching this argument and the crossing above is the place to look."; }
+log "  and now the cold replan is EMPTY, with allow_overwrite still declared."
 
 # ── 5. the crossing ─────────────────────────────────────────────────────────
 log "=== 5. no state file, and nothing to do ==="
@@ -430,6 +477,9 @@ log "every rendered identity checked against Route 53's own answer. Two"
 log "hosted zones share a name and were told apart by their markers alone;"
 log "59 of the 63 instances carry no marker and could not."
 log ""
-log "Steps 4 and 7 are the two defects this estate found. If either goes red,"
-log "read it before assuming the fixture is wrong - both are pinned as they"
-log "are because they were TRUE, and going red means someone fixed one."
+log "Step 7 is the defect this estate still has. If it goes red, read it"
+log "before assuming the fixture is wrong - it is pinned as it is because it"
+log "was TRUE, and going red means someone fixed it."
+log ""
+log "Step 4 was the other one, and it is now a before-and-after: the argument"
+log "has somewhere to live (issue #275), so the estate keeps it."

@@ -396,6 +396,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// answer here, unlike for the hint, where a missing store only
 		// costs time.
 		LocatedStore: projection.NewLocatedStore(hintStore, estate),
+		// Issue #275. Same store again, third namespace. live-plan never
+		// applies, so it never WRITES residue; reading it is what makes
+		// live-plan's report agree with what `plan` would show for the same
+		// estate, rather than listing an update the real plan does not have.
+		ResidueStore: projection.NewResidueStore(hintStore, estate),
 	})
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.

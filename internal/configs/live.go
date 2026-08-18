@@ -781,7 +781,7 @@ func validateRecordStorePath(raw string) string {
 // validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
 // "s3" key_prefix may not be used, or "" when it is fine.
 //
-// The rule that matters: three namespaces beside the records must stay
+// The rule that matters: four namespaces beside the records must stay
 // unreachable from an override. The receipts pattern (live/RECEIPTS.md)
 // owns "/tofu-receipts/<estate>/<effect>"; guided discovery's hint
 // (issue #109) owns "tofu-hints/<estate>" in the same store - see
@@ -800,9 +800,14 @@ func validateRecordStorePath(raw string) string {
 // internal/live/projection.RecordKeyPrefix), but an operator-supplied
 // override is checked here at the segment level, the same "/"-delimited
 // hierarchy SSM parameter names and S3 key prefixes both already use: a
-// key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints"
-// or "tofu-located" is refused, whether or not it carries a leading or
-// trailing slash.
+// key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
+// "tofu-located" or "tofu-residue" is refused, whether or not it carries a
+// leading or trailing slash.
+//
+// Residue (issue #275, internal/live/projection's residueNamespaceRoot) is
+// the fourth and joined for "tofu-located"'s reason rather than
+// "tofu-receipts"': it names arguments of live cloud objects the record
+// namespace has no authority over.
 func validateRecordStoreKeyPrefix(raw string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
@@ -817,6 +822,9 @@ func validateRecordStoreKeyPrefix(raw string) string {
 	}
 	if first == "tofu-located" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-located\" segment: that namespace holds the identities of live objects that have nowhere to carry an ownership marker (GitHub issue #270), and it is the one namespace whose keys must never be enumerable as records. A record key is read as the estate's inventory - a key with no configuration behind it is proposed for destruction - while a located key is only an answer to \"which object is this\". Overlapping the two would let a stale located key drive a cloud deletion."
+	}
+	if first == "tofu-residue" {
+		return "The \"key_prefix\" argument must not begin with the \"tofu-residue\" segment: that namespace holds the argument values a provider's read never gives back (GitHub issue #275), for live objects the estate owns and the records have no authority over. It must stay unenumerable for the same reason \"tofu-located\" must - a record key with no configuration behind it is proposed for destruction, and a residue key is only a note about what was last sent to an object that exists."
 	}
 	return ""
 }

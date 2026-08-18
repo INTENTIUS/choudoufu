@@ -152,6 +152,19 @@ func hasLocatedImportID(b *configschema.Block) bool {
 // local_file.sensitive_content precisely in order to move the sensitive
 // case out into a different type, so counting it would classify a type by
 // an attribute whose whole purpose is to no longer be its.
+// CredentialMaterial is [credentialMaterial] for callers outside this
+// package: internal/live/projection's residue classifier (issue #275) asks
+// the identical question of the identical schema before it will consider
+// recording any of a type's argument values.
+//
+// It is a wrapper and not a second implementation on purpose. The exclusion
+// is the ONE sanctioned refusal in this fork, and the way it stops being
+// one rule is by being written down twice with a small difference between
+// the copies.
+func CredentialMaterial(b *configschema.Block) bool {
+	return credentialMaterial(b)
+}
+
 func credentialMaterial(b *configschema.Block) bool {
 	found := false
 	walkSchemaAttrs(b, func(a *configschema.Attribute) {

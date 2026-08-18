@@ -320,6 +320,18 @@ type statelessRunner struct {
 	locatedStore    *projection.LocatedStore
 	locatedVersions []projection.RecordVersion
 
+	// residueStore and residueVersions are GitHub issue #275's half again,
+	// set alongside the others and from the same store. residueConfig is
+	// the configuration WriteBack re-opens providers from: the ones
+	// PriorState read through are closed before the plan graph starts (see
+	// this file's "The provider double-launch" comment), and the residue
+	// classifier is the only write-back half that needs a live provider -
+	// because there is no static answer to which arguments a provider's
+	// read manages.
+	residueStore    *projection.ResidueStore
+	residueVersions []projection.RecordVersion
+	residueConfig   *configs.Config
+
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
 	// this type's own doc comment), and backend_local.go's localRunDirect
@@ -436,6 +448,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// validateRecordStoreKeyPrefix closes the other direction by
 		// refusing an override rooted at the located namespace.
 		r.locatedStore = projection.NewLocatedStore(store, estate)
+		// Issue #275's residue namespace rides the same store, and takes
+		// the ESTATE rather than r.recordKeyPrefix for the located
+		// namespace's exact reason: a key_prefix override must not be able
+		// to move a residue key under the record root, where orphan
+		// discovery's listing would find it and the plan would propose
+		// destroying whatever it names.
+		r.residueStore = projection.NewResidueStore(store, estate)
+		r.residueConfig = config
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
 		// timestamp land at [projection.HintKey](estate), where the next
@@ -526,6 +546,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		RecordStore:         r.recordStore,
 		RecordKeyPrefix:     r.recordKeyPrefix,
 		LocatedStore:        r.locatedStore,
+		ResidueStore:        r.residueStore,
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
@@ -537,6 +558,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// and this is harmless to have set.
 	r.recordVersions = projResult.RecordVersions
 	r.locatedVersions = projResult.LocatedVersions
+	r.residueVersions = projResult.ResidueVersions
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -612,15 +634,40 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 // configured, nothing happens" contract every optional live-block feature
 // in this file follows.
 func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.State, schemas *tofu.Schemas) tfdiags.Diagnostics {
-	return projection.WriteBack(ctx, projection.WriteBackRequest{
+	var diags tfdiags.Diagnostics
+
+	// Issue #275's residue classifier is the one write-back half that needs
+	// a live provider, and PriorState's are long closed by now, so this
+	// opens its own and closes them again - exactly what AfterApply already
+	// does below and for the same reason. Only when there is a residue
+	// store to write to: a run with no record_store pays nothing.
+	var provs *statelessProviders
+	if r.residueStore != nil && r.residueConfig != nil {
+		provs = newStatelessProviders(r.residueConfig, r.lib)
+	}
+
+	var provAccess projection.Providers
+	if provs != nil {
+		provAccess = provs
+	}
+
+	diags = diags.Append(projection.WriteBack(ctx, projection.WriteBackRequest{
 		Store:           r.recordStore,
 		KeyPrefix:       r.recordKeyPrefix,
 		PriorVersions:   r.recordVersions,
 		LocatedStore:    r.locatedStore,
 		LocatedVersions: r.locatedVersions,
+		ResidueStore:    r.residueStore,
+		ResidueVersions: r.residueVersions,
+		Providers:       provAccess,
 		FinalState:      finalState,
 		Schemas:         schemas,
-	})
+	}))
+
+	if provs != nil {
+		diags = diags.Append(provs.close(ctx))
+	}
+	return diags
 }
 
 // AfterApply implements [backendLocal.StatelessRun]: the untag verb's
