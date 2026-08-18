@@ -195,11 +195,18 @@ var arnJoinTable = map[string]map[string]arnJoinEntry{
 	"acm": {"certificate": single("AWS::CertificateManager::Certificate")},
 	// states's ARN service is "states"; the CFN service segment is
 	// StepFunctions. Same story as acm above.
-	"states":     {"stateMachine": single("AWS::StepFunctions::StateMachine")},
-	"logs":       {"log-group": single("AWS::Logs::LogGroup")},
-	"dynamodb":   {"table": single("AWS::DynamoDB::Table")},
-	"ecs":        {"cluster": single("AWS::ECS::Cluster")},
-	"cloudwatch": {"alarm": single("AWS::CloudWatch::Alarm")},
+	"states":   {"stateMachine": single("AWS::StepFunctions::StateMachine")},
+	"logs":     {"log-group": single("AWS::Logs::LogGroup")},
+	"dynamodb": {"table": single("AWS::DynamoDB::Table")},
+	"ecs":      {"cluster": single("AWS::ECS::Cluster")},
+	// A CloudWatch composite alarm and a metric alarm share the exact same
+	// "alarm" ARN shape (arn:...:cloudwatch:...:alarm:NAME) - CloudWatch
+	// treats both as one alarm namespace, and nothing in the ARN says which
+	// kind a given name belongs to. Same shape as the security-group-rule
+	// case above; see [joinTaggedResource]'s marker-based tiebreak for how a
+	// candidate found this way still resolves cleanly when it carries a
+	// readable tofu-address marker of its own.
+	"cloudwatch": {"alarm": ambiguous("AWS::CloudWatch::Alarm", "AWS::CloudWatch::CompositeAlarm")},
 	"lambda":     {"function": single("AWS::Lambda::Function")},
 	"elasticloadbalancing": {
 		"loadbalancer": elbLoadBalancerEntry(),
@@ -245,6 +252,80 @@ func joinARNToCFNType(a cloudcontrol.ARN) (cfnType string, candidates []string) 
 		return got[0], nil
 	}
 	return "", got
+}
+
+// markerTFType reads the resource's own tofu-address marker off the tags
+// GetResources returned inline for it - no second lookup - and returns the
+// TF type it names, when the marker is well-formed enough to name one. It
+// is the one piece both disambiguation steps below need: which type this
+// object's own marker, ground truth written by choudoufu itself, claims to
+// be. A missing, corrupt, or malformed marker returns false and settles
+// nothing, on purpose - a marker this package cannot even read is not
+// evidence for any type.
+func markerTFType(tags map[string]string) (tfType string, ok bool) {
+	raw, corrupt := GatherAddress(tags)
+	if corrupt || raw == "" {
+		return "", false
+	}
+	escaped := EscapeAddress(raw)
+	if !ValidMarkerAddress(escaped) {
+		return "", false
+	}
+	return markerTypeOf(escaped), true
+}
+
+// disambiguateByMarker breaks an ARN-shape tie using the resource's own
+// tofu-address marker. The marker names the resource it is written on
+// (live/MARKERS.md), so when it is well-formed and its own TF type maps to
+// one of the ARN join's candidate CFN types, that candidate is the answer -
+// the same trust this package already places in a marker everywhere else it
+// reads one, just consulted a step earlier here, before the ARN's
+// structural ambiguity would otherwise refuse the whole object.
+//
+// Every other outcome - no usable marker, or one naming a type outside the
+// candidate set - returns false and changes nothing: the caller's existing
+// "nothing in the ARN says which" refusal stands. This never turns a wrong
+// marker into a quiet acceptance; it only lets a correct one settle a tie
+// the ARN alone cannot.
+func disambiguateByMarker(roster *registry.Roster, tags map[string]string, candidates []string) (cfnType string, ok bool) {
+	tfType, ok := markerTFType(tags)
+	if !ok {
+		return "", false
+	}
+	markerCFNType, mapped := roster.CloudControlType(tfType)
+	if !mapped {
+		return "", false
+	}
+	for _, c := range candidates {
+		if c == markerCFNType {
+			return markerCFNType, true
+		}
+	}
+	return "", false
+}
+
+// disambiguateTFTypeByMarker breaks a mapping-side tie the same way, one
+// join stage later than [disambiguateByMarker]: the ARN resolved to exactly
+// one CFN type, but live/mapping.json maps that CFN type from more than one
+// admitted TF type with nothing about the ARN itself saying which
+// (aws_kms_key and aws_kms_external_key both map from AWS::KMS::Key; a
+// key's Origin decides which one a live key is, and the ARN does not carry
+// it). [resolveDocumentedAlias] already settles the safe case of this
+// shape, a documented synonym family where either name reaches the same
+// object; this is its counterpart for a genuine two-resource split, using
+// the same ground truth the step above does: the object's own marker,
+// trusted when it names one of the admitted candidates, ignored otherwise.
+func disambiguateTFTypeByMarker(tags map[string]string, admitted []string) (tfType string, ok bool) {
+	marked, ok := markerTFType(tags)
+	if !ok {
+		return "", false
+	}
+	for _, tf := range admitted {
+		if tf == marked {
+			return marked, true
+		}
+	}
+	return "", false
 }
 
 // providerAliasNoteRe matches the exact substring the AWS provider's own
@@ -366,7 +447,7 @@ type arnJoinOutcome struct {
 // an honest reason it could not be. See this file's doc comment for the
 // four steps and why the third (the CFN-type join) is a curated table
 // rather than a generic parse.
-func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
+func joinTaggedResource(roster *registry.Roster, arnStr string, tags map[string]string) arnJoinOutcome {
 	a, ok := cloudcontrol.ParseARN(arnStr)
 	if !ok {
 		return arnJoinOutcome{reason: fmt.Sprintf(
@@ -375,10 +456,24 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 	}
 
 	cfnType, candidates := joinARNToCFNType(a)
+	if cfnType == "" && len(candidates) > 1 {
+		// The ARN shape alone cannot tell these CFN types apart, but the
+		// object carries its own tofu-address marker inline (GetResources
+		// returns tags with the ARN, no second call needed) - ground truth
+		// about which resource this is, written by choudoufu itself, not a
+		// guess. If that marker names an admitted type whose own CFN type
+		// is one of the ARN's candidates, the tie is broken; a missing,
+		// malformed marker, or one naming something outside the candidate
+		// set changes nothing; the refusal below still fires exactly as it
+		// did before this existed.
+		if resolved, ok := disambiguateByMarker(roster, tags, candidates); ok {
+			cfnType = resolved
+		}
+	}
 	if cfnType == "" {
 		if len(candidates) > 1 {
 			return arnJoinOutcome{reason: fmt.Sprintf(
-				"ARN service %q and resource segment %q name more than one CFN type (%s), and nothing in the ARN says which",
+				"ARN service %q and resource segment %q name more than one CFN type (%s), and nothing in the ARN or the object's own tofu-address marker says which",
 				a.Service, resourceSegmentLabel(a), strings.Join(candidates, ", "))}
 		}
 		return arnJoinOutcome{reason: fmt.Sprintf(
@@ -416,9 +511,17 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 				// two admitted TF types over one CFN type, never aliases)
 				// is not.
 				admitted = []string{canonical}
+			} else if marked, ok := disambiguateTFTypeByMarker(tags, admitted); ok {
+				// Not a synonym family - a genuine split (a customer-managed
+				// KMS key and an external/BYOK one both map from
+				// AWS::KMS::Key, and nothing in a key's ARN carries its
+				// Origin). Same tiebreak as the ARN-to-CFN step above, one
+				// join stage later: the object's own marker names which of
+				// the two admitted TF types it actually is.
+				admitted = []string{marked}
 			} else {
 				return arnJoinOutcome{cfnType: cfnType, reason: fmt.Sprintf(
-					"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and the ARN alone does not say which",
+					"CFN type %s (from ARN service %q, resource segment %q) is mapped from more than one TF type in live/mapping.json (%s), and neither the ARN nor the object's own tofu-address marker says which",
 					cfnType, a.Service, resourceSegmentLabel(a), strings.Join(tfTypes, ", "))}
 			}
 		}
@@ -525,7 +628,7 @@ func sweepViaTagging(ctx context.Context, req Request, decl *declared, res *Resu
 
 	byType := make(map[string][]taggedCandidate)
 	for _, tr := range tagged {
-		out := joinTaggedResource(req.Roster, tr.ResourceARN)
+		out := joinTaggedResource(req.Roster, tr.ResourceARN, tr.Tags)
 		if out.noTableRow && decl.types[out.typeName] == nil {
 			// GitHub issue #107. The type is outside the generated
 			// admission table, so the sweep's universe - which is that
