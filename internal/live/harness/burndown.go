@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      97,
+		Bound:      98,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -463,6 +463,16 @@ func rowgenAnnotationRulings() Entry {
 				"first documented example and has no rule for this shape, so the fresh proposal cannot " +
 				"reproduce the fix. The ruling's exit names the same missing capability the entries above " +
 				"already do: keep every documented import form, not one pinned example.",
+			"98 on 2026-08-17 (issue #286): the same reviewed upward bump, one more type. " +
+				"aws_lb_target_group_attachment, aws_alb_target_group_attachment and " +
+				"aws_route53_zone_association already carried fold-child rulings, so adding their " +
+				"OmitIfAbsent trailing segments (availability_zone, quic_server_id, vpc_region) moved no " +
+				"count - the rows were already unreproduced for an unrelated reason and remain so. " +
+				"aws_route53_record had none: its three-component row was reproduced exactly until this " +
+				"fix added a fourth, optional set_identifier segment the provider documents as a fourth " +
+				"'if the record also contains a set identifier, append it' form. Same missing capability " +
+				"as 97: classify.go pins one documented example and has no rule for a trailing segment " +
+				"present in a longer form and wholly absent in a shorter one.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

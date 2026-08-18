@@ -44,18 +44,20 @@ func dotProviderSchema() providers.Schema {
 	return providers.Schema{
 		Block: &configschema.Block{
 			Attributes: map[string]*configschema.Attribute{
-				"id":      {Type: cty.String, Computed: true},
-				"zone_id": str,
-				"name":    str,
-				"type":    str,
+				"id":             {Type: cty.String, Computed: true},
+				"zone_id":        str,
+				"name":           str,
+				"type":           str,
+				"set_identifier": &configschema.Attribute{Type: cty.String, Optional: true},
 			},
 		},
 		IdentitySchema: &configschema.Object{
 			Nesting: configschema.NestingSingle,
 			Attributes: map[string]*configschema.Attribute{
-				"zone_id": {Type: cty.String, Required: true},
-				"name":    {Type: cty.String, Required: true},
-				"type":    {Type: cty.String, Required: true},
+				"zone_id":        {Type: cty.String, Required: true},
+				"name":           {Type: cty.String, Required: true},
+				"type":           {Type: cty.String, Required: true},
+				"set_identifier": {Type: cty.String, Optional: true},
 			},
 		},
 	}
@@ -86,8 +88,9 @@ func dotProvider(t *testing.T) providers.Interface {
 			// The stub carries the identity's OWN "name" spelling verbatim -
 			// this is the exact real-provider shape #281 found, reproduced
 			// rather than asserted.
-			"name": ident.GetAttr("name"),
-			"type": ident.GetAttr("type"),
+			"name":           ident.GetAttr("name"),
+			"type":           ident.GetAttr("type"),
+			"set_identifier": cty.NullVal(cty.String),
 		})
 		resp.ImportedResources = []providers.ImportedResource{{TypeName: r.TypeName, State: stub}}
 		return resp

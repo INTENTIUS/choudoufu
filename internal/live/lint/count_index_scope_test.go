@@ -62,9 +62,9 @@ func TestCountIndexScopeForType(t *testing.T) {
 			wantAttrs:    []string{"egress", "network_acl_id", "protocol", "rule_number"},
 		},
 		{
-			name:         "aws_route53_record: identity-bearing set is exactly its three Components attrs",
+			name:         "aws_route53_record: identity-bearing set is exactly its four Components attrs",
 			resourceType: "aws_route53_record",
-			wantAttrs:    []string{"name", "type", "zone_id"},
+			wantAttrs:    []string{"name", "set_identifier", "type", "zone_id"},
 		},
 		{
 			name:         "unknown type: no table data, so every argument stays in scope",

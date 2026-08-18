@@ -150,9 +150,25 @@
           "port"
         ],
         "identity_attr": "*"
+      },
+      {
+        "literal": ",",
+        "attrs": [
+          "availability_zone"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
+      },
+      {
+        "literal": ",",
+        "attrs": [
+          "quic_server_id"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
       }
     ],
-    "import_syntax": "TARGETGROUPARN,TARGETID,PORT"
+    "import_syntax": "TARGETGROUPARN,TARGETID,PORT or TARGETGROUPARN,TARGETID,PORT,AVAILABILITYZONE or TARGETGROUPARN,TARGETID,PORT,AVAILABILITYZONE,QUICSERVERID"
   },
   "aws_amplify_app": {
     "type": "aws_amplify_app",
@@ -6666,9 +6682,25 @@
           "port"
         ],
         "identity_attr": "*"
+      },
+      {
+        "literal": ",",
+        "attrs": [
+          "availability_zone"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
+      },
+      {
+        "literal": ",",
+        "attrs": [
+          "quic_server_id"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
       }
     ],
-    "import_syntax": "TARGETGROUPARN,TARGETID,PORT"
+    "import_syntax": "TARGETGROUPARN,TARGETID,PORT or TARGETGROUPARN,TARGETID,PORT,AVAILABILITYZONE or TARGETGROUPARN,TARGETID,PORT,AVAILABILITYZONE,QUICSERVERID"
   },
   "aws_lb_trust_store": {
     "type": "aws_lb_trust_store",
@@ -8803,9 +8835,17 @@
           "type"
         ],
         "identity_attr": "*"
+      },
+      {
+        "literal": "_",
+        "attrs": [
+          "set_identifier"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
       }
     ],
-    "import_syntax": "ZONEID_NAME_TYPE"
+    "import_syntax": "ZONEID_NAME_TYPE or ZONEID_NAME_TYPE_SETIDENTIFIER"
   },
   "aws_route53_resolver_endpoint": {
     "type": "aws_route53_resolver_endpoint",
@@ -8909,9 +8949,17 @@
           "vpc_id"
         ],
         "identity_attr": "*"
+      },
+      {
+        "literal": ":",
+        "attrs": [
+          "vpc_region"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
       }
     ],
-    "import_syntax": "ZONEID:VPCID"
+    "import_syntax": "ZONEID:VPCID or ZONEID:VPCID:VPCREGION"
   },
   "aws_route53profiles_association": {
     "type": "aws_route53profiles_association",
