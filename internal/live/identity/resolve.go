@@ -2965,9 +2965,25 @@ func (r *resolver) countExpansion(rc *configs.Resource) (*expansion, bool) {
 	}
 
 	ident := r.moduleIdentifier(addr.String()+" count", rc.Count.Range())
+	mark := len(r.diags)
 	val, ok := r.evalStatic(expr, instScope{}, ident)
 	if !ok {
-		return nil, false
+		// A count whose only obstacle is a module argument this module's
+		// caller built out of a literal skeleton and one unresolvable leaf.
+		// length(var.worker_groups) over `worker_groups = [{...}, {...}]`
+		// is the shape: the list's LENGTH is written in the caller's
+		// configuration whatever any element evaluates to.
+		//
+		// Accepted only when the retry produces a wholly known value, so a
+		// count that merely moves from "could not be computed" to "computed
+		// to an unknown" keeps the diagnostic it already had rather than
+		// trading it for a vaguer one. See [resolver.tolerantRetry].
+		retried, retryOK := r.tolerantRetry(expr, instScope{}, ident)
+		if !retryOK || !retried.IsWhollyKnown() || retried.IsNull() {
+			return nil, false
+		}
+		r.diags = r.diags[:mark]
+		val = retried
 	}
 	if val.IsMarked() {
 		// Before the marked check, gocty.FromCtyValue below panicked
@@ -3218,7 +3234,27 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 			}
 			return r.checkedForEachKeys(rc, exp)
 		}
-		return nil, false
+		// Last of all: the key set is in the caller's configuration, but a
+		// module argument stands between this for_each and it. `for_each =
+		// var.capacity_providers` over `capacity_providers = { ASG = { ...
+		// module.autoscaling.autoscaling_group_arn ... } }` names one
+		// instance, keyed ASG, whatever the leaf turns out to be. See
+		// [resolver.tolerantVariables].
+		//
+		// Tried after staticForEachKeys, never before, because that chase
+		// can carry an element EXPRESSION forward and resolve a sibling's
+		// identity concretely where this can only produce an unknown.
+		//
+		// forEachKeysKnown is the acceptance test, so a retry that leaves
+		// the key set itself in doubt - a set whose elements are unknown,
+		// most of all, since a set's elements ARE its keys - changes
+		// nothing and the original diagnostic stands.
+		retried, retryOK := r.tolerantRetry(expr, instScope{}, ident)
+		if !retryOK || !forEachKeysKnown(retried) || retried.IsNull() || retried.IsMarked() {
+			return nil, false
+		}
+		r.diags = r.diags[:mark]
+		val = retried
 	}
 	if !forEachKeysKnown(val) || val.IsNull() {
 		r.errorf(expr.Range(), "Non-static for_each expression",

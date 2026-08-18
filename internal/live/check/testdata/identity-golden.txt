@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=418 instances=1392
-# shape: class CONCRETE=718
+# shape: dirs=424 instances=1397
+# shape: class CONCRETE=723
 # shape: class NEEDS_DISCOVERY=562
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=d052264bede6f03aee35b3365a5116bec40b192f870eeebeb3b118569f868781
+# shape: body-sha256=324cebbb642609bee4b8b26cde7c64d005968adab7a7d53924b82706ac20d31f
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -274,6 +274,11 @@ internal/live/identity/testdata/module-sibling-count	module.a_with_children.modu
 internal/live/identity/testdata/module-sibling-count/child-leaf	aws_cloudwatch_log_group.b	CONCRETE	/b-leaf-count/should-not-exist	name=/b-leaf-count/should-not-exist
 internal/live/identity/testdata/module-sibling-count/child-with-children	module.nested.aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
 internal/live/identity/testdata/module-sibling-count/child-with-children/nested	aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
+internal/live/identity/testdata/modulearg-partial	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_group.g[0]	CONCRETE	the-group	name=the-group
+internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["alice"]	CONCRETE	user-alice	name=user-alice
+internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["bob"]	CONCRETE	user-bob	name=user-bob
+internal/live/identity/testdata/modulearg-partial-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.named_conditional	CONCRETE	explicit-name-2	name=explicit-name-2
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-discovery	aws_db_parameter_group.named	CONCRETE	engine-params	name=engine-params
