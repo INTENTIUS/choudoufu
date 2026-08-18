@@ -241,7 +241,14 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // named in #294's own commit message; nothing here is unexplained.
 const (
 	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 445
+	// 446, up from 445 (issue #256 item 6): a new fixture,
+	// internal/live/check/testdata/backend-only-real, added to prove
+	// OnboardingBackendOnly's coupling to lint.RuleStateBackend's severity
+	// through the real analyze.go pipeline rather than a fabricated
+	// Findings slice. It declares only a backend block and no resources, so
+	// it adds one directory and zero instances - the digest and instance
+	// count above are unchanged.
+	identityGoldenPinDirs = 446
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

@@ -362,7 +362,7 @@ rather than in sites.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1456 rendered identities across 445 configuration directories in under a
+1456 rendered identities across 446 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
