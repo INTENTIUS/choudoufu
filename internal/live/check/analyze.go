@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -301,6 +302,26 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		site := Site{
 			Detail:   desc.Detail,
 			Category: tfdiags.ExtraInfo[configs.ReferenceCategory](diag),
+		}
+		// Every error diagnostic identity.ResolveWith raises while working
+		// on one instance carries an [identity.InstanceFailure] tag naming
+		// that instance structurally (GitHub issue #221) - see
+		// [instanceFailureAddr], the same recovery hardFailureAddrs below
+		// already uses. Issue #290: reading it here, rather than only for
+		// the cascade/hard-failure bookkeeping, is what lets an identity or
+		// data-read refusal report which resource TYPE it refused - the
+		// type-shaped lint rules (unadmitted-type, markerless-type,
+		// logical-resource) have always had this from [lint.Issue.Type];
+		// every identity-layer refusal fell through to "" or a bare
+		// reference-shape label for want of it. instanceFailureAddr's own
+		// "" on a diagnostic that predates #221 or came from elsewhere is
+		// handled the same way it already is elsewhere in this function:
+		// Address and Type simply stay unset.
+		if addr := instanceFailureAddr(diag, ""); addr != "" {
+			site.Address = addr
+			if inst, addrDiags := addrs.ParseAbsResourceInstanceStr(addr); !addrDiags.HasErrors() {
+				site.Type = inst.Resource.Resource.Type
+			}
 		}
 		if src := diag.Source(); src.Subject != nil {
 			site.File = src.Subject.Filename
@@ -766,11 +787,19 @@ type Finding struct {
 // Site is one place a refusal fired.
 type Site struct {
 	// Address is the offending construct in address form, where the rule
-	// has one.
+	// has one. For a lint issue this is [lint.Issue.Construct]; for an
+	// identity or data-read refusal (GitHub issue #290) it is the resource
+	// instance address recovered from the diagnostic's
+	// [identity.InstanceFailure] tag, in [addrs.AbsResourceInstance.String]
+	// form, when the diagnostic carries one.
 	Address string
 
-	// Type is the managed resource type, set only for the type-shaped
-	// rules. See [lint.Issue.Type] and [Finding.Types].
+	// Type is the managed resource type. Set for the type-shaped lint
+	// rules (see [lint.Issue.Type] and [Finding.Types]), and, since issue
+	// #290, for any identity or data-read site whose diagnostic carries an
+	// [identity.InstanceFailure] - which is every error identity.ResolveWith
+	// raises while working on one instance. Left empty rather than guessed
+	// when neither source applies.
 	Type string
 
 	// Module is the module path the site is in; empty for the root.
