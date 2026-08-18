@@ -627,6 +627,17 @@ Every one of these has been hit, most more than once.
   `TestCohortAcceptance` and any crossing script both report their real
   result on their own printed line, never on the test runner's summary
   alone.
+- **Do not run a full-module test after every merge.** One orchestrating
+  session ran a full `go test ./...` - several hundred packages, most of
+  them inherited from upstream OpenTofu and untouched by anything this fork
+  changes - after nearly every individual merge for an entire night, dozens
+  of times over, before the maintainer pointed out the waste directly. `just
+  ci`'s fast tier (`internal/live/`, `tools/`, `live/`, `cmd/`,
+  `internal/command/`) is the actual pre-push gate CI runs, and it caught
+  every real regression that night too, in a fraction of the time.
+  `go build ./...` first is still cheap and worth doing every time; a
+  full-module `go test ./...` is not routine verification - save it for a
+  periodic wider checkpoint, not a reflex after each individual change.
 - **`env -u PWD` on every go command.** The checkout is reachable by two
   spellings through a symlink.
 - **Read exit codes from a file.**
