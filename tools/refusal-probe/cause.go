@@ -201,22 +201,49 @@ func (c *causeCatalog) discovery(detail string) string {
 
 // site is the cause of one refused site, as "<axis>:<value>".
 //
-// Three axes, in the order of how much they say, and every one of them read
-// off something structured rather than guessed:
+// Three axes, and every one of them read off something structured rather
+// than guessed:
 //
 //   - discovery, for a stamp-layer site: the cause behind an unmarked
 //     marker-only apply, recovered as above. This is the axis three agents
 //     needed and could not get.
-//   - reference, from [check.Site.Category], which the static-reference
-//     refusals already carry as [configs.ReferenceCategory] off the raising
-//     diagnostic's Extra field.
-//   - type, from [check.Site.Type], set by the type-shaped lint rules. For
-//     unadmitted-type this is the demand breakdown: which types, not how
-//     many sites.
+//   - type, from [check.Site.Type]: which managed resource type the site
+//     concerns. Set by the type-shaped lint rules (for unadmitted-type this
+//     is the demand breakdown: which types, not how many sites) and, since
+//     GitHub issue #290, by every identity or data-read site whose
+//     diagnostic carries an [identity.InstanceFailure] - effectively every
+//     error identity.ResolveWith raises.
+//   - reference, from [check.Site.Category]: the shape of the reference
+//     that defeated static evaluation - [configs.ReferenceCategory], off
+//     the raising diagnostic's Extra field.
 //
 // An empty string means this site carries none of the three. It is counted
 // under its own key rather than dropped, so the breakdown always sums to the
 // site count and a reader can see how much of it is unexplained.
+//
+// type outranks reference here, and that ordering was a real decision, not
+// an accident of switch-statement order: before #290 the two never
+// coexisted on one site (Category was set only in check's identity loop,
+// Type only by lint's type-shaped rules), so nothing depended on which came
+// first. #290 makes them coexist on most identity and data-read sites, and
+// at that point reference stopped being the more informative axis for this
+// corpus. Category is nearly constant WITHIN one refusal ID - a static
+// reference to a managed resource's dynamic attribute is always
+// "Dynamic value in static context" with reference:managed_resource, a
+// reference to a module output is always "Module output not supported in
+// static context" with reference:module_output - so the reference axis
+// mostly restates what the refusal ID already says and rarely
+// distinguishes one site from another under the same ID. Type does not: the
+// corpus's single largest identity finding, "Dynamic value in static
+// context" (293 sites at the time of this change), would collapse to one
+// reference:managed_resource bucket under the old order and only breaks
+// open by resource type under the new one - which is exactly the question
+// GitHub issue #289 asks ("how many refused sites fire on an admitted
+// taggable type") and reference:managed_resource cannot answer. Category is
+// not discarded: it still surfaces for the diagnostics identity.ResolveWith
+// raises with no [identity.InstanceFailure] context (defensive only - see
+// [instanceFailureAddr] in internal/live/check), and for any future site
+// that carries a reference shape but no resolvable instance.
 //
 // The discovery axis is applied to the one stamp summary that actually
 // carries a discovery sentence, not to the stamp layer as a whole: a marker
@@ -228,10 +255,10 @@ func (c *causeCatalog) site(layer check.Layer, s check.Site, id string) string {
 	switch {
 	case layer == check.LayerStamp && id == stamp.SummaryUnmarkedApply:
 		return "discovery:" + c.discovery(s.Detail)
-	case s.Category != "":
-		return "reference:" + string(s.Category)
 	case s.Type != "":
 		return "type:" + s.Type
+	case s.Category != "":
+		return "reference:" + string(s.Category)
 	default:
 		return ""
 	}
