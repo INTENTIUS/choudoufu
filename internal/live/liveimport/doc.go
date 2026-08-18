@@ -68,9 +68,20 @@
 //
 // # Scope (v1)
 //
-// Root module managed resources only (see issue #59: module-structured state
-// needs the module epic's addressing first). Every resource type this
-// package can act on has to appear in
+// Every managed resource instance in the state, root module and child
+// module alike - issue #59's module epic gave the other four root-only
+// walkers (identity, discovery, stamp, projection, mv) real traversal, and
+// this package now matches them. A resource's address, tofu-address
+// included, carries its full module path exactly as a marker written by an
+// ordinary live-plan/apply would. The one piece #59 deliberately left for a
+// later pass, provider aliasing that crosses a module boundary, is
+// unaffected here: [impliedProviderAddr] still resolves the default
+// provider for a type's implied provider address, which is correct for the
+// overwhelmingly common case of a module inheriting its caller's provider
+// and wrong only for a module given an explicit `providers = {...}` map -
+// exactly as before this change, for root-level resources using a
+// non-default provider too. Every resource type this package can act on has
+// to appear in
 // [github.com/intentius/choudoufu/internal/live/identity]'s admission table,
 // the same table live-mv and live-plan check against - an unlisted type is
 // reported, never guessed at. Only two marker keys are stamped, tofu-estate

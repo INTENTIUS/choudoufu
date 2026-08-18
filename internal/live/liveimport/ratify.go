@@ -109,8 +109,8 @@ type Request struct {
 
 	// State is the state to read, already parsed by the caller - through
 	// [github.com/intentius/choudoufu/internal/states/statefile] - and never
-	// touched again by this package. Only its root module's managed
-	// resources are considered; see the package doc, "Scope (v1)".
+	// touched again by this package. Every module's managed resources are
+	// considered, root and child alike; see the package doc, "Scope (v1)".
 	State *states.State
 
 	// Providers supplies a configured provider per provider configuration
@@ -126,20 +126,14 @@ type Ratification struct {
 	Estate  string
 	Entries []Entry
 
-	// ChildModuleInstances counts resource instances this pass saw in the
-	// state but did not consider at all, because they belong to a module
-	// other than the root - out of scope per issue #59. Purely
-	// informational: nothing here refuses a state file for carrying them.
-	ChildModuleInstances int
-
 	eligible map[string]*eligible
 }
 
-// Ratify reads every root-module managed resource instance in req.State and
-// verifies it against the live system through req.Providers, producing one
-// Entry per instance. It writes nothing: every call it makes is
-// GetProviderSchema or ReadResource, both read-only on the provider
-// protocol.
+// Ratify reads every managed resource instance in req.State - root module
+// and child module alike - and verifies it against the live system through
+// req.Providers, producing one Entry per instance. It writes nothing: every
+// call it makes is GetProviderSchema or ReadResource, both read-only on the
+// provider protocol.
 func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -170,10 +164,6 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	}
 
 	for _, mod := range sortedModules(req.State) {
-		if !mod.Addr.IsRoot() {
-			rat.ChildModuleInstances += countManagedInstances(mod)
-			continue
-		}
 		for _, res := range sortedResources(mod) {
 			if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
 				continue
@@ -283,7 +273,11 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 // impliedProviderAddr is the provider configuration this run reaches a
 // resource through: the default provider implied by its type ("aws" for
 // every "aws_*" type), in the root module, keeping whatever alias the state
-// recorded.
+// recorded. This is deliberately unconditional on which module res itself
+// lives in - a child-module resource inheriting its caller's default
+// provider (the common case, and the only case a module block with no
+// explicit `providers = {...}` map can produce) resolves exactly the same
+// way a root resource does.
 //
 // It is deliberately not res.ProviderConfig verbatim. A tfstate written by
 // an older, unrelated tool - real Terraform, most realistically, which is
@@ -292,9 +286,11 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 // working directory's own "init", know only registry.opentofu.org. Every
 // other live-* command resolves a resource's provider from its configuration
 // for the same reason, never from a recorded address. A future alias- or
-// namespace-aware config lookup could refine this further, but v1 does not
-// need one: the default provider address is what "choudoufu init" in this
-// directory already prepared.
+// namespace-aware config lookup could refine this further - a module given
+// an explicit `providers = {...}` map that rebinds an alias resolves wrong
+// here, same as a root resource on a non-default provider always has - but
+// v1 does not need one: the default provider address is what "choudoufu
+// init" in this directory already prepared.
 func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 	return addrs.AbsProviderConfig{
 		Module:   addrs.RootModule,
@@ -352,17 +348,6 @@ func sortedModules(state *states.State) []*states.Module {
 	}
 	sort.Slice(mods, func(i, j int) bool { return mods[i].Addr.String() < mods[j].Addr.String() })
 	return mods
-}
-
-func countManagedInstances(mod *states.Module) int {
-	n := 0
-	for _, res := range mod.Resources {
-		if res.Addr.Resource.Mode != addrs.ManagedResourceMode {
-			continue
-		}
-		n += len(res.Instances)
-	}
-	return n
 }
 
 func sortedResources(mod *states.Module) []*states.Resource {

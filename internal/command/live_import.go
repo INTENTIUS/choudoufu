@@ -161,9 +161,8 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 
 func liveImportReport(statePath string, rat *liveimport.Ratification) views.StatelessImportReport {
 	rep := views.StatelessImportReport{
-		Estate:               rat.Estate,
-		StatePath:            statePath,
-		ChildModuleInstances: rat.ChildModuleInstances,
+		Estate:    rat.Estate,
+		StatePath: statePath,
 	}
 	for _, e := range rat.Entries {
 		rep.Entries = append(rep.Entries, views.StatelessImportEntry{
@@ -223,9 +222,9 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
 
   Only resource types with a row in the live-markers admission table
   (live/LIMITATIONS.md) can be verified or stamped at all, and only those
-  whose provider schema carries a tags argument can carry a marker. Only the
-  root module is considered (issue #59: a module-structured state needs the
-  module epic's addressing first).
+  whose provider schema carries a tags argument can carry a marker. Every
+  module is considered, root and child alike, and a stamped tofu-address
+  carries the resource's full module path.
 
 Options:
 

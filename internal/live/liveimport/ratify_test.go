@@ -253,13 +253,6 @@ func TestRatify_classifiesEveryStatus(t *testing.T) {
 		t.Errorf("aws_security_group.main is DRIFTED but reports no drifted attributes")
 	}
 
-	// The data source and the resource in a non-root module (there is none
-	// in this fixture, but the zero value must still read as zero) never
-	// appear.
-	if rat.ChildModuleInstances != 0 {
-		t.Errorf("ChildModuleInstances = %d, want 0", rat.ChildModuleInstances)
-	}
-
 	// Ratify must never write: nothing was applied.
 	if len(cloud.applied) != 0 {
 		t.Errorf("Ratify applied to %v; it must never write", cloud.applied)

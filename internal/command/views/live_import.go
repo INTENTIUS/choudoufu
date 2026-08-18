@@ -26,10 +26,9 @@ type StatelessImportEntry struct {
 // StatelessImportReport is the whole ratification report "choudoufu
 // live-import" prints before any tag is written.
 type StatelessImportReport struct {
-	Estate               string
-	StatePath            string
-	Entries              []StatelessImportEntry
-	ChildModuleInstances int
+	Estate    string
+	StatePath string
+	Entries   []StatelessImportEntry
 }
 
 // StatelessImportOutcome is one resource instance's stamp outcome, in a form
@@ -94,7 +93,7 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 	}
 
 	if len(rep.Entries) == 0 {
-		b.WriteString("The state file names no root-module managed resource instances. Nothing to ratify.\n")
+		b.WriteString("The state file names no managed resource instances. Nothing to ratify.\n")
 	}
 
 	for _, status := range statelessImportStatusOrder {
@@ -117,9 +116,6 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 
 	verified := len(byStatus["VERIFIED"]) + len(byStatus["DRIFTED"])
 	fmt.Fprintf(&b, "%d of %d resource instance(s) are eligible for stamping (VERIFIED or DRIFTED).\n", verified, len(rep.Entries))
-	if rep.ChildModuleInstances > 0 {
-		fmt.Fprintf(&b, "%d resource instance(s) in a non-root module were not considered (root module only, v1; see issue #59).\n", rep.ChildModuleInstances)
-	}
 	b.WriteString(fmt.Sprintf("\n%s was opened once, read-only, and will not be opened again by this run - not to write it, and not to read it a second time.\n", rep.StatePath))
 	if verified > 0 {
 		b.WriteString("No tag has been written. Rerun with -approve to stamp tofu-estate and tofu-address onto every eligible resource above.\n")
