@@ -26,9 +26,18 @@ const operationalBrief = ".claude/agents/live-markers.md"
 // the inclusion half naming only the brief, so re-narrowing the .gitignore
 // would have silently dropped the skill while both tests stayed green - the
 // #165 state again, one directory over.
+//
+// agent-progress.sh is here for the same reason, one directory further:
+// checking whether a background subagent is stuck or progressing was an ad
+// hoc dance re-derived by hand each time this session, at the cost of
+// pulling raw transcript into context just to answer "is it still writing".
+// Scripted, it is shared written instruction with exactly the standing of
+// the brief and the skill - it does not survive a fresh clone if ignored,
+// which is the #165 state again.
 var trackedInstructions = []string{
 	operationalBrief,
 	".claude/skills/measuring-choudoufu/SKILL.md",
+	".claude/scripts/agent-progress.sh",
 }
 
 // TestOperationalBriefIsTracked is issue #165's guard.
@@ -52,7 +61,7 @@ func TestOperationalBriefIsTracked(t *testing.T) {
 				"It is written instruction on how to work on this repository. Untracked, it does not "+
 				"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
 				"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
-				"re-includes both /.claude/agents/ and /.claude/skills/.",
+				"re-includes /.claude/agents/, /.claude/skills/ and /.claude/scripts/.",
 				path, err, strings.TrimSpace(string(out)))
 		}
 	}
@@ -64,23 +73,24 @@ func TestOperationalBriefIsTracked(t *testing.T) {
 // agents. Re-including the whole directory to rescue the brief would commit
 // both.
 //
-// skills/ was added to the allowed set deliberately, not to make a commit
-// pass. The rule this test enforces is about PER-MACHINE state; a skill is
-// shared written instruction with exactly the standing of the brief above,
-// and it does not survive a fresh clone if it is ignored - which is the
-// state issue #165 was filed about. settings.local.json and worktrees/ stay
-// excluded, which is what the narrowness was for.
+// skills/ and scripts/ were added to the allowed set deliberately, not to
+// make a commit pass. The rule this test enforces is about PER-MACHINE
+// state; a skill or a script like agent-progress.sh is shared written
+// instruction with exactly the standing of the brief above, and it does not
+// survive a fresh clone if it is ignored - which is the state issue #165
+// was filed about. settings.local.json and worktrees/ stay excluded, which
+// is what the narrowness was for.
 func TestLocalAgentStateStaysUntracked(t *testing.T) {
 	out, err := exec.Command("git", "-C", "..", "ls-files", ".claude/").Output()
 	if err != nil {
 		t.Skipf("git ls-files unavailable: %v", err)
 	}
 	for _, path := range strings.Fields(string(out)) {
-		if !strings.HasPrefix(path, ".claude/agents/") && !strings.HasPrefix(path, ".claude/skills/") {
-			t.Errorf("%s is tracked, but .claude/ outside agents/ and skills/ is local state.\n"+
+		if !strings.HasPrefix(path, ".claude/agents/") && !strings.HasPrefix(path, ".claude/skills/") && !strings.HasPrefix(path, ".claude/scripts/") {
+			t.Errorf("%s is tracked, but .claude/ outside agents/, skills/ and scripts/ is local state.\n"+
 				"settings.local.json is per-machine and worktrees/ is scratch; neither belongs in the "+
-				"repository. Narrow the .gitignore exception back to /.claude/agents/ and "+
-				"/.claude/skills/.", path)
+				"repository. Narrow the .gitignore exception back to /.claude/agents/, "+
+				"/.claude/skills/ and /.claude/scripts/.", path)
 		}
 	}
 }
