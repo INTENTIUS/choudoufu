@@ -505,6 +505,25 @@ demo-corpus-cncf-k8s-infra-aws-capa-ami:
 demo-corpus-govuk-root-dns:
     bash live/e2e/corpus-govuk-root-dns/run.sh
 
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/crossref-related-agent,
+# structurally identical to demo-corpus-crossref-agent's four types
+# (aws_cloudwatch_event_rule, aws_cloudwatch_event_target,
+# aws_lambda_function, aws_lambda_permission) and the sibling
+# demo-corpus-crossref-orcid-agent was explicitly flagged as untested for.
+# It does NOT share crossref-orcid-agent's floci Lambda-handler bug (#287
+# item 7): the deployment zip's one internal entry is named
+# crossref-related-agent_runner.js, matching what main.tf's handler names,
+# unlike crossref-orcid-agent's copy-paste leftover. The same four seeded
+# reads (a Lambda role, a VPC, two subnets and a security group) and the
+# same record_store delta for the Lambda's filename/source_code_hash/
+# publish (#275) apply unchanged. Applied, state file deleted, replanned
+# empty twice, all 4 rendered identities checked against the emulator's own
+# answer. BREAK=1 corrupts the expected identity and the run must catch it
+# in step 5 and nowhere else. Needs Docker, the AWS CLI and a populated
+# .corpus; runs on its own port (4711) so it can run beside `just demo`.
+demo-corpus-crossref-related-agent:
+    bash live/e2e/corpus-crossref-related-agent/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
