@@ -68,36 +68,54 @@ type driftEntry struct {
 // GENERATED.md now pins the six-type roster, so its regeneration reproduces
 // the tree exactly and pulling the new type in is a deliberate roster edit
 // judged by a tier run, not a side effect of regenerating.
+// Issue #292 ("estate-gen's siblingRef wires an account-scoped identity
+// component (Glue catalog_id) to a sibling reference instead of a literal")
+// used to carry a "data" entry here: #241 made catalog_id an identity
+// component for four Glue types, and this generator wired three of them to
+// aws_glue_data_catalog_encryption_settings.app's own catalog_id - a
+// cross-resource reference regenerating live would have pinned - rather
+// than the account-scoped literal every sibling shares. The actual bug
+// turned out to live in two places, neither of them siblingRef:
+// identityComponentArgs was forcing a Cloud-bearing identity component's
+// Attrs into the root fill pass even though the provider documents the
+// omitted case (defaulting to the run's own account/region, which
+// resolve.go's cloudValueFor already reads), and identityArgName was
+// reporting a Cloud-derived single-component identity
+// (aws_glue_data_catalog_encryption_settings's whole identity is exactly
+// this shape) as a "client-set" identity parentRef could hand out as a
+// same-named parent - which is what actually produced the cross-resource
+// reference, independent of siblingRef, and also independent of #241
+// specifically (the same shape was live on "region" in devtools,
+// ecs-eks, messaging and sagemaker as a plain generic-placeholder string,
+// "region = \"placeholder\"", predating #241). Both are fixed at the rule
+// level (identityComponentArgs and identityArgName both skip a component
+// carrying identity.Component.Cloud), so every one of the 26 admitted
+// types sharing this account/region-scoped shape regenerates correctly,
+// not just the four Glue ones - see the "region"/"catalog_id"/"account_id"
+// removals in devtools.tf, ecs-eks.tf, messaging.tf and sagemaker.tf
+// alongside data.tf. No entry remains here for any of them.
+//
+// The full-corpus TF_FLOCI_TEST=1 run also surfaced "lambda" and
+// "route53-cloudfront" newly drifting - each one Optional, OmitIfAbsent
+// identity-component argument (aws_lambda_permission's "qualifier",
+// aws_route53_zone_association's "vpc_region") gaining a generic
+// "placeholder" string it did not have before. Neither carries a
+// [identity.Component.Cloud] property, so #292's fix (identityComponentArgs
+// and identityArgName skipping a Cloud-bearing component) does not touch
+// either component, and both entries reproduce identically against the
+// pre-#292 generator (confirmed by reverting tools/estate-gen/gen.go to
+// its committed HEAD and regenerating both cohorts unmodified). Pre-
+// existing, unrelated drift that #292's own scope does not cover -
+// OmitIfAbsent's own force-fill rule is the shape to look at, its own
+// issue rather than folded in here.
 var knownDrift = map[string]driftEntry{
-	// #241 ("identity: let a stated argument win over the cloud value it
-	// defaults to") made catalog_id an identity component estate-gen now
-	// fills in for aws_glue_catalog_database, aws_glue_catalog_table,
-	// aws_glue_connection and aws_glue_data_catalog_encryption_settings.
-	// siblingRef's bare-identity-component path (this file's own doc
-	// comment on siblingRef, the constructedParentTypes branch) then wires
-	// the first three to aws_glue_data_catalog_encryption_settings.app's
-	// catalog_id - a cross-resource reference - rather than a literal,
-	// because siblingRef cannot tell "this component is a per-account value
-	// every sibling shares" from "this component is a foreign key to one
-	// particular sibling instance", the distinction parentRef/siblingRef
-	// were built to draw for every other identity-bound argument.
-	//
-	// The committed data.tf intentionally still pins the pre-#241
-	// rendering (no catalog_id on any of the four): regenerating live
-	// turns three of the four resources' identities from NEEDS_DISCOVERY
-	// into no formula at all in TestIdentityGolden
-	// (internal/live/check/identitygolden_test.go), because an
-	// identity-bearing argument that reads another resource's attribute is
-	// not statically evaluable - the same "resource reference, not
-	// var/local/path/terraform" wall a real user's configuration would hit.
-	// Fixing siblingRef to never point an identity-bearing argument at a
-	// sibling (only ever a literal, matched to keep siblings consistent
-	// the way pairedSeedLiteral already does for assembled-identity
-	// parents) is estate-gen's own bug and belongs in its own issue, not
-	// #291's sidecar-only scope.
-	"data": {
-		files:  []string{"data.tf: content differs"},
-		reason: "siblingRef wires catalog_id to a cross-resource reference on regeneration (post-#241), which regresses three resources' TestIdentityGolden entries from NEEDS_DISCOVERY to unresolvable; the committed tree pins the pre-#241 rendering until siblingRef is fixed to never reference a sibling for an identity-bearing argument",
+	"lambda": {
+		files:  []string{"lambda.tf: content differs"},
+		reason: "aws_lambda_permission's OmitIfAbsent \"qualifier\" identity component now force-fills a generic placeholder (\"qualifier = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - a separate, unfiled OmitIfAbsent force-fill defect",
+	},
+	"route53-cloudfront": {
+		files:  []string{"route53-cloudfront.tf: content differs"},
+		reason: "aws_route53_zone_association's OmitIfAbsent \"vpc_region\" identity component now force-fills a generic placeholder (\"vpc_region = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - the same unfiled OmitIfAbsent force-fill defect as lambda above",
 	},
 }
 

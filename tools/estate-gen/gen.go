@@ -194,13 +194,30 @@ func computeAmbiguousIdentityArgs() map[string]bool {
 // Server-assigned types and composite identities (more than one component)
 // return ok=false: their identity is not one configuration argument this
 // generator can name a placeholder for.
+//
+// A single component carrying a [identity.Component.Cloud] property is the
+// same case in different clothes (issue #292): its Attrs name an argument
+// the provider documents as DEFAULTING TO that cloud property when omitted
+// (aws_glue_data_catalog_encryption_settings's whole identity is its
+// account-shared catalog_id), which makes the value neither client-set nor
+// this type's own to hand out as a "parent" - every sibling in the account
+// shares it, so treating it as one belongs to the same wrong-reading
+// identityComponentArgs guards on the fill side. Without this, parentRef's
+// same-named-owner search (the only other reader of this function) finds
+// exactly one type in the whole table whose identity is bare "catalog_id",
+// and hands out a reference to THAT one specific instance's own identity to
+// every other Glue type that merely shares the account-scoped argument
+// name - the cross-resource reference issue #292 reports. Returning
+// ok=false here instead leaves the argument to the same account/region
+// fallback the resolver itself already reads when configuration omits it
+// (internal/live/identity/resolve.go's cloudValueFor).
 func identityArgName(typeName string) (string, bool) {
 	entry, ok := identity.LookupType(typeName)
 	if !ok || entry.ServerAssigned || len(entry.Components) != 1 {
 		return "", false
 	}
 	c := entry.Components[0]
-	if len(c.Attrs) == 0 {
+	if len(c.Attrs) == 0 || c.Cloud != identity.CloudNone {
 		return "", false
 	}
 	return c.Attrs[0], true
@@ -216,7 +233,31 @@ func identityArgName(typeName string) (string, bool) {
 // cannot round-trip). A component carrying a Default is skipped on
 // purpose: the provider documents what omission means there (the "default"
 // event bus), so leaving it out both is legal and exercises the fallback
-// the way real configurations do. Server-assigned types return nil, as
+// the way real configurations do.
+//
+// A component carrying a [identity.Component.Cloud] property is skipped
+// for the identical reason (issue #292): its Attrs name an argument the
+// provider documents as DEFAULTING TO that cloud property when omitted (a
+// Glue catalog_id defaults to the caller's own account, an AWS provider
+// "region" argument defaults to the run's own region -
+// internal/live/identity/resolve.go's own resolver reads exactly this
+// fallback through [resolver.cloudValueFor] when the component's Attrs are
+// absent from configuration). The value is never one client-set
+// configuration or another sibling resource's state actually carries - it
+// is a property every instance in the account/region shares - so forcing
+// it into the fill list can only produce something wrong: a value that
+// looks like a reference but is one specific sibling's identity, not the
+// shared account/region (issue #292's aws_glue_catalog_database.catalog_id
+// pointed at aws_glue_data_catalog_encryption_settings.app.catalog_id), or
+// a generic placeholder string sitting where a real region/account id
+// belongs ("region = \"placeholder\"", the same shape on
+// aws_sns_topic/aws_sqs_queue and others once catalog_id's cross-reference
+// case is fixed but the Cloud check is not). Leaving the argument out
+// entirely is legal (Optional and Computed - a Required Cloud-bearing
+// argument, none exist in DefaultTable today, would still be forced in by
+// fillBlock's own schema.Required pass, untouched by this function) and
+// exercises the same documented account/region fallback a real
+// configuration omitting it would. Server-assigned types return nil, as
 // ever - their identity is not configuration's to write. identityArgName
 // above stays the single-component question the parent-synthesis and
 // sibling-pairing sites ask; this is the fill-stage question only.
@@ -227,7 +268,7 @@ func identityComponentArgs(typeName string) []string {
 	}
 	var out []string
 	for _, c := range entry.Components {
-		if len(c.Attrs) == 0 || c.Default != "" {
+		if len(c.Attrs) == 0 || c.Default != "" || c.Cloud != identity.CloudNone {
 			continue
 		}
 		out = append(out, c.Attrs[0])
