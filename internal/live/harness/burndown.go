@@ -71,7 +71,7 @@ func unreachedTypes() Entry {
 			"internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or " +
 			"vetoed by the derived markerless rule. This counts the ones in none of them, where naming " +
 			"the type in a configuration is a hard resolve error with no ledger entry saying why.",
-		Bound:     621,
+		Bound:     625,
 		Direction: AtMost,
 		Measured: "internal/live/identity.DefaultTable, tools/row-gen/rejected.json and " +
 			"internal/live/identity.MarkerlessTypes",
@@ -94,7 +94,7 @@ func unreachedTypes() Entry {
 			"This count is a difference against the roster, so deleting rows from live/survey-full.json " +
 				"lowers it exactly as effectively as admitting a type does, and is the cheaper edit. " +
 				"hashicorp/aws has never lost a hundred resource types in a release."),
-		Tracker: "#245, #246",
+		Tracker: "#245, #246, #272",
 		History: []string{
 			"669 while the hand ledger stood at 949/81 and again at 944/86 - the batch that moved five " +
 				"types from the ledger into the table did not change this count at all, which is why it " +
@@ -103,6 +103,16 @@ func unreachedTypes() Entry {
 				"CloudFormation registry's verdict.",
 			"621 once tools/importdocs-gen's soleid scrape settled 28 untaggable types the registry " +
 				"models nothing for.",
+			"625, up from 621, when #272's content-match bypass removed four types " +
+				"(aws_cloudfront_cache_policy, aws_cloudfront_origin_request_policy, " +
+				"aws_cloudfront_response_headers_policy, aws_route53_cidr_collection) from " +
+				"identity.MarkerlessTypes without giving any of the four a DefaultTable row yet - the " +
+				"first rise this ledger has recorded. It is the top BlindSpot made concrete rather than a " +
+				"regression: all four now admit at run time through identity.SynthesizeTypeIdentity's " +
+				"schema fallback plus internal/live/discovery's new content-match leg (issue #272), which " +
+				"this measurement cannot see, the same way it could not see 60 such rescues at 669. " +
+				"Landing a DefaultTable row for the four - turning schema-fallback support into a static " +
+				"one - is what would bring this count back down, and is tracked, not done, by this entry.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			universe, err := r.SurveyTypes()

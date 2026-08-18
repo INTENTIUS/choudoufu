@@ -8,7 +8,7 @@ terraform {
   }
 }
 
-resource "aws_cloudfront_cache_policy" "example" {
+resource "aws_cloudfront_origin_access_control" "example" {
   name    = "example-policy"
   min_ttl = 1
 }

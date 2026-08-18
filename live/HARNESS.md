@@ -45,10 +45,10 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | quantity | now | bound | denominator | tracker |
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
-| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 148, floor 100 | #249 |
+| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 144, floor 100 | #249 |
 | [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 92 | at most 92 | `live/rowgen-convergence.json summary.admitted_total` at 892, floor 850 | #132 |
 | [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 878, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 621 | at most 621 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`unreached-types`](#unreached-types) | 625 | at most 625 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246, #272 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -86,7 +86,7 @@ veto reason: the provider mints this type's identity and the type has no tags ar
 - Measured on internal/live/identity.DefaultTable.
 - Held against internal/live/identity.MarkerlessTypes, and through it live/survey-full.json's signals.taggable. The two rosters are different derivations from different evidence even though one -emit run writes both: the table's rows come from the ratified rows plus the import-doc grammar, the veto from the provider survey's own taggability signal. internal/live/stamp's TestPinnedTaggabilityMatchesTheSurvey ties that signal to the run-time marker writer, so the chain ends at the provider schema rather than at another row-gen output.
 - Instrument: two in-process Go maps intersected. No artifact, no provider, no network.
-- Denominator `internal/live/identity.MarkerlessTypes`, measured at 148 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
+- Denominator `internal/live/identity.MarkerlessTypes`, measured at 144 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
 
 What the instrument cannot see:
 
@@ -154,9 +154,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **621 provider resource types**, at most **621**. At the bound.
+Now **625 provider resource types**, at most **625**. At the bound.
 
-892 admitted, 81 hand-vetoed, 148 markerless-vetoed, over a roster of 1699.
+892 admitted, 81 hand-vetoed, 144 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.
@@ -174,6 +174,7 @@ Where the bound has been:
 - 669 while the hand ledger stood at 949/81 and again at 944/86 - the batch that moved five types from the ledger into the table did not change this count at all, which is why it exists rather than a count of the ledger.
 - 665 when the markerless rule landed (#249); 649 while that rule read only the CloudFormation registry's verdict.
 - 621 once tools/importdocs-gen's soleid scrape settled 28 untaggable types the registry models nothing for.
+- 625, up from 621, when #272's content-match bypass removed four types (aws_cloudfront_cache_policy, aws_cloudfront_origin_request_policy, aws_cloudfront_response_headers_policy, aws_route53_cidr_collection) from identity.MarkerlessTypes without giving any of the four a DefaultTable row yet - the first rise this ledger has recorded. It is the top BlindSpot made concrete rather than a regression: all four now admit at run time through identity.SynthesizeTypeIdentity's schema fallback plus internal/live/discovery's new content-match leg (issue #272), which this measurement cannot see, the same way it could not see 60 such rescues at 669. Landing a DefaultTable row for the four - turning schema-fallback support into a static one - is what would bring this count back down, and is tracked, not done, by this entry.
 <!-- harness-gen:end burndown -->
 
 ## Assumptions

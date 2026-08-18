@@ -67,7 +67,7 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	"CONCRETE":        688,
+	"CONCRETE":        689,
 	"NEEDS_DISCOVERY": 553,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -98,11 +98,25 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-const identityGoldenPinBodyDigest = "a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377"
+// Re-pinned for issue #272: two new testdata directories
+// (internal/live/discovery/testdata/contentmatch-static,
+// .../contentmatch-e2e) were added to exercise the new content-match
+// discovery leg's static evaluator and its end-to-end wiring. Only one of
+// their declared resources resolves without a provider schema -
+// aws_s3_bucket.other in contentmatch-static, CONCRETE at "irrelevant"
+// from its own bucket argument - which is the one added row in
+// internal/live/check/testdata/identity-golden.txt (`git diff` on that
+// file: 1 added, 0 changed, 0 removed). Every aws_cloudfront_cache_policy
+// fixture resource in both new directories is untaggable, server-assigned,
+// and outside identity.DefaultTable, so it resolves to nothing the golden
+// tracks with no provider schema present - the golden's own documented
+// blind spot for the ~550 instances a live account or server-assigned ID
+// would settle.
+const identityGoldenPinBodyDigest = "e30d53ae0a0436695ad2ac1d82b24cb83c50503f7f1b1e4f4c8e4c4e0b96f98d"
 
 const (
-	identityGoldenPinInstances = 1353
-	identityGoldenPinDirs      = 400
+	identityGoldenPinInstances = 1354
+	identityGoldenPinDirs      = 402
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

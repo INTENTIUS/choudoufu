@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=400 instances=1353
-# shape: class CONCRETE=688
+# shape: dirs=402 instances=1354
+# shape: class CONCRETE=689
 # shape: class NEEDS_DISCOVERY=553
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=a832c2fb2267d18f0cbd8b3902a741cee7fb06edc1345b084ba0426cb9df7377
+# shape: body-sha256=e30d53ae0a0436695ad2ac1d82b24cb83c50503f7f1b1e4f4c8e4c4e0b96f98d
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -36,6 +36,7 @@ internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.thi
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.east	CONCRETE	tofu-alias-e2e-east	bucket=tofu-alias-e2e-east
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.west	CONCRETE	tofu-alias-e2e-west	bucket=tofu-alias-e2e-west
 internal/live/discovery/testdata/cloudcontrol-e2e	aws_glue_registry.demo	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/contentmatch-static	aws_s3_bucket.other	CONCRETE	irrelevant	bucket=irrelevant
 internal/live/discovery/testdata/count-pool	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[2]	NEEDS_DISCOVERY		
