@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 907,
-    "compared": 893,
+    "admitted_total": 931,
+    "compared": 917,
     "not_in_mapped_set": 14,
     "adopted_unchanged": 795,
-    "adopted_unchanged_pct": 89.03,
-    "genuine_mismatches": 98,
-    "annotated": 98,
+    "adopted_unchanged_pct": 86.7,
+    "genuine_mismatches": 122,
+    "annotated": 122,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 26
   },
@@ -93,9 +93,9 @@
       "adopted_unchanged_pct": 83.33
     },
     "ApplicationAutoScaling": {
-      "compared": 1,
+      "compared": 2,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 50
     },
     "Athena": {
       "compared": 2,
@@ -328,9 +328,9 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 88,
+      "compared": 92,
       "adopted_unchanged": 75,
-      "adopted_unchanged_pct": 85.23
+      "adopted_unchanged_pct": 81.52
     },
     "ECR": {
       "compared": 8,
@@ -383,9 +383,9 @@
       "adopted_unchanged_pct": 100
     },
     "ElasticLoadBalancingV2": {
-      "compared": 13,
+      "compared": 14,
       "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 84.62
+      "adopted_unchanged_pct": 78.57
     },
     "Elasticsearch": {
       "compared": 1,
@@ -503,9 +503,9 @@
       "adopted_unchanged_pct": 100
     },
     "Kendra": {
-      "compared": 1,
+      "compared": 3,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 33.33
     },
     "Kinesis": {
       "compared": 3,
@@ -526,6 +526,11 @@
       "compared": 1,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
+    },
+    "LakeFormation": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
     },
     "Lambda": {
       "compared": 7,
@@ -613,9 +618,9 @@
       "adopted_unchanged_pct": 100
     },
     "Notifications": {
-      "compared": 2,
+      "compared": 3,
       "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 66.67
     },
     "NotificationsContacts": {
       "compared": 1,
@@ -677,6 +682,11 @@
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 100
     },
+    "QuickSight": {
+      "compared": 9,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
+    },
     "RAM": {
       "compared": 2,
       "adopted_unchanged": 2,
@@ -698,9 +708,9 @@
       "adopted_unchanged_pct": 0
     },
     "Redshift": {
-      "compared": 5,
+      "compared": 6,
       "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 83.33
     },
     "RedshiftServerless": {
       "compared": 2,
@@ -813,9 +823,9 @@
       "adopted_unchanged_pct": 50
     },
     "SSM": {
-      "compared": 7,
+      "compared": 8,
       "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 87.5
     },
     "SSMContacts": {
       "compared": 2,
@@ -863,9 +873,9 @@
       "adopted_unchanged_pct": 50
     },
     "ServiceCatalog": {
-      "compared": 4,
+      "compared": 6,
       "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 75
+      "adopted_unchanged_pct": 50
     },
     "ServiceCatalogAppRegistry": {
       "compared": 3,
@@ -881,6 +891,11 @@
       "compared": 2,
       "adopted_unchanged": 1,
       "adopted_unchanged_pct": 50
+    },
+    "Signer": {
+      "compared": 1,
+      "adopted_unchanged": 0,
+      "adopted_unchanged_pct": 0
     },
     "StepFunctions": {
       "compared": 2,
@@ -1367,6 +1382,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_appautoscaling_policy",
+      "service": "ApplicationAutoScaling",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[Arn, ScalableDimension] is composite (len 2) so the classifier routes bucketNeedsHandSeparator and proposes no row at all; the fresh proposal never reaches the composed_of_arguments rule that would otherwise match. The ratified row instead follows the provider's own Import section and its formal v1.12 Identity Schema, both of which independently agree: service_namespace/resource_id/scalable_dimension/name, four real Argument Reference entries (all Required) joined by '/'."
     },
     {
       "tf_type": "aws_appautoscaling_target",
@@ -4100,6 +4130,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ec2_local_gateway_route",
+      "service": "EC2",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[DestinationCidrBlock, LocalGatewayRouteTableId] is composite so the classifier never proposes a row. The ratified row follows the provider's Import section and its own Attribute Reference bullet, which agree with each other: local_gateway_route_table_id and destination_cidr_block joined by '_', both real, Required Argument Reference entries."
+    },
+    {
       "tf_type": "aws_ec2_local_gateway_route_table",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -5861,6 +5906,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_internet_gateway_attachment",
+      "service": "EC2",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AttachmentType, VpcId] is composite, but AttachmentType names a CFN registry field the aws_internet_gateway_attachment resource never exposes as an argument at all (the generic AWS::EC2::VPCGatewayAttachment CFN type also covers VPN gateway attachments; this Terraform resource always creates the InternetGateway variant). The provider's own worked Import example uses internet_gateway_id and vpc_id instead, joined by ':' - the registry's field set does not even match this type's real arguments, so no classifier rule keyed on primaryIdentifier could reach the right answer here regardless of arity handling."
+    },
+    {
       "tf_type": "aws_internetmonitor_monitor",
       "service": "InternetMonitor",
       "proposed_bucket": "client-named",
@@ -6045,6 +6105,36 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_kendra_data_source",
+      "service": "Kendra",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[Id, IndexId] is composite; Id is read-only (server-assigned data_source_id) and IndexId is a real, Required, create-only argument (index_id) - a mixed composite the classifier's composed_of_arguments rule does not model at all (it only matches an all-real-argument decomposition). The ratified row is data_source_id (server-assigned, ServerAssignedIfAbsent) then index_id, joined by '/', exactly as the provider's own Import section and Attribute Reference both state."
+    },
+    {
+      "tf_type": "aws_kendra_faq",
+      "service": "Kendra",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[Id, IndexId] is composite; Id is read-only (server-assigned faq_id) and IndexId is a real, Required, create-only argument (index_id) - the same mixed-composite shape as aws_kendra_data_source above, which the classifier's composed_of_arguments rule does not model. The ratified row is faq_id (server-assigned, ServerAssignedIfAbsent) then index_id, joined by '/'."
+    },
+    {
       "tf_type": "aws_kendra_index",
       "service": "Kendra",
       "proposed_bucket": "server-assigned",
@@ -6191,6 +6281,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_lakeformation_data_cells_filter",
+      "service": "LakeFormation",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[TableCatalogId, DatabaseName, TableName, Name] is composite (len 4) so the classifier proposes no row. The provider's own Attribute Reference and Import section agree on a DIFFERENT order than the registry's (database_name, name, table_catalog_id, table_name), comma-joined, and all four are real, Required Argument Reference entries."
     },
     {
       "tf_type": "aws_lambda_capacity_provider",
@@ -6381,6 +6486,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_lb_trust_store_revocation",
+      "service": "ElasticLoadBalancingV2",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[RevocationId, TrustStoreArn] is composite; RevocationId is read-only (server-assigned, numeric) and TrustStoreArn is a real, Required argument - the same mixed-composite shape as the Kendra rows above. The ratified row is trust_store_arn then revocation_id (server-assigned, ServerAssignedIfAbsent), comma-joined, exactly as the provider's Attribute Reference states via its own template string."
     },
     {
       "tf_type": "aws_lexv2models_bot",
@@ -7354,6 +7474,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_notifications_channel_association",
+      "service": "Notifications",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[Arn, NotificationConfigurationArn] is composite; the classifier's grammar row for this type has composed_of_arguments=true but arguments=[notification_configuration_arn] only - a partial match (the second segment, the resource's own `arn` argument, is never resolved by name because import-grammar-gen's matcher does not attribute the doc's \"channel_arn\" placeholder text back to the real `arn` argument), so the arity check against the registry's two-element identifier fails and no proposal is emitted. The ratified row is notification_configuration_arn then arn, comma-joined, following the doc's own worked example order (which differs from the registry's Arn-first order)."
+    },
+    {
       "tf_type": "aws_notifications_notification_configuration",
       "service": "Notifications",
       "proposed_bucket": "server-assigned",
@@ -7802,6 +7937,141 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_quicksight_analysis",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, AnalysisId] is composite; the classifier proposes no row. The ratified row is aws_account_id then analysis_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and analysis_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_custom_permissions",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, CustomPermissionsName] is composite; the classifier proposes no row. The ratified row is aws_account_id then custom_permissions_name, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and custom_permissions_name is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_dashboard",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, DashboardId] is composite; the classifier proposes no row. The ratified row is aws_account_id then dashboard_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and dashboard_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_data_set",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, DataSetId] is composite; the classifier proposes no row. The ratified row is aws_account_id then data_set_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and data_set_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_data_source",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, DataSourceId] is composite; the classifier proposes no row. The ratified row is aws_account_id then data_source_id, slash-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and data_source_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_refresh_schedule",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, DataSetId, Schedule/ScheduleId] is composite (len 3); the classifier proposes no row. The ratified row is aws_account_id, data_set_id, schedule_id, comma-joined, following the provider's Import section verbatim; all three are real, client-supplied arguments (data_set_id and schedule_id both Required/Forces-new-resource, aws_account_id Optional/provider-defaulted)."
+    },
+    {
+      "tf_type": "aws_quicksight_template",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, TemplateId] is composite; the classifier proposes no row. The ratified row is aws_account_id then template_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and template_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_theme",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, ThemeId] is composite; the classifier proposes no row. The ratified row is aws_account_id then theme_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and theme_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
+      "tf_type": "aws_quicksight_vpc_connection",
+      "service": "QuickSight",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[AwsAccountId, VPCConnectionId] is composite; the classifier proposes no row. The ratified row is aws_account_id then vpc_connection_id, comma-joined, following the provider's own Import section and its matching Attribute Reference bullet, both of which describe exactly this composed id. aws_account_id is a real, Optional (provider-account-defaulting) argument and vpc_connection_id is the type's own Required, Forces-new-resource argument - both are real, client-supplied arguments, the same shape #296 already confirmed for aws_quicksight_folder's nine sibling types."
+    },
+    {
       "tf_type": "aws_ram_permission",
       "service": "RAM",
       "proposed_bucket": "server-assigned",
@@ -7951,6 +8221,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_redshift_endpoint_authorization",
+      "service": "Redshift",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[ClusterIdentifier, Account] is composite; the classifier proposes no row. The ratified row is account then cluster_identifier, colon-joined, following the doc's own order (which differs from the registry's ClusterIdentifier-first order) - both are real, Required Argument Reference entries."
     },
     {
       "tf_type": "aws_redshift_parameter_group",
@@ -9333,6 +9618,21 @@
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
     },
     {
+      "tf_type": "aws_servicecatalog_principal_portfolio_association",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[PortfolioId, PrincipalARN] is composite (len 2), but the provider's own Import section documents FOUR real arguments (accept_language, principal_arn, portfolio_id, principal_type) comma-joined - the registry under-counts this type's real identity by two segments (both Optional arguments with defaults, but part of the documented import string all the same). The classifier's grammar row has composed_of_arguments=true but arguments=['accept_language'] only, so the arity check against the registry's two-element identifier cannot succeed either way: the scrape found one of four real segments, and the registry names two of a different four."
+    },
+    {
       "tf_type": "aws_servicecatalog_product",
       "service": "ServiceCatalog",
       "proposed_bucket": "server-assigned",
@@ -9342,6 +9642,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_servicecatalog_product_portfolio_association",
+      "service": "ServiceCatalog",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[PortfolioId, ProductId] is composite (len 2), but the provider's own Import section documents THREE real arguments (accept_language, portfolio_id, product_id) colon-joined - the same registry-undercount shape as its principal_portfolio_association sibling, but with ':' rather than ',' as the separator, which this ruling exists specifically to not conflate with the sibling's."
     },
     {
       "tf_type": "aws_servicecatalog_provisioned_product",
@@ -9531,6 +9846,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_signer_signing_profile_permission",
+      "service": "Signer",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[StatementId, ProfileName] is composite; the classifier proposes no row. The ratified row is profile_name then statement_id, slash-joined, following the provider's Import section; profile_name is a real Required argument and statement_id is the same shape aws_lambda_permission's own ratified row already carries - a real, Optional argument the provider auto-generates when omitted (ServerAssignedIfAbsent)."
+    },
+    {
       "tf_type": "aws_sns_topic",
       "service": "SNS",
       "proposed_bucket": "server-assigned",
@@ -9622,6 +9952,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_ssm_maintenance_window_target",
+      "service": "SSM",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[WindowId, WindowTargetId] is composite; WindowTargetId is read-only (server-assigned) and WindowId is a real, Required argument - the same mixed-composite shape as the Kendra rows above, but here the provider's own formal v1.12 Identity Schema independently confirms it (Required: window_id, id). The ratified row is window_id then id (server-assigned, ServerAssignedIfAbsent), slash-joined."
     },
     {
       "tf_type": "aws_ssm_parameter",
@@ -10354,6 +10699,36 @@
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_route_server_propagation",
+      "service": "EC2",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[RouteServerId, RouteTableId] is composite; the classifier proposes no row. The ratified row is route_server_id then route_table_id, comma-joined, matching both the doc's order and the registry's order - both are real, Required Argument Reference entries."
+    },
+    {
+      "tf_type": "aws_vpc_route_server_vpc_association",
+      "service": "EC2",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[RouteServerId, VpcId] is composite; the classifier proposes no row. The ratified row is route_server_id then vpc_id, comma-joined, matching both the doc's order and the registry's order - both are real, Required Argument Reference entries."
     },
     {
       "tf_type": "aws_vpc_security_group_egress_rule",

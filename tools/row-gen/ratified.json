@@ -659,6 +659,45 @@
       "id"
     ]
   },
+  "aws_appautoscaling_policy": {
+    "type": "aws_appautoscaling_policy",
+    "components": [
+      {
+        "attrs": [
+          "service_namespace"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "resource_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "scalable_dimension"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "SERVICE_NAMESPACE/RESOURCE_ID/SCALABLE_DIMENSION/NAME"
+  },
   "aws_appautoscaling_target": {
     "type": "aws_appautoscaling_target",
     "components": [
@@ -3875,6 +3914,27 @@
     "reason": "the EC2 service assigns this identity at create time; no argument reconstructs it.",
     "import_syntax": "ID"
   },
+  "aws_ec2_local_gateway_route": {
+    "type": "aws_ec2_local_gateway_route",
+    "components": [
+      {
+        "attrs": [
+          "local_gateway_route_table_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "_"
+      },
+      {
+        "attrs": [
+          "destination_cidr_block"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "LOCAL_GATEWAY_ROUTE_TABLE_ID_DESTINATION_CIDR_BLOCK"
+  },
   "aws_ec2_local_gateway_route_table": {
     "type": "aws_ec2_local_gateway_route_table",
     "server_assigned": true,
@@ -6001,6 +6061,27 @@
       "id"
     ]
   },
+  "aws_internet_gateway_attachment": {
+    "type": "aws_internet_gateway_attachment",
+    "components": [
+      {
+        "attrs": [
+          "internet_gateway_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "vpc_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "INTERNET_GATEWAY_ID:VPC_ID"
+  },
   "aws_internetmonitor_monitor": {
     "type": "aws_internetmonitor_monitor",
     "components": [
@@ -6216,6 +6297,50 @@
     "identity_attrs": [
       "arn"
     ]
+  },
+  "aws_kendra_data_source": {
+    "type": "aws_kendra_data_source",
+    "components": [
+      {
+        "attrs": [
+          "data_source_id"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "index_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "DATA_SOURCE_ID/INDEX_ID"
+  },
+  "aws_kendra_faq": {
+    "type": "aws_kendra_faq",
+    "components": [
+      {
+        "attrs": [
+          "faq_id"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "index_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FAQ_ID/INDEX_ID"
   },
   "aws_kendra_index": {
     "type": "aws_kendra_index",
@@ -6444,6 +6569,45 @@
       "id",
       "key_id"
     ]
+  },
+  "aws_lakeformation_data_cells_filter": {
+    "type": "aws_lakeformation_data_cells_filter",
+    "components": [
+      {
+        "attrs": [
+          "database_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "table_catalog_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "table_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "DATABASE_NAME,NAME,TABLE_CATALOG_ID,TABLE_NAME"
   },
   "aws_lambda_capacity_provider": {
     "type": "aws_lambda_capacity_provider",
@@ -6710,6 +6874,28 @@
     "identity_attrs": [
       "arn"
     ]
+  },
+  "aws_lb_trust_store_revocation": {
+    "type": "aws_lb_trust_store_revocation",
+    "components": [
+      {
+        "attrs": [
+          "trust_store_arn"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "revocation_id"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "TRUST_STORE_ARN,REVOCATION_ID"
   },
   "aws_lexv2models_bot": {
     "type": "aws_lexv2models_bot",
@@ -7882,6 +8068,27 @@
       "id"
     ]
   },
+  "aws_notifications_channel_association": {
+    "type": "aws_notifications_channel_association",
+    "components": [
+      {
+        "attrs": [
+          "notification_configuration_arn"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "arn"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NOTIFICATION_CONFIGURATION_ARN,ARN"
+  },
   "aws_notifications_notification_configuration": {
     "type": "aws_notifications_notification_configuration",
     "server_assigned": true,
@@ -8321,6 +8528,204 @@
       "name"
     ]
   },
+  "aws_quicksight_analysis": {
+    "type": "aws_quicksight_analysis",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "analysis_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,ANALYSIS_ID"
+  },
+  "aws_quicksight_custom_permissions": {
+    "type": "aws_quicksight_custom_permissions",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "custom_permissions_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,CUSTOM_PERMISSIONS_NAME"
+  },
+  "aws_quicksight_dashboard": {
+    "type": "aws_quicksight_dashboard",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "dashboard_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,DASHBOARD_ID"
+  },
+  "aws_quicksight_data_set": {
+    "type": "aws_quicksight_data_set",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "data_set_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,DATA_SET_ID"
+  },
+  "aws_quicksight_data_source": {
+    "type": "aws_quicksight_data_source",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "data_source_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID/DATA_SOURCE_ID"
+  },
+  "aws_quicksight_refresh_schedule": {
+    "type": "aws_quicksight_refresh_schedule",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "data_set_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "schedule_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,DATA_SET_ID,SCHEDULE_ID"
+  },
+  "aws_quicksight_template": {
+    "type": "aws_quicksight_template",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "template_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,TEMPLATE_ID"
+  },
+  "aws_quicksight_theme": {
+    "type": "aws_quicksight_theme",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "theme_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,THEME_ID"
+  },
+  "aws_quicksight_vpc_connection": {
+    "type": "aws_quicksight_vpc_connection",
+    "components": [
+      {
+        "attrs": [
+          "aws_account_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "vpc_connection_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AWS_ACCOUNT_ID,VPC_CONNECTION_ID"
+  },
   "aws_ram_permission": {
     "type": "aws_ram_permission",
     "server_assigned": true,
@@ -8523,6 +8928,27 @@
     "identity_attrs": [
       "endpoint_name"
     ]
+  },
+  "aws_redshift_endpoint_authorization": {
+    "type": "aws_redshift_endpoint_authorization",
+    "components": [
+      {
+        "attrs": [
+          "account"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "cluster_identifier"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCOUNT:CLUSTER_IDENTIFIER"
   },
   "aws_redshift_parameter_group": {
     "type": "aws_redshift_parameter_group",
@@ -10337,6 +10763,45 @@
     ],
     "import_syntax": "PORTFOLIOID:TYPE:PRINCIPALID"
   },
+  "aws_servicecatalog_principal_portfolio_association": {
+    "type": "aws_servicecatalog_principal_portfolio_association",
+    "components": [
+      {
+        "attrs": [
+          "accept_language"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "principal_arn"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "portfolio_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "principal_type"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCEPT_LANGUAGE,PRINCIPAL_ARN,PORTFOLIO_ID,PRINCIPAL_TYPE"
+  },
   "aws_servicecatalog_product": {
     "type": "aws_servicecatalog_product",
     "server_assigned": true,
@@ -10345,6 +10810,36 @@
     "identity_attrs": [
       "id"
     ]
+  },
+  "aws_servicecatalog_product_portfolio_association": {
+    "type": "aws_servicecatalog_product_portfolio_association",
+    "components": [
+      {
+        "attrs": [
+          "accept_language"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "portfolio_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "product_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ACCEPT_LANGUAGE:PORTFOLIO_ID:PRODUCT_ID"
   },
   "aws_servicecatalog_provisioned_product": {
     "type": "aws_servicecatalog_provisioned_product",
@@ -10575,6 +11070,28 @@
       "protection_group_id"
     ]
   },
+  "aws_signer_signing_profile_permission": {
+    "type": "aws_signer_signing_profile_permission",
+    "components": [
+      {
+        "attrs": [
+          "profile_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "statement_id"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "PROFILE_NAME/STATEMENT_ID"
+  },
   "aws_sns_topic": {
     "type": "aws_sns_topic",
     "components": [
@@ -10712,6 +11229,28 @@
     "identity_attrs": [
       "id"
     ]
+  },
+  "aws_ssm_maintenance_window_target": {
+    "type": "aws_ssm_maintenance_window_target",
+    "components": [
+      {
+        "attrs": [
+          "window_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "id"
+        ],
+        "server_assigned_if_absent": true,
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "WINDOW_ID/ID"
   },
   "aws_ssm_parameter": {
     "type": "aws_ssm_parameter",
@@ -11569,6 +12108,48 @@
     "server_assigned": true,
     "reason": "the EC2 service assigns this identity at create time; no argument reconstructs it.",
     "import_syntax": "ID"
+  },
+  "aws_vpc_route_server_propagation": {
+    "type": "aws_vpc_route_server_propagation",
+    "components": [
+      {
+        "attrs": [
+          "route_server_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "route_table_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ROUTE_SERVER_ID,ROUTE_TABLE_ID"
+  },
+  "aws_vpc_route_server_vpc_association": {
+    "type": "aws_vpc_route_server_vpc_association",
+    "components": [
+      {
+        "attrs": [
+          "route_server_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "vpc_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ROUTE_SERVER_ID,VPC_ID"
   },
   "aws_vpc_security_group_egress_rule": {
     "type": "aws_vpc_security_group_egress_rule",
