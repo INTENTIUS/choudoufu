@@ -676,6 +676,29 @@ demo-corpus-vpc-complete:
 demo-corpus-eks-basic:
     bash live/e2e/corpus-eks-basic/run.sh
 
+# uyuni-project/sumaform's AWS backend (live/corpus-manifest.json, pinned by
+# commit - no tag, see that entry's own comment), the FIRST OpenTofu-native
+# estate this goal has crossed rather than a Terraform-authored, OpenTofu-
+# compatible one. A deliberately reduced slice - module.server alone
+# (provision=false, the one host role with a real off-switch) plus this
+# script's own plain VPC/subnet/NAT resources standing in for
+# module.base's own network submodule, which needs two floci operations
+# that do not exist (CreateDhcpOptions, ReplaceRouteTableAssociation) and
+# whose bastion instance has no way to disable its own SSH/Salt
+# provisioning. Stages 1-2 pass for real (11 resources cold-deployed, 9
+# stamped) after a real floci fix (20 seeded SUSE/Marketplace/Rocky/RHEL
+# AMI catalog entries, lex00/floci fix/sumaform-suse-ami-catalog,
+# ghcr.io/lex00/floci:sumaform-suse-ami - sumaform's own ami.tf evaluates
+# ~23 data "aws_ami" blocks unconditionally regardless of which guest OS an
+# estate actually launches). Stage 3 refuses outright on two real,
+# structural rules (a dead connection block, ignore_changes on the whole
+# tags argument) baked into backend_modules/aws/host, the ONE leaf module
+# every AWS host role in this estate shares - so stages 4-5 are unreachable.
+# See the script's own header for the full trace. Needs Docker and the AWS
+# CLI, prefers a real `tofu` binary; runs on its own port (4716).
+demo-corpus-sumaform-aws:
+    bash live/e2e/corpus-sumaform-aws/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
