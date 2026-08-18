@@ -691,6 +691,15 @@ var (
 		"aws_spot_datafeed_subscription",
 		"aws_xray_encryption_config",
 		"aws_xray_trace_segment_destination",
+		// aws_s3_bucket_accelerate_configuration and
+		// aws_s3_bucket_request_payment_configuration: ratified from
+		// row-gen's client-named proposal (import-grammar precedence off a
+		// single required "bucket" argument, same shape as the neighboring
+		// aws_s3_bucket_* configuration types above); neither has a tags
+		// argument, confirmed against live/survey-full.json's
+		// signals.taggable false for both.
+		"aws_s3_bucket_accelerate_configuration",
+		"aws_s3_bucket_request_payment_configuration",
 	}
 )
 
@@ -1133,6 +1142,8 @@ func testSchemas() Schemas {
 		"aws_route":                                          untaggedSchema("route_table_id", "destination_cidr_block", "gateway_id"),
 		"aws_route_table_association":                        untaggedSchema("subnet_id", "route_table_id"),
 		"aws_s3_bucket_policy":                               untaggedSchema("bucket", "policy"),
+		"aws_s3_bucket_accelerate_configuration":             untaggedSchema("bucket", "status"),
+		"aws_s3_bucket_request_payment_configuration":        untaggedSchema("bucket", "payer"),
 		"aws_iam_role_policy_attachment":                     untaggedSchema("role", "policy_arn"),
 		"aws_s3_bucket_versioning":                           untaggedSchema("id", "bucket"),
 		"aws_s3_bucket_public_access_block":                  untaggedSchema("id", "bucket", "block_public_acls", "block_public_policy"),
