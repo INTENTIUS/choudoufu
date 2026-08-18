@@ -697,83 +697,79 @@ Every one of these has been hit, most more than once.
 
 ## What to do next
 
-Ranked. Every item is filed, so the tracker carries the evidence and this list
-carries only the reason and the order. Nothing here is blocked on a decision.
+Ranked, and every item is filed so the tracker carries the evidence while this
+list carries only the reason and the order. Nothing is blocked on a decision.
 
-**Read "Why work drifts to the edges" first if you have not.** Four of these
-six are adoption work, and adoption is the secondary campaign. They are ranked
-high because they are what is measurable today, not because they are the goal.
+**Read "Why work drifts to the edges" first if you have not.** Items 2 to 4 are
+adoption work. They are ranked where they are because they are what is
+measurable today, not because they are the goal.
 
-### 1. #284 - give `PlanInstances` a per-resource provider seam
+### 1. `unadmitted-type` - the actual wall, and nobody has worked it as a campaign
 
-Five of the eight estates one blocker from clean are the same ACM pattern, so
-one mechanism moves all five. And the seam turns out to need **no cloud**:
-measured against the real provider offline, `domain_validation_options` folds
-with known domain names and the `for_each` refusal disappears. That makes it
-measurable by the corpus probe, unlike the `ReadInstances` plan it replaces.
+This is the one to take. Measured with `just onboarding-gap`: onboarding empties
+`logical-resource` (512 sites -> 102) and `markerless-type` (364 -> 28) across 93
+estates, and moves `unadmitted-type` by **zero - 1520 -> 1520**. It is the
+surviving blocker on **79 of the 90** estates onboarding helped, and it is both
+remaining ADMIT estates at the head of `estate-plan`.
 
-It cannot be wired as it stands - `PlanInstances` takes one configured provider
-and walks every module, so an aliased resource would be planned through the root
-default provider and mint an ARN from the wrong region. `dataread.Read`'s
-`Providers` seam is the shape to copy.
+So admission is the wall, and it is the wall in the MIGRATED form too. Do not
+spend a slot re-testing whether a `live` block changes that; it has been
+measured.
 
-### 2. #285 - four duplicated decisions with nothing watching them
+#245 is the shape of the work: 669 AWS types sit in neither the identity table
+nor the veto ledger. Every other item on this list is worth one to five estates.
+This one is worth most of them.
 
-Two pairs found the same day were divergent AT HEAD, not hypothetically, and one
-of them was on three write paths. Six of seven audited pairs had no guard.
-`dataread.moduleInstancesOf` is the highest-ranked of the four left.
+### 2. #284 - the `managedCovered` fallback, before any more ACM work
 
-Fix by making the source of truth single, not by patching the copy to agree.
+Not optional and not cheap, which the last slot established by measuring it.
+Without it the second pass is a net **loss**: it demotes
+`aws_acm_certificate_validation` from PARENT_DERIVED to NEEDS_DISCOVERY, and
+that type is untaggable, so the demotion becomes a hard stamp refusal - 1 site
+on rust-forge, 24 on domain-redirects.
 
-### 3. #286 - three rows omit an optional identity component
+The naive fix does not work. The knownness test cannot be per-object or
+per-attribute, because the certificate's own planned `domain_validation_options`
+is not wholly known either, and either test flips the reference back to symbolic
+and undoes the for_each fix. It needs a post-evaluation fallback in identity's
+argument path.
 
-`aws_route53_record` is missing `set_identifier`, which is the only thing
-separating weighted, latency and failover records that share a zone, name and
-type. Two declarations resolve to one identity, which is the wrong-marker class.
-`Component.OmitIfAbsent` already exists for exactly this shape.
+Note also that the five ACM estates can never be shown unblocking by the corpus
+probe: that shared module's `for_each` reads a managed attribute AND a data
+source, and the data half needs `dataread`, which an offline probe cannot run.
+Measure it the way #284's comment does, with a real provider over the estates.
 
-### 4. #283 - an estate spanning two provider configurations
+### 3. #274 - cross the estates that have never run
 
-Marker discovery goes through one provider configuration per run. Every
-CloudFront-plus-WAF estate has two, because WAFv2 and ACM certificates for
-CloudFront must live in `us-east-1`. Not exotic - it is what AWS's own guidance
-produces.
+Twelve of the 28 passing estates still have not touched a cloud. This is the
+item closest to the primary goal and the cheapest evidence per slot: every
+crossing so far has found something no offline instrument could see, including
+all three of the wrong-marker defects fixed on 2026-08-17.
 
-### 5. #274 - cross the estates that already pass
+`live/e2e/corpus-*.sh` are the templates. `just onboarding-gap` says which
+estates are worth standing up.
 
-28 of the 145 rate-capable deployments pass `live-check`; roughly sixteen have
-ever been run. Every crossing so far has found something no offline instrument
-could see, including three defects that write wrong markers to real objects.
+### 4. #288, then #287
 
-**This is the item closest to the primary goal**, and the cheapest evidence that
-the product works. `live/e2e/corpus-*.sh` are the templates.
+`aws_wafv2_web_acl` has no list operation and no Cloud Control fallback, and it
+is the last thing between GOV.UK's cloudfront estate and an apply. **It may be a
+class rather than a type** - nobody has counted admitted types with neither
+route, and if it is a class then the class is the deliverable.
 
-### 6. #287 - the floci gaps, and #272 behind them
+#287 is what keeps #272's unique-name binding unverifiable against a cloud. That
+leg already shipped broken once on inspection-and-unit-test evidence alone, so
+treat "correct by inspection" there as unproven.
 
-The unique-name binding leg cleared its estate and has **never bound against a
-cloud**, because the emulator returns a flat `Properties` shape where AWS nests
-it. That leg already shipped broken once on inspection-and-unit-test evidence
-alone (#285's first case), so treat "correct by inspection" here as unproven.
+### Loose ends worth an hour, not a slot
 
-Fork only, `github.com/lex00/floci`, never upstream. Its branch stays local and
-unpushed on purpose - see #287.
-
-### The thing that is NOT on this list, and why
-
-**Onboarding does not rescue the language wall.** Measured with
-`just onboarding-gap`: of the 71 blocked terraform-aws-modules examples, **2**
-are blocked only because they have not been onboarded, and of 117 blocked
-published deployments, **1**. Onboarding empties `logical-resource`
-(512 sites -> 102) and `markerless-type` (364 -> 28) across 93 estates and frees
-three of them.
-
-`unadmitted-type` does not move at all: **1520 -> 1520**, and it is the surviving
-blocker on 79 of the 90 estates onboarding helped. A `record_store` does not
-answer it.
-
-So admission is the wall, and it is the wall in the migrated form too. Do not
-spend a slot re-testing the hypothesis that a `live` block changes this; it has
-been measured.
+- `lint.worstCaseChildKey` (`internal/live/lint/lint.go:198`) returns
+  `addrs.NoKey` for a count'd call, so `checkOverlongAddresses` under-measures
+  the address budget inside every count'd module. A fifth `for_each`-only
+  reading; consequence is a missed refusal rather than a wrong marker.
+- `live/survey-full.json` carries a stale `path` for
+  `aws_s3_account_public_access_block` that regeneration moves. It feeds
+  row-gen, so it is not a no-op edit.
+- #282's wrong proposal is still in the queue for someone to paste.
 
 ---
 
@@ -797,6 +793,12 @@ is worth seeing overturned rather than deleted.
   next-steps section above.
 - The parent-derived ruling: REFUTED, population zero. The entry says so and
   should be read before anyone re-opens it.
+- Marker discovery across several provider configurations: the refusal is gone
+  and the per-provider sweep it sat on top of was already built (#69). #283,
+  closed. The cloudfront estate now stops on #288 instead.
+- The four duplicated decisions: closed by construction, and the module-walk
+  drift turned out to be a class of four that `identity.ChildCallKeys` now
+  answers once. #285, closed.
 
 - **The corpus now has its modules, and that moved the ladder.** `corpus-fetch`
   and `corpus` have both been run and committed, so the module hole is closed.
