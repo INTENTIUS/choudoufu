@@ -74,8 +74,20 @@ var identityGoldenPin = map[string]int{
 	// three types the markerless-veto two-source exception newly admits.
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        723,
-	"NEEDS_DISCOVERY": 562,
+	"CONCRETE": 723,
+
+	// 572, up from 562: ten ADDED rows, none moved. The new fixture
+	// internal/live/discovery/testdata/count-module-walk declares one count'd
+	// aws_eip inside a count'd module call and again inside a for_each'd one,
+	// which is eight instances, and the sweep also visits the child directory
+	// as a root of its own for two more. Every one resolves NEEDS_DISCOVERY -
+	// aws_eip is server-assigned - and every one renders the address
+	// identity.Resolve names for it, which is the fixture's whole point: the
+	// count-block walk in internal/live/discovery read a module call's
+	// for_each and not its count, and indexed those blocks under
+	// "module.counted.aws_eip.pool" while resolution named them
+	// "module.counted[0]" and "[1]".
+	"NEEDS_DISCOVERY": 572,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
 }
@@ -108,7 +120,15 @@ var identityGoldenPin = map[string]int{
 // 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "324cebbb642609bee4b8b26cde7c64d005968adab7a7d53924b82706ac20d31f"
+//
+// 2026-08-17 (the duplicated-decision audit): ten ADDED rows, 0 modified and
+// 0 removed, as TestIdentityGolden itself reported before the re-pin. Two
+// fresh fixture directories, count-module-walk and its child; no existing
+// fixture was edited, and the two fixes in that commit - unifying
+// markers.Taggable and teaching discovery's count-block walk about a module
+// call's count - move no rendered identity, which the 0-modified count is
+// the evidence for.
+const identityGoldenPinBodyDigest = "e8f5866ae616358f7e5065ac5dc725afe78335d521466837cdf52e0b3c36175b"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -121,9 +141,14 @@ const identityGoldenPinBodyDigest = "324cebbb642609bee4b8b26cde7c64d005968adab7a
 // must refuse. So the located class is a class this instrument cannot see,
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
+// 2026-08-17 (the duplicated-decision audit): dirs 424 -> 426, instances
+// 1397 -> 1407. Two directories, internal/live/discovery/testdata/
+// count-module-walk and its child, contributing eight and two instances.
+// See identityGoldenPin's NEEDS_DISCOVERY comment for what they declare and
+// why the fixture exists.
 const (
-	identityGoldenPinInstances = 1397
-	identityGoldenPinDirs      = 424
+	identityGoldenPinInstances = 1407
+	identityGoldenPinDirs      = 426
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
