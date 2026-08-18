@@ -30,6 +30,12 @@ ci:
     (cd site && go run . -out public/)
     echo "==> CI steps passed"
 
+# Check whether background subagents (dispatched via the Agent tool) are
+# still writing, without reading their full transcripts into context.
+# Usage: just agent-progress <task-id> [task-id...]
+agent-progress *ids:
+    bash .claude/scripts/agent-progress.sh {{ids}}
+
 # Floci integration tier: needs Docker and the AWS CLI.
 test-floci:
     make test-floci
