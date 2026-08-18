@@ -46,9 +46,9 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 140, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 146 | at most 146 | `live/rowgen-convergence.json summary.admitted_total` at 1035, floor 850 | #132 |
-| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 1021, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 466 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 143 | at most 143 | `live/rowgen-convergence.json summary.admitted_total` at 1033, floor 850 | #132 |
+| [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 1019, floor 800 | #132 |
+| [`unreached-types`](#unreached-types) | 468 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -103,14 +103,14 @@ Where the bound has been:
 
 tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. With unruled mismatches held at zero, nothing else stops the ledger growing, because adding a ruling is always easier than fixing an extractor.
 
-Now **146 rulings**, at most **146**. At the bound.
+Now **143 rulings**, at most **143**. At the bound.
 
-every ruling names one of the 1021 types the convergence artifact carries, over 1035 admitted types.
+every ruling names one of the 1019 types the convergence artifact carries, over 1033 admitted types.
 
 - Measured on tools/row-gen/annotations.json.
 - Held against live/rowgen-convergence.json. Every ruling has to name a type the convergence artifact compared or lists as unmapped, and row-gen writes that artifact from the shipped table rather than from the ledger. A ruling for a type nothing compares is a ruling nothing can retire.
 - Instrument: the committed ledger read as JSON, cross-checked against the committed convergence artifact's type list.
-- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 1035 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
+- Denominator `live/rowgen-convergence.json summary.admitted_total`, measured at 1033 against a floor of 850. The cheapest way to delete a ruling is to un-admit the type it names, which moves the type into tools/row-gen/rejected.json and lowers this count while removing support. Pinning the admitted total makes that trade visible.
 
 What the instrument cannot see:
 
@@ -130,7 +130,6 @@ Where the bound has been:
 - 98 on 2026-08-17 (issue #286): the same reviewed upward bump, one more type. aws_lb_target_group_attachment, aws_alb_target_group_attachment and aws_route53_zone_association already carried fold-child rulings, so adding their OmitIfAbsent trailing segments (availability_zone, quic_server_id, vpc_region) moved no count - the rows were already unreproduced for an unrelated reason and remain so. aws_route53_record had none: its three-component row was reproduced exactly until this fix added a fourth, optional set_identifier segment the provider documents as a fourth 'if the record also contains a set identifier, append it' form. Same missing capability as 97: classify.go pins one documented example and has no rule for a trailing segment present in a longer form and wholly absent in a shorter one.
 - 122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, which routes bucketNeedsHandSeparator and proposes no row regardless of what import-grammar.json knows - the classifier never reaches the composed_of_arguments rule for this bucket at all. live/import-grammar.json's own separator field independently confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or only partially resolved for every one of them: five are a mixed server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher cannot resolve because it names no real Argument Reference entry, or names an Optional auto-generated one the same way aws_lambda_permission's statement_id already does); ten have a registry that under-counts the doc's real argument count because it omits provider-defaulted arguments from primaryIdentifier (the eight QuickSight aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a registry field order or field set that plainly disagrees with the doc's own worked example (aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved despite a matching separator. Each ruling's exit names its own shape rather than a shared catch-all. 98 + 24 = 122.
 - 143 on 2026-08-18 (issue #245's 'fold-child' slice): the same reviewed upward bump, 21 newly admitted types (aws_app_cookie_stickiness_policy, aws_shield_protection_health_check_association and 19 others), each a property-child of an already-admitted CFN parent. bucketFoldChild never proposes Components at all - classify.go's own doc comment states the child's composite shape needs a human's separator and shape choice regardless of how clean the import-grammar evidence is - so every one of the 21 is unreproduced by construction, the same standing every other fold-child ruling in this ledger already carries. Two further fold-child candidates in the same unreached population (aws_cloudformation_stack_instances, aws_cloudformation_stack_set_instance) were left unratified because their CFN parent, aws_cloudformation_stack_set, is not itself admitted yet; three more (aws_autoscaling_group_tag, aws_autoscaling_traffic_source_attachment, aws_ssoadmin_customer_managed_policy_attachment) have their identity-bearing argument nested inside a sub-block Component.Attrs cannot read; one (aws_wafv2_web_acl_rule_group_association) has a conditional identity shape branching on which of two mutually exclusive nested blocks is populated; one (aws_lightsail_container_service_deployment_version) has a purely server-assigned, non-configurable differentiator (version); one (aws_ssm_default_patch_baseline) has an ambiguous identity where the doc's own alternate import forms suggest operating_system alone is the true key, not a fold of the parent baseline id; and 14 have no Import section in the provider's docs at all, so no separator has any evidenced source. None of those 22 were added to rejected.json: the parent-pending two are ratifiable once their parent is, and the rest are a generator/resolver capability gap, not a closed question. 122 + 21 = 143.
-- 146 on 2026-08-18 (issue #305): the same reviewed upward bump, three newly admitted types - aws_default_network_acl, aws_default_route_table, aws_default_security_group, terraform-aws-vpc's 'adopt the account's default object instead of creating one' idiom, hit by name in four separate real-estate crossings the same night (vpc-complete, rds-complete-postgres, security-group-complete, and reachable through ecs-fargate and autoscaling-complete's own vpc dependency). All three are live/mapping.json via=tf-only rows (no CloudFormation model of an 'adopt an existing default object' resource), so classifyUnmapped always proposes bucketEvidenceOnly for them regardless of their own import-grammar evidence; none of applyImportGrammarPrecedence's upgrade rules run against an evidence-only proposal for a shape this plain (no cloud/account singleton, no confirmed guess). All three are ratified server-assigned, the same shape as their non-default siblings aws_network_acl, aws_route_table and aws_security_group: taggable per live/survey-full.json, and AWS itself mints exactly one default of each per VPC, assigning its own id before the resource block first applies - the required default_network_acl_id/default_route_table_id argument and the optional vpc_id argument each name a parent, not a fresh identity this table derives. Each ruling's exit names the same missing capability: classifyUnmapped has no rule proposing bucketServerAssigned for a cfn-unmodeled type from import-grammar evidence (sole_id_part.source==own-id, or an import_id_example sharing a same-service sibling's id-prefix convention) at all. 143 + 3 = 146.
 
 <a id="rowgen-unannotated-mismatches"></a>
 ### `rowgen-unannotated-mismatches`
@@ -139,12 +138,12 @@ Every admitted row tools/row-gen's classifier fails to reproduce carries a rulin
 
 Now **0 unruled mismatches**, at most **0**. At the bound.
 
-recomputed from 1021 compared rows: 146 unmatched, every one of them named by one of the ledger's 146 rulings.
+recomputed from 1019 compared rows: 143 unmatched, every one of them named by one of the ledger's 143 rulings.
 
 - Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.
 - Instrument: the committed convergence artifact plus the committed ledger, both read as JSON. Not a regeneration - tools/row-gen's TestConvergenceArtifactMatchesCommitted is the drift half.
-- Denominator `live/rowgen-convergence.json summary.compared`, measured at 1021 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
+- Denominator `live/rowgen-convergence.json summary.compared`, measured at 1019 against a floor of 800. A mismatch count falls when the compared set shrinks. The compared set is the admitted types the mapping reaches, so a loadMapping filter or an un-admission lowers this count without any extractor improving.
 
 What the instrument cannot see:
 
@@ -161,9 +160,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **466 provider resource types**, at most **613**, so the bound is stale by 147 and should be lowered to the measurement.
+Now **468 provider resource types**, at most **613**, so the bound is stale by 145 and should be lowered to the measurement.
 
-1035 admitted, 100 hand-vetoed, 140 markerless-vetoed, over a roster of 1699.
+1033 admitted, 100 hand-vetoed, 140 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.

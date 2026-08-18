@@ -710,6 +710,18 @@ var (
 		// signals.taggable false for both.
 		"aws_s3_bucket_accelerate_configuration",
 		"aws_s3_bucket_request_payment_configuration",
+
+		// Issue #307: aws_vpc_security_group_rules_exclusive, ratified
+		// client-named off its sole required, ForceNew security_group_id
+		// argument (tools/row-gen/ratified.json) - the provider ships no
+		// resource Identity Schema for this type, so the row is derived
+		// from its own Import documentation's "using the
+		// `security_group_id`" prose rather than from the wire schema, the
+		// same doc-derived shape aws_vpc_security_group_vpc_association's
+		// row already had at a schema wire, just here without one. No tags
+		// argument in the pinned v6.59.0 Argument Reference; confirmed
+		// against live/survey-full.json's signals.taggable (false).
+		"aws_vpc_security_group_rules_exclusive",
 	}
 )
 
@@ -1223,6 +1235,7 @@ func testSchemas() Schemas {
 		"aws_sns_topic":                                      taggedSchema("id", "arn", "name"),
 		"aws_vpc_security_group_ingress_rule":                taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"),
 		"aws_vpc_security_group_egress_rule":                 taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"),
+		"aws_vpc_security_group_rules_exclusive":             untaggedSchema("security_group_id", "ingress_rule_ids", "egress_rule_ids"),
 		"aws_launch_template":                                taggedSchema("id", "arn", "name", "image_id", "instance_type"),
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),

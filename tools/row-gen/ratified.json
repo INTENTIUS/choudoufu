@@ -14031,6 +14031,21 @@
       "security_group_rule_id"
     ]
   },
+  "aws_vpc_security_group_rules_exclusive": {
+    "type": "aws_vpc_security_group_rules_exclusive",
+    "components": [
+      {
+        "attrs": [
+          "security_group_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "SECURITY_GROUP_ID",
+    "identity_attrs": [
+      "security_group_id"
+    ]
+  },
   "aws_vpc_security_group_vpc_association": {
     "type": "aws_vpc_security_group_vpc_association",
     "components": [

@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1035 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1033 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 314 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1035<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1033<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -185,8 +185,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_db_instance_role_association`, `aws_db_option_group`,
   `aws_db_parameter_group`, `aws_db_proxy`,
   `aws_db_proxy_default_target_group`, `aws_db_proxy_endpoint`,
-  `aws_db_subnet_group`, `aws_default_network_acl`, `aws_default_route_table`,
-  `aws_default_security_group`, `aws_detective_graph`, `aws_detective_member`,
+  `aws_db_subnet_group`, `aws_detective_graph`, `aws_detective_member`,
   `aws_devopsguru_event_sources_config`, `aws_devopsguru_resource_collection`,
   `aws_devopsguru_service_integration`,
   `aws_directory_service_conditional_forwarder`,
@@ -567,6 +566,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_vpc_route_server_endpoint`, `aws_vpc_route_server_peer`,
   `aws_vpc_route_server_propagation`, `aws_vpc_route_server_vpc_association`,
   `aws_vpc_security_group_egress_rule`, `aws_vpc_security_group_ingress_rule`,
+  `aws_vpc_security_group_rules_exclusive`,
   `aws_vpc_security_group_vpc_association`,
   `aws_vpclattice_access_log_subscription`, `aws_vpclattice_auth_policy`,
   `aws_vpclattice_domain_verification`, `aws_vpclattice_listener`,
