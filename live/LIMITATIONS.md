@@ -106,26 +106,39 @@ configuration with a `record_store` was told its type could never work.
   surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it
   always has.
-- **SECRET_REFUSED** - `random_password`, `random_bytes`, and the `tls_`
+- **SECRET_REFUSED** - `random_password`, `random_bytes`, the `tls_`
   family (`tls_private_key`, `tls_self_signed_cert`,
   `tls_locally_signed_cert`, `tls_cert_request`, and any future `tls_`
-  addition by default). Each generates, or requires as an argument, secret
-  material a live-markers run has nowhere safe to keep: no state file, and
-  no persisted micro-state record either, since the no-secrets rule that
-  already governs snapshots and receipts forbids a record from carrying it
-  too. Refused permanently, with or without a `record_store` configured -
-  the store never weakens this class.
-- **OTHER_REFUSED** - `local_file` and `local_sensitive_file`, plus any
-  logical-family member released since the last `-logical-schemas` run.
-  `hashicorp/local` is the one measured provider that is not store-only, and
-  it is excluded deliberately rather than left unreviewed: a `local_file`'s
-  identity is its `filename`, not a record, so two instances at distinct
-  addresses still collide on one path - measured under stock OpenTofu,
-  `count = 4` with a filename built from `count.index % 2` never converges.
-  Promoting it would also silence lint's `count.index` walk over that
-  filename, which `TestLocalFileKeepsItsCountIndexCheck` pins. For a type
-  released after the last measurement, this class is the safe default rather
-  than a verdict, and re-running `-logical-schemas` is what resolves it.
+  addition by default), and `local_sensitive_file`. Each generates, or
+  requires as an argument, secret material a live-markers run has nowhere
+  safe to keep: no state file, and no persisted micro-state record either,
+  since the no-secrets rule that already governs snapshots and receipts
+  forbids a record from carrying it too. Refused permanently, with or
+  without a `record_store` configured - the store never weakens this class.
+  `local_sensitive_file` gets this verdict by its own exact-match rule in
+  `ClassifyLogicalType` rather than a `logicalTypes` row, because
+  `hashicorp/local` contributes no row for either of its types (see
+  OTHER_REFUSED below) - but its own docs settle the question regardless:
+  "The arguments accepted by this resource are marked as sensitive," and its
+  schema marks `content` and `content_base64` `(String, Sensitive)`, neither
+  deprecated.
+- **OTHER_REFUSED** - `local_file`, plus any logical-family member released
+  since the last `-logical-schemas` run. `hashicorp/local` is the one
+  measured provider that is not store-only, and `local_file` is excluded
+  deliberately rather than left unreviewed: its own docs show its only
+  sensitive attribute (`sensitive_content`) is deprecated in favor of
+  `local_sensitive_file`, so the "no secret material" rule alone would
+  derive RECORD_ADMITTED for it - but its identity is its `filename`, an
+  argument value, not a record, so two instances at distinct addresses
+  still collide on one path - measured under stock OpenTofu, `count = 4`
+  with a filename built from `count.index % 2` never converges. Promoting
+  it would also silence lint's `count.index` walk over that filename, which
+  `TestLocalFileKeepsItsCountIndexCheck` pins. Settling `local_file` needs a
+  class this table does not have yet - argument-derived identity that is
+  still safe to admit - not a verdict from the two it does. For a type
+  released after the last measurement, this class is the safe default
+  rather than a verdict, and re-running `-logical-schemas` is what resolves
+  it.
 
 ### null-resource
 
@@ -200,6 +213,28 @@ runs, not as a resource OpenTofu tracks.
 **Enforcement.** `RuleLogicalResource`, classified `OTHER_REFUSED` (see
 above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`.)
 Fixture at `live/e2e/limits/local-file/`.
+
+### local-sensitive-file
+
+**Construct.** `local_sensitive_file`.
+
+**Why banned.** hashicorp/local's own docs mark this resource's
+content-carrying arguments sensitive - "The arguments accepted by this
+resource are marked as sensitive," and its schema marks `content` and
+`content_base64` `(String, Sensitive)`, neither deprecated, unlike
+`local_file`'s sole sensitive field. A live-markers run has nowhere safe to
+keep that content: no state file, and no persisted micro-state record
+either, since `internal/live/projection`'s `recordPayload` would store the
+whole object value.
+
+**Forwarding address.** A secret-store Op, same as `random_password` and
+the `tls_` family: generate and store the secret in a secret manager
+outside OpenTofu's model, and have configuration reference it by ARN/path,
+never by value.
+
+**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED` (see
+above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`.)
+Fixture at `live/e2e/limits/local-sensitive-file/`.
 
 ### random-password
 

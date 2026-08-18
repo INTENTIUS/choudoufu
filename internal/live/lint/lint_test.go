@@ -858,10 +858,17 @@ func TestClassifyLogicalType(t *testing.T) {
 		// uniform enough to extend to a type nobody has reviewed yet.
 		{"tls_hypothetical_new_type", true, ClassSecretRefused, "tls_"},
 
-		// OTHER_REFUSED: local_*, whose provider is not store-only, and any
-		// other family member the table has no row for.
+		// local_sensitive_file: an exact-match verdict alongside the tls_
+		// prefix's, settled by its own provider docs even though
+		// hashicorp/local contributes no logicalTypes row (see
+		// ClassifyLogicalType).
+		{"local_sensitive_file", true, ClassSecretRefused, "local_"},
+
+		// OTHER_REFUSED: local_file, whose provider is not store-only and
+		// whose identity is argument-derived rather than record-backed (see
+		// ClassifyLogicalType), and any other family member the table has
+		// no row for.
 		{"local_file", true, ClassOtherRefused, "local_"},
-		{"local_sensitive_file", true, ClassOtherRefused, "local_"},
 		{"random_hypothetical_new_type", true, ClassOtherRefused, "random_"},
 
 		// Not logical at all.

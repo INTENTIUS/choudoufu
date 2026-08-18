@@ -31,22 +31,23 @@ const limitationsDoc = "../../../live/LIMITATIONS.md"
 // rejected by lint today, paired with the exact rule that must fire. CheckContext()
 // must report that rule, and only that rule, for each of these directories.
 var enforcedLimits = map[string]Rule{
-	"local-exec":          RuleProvisioner,
-	"remote-exec":         RuleProvisioner,
-	"null-resource":       RuleLogicalResource,
-	"terraform-data":      RuleLogicalResource,
-	"local-file":          RuleLogicalResource,
-	"random-password":     RuleLogicalResource,
-	"time-sleep":          RuleLogicalResource,
-	"moved-block":         RuleMovedBlock,
-	"child-module":        RuleChildModule,
-	"backend-block":       RuleStateBackend,
-	"cloud-block":         RuleStateBackend,
-	"unadmitted-type":     RuleUnadmittedType,
-	"markerless-type":     RuleMarkerlessType,
-	"count-index-in-tag":  RuleCountIndex,
-	"foreach-invalid-key": RuleForEachKey,
-	"overlong-address":    RuleOverlongAddress,
+	"local-exec":           RuleProvisioner,
+	"remote-exec":          RuleProvisioner,
+	"null-resource":        RuleLogicalResource,
+	"terraform-data":       RuleLogicalResource,
+	"local-file":           RuleLogicalResource,
+	"local-sensitive-file": RuleLogicalResource,
+	"random-password":      RuleLogicalResource,
+	"time-sleep":           RuleLogicalResource,
+	"moved-block":          RuleMovedBlock,
+	"child-module":         RuleChildModule,
+	"backend-block":        RuleStateBackend,
+	"cloud-block":          RuleStateBackend,
+	"unadmitted-type":      RuleUnadmittedType,
+	"markerless-type":      RuleMarkerlessType,
+	"count-index-in-tag":   RuleCountIndex,
+	"foreach-invalid-key":  RuleForEachKey,
+	"overlong-address":     RuleOverlongAddress,
 	// GitHub issue #103. Its fixture carries a fourth resource that must
 	// NOT be refused - ignore_changes on a single non-marker tag key - and
 	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.
@@ -151,11 +152,12 @@ func TestLimitsEnforced(t *testing.T) {
 // (TestLimitsEnforced already pins that), but that the new per-type
 // classification (GitHub issue #73's groundwork) reached the message.
 var logicalLimitsClasses = map[string]LogicalClass{
-	"null-resource":   ClassRecordAdmitted,
-	"terraform-data":  ClassRecordAdmitted,
-	"time-sleep":      ClassRecordAdmitted,
-	"random-password": ClassSecretRefused,
-	"local-file":      ClassOtherRefused,
+	"null-resource":        ClassRecordAdmitted,
+	"terraform-data":       ClassRecordAdmitted,
+	"time-sleep":           ClassRecordAdmitted,
+	"random-password":      ClassSecretRefused,
+	"local-sensitive-file": ClassSecretRefused,
+	"local-file":           ClassOtherRefused,
 }
 
 // TestLogicalLimitsDetailsRender checks that every logical-resource limits

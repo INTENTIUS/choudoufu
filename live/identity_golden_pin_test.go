@@ -250,9 +250,16 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // pipeline rather than a fabricated Findings slice. It declares only a
 // backend block and no resources, so it adds one directory and zero
 // instances.
+// 2026-08-17 (issue #238, merged independently of #256/#258 above): dirs
+// 448 -> 449, instances and digest unchanged. A new fixture,
+// live/e2e/limits/local-sensitive-file, exercises local_sensitive_file's
+// new SECRET_REFUSED verdict. Its resource has no identity.DefaultTable
+// row (local_sensitive_file is a logical type, not an AWS resource), so it
+// contributes a directory and zero golden instance lines - same shape as
+// local_file's own fixture.
 const (
 	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 448
+	identityGoldenPinDirs      = 449
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
