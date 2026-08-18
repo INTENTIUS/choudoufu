@@ -641,6 +641,17 @@ demo-counted-module:
 demo-dataread:
     bash live/e2e/dataread-projection/run.sh
 
+# terraform-aws-modules/terraform-aws-vpc's flagship "complete" example
+# (issue #274's real-estate crossing pipeline), all five stages: cold deploy
+# with plain terraform, choudoufu live-import adoption, an empty replan with
+# the state file deleted and three rendered identities checked against the
+# AWS CLI's own answer, a genuine no-op apply, and drift on one object
+# reconverging without touching any other. Needs Docker, the AWS CLI, and a
+# real `terraform` (or tofu; see TF_COLD_BIN) on PATH; runs on its own port
+# (4713) so it can run beside `just demo`.
+demo-corpus-vpc-complete:
+    bash live/e2e/corpus-vpc-complete/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #

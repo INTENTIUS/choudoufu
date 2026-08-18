@@ -8,6 +8,7 @@ package lint
 import (
 	"fmt"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -131,4 +132,44 @@ func markerlessLocatedDetail(resourceType string) string {
 			"proposes a create rather than a destroy.",
 		resourceType, identity.MarkerlessReason, UnfindableClause, markerlessLocatedSupportExists, resourceType,
 	)
+}
+
+// blockHasNoInstances reports whether ONE resource block - identified by its
+// own module path and resource address, not merely its type - is provably
+// producing zero live instances this run, so [RuleUnadmittedType] and
+// [RuleMarkerlessType] have nothing to say about it: an admission verdict is
+// about whether an INSTANCE of a type can be identified on the live system,
+// and a block with no instances has none needing that.
+//
+// "Provably" means read off signal, never guessed: [identity.ScanConfig]
+// walks the whole configuration with the same count/for_each expansion
+// identity resolution trusts (internal/live/identity/signal.go's
+// collectSignalInto), and issue #219 already hardened that walk so a
+// count/for_each that evaluates to zero or empty contributes nothing to it
+// - not even a placeholder. An absence in signal for this exact block is
+// therefore not silence about an unresolved count; it is the same "zero
+// instances" answer identity resolution itself would give, computed by the
+// one walk both layers already share, so lint and resolution can never
+// disagree about which blocks have anything to identify.
+//
+// signal == nil (no provider schemas were available - checkConfig only
+// builds one when schemas are present, see its own comment) always answers
+// false: with nothing to consult this function has nothing to add, and the
+// existing, understood, conservative default - refuse when uncertain -
+// stands unchanged.
+//
+// Scoped to the one block, not the type: a second block of the same type
+// elsewhere in the same or a sibling module can carry real instances while
+// this one carries none, and a type-wide answer would let that block's
+// admission verdict leak onto this one.
+func blockHasNoInstances(signal *identity.ConfigSignal, path addrs.Module, resourceAddr addrs.Resource, resourceType string) bool {
+	if signal == nil {
+		return false
+	}
+	for _, inst := range signal.Instances(resourceType) {
+		if inst.Module.IsForModule(path) && inst.Resource.Resource.Equal(resourceAddr) {
+			return false
+		}
+	}
+	return true
 }

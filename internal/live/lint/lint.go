@@ -332,6 +332,33 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
+		// A block this configuration's own count/for_each provably never
+		// instantiates has no live instance for anything below to be
+		// about: not an admission verdict, not a provisioner, not a
+		// count.index injectivity question, not an ignore_changes
+		// compatibility check. Every one of those rules exists to say
+		// something about an object this run will create or manage, and a
+		// zero-instance block creates none, the same way stock OpenTofu
+		// never evaluates its body at all in that case. See
+		// [blockHasNoInstances] for how "provably" is read off
+		// [identity.ScanConfig]'s own expansion rather than guessed.
+		//
+		// terraform-aws-modules/terraform-aws-vpc's flagship "complete"
+		// example is what surfaced this: aws_default_vpc, aws_default_
+		// security_group, aws_default_network_acl, aws_default_route_table
+		// and aws_vpn_gateway_attachment all sit behind a `count = var.x ?
+		// 1 : 0` the example leaves at its default of false, and
+		// aws_vpn_gateway_route_propagation's own count.index reads
+		// another resource's instances - refused by count-index in
+		// general, moot here because the block it would be refused on
+		// never exists. Before this check, all six were hard errors on a
+		// popular module's flagship example with nothing live behind any
+		// of them - a parity violation, since plain OpenTofu plans this
+		// configuration without a single complaint.
+		if blockHasNoInstances(signal, path, resource.Addr(), resource.Type) {
+			continue
+		}
+
 		// Type classification is managed-resources-only on purpose: a data
 		// source stores nothing and is re-read every operation, so it has no
 		// identity to recover and no admission question to answer. It is
