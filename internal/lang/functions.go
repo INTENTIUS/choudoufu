@@ -61,6 +61,13 @@ func (s *Scope) Functions() map[string]function.Function {
 		for _, name := range coreNames {
 			s.funcs[addrs.ParseFunction(name).FullyQualified().String()] = s.funcs[name]
 		}
+
+		// FuncOverrides applies last, so it wins over both the bare name and
+		// the core:: alias just built for it - see the field's own doc.
+		for name, f := range s.FuncOverrides {
+			s.funcs[name] = f
+			s.funcs[addrs.ParseFunction(name).FullyQualified().String()] = f
+		}
 	}
 	s.funcsLock.Unlock()
 

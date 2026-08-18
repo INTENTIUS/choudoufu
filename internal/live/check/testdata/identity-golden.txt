@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=443 instances=1436
+# shape: dirs=445 instances=1442
 # shape: class CONCRETE=734
-# shape: class NEEDS_DISCOVERY=589
+# shape: class NEEDS_DISCOVERY=595
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=7eb01dd80dde1a273bde8451d08ce24fb0e5933936ab2449a165eefb12087c7b
+# shape: body-sha256=5ddecffcc0fbfee950398f6f1709eb35f98a4e26d9bc5006384ad9978a60addb
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -33,6 +33,11 @@ internal/live/dataread/testdata/ineligible-depends-on	aws_instance.web	NEEDS_DIS
 internal/live/dataread/testdata/ineligible-managed	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/ineligible-provider	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection	aws_instance.web	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-arity-expanded	aws_instance.fleet[0]	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-arity-expanded	aws_instance.fleet[1]	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-arity-expanded	aws_instance.fleet[2]	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-arity-expanded	aws_instance.nodes["a"]	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/managed-projection-arity-expanded	aws_instance.nodes["b"]	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-chain	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-expanded	aws_instance.fleet[0]	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-expanded	aws_instance.fleet[1]	NEEDS_DISCOVERY		
@@ -41,6 +46,7 @@ internal/live/dataread/testdata/managed-projection-nested	aws_instance.web	NEEDS
 internal/live/dataread/testdata/managed-projection-read	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/managed-projection-whole	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.this	NEEDS_DISCOVERY		
+internal/live/dataread/testdata/zz-audit-arity	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.east	CONCRETE	tofu-alias-e2e-east	bucket=tofu-alias-e2e-east
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.west	CONCRETE	tofu-alias-e2e-west	bucket=tofu-alias-e2e-west
 internal/live/discovery/testdata/alias-e2e	aws_vpc.east	NEEDS_DISCOVERY		

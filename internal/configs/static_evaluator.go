@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // StaticIdentifier holds a Referenceable item and where it was declared
@@ -98,6 +99,10 @@ type StaticEvaluator struct {
 	// single resource instance whose arguments are being evaluated actually
 	// has. See [StaticEvaluator.WithRepetitionData].
 	repetition instances.RepetitionData
+
+	// funcOverrides, when non-nil, replaces named entries of the scope's
+	// base function table. See [StaticEvaluator.WithFunctionOverrides].
+	funcOverrides map[string]function.Function
 }
 
 // StaticDataLookup answers a data-resource reference with a value read ahead
@@ -133,6 +138,33 @@ func (s *StaticEvaluator) WithDataResults(lookup StaticDataLookup) *StaticEvalua
 	}
 	dup := *s
 	dup.dataLookup = lookup
+	return &dup
+}
+
+// WithFunctionOverrides returns a copy of the evaluator whose scopes use
+// overrides in place of the named entries of the base function table
+// ([lang.Scope.FuncOverrides]), for every reference this evaluator resolves
+// at any depth - the same "carries through nested scopes" property
+// [StaticEvaluator.WithRepetitionData] documents, because [newStaticScope]
+// builds every nested scope from this same *StaticEvaluator.
+//
+// internal/live/dataread is the first and, as of this writing, only caller:
+// issue #193's length()/keys() guard needs to see whether the OBJECT a data
+// source's argument passes to either function is an unexpanded managed
+// resource's own projection, a fact [configs.lookupCoversTraversal] and
+// plain attribute access cannot be made to draw without over-refusing a
+// legitimate for_each-expanded reference (see managedproj.go's doc). A
+// function table override is the one seam that can see the argument VALUE
+// at the exact place length()/keys() are invoked without changing what an
+// ordinary `.subnet_id`-style reference resolves to, because it replaces
+// only those two function-table entries and never touches attribute access
+// at all.
+func (s *StaticEvaluator) WithFunctionOverrides(overrides map[string]function.Function) *StaticEvaluator {
+	if s == nil || len(overrides) == 0 {
+		return s
+	}
+	dup := *s
+	dup.funcOverrides = overrides
 	return &dup
 }
 

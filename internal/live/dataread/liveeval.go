@@ -46,6 +46,14 @@ import (
 // expression is cheap relative to a network read, and caching a lookup
 // closure across a probe round or a read call risks exactly the kind of
 // stale, wrongly-scoped reuse this function exists to avoid.
+//
+// Every evaluator this returns also carries #193's length()/keys() guard
+// (arity.go), applied last so it is never lost to a later .With* call in
+// this function or in a caller building on top of the result. It is a
+// no-op for anything other than a bare reference to an unexpanded managed
+// resource's own projection, so attaching it unconditionally - root or
+// descendant, analysis or read - costs nothing and cannot disagree with
+// itself between modules or between [Analyze] and [Read].
 func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.Module, lookup func(addrs.Module) configs.StaticDataLookup) *configs.StaticEvaluator {
 	node := cfg.Descendent(module)
 	if node == nil || node.Module == nil || node.Module.StaticEvaluator == nil {
@@ -71,5 +79,5 @@ func liveModuleEvaluator(ctx context.Context, cfg *configs.Config, module addrs.
 		base = base.WithVariables(mc.VariablesUsing(ctx, parentEval))
 	}
 
-	return base.Pure().WithDataResults(lookup(module))
+	return base.Pure().WithDataResults(lookup(module)).WithFunctionOverrides(arityGuardedFunctions())
 }

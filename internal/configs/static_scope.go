@@ -25,11 +25,12 @@ import (
 // newStaticScope creates a lang.Scope that's backed by the static view of the module represented by the StaticEvaluator
 func newStaticScope(eval *StaticEvaluator, stack0 StaticIdentifier, stack ...StaticIdentifier) *lang.Scope {
 	return &lang.Scope{
-		Data:        staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
-		ParseRef:    addrs.ParseRef,
-		BaseDir:     eval.baseDir(),
-		PureOnly:    eval.pureOnly,
-		ConsoleMode: false,
+		Data:          staticScopeData{eval, append([]StaticIdentifier{stack0}, stack...)},
+		ParseRef:      addrs.ParseRef,
+		BaseDir:       eval.baseDir(),
+		PureOnly:      eval.pureOnly,
+		ConsoleMode:   false,
+		FuncOverrides: eval.funcOverrides,
 	}
 }
 
