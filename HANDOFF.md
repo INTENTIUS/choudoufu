@@ -533,7 +533,7 @@ unblocked something it did not.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1419 rendered identities across 435 configuration directories in under a
+1421 rendered identities across 435 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
@@ -732,12 +732,15 @@ separating weighted, latency and failover records that share a zone, name and
 type. Two declarations resolve to one identity, which is the wrong-marker class.
 `Component.OmitIfAbsent` already exists for exactly this shape.
 
-### 4. #283 - an estate spanning two provider configurations
+### 4. #283 - an estate spanning two provider configurations - DONE
 
-Marker discovery goes through one provider configuration per run. Every
-CloudFront-plus-WAF estate has two, because WAFv2 and ACM certificates for
-CloudFront must live in `us-east-1`. Not exotic - it is what AWS's own guidance
-produces.
+Marker discovery now runs one scoped pass per provider configuration.
+`statelessDiscoveryPassProviders` is the pass set and
+`discovery.Request.ScopeProvider` (issue #69's mechanism, previously used for
+the sweep alone) keeps each pass to the resolutions whose own resource block
+names it. `.corpus/govuk-infrastructure/.../cloudfront` clears the refusal and
+now stops on `aws_wafv2_web_acl` having no list operation the provider serves -
+a type-listability gap, unrelated, and the next thing in the way of that estate.
 
 ### 5. #274 - cross the estates that already pass
 

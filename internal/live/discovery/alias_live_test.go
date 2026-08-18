@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -35,6 +36,17 @@ import (
 // configuration and internal/live/discovery.Merge combines the results),
 // and this is that fix's own acceptance test: it now asserts a real,
 // passing plan rather than recording why one could not be produced.
+//
+// Issue #283 is the second half. Until it, the fixture deliberately held
+// only CLIENT-NAMED resources, because live-plan still refused outright when
+// the resources WAITING ON marker discovery spanned more than one provider
+// configuration - so the one thing a multi-region estate most needs to do,
+// find its own server-assigned objects, was exactly what could not be
+// tested. The fixture now carries an aws_vpc on each side as well, and this
+// test asserts each one's RENDERED IMPORT IDENTITY against the vpc- id the
+// AWS CLI reports for that resource's own region. Nothing weaker would do:
+// a clean plan is reachable by binding both VPCs to each other's objects,
+// and the identity strings are the only thing that separates the two.
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestAliasedProvidersAgainstFloci -v
 func TestAliasedProvidersAgainstFloci(t *testing.T) {
@@ -97,9 +109,36 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 		}
 	}
 
+	// --- Each region holds exactly its own VPC ---------------------------
+	//
+	// ec2 DescribeVpcs is region-scoped, unlike s3api list-buckets above, so
+	// this is where the fixture's two regions are actually two regions. Both
+	// ids are read here, from the emulator directly, and are what the
+	// rendered identities below have to match.
+	eastVPC := soleTaggedVPC(t, flociPort, "us-east-1", "aws_vpc.east")
+	westVPC := soleTaggedVPC(t, flociPort, "us-west-2", "aws_vpc.west")
+	t.Logf("us-east-1 holds %s for aws_vpc.east; us-west-2 holds %s for aws_vpc.west", eastVPC, westVPC)
+	if eastVPC == westVPC {
+		t.Fatalf("both regions reported the same VPC id %q, so this run cannot tell one provider configuration's objects from the other's", eastVPC)
+	}
+	// Neither region may hold the other's. If floci served DescribeVpcs
+	// region-blind, every identity assertion below would pass whichever
+	// object each pass happened to bind, and this test would prove nothing.
+	if other := taggedVPCs(t, flociPort, "us-east-1", "aws_vpc.west"); other != "" {
+		t.Fatalf("us-east-1 also lists aws_vpc.west's object (%s), so DescribeVpcs is not region-scoped here and the identity assertions below cannot distinguish the two configurations", other)
+	}
+	if other := taggedVPCs(t, flociPort, "us-west-2", "aws_vpc.east"); other != "" {
+		t.Fatalf("us-west-2 also lists aws_vpc.east's object (%s), so DescribeVpcs is not region-scoped here and the identity assertions below cannot distinguish the two configurations", other)
+	}
+
 	// --- The claim under test: a real live-plan over both aliases --------
+	//
+	// TF_LOG=trace so the projection's own "materialized <addr> from import
+	// identity <id>" line is in the output: the rendered identity is the
+	// thing under test, and a plan summary cannot carry it.
 	cmd := exec.Command(tofuBin, "live-plan", "-no-color", "-input=false") //nolint:gosec // paths are this test's own temp dirs
 	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "TF_LOG=trace")
 	out, err := cmd.CombinedOutput()
 	output := string(out)
 	t.Logf("choudoufu live-plan:\n%s", output)
@@ -115,9 +154,30 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 		t.Fatalf("live-plan failed over a two-alias estate (issue #69 regression): %v\n%s", err, output)
 	}
 
-	for _, addr := range []string{"aws_s3_bucket.east", "aws_s3_bucket.west"} {
+	for _, addr := range []string{"aws_s3_bucket.east", "aws_s3_bucket.west", "aws_vpc.east", "aws_vpc.west"} {
 		if strings.Contains(output, "# "+addr+" will be created") {
 			t.Errorf("%s is proposed as a create; it already exists and carries this estate's marker, so it should have materialized instead:\n%s", addr, output)
+		}
+	}
+
+	// --- Issue #283: each VPC bound through its OWN configuration --------
+	//
+	// The identity, not the verdict. Both VPCs carry this estate's markers
+	// and nothing in either configuration says which vpc- id either one is,
+	// so the only way an address gets an identity at all is a marker list -
+	// and the only way it gets the RIGHT one is a list issued in the region
+	// that resource's own provider configuration names. Swapping the two
+	// leaves the plan just as empty and every count just as it was.
+	for _, want := range []struct{ addr, id string }{
+		{"aws_vpc.east", eastVPC},
+		{"aws_vpc.west", westVPC},
+	} {
+		got := materializedIdentity(output, want.addr)
+		switch {
+		case got == "":
+			t.Errorf("%s materialized from no import identity at all; discovery never bound it. Its own provider configuration's region holds %s.\n%s", want.addr, want.id, output)
+		case got != want.id:
+			t.Errorf("%s materialized from import identity %q, but the only object its own provider configuration's region holds is %q. A pass bound an object through the wrong configuration, which is a wrong marker rather than a missing one.", want.addr, got, want.id)
 		}
 	}
 
@@ -138,6 +198,49 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 	if _, err := os.Stat(stateFile); !os.IsNotExist(err) {
 		t.Errorf("a state file exists after live-plan (err = %v)", err)
 	}
+}
+
+// materializedIdentityLine matches the projection's own trace line for a
+// resolution it materialized from a live object, which is the only place a
+// rendered import identity appears in output at all - a clean plan says
+// "No changes." and names nothing. Same line the corpus crossings under
+// live/e2e read (`grep 'from import identity'`).
+var materializedIdentityLine = regexp.MustCompile(`materialized ([^ ]+) from import identity "([^"]*)"`)
+
+// materializedIdentity is the import identity a run rendered for one
+// address, or "" when the run rendered none.
+func materializedIdentity(output, addr string) string {
+	for _, m := range materializedIdentityLine.FindAllStringSubmatch(output, -1) {
+		if m[1] == addr {
+			return m[2]
+		}
+	}
+	return ""
+}
+
+// taggedVPCs is every VPC id one region holds carrying the given
+// tofu-address marker, space-separated, read from the emulator through the
+// AWS CLI with no choudoufu code in the path. Empty means that region holds
+// none.
+func taggedVPCs(t *testing.T, flociPort string, region, marker string) string {
+	t.Helper()
+	return strings.TrimSpace(flocitest.AWSCLI(t, flociPort,
+		"--region", region, "ec2", "describe-vpcs",
+		"--filters", "Name=tag:tofu-address,Values="+marker,
+		"--query", "Vpcs[].VpcId", "--output", "text"))
+}
+
+// soleTaggedVPC is [taggedVPCs] where exactly one is expected: the object
+// the resource at that marker's address was applied as. More than one, or
+// none, means the stock apply did not produce the estate this test's later
+// assertions read against, and there is nothing to compare identities to.
+func soleTaggedVPC(t *testing.T, flociPort string, region, marker string) string {
+	t.Helper()
+	ids := strings.Fields(taggedVPCs(t, flociPort, region, marker))
+	if len(ids) != 1 {
+		t.Fatalf("%s holds %d VPC(s) marked %s, want exactly 1: %v", region, len(ids), marker, ids)
+	}
+	return ids[0]
 }
 
 // copyAliasFixture makes a scratch copy of testdata/alias-e2e's *.tf files

@@ -85,7 +85,13 @@ var identityGoldenPin = map[string]int{
 	// nothing new about the mechanism - they are the by-product of every
 	// #271 fixture needing a certificate to point at. No pre-existing row
 	// changed class; see the digest below.
-	"NEEDS_DISCOVERY": 580,
+	// 582, up from 580 (issue #283): the two aws_vpc instances added to the
+	// existing alias-e2e fixture, one per provider configuration. A VPC's id
+	// is server-assigned, so NEEDS_DISCOVERY is what they have always
+	// resolved to; they are there so the aliased-provider crossing exercises
+	// marker discovery on both sides rather than only client-named
+	// resources. No pre-existing row changed class.
+	"NEEDS_DISCOVERY": 582,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -129,7 +135,15 @@ var identityGoldenPin = map[string]int{
 // removed". That zero is the load-bearing half: the sibling-apply
 // classification #271 added is gated on a run holding managed results, this
 // sweep supplies none, and so not one pre-existing marker moved.
-const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
+// 2026-08-17 (issue #283): two ADDED rows, no new directory and zero
+// MODIFIED ones. TestIdentityGolden's own diff, read before this line was
+// edited, reported "0 identities changed, 2 added, 0 removed". Both are
+// aws_vpc instances added to internal/live/discovery/testdata/alias-e2e -
+// one per provider configuration - so that the aliased-provider floci
+// crossing can exercise marker discovery on both sides rather than only
+// client-named resources. Both render empty, as every NEEDS_DISCOVERY row
+// does: the vpc- id is server-assigned and no offline sweep can know it.
+const identityGoldenPinBodyDigest = "28881824e065036d02b66fa290c2b2f3f896632b5ee2e2206f48b19c71adaeba"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -146,8 +160,13 @@ const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86
 // new fixture directories for the sibling-apply discriminator, contributing
 // eight certificates and one log group. Both numbers rise by exactly what the
 // eight directories hold.
+// 2026-08-17 (issue #283): instances 1419 -> 1421, dirs unchanged at 435.
+// Two aws_vpc instances added to an EXISTING fixture directory
+// (internal/live/discovery/testdata/alias-e2e), which is why the directory
+// count does not move. Both are NEEDS_DISCOVERY, so that class rises by the
+// same two.
 const (
-	identityGoldenPinInstances = 1419
+	identityGoldenPinInstances = 1421
 	identityGoldenPinDirs      = 435
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as

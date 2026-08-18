@@ -19,11 +19,25 @@ set -uo pipefail
 #           needing types sit on BOTH sides: aws_cloudfront_cache_policy and
 #           aws_cloudfront_distribution on the default provider,
 #           aws_wafv2_web_acl and the aws_cloudwatch_log_* chain on
-#           aws.global. live/LIMITATIONS.md documents this as a v0 bound:
-#           "Marker discovery goes through one provider configuration per
-#           run." This is not an onboarding delta this script works around;
-#           it is the estate as GOV.UK wrote it, refused before any
-#           resource is touched.
+#           aws.global.
+#
+#           That USED to be where this estate died, before any resource was
+#           touched: "Marker discovery across several provider
+#           configurations", live/LIMITATIONS.md's v0 bound "Marker
+#           discovery goes through one provider configuration per run".
+#           Issue #283 lifted it - statelessDiscover runs one discovery pass
+#           per provider configuration with discovery.Request.ScopeProvider
+#           narrowing each to the resolutions whose own resource block names
+#           it - and this step now asserts that refusal is GONE.
+#
+#           The estate still does not cross, but it now dies somewhere else
+#           and for an unrelated reason: aws_wafv2_web_acl has no list
+#           operation the provider serves, so the one declared instance of
+#           it cannot be found by marker at all. That is a type-listability
+#           gap, nothing to do with provider configurations - and reaching
+#           it is itself the proof the aliased configuration's own pass ran,
+#           because aws_wafv2_web_acl sits on aws.global and no pass ever
+#           looked at it before.
 #
 #   STEP 5  a REAL fix, found by this script's first run today. Before it,
 #           EVERY unique-name type failed its very first apply,
@@ -180,22 +194,40 @@ assets_certificate_arn           = "arn:aws:acm:us-east-1:000000000000:certifica
 EOF
 log "  DELTA 4  tfvars for the estate's declared variables (onboarding)"
 
-# ── 3. the full estate does not cross ───────────────────────────────────────
+# ── 3. the full estate clears the two-configuration bound ───────────────────
 log "=== 3. the full 16-instance estate, as GOV.UK wrote it ==="
 ( cd "$EST" && "$TOFU" init -upgrade -input=false -no-color >/dev/null 2>&1 ) || fail "init -upgrade failed"
 APPLY_FULL="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 RC=$?
-if [ "$RC" -eq 0 ]; then
-  fail "the full estate applied cleanly. Either the multi-provider-configuration bound (live/LIMITATIONS.md, 'Marker discovery goes through one provider configuration per run') has been lifted, or this corpus pin no longer spans two provider configurations - re-read this script's header before assuming the estate crossed."
-fi
+
+# What this step exists to assert, and the reason it is worth a whole corpus
+# estate: the refusal that used to end this run before any resource was
+# touched must not fire. It is the ONLY assertion here that is about issue
+# #283; everything below it is bookkeeping about where the estate stops now.
 grep -q 'Marker discovery across several provider configurations' <<< "$APPLY_FULL" \
+  && fail "the multi-provider-configuration refusal fired again (issue #283 regression). This estate's discovery-needing resources sit on both the default (eu-west-1) and the aliased aws.global (us-east-1) configuration, which is the shape AWS's own CloudFront-plus-WAF guidance produces; statelessDiscover is supposed to run one scoped discovery pass per configuration and discovery.Merge combine them."
+log "  the two-configuration refusal is GONE: discovery ran per provider"
+log "  configuration (default eu-west-1 and aliased global us-east-1)"
+log "  rather than refusing the estate outright.                (#283)"
+
+if [ "$RC" -eq 0 ]; then
+  fail "the full estate applied cleanly, which this script does not yet expect. That is GOOD NEWS: the aws_wafv2_web_acl listability gap below has been closed too, and this step should be rewritten into a real crossing (apply, delete the state, replan empty, replan empty again - per every other script in live/e2e)."
+fi
+
+# Where it stops instead. Nothing to do with provider configurations:
+# aws_wafv2_web_acl has no list operation the provider serves, so its one
+# declared instance cannot be found by marker at all. Pinned because
+# reaching it is what proves the aliased configuration's own pass ran -
+# aws_wafv2_web_acl is declared with `provider = aws.global`, and before
+# #283 nothing ever listed for it.
+grep -q 'cannot list aws_wafv2_web_acl' <<< "$APPLY_FULL" \
   || { grep -E '^Error|^│' <<< "$APPLY_FULL" | head -20
-       fail "the full estate failed, but not with the multi-provider-configuration refusal this script pins. Something else about the corpus pin or this fork has moved."; }
-log "  refused, exactly as documented: this estate's discovery-needing"
-log "  resources span the default and aliased(global) aws provider"
-log "  configurations, and live-plan discovers through one config per run."
-log "  This is NOT crossed. It is GOV.UK's estate as authored, and"
-log "  live/LIMITATIONS.md calls this a v0 bound rather than a permanent one."
+       fail "the full estate failed, but not on the aws_wafv2_web_acl listability gap this script now pins, and not on the two-configuration refusal either. Something else about the corpus pin or this fork has moved - read the errors above."; }
+log "  it stops later, and elsewhere: the provider serves no list operation"
+log "  for aws_wafv2_web_acl, which is declared on aws.global. A type-"
+log "  listability gap, not a provider-configuration one - and reaching it"
+log "  at all is the aliased configuration's pass having run."
+log "  This estate is still NOT crossed."
 
 # ── 4. the unique-name mechanism, isolated ──────────────────────────────────
 # The two resources in this estate that exercise the leg #274 asked this
@@ -286,7 +318,12 @@ log "unconditionally, before discovery ran at all (step 5's fix). What"
 log "remains untestable against floci is the leg's actual binding behavior -"
 log "step 6's floci gap blocks it before that question is reachable."
 log ""
-log "The full 16-instance estate does not cross (step 3): it spans two"
-log "provider configurations and live-plan discovers through one per run,"
-log "a documented v0 bound. This script measures the estate as GOV.UK wrote"
-log "it, not a version restructured to fit around that bound."
+log "The full 16-instance estate still does not cross (step 3), but no"
+log "longer for the reason it used to. It spans two provider configurations -"
+log "the shape AWS's own CloudFront-plus-WAF guidance produces - and that"
+log "was a hard refusal before any resource was touched. Issue #283 lifted"
+log "it: the estate now runs one scoped discovery pass per configuration and"
+log "stops further in, on a type the provider serves no list operation for"
+log "(aws_wafv2_web_acl, declared on aws.global). This script measures the"
+log "estate as GOV.UK wrote it, not a version restructured to fit around"
+log "either bound."

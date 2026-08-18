@@ -556,25 +556,29 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 // those blocks is exactly as much a removal as deleting a marker-discovered
 // one.
 //
-// Provider selection is two separate questions, and issue #69 is about
-// keeping them separate rather than answering both with the same rule. The
-// needs-discovery scan - the resolutions actually waiting to be found by
-// marker - has to go through one provider configuration, unconditionally:
-// see [statelessNeedsDiscoveryProvider]'s own doc comment for why a list
-// against the wrong account or region would misreport an estate as missing
-// rather than as merely unreachable. The estate-wide sweep has no such
-// hazard - a sweep against the wrong account only ever narrows what a run
-// can see, it never mis-reports what exists as absent - so when the
-// configuration's managed resources span more than one provider
-// configuration, the sweep runs once per one of them
-// ([statelessManagedResourceProviders]) and [discovery.Merge] combines the
-// results. A single-provider configuration - true of every estate before
-// this existed - takes the old direct path with no merge step at all, which
-// is what keeps that case byte-identical.
+// Provider selection runs one pass per provider configuration
+// ([statelessDiscoveryPassProviders]: the estate-wide sweep's candidates,
+// [statelessManagedResourceProviders], union the ones the needs-discovery
+// resolutions themselves use, [statelessNeedsDiscoveryProviders]), and
+// [discovery.Merge] combines the results. Every pass carries
+// [discovery.Request.ScopeProvider], which is what keeps it from listing
+// for - and so from ever binding - a resource whose own block names a
+// different provider configuration: an estate spanning two regions gets each
+// of its resources looked for in the region that resource's own
+// configuration names, rather than all of them looked for in one. A
+// single-provider configuration takes the direct path with no merge step at
+// all, which is what keeps that case byte-identical to every run before any
+// of this existed.
 //
-// The second return value is the "primary" provider configuration: the one
-// the needs-discovery scan used, or - when nothing needed discovery - the
-// first of the sweep's providers in sorted order. It is what a caller uses
+// Issue #69 built that mechanism for the sweep alone and left the
+// needs-discovery scan refused outright whenever it spanned more than one
+// configuration; issue #283 is that refusal being lifted onto the same
+// mechanism, because a scoped per-configuration pass answers the hazard the
+// refusal existed for - see [statelessNeedsDiscoveryProviders].
+//
+// The second return value is the "primary" provider configuration: the first
+// of the needs-discovery resolutions' own configurations in address order,
+// or - when nothing needed discovery - the first pass's. It is what a caller uses
 // for the one thing this pass cannot honestly split by provider without a
 // larger refactor of internal/live/foreign: the adoption hint's --region
 // and --endpoint-url flags. In a multi-provider estate that hint may name
@@ -595,7 +599,7 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	needsProvider, needsDiags := statelessNeedsDiscoveryProvider(config, needs)
+	needsProviders, needsDiags := statelessNeedsDiscoveryProviders(config, needs)
 	diags = diags.Append(needsDiags)
 	if needsDiags.HasErrors() {
 		return nil, noProvider, nil, diags
@@ -608,8 +612,10 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return nil, noProvider, nil, diags
 	}
 
-	if len(sweepProviders) == 1 {
-		providerAddr := sweepProviders[0]
+	passProviders := statelessDiscoveryPassProviders(sweepProviders, needsProviders)
+
+	if len(passProviders) == 1 {
+		providerAddr := passProviders[0]
 		// No ScopeProvider: the single-provider path is the exact call
 		// every caller made before issue #69 existed.
 		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, addrs.AbsProviderConfig{}, provs, pol, hintStore, statelessView)
@@ -633,8 +639,8 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 	// still letting it recognize (via [declared.declares], built from every
 	// resolution regardless of provider) that such an object is somebody
 	// else's declared, owned resource rather than an orphan to remove.
-	passes := make([]discovery.Pass, 0, len(sweepProviders))
-	for _, providerAddr := range sweepProviders {
+	passes := make([]discovery.Pass, 0, len(passProviders))
+	for _, providerAddr := range passProviders {
 		res, discoDiags := statelessDiscoverOne(ctx, config, resolutions.All(), estate, providerAddr, providerAddr, provs, pol, hintStore, statelessView)
 		diags = diags.Append(discoDiags)
 		if discoDiags.HasErrors() {
@@ -653,9 +659,16 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 		return merged, noProvider, providerOf, diags
 	}
 
-	primary := needsProvider
-	if primary.Provider.Type == "" {
-		primary = sweepProviders[0]
+	// The primary is the first needs-discovery configuration in address
+	// order, or the first pass's when nothing needs discovery. It is only
+	// ever used for the one thing this pass cannot split by provider - the
+	// adoption hint's --region and --endpoint-url flags, see this function's
+	// own doc comment - and taking the first in a sorted order rather than
+	// whichever the map happened to yield is what keeps a multi-provider
+	// estate's rendered hint identical from run to run.
+	primary := passProviders[0]
+	if len(needsProviders) > 0 {
+		primary = needsProviders[0]
 	}
 	return merged, primary, providerOf, diags
 }
@@ -1279,25 +1292,39 @@ func statelessEstateFromModule(ctx context.Context, cfg *configs.Config, seen ma
 	}
 }
 
-// statelessNeedsDiscoveryProvider is the provider configuration marker
-// discovery's config-driven scan lists through: the one every needs-discovery
-// resolution's resource block agrees on. A configuration whose
-// needs-discovery resources span several provider configurations is refused
-// rather than listed through whichever one came first, since a list against
-// the wrong account or region would report an estate as missing rather than
-// as merely unreachable.
+// statelessNeedsDiscoveryProviders is the set of provider configurations
+// marker discovery's config-driven scan has to list through: every distinct
+// one among the needs-discovery resolutions' own resource blocks, sorted so
+// the caller's loop and its choice of primary are the same on every run.
 //
-// This is deliberately unconditional, unlike the estate-wide sweep's own
-// provider selection (see [statelessManagedResourceProviders] and
-// [discovery.Merge]): a wrong-account sweep only narrows what a run can see,
-// but a wrong-account needs-discovery scan actively lies about whether a
-// resource exists, which is why issue #69 leaves this rule exactly as it
-// was rather than generalizing it too.
+// GitHub issue #283. This used to return exactly one, and refuse outright
+// when the needs-discovery resolutions spanned more than one - "Marker
+// discovery across several provider configurations" - on the reasoning that
+// a list issued against the wrong account or region reports an estate as
+// missing rather than as unreachable, which is a worse failure than a
+// refusal. That reasoning is still exactly right; what changed is that it no
+// longer implies a single configuration per run. Issue #69 had already built
+// the mechanism that satisfies it: [discovery.Request.ScopeProvider] narrows
+// which resolutions a pass treats as waiting to be found to the ones whose
+// own resource block uses that pass's provider configuration, so a pass
+// never lists for - and can never bind - a resource belonging to another
+// account or region. Running one scoped pass per configuration and merging
+// ([discovery.Merge]) issues every list against the configuration the
+// resource itself names, which is stronger than the old rule rather than a
+// relaxation of it: the old rule guaranteed one right answer and refused
+// everything else, this one gives every resource its own right answer.
 //
-// The zero value, returned alongside no error, means nothing needs
-// discovery at all - a configuration entirely of client-named resources, for
-// instance - which tells the caller the sweep alone gets to pick a provider.
-func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Resolution) (addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+// The estate that made the difference matter is a CloudFront estate. WAFv2
+// web ACLs for CloudFront and ACM certificates for CloudFront must live in
+// one particular region while the rest of the estate does not, so AWS's own
+// guidance produces a default provider configuration plus an aliased one,
+// with discovery-needing resources on both sides. That is the ordinary shape
+// of a CDN estate, not an exotic one.
+//
+// An empty result alongside no error means nothing needs discovery at all -
+// a configuration entirely of client-named resources, for instance - which
+// tells the caller the sweep alone gets to pick a provider.
+func statelessNeedsDiscoveryProviders(config *configs.Config, needs []identity.Resolution) ([]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	seen := make(map[string]addrs.AbsProviderConfig)
@@ -1314,34 +1341,31 @@ func statelessNeedsDiscoveryProvider(config *configs.Config, needs []identity.Re
 		seen[addr.String()] = addr
 	}
 
-	switch len(seen) {
-	case 0:
+	if len(seen) == 0 {
 		if len(needs) == 0 {
-			return addrs.AbsProviderConfig{}, diags
+			return nil, diags
 		}
-		return addrs.AbsProviderConfig{}, diags.Append(tfdiags.Sourceless(
+		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"No provider for marker discovery",
 			"Resource instances are waiting on marker discovery, but none of them could be traced back to a resource block in the configuration. The resolutions and the configuration come from different runs; this is a bug.",
 		))
-	case 1:
-		for _, addr := range seen {
-			return addr, diags
-		}
 	}
 
-	names := make([]string, 0, len(seen))
-	for name := range seen {
-		names = append(names, name)
+	return sortedProviderConfigs(seen), diags
+}
+
+// sortedProviderConfigs flattens a set of provider configurations keyed by
+// their own address string into a slice in address order, so every loop over
+// them and every "first one" taken from them is the same on every run
+// regardless of Go's map iteration order.
+func sortedProviderConfigs(seen map[string]addrs.AbsProviderConfig) []addrs.AbsProviderConfig {
+	out := make([]addrs.AbsProviderConfig, 0, len(seen))
+	for _, addr := range seen {
+		out = append(out, addr)
 	}
-	sort.Strings(names)
-	return addrs.AbsProviderConfig{}, diags.Append(tfdiags.Sourceless(
-		tfdiags.Error,
-		"Marker discovery across several provider configurations",
-		fmt.Sprintf(
-			"The resources waiting on marker discovery use %s. Marker discovery goes through one provider configuration per run, because a list issued against the wrong account or region would report an estate as missing rather than as unreachable. Split the configuration so the resources waiting on marker discovery all use one provider configuration. -target does not help here: this check runs over the whole configuration during discovery, before any target filter applies.",
-			strings.Join(names, " and ")),
-	))
+	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+	return out
 }
 
 // statelessManagedResourceProviders is the estate-wide sweep's candidate
@@ -1370,12 +1394,36 @@ func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProvid
 		addr := providerConfigAddr(modCfg, rc)
 		seen[addr.String()] = addr
 	})
-	out := make([]addrs.AbsProviderConfig, 0, len(seen))
-	for _, addr := range seen {
-		out = append(out, addr)
+	return sortedProviderConfigs(seen)
+}
+
+// statelessDiscoveryPassProviders is the set of provider configurations
+// [statelessDiscover] runs one scoped [discovery.Discover] pass through: the
+// union of the estate-wide sweep's candidates and the configurations the
+// needs-discovery resolutions themselves use.
+//
+// The union rather than the sweep set alone is what makes "every
+// needs-discovery resolution has exactly one pass scoped to it" a property
+// of the construction. Both sets are derived the same way - every managed
+// resource block's own [providerConfigAddr] - so in every case that can
+// actually arise the needs set is already contained in the sweep set and the
+// union changes nothing. The one difference between them is
+// [statelessManagedResourceProviders]'s record-backed filter, and taking the
+// union means a resolution that ever ends up both record-backed and waiting
+// on marker discovery still gets a pass instead of being silently skipped by
+// every one of them, which would leave it unbound with nothing said about
+// why. A pass that finds nothing is visible in the run's own report; a
+// resolution with no pass at all is a resource nobody looked for, and
+// nothing says so.
+func statelessDiscoveryPassProviders(sweep, needs []addrs.AbsProviderConfig) []addrs.AbsProviderConfig {
+	seen := make(map[string]addrs.AbsProviderConfig, len(sweep)+len(needs))
+	for _, addr := range sweep {
+		seen[addr.String()] = addr
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
-	return out
+	for _, addr := range needs {
+		seen[addr.String()] = addr
+	}
+	return sortedProviderConfigs(seen)
 }
 
 // statelessForeignReport converts the classification into the view's wire

@@ -3083,39 +3083,36 @@ by a third route. Both are wrong markers rather than missing ones.
 (`internal/live/stamp/stamp.go`, `childExpansion` and `markerBase`;
 `internal/live/stamp/modulecontext_test.go`.)
 
-**Marker discovery goes through one provider configuration per run.** An
-estate's managed resources may span several provider configurations, and the
-sweep handles that. `statelessDiscover` runs one discovery pass per
-configuration and `discovery.Merge` combines them, with
-`discovery.Request.ScopeProvider` keeping a pass from binding a live object
-through the wrong account (issue #69). What is bounded is narrower. The
-resources *waiting on marker discovery* must all use one provider
-configuration, because a list issued against the wrong account or region
-would report an estate as missing rather than as unreachable. A client-named
-resource, whose identity is already in the configuration, needs no discovery
-and spans provider configurations freely. A server-assigned one does not.
-The forwarding address is to split the configuration so the
-discovery-needing resources share one provider configuration, and `-target`
-does not help, because the check runs over the whole configuration during
-discovery before any target filter applies. This is a v0 bound rather than a
-permanent one. The multi-pass machinery exists and `ScopeProvider` is
-alias-aware, so lifting it is work rather than redesign.
-(`internal/command/live_plan.go`, `statelessDiscoveryProvider`. Proven
-multi-configuration behavior in `internal/live/discovery`'s
-`TestAliasedProvidersAgainstFloci`, fixture at
-`internal/live/discovery/testdata/alias-e2e/`.)
-
 **A multi-configuration estate's adoption hint may name the wrong region.**
-The hint's `--region` and `--endpoint-url` flags come from the provider
-configuration that ran the needs-discovery scan, or from the first of the
-sweep's providers in sorted order when nothing needed discovery. For a
-foreign resource found under a different provider configuration, that can be
-the wrong region. What is wrong is the printed command rather than the plan,
-and splitting the hint by provider needs a larger change to
-`internal/live/foreign`. Materializing undeclared instances does not go
-through the hint: callers use the per-address provider map instead, so an
-undeclared instance is created through whichever configuration found it.
-(`internal/command/live_plan.go`, `statelessDiscover`'s third return value.)
+Marker discovery itself is per provider configuration. `statelessDiscover`
+runs one `discovery.Discover` pass per configuration among the estate's
+managed resources and the ones its discovery-needing resources use, and
+`discovery.Merge` combines them; `discovery.Request.ScopeProvider` narrows
+each pass to the resolutions whose own resource block names that
+configuration, so a pass never lists for - and so can never bind - a
+resource belonging to another account or region. A CloudFront estate is the
+ordinary case: WAFv2 web ACLs and ACM certificates for CloudFront must live
+in one particular region while the rest of the estate does not, so AWS's own
+guidance produces a default configuration plus an aliased one with
+discovery-needing resources on both sides (issues #69 and #283).
+
+What is still single is the *adoption hint*. Its `--region` and
+`--endpoint-url` flags come from the first of the discovery-needing
+resources' provider configurations in address order, or from the first pass's
+when nothing needed discovery. For a foreign resource found under a
+different provider configuration, that can be the wrong region. What is wrong
+is the printed command rather than the plan, and splitting the hint by
+provider needs a larger change to `internal/live/foreign`. Materializing
+undeclared instances does not go through the hint: callers use the
+per-address provider map instead, so an undeclared instance is created
+through whichever configuration found it.
+(`internal/command/live_plan.go`, `statelessDiscover`'s second and third
+return values; `statelessDiscoveryPassProviders` for the pass set.
+Multi-configuration behavior is pinned by `internal/live/discovery`'s
+`TestAliasedProvidersAgainstFloci`, fixture at
+`internal/live/discovery/testdata/alias-e2e/`, and at the command level by
+`TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider` and
+`TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders`.)
 
 **Untaggable types carry no ownership marker of their own.** <!-- survey-gen:begin untaggable-admitted -->
 `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
