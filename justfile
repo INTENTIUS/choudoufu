@@ -384,6 +384,27 @@ demo-corpus-sitemaps-generator:
 demo-corpus-root-dns-zones:
     bash live/e2e/corpus-root-dns-zones/run.sh
 
+# Issue #274's step 6, on GOV.UK's own mobile-backend deployment:
+# .corpus/govuk-infrastructure/terraform/deployments/mobile-backend, twelve
+# instances behind a KMS signing key, an IAM role with two inline policies,
+# and an S3 bucket from a shared library module (../../shared-modules/s3,
+# copied out alongside it so its relative module source resolves unedited).
+# A second provider (fastly/fastly) makes one real outbound HTTPS read to
+# Fastly's own public IP-range API - left alone rather than stubbed, since
+# it is not AWS and no emulator could answer it. Two pre-existing account
+# objects this estate reads but never creates - a GitHub OIDC provider and
+# an S3 logging-target bucket - are seeded with the AWS CLI before apply and
+# asserted to stay unmarked afterwards. Applied, state file deleted,
+# replanned empty twice; twelve instances render six distinct identity
+# strings (six S3 sub-resources import by the bucket's own name, AWS's own
+# convention), each checked against IAM/KMS/S3's own answer. BREAK=1
+# corrupts the KMS key identity and the run must catch it in step 5 and
+# nowhere else. Needs Docker, the AWS CLI, outbound HTTPS to Fastly, and a
+# populated .corpus; runs on its own port (4706) so it can run beside
+# `just demo`.
+demo-corpus-mobile-backend:
+    bash live/e2e/corpus-mobile-backend/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
