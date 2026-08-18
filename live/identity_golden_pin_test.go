@@ -133,7 +133,16 @@ var identityGoldenPin = map[string]int{
 	// class, same rendered values, net zero. See
 	// internal/live/identity/markerfallback.go's own doc comment for why
 	// aws_iam_user could not stay: it is taggable and enumerable too.
-	"NEEDS_DISCOVERY": 613,
+	//
+	// 614, up from 613 (issue #301): one ADDED row,
+	// internal/live/identity/testdata/module-foreach-var-typed-sibling-value's
+	// aws_iam_policy.imagebuilder itself - the sibling whose arn the new
+	// fixture's bare each.value now resolves through. This sweep supplies
+	// no managed results, so the policy's own server-assigned arn stays
+	// NEEDS_DISCOVERY; the fixture's OTHER new row
+	// (module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"])
+	// is PARENT_DERIVED instead, see below.
+	"NEEDS_DISCOVERY": 614,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -142,7 +151,15 @@ var identityGoldenPin = map[string]int{
 	// and it renders the formula ${aws_acm_certificate.cert.arn}. The
 	// fixture exists for what happens when a run DOES hold managed results,
 	// which this instrument never does.
-	"PARENT_DERIVED": 96,
+	//
+	// 97, up from 96 (issue #301): one ADDED row,
+	// module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"] in
+	// the same new fixture - a bare each.value forwarding a sibling
+	// resource's arn across a module-call boundary, now resolving to
+	// "gh-image-builder/${aws_iam_policy.imagebuilder.arn}" through the
+	// same [resolver.parentPart] machinery issue #284 built for a direct
+	// reference. See internal/live/identity/typedvar.go's preservedExpr.
+	"PARENT_DERIVED": 97,
 	"RECORD_BACKED":  17,
 }
 
@@ -196,7 +213,19 @@ var identityGoldenPin = map[string]int{
 // ADDED rows, a class-preserving rename (aws_iam_user.team ->
 // aws_iam_group.team in two fixtures) made so those two tests keep
 // exercising the general refusal shape rather than #289's new answer.
-const identityGoldenPinBodyDigest = "0c7bc85a0ab6b37ffa7a281fc9244525d06ee7e4ca7aeb2a918499d1903628a4"
+// 2026-08-18 (issue #301): TestIdentityGolden's own diff, read before this
+// line was edited, reported "0 identities changed, 2 added, 0 removed".
+// Zero CHANGED means no pre-existing marker's rendered string moved -
+// #301's fix (internal/live/identity/typedvar.go's preservedExpr) only
+// changes what a module-variable hop does with an UNPROVEN value that
+// previously had nowhere to go, so any row that already rendered something
+// keeps rendering it. The 2 ADDED rows are both from the one new fixture,
+// internal/live/identity/testdata/module-foreach-var-typed-sibling-value:
+// aws_iam_policy.imagebuilder (NEEDS_DISCOVERY, no managed results in this
+// sweep) and module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"]
+// (PARENT_DERIVED, the bare each.value -> sibling arn formula #301 exists
+// for).
+const identityGoldenPinBodyDigest = "de6be4a7d02c659bd30535aca20be6e038b758e543fbd72c56e9dd1e39d9bafe"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -302,9 +331,15 @@ const identityGoldenPinBodyDigest = "0c7bc85a0ab6b37ffa7a281fc9244525d06ee7e4ca7
 // scheduled_action_name) read straight from the provider's documented
 // Import section. That type previously had no identity.DefaultTable row at
 // all; every pre-existing CONCRETE row in the golden is byte-identical.
+// 2026-08-18 (issue #301): dirs 452 -> 454, instances 1468 -> 1470. One new
+// fixture directory, internal/live/identity/testdata/
+// module-foreach-var-typed-sibling-value, plus its child module directory
+// (.../attach) - two directories, two instances (the sibling policy and
+// the role-policy-attachment whose bare each.value now resolves through
+// it). See identityGoldenPin's own comment above for the class breakdown.
 const (
-	identityGoldenPinInstances = 1468
-	identityGoldenPinDirs      = 452
+	identityGoldenPinInstances = 1470
+	identityGoldenPinDirs      = 454
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

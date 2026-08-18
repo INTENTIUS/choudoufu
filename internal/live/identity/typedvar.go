@@ -35,6 +35,23 @@ import (
 // text. It takes a declared type whose conversion is not identity-on-
 // re-render, a chase through a module variable, and a dynamic sibling to
 // force the per-key fallback, all at once.
+//
+// Issue #301 adds the other half of that same boundary: a key whose value is
+// UNPROVEN rather than merely a different representation of a known one -
+// `policies = { ImageBuilder = aws_iam_policy.imagebuilder.arn }` passed into
+// a module that declares `variable "policies" { type = map(string) }`. The
+// pre-conversion binding carries the sibling reference as an EXPRESSION
+// (elemBinding.expr, #260's own field), and #251's conversion used to drop it
+// unconditionally on the reasoning that a declared type might change what an
+// element renders as. For a plain string-valued position - `map(string)`,
+// `object({x=string})`'s x, or an unconstrained `map(any)`/`any` attribute -
+// that reasoning does not apply: prepareFinalInputVariableValue's conversion
+// of a string to itself is the identity function, so the expression that
+// would have produced the same string had it been evaluable is exactly what
+// the module sees. [preservedExpr] is that one exception, applied only where
+// the converted value came back unknown (so nothing here overrides a
+// genuine, differently-typed known conversion) and only for an element type
+// the conversion cannot alter.
 
 // varConvertedElems applies prepareFinalInputVariableValue's conversion to
 // the per-key values [resolver.staticCollElems] chased through one module
@@ -285,6 +302,27 @@ func convertedElems(conv cty.Value, keys []cty.Value, elems []elemBinding) ([]ct
 		return nil, nil, false
 	}
 
+	// origByName is #301's lookup back to the PRE-conversion binding for
+	// each string key - a map or object's own keys, always strings - so
+	// [preservedExpr] can ask below whether a key that came back unknown had
+	// an expression worth keeping. Left nil (and so answering every lookup
+	// with "not found") for a list, tuple or set, none of which this
+	// exception applies to: [preservedExpr] itself also gates on ty being a
+	// map or object, but building the lookup only where it could ever be
+	// consulted keeps the common case - every key proving a value, the way
+	// it always has - from paying for a map it never reads.
+	var origByName map[string]elemBinding
+	if (ty.IsMapType() || ty.IsObjectType()) && len(elems) > 0 {
+		if names, ok := stringKeys(keys); ok {
+			origByName = make(map[string]elemBinding, len(names))
+			for i, n := range names {
+				if i < len(elems) {
+					origByName[n] = elems[i]
+				}
+			}
+		}
+	}
+
 	outKeys := make([]cty.Value, 0, len(keys))
 	outVals := make([]elemBinding, 0, len(keys))
 	for it := conv.ElementIterator(); it.Next(); {
@@ -296,6 +334,10 @@ func convertedElems(conv cty.Value, keys []cty.Value, elems []elemBinding) ([]ct
 		// conversion that produced a null produced nothing an instance's
 		// each.value can be read from.
 		if v.ContainsMarked() || v.IsNull() || !v.IsWhollyKnown() {
+			if b, ok := preservedExpr(ty, k, origByName); ok {
+				outVals = append(outVals, b)
+				continue
+			}
 			outVals = append(outVals, elemBinding{})
 			continue
 		}
@@ -304,4 +346,52 @@ func convertedElems(conv cty.Value, keys []cty.Value, elems []elemBinding) ([]ct
 		outVals = append(outVals, elemBinding{val: v})
 	}
 	return outKeys, outVals, true
+}
+
+// preservedExpr is issue #301's narrow exception to the rule the rest of
+// this file establishes - a hop through a declared type drops the
+// pre-conversion expression, because the conversion might have changed what
+// the element renders as. A MAP or OBJECT element type of exactly cty.String,
+// or cty.DynamicPseudoType (an unconstrained `map(any)` or an `any`-typed
+// object attribute), converts a string to itself: prepareFinalInputVariableValue
+// would put the identical string inside the module that a working evaluation
+// of the pre-conversion expression would have produced, so carrying the
+// expression across this one hop cannot change what
+// [resolver.selectStatic]'s zero-step leaf - a bare each.value, #260's other
+// half, [resolver.eachValueSelect] - eventually resolves it to.
+//
+// Only ever consulted for a key whose CONVERTED value came back unknown -
+// [convertedElems] calls this from inside that branch alone - so a key that
+// converted to a known value keeps that value and never reaches here, and a
+// key whose PRE-conversion value was also known (proven, not merely
+// expressed) is excluded by the val == cty.NilVal check below: overriding an
+// actually-known conversion result with the raw expression would trade a
+// value cty computed for one this package re-derives, which is never the
+// point - #260/#301 exist only for a value nothing here could evaluate at
+// all.
+func preservedExpr(ty cty.Type, k cty.Value, origByName map[string]elemBinding) (elemBinding, bool) {
+	if origByName == nil || k.Type() != cty.String || k.IsNull() || !k.IsKnown() || k.IsMarked() {
+		return elemBinding{}, false
+	}
+	name := k.AsString()
+	orig, ok := origByName[name]
+	if !ok || orig.expr == nil || orig.val != cty.NilVal {
+		return elemBinding{}, false
+	}
+	var elemTy cty.Type
+	switch {
+	case ty.IsMapType():
+		elemTy = ty.ElementType()
+	case ty.IsObjectType():
+		if !ty.HasAttribute(name) {
+			return elemBinding{}, false
+		}
+		elemTy = ty.AttributeType(name)
+	default:
+		return elemBinding{}, false
+	}
+	if elemTy != cty.String && elemTy != cty.DynamicPseudoType {
+		return elemBinding{}, false
+	}
+	return elemBinding{expr: orig.expr, scope: orig.scope, modInst: orig.modInst}, true
 }
