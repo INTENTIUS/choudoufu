@@ -14,13 +14,25 @@
 // the point: a wrong terminal classification is worse than an honestly
 // counted unclassified row.
 //
-// There is no mechanical cfn-unmodeled classifier here on purpose. Proving a
-// real resource has no CFN model at all - as opposed to simply not having
-// been found by name - is exactly the per-family judgment call issue #53's
-// own workplan defers to the follow-up sweeps; a classifier that mechanically
-// promoted every still-unmatched row to cfn-unmodeled would just be via:none
-// relabeled; via:cfn-unmodeled stays curated-only (overlay.go's CFNUnmodeled
-// table) until a sweep supplies that judgment with its evidence.
+// There is no general mechanical cfn-unmodeled classifier here, on purpose.
+// Proving a real resource has no CFN model at all - as opposed to simply not
+// having been found by name - is exactly the per-family judgment call issue
+// #53's own workplan defers to the follow-up sweeps; a classifier that
+// mechanically promoted every still-unmatched row to cfn-unmodeled would just
+// be via:none relabeled. via:cfn-unmodeled stays curated-only (overlay.go's
+// CFNUnmodeled table) for that general population, until a sweep supplies the
+// judgment with its evidence.
+//
+// The deprecated-service branch is a narrow, evidenced exception (issue
+// #246): it already requires a type's TF prefix to sit on live/residue.go's
+// curated DeprecatedServices list AND its family's entire registered CFN
+// footprint to be handler-less (deprecatedServiceEligible) before it says
+// anything at all. Given that much corroboration, a further per-type check -
+// does any real CFN type anywhere in the registry actually name this
+// resource, per the same global name index every other row in this package
+// is joined against - is strong enough to settle cfn-unmodeled for that type
+// specifically, without generalizing to "unmatched implies unmodeled" for the
+// rest of the unclassified population.
 package main
 
 import (
@@ -37,12 +49,45 @@ import (
 // deprecatedServiceEligible), then tf-only (open-ended name patterns, each
 // requiring the provider's own schema to corroborate). Returns the row
 // unclassified (via:none, the generic note) when neither corroborates.
-func classifyTaxonomy(tf string, eligibleDeprecated map[string]residue.DeprecatedService, identitySchema map[string]bool) Row {
+//
+// nameIndex is the same global TF-candidate-name -> CFN-type map
+// buildMapping builds once (heuristic.go's buildNameIndex) and already
+// tried against tf before this function is ever called (classifyRow's own
+// name-heuristic branch). It is threaded through anyway, rather than
+// trusted to have already answered the question, because
+// ov.HeuristicOverrides can make classifyRow skip that branch for a tf
+// whose candidate name IS in the index - see the deprecated-service branch
+// below for why that distinction is load-bearing (issue #246).
+func classifyTaxonomy(tf string, eligibleDeprecated map[string]residue.DeprecatedService, nameIndex map[string]string, identitySchema map[string]bool) Row {
 	unexplainedNote := unexplainedNoteText
 
 	if d, ok := deprecatedServiceFor(tf, eligibleDeprecated); ok {
-		note := deprecatedServiceNote(d)
-		return Row{TFType: tf, Via: viaDeprecatedService, Note: &note}
+		// Eligibility (deprecatedServiceEligible) is a family-level fact:
+		// every registered CFN type under d.CFNPrefix ships no working
+		// handler. It says nothing about whether THIS tf has a registered
+		// CFN type at all - and issue #246 found seven WAF Classic types
+		// where it does not (live/registry.json ships no
+		// AWS::WAF::GeoMatchSet, no AWS::WAF::RateBasedRule, ... at all),
+		// while eighteen siblings in the same two services do have one and
+		// map normally via viaName/viaServiceAlias before ever reaching
+		// this function. deprecated-service was being read off the
+		// family's status; it needs to be read off this type's own
+		// registry presence instead.
+		//
+		// nameIndex is exactly that per-type signal, already built from
+		// the FULL cfnTypes roster (every service, not just this family):
+		// if it has an entry for tf, some real CFN type names this
+		// resource and the family's deprecation is the honest reason no
+		// other source could reach it. If it has none, no CFN type
+		// anywhere derives this candidate name, and this type is
+		// cfn-unmodeled regardless of which deprecated-services list its
+		// TF prefix sits on.
+		if _, hasModel := nameIndex[tf]; hasModel {
+			note := deprecatedServiceNote(d)
+			return Row{TFType: tf, Via: viaDeprecatedService, Note: &note}
+		}
+		note := cfnUnmodeledInDeprecatedFamilyNote(d)
+		return Row{TFType: tf, Via: viaCFNUnmodeled, Note: &note}
 	}
 
 	if label, ok := matchTFOnlyPattern(tf); ok {
@@ -114,6 +159,16 @@ func deprecatedServiceFor(tf string, eligible map[string]residue.DeprecatedServi
 
 func deprecatedServiceNote(d residue.DeprecatedService) string {
 	return fmt.Sprintf("%s: %s (live/residue.go's DeprecatedServices; every %s registry type ships no working handler)", d.Service, d.Reason, d.CFNPrefix)
+}
+
+// cfnUnmodeledInDeprecatedFamilyNote is classifyTaxonomy's deprecated-service
+// branch when the family-level eligibility check (deprecatedServiceEligible)
+// passes but the per-type registry-presence check (nameIndex) does not: the
+// TF type's prefix sits on live/residue.go's curated DeprecatedServices list,
+// but that is not why it has no row - the CFN Registry simply ships no type
+// under d.CFNPrefix that names this specific resource at all (issue #246).
+func cfnUnmodeledInDeprecatedFamilyNote(d residue.DeprecatedService) string {
+	return fmt.Sprintf("no %s registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - %s is on live/residue.go's DeprecatedServices list (%s), but that family-level judgment is not why this type has no row; other %s siblings that do have a registry type map normally", d.CFNPrefix, d.Service, d.Reason, d.CFNPrefix)
 }
 
 // --- tf-only ---------------------------------------------------------------
