@@ -140,6 +140,7 @@ type ratifiedUniqueName struct {
 type ratifiedComponent struct {
 	Literal                string              `json:"literal,omitempty"`
 	Attrs                  *[]string           `json:"attrs,omitempty"`
+	OmitIfAbsent           bool                `json:"omit_if_absent,omitempty"`
 	Default                string              `json:"default,omitempty"`
 	ServerAssignedIfAbsent bool                `json:"server_assigned_if_absent,omitempty"`
 	Cloud                  identity.CloudValue `json:"cloud,omitempty"`
@@ -170,6 +171,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 			comps = append(comps, ratifiedComponent{
 				Literal:                c.Literal,
 				Attrs:                  strsPtr(c.Attrs),
+				OmitIfAbsent:           c.OmitIfAbsent,
 				Default:                c.Default,
 				ServerAssignedIfAbsent: c.ServerAssignedIfAbsent,
 				Cloud:                  c.Cloud,
@@ -207,6 +209,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 			comps = append(comps, identity.Component{
 				Literal:                c.Literal,
 				Attrs:                  strsValue(c.Attrs),
+				OmitIfAbsent:           c.OmitIfAbsent,
 				Default:                c.Default,
 				ServerAssignedIfAbsent: c.ServerAssignedIfAbsent,
 				Cloud:                  c.Cloud,

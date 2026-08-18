@@ -6533,6 +6533,14 @@
         "identity_attr": "*"
       },
       {
+        "literal": ":",
+        "attrs": [
+          "qualifier"
+        ],
+        "omit_if_absent": true,
+        "identity_attr": "*"
+      },
+      {
         "literal": "/"
       },
       {
@@ -6543,7 +6551,7 @@
         "identity_attr": "*"
       }
     ],
-    "import_syntax": "FUNCTION_NAME/STATEMENT_ID"
+    "import_syntax": "FUNCTION_NAME/STATEMENT_ID or FUNCTION_NAME:QUALIFIER/STATEMENT_ID"
   },
   "aws_launch_configuration": {
     "type": "aws_launch_configuration",

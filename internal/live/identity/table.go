@@ -172,14 +172,80 @@ func (u UniqueName) PropertyPath() []string {
 // with Attrs empty and Cloud unset), a resource argument (Attrs, first
 // present wins), or a property of the cloud the run is against (Cloud).
 type Component struct {
-	// Literal is a fixed fragment of the import ID, used for separators.
+	// Literal is a fixed fragment of the import ID, used for separators. On
+	// a component whose Attrs is empty, Literal is the component's whole
+	// contribution. On a component whose Attrs is also set, Literal instead
+	// prefixes the resolved argument value in the import-ID string only -
+	// see OmitIfAbsent below for why a segment needs its own separator
+	// glued to it rather than a standalone literal component before it.
+	// Never the identity-attribute formula: an aws_lambda_permission
+	// qualifier's identity value is "qualifier_name", not ":qualifier_name"
+	// - the colon is punctuation in the STRING, not part of the ATTRIBUTE.
 	Literal string
 
 	// Attrs names the resource arguments to read, in preference order. The
 	// first one present in configuration supplies the value; if none is
-	// present, resolution fails naming all of them - unless Default below
-	// says what omission means.
+	// present, resolution fails naming all of them - unless Default or
+	// OmitIfAbsent below says what omission means.
 	Attrs []string
+
+	// OmitIfAbsent is true when this component is genuinely optional in the
+	// provider's own grammar: not a missing identity, and not a documented
+	// substitute value (that is Default), but a segment - and the Literal
+	// it carries as a prefix, if any - that the import ID simply does not
+	// have when none of Attrs is set.
+	//
+	// aws_lambda_permission is the archetype. The provider documents two
+	// import forms (aws 6.59.0's Import section):
+	//
+	//	FUNCTION_NAME/STATEMENT_ID
+	//	FUNCTION_NAME:QUALIFIER/STATEMENT_ID
+	//
+	// An unqualified permission's import ID has no colon and no qualifier
+	// segment at all - it is not that the segment is present and empty.
+	// That is spelled as a component with Attrs: []string{"qualifier"},
+	// Literal: ":", OmitIfAbsent: true, immediately after the function_name
+	// component: present, it contributes ":" + the qualifier value; absent,
+	// it contributes nothing, including its own colon, and the ordinary
+	// unqualified "/"-joined form falls out unchanged.
+	//
+	// Without this, the only components attrs=["qualifier"] could resolve
+	// through are Default (which asserts a documented substitute value -
+	// wrong here, since an unqualified permission has no qualifier at all,
+	// not a default one) or the hard refusal every other missing component
+	// gets, which would make every unqualified aws_lambda_permission
+	// unimportable. Unlike Default and ServerAssignedIfAbsent, an absent
+	// OmitIfAbsent component supplies no value to addTo either: an omitted
+	// qualifier is not an empty-string qualifier, so no identity-attribute
+	// formula should claim one.
+	//
+	// Absence is not only syntactic. terraform-aws-modules' own S3
+	// notification module writes aws_lambda_permission.allow's qualifier as
+	// `try(each.value.qualifier, null)` - the argument line IS present, so
+	// [resolver.resolveInstance]'s attr==nil branch never sees it, but a
+	// for_each instance whose map entry carries no "qualifier" key
+	// statically evaluates that expression to null all the same.
+	//
+	// The resolver does not evaluate such a component's raw HCL expression
+	// itself to check - a generic evaluator has no way to know that
+	// `each.value.qualifier` is absent-on-this-instance rather than
+	// not-yet-known, and resolveFallbackChain's own try()-arm selection
+	// (fallback.go) already answers exactly that question using the
+	// resource's real expansion. So the resolver instead runs the FULL,
+	// ordinary resolution machinery on the component - the same
+	// resolveExpr call every other component goes through, whatever shape
+	// the author wrote: try(), a conditional, a bare literal - and only
+	// afterward asks what it concluded. When resolution fails for exactly
+	// one reason, a clean and wholly-known null (stringValue's "Null
+	// identity argument", the same diagnostic the name/name_prefix
+	// redirect above exists to avoid for the identical reason), the
+	// resolver treats it exactly like a syntactically absent argument.
+	// Any other failure - a truly dynamic value, an unresolvable reference,
+	// the shape aws_lambda_permission's own qualifier argument takes just
+	// as often when it names a live alias's version - stands and still
+	// refuses through the ordinary path, because "not known until apply"
+	// is a true statement about it and "absent" is not.
+	OmitIfAbsent bool
 
 	// Default is the literal value this component contributes when none of
 	// Attrs is set in the configuration, for the arguments whose omission
