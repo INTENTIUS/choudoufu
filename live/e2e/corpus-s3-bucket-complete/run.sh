@@ -83,8 +83,8 @@ set -uo pipefail
 #     would do generically.
 #
 #   CHOUDOUFU DEFECT (worked around with DELTA 5 and DELTA 6, not fixed -
-#   see the tracker issue this script points to once filed). Marker loss:
-#   a stamped resource's tofu-address/tofu-estate tags can be silently
+#   issue #306). Marker loss: a stamped resource's tofu-address/tofu-estate
+#   tags can be silently
 #   dropped from the live object by `choudoufu apply` even though the plan
 #   the operator reads shows them correctly. Minimally reproduced OUTSIDE
 #   this estate - two tiny .tf files, one aws_s3_bucket, one explicit
@@ -452,7 +452,7 @@ plan_into "$WORK/plan1.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan1.log" | tail 
 if grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan1.log"; then
   log "  0 to add, 0 to change, 0 to destroy"
 else
-  # KNOWN, NOT YET FIXED (see this run's own tracker issue): two arguments -
+  # KNOWN, NOT YET FIXED (issue #306): two arguments -
   # the canned "acl" string and website.routing_rules - do not settle even
   # after the Stage 2c residue-classification apply, unlike force_destroy/
   # skip_destroy/bypass_policy_lockout_safety_check, which that same apply
@@ -471,7 +471,7 @@ else
   echo "$KNOWN_SITES" | grep -qF 'module.s3_bucket.aws_s3_bucket_acl.this[0]' \
     && echo "$KNOWN_SITES" | grep -qF 'module.s3_bucket.aws_s3_bucket_website_configuration.this[0]' \
     || { echo "$KNOWN_SITES"; fail "the 2 remaining changes are not the known acl/website_configuration pair - something new has moved"; }
-  log "  BLOCKED (CHOUDOUFU GAP, see header and this run's own tracker issue): exactly the known"
+  log "  BLOCKED (CHOUDOUFU GAP, see header and issue #306): exactly the known"
   log "  2 sites remain non-empty - module.s3_bucket.aws_s3_bucket_acl.this[0] and"
   log "  module.s3_bucket.aws_s3_bucket_website_configuration.this[0] - and nothing else has moved."
   log "  Stopping here rather than forcing stages 4-5 past a plan this script cannot honestly call empty."
@@ -595,4 +595,4 @@ log "(two admission gaps, ratified and merged into the schema-based"
 log "fallback; a floci routing bug, PR #53) and two worked around, not"
 log "fixed (random_pet migration via DELTA 3; marker loss on apply via"
 log "DELTA 5 and DELTA 6) - see the header comment above and this run's"
-log "own tracker issue."
+log "issue #306."
