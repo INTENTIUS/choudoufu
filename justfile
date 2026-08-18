@@ -324,6 +324,26 @@ demo-corpus-raw-resolution-logs:
 demo-corpus-crossref-agent:
     bash live/e2e/corpus-crossref-agent/run.sh
 
+# Issue #274's attempt: .corpus/mastino/prod-eu-west/services/crossref-orcid-agent,
+# structurally near-identical to crossref-agent (same four resource types,
+# same onboarding shape) but named separately and permanently scheduled
+# never to fire. Does NOT cross - BLOCKED BY FLOCI, not choudoufu, at the
+# very first apply. The estate's deployment zip has one internal entry
+# named crossref-agent_runner.js (a copy-paste leftover from the sibling
+# service DataCite cloned this estate from), while main.tf's handler names
+# crossref-orcid-agent_runner.js. floci's Lambda CreateFunction eagerly
+# validates the handler file exists in the deployment package; real AWS
+# Lambda does not - it only surfaces a missing/misnamed handler file at
+# invoke time - so this estate would apply cleanly against real AWS and
+# only misbehave if actually invoked, which its disabled schedule means it
+# likely never has been. The script applies the estate byte for byte and
+# pins the exact floci error rather than editing around it; it exits 0 when
+# it reaches exactly that blocker. Filed as item 7 on issue #287. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4703)
+# so it can run beside `just demo`.
+demo-corpus-crossref-orcid-agent:
+    bash live/e2e/corpus-crossref-orcid-agent/run.sh
+
 # Issue #274's crossing: .corpus/mastino/prod-eu-west/services/datafiles-generator,
 # one resource (aws_s3_bucket.datafiles) - the rest of the estate's
 # ECS-based generator is commented out in the source itself, decommissioned
