@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1030 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1032 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 314 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1030<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1032<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -449,12 +449,14 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_route53recoveryreadiness_resource_set`, `aws_route_table`,
   `aws_route_table_association`, `aws_rum_app_monitor`,
   `aws_s3_account_public_access_block`, `aws_s3_bucket`,
+  `aws_s3_bucket_accelerate_configuration`,
   `aws_s3_bucket_analytics_configuration`,
   `aws_s3_bucket_intelligent_tiering_configuration`,
   `aws_s3_bucket_inventory`, `aws_s3_bucket_lifecycle_configuration`,
   `aws_s3_bucket_metric`, `aws_s3_bucket_object_lock_configuration`,
   `aws_s3_bucket_policy`, `aws_s3_bucket_public_access_block`,
   `aws_s3_bucket_replication_configuration`,
+  `aws_s3_bucket_request_payment_configuration`,
   `aws_s3_bucket_server_side_encryption_configuration`,
   `aws_s3_bucket_versioning`, `aws_s3_directory_bucket`,
   `aws_s3control_bucket`, `aws_s3control_bucket_lifecycle_configuration`,

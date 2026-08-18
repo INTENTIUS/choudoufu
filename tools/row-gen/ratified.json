@@ -10855,6 +10855,21 @@
       "bucket"
     ]
   },
+  "aws_s3_bucket_accelerate_configuration": {
+    "type": "aws_s3_bucket_accelerate_configuration",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET",
+    "identity_attrs": [
+      "bucket"
+    ]
+  },
   "aws_s3_bucket_analytics_configuration": {
     "type": "aws_s3_bucket_analytics_configuration",
     "components": [
@@ -11016,6 +11031,21 @@
     "import_syntax": "BUCKETNAME",
     "identity_attrs": [
       "id",
+      "bucket"
+    ]
+  },
+  "aws_s3_bucket_request_payment_configuration": {
+    "type": "aws_s3_bucket_request_payment_configuration",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET",
+    "identity_attrs": [
       "bucket"
     ]
   },

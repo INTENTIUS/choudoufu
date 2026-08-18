@@ -551,34 +551,43 @@ demo-reference-ec2-vpc:
 # shape (cold deploy / migrate / test plan / test apply / drift-reconverge),
 # and is a genuine partial pass, reported honestly rather than routed
 # around: stage 1 stands up 39 real resources with plain terraform, no
-# choudoufu involved. Stage 2 (choudoufu live-import) then finds that EVERY
-# ONE of those 39 lives inside a child module (module.vpc,
-# module.security_group, module.db, module.db_default) - and live-import
-# considers root-module resources only, so it migrates none of them. Issue
-# #59 (child-module admission) is closed and identity/discovery/stamp/lint/
-# mv all walk module trees now; live-import's own restriction was never
-# lifted to match. Stage 3 shows that fixing that alone would not be
-# enough: choudoufu live-plan (no cloud call) separately refuses this same
-# estate on two more real grounds - terraform-aws-modules/security-group's
-# ingress_with_cidr_blocks builds an identity argument through a
-# lookup()-keyed index the static walker cannot trace (7 of 35
-# count-index-in-tag sites; the other 28 are module.vpc resources correctly
-# refused for indexing a sibling resource's own attributes), and the VPC
-# module's default_* adopters (aws_default_network_acl/route_table/
-# security_group, all three actually created here) are unadmitted types (5
-# sites, 2 more from declared-but-inert blocks). Two more real, unrelated
-# floci gaps (cross-region automated-backups-replication has no matching
-# RDS action; SecretsManager RotateSecret wrongly requires a Lambda ARN for
-# an RDS-managed secret's Lambda-less hosted rotation) are worked around
-# with documented deltas so stage 1 can stand the estate up at all - see
-# the script's header for the full account, including the exact code
-# locations and the two floci issues filed for them. BREAK=1 corrupts the
-# stage-2 defect assertion, proving it is load-bearing. Needs Docker, the
-# AWS CLI, real terraform (stage 1 is deliberately not choudoufu) and a
+# choudoufu involved. Stage 2 (choudoufu live-import) migrates 23 of 39 for
+# real (18 VERIFIED + 5 DRIFTED; 16 skipped, 13 untaggable by design and 3
+# blocked by #305) - live-import's own root-module-only restriction (#59
+# was closed elsewhere but never lifted here) has since been fixed. Stage 3
+# (choudoufu live-plan against the really-migrated estate) refuses on
+# exactly two known, open, itemized grounds - terraform-aws-modules/
+# security-group's ingress_with_cidr_blocks builds an identity argument
+# through a lookup()-keyed index the static walker cannot trace (7
+# count-index-in-tag sites, #304), and the VPC module's default_* adopters
+# (aws_default_network_acl/route_table/security_group, all three actually
+# created here) are unadmitted types (3 sites, #305). Two more real,
+# unrelated floci gaps (cross-region automated-backups-replication has no
+# matching RDS action; SecretsManager RotateSecret wrongly requires a
+# Lambda ARN for an RDS-managed secret's Lambda-less hosted rotation) are
+# worked around with documented deltas so stage 1 can stand the estate up
+# at all - see the script's header for the full account, including the
+# exact code locations and the two floci issues filed for them. BREAK=1
+# corrupts the stage-3 site-count assertion, proving it is load-bearing.
+# Needs Docker, the AWS CLI, real terraform (stage 1 is deliberately not
+# choudoufu) and a
 # populated .corpus (`just corpus-fetch`); runs on its own port (4720) so it
 # can run beside `just demo`.
 demo-corpus-rds-complete-postgres:
     bash live/e2e/corpus-rds-complete-postgres/run.sh
+
+# The five-stage real-estate crossing pipeline (cold deploy -> migrate ->
+# test plan -> test apply -> drift and reconverge) against
+# .corpus/s3-bucket/examples/complete, terraform-aws-modules/terraform-aws-
+# s3-bucket's flagship example: 32 instances across 5 module calls and 15
+# aws_s3_bucket_* types. Found and fixed on the way: a floci routing bug
+# (PUT /{bucket}?accelerate falling through to bucket creation, PR #53) and
+# two admission gaps (aws_s3_bucket_accelerate_configuration and
+# _request_payment_configuration, ratified from row-gen's own proposal).
+# Needs Docker, the AWS CLI, terraform on PATH, and a populated .corpus;
+# runs on its own port (4715).
+demo-corpus-s3-bucket-complete:
+    bash live/e2e/corpus-s3-bucket-complete/run.sh
 
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come

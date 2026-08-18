@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1030,
-    "compared": 1016,
+    "admitted_total": 1032,
+    "compared": 1018,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 873,
-    "adopted_unchanged_pct": 85.93,
+    "adopted_unchanged": 875,
+    "adopted_unchanged_pct": 85.95,
     "genuine_mismatches": 143,
     "annotated": 143,
     "unannotated_mismatches": 0,
@@ -773,9 +773,9 @@
       "adopted_unchanged_pct": 85.71
     },
     "S3": {
-      "compared": 14,
-      "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 78.57
+      "compared": 16,
+      "adopted_unchanged": 13,
+      "adopted_unchanged_pct": 81.25
     },
     "S3Express": {
       "compared": 1,
@@ -9417,6 +9417,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_s3_bucket_accelerate_configuration",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the Argument Reference marks every retained argument Required and every omitted one Optional",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_s3_bucket_analytics_configuration",
       "service": "S3",
       "proposed_bucket": "fold-child",
@@ -9525,6 +9536,17 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_request_payment_configuration",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: the documented ID has a shorter form the kept example itself shows, and the Argument Reference marks every retained argument Required and every omitted one Optional",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
