@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 3,
-    "cold_deploy": { "pass": 3, "fail": 0, "not_run": 0 },
-    "migrate": { "pass": 2, "fail": 1, "not_run": 0 },
-    "test_plan": { "pass": 1, "fail": 2, "not_run": 0 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 2 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 3 }
+    "estates": 4,
+    "cold_deploy": { "pass": 3, "fail": 1, "not_run": 0 },
+    "migrate": { "pass": 2, "fail": 1, "not_run": 1 },
+    "test_plan": { "pass": 1, "fail": 2, "not_run": 1 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 3 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 4 }
   },
   "estates": [
     {
@@ -48,6 +48,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed c239792018/47778a931a (2026-08-18). Crossed by an agent whose worktree predated the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here because that's what the agent's own base observed, but since cec3c4b9b1 is now on main and fixes exactly this class of defect (root-only walker in live-import's Ratify loop) for all 39 of this estate's resources (all module-nested), migrate needs re-verification against current main before trusting this row's fail as still current. Even if migrate now passes, test_plan is independently blocked by two newly-filed, distinct defects this crossing also found: #304 (count-index-in-tag can't trace a static lookup() into terraform-aws-security-group's own bundled rules table - 7 of 35 refusals) and #305 (aws_default_network_acl/aws_default_route_table/aws_default_security_group are unadmitted types, from terraform-aws-vpc's default-object adoption pattern). Two unrelated real floci gaps found and filed upstream on the fork: lex00/floci#51 (RDS cross-region backup replication), lex00/floci#52 (SecretsManager RotateSecret wrongly requires a Lambda ARN for RDS-managed rotation) - both worked around in the script with documented EMULATOR GAP deltas so stage 1 could stand up at all."
+    },
+    {
+      "dir": "live/e2e/corpus-vpc-complete",
+      "source": "terraform-aws-modules/terraform-aws-vpc examples/complete (tag v6.6.1), its flagship example",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "fail",
+        "migrate": "not_run",
+        "test_plan": "not_run",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 9b75cae5ce (2026-08-18). Two real, distinct fixes landed on the way: (1) a floci gap where DescribeVpcEndpointServices always answered empty, blocking every VPC endpoint regardless of service - fixed on the fork (lex00/floci commit 83e44fe6, reconciled into the combined image the orchestrator is republishing) and (2) closed #303 outright (see that issue) via the new generically-derived blockHasNoInstances, hit here through the same terraform-aws-vpc default-object-adoption pattern #305 already named. cold_deploy still fails on floci gaps this crossing judged out of scope for the session rather than sprawling into: Redshift has no service in floci at all (CreateClusterSubnetGroup), plus CreateDhcpOptions, CreateCacheSubnetGroup (ElastiCache) and CreateCustomerGateway/CreateVpnGateway all return UnsupportedOperation with no implementation in floci's Java source. Stages 2-5 are implemented in the script (live-import adoption, empty replan with rendered-identity assertions, no-op apply, drift-and-reconverge on a subnet tag, BREAK=1 controls) but unexercised since stage 1 fails fast by design."
     }
   ]
 }
