@@ -3860,6 +3860,33 @@
       "name"
     ]
   },
+  "aws_default_network_acl": {
+    "type": "aws_default_network_acl",
+    "server_assigned": true,
+    "reason": "aws_default_network_acl adopts the VPC's default network ACL rather than creating one — Terraform does not create this object, it \"adopts\" the one EC2 already assigned when the VPC itself was created (provider docs: \"Terraform does not _create_ this resource but instead attempts to \\\"adopt\\\" it into management\"). AWS mints exactly one default network ACL per VPC, and its own id (acl-…) is what identifies it; the required default_network_acl_id argument states that id back to the provider (typically as a reference to the owning aws_vpc's own default_network_acl_id attribute) but is not itself a fresh identity this table derives — the provider's Import section documents import by the plain id alone, the same as aws_network_acl.",
+    "import_syntax": "acl-ID",
+    "identity_attrs": [
+      "id"
+    ]
+  },
+  "aws_default_route_table": {
+    "type": "aws_default_route_table",
+    "server_assigned": true,
+    "reason": "aws_default_route_table adopts the VPC's default route table rather than creating one, the same \"adopt, don't create\" idiom as aws_default_network_acl and aws_default_security_group. AWS mints exactly one default route table per VPC, and its own id (rtb-…) is what identifies it; the required default_route_table_id argument states that id back to the provider (typically as a reference to the owning aws_vpc's own default_route_table_id attribute) but is not itself a fresh identity this table derives. The provider's own Import section is internally inconsistent here — it says \"using the vpc_id\" and shows a vpc-… example, but the resource's schema has no vpc_id argument at all (only default_route_table_id, region, propagating_vgws, route and tags), so that text cannot be followed literally; the route table's own id, the same import identity aws_route_table already carries in this table, is authoritative.",
+    "import_syntax": "rtb-ID",
+    "identity_attrs": [
+      "id"
+    ]
+  },
+  "aws_default_security_group": {
+    "type": "aws_default_security_group",
+    "server_assigned": true,
+    "reason": "aws_default_security_group adopts the VPC's default security group rather than creating one, the same \"adopt, don't create\" idiom as aws_default_network_acl and aws_default_route_table (provider docs: \"Terraform does not _create_ this resource but instead attempts to \\\"adopt\\\" it into management\"). AWS mints exactly one default security group per VPC, and its own id (sg-…) is what identifies it; the optional vpc_id argument names the parent VPC but is not itself the identity — the provider's Import section documents import by the security group id alone, the same as aws_security_group.",
+    "import_syntax": "sg-ID",
+    "identity_attrs": [
+      "id"
+    ]
+  },
   "aws_detective_graph": {
     "type": "aws_detective_graph",
     "server_assigned": true,
