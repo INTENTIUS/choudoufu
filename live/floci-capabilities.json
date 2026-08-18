@@ -26979,7 +26979,7 @@
           "type": "aws_dynamodb_table",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "dynamodb create-table tagged tofu-probe-table-3f8068af at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-3f8068af",
+          "evidence": "dynamodb create-table tagged tofu-probe-table-61fa02d7 at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-61fa02d7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -27000,7 +27000,7 @@
           "type": "aws_ebs_volume",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "ec2 create-volume tagged vol-a817ab97d1eaf68ed at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-a817ab97d1eaf68ed",
+          "evidence": "ec2 create-volume tagged vol-b4dbde7c8430fe8e2 at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-b4dbde7c8430fe8e2",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -27609,7 +27609,7 @@
           "type": "aws_iam_role",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "iam create-role tagged tofu-probe-role-3f8068af at creation; list-role-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:role/tofu-probe-role-3f8068af",
+          "evidence": "iam create-role tagged tofu-probe-role-61fa02d7 at creation; list-role-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:role/tofu-probe-role-61fa02d7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -28516,6 +28516,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_opensearch_domain",
+          "status": "partial",
+          "evidence": "Re-probed against this digest 2026-08-18: control plane remains daemonless - opensearch create-domain returns Created=true/Processing=false immediately with an empty Endpoint and no docker socket mounted (docker inspect of the probe container shows only an /app/data volume), describe-domain echoes Created=true/Processing=false with the same empty Endpoint, and delete-domain returns Deleted=true, so the create/describe/delete round-trip works socketless. The search data plane still needs the socket-backed container and stays unverifiable without it - same limitation as the previous pin.",
+          "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
+        },
+        {
           "type": "aws_opensearchserverless_collection",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28628,6 +28634,12 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_qldb_ledger",
+          "status": "unimplemented",
+          "evidence": "Re-probed against this digest 2026-08-18: a raw signed POST /ledgers still returns HTTP 404 with a clean UnknownOperationException (\"Unknown operation: POST /ledgers\") - no QLDB handler, same as the previous pin. The aws CLI's own qldb subcommand is unavailable in this environment (botocore has dropped the QLDB service model following AWS's QLDB end-of-support), so this probe used a raw signed HTTP request instead of the CLI.",
+          "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
+        },
+        {
           "type": "aws_ram_permission",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28679,7 +28691,7 @@
         {
           "type": "aws_redshift_cluster",
           "status": "unimplemented",
-          "evidence": "Hand-probed against this digest 2026-08-17 (re-pin for issue #287 item 2): redshift create-cluster still misroutes to the SQS handler (UnsupportedOperation, \"Operation CreateCluster is not supported by SQS\"), unchanged from the previous pin.",
+          "evidence": "Re-probed against this digest 2026-08-18: redshift create-cluster still misroutes to the SQS handler (UnsupportedOperation, \"Operation CreateCluster is not supported by SQS\"), same as the previous pin.",
           "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
         },
         {
@@ -28966,7 +28978,7 @@
           "type": "aws_s3_bucket",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-3f8068af; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-3f8068af",
+          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-61fa02d7; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-61fa02d7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -29218,7 +29230,7 @@
           "type": "aws_secretsmanager_secret",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-3f8068af at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-3f8068af-ZQ3DY4",
+          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-61fa02d7 at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-61fa02d7-2NDUKV",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -29421,7 +29433,7 @@
           "type": "aws_sns_topic",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sns create-topic tagged tofu-probe-topic-3f8068af at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-3f8068af",
+          "evidence": "sns create-topic tagged tofu-probe-topic-61fa02d7 at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-61fa02d7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -29442,7 +29454,7 @@
           "type": "aws_sqs_queue",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sqs create-queue tagged tofu-probe-queue-3f8068af at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-3f8068af",
+          "evidence": "sqs create-queue tagged tofu-probe-queue-61fa02d7 at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-61fa02d7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -29976,18 +29988,6 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::XRay::SamplingRule, {}) made a resource but the following ListResources(AWS::XRay::SamplingRule) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
-        },
-        {
-          "type": "aws_qldb_ledger",
-          "status": "unimplemented",
-          "evidence": "Carried forward from the previous pin (sha256:62476090), not independently re-probed at this exact digest: this re-pin (issue #287 item 2) touched only CloudFront's Cloud Control cache/origin-request-policy listers, nothing QLDB-related. An unsigned probe against this digest returned S3-bucket-shaped routing rather than the documented UnknownOperationException, which needs a properly SigV4-signed request to reproduce cleanly (as the original probe used) - flagged rather than asserted as a fresh measurement.",
-          "source": "carried from sha256:62476090's hand probe; original investigation recorded under sha256:488f4d6d"
-        },
-        {
-          "type": "aws_opensearch_domain",
-          "status": "partial",
-          "evidence": "Carried forward from the previous pin (sha256:62476090), not independently re-probed at this exact digest: this re-pin (issue #287 item 2) touched only CloudFront's Cloud Control cache/origin-request-policy listers, nothing OpenSearch-related, so the daemonless control-plane limitation (create/describe/delete round-trip works socketless, data plane unverifiable without a docker-socket-mounted container) is expected to hold unchanged.",
-          "source": "carried from sha256:62476090's hand probe; original investigation recorded under sha256:488f4d6d"
         }
       ]
     },
