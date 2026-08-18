@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      143,
+		Bound:      146,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -473,26 +473,26 @@ func rowgenAnnotationRulings() Entry {
 				"'if the record also contains a set identifier, append it' form. Same missing capability " +
 				"as 97: classify.go pins one documented example and has no rule for a trailing segment " +
 				"present in a longer form and wholly absent in a shorter one.",
-				"122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward " +
-					"bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, " +
-					"which routes bucketNeedsHandSeparator and proposes no row regardless of what " +
-					"import-grammar.json knows - the classifier never reaches the composed_of_arguments rule " +
-					"for this bucket at all. live/import-grammar.json's own separator field independently " +
-					"confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or " +
-					"only partially resolved for every one of them: five are a mixed " +
-					"server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, " +
-					"aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, " +
-					"aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher " +
-					"cannot resolve because it names no real Argument Reference entry, or names an Optional " +
-					"auto-generated one the same way aws_lambda_permission's statement_id already does); ten " +
-					"have a registry that under-counts the doc's real argument count because it omits " +
-					"provider-defaulted arguments from primaryIdentifier (the eight QuickSight " +
-					"aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a " +
-					"registry field order or field set that plainly disagrees with the doc's own worked example " +
-					"(aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's " +
-					"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
-					"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
-					"catch-all. 98 + 24 = 122.",
+			"122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward " +
+				"bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, " +
+				"which routes bucketNeedsHandSeparator and proposes no row regardless of what " +
+				"import-grammar.json knows - the classifier never reaches the composed_of_arguments rule " +
+				"for this bucket at all. live/import-grammar.json's own separator field independently " +
+				"confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or " +
+				"only partially resolved for every one of them: five are a mixed " +
+				"server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, " +
+				"aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, " +
+				"aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher " +
+				"cannot resolve because it names no real Argument Reference entry, or names an Optional " +
+				"auto-generated one the same way aws_lambda_permission's statement_id already does); ten " +
+				"have a registry that under-counts the doc's real argument count because it omits " +
+				"provider-defaulted arguments from primaryIdentifier (the eight QuickSight " +
+				"aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a " +
+				"registry field order or field set that plainly disagrees with the doc's own worked example " +
+				"(aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's " +
+				"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
+				"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
+				"catch-all. 98 + 24 = 122.",
 			"143 on 2026-08-18 (issue #245's 'fold-child' slice): the same reviewed upward bump, 21 " +
 				"newly admitted types (aws_app_cookie_stickiness_policy, " +
 				"aws_shield_protection_health_check_association and 19 others), each a property-child of " +
@@ -517,6 +517,26 @@ func rowgenAnnotationRulings() Entry {
 				"those 22 were added to rejected.json: the parent-pending two are ratifiable once their " +
 				"parent is, and the rest are a generator/resolver capability gap, not a closed question. " +
 				"122 + 21 = 143.",
+			"146 on 2026-08-18 (issue #305): the same reviewed upward bump, three newly admitted " +
+				"types - aws_default_network_acl, aws_default_route_table, aws_default_security_group, " +
+				"terraform-aws-vpc's 'adopt the account's default object instead of creating one' idiom, " +
+				"hit by name in four separate real-estate crossings the same night (vpc-complete, " +
+				"rds-complete-postgres, security-group-complete, and reachable through ecs-fargate and " +
+				"autoscaling-complete's own vpc dependency). All three are live/mapping.json via=tf-only " +
+				"rows (no CloudFormation model of an 'adopt an existing default object' resource), so " +
+				"classifyUnmapped always proposes bucketEvidenceOnly for them regardless of their own " +
+				"import-grammar evidence; none of applyImportGrammarPrecedence's upgrade rules run " +
+				"against an evidence-only proposal for a shape this plain (no cloud/account singleton, no " +
+				"confirmed guess). All three are ratified server-assigned, the same shape as their non-" +
+				"default siblings aws_network_acl, aws_route_table and aws_security_group: taggable per " +
+				"live/survey-full.json, and AWS itself mints exactly one default of each per VPC, " +
+				"assigning its own id before the resource block first applies - the required " +
+				"default_network_acl_id/default_route_table_id argument and the optional vpc_id argument " +
+				"each name a parent, not a fresh identity this table derives. Each ruling's exit names " +
+				"the same missing capability: classifyUnmapped has no rule proposing bucketServerAssigned " +
+				"for a cfn-unmodeled type from import-grammar evidence (sole_id_part.source==own-id, or " +
+				"an import_id_example sharing a same-service sibling's id-prefix convention) at all. " +
+				"143 + 3 = 146.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

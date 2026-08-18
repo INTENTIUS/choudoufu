@@ -519,6 +519,16 @@ var (
 		"aws_quicksight_template",
 		"aws_quicksight_theme",
 		"aws_quicksight_vpc_connection",
+
+		// Issue #305: terraform-aws-vpc's "adopt the account's default
+		// object instead of creating one" idiom, ratified server-assigned
+		// the same shape as their non-default siblings just above
+		// (aws_network_acl, aws_route_table, aws_security_group).
+		// Taggability from live/survey-full.json's signals.taggable, true
+		// for all three.
+		"aws_default_network_acl",
+		"aws_default_route_table",
+		"aws_default_security_group",
 	}
 	// The markerless retraction (#249, 2026-08-16) removed 77 entries from
 	// this list and from the per-cohort slices appended to it below: every
@@ -1121,20 +1131,23 @@ func mergeCohortSchemas(dst, src testSchemaSource) {
 func testSchemas() Schemas {
 	s := testSchemaSource{
 		// Taggable, as the real AWS provider has them.
-		"aws_vpc":                  taggedSchema("id", "cidr_block"),
-		"aws_subnet":               taggedSchema("id", "vpc_id", "cidr_block", "availability_zone"),
-		"aws_security_group":       taggedSchema("id", "name", "description", "vpc_id"),
-		"aws_route_table":          taggedSchema("id", "vpc_id"),
-		"aws_internet_gateway":     taggedSchema("id", "vpc_id"),
-		"aws_eip":                  taggedSchema("id", "domain"),
-		"aws_s3_bucket":            taggedSchema("id", "bucket"),
-		"aws_iam_role":             taggedSchema("id", "name", "assume_role_policy"),
-		"aws_cloudwatch_log_group": taggedSchema("id", "name", "retention_in_days"),
-		"aws_ssm_parameter":        taggedSchema("id", "name", "type", "value"),
-		"aws_dynamodb_table":       taggedSchema("id", "name", "billing_mode", "hash_key"),
-		"aws_ecs_cluster":          taggedSchema("id", "name", "arn"),
-		"aws_kms_key":              taggedSchema("id", "key_id", "description"),
-		"aws_route53_zone":         taggedSchema("id", "zone_id", "name"),
+		"aws_vpc":                    taggedSchema("id", "cidr_block"),
+		"aws_subnet":                 taggedSchema("id", "vpc_id", "cidr_block", "availability_zone"),
+		"aws_security_group":         taggedSchema("id", "name", "description", "vpc_id"),
+		"aws_route_table":            taggedSchema("id", "vpc_id"),
+		"aws_default_network_acl":    taggedSchema("id", "default_network_acl_id"),
+		"aws_default_route_table":    taggedSchema("id", "default_route_table_id"),
+		"aws_default_security_group": taggedSchema("id", "vpc_id"),
+		"aws_internet_gateway":       taggedSchema("id", "vpc_id"),
+		"aws_eip":                    taggedSchema("id", "domain"),
+		"aws_s3_bucket":              taggedSchema("id", "bucket"),
+		"aws_iam_role":               taggedSchema("id", "name", "assume_role_policy"),
+		"aws_cloudwatch_log_group":   taggedSchema("id", "name", "retention_in_days"),
+		"aws_ssm_parameter":          taggedSchema("id", "name", "type", "value"),
+		"aws_dynamodb_table":         taggedSchema("id", "name", "billing_mode", "hash_key"),
+		"aws_ecs_cluster":            taggedSchema("id", "name", "arn"),
+		"aws_kms_key":                taggedSchema("id", "key_id", "description"),
+		"aws_route53_zone":           taggedSchema("id", "zone_id", "name"),
 		"aws_cloudwatch_metric_alarm": taggedSchema("id", "alarm_name", "comparison_operator", "evaluation_periods",
 			"metric_name", "namespace", "period", "statistic", "threshold"),
 
