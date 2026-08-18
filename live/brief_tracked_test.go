@@ -28,7 +28,7 @@ const operationalBrief = ".claude/agents/live-markers.md"
 // #165 state again, one directory over.
 var trackedInstructions = []string{
 	operationalBrief,
-	".claude/skills/measuring-the-wall/SKILL.md",
+	".claude/skills/measuring-choudoufu/SKILL.md",
 }
 
 // TestOperationalBriefIsTracked is issue #165's guard.
