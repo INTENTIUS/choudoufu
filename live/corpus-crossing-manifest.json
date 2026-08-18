@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 4,
-    "cold_deploy": { "pass": 3, "fail": 1, "not_run": 0 },
-    "migrate": { "pass": 3, "fail": 0, "not_run": 1 },
-    "test_plan": { "pass": 1, "fail": 2, "not_run": 1 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 3 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 4 }
+    "estates": 5,
+    "cold_deploy": { "pass": 4, "fail": 1, "not_run": 0 },
+    "migrate": { "pass": 3, "fail": 1, "not_run": 1 },
+    "test_plan": { "pass": 1, "fail": 3, "not_run": 1 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 4 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 5 }
   },
   "estates": [
     {
@@ -61,6 +61,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed 9b75cae5ce (2026-08-18). Two real, distinct fixes landed on the way: (1) a floci gap where DescribeVpcEndpointServices always answered empty, blocking every VPC endpoint regardless of service - fixed on the fork (lex00/floci commit 83e44fe6, reconciled into the combined image the orchestrator is republishing) and (2) closed #303 outright (see that issue) via the new generically-derived blockHasNoInstances, hit here through the same terraform-aws-vpc default-object-adoption pattern #305 already named. cold_deploy still fails on floci gaps this crossing judged out of scope for the session rather than sprawling into: Redshift has no service in floci at all (CreateClusterSubnetGroup), plus CreateDhcpOptions, CreateCacheSubnetGroup (ElastiCache) and CreateCustomerGateway/CreateVpnGateway all return UnsupportedOperation with no implementation in floci's Java source. Stages 2-5 are implemented in the script (live-import adoption, empty replan with rendered-identity assertions, no-op apply, drift-and-reconverge on a subnet tag, BREAK=1 controls) but unexercised since stage 1 fails fast by design."
+    },
+    {
+      "dir": "live/e2e/corpus-eks-basic",
+      "source": "terraform-aws-modules/terraform-aws-eks examples/basic (tag v9.0.0)",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "fail",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 9717459fd3 (2026-08-18). Crossed by an agent whose worktree, like the original rds-complete-postgres crossing, predates the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here ('3 of 4 root-module resources stamped, 50 non-root instances not considered') because that's what the agent's own stale base observed. Given rds-complete-postgres's own re-verification confirmed cec3c4b9b1 generalizes cleanly to a different estate's module-nested resources, this row very likely also improves once re-verified against current main - flagged for the same re-verification treatment, not yet done. test_plan independently fails on unadmitted default_*/VPN-gateway types (overlapping #305's pattern), undeclared-record-store logical resources, and 7 correctly-conservative count-index refusals (element() over a list, which the checker cannot statically prove injective - not a defect). Two real, generalizing floci gaps found and fixed but NOT YET merged/published: EKS worker AMI discovery (AWS-owned AMI catalog lookup, owner 602401143452/801119661308, evaluated unconditionally by every terraform-aws-eks version) and AutoScalingGroup SuspendProcesses/ResumeProcesses (unimplemented, but the AWS provider calls SuspendProcesses unconditionally around ASG creation on default settings - blocks any aws_autoscaling_group apply, not just EKS's). Filed as lex00/floci#55, PR lex00/floci#56, pushed but not merged - the currently-pinned floci image predates both fixes."
     }
   ]
 }
