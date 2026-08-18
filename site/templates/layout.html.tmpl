@@ -8,15 +8,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap">
 <link rel="stylesheet" href="{{.AssetPrefix}}style.css?v={{.CSSVersion}}">
-<link rel="icon" href="{{.AssetPrefix}}favicon.ico" sizes="48x48 32x32 16x16">
-<link rel="icon" type="image/png" sizes="16x16" href="{{.AssetPrefix}}choudoufu-favicon-16.png">
-<link rel="icon" type="image/png" sizes="32x32" href="{{.AssetPrefix}}choudoufu-favicon-32.png">
-<link rel="icon" type="image/png" sizes="48x48" href="{{.AssetPrefix}}choudoufu-favicon-48.png">
+<link rel="icon" href="{{.AssetPrefix}}favicon.ico?v={{.AssetVersion}}" sizes="48x48 32x32 16x16">
+<link rel="icon" type="image/png" sizes="16x16" href="{{.AssetPrefix}}choudoufu-favicon-16.png?v={{.AssetVersion}}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{.AssetPrefix}}choudoufu-favicon-32.png?v={{.AssetVersion}}">
+<link rel="icon" type="image/png" sizes="48x48" href="{{.AssetPrefix}}choudoufu-favicon-48.png?v={{.AssetVersion}}">
 </head>
 <body>
 <header class="site-header">
   <a class="brand" href="{{.AssetPrefix}}index.html">
-    <img src="{{.AssetPrefix}}choudoufu-inline-64.png" alt="" width="28" height="28">
+    <img src="{{.AssetPrefix}}choudoufu-inline-64.png?v={{.AssetVersion}}" alt="" width="28" height="28">
     choudoufu
   </a>
   <nav>
@@ -46,7 +46,7 @@
 {{.Content}}
 </main>
 <div class="site-hero-image">
-  <img src="{{.AssetPrefix}}choudoufu-hero.png" alt="a plate of choudoufu" width="1024" height="1024">
+  <img src="{{.AssetPrefix}}choudoufu-hero.png?v={{.AssetVersion}}" alt="a plate of choudoufu" width="1024" height="1024">
 </div>
 {{end}}
 <footer class="site-footer">

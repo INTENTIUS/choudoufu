@@ -210,6 +210,13 @@ type layoutData struct {
 	CSSVersion  string // content hash of style.css, busts browser caches
 	Sidebar     []sidebarSection
 	Content     template.HTML
+
+	// AssetVersion is a content hash of the logo and favicon files. The
+	// stylesheet has had one of these for a while; the images did not, so a
+	// returning visitor kept seeing the previous artwork out of cache long
+	// after it was replaced. Favicons are the worst offender, since browsers
+	// hold them well past an ordinary page reload.
+	AssetVersion string
 }
 
 // cssVersion returns a short content hash of the embedded stylesheet so the
@@ -223,6 +230,28 @@ func cssVersion() string {
 	return fmt.Sprintf("%x", sum[:4])
 }
 
+// assetVersion hashes the logo and favicon files together, so retinting the
+// artwork changes every image URL at once and no browser serves the old one
+// from cache.
+func assetVersion() string {
+	h := sha256.New()
+	for _, name := range []string{
+		"static/favicon.ico",
+		"static/choudoufu-favicon-16.png",
+		"static/choudoufu-favicon-32.png",
+		"static/choudoufu-favicon-48.png",
+		"static/choudoufu-inline-64.png",
+		"static/choudoufu-hero.png",
+	} {
+		data, err := staticFS.ReadFile(name)
+		if err != nil {
+			return "0"
+		}
+		h.Write(data)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)[:4])
+}
+
 // landingData is what templates/landing.html.tmpl renders, then gets
 // embedded as Content in layoutData.
 type landingData struct {
@@ -232,6 +261,9 @@ type landingData struct {
 	// from version/VERSION at build time so the landing page cannot drift
 	// from the tree it was generated in.
 	UpstreamVersion string
+
+	// AssetVersion busts image caches, same hash the layout uses.
+	AssetVersion string
 
 	// The three progress charts, each read from its own committed artifact
 	// and each with its own denominator. They are shown stacked and never
@@ -331,6 +363,7 @@ func run(root, out string) error {
 	}
 
 	cssVer := cssVersion()
+	assetVer := assetVersion()
 
 	// Landing page.
 	var landingBody bytes.Buffer
@@ -356,6 +389,7 @@ func run(root, out string) error {
 	if err := landingTmpl.Execute(&landingBody, landingData{
 		Sections:        buildSidebar(""),
 		UpstreamVersion: upstream,
+		AssetVersion:    assetVer,
 		Lint:            lint,
 		Crossing:        crossing,
 		IAM:             iam,
@@ -364,9 +398,10 @@ func run(root, out string) error {
 		return fmt.Errorf("rendering landing content: %w", err)
 	}
 	if err := writePage(out, "index.html", layoutTmpl, layoutData{
-		Title:      "choudoufu",
-		CSSVersion: cssVer,
-		Content:    template.HTML(landingBody.String()), //nolint:gosec // fixed, locally-authored template
+		Title:        "choudoufu",
+		CSSVersion:   cssVer,
+		AssetVersion: assetVer,
+		Content:      template.HTML(landingBody.String()), //nolint:gosec // fixed, locally-authored template
 	}); err != nil {
 		return err
 	}
@@ -416,10 +451,11 @@ func run(root, out string) error {
 		}
 
 		if err := writePage(out, p.Slug+".html", layoutTmpl, layoutData{
-			Title:      p.Title,
-			CSSVersion: cssVer,
-			Sidebar:    buildSidebar(p.Slug + ".html"),
-			Content:    template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown and templates
+			Title:        p.Title,
+			CSSVersion:   cssVer,
+			AssetVersion: assetVer,
+			Sidebar:      buildSidebar(p.Slug + ".html"),
+			Content:      template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown and templates
 		}); err != nil {
 			return err
 		}
