@@ -986,9 +986,20 @@ func (s *stamper) unstampable(rc *configs.Resource, detail string) *hcl.Diagnost
 
 // unstampableAt is [stamper.unstampable] pointing at a range inside the
 // resource rather than at the resource itself.
+//
+// Severity is [stamper.mustStamp]'s answer and nothing else. It used to be
+// decided here from [stamper.discovery]'s presence alone, which is only
+// half of what mustStamp asks: three of the six call sites that reach this
+// function - SkipNotHCL, SkipTagsUnreadable and SkipMarkerUnreadable -
+// arrive without a mustStamp gate of their own, so a unique-name type
+// (DiscoveryCause.BindsByName, found by a name AWS itself refuses to issue
+// twice) got the hard "applying this unmarked creates a resource you can
+// never find again" error in JSON syntax, or behind an unreadable tags
+// expression, that the exemption exists precisely to prevent. Those
+// resources ARE findable without a marker, so the honest report is the
+// warning. Issue #285.
 func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, detail string) *hcl.Diagnostic {
-	disco, ok := s.discovery(rc)
-	if !ok {
+	if !s.mustStamp(rc) {
 		return &hcl.Diagnostic{
 			Severity: hcl.DiagWarning,
 			Summary:  summary,
@@ -996,6 +1007,9 @@ func (s *stamper) unstampableAt(rc *configs.Resource, rng hcl.Range, summary, de
 			Subject:  rng.Ptr(),
 		}
 	}
+	// mustStamp is true only through a present discovery verdict, so the
+	// comma-ok cannot fail here; the cause is read back for the wording.
+	disco, _ := s.discovery(rc)
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagError,
 		Summary:  SummaryUnmarkedApply,
