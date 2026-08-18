@@ -25627,9 +25627,363 @@
       "ref": "ghcr.io/lex00/floci@sha256:c3cdb09ab4be61099e490a91ae2def852e6f9cba5a9a8597fd2fe7b824558e87",
       "services": [
         {
+          "service": "acm",
+          "status": "implemented",
+          "evidence": "acm list-certificates succeeded: {\n    \"CertificateSummaryList\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "amp",
+          "status": "implemented",
+          "evidence": "amp list-scrapers succeeded: {\n    \"scrapers\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "apigateway",
+          "status": "implemented",
+          "evidence": "apigateway get-account succeeded: {\n    \"throttleSettings\": {\n        \"burstLimit\": 5000,\n        \"rateLimit\": 10000.0\n    },\n    \"features\": [\n        \"UsagePlans\"\n    ],\n    \"apiKeyVersion\": \"4\"\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "apigatewayv2",
+          "status": "implemented",
+          "evidence": "apigatewayv2 get-apis succeeded: {\n    \"Items\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "appconfig",
+          "status": "implemented",
+          "evidence": "appconfig list-applications succeeded: {\n    \"Items\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "appconfigdata",
+          "status": "unverified",
+          "evidence": "present in /_localstack/health (status \"running\"), but no side-effect-free operation with zero required input is known for this service's own API - see servicecalls.go",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "application-autoscaling",
+          "status": "unverified",
+          "evidence": "present in /_localstack/health (status \"running\"), but no side-effect-free operation with zero required input is known for this service's own API - see servicecalls.go",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "appsync",
+          "status": "implemented",
+          "evidence": "appsync list-apis succeeded: ",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "athena",
+          "status": "implemented",
+          "evidence": "athena list-work-groups succeeded: {\n    \"WorkGroups\": [\n        {\n            \"Name\": \"primary\",\n            \"State\": \"ENABLED\"\n        }\n    ]\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "autoscaling",
+          "status": "implemented",
+          "evidence": "autoscaling describe-policies succeeded: {\n    \"ScalingPolicies\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "backup",
+          "status": "implemented",
+          "evidence": "backup list-backup-jobs succeeded: {\n    \"BackupJobs\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "batch",
+          "status": "implemented",
+          "evidence": "batch list-jobs reached a real handler, answering ClientException: aws batch list-jobs: exit status 254: aws: [ERROR]: An error occurred (ClientException) when calling the ListJobs operation: jobQueue is required",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "bcm-data-exports",
+          "status": "implemented",
+          "evidence": "bcm-data-exports list-exports succeeded: {\n    \"Exports\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "bedrock-runtime",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: bedrock-runtime list-async-invokes -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ce",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: ce get-anomaly-monitors -\u003e UnknownOperationException; ce list-cost-allocation-tags -\u003e UnknownOperationException; ce get-anomaly-subscriptions -\u003e UnknownOperationException; ce list-cost-category-definitions -\u003e UnknownOperationException; ce list-commitment-purchase-analyses -\u003e UnknownOperationException; ce list-cost-allocation-tag-backfill-history -\u003e UnknownOperationException; ce list-cost-category-resource-associations -\u003e UnknownOperationException; ce list-savings-plans-purchase-recommendation-generation -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cloudcontrol",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: cloudcontrol list-resource-requests -\u003e UnsupportedOperation",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cloudformation",
+          "status": "implemented",
+          "evidence": "cloudformation list-types reached a real handler, answering UnknownAction: aws cloudformation list-types: exit status 254: aws: [ERROR]: An error occurred (UnknownAction) when calling the ListTypes operation: Action ListTypes is not supported.",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cloudfront",
+          "status": "implemented",
+          "evidence": "cloudfront list-functions succeeded: {\n    \"FunctionList\": {\n        \"MaxItems\": 100,\n        \"Quantity\": 0,\n        \"Items\": []\n    }\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cloudtrail",
+          "status": "implemented",
+          "evidence": "cloudtrail list-trails reached a real handler, answering InvalidAction: aws cloudtrail list-trails: exit status 254: aws: [ERROR]: An error occurred (InvalidAction) when calling the ListTrails operation: Could not find operation ListTrails",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "codebuild",
+          "status": "implemented",
+          "evidence": "codebuild list-builds succeeded: {\n    \"ids\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "codedeploy",
+          "status": "implemented",
+          "evidence": "deploy list-deployments succeeded: {\n    \"deployments\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "codepipeline",
+          "status": "implemented",
+          "evidence": "codepipeline list-webhooks succeeded: {\n    \"webhooks\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cognito-idp",
+          "status": "unverified",
+          "evidence": "present in /_localstack/health (status \"running\"), but no side-effect-free operation with zero required input is known for this service's own API - see servicecalls.go",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "config",
+          "status": "implemented",
+          "evidence": "configservice list-stored-queries reached a real handler, answering InvalidAction: aws configservice list-stored-queries: exit status 254: aws: [ERROR]: An error occurred (InvalidAction) when calling the ListStoredQueries operation: Could not find operation ListStoredQueries",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "cur",
+          "status": "implemented",
+          "evidence": "cur describe-report-definitions succeeded: {\n    \"ReportDefinitions\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "docdb",
+          "status": "implemented",
+          "evidence": "docdb describe-db-clusters succeeded: {\n    \"DBClusters\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "dynamodb",
+          "status": "implemented",
+          "evidence": "dynamodb list-tables succeeded: {\n    \"TableNames\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ec2",
+          "status": "implemented",
+          "evidence": "ec2 describe-tags succeeded: {\n    \"Tags\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
           "service": "ecr",
           "status": "implemented",
-          "evidence": "present in /_localstack/health, reported status \"running\"",
+          "evidence": "ecr get-registry-policy reached a real handler, answering RegistryPolicyNotFoundException: aws ecr get-registry-policy: exit status 254: aws: [ERROR]: An error occurred (RegistryPolicyNotFoundException) when calling the GetRegistryPolicy operation: Registry policy does not exist in the regi...",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ecs",
+          "status": "implemented",
+          "evidence": "ecs list-tasks succeeded: {\n    \"taskArns\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "eks",
+          "status": "implemented",
+          "evidence": "eks list-clusters succeeded: {\n    \"clusters\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "elasticache",
+          "status": "implemented",
+          "evidence": "elasticache describe-users succeeded: {\n    \"Users\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "elasticbeanstalk",
+          "status": "implemented",
+          "evidence": "elasticbeanstalk describe-applications succeeded: {\n    \"Applications\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "elasticloadbalancing",
+          "status": "implemented",
+          "evidence": "elbv2 describe-rules succeeded: {\n    \"Rules\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "elasticmapreduce",
+          "status": "implemented",
+          "evidence": "emr list-studios reached a real handler, answering InvalidRequestException: aws emr list-studios: exit status 254: aws: [ERROR]: An error occurred (InvalidRequestException) when calling the ListStudios operation: Operation ListStudios is not supported.",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "email",
+          "status": "implemented",
+          "evidence": "ses get-send-quota succeeded: {\n    \"Max24HourSend\": 200.0,\n    \"MaxSendRate\": 1.0,\n    \"SentLast24Hours\": 0.0\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "es",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: es list-domain-names -\u003e UnknownOperationException; es describe-packages -\u003e UnknownOperationException; es list-vpc-endpoints -\u003e UnknownOperationException; es list-elasticsearch-versions -\u003e UnknownOperationException; es get-compatible-elasticsearch-versions -\u003e UnknownOperationException; es describe-reserved-elasticsearch-instances -\u003e UnknownOperationException; es describe-inbound-cross-cluster-search-connections -\u003e UnknownOperationException; es describe-outbound-cross-cluster-search-connections -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "events",
+          "status": "implemented",
+          "evidence": "events list-rules succeeded: {\n    \"Rules\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "firehose",
+          "status": "implemented",
+          "evidence": "firehose list-delivery-streams succeeded: {\n    \"DeliveryStreamNames\": [],\n    \"HasMoreDeliveryStreams\": false\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "glue",
+          "status": "implemented",
+          "evidence": "glue get-jobs succeeded: {\n    \"Jobs\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "iam",
+          "status": "implemented",
+          "evidence": "iam get-user reached a real handler, answering NoSuchEntity: aws iam get-user: exit status 254: aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetUser operation: The Access Key with id test cannot be found.",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "iot",
+          "status": "implemented",
+          "evidence": "iot list-jobs succeeded: {\n    \"jobs\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "iotdata",
+          "status": "implemented",
+          "evidence": "iot-data list-retained-messages succeeded: {\n    \"retainedTopics\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ivs",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: ivs list-streams -\u003e UnknownOperationException; ivs list-channels -\u003e UnknownOperationException; ivs list-playback-key-pairs -\u003e UnknownOperationException; ivs list-recording-configurations -\u003e UnknownOperationException; ivs list-playback-restriction-policies -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ivschat",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: ivschat list-rooms -\u003e UnknownOperationException; ivschat list-logging-configurations -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "kafka",
+          "status": "implemented",
+          "evidence": "kafka list-clusters succeeded: {\n    \"ClusterInfoList\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "kinesis",
+          "status": "implemented",
+          "evidence": "kinesis list-shards reached a real handler, answering InvalidArgumentException: aws kinesis list-shards: exit status 254: aws: [ERROR]: An error occurred (InvalidArgumentException) when calling the ListShards operation: StreamName or valid StreamARN must be provided",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "kinesisanalytics",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: kinesisanalytics list-applications -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "kms",
+          "status": "implemented",
+          "evidence": "kms list-keys succeeded: {\n    \"Keys\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "lambda",
+          "status": "implemented",
+          "evidence": "lambda list-layers succeeded: {\n    \"Layers\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "lightsail",
+          "status": "implemented",
+          "evidence": "lightsail get-disks succeeded: {\n    \"disks\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "logs",
+          "status": "implemented",
+          "evidence": "logs describe-log-groups succeeded: {\n    \"logGroups\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "medialive",
+          "status": "broken",
+          "evidence": "every candidate operation either was refused or returned no parseable AWS error body: medialive list-inputs -\u003e HTTP 404; medialive list-channels -\u003e HTTP 404; medialive list-clusters -\u003e HTTP 404; medialive list-networks -\u003e HTTP 404; medialive list-versions -\u003e HTTP 404; medialive list-offerings -\u003e HTTP 404; medialive list-sdi-sources -\u003e HTTP 404; medialive list-signal-maps -\u003e HTTP 404",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "mediapackage",
+          "status": "broken",
+          "evidence": "every candidate operation either was refused or returned no parseable AWS error body: mediapackage list-channels -\u003e HTTP 405; mediapackage list-harvest-jobs -\u003e UnknownOperationException; mediapackage list-origin-endpoints -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "mediapackagev2",
+          "status": "broken",
+          "evidence": "every candidate operation either was refused or returned no parseable AWS error body: mediapackagev2 list-channel-groups -\u003e HTTP 405",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "memorydb",
+          "status": "implemented",
+          "evidence": "memorydb describe-acls succeeded: {\n    \"ACLs\": [\n        {\n            \"Name\": \"open-access\",\n            \"Status\": \"active\",\n            \"UserNames\": [\n                \"default\"\n            ],\n            \"MinimumEngineVersion\": \"7....",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "monitoring",
+          "status": "implemented",
+          "evidence": "cloudwatch list-metrics succeeded: {\n    \"Metrics\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "mq",
+          "status": "implemented",
+          "evidence": "mq list-brokers succeeded: {\n    \"BrokerSummaries\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "mwaa",
+          "status": "implemented",
+          "evidence": "mwaa list-environments succeeded: {\n    \"Environments\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "neptune",
+          "status": "implemented",
+          "evidence": "neptune describe-db-clusters succeeded: {\n    \"DBClusters\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -25639,15 +25993,141 @@
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
+          "service": "pipes",
+          "status": "implemented",
+          "evidence": "pipes list-pipes succeeded: {\n    \"Pipes\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "pricing",
+          "status": "implemented",
+          "evidence": "pricing describe-services succeeded: {\n    \"Services\": [\n        {\n            \"ServiceCode\": \"AmazonEC2\",\n            \"AttributeNames\": [\n                \"instanceType\",\n                \"location\",\n                \"tenancy\",\n           ...",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "rds",
+          "status": "implemented",
+          "evidence": "rds describe-db-proxies succeeded: {\n    \"DBProxies\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "rds-data",
+          "status": "unverified",
+          "evidence": "present in /_localstack/health (status \"running\"), but no side-effect-free operation with zero required input is known for this service's own API - see servicecalls.go",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "route53",
+          "status": "implemented",
+          "evidence": "route53 list-hosted-zones succeeded: {\n    \"HostedZones\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "rum",
+          "status": "implemented",
+          "evidence": "rum list-app-monitors succeeded: {\n    \"AppMonitorSummaries\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "s3",
+          "status": "implemented",
+          "evidence": "s3api list-buckets succeeded: {\n    \"Buckets\": [],\n    \"Owner\": {\n        \"DisplayName\": \"owner\",\n        \"ID\": \"owner\"\n    },\n    \"Prefix\": null\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "s3vectors",
+          "status": "implemented",
+          "evidence": "s3vectors get-index reached a real handler, answering NotFoundException: aws s3vectors get-index: exit status 254: aws: [ERROR]: An error occurred (NotFoundException) when calling the GetIndex operation: The vector bucket null does not exist.",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "sagemaker",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: sagemaker list-apps -\u003e UnknownOperationException; sagemaker list-hubs -\u003e UnknownOperationException; sagemaker list-images -\u003e UnknownOperationException; sagemaker list-models -\u003e UnknownOperationException; sagemaker list-spaces -\u003e UnknownOperationException; sagemaker list-trials -\u003e UnknownOperationException; sagemaker list-actions -\u003e UnknownOperationException; sagemaker list-devices -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "scheduler",
+          "status": "implemented",
+          "evidence": "scheduler list-schedules succeeded: {\n    \"Schedules\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "secretsmanager",
+          "status": "implemented",
+          "evidence": "secretsmanager list-secrets succeeded: {\n    \"SecretList\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "servicediscovery",
+          "status": "implemented",
+          "evidence": "servicediscovery list-services succeeded: {\n    \"Services\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "sns",
+          "status": "implemented",
+          "evidence": "sns list-topics succeeded: {\n    \"Topics\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "sqs",
+          "status": "implemented",
+          "evidence": "sqs list-queues succeeded: {\n    \"QueueUrls\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "ssm",
+          "status": "implemented",
+          "evidence": "ssm list-commands succeeded: {\n    \"Commands\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "states",
+          "status": "implemented",
+          "evidence": "stepfunctions list-activities succeeded: {\n    \"activities\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
           "service": "storagegateway",
           "status": "unimplemented",
           "evidence": "absent from /_localstack/health's service list entirely",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
+          "service": "swf",
+          "status": "unverified",
+          "evidence": "present in /_localstack/health (status \"running\"), but no side-effect-free operation with zero required input is known for this service's own API - see servicecalls.go",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "tagging",
+          "status": "implemented",
+          "evidence": "resourcegroupstaggingapi get-tag-keys succeeded: {\n    \"TagKeys\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "textract",
+          "status": "unimplemented",
+          "evidence": "every candidate operation was refused: textract list-adapters -\u003e UnknownOperationException; textract list-adapter-versions -\u003e UnknownOperationException",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "transcribe",
+          "status": "implemented",
+          "evidence": "transcribe list-vocabularies succeeded: {\n    \"Vocabularies\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
           "service": "transfer",
           "status": "implemented",
-          "evidence": "present in /_localstack/health, reported status \"running\"",
+          "evidence": "transfer list-servers succeeded: {\n    \"Servers\": []\n}",
+          "source": "live probe (tools/floci-capability-gen -mode=services)"
+        },
+        {
+          "service": "wafv2",
+          "status": "implemented",
+          "evidence": "wafv2 get-web-acl reached a real handler, answering WAFInvalidParameterException: aws wafv2 get-web-acl: exit status 254: aws: [ERROR]: An error occurred (WAFInvalidParameterException) when calling the GetWebACL operation: Scope must be CLOUDFRONT or REGIONAL.",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         }
       ],

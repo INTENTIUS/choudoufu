@@ -25,21 +25,38 @@
 //     <endpoint>/_localstack/health, which floci answers with the flat
 //     "service name -> status" map its own /_localstack/health always has -
 //     live/e2e/estates/stragglers/README.md's own "Floci coverage"
-//     section reads this same endpoint by hand. Every service name the
-//     response includes AND that this tool is watching for is recorded
-//     implemented, with its reported status as evidence; a service the
-//     response names that nothing is watching for is not recorded at all,
-//     so this grain's coverage is exactly the watchlist (#276 - the health
-//     response names 82 services against the manifest's 4). A service this
-//     tool is watching for - every service name already recorded for ANY
-//     digest in the committed manifest, plus anything passed via -watch -
-//     that the response does NOT include is recorded unimplemented. This is
-//     why the manifest is cumulative rather than needing a fixed universal
-//     service roster: a
-//     hand investigation that finds a new absent service and records it
-//     once (tools/estate-gen/overrides.go's "hand judgment, mechanically
-//     replayed thereafter" split) makes every future -mode=services run
-//     re-verify it automatically, for every image bumped after.
+//     section reads this same endpoint by hand. The watchlist is
+//     self-expanding (#276 - a previous version seeded it from the
+//     manifest's own past output, every service already carrying a row,
+//     which is why it could only ever shrink or stay flat: a service the
+//     response named for the first time was never recorded): every
+//     service the health response itself lists is checked, union anything
+//     passed via -watch, which stays useful for the smaller remaining
+//     case of a service the response does not name at all.
+//
+//     A service the response DOES name is not recorded implemented on
+//     that alone. floci's own health status is a config-time flag
+//     (ServiceRegistry.getServices() answers "running"/"available" from
+//     descriptor.enabled(), never anything dynamically probed), which
+//     makes it an even weaker claim than the -mode=cloudcontrol sweep's
+//     old "the call returned" verdict #279 replaced - this one never made
+//     a live call at all. So each named service gets one real round trip
+//     instead: servicecalls.go's serviceProbes table names, per service, a
+//     ranked list of real, side-effect-free operations with zero required
+//     input (derived from botocore's own service models, live-verified
+//     against the pinned image - see that file's doc comment), and
+//     health.go's probeOneService tries them via the aws CLI until one
+//     reaches a real handler. implemented means it did (a clean response,
+//     or any named AWS error other than an operation-not-recognized
+//     refusal - reaching a real handler that answered in its own shape);
+//     unimplemented means every candidate was refused as
+//     UnsupportedOperation/UnknownOperationException; broken means a
+//     response with no parseable AWS error body (a router-recognized but
+//     crashing handler); unverified means either no candidate exists for
+//     this service in servicecalls.go, or every candidate failed before
+//     ever producing an AWS-shaped response at all (a probe-table
+//     command-name problem, not a floci gap) - the same "never guess"
+//     rule -mode=cloudcontrol's own unverified bucket follows.
 //
 //   - -mode=cloudcontrol (the default's second half): sweeps every
 //     registry-ratified type (internal/live/identity.AdmittedTypes, joined
@@ -219,7 +236,7 @@ func main() {
 	image := flag.String("image", "", "the floci image ref this endpoint is running: repo@sha256:... directly, or a mutable tag/name to resolve via `docker inspect` (required)")
 	region := flag.String("region", "us-east-1", "region for the Cloud Control sweep's SigV4 credential scope; floci does not verify signatures, so this rarely matters")
 	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", or "all"`)
-	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, beyond every service id already recorded for any digest in the manifest")
+	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, for a service the live health response does not name at all (the response's own service ids are always checked - issue #276)")
 	out := flag.String("out", "", "manifest path; empty defaults to live/floci-capabilities.json")
 	timeout := flag.Duration("timeout", 30*time.Minute, "overall timeout for the probe(s); the cloudcontrol round trip measured 12s over 610 types against a warm local container, so this is headroom for a cold one, not an estimate of the cost")
 	flag.Parse()
@@ -267,19 +284,20 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 	defer cancel()
 
 	if mode == "services" || mode == "all" {
-		watchlist := art.allKnownServices()
+		extraWatch := map[string]bool{}
 		for _, w := range strings.Split(watch, ",") {
 			w = strings.TrimSpace(w)
 			if w != "" {
-				watchlist[w] = true
+				extraWatch[w] = true
 			}
 		}
-		rows, err := probeServices(ctx, endpoint, watchlist)
+		run := newAWSRunner(endpoint, region)
+		rows, err := probeServices(ctx, endpoint, run, extraWatch)
 		if err != nil {
 			return fmt.Errorf("probing %s/_localstack/health: %w", endpoint, err)
 		}
 		img.Services = rows
-		fmt.Fprintf(os.Stderr, "floci-capability-gen: services: %d recorded (of %d watched)\n", len(rows), len(watchlist))
+		fmt.Fprintf(os.Stderr, "floci-capability-gen: services: %d recorded\n", len(rows))
 	}
 
 	if mode == "cloudcontrol" || mode == "all" {

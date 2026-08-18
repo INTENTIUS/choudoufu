@@ -105,21 +105,6 @@ func (a *manifestArtifact) sortImages() {
 	sort.Slice(a.Images, func(i, j int) bool { return a.Images[i].Digest < a.Images[j].Digest })
 }
 
-// allKnownServices is every service id this manifest already carries a row
-// for, at any digest - -mode=services' default watchlist, so a service a
-// past investigation found (and recorded, by hand or by an earlier probe)
-// is automatically re-checked against every image bumped after, with no
-// separate roster to keep in sync.
-func (a *manifestArtifact) allKnownServices() map[string]bool {
-	out := map[string]bool{}
-	for _, img := range a.Images {
-		for _, row := range img.Services {
-			out[row.Service] = true
-		}
-	}
-	return out
-}
-
 // replaceMechanism drops every existing row under this image whose
 // Mechanism equals mechanism and appends rows in their place - the merge
 // rule that keeps -mode=cloudcontrol's (or -mode=tagging's) own regenerated
