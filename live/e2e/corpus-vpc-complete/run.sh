@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+# terraform-aws-modules/terraform-aws-vpc's flagship "complete" example
+# (.corpus/vpc/examples/complete, pinned in live/corpus-manifest.json at tag
+# v6.6.1, commit 3ffbd46f), crossed through choudoufu against floci - the
+# real, five-stage pipeline this goal's crossings follow (cold deploy,
+# migrate, test plan, test apply, drift and reconverge), not the offline
+# lint/identity check every earlier instrument here already runs. This
+# module is one of the most-forked AWS Terraform modules that exists, and
+# "complete" is its own stress test: 62 resources across the module proper
+# (VPC, ~18 subnets across 6 subnet groups, NAT gateway, internet gateway,
+# VPN gateway + 3 customer gateways, DHCP options, default-VPC-management
+# blocks left at their default of unused) plus its vpc-endpoints submodule
+# (6 endpoints: s3, dynamodb, ecs, ecr.api, ecr.dkr, rds) plus one root
+# security group.
+#
+# THE ONE DELTA, same discipline live/e2e/corpus-iam-policy/run.sh
+# documents: the example's own provider block gains the standard emulator
+# connection flags, and its version constraint is pinned to the exact
+# provider version this checkout's admission tables were generated against
+# (6.59.0) for reproducibility. No resource in the example is edited,
+# removed, or parameterized away - stage 1 runs the module exactly as
+# terraform-aws-modules publishes it.
+#
+# STAGE-BY-STAGE SHAPE (issue #274's five-stage pipeline; see
+# live/corpus-crossing-manifest.json):
+#
+#   1. COLD DEPLOY   plain `terraform apply` (real HashiCorp terraform, not
+#                     choudoufu) against the unmodified example. No live
+#                     block, no choudoufu awareness at all - the honest
+#                     test that the estate is real and buildable, and the
+#                     source of genuinely unmarked live infrastructure for
+#                     stage 2 to adopt.
+#   2. MIGRATE        `choudoufu live-import -state=<plain's state>
+#                     -estate=... -approve` against that cold-deployed
+#                     state - the standard adoption path, since
+#                     terraform-aws-vpc's own default output attributes
+#                     mean a bare `choudoufu plan` cannot auto-adopt every
+#                     type here either (reference-ec2-vpc's own script
+#                     found the same gap for aws_instance/
+#                     aws_internet_gateway; the same reasoning applies to
+#                     several types this module creates).
+#   3. TEST PLAN      delete the state file, `choudoufu live-plan`, assert
+#                     the plan is EMPTY *and* assert a representative set of
+#                     rendered identity strings against the AWS CLI's own
+#                     answer - HANDOFF.md's own standing bar: "convergence
+#                     is not evidence an identity is right, assert the
+#                     rendered identity itself."
+#   4. TEST APPLY     apply that empty plan; assert a genuine no-op by
+#                     comparing the estate's tagged-object count in floci
+#                     before and after.
+#   5. DRIFT AND      mutate one live object out of band via the AWS CLI
+#      RECONVERGE     directly against floci (a tag value on one subnet),
+#                     replan, and assert the diff proposes fixing exactly
+#                     that one object and nothing else.
+#
+# BREAK=1 corrupts one expected identity string ahead of stage 3's
+# assertion, and separately corrupts the drift assertion in stage 5, so
+# both assertions are proven non-vacuous rather than a grep that always
+# matches - grep a couple of the older corpus-* scripts for this pattern.
+#
+#   bash live/e2e/corpus-vpc-complete/run.sh
+#
+# Needs Docker and the AWS CLI, and the real `terraform` binary on PATH for
+# stage 1 (`tofu` also works - see TF_COLD_BIN below). .corpus is read,
+# never written: the module and its example are copied out to a temp
+# directory first, same as every other corpus crossing.
+#
+# Env overrides:
+#   TOFU_BIN      path to a prebuilt choudoufu binary; skips the `go build`.
+#   TF_COLD_BIN   the plain binary for stage 1 (default: `terraform` on
+#                 PATH). Set to a `tofu` binary to use stock OpenTofu
+#                 instead - the header comment's "or tofu apply" choice.
+#   FLOCI_PORT    host port for the emulator (default 4713, clear of
+#                 run.sh's 4566 and every other live/e2e fixture's port).
+#   FLOCI_IMAGE   the emulator image; defaults to the digest pin in
+#                 live/floci-image.
+#   BREAK         set to 1 to corrupt an expected identity string and a
+#                 drift assertion, proving both are load-bearing.
+#
+# KNOWN, NOT PAPERED OVER: as of this script's writing, stage 1 fails
+# against the pinned floci image on a real, current emulator gap - not a
+# choudoufu bug, not a fixture problem. See this crossing's own report for
+# the exact remaining errors and floci-side sizing. This script is not
+# routed around that gap (no -target, no resource removed from the
+# example): it runs the real module and reports the real result, per this
+# goal's own standing rule that a partial, accurate failure is worth more
+# than a green run that does not hold up.
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SRC_MODULE="$ROOT/.corpus/vpc"
+SRC_EXAMPLE="$ROOT/.corpus/vpc/examples/complete"
+WORK="$(mktemp -d)"
+PLAIN="$WORK/plain/vpc/examples/complete"
+ADOPTED="$WORK/adopted/vpc/examples/complete"
+FLOCI_PORT="${FLOCI_PORT:-4713}"
+FLOCI_NAME="choudoufu-corpus-vpc-complete-$$"
+FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
+ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+
+ESTATE="vpc-complete-crossing"
+REGION="eu-west-1"
+TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
+
+cleanup() {
+  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+log() { printf '%s\n' "$*"; }
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# ── 0. tools and corpus ─────────────────────────────────────────────────────
+log "=== 0. tools and corpus ==="
+command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
+docker info >/dev/null 2>&1 || fail "docker is not running"
+command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
+command -v "$TF_COLD_BIN" >/dev/null 2>&1 || fail "TF_COLD_BIN=$TF_COLD_BIN is not on PATH - needed for stage 1's plain apply"
+[ -d "$SRC_MODULE" ] || fail "$SRC_MODULE is missing - run 'just corpus-fetch' first"
+[ -d "$SRC_EXAMPLE" ] || fail "$SRC_EXAMPLE is missing - run 'just corpus-fetch' first"
+
+if [ -n "${TOFU_BIN:-}" ]; then
+  TOFU="$TOFU_BIN"
+  [ -x "$TOFU" ] || fail "TOFU_BIN=$TOFU_BIN is not an executable file"
+  log "  using TOFU_BIN=$TOFU"
+else
+  mkdir -p "$WORK/bin"
+  TOFU="$WORK/bin/choudoufu"
+  ( cd "$ROOT" && env -u PWD go build -o "$TOFU" ./cmd/choudoufu ) || fail "go build ./cmd/choudoufu failed"
+  log "  built $TOFU"
+fi
+
+copy_estate() { # copy_estate <dest-root>: preserves the module's own relative source paths
+  local dest="$1"
+  mkdir -p "$dest"
+  cp -R "$SRC_MODULE" "$dest/vpc"
+  rm -rf "$dest/vpc/examples"
+  mkdir -p "$dest/vpc/examples/complete"
+  cp -R "$SRC_EXAMPLE"/*.tf "$dest/vpc/examples/complete/"
+  rm -rf "$dest/vpc/examples/complete/.terraform" "$dest/vpc/examples/complete/.terraform.lock.hcl"
+}
+
+# emulator_delta <example-dir>: the one onboarding delta - provider
+# connection flags and a pinned provider version, nothing else.
+emulator_delta() {
+  local ex="$1"
+  perl -0pi -e 's/(provider "aws" \{\n  region = local\.region\n)\}/$1\n  access_key                  = "test"\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$ex/main.tf"
+  grep -q 's3_use_path_style' "$ex/main.tf" || fail "the emulator delta did not match main.tf's provider block - the corpus pin has moved"
+  perl -0pi -e 's/version = ">= 6\.28"/version = "= 6.59.0"/' "$ex/versions.tf"
+  grep -q '= 6.59.0' "$ex/versions.tf" || fail "the version pin delta did not match versions.tf - the corpus pin has moved"
+}
+
+copy_estate "$WORK/plain"
+emulator_delta "$PLAIN"
+log "  module + example copied out of .corpus into $WORK/plain (stage 1: plain terraform)"
+
+copy_estate "$WORK/adopted"
+emulator_delta "$ADOPTED"
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$ADOPTED/versions.tf"
+grep -q "estate = \"$ESTATE\"" "$ADOPTED/versions.tf" || fail "the live-block delta did not match versions.tf"
+log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: choudoufu, live block added)"
+
+# ── 1. floci ────────────────────────────────────────────────────────────────
+log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
+docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_NAME failed"
+for _ in $(seq 1 45); do
+  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"ec2"' <<< "${HEALTH:-}" && break
+  sleep 2
+done
+grep -q '"ec2"' <<< "${HEALTH:-}" || fail "floci did not come up healthy (ec2) at $ENDPOINT"
+log "  healthy"
+
+export AWS_ENDPOINT_URL="$ENDPOINT"
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 1: cold deploy ($TF_COLD_BIN apply, the real unmodified example) ==="
+( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$PLAIN" && "$TF_COLD_BIN" init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+COLD_OUT="$(cd "$PLAIN" && "$TF_COLD_BIN" apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
+if [ "$COLD_RC" -ne 0 ]; then
+  printf '%s\n' "$COLD_OUT" | grep -E '^Error' -A 6 | head -120
+  fail "stage 1 (cold deploy) did not complete - see the real terraform errors above. This crossing does not route around them: see this script's header comment and the crossing's own report for whether each is a genuine floci gap and its size."
+fi
+grep -qE '^Apply complete!' <<< "$COLD_OUT" || fail "stage 1 apply produced no 'Apply complete!' line"
+log "  $(grep -E '^Apply complete!' <<< "$COLD_OUT")"
+[ -f "$PLAIN/terraform.tfstate" ] || fail "stage 1 left no state file to migrate from"
+
+UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 2: MIGRATE - choudoufu live-import against the plain state file
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 2: migrate (choudoufu live-import -approve) ==="
+( cd "$ADOPTED" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$ADOPTED" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted-copy init failed"; }
+
+IMPORT_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE" 2>&1)"; IMPORT_RC=$?
+if [ "$IMPORT_RC" -ne 0 ]; then
+  printf '%s\n' "$IMPORT_OUT" | tail -60
+  fail "live-import (dry run) failed"
+fi
+grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
+log "  dry run: $(grep -oE '[0-9]+ of [0-9]+ resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT")"
+
+APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"; APPROVE_RC=$?
+if [ "$APPROVE_RC" -ne 0 ]; then
+  printf '%s\n' "$APPROVE_OUT" | tail -60
+  fail "live-import -approve failed"
+fi
+grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, 0 skipped' <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve did not stamp cleanly"; }
+log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, 0 skipped' <<< "$APPROVE_OUT")"
+
+# ── identity assertions, read via the AWS CLI directly, never through choudoufu ──
+VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=ex-complete" --query "Vpcs[0].VpcId" --output text)"
+[ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "no live VPC found by its Name tag"
+VPC_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$VPC_ADDR" = "module.vpc.aws_vpc.this[0]" ] || fail "the VPC carries tofu-address=$VPC_ADDR, not module.vpc.aws_vpc.this[0]"
+log "  $VPC_ID carries tofu-address=$VPC_ADDR"
+
+RDS_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=ex-complete-rds*" --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$RDS_SG_ID" ] && [ "$RDS_SG_ID" != "None" ] || fail "no live rds security group found by its name prefix"
+RDS_SG_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$RDS_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$RDS_SG_ADDR" = "aws_security_group.rds" ] || fail "the rds security group carries tofu-address=$RDS_SG_ADDR, not aws_security_group.rds"
+log "  $RDS_SG_ID carries tofu-address=$RDS_SG_ADDR"
+
+S3_EP_ID="$(awsl ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=s3-vpc-endpoint" --query "VpcEndpoints[0].VpcEndpointId" --output text)"
+[ -n "$S3_EP_ID" ] && [ "$S3_EP_ID" != "None" ] || fail "no live s3 vpc endpoint found by its Name tag"
+S3_EP_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$S3_EP_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+if [ "${BREAK:-}" = "1" ]; then
+  log "  BREAK=1: expecting the wrong address for $S3_EP_ID's endpoint on purpose - this check must fail"
+  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this["dynamodb"]'
+else
+  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this["s3"]'
+fi
+[ "$S3_EP_ADDR" = "$WANT_S3_ADDR" ] || fail "the s3 vpc endpoint carries tofu-address=$S3_EP_ADDR, not $WANT_S3_ADDR"
+log "  $S3_EP_ID carries tofu-address=$S3_EP_ADDR"
+
+MARKED="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+log "  $MARKED objects carry tofu-estate=$ESTATE after migration"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 3: test plan (state deleted, live-plan empty) ==="
+rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
+[ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the state file is still there"
+
+plan_into() { ( cd "$ADOPTED" && "$TOFU" live-plan -input=false -no-color ); }
+PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC"; }
+[ ! -f "$ADOPTED/terraform.tfstate" ] || fail "live-plan wrote a state file"
+grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
+log "  no resource change proposed, with zero local memory of the migration that stamped it"
+
+# Re-assert the same three identities, not merely against the tags stage 2
+# already checked - the "and" in the brief's "assert the plan is EMPTY *and*
+# assert the rendered identity strings themselves" is two separate
+# assertions, not one satisfying both. live-plan's own trace for a converged
+# plan carries no per-instance line to grep when nothing changed (it only
+# names a resource it is about to CHANGE), so this stage's identity evidence
+# is the same AWS-CLI tag read as stage 2, re-run here against the state
+# this plan actually saw - after the local state file was deleted, so any
+# answer below can only have come from the marker on the live object itself.
+VPC_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$VPC_ADDR2" = "$VPC_ADDR" ] || fail "the VPC's tofu-address changed across the empty plan: $VPC_ADDR -> $VPC_ADDR2"
+RDS_SG_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$RDS_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$RDS_SG_ADDR2" = "$RDS_SG_ADDR" ] || fail "the rds security group's tofu-address changed across the empty plan: $RDS_SG_ADDR -> $RDS_SG_ADDR2"
+S3_EP_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$S3_EP_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
+[ "$S3_EP_ADDR2" = "$S3_EP_ADDR" ] || fail "the s3 vpc endpoint's tofu-address changed across the empty plan: $S3_EP_ADDR -> $S3_EP_ADDR2"
+log "  identity re-check: all three objects still carry the same tofu-address after the state file was deleted (re-read via the AWS CLI): $VPC_ADDR2, $RDS_SG_ADDR2, $S3_EP_ADDR2"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+APPLY2_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
+AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$ADOPTED/terraform.tfstate" ] || fail "a state file exists after the apply"
+log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
+DRIFT_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=Private Subnet One" --query "Subnets[0].SubnetId" --output text)"
+[ -n "$DRIFT_SUBNET_ID" ] && [ "$DRIFT_SUBNET_ID" != "None" ] || fail "no live subnet found by its Name tag (Private Subnet One)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  # A second, unrelated object is mutated too - the assertion below must
+  # catch this as MORE than one object proposed, not silently pass.
+  OTHER_SUBNET_ID="$(awsl ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=Private Subnet Two" --query "Subnets[0].SubnetId" --output text)"
+  awsl ec2 create-tags --resources "$OTHER_SUBNET_ID" --tags Key=Example,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: also tampered $OTHER_SUBNET_ID's Example tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
+fi
+
+awsl ec2 create-tags --resources "$DRIFT_SUBNET_ID" --tags Key=Example,Value=tampered-out-of-band >/dev/null
+DRIFTED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$DRIFT_SUBNET_ID" "Name=key,Values=Example" --query "Tags[0].Value" --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated $DRIFT_SUBNET_ID's Example tag to \"tampered-out-of-band\" directly via the AWS CLI"
+
+DRIFT_PLAN_OUT="$(plan_into 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -60; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be' ; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$RDS_SG_ADDR" && fail "the plan proposes changing $RDS_SG_ADDR, which was never touched"
+  log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+
+  RECONVERGE_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -40; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$DRIFT_SUBNET_ID" "Name=key,Values=Example" --query "Tags[0].Value" --output text)"
+  [ "$FIXED_VALUE" = "ex-complete" ] || fail "the subnet's Example tag is \"$FIXED_VALUE\" after reconverging, not \"ex-complete\""
+  log "  reconverged: $DRIFT_SUBNET_ID's Example tag is back to \"ex-complete\""
+fi
+
+log ""
+log "=== PASS ==="
+log ""
+log "terraform-aws-modules/terraform-aws-vpc's flagship \"complete\" example,"
+log "62 resources, crossed through all five stages: cold deploy with plain"
+log "terraform, choudoufu live-import adoption, an empty replan with the"
+log "state file deleted and three rendered identities checked against the"
+log "AWS CLI's own answer, a genuine no-op apply, and drift on one object"
+log "reconverging without touching any other."
