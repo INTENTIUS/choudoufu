@@ -59,6 +59,7 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
 ESTATE="simpleinfra-dns"
 ZONES=7
+INSTANCES=35
 
 # The seven addresses, one per module call. They are written out rather than
 # derived from the run: an expectation computed from the same walk that
@@ -164,20 +165,22 @@ log "  DELTA 1  backend s3 removed, live block added    (onboarding)"
 log "  DELTA 2  provider pinned = 6.58.0                (onboarding, #269)"
 log "  DELTA 3  emulator flags on the provider          (emulator)"
 
-# DELTA 4, GitHub issue #281, which is NOT this script's subject. Every record
-# in ./impl spells its name with Route 53's own trailing dot. The import
-# succeeds and the prior state keeps the dot while the provider normalises
-# the configuration's copy without it, so those records propose a
-# destroy-and-recreate on every run, forever. It is filed separately and
-# worked around here the same way live/e2e/corpus-crossing/run.sh works
-# around it - by taking the dot off - so that step 5 is measuring #280 and
-# not #281.
-perl -pi -e 'if (s/\$\{var\.domain\}\."/\${var.domain}"/g) { s/$/ # DELTA 4/ }' "$EST/impl/main.tf"
-[ "$(grep -c 'DELTA 4' "$EST/impl/main.tf")" = "4" ] \
-  || fail "DELTA 4 reached $(grep -c 'DELTA 4' "$EST/impl/main.tf") record names, expected 4 - the corpus pin has moved"
-grep -qF '${var.domain}."' "$EST/impl/main.tf" \
-  && fail "DELTA 4 left a trailing dot behind"
-log "  DELTA 4  trailing dot off 4 record names         (#281, NOT #280)"
+# There is no DELTA 4, and its absence is asserted. Every record in ./impl
+# spells its name with Route 53's own trailing dot - `"${var.domain}."` - and
+# this script used to take that dot off before applying, because the prior
+# state kept the dot while the provider normalised the configuration's copy
+# without it and those records then proposed a destroy-and-recreate on every
+# run, forever. That is issue #281, and it is fixed: projection adopts the
+# provider's own normalisation of an identity component, so the dot the
+# estate wrote is the dot the run has to cope with.
+#
+# The estate is now applied EXACTLY as the Rust project wrote it, four
+# trailing dots and all. If those four dots ever have to come off again,
+# #281 has regressed and this is where to notice.
+DOTS="$(grep -cF '${var.domain}."' "$EST/impl/main.tf")"
+[ "$DOTS" = "4" ] \
+  || fail "the estate has $DOTS record names spelled with a trailing dot, expected 4 - the corpus pin has moved and the #281 half of this run is measuring nothing"
+log "  no DELTA 4: the 4 trailing dots are left ON      (#281 is fixed)"
 
 # ── 3. stand the estate up ──────────────────────────────────────────────────
 log "=== 3. apply ==="
@@ -185,7 +188,8 @@ log "=== 3. apply ==="
 APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -20
   fail "the first apply failed"; }
-grep -qE 'Apply complete!' <<< "$APPLY_OUT" || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the apply did not complete"; }
+grep -qE "Apply complete! Resources: $INSTANCES added" <<< "$APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY_OUT"; fail "the apply did not create exactly $INSTANCES instances"; }
 log "  $(grep -E 'Apply complete' <<< "$APPLY_OUT" | head -1)"
 
 Z="$(awsl route53 list-hosted-zones --query 'length(HostedZones)' --output text)"
@@ -229,7 +233,7 @@ log "  $ZONES zones, $ZONES distinct addresses, and they are the $ZONES the conf
 # other reason would otherwise read as this one passing.
 log "=== 5. delete the state file and replan ==="
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
-( cd "$EST" && "$TOFU" live-plan -input=false -no-color ) > "$WORK/plan1.log" 2>&1
+( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color ) > "$WORK/plan1.log" 2>&1
 PLAN_RC=$?
 if grep -q 'Two live resources claiming one address' "$WORK/plan1.log"; then
   grep -A 6 'Two live resources claiming one address' "$WORK/plan1.log" | head -12

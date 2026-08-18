@@ -39,15 +39,37 @@ this file follows from it.
 
 ## What the campaign is
 
-`choudoufu live-check` reads a configuration directory with no cloud
-credentials and says whether the estate can be onboarded. Type coverage is
-rarely what stops a configuration. A `count.index` in a resource name, a
-`for_each` keyed by CIDRs, an identity argument read from a data source, a
-module output used in a static context — each of those stops one first.
+**The primary goal is a fully migrated estate**: someone writes ordinary
+Terraform, adds a `live` block, applies, and choudoufu manages it from then on
+with no state file anywhere. That is the product. Everything else is secondary
+to it, including everything the rest of this section describes.
 
-That set of refusals is the **language wall**, and burning it down is the
-campaign. The measure is how many real published deployments go from refused
-to onboardable, not how many refusal sites disappear.
+Read that twice, because this document has spent most of its life pointing at
+something else, and every session that followed it drifted the same way. See
+"Why work drifts to the edges" below.
+
+### The secondary campaign, and why it dominates the tooling
+
+`choudoufu live-check` reads a configuration directory with no cloud
+credentials and says whether an estate could be **adopted** — taken over
+as it stands, with no markers on anything yet. Type coverage is rarely what
+stops one. A `count.index` in a resource name, a `for_each` keyed by CIDRs, an
+identity argument read from a data source, a module output used in a static
+context — each of those stops one first.
+
+That set of refusals is the **language wall**. Burning it down matters, and it
+is what the corpus measures, because every corpus entry is somebody else's
+published configuration with a backend block and no `live` block.
+
+But adoption is the hardest thing choudoufu ever does, not the thing it is
+for. Adopting cold means deriving an identity for an object nobody has marked.
+A migrated estate has the marker already — choudoufu wrote it at create time —
+so a whole family of these refusals is about a problem the primary path does
+not have.
+
+**Do not read a language-wall figure as a statement about the product
+working.** It is a statement about how much of a stranger's configuration
+could be taken over without editing it.
 
 The corpus is a set of third-party configurations pinned in
 `live/corpus-manifest.json` and materialized by `tools/corpus-fetch`. Only a
@@ -131,17 +153,56 @@ than a run.
 
 ---
 
+## Why work drifts to the edges
+
+Read this before `just estate-plan`, because that command has pulled every
+session so far toward work almost nobody would care about, and it does it
+structurally rather than by anyone being careless.
+
+`estate-plan` ranks **blocked, unmigrated, third-party estates by fewest
+remaining blockers.** Four things follow, and all four point away from the
+primary goal:
+
+1. It can only measure the PUBLISHED form. No corpus entry declares a `live`
+   block or a `record_store`, so nothing it prints says anything about a
+   migrated estate.
+2. Fewest-blockers-first is the hard tail by construction. Everything ordinary
+   cleared long ago and left the list, so the top line is reliably an exotic
+   estate with one exotic thing left. On 2026-08-17 the three estates at the
+   head cost a whole new mechanism each.
+3. terraform-aws-modules examples are excluded from the rate - correctly, since
+   onboarding an example onboards nobody's infrastructure - which also keeps
+   the code people actually write from ever reaching the top line. 74 of them
+   are in the corpus and 71 are blocked.
+4. Nothing measures whether a migrated estate works. The end-to-end crossings
+   under `live/e2e/` are the only evidence that exists, and they are written
+   one at a time by hand.
+
+So: the top line of `estate-plan` is a legitimate assignment for the ADOPTION
+campaign, and it is not the assignment for the product. Decide which you are
+doing before you run it, and say which in your report.
+
+**The gap worth closing is (4).** There is no instrument for "someone wrote
+ordinary Terraform, added a `live` block, applied, and it kept working." Until
+there is, every claim about the primary goal rests on a handful of shell
+scripts.
+
 ## Where the work is: one estate at a time
 
-**Run this. Take the first line. That is the assignment.**
+**For the adoption campaign, run this and take the first line.**
 
 ```
-just estate-plan
+just estate-plan -schemas
 ```
 
 It sweeps the corpus and prints the blocked rate-capable deployments, fewest
 blockers first, each with the action class every blocker implies. Re-plan from
 a sweep you already have with `just estate-plan-from <file>`.
+
+**Pass `-schemas`, and check that it was passed.** Without it `LocatedType`
+fails closed and `markerless-type` reads as a blocker that a `record_store`
+already answers - which is a four-estate difference on its own, and three
+agents in one day drew wrong conclusions from a schema-less sweep.
 
 **Never assign by refusal class.** That was tried for a full day: 1570 sites
 cleared, the ladder unmoved at 26. It could not have gone otherwise. The median
