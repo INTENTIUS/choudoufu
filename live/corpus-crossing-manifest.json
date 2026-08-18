@@ -7,7 +7,7 @@
     "migrate": { "pass": 8, "fail": 1, "not_run": 2 },
     "test_plan": { "pass": 1, "fail": 8, "not_run": 2 },
     "test_apply": { "pass": 1, "fail": 0, "not_run": 10 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 11 }
+    "drift_reconverge": { "pass": 1, "fail": 0, "not_run": 10 }
   },
   "estates": [
     {
@@ -19,9 +19,9 @@
         "migrate": "pass",
         "test_plan": "pass",
         "test_apply": "pass",
-        "drift_reconverge": "not_run"
+        "drift_reconverge": "pass"
       },
-      "notes": "Verified end-to-end 2026-08-17/18. Predates the drift-and-reconverge stage being added to the pipeline shape; needs a follow-up pass to add it, same as every other pre-existing corpus-* script."
+      "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
     },
     {
       "dir": "live/e2e/corpus-lambda-simple",
