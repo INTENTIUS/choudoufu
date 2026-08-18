@@ -635,6 +635,16 @@ Every one of these has been hit, most more than once.
   (`internal/live/flocitest`) all fail together. This has happened twice.
   The fix is the same as any stale-worktree problem: regenerate the one
   digest's block again from a worktree on current local `main`.
+- **Uncommitted changes in the shared floci checkout are not automatically
+  garbage.** Multiple sessions can work `~/checkouts/floci` at once with no
+  worktree isolation between them (unlike this repo, which sends floci-side
+  fixes through an isolated worktree on purpose). Finding modified files
+  with no commit behind them there is as likely to be another session's
+  real, in-progress fix as it is to be leftover cruft - once, it turned out
+  to be the exact correct fix for a gap this campaign hit independently two
+  crossings later, still sitting uncommitted. Read the diff before assuming
+  either way; never commit, discard, or stash someone else's uncommitted
+  work in that checkout without knowing whose it is.
 - **A subtest checkmark is not the verdict.** See "Measuring," above -
   `TestCohortAcceptance` and any crossing script both report their real
   result on their own printed line, never on the test runner's summary
@@ -682,27 +692,45 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
-### 1. The wall repeated across several estates at once
+### 1. Follow up on what the last round of fixes actually surfaced
 
-`aws_default_network_acl`, `aws_default_route_table` and
-`aws_default_security_group` are unadmitted, and terraform-aws-vpc's own
-default-object-adoption pattern - `manage_default_*`, true by default in its
-own flagship examples - means every crossing that pulls that module in,
-directly or as a dependency, hits the identical wall. It is the single most
-repeated blocker `live/corpus-crossing-manifest.json` currently records.
-Fixing it does not finish any one estate alone; it removes the same wall from
-under several at once, which is exactly the leverage this campaign exists to
-find. Read the tracker for whether it has already landed before starting it
-again.
+The `aws_default_network_acl`/`aws_default_route_table`/
+`aws_default_security_group` wall (#305) and the unratified
+`aws_vpc_security_group_rules_exclusive` row (#307) are both fixed and
+merged. Landing them did more than clear those two - it exposed what was
+underneath. `corpus-security-group-complete`'s `test_plan` now fails on a
+different, genuinely new wall (#313): `data.aws_availability_zones` feeding
+per-AZ `for_each`/`count` in a nested module call, an already-registered
+"outside the config-language subset" refusal class rather than an admission
+gap. Whether #313's shape repeats across the other estates still stuck on
+`test_plan` (`corpus-lambda-simple`, `corpus-rds-complete-postgres`,
+`corpus-ecs-fargate`, `corpus-sumaform-aws`, `corpus-alb-complete` - see the
+tracker for which) has not been checked. That is the same kind of leverage
+question item 1 has always asked: one shared wall behind several failures is
+worth more than five separate ones.
+
+Separately, `corpus-vpc-complete` was re-verified against a freshly
+published floci image (pushed to `origin/main`, built by floci's own CI -
+see the Traps entry on this): lex00/floci#66/#67/#69 (Redshift, DHCP
+options, customer/VPN gateway) are confirmed fixed, `cold_deploy` moved one
+step further, and a fourth, narrower, previously-undetected gap in #68's own
+`CreateCacheSubnetGroup` (wrong `SubnetIds` wire param name) is now filed as
+lex00/floci#70. A fix for exactly that bug was already sitting uncommitted
+in the shared floci checkout as another session's in-progress work when this
+was found - left untouched, not landed here. Check whether it has since been
+committed before re-implementing it.
 
 ### 2. The core set
 
 A small, deliberately chosen set of estates - the plainest reference shape,
 an S3 bucket, an IAM role, a security group, a Lambda function - are the ones
 worth driving all the way to a genuine five-of-five pass before this project
-is shown to anyone outside it. `live/corpus-crossing-manifest.json` says
-which ones currently clear which stage and why the rest do not; do not trust
-a stale count copied here instead.
+is shown to anyone outside it. Four of five clear all five stages as of
+2026-08-18 (`reference-ec2-vpc`, `corpus-s3-bucket-complete`,
+`corpus-iam-policy`, `corpus-iam-read-only-policy`); the security-group one
+is the remaining gap, currently on #313 above. `live/corpus-crossing-manifest.json`
+says which ones currently clear which stage and why the rest do not; do not
+trust a stale count copied here instead.
 
 Not every remaining blocker in that set is a bug. A `local_file` resource
 correctly refused (no cloud counterpart to reconcile against; already ruled
