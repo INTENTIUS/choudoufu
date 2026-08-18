@@ -104,15 +104,21 @@ type LogicalType struct {
 // record_store admits the type or the RuleLogicalResource refusal fires.
 //
 // An exact match in [logicalTypes] is authoritative, and covers every managed
-// resource type of every store-only provider the generator measured. Failing
-// that, a type in one of [logicalFamilyPrefixes]' families classifies by
+// resource type of every store-only provider the generator measured. Next,
+// local_sensitive_file gets its own exact-match verdict below, for the same
+// reason the tls_ family gets a prefix-wide one: hashicorp/local is not
+// store-only, so the generator (tools/row-gen/logicalschemas.go) contributes
+// no [logicalTypes] row for either of its types, but local_sensitive_file's
+// own provider docs settle SECRET_REFUSED on their own terms and there is no
+// reason to leave a settled type on the generic default. Failing both of
+// those, a type in one of [logicalFamilyPrefixes]' families classifies by
 // default, which is the case for a type released after the last
-// -logical-schemas run and for every hashicorp/local type: the tls_ family
-// defaults to ClassSecretRefused, because all four of its measured types take
-// a sensitive private-key argument and a future tls_ addition is
-// overwhelmingly likely to as well, so the safe default for an unmeasured
-// tls_ type is the same as the measured ones rather than a falsely reassuring
-// generic refusal; every other family defaults to ClassOtherRefused, the
+// -logical-schemas run and for local_file: the tls_ family defaults to
+// ClassSecretRefused, because all four of its measured types take a
+// sensitive private-key argument and a future tls_ addition is overwhelmingly
+// likely to as well, so the safe default for an unmeasured tls_ type is the
+// same as the measured ones rather than a falsely reassuring generic
+// refusal; every other family defaults to ClassOtherRefused, the
 // unclassified-but-still-refused verdict, because random_/time_/null_/local_
 // do not share the tls_ family's uniform evidence and a future member could
 // go either way. A type in no family at all is not logical, and the second
@@ -123,9 +129,35 @@ type LogicalType struct {
 // types sat on that default for longer than they should have: random_string
 // and random_uuid from the start, random_uuid4 and random_uuid7 from the
 // hashicorp/random 3.9.0 release onward.
+//
+// local_file stays on the ClassOtherRefused default deliberately, not by
+// omission: hashicorp/local's own docs show its only sensitive attribute
+// (sensitive_content) is deprecated in favor of local_sensitive_file, so the
+// "no secret material" reading alone would derive RECORD_ADMITTED for it -
+// but local_file's identity is its filename, an argument value, not the
+// persisted record RECORD_ADMITTED presumes, and
+// countIndexScopeForType (count_index.go) skips the count.index safety walk
+// unconditionally for that class. Promoting local_file would silently
+// re-open the exact collision TestLocalFileKeepsItsCountIndexCheck exists to
+// catch (measured against hashicorp/local 2.9.0: count = 4 with a
+// count.index-derived filename never converges under stock OpenTofu either).
+// Settling that needs a class this table does not have yet - argument-derived
+// identity that is still safe - not a row in either of the two it does.
 func ClassifyLogicalType(resourceType string) (LogicalType, bool) {
 	if lt, ok := logicalTypes[resourceType]; ok {
 		return lt, true
+	}
+	if resourceType == "local_sensitive_file" {
+		return LogicalType{
+			Type: resourceType, Class: ClassSecretRefused, Prefix: "local_",
+			Evidence: "hashicorp/local's local_sensitive_file docs open with \"The " +
+				"arguments accepted by this resource are marked as sensitive,\" and its " +
+				"schema marks both content and content_base64 (String, Sensitive) - the " +
+				"two arguments that can carry the file's whole content - neither deprecated, " +
+				"unlike local_file's sole sensitive field (sensitive_content), which is " +
+				"deprecated in local_file's own schema specifically to redirect that case " +
+				"to this type",
+		}, true
 	}
 	for _, prefix := range logicalFamilyPrefixes {
 		if !strings.HasPrefix(resourceType, prefix) {
