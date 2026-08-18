@@ -1228,40 +1228,187 @@ func TestLivePlan_multiProviderSweepSucceeds(t *testing.T) {
 	}
 }
 
-// TestLivePlan_needsDiscoveryAcrossProvidersIsRefused pins the rule issue
-// #69 leaves unchanged on purpose: an estate whose *needs-discovery*
-// resolutions (not merely its managed resources generally) span more than
-// one provider configuration is still refused, because a list against the
-// wrong account or region for a type actually waiting on marker discovery
-// would misreport an estate as missing rather than merely unreachable -
-// see statelessNeedsDiscoveryProvider's own doc comment. Only the
-// estate-wide sweep gained provider-awareness; this hazard is unrelated to
-// it and is not something issue #69 touches.
-func TestLivePlan_needsDiscoveryAcrossProvidersIsRefused(t *testing.T) {
+// twoRegionNeedsDiscoveryCloud is the shared setup for issue #283's two
+// guards: a region-partitioned cloud holding one aws_vpc in each of the two
+// regions the live-plan-multi-provider-needs-discovery fixture's provider
+// configurations name, each carrying the marker of the resource block that
+// declares it under that configuration.
+//
+// Both types are server-assigned, so both resources are ClassNeedsDiscovery
+// and neither can be found any way but by listing. Placing them in different
+// regions is what makes a pass that lists through the wrong provider
+// configuration measurably different from one that lists through the right
+// one - see [statelessTestCloud.regionOf].
+func twoRegionNeedsDiscoveryCloud() *statelessTestCloud {
+	cloud := newStatelessTestCloud()
+
+	cloud.putMarked("aws_vpc", "vpc-in-east", "multi-provider-unit", "aws_vpc.east", map[string]string{
+		"id": "vpc-in-east", "cidr_block": "10.0.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-in-east", "the default configuration's VPC",
+		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.east"},
+		map[string]string{"cidr_block": "10.0.0.0/16"})
+	cloud.inRegion("aws_vpc", "vpc-in-east", "us-east-1")
+
+	cloud.putMarked("aws_vpc", "vpc-in-west", "multi-provider-unit", "aws_vpc.west", map[string]string{
+		"id": "vpc-in-west", "cidr_block": "10.1.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-in-west", "the aliased configuration's VPC",
+		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.west"},
+		map[string]string{"cidr_block": "10.1.0.0/16"})
+	cloud.inRegion("aws_vpc", "vpc-in-west", "us-west-2")
+
+	return cloud
+}
+
+// TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider is issue #283's
+// first guard: every resource waiting on marker discovery is looked for
+// through the provider configuration ITS OWN resource block names.
+//
+// This is the case the fork used to refuse outright ("Marker discovery
+// across several provider configurations"). The refusal's reasoning - a list
+// issued against the wrong account or region reports an estate as missing
+// rather than as unreachable - is exactly what this test now demands be
+// satisfied per resource instead of by narrowing every estate to one
+// configuration. A CloudFront estate cannot be narrowed that way at all:
+// WAFv2 and ACM for CloudFront live in one region and the distribution's own
+// dependencies do not.
+//
+// It asserts the RENDERED live identity each resource bound to, not merely
+// that the plan came back empty. An empty plan is reachable by binding both
+// resources to the wrong objects, by binding neither and having both look
+// unchanged, and by several sorts of silence; the identity strings are not.
+//
+// Mutation: route every pass through the default provider configuration -
+// pass sweepProviders[0], or the default's own address, as both providerAddr
+// and scopeProvider in statelessDiscover's loop - and the aliased
+// configuration's VPC is never listed at all, so aws_vpc.west comes back
+// unbound and is proposed as a create.
+func TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
 	t.Chdir(td)
 
-	cloud := newStatelessTestCloud()
-	cloud.allowRegion("us-west-2")
+	cloud := twoRegionNeedsDiscoveryCloud()
 
 	c, done := newLivePlanCommand(t, cloud)
 
 	code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
 	output := done(t)
-	if code != 1 {
-		t.Fatalf("exit code %d, want 1 - needs-discovery across providers must still be refused\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0 - an estate whose discovery-needing resources span two provider configurations must plan\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
 	}
-	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Marker discovery across several provider configurations") {
-		t.Errorf("the needs-discovery refusal did not fire:\n%s", stderr)
+	stdout := output.Stdout()
+
+	if strings.Contains(stdout, "Marker discovery across several provider configurations") {
+		t.Errorf("the lifted needs-discovery refusal fired:\n%s", stdout)
 	}
-	// The message names the provider configurations in conflict, not the
-	// resource addresses waiting on them - it names the default provider by
-	// its bare provider[...] address and the aliased one with ".west"
-	// appended.
-	if !strings.Contains(stderr, `provider["registry.opentofu.org/hashicorp/aws"]`) || !strings.Contains(stderr, ".west") {
-		t.Errorf("the refusal does not name both provider configurations:\n%s", stderr)
+
+	// The identities, not the verdict. Each address must have been read back
+	// from the one live object its own provider configuration's region
+	// holds, and from no other.
+	for _, want := range []struct{ addr, id string }{
+		{"aws_vpc.east", "vpc-in-east"},
+		{"aws_vpc.west", "vpc-in-west"},
+	} {
+		if !cloud.imported("aws_vpc", want.id) {
+			t.Errorf("%s: %q was never read from the live system, so nothing bound it", want.addr, want.id)
+		}
+	}
+	// And nothing else was read. A third import would mean some pass listed
+	// an object outside its own region and bound it.
+	if len(cloud.imports) != 2 {
+		t.Errorf("want exactly the two regional VPCs imported, got %v", cloud.imports)
+	}
+
+	for _, addr := range []string{"aws_vpc.east", "aws_vpc.west"} {
+		if strings.Contains(stdout, addr+" will be created") {
+			t.Errorf("%s is proposed as a create; it already exists in its own configuration's region and carries this estate's marker:\n%s", addr, stdout)
+		}
+	}
+	if !strings.Contains(stdout, "No changes.") {
+		t.Errorf("both VPCs are owned and unchanged; want a clean plan:\n%s", stdout)
+	}
+}
+
+// TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders is issue #283's
+// second guard, and the one that matters more: an object only ONE provider
+// configuration can see is never bound to a resource belonging to another.
+//
+// A wrong marker outranks a missing one. Lifting the refusal means several
+// passes now run over one estate, each handed the whole estate's resolutions
+// (discovery.Request.ScopeProvider's own doc comment explains why they must
+// be), so the failure this replaces the refusal's safety with is a pass
+// binding somebody else's resource through its own account. Here the only
+// live object carries aws_vpc.east's marker but sits in the region the
+// ALIASED configuration reaches, and aws_vpc.east belongs to the default
+// one. The correct answer is that aws_vpc.east is not found: the default
+// configuration cannot see it, and the aliased configuration must not bind
+// it however plainly the marker names it.
+//
+// A create is the visible, safe failure; a silent bind to an object in
+// another region is the invisible, unsafe one. This test demands the first.
+//
+// Mutation: drop ScopeProvider from statelessDiscover's multi-provider loop
+// (pass addrs.AbsProviderConfig{} as scopeProvider, the single-provider
+// path's own value) and the aliased configuration's pass binds
+// aws_vpc.east to vpc-misplaced, the plan comes back with no create for it,
+// and both assertions below go red.
+func TestLivePlan_needsDiscoveryDoesNotBindAcrossProviders(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-multi-provider-needs-discovery"), td)
+	t.Chdir(td)
+
+	cloud := newStatelessTestCloud()
+
+	// aws_vpc.west's own object, where it belongs.
+	cloud.putMarked("aws_vpc", "vpc-in-west", "multi-provider-unit", "aws_vpc.west", map[string]string{
+		"id": "vpc-in-west", "cidr_block": "10.1.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-in-west", "the aliased configuration's VPC",
+		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.west"},
+		map[string]string{"cidr_block": "10.1.0.0/16"})
+	cloud.inRegion("aws_vpc", "vpc-in-west", "us-west-2")
+
+	// An object carrying aws_vpc.east's marker, in the region only the
+	// ALIASED configuration reaches. aws_vpc.east's own block uses the
+	// default configuration, so no pass may bind this.
+	cloud.putMarked("aws_vpc", "vpc-misplaced", "multi-provider-unit", "aws_vpc.east", map[string]string{
+		"id": "vpc-misplaced", "cidr_block": "10.0.0.0/16",
+	})
+	cloud.list("aws_vpc", "vpc-misplaced", "an east-marked VPC in the west",
+		map[string]string{"tofu-estate": "multi-provider-unit", "tofu-address": "aws_vpc.east"},
+		map[string]string{"cidr_block": "10.0.0.0/16"})
+	cloud.inRegion("aws_vpc", "vpc-misplaced", "us-west-2")
+
+	c, done := newLivePlanCommand(t, cloud)
+
+	code := c.Run([]string{"-no-color", "-estate=multi-provider-unit"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+	}
+	stdout := output.Stdout()
+
+	// The wrong-marker hazard itself: the misplaced object must never have
+	// been read, because reading it is what binding it looks like.
+	if cloud.imported("aws_vpc", "vpc-misplaced") {
+		t.Errorf("vpc-misplaced was read back, so a pass bound an object visible only to the aliased provider configuration to aws_vpc.east, whose block uses the default one. That is a wrong marker, which is worse than the missing one this replaces:\n%s", stdout)
+	}
+	// aws_vpc.west is unaffected, and still bound through its own
+	// configuration - the guard has to distinguish "bound nothing" from
+	// "bound nothing across configurations".
+	if !cloud.imported("aws_vpc", "vpc-in-west") {
+		t.Errorf("aws_vpc.west was not bound to its own region's object; this test proves nothing if discovery found nothing at all: %v", cloud.imports)
+	}
+	if !strings.Contains(stdout, "aws_vpc.east will be created") {
+		t.Errorf("aws_vpc.east has no object its own provider configuration can see, so the plan must propose creating it. Anything quieter means it bound something:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "aws_vpc.west will be created") {
+		t.Errorf("aws_vpc.west exists in its own configuration's region and must not be proposed as a create:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "Plan: 1 to add, 0 to change, 0 to destroy") {
+		t.Errorf("want exactly one create (aws_vpc.east) and nothing else:\n%s", stdout)
 	}
 }
 
@@ -1306,7 +1453,18 @@ func newLivePlanCommand(t *testing.T, cloud *statelessTestCloud) (*LivePlanComma
 			View:       view,
 			testingOverrides: &testingOverrides{
 				Providers: map[addrs.Provider]providers.Factory{
-					addrs.NewDefaultProvider("aws"): providers.FactoryFixed(cloud.provider()),
+					// A fresh instance per call, not FactoryFixed's one
+					// shared one. internal/plugins' provider manager starts
+					// one instance per provider CONFIGURATION, so a fresh
+					// instance is what a real run has, and it is what lets
+					// each configuration remember the region it was
+					// configured with (statelessTestProvider.region). The
+					// cloud behind them is still the single shared one, so
+					// every existing test's cloud.imports, cloud.applied and
+					// cloud.objects read exactly as before.
+					addrs.NewDefaultProvider("aws"): func() (providers.Interface, error) {
+						return cloud.provider(), nil
+					},
 				},
 			},
 		},
@@ -1345,6 +1503,28 @@ type statelessTestCloud struct {
 	// keeps every one of those tests' own check ("the command evaluated the
 	// provider block") exactly as strict as it always was.
 	allowedRegions map[string]bool
+
+	// regionOf says which region a listed object lives in, keyed the same
+	// way objects and tags are (type + "/" + id). It is what makes this
+	// cloud partitioned rather than global: a provider configured for one
+	// region does not ENUMERATE another region's objects, which is what a
+	// real regional AWS service does and the only way a test can tell
+	// "discovery listed through this resource's own provider configuration"
+	// apart from "discovery listed through whichever one came first and got
+	// lucky".
+	//
+	// An object with no entry here is region-free and every provider
+	// configuration lists it, which is what keeps every fixture written
+	// before this existed behaving exactly as it did.
+	//
+	// Read-back (ImportResourceState, ReadResource) is deliberately NOT
+	// partitioned. A wrong bind in discovery must stay visible as a wrong
+	// bind rather than being rescued by a second layer noticing the object
+	// is not in the region it was read through: IDs do collide across
+	// regions in practice, and a guard that only fires when they do not is
+	// not a guard. See TestLivePlan_needsDiscoveryBindsThroughItsOwnProvider
+	// and its wrong-region twin.
+	regionOf map[string]string
 }
 
 // allowRegion widens the set of regions this cloud's mock provider accepts
@@ -1369,7 +1549,15 @@ func newStatelessTestCloud() *statelessTestCloud {
 		listed:         make(map[string][]statelessTestListed),
 		applied:        make(map[string]map[string]string),
 		allowedRegions: map[string]bool{"us-east-1": true},
+		regionOf:       make(map[string]string),
 	}
+}
+
+// inRegion places an already-stored object in one region, so only a provider
+// configured for that region enumerates it. See [statelessTestCloud.regionOf].
+func (c *statelessTestCloud) inRegion(typeName, id, region string) {
+	c.regionOf[typeName+"/"+id] = region
+	c.allowedRegions[region] = true
 }
 
 func (c *statelessTestCloud) put(typeName, importID string, attrs map[string]string) {
@@ -1509,6 +1697,12 @@ func statelessTestIdentitySchemas() map[string]providers.Schema {
 type statelessTestProvider struct {
 	*tofu.MockProvider
 	cloud *statelessTestCloud
+
+	// region is what THIS instance was configured with. One instance is
+	// created per provider configuration (see newLivePlanCommand's factory),
+	// so it is the endpoint a list issued through this configuration reaches
+	// - and the whole basis on which this cloud is partitioned.
+	region string
 }
 
 func (p *statelessTestProvider) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
@@ -1516,6 +1710,15 @@ func (p *statelessTestProvider) ListResourceStream(_ context.Context, req provid
 
 	schema := statelessTestSchemas()[req.TypeName]
 	for _, o := range p.cloud.listed[req.TypeName] {
+		if home, placed := p.cloud.regionOf[req.TypeName+"/"+o.id]; placed && home != p.region {
+			// This object lives somewhere this provider configuration does
+			// not reach. A regional AWS service answers a list with its own
+			// region's objects and nothing else, and that is the only thing
+			// that can distinguish "swept through this resource's own
+			// provider configuration" from "swept through some provider
+			// configuration".
+			continue
+		}
 		attrs := map[string]string{"id": o.id}
 		for k, v := range o.attrs {
 			attrs[k] = v
@@ -1538,6 +1741,12 @@ func (p *statelessTestProvider) ListResourceStream(_ context.Context, req provid
 }
 
 func (c *statelessTestCloud) provider() providers.Interface {
+	// inst is built first so ConfigureProviderFn below can record the region
+	// THIS instance was configured with on it. One instance exists per
+	// provider configuration, which is what lets ListResourceStream serve
+	// each configuration only its own region's objects.
+	inst := &statelessTestProvider{cloud: c}
+
 	p := &tofu.MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
 			Provider: providers.Schema{Block: &configschema.Block{
@@ -1559,7 +1768,9 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		region := req.Config.GetAttr("region")
 		if region.IsNull() || !c.allowedRegions[region.AsString()] {
 			resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("provider was configured with region %#v", region))
+			return resp
 		}
+		inst.region = region.AsString()
 		return resp
 	}
 
@@ -1621,7 +1832,8 @@ func (c *statelessTestCloud) provider() providers.Interface {
 		return resp
 	}
 
-	return &statelessTestProvider{MockProvider: p, cloud: c}
+	inst.MockProvider = p
+	return inst
 }
 
 // statelessTestTagsOf reads a resource object's tags map back out as plain

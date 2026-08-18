@@ -206,11 +206,13 @@ demo-corpus-ecs-taskdef:
 # fails on the pre-fix message if it regresses.
 #
 # The FULL 16-instance .corpus/govuk-infrastructure cloudfront estate does
-# NOT cross: it spans two provider configurations (default and an aliased
-# us-east-1 "global" one) with discovery-needing resources on both sides,
-# and live-plan discovers through one provider configuration per run -
-# live/LIMITATIONS.md's documented v0 bound. Step 3 asserts that refusal
-# rather than restructuring the estate around it. Step 6 isolates the two
+# NOT cross, though it no longer fails where it used to. It spans two
+# provider configurations (default and an aliased us-east-1 "global" one)
+# with discovery-needing resources on both sides, which was a hard refusal
+# before any resource was touched until issue #283 made discovery run one
+# scoped pass per configuration. Step 3 asserts that refusal is gone and
+# pins where the estate stops instead: aws_wafv2_web_acl, declared on
+# aws.global, has no list operation the provider serves. Step 6 isolates the two
 # unique-name resources (extracted verbatim, not retyped) and finds a
 # SEPARATE, floci-only gap: Cloud Control's List/GetResource for these two
 # types answers with a flat Properties shape, not AWS's own documented one

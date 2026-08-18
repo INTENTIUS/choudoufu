@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=438 instances=1427
+# shape: dirs=438 instances=1429
 # shape: class CONCRETE=734
-# shape: class NEEDS_DISCOVERY=580
+# shape: class NEEDS_DISCOVERY=582
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=7475ab76bbf688f9a88001539b28a757bd21a2ef899bcbb41173f126136ee874
+# shape: body-sha256=dc1fae92f6997c535a07fb876f4fac1d7c1d70310deb28acaec9ba7746a9d682
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -42,6 +42,8 @@ internal/live/dataread/testdata/managed-projection-whole	aws_instance.web	NEEDS_
 internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.this	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.east	CONCRETE	tofu-alias-e2e-east	bucket=tofu-alias-e2e-east
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.west	CONCRETE	tofu-alias-e2e-west	bucket=tofu-alias-e2e-west
+internal/live/discovery/testdata/alias-e2e	aws_vpc.east	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/alias-e2e	aws_vpc.west	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/cloudcontrol-e2e	aws_glue_registry.demo	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[1]	NEEDS_DISCOVERY		
