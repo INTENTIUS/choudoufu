@@ -85,7 +85,15 @@ var identityGoldenPin = map[string]int{
 	// nothing new about the mechanism - they are the by-product of every
 	// #271 fixture needing a certificate to point at. No pre-existing row
 	// changed class; see the digest below.
-	"NEEDS_DISCOVERY": 580,
+	//
+	// 586, up from 580 (issue #285): six ADDED rows, all from the three
+	// directories of internal/live/discovery/testdata/estate-names - a
+	// root, its child and its grandchild, swept once as a tree and again
+	// individually. Each holds one aws_vpc whose only argument besides
+	// cidr_block is the tofu-estate tag the fixture exists to declare, and
+	// an aws_vpc's identity is its server-minted vpc-id, so NEEDS_DISCOVERY
+	// is what it resolves to. No pre-existing row changed class.
+	"NEEDS_DISCOVERY": 586,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -129,7 +137,14 @@ var identityGoldenPin = map[string]int{
 // removed". That zero is the load-bearing half: the sibling-apply
 // classification #271 added is gated on a run holding managed results, this
 // sweep supplies none, and so not one pre-existing marker moved.
-const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
+// 2026-08-17 (issue #285): six ADDED rows across three new fixture
+// directories, and zero MODIFIED ones. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 6 added, 0
+// removed" - the three estate-names directories and nothing else. The
+// fixture exists for discovery.DeclaredEstateNames, which reads a tags
+// argument and never an identity, so nothing it added could move an
+// existing marker and nothing did.
+const identityGoldenPinBodyDigest = "7bbcb6d1b9c958036a96aff10585f75f1bcc5f3a2a97b03870033cf9745d8ecf"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -146,9 +161,13 @@ const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86
 // new fixture directories for the sibling-apply discriminator, contributing
 // eight certificates and one log group. Both numbers rise by exactly what the
 // eight directories hold.
+// 2026-08-17 (issue #285): dirs 435 -> 438 and instances 1419 -> 1425. The
+// three directories of internal/live/discovery/testdata/estate-names, whose
+// nested layout means the root sweep resolves all three of its aws_vpcs
+// while the child and grandchild are also swept as roots of their own.
 const (
-	identityGoldenPinInstances = 1419
-	identityGoldenPinDirs      = 435
+	identityGoldenPinInstances = 1425
+	identityGoldenPinDirs      = 438
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
