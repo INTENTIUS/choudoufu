@@ -207,6 +207,20 @@ Evidence: internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers
 
 Tracker: #102
 
+<a id="corpus-artifact-currency"></a>
+### `corpus-artifact-currency`
+
+live/corpus-refusals.json is dated against the newest commit touching internal/live, and the gap between them - zero or not - is reported rather than left for a reader to re-derive.
+
+**If this stops being true.** Every quoted corpus figure is read as describing HEAD. When the artifact instead describes a tree several behaviour-changing commits old, a before/after comparison, a ranking, or a closed-issue figure can be wrong by exactly the size of what those commits changed, with nothing at the point of reading saying so.
+
+- `live/corpus-refusals.json`
+- `internal/live`
+
+Evidence: git log over live/corpus-refusals.json's own path versus internal/live's newest touching commit. This is the instrument the original scouting pass (issue #256 item 7) proposed and used by hand once; this makes it something every reader gets without re-deriving it.
+
+Tracker: #256
+
 <a id="credential-exclusions-are-exactly-four"></a>
 ### `credential-exclusions-are-exactly-four`
 
