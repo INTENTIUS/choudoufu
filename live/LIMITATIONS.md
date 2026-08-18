@@ -1420,23 +1420,23 @@ refused, and each says so in its own entry.
 |---|---|---|---|---|---|---|
 | 125 | 11346 | dataread | Resolves at plan time via a data-source read | error | `internal/live/dataread` | "Resolves at plan time via a data-source read" |
 | 116 | 1522 | lint | unadmitted-type | error | `internal/live/lint` | "unadmitted-type" |
-| 94 | 441 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
+| 92 | 364 | lint | markerless-type | error | `internal/live/lint` | "markerless-type" |
 | 70 | 512 | lint | logical-resource | error | `internal/live/lint` | "null-resource" / "terraform-data" / "local-file" / "random-password" / "time-sleep" |
-| 66 | 1131 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
+| 66 | 1135 | identity | Unable to compute static value | error | `internal/configs` | "Unable to compute static value" |
 | 52 | 1032 | lint | count-index | error | `internal/live/lint` | "count-index-in-tag" |
-| 51 | 430 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
+| 51 | 434 | identity | Dynamic value in static context | error | `internal/configs` | "Dynamic value in static context" |
 | 36 | 143 | identity | Unresolvable identity | error | `internal/live/identity` | "Unresolvable identity" |
-| 31 | 237 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
+| 32 | 239 | identity | Module output not supported in static context | error | `internal/configs` | "Module output not supported in static context" |
 | 30 | 55 | stamp | Unmarked apply of a marker-only resource | error | `internal/live/stamp` | "Unmarked apply of a marker-only resource" |
 | 27 | 86 | identity | Identity not resolvable from configuration | error | `internal/live/identity` | "Identity not resolvable from configuration" |
-| 23 | 81 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
-| 20 | 73 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 23 | 82 | identity | Non-static identity argument | error | `internal/live/identity` | "Non-static identity argument" |
+| 19 | 71 | identity | Non-static for_each expression | error | `internal/live/identity` | "Non-static for_each expression" |
+| 12 | 33 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
 | 10 | 51 | identity | Non-static count expression | error | `internal/live/identity` | "Non-static count expression" |
-| 10 | 31 | identity | Not an identity attribute | error | `internal/live/identity` | "Not an identity attribute" |
+| 8 | 18 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
 | 7 | 19 | lint | child-module | error | `internal/live/lint` | "child-module" |
-| 7 | 16 | dataread | Data source not readable before resolution | error | `internal/live/dataread` | "Data source not readable before resolution" |
+| 6 | 45 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
 | 6 | 7 | identity | Ambiguous list-valued identity argument | error | `internal/live/identity` | "Ambiguous list-valued identity argument" |
-| 4 | 43 | identity | Null identity argument | error | `internal/live/identity` | "Null identity argument" |
 | 4 | 37 | lint | moved-block | error | `internal/live/lint` | "moved-block" |
 | 3 | 5 | identity | Identity argument not set | error | `internal/live/identity` | "Identity argument not set" |
 | 2 | 2 | lint | provisioner | error | `internal/live/lint` | "local-exec" / "remote-exec" |
@@ -1605,7 +1605,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership marker could not be checked | error | `internal/live/stamp` | "Ownership marker could not be checked" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
-| - | - | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
+| 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
 **188 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
@@ -1645,7 +1645,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 66 configurations in the measured corpus, at 1131 sites.
+**How often.** Blocked 66 configurations in the measured corpus, at 1135 sites.
 
 #### Dynamic value in static context
 
@@ -1653,7 +1653,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 51 configurations in the measured corpus, at 430 sites.
+**How often.** Blocked 51 configurations in the measured corpus, at 434 sites.
 
 #### Unresolvable identity
 
@@ -1669,7 +1669,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
-**How often.** Blocked 31 configurations in the measured corpus, at 237 sites.
+**How often.** Blocked 32 configurations in the measured corpus, at 239 sites.
 
 #### Unmarked apply of a marker-only resource
 
@@ -1693,7 +1693,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 23 configurations in the measured corpus, at 81 sites.
+**How often.** Blocked 23 configurations in the measured corpus, at 82 sites.
 
 #### Non-static for_each expression
 
@@ -1701,7 +1701,15 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
-**How often.** Blocked 20 configurations in the measured corpus, at 73 sites.
+**How often.** Blocked 19 configurations in the measured corpus, at 71 sites.
+
+#### Not an identity attribute
+
+**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 12 configurations in the measured corpus, at 33 sites.
 
 #### Non-static count expression
 
@@ -1711,21 +1719,21 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked 10 configurations in the measured corpus, at 51 sites.
 
-#### Not an identity attribute
-
-**What.** An identity argument reads an attribute of another resource that is not part of that resource's identity.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 10 configurations in the measured corpus, at 31 sites.
-
 #### Data source not readable before resolution
 
 **What.** A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 
-**How often.** Blocked 7 configurations in the measured corpus, at 16 sites.
+**How often.** Blocked 8 configurations in the measured corpus, at 18 sites.
+
+#### Null identity argument
+
+**What.** An identity argument evaluates to null.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Blocked 6 configurations in the measured corpus, at 45 sites.
 
 #### Ambiguous list-valued identity argument
 
@@ -1734,14 +1742,6 @@ reserved for the limits wing's fixture directories, and
 **Where.** The identity pass, raised by `internal/live/identity`.
 
 **How often.** Blocked 6 configurations in the measured corpus, at 7 sites.
-
-#### Null identity argument
-
-**What.** An identity argument evaluates to null.
-
-**Where.** The identity pass, raised by `internal/live/identity`.
-
-**How often.** Blocked 4 configurations in the measured corpus, at 43 sites.
 
 #### Identity argument not set
 
@@ -2925,7 +2925,7 @@ reserved for the limits wing's fixture directories, and
 
 **Where.** The stamp pass, raised by `internal/live/stamp`.
 
-**How often.** Not measured: absent from the corpus artifact this was generated against.
+**How often.** Blocked no configuration in the measured corpus.
 
 <!-- limits-gen:end refusal-entries -->
 
