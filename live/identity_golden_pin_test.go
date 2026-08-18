@@ -92,7 +92,7 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE": 734,
+	"CONCRETE": 736,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -185,7 +185,7 @@ var identityGoldenPin = map[string]int{
 // ADDED rows, a class-preserving rename (aws_iam_user.team ->
 // aws_iam_group.team in two fixtures) made so those two tests keep
 // exercising the general refusal shape rather than #289's new answer.
-const identityGoldenPinBodyDigest = "c799beab9983b732b6a0713ef54056a8c679ccf7a62d0be939bc4b989ccdd43f"
+const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377dbe0c56bdc6b43781416610"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -229,8 +229,18 @@ const identityGoldenPinBodyDigest = "c799beab9983b732b6a0713ef54056a8c679ccf7a62
 // delta) + 12 (#289's own delta) = 1454, exactly the regenerated total -
 // the two changes compose with no interaction, which is what independent,
 // disjoint fixtures and a failure-path-only gate predict.
+// 2026-08-17 (merge of #294): dirs unchanged at 445, instances 1454 -> 1456,
+// CONCRETE 734 -> 736. Another independent-branch golden conflict, resolved
+// the same way as the #253/#289 merge above: regenerate fresh rather than
+// hand-merge. live/e2e/estates/lambda gained two rows for the two types
+// lambdaTypes had grown to (aws_lambda_function_event_invoke_config,
+// aws_lambda_layer_version_permission - both CONCRETE, both ADDED) and one
+// existing row changed in place - aws_lambda_permission.app's identity now
+// carries "qualifier", from #175's already-ratified component that this
+// cohort's committed lambda.tf predated regenerating against. All three are
+// named in #294's own commit message; nothing here is unexplained.
 const (
-	identityGoldenPinInstances = 1454
+	identityGoldenPinInstances = 1456
 	identityGoldenPinDirs      = 445
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as

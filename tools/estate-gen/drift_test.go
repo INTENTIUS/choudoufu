@@ -108,14 +108,19 @@ type driftEntry struct {
 // existing, unrelated drift that #292's own scope does not cover -
 // OmitIfAbsent's own force-fill rule is the shape to look at, its own
 // issue rather than folded in here.
+//
+// Issue #294 ("lambdaTypes grown to 7 types, lambda.tf still covers 5")
+// regenerated the lambda cohort alone to add the two missing types
+// (aws_lambda_function_event_invoke_config, aws_lambda_layer_version_permission)
+// and, as a side effect of that same regeneration, picked up the qualifier
+// force-fill above - the committed lambda.tf now matches the generator's
+// current output byte-for-byte, closing the "lambda" entry below. The
+// underlying OmitIfAbsent force-fill defect is unfixed and still live in
+// route53-cloudfront, unregenerated because #294 scoped to lambda only.
 var knownDrift = map[string]driftEntry{
-	"lambda": {
-		files:  []string{"lambda.tf: content differs"},
-		reason: "aws_lambda_permission's OmitIfAbsent \"qualifier\" identity component now force-fills a generic placeholder (\"qualifier = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - a separate, unfiled OmitIfAbsent force-fill defect",
-	},
 	"route53-cloudfront": {
 		files:  []string{"route53-cloudfront.tf: content differs"},
-		reason: "aws_route53_zone_association's OmitIfAbsent \"vpc_region\" identity component now force-fills a generic placeholder (\"vpc_region = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - the same unfiled OmitIfAbsent force-fill defect as lambda above",
+		reason: "aws_route53_zone_association's OmitIfAbsent \"vpc_region\" identity component now force-fills a generic placeholder (\"vpc_region = \\\"placeholder\\\"\") that the committed tree omits; reproduces unmodified against the pre-#292 generator, unrelated to #292's Cloud-component fix - the same unfiled OmitIfAbsent force-fill defect lambda had above (#294 closed lambda's entry by regenerating that cohort; this one is still open)",
 	},
 }
 
