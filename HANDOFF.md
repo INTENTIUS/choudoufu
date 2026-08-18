@@ -525,9 +525,24 @@ resource type, so the change cannot be priced in sites until they do.
 
 ### 3. #274 - cross the estates that have never run
 
-Twelve of the 28 passing estates still have not touched a cloud. Every
-crossing so far has found something no offline instrument could see, including
-all three of the wrong-marker defects fixed on 2026-08-17.
+Seventeen of the 28 passing estates are crossed for real - applied, state
+deleted, replanned empty twice, identities asserted from the run's own trace,
+not a live-check pass. Eleven are not, as of 17eea1f02b: one attempted and
+explicitly blocked (`corpus-ecs-taskdef`'s `analytics-worker` target can't
+stand up as authored - floci cannot answer 2 of its 12 data sources), ten
+with no crossing script at all - three named directly in #274
+(govuk-infrastructure's `security` and `elasticache`, mastino's
+`crossref-orcid-agent`), mastino's `datafile-generator` (`analytics-worker`'s
+sibling, the identical 12-data-source shape, never run), and six more among
+#274's own unnamed "fourteen more at 1-4 instances" (its full ranked list is
+not checked into the tree; a fresh `refusal-probe -schemas` sweep would name
+them - two attempts this session did not complete inside a bounded slot).
+`live/e2e/`'s non-`corpus-*`-prefixed crossings count too:
+`repeated-module` (simpleinfra/dns), `per-element` (team-members-access) and
+`lambda-residue` (check-links) are three of the seventeen, which is why a
+plain count of `corpus-*` directories undercounts. Every crossing so far has
+found something no offline instrument could see, including all three of the
+wrong-marker defects fixed on 2026-08-17.
 
 ### 4. #245 - admission, which migration does not fix
 
