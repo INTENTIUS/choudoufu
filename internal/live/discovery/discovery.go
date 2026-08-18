@@ -1092,32 +1092,21 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
 		child := cfg.Children[name]
-		var forEach, count hcl.Expression
-		if call, ok := cfg.Module.ModuleCalls[name]; ok && call != nil {
-			forEach = call.ForEach
-			count = call.Count
-		}
-		// count first, then for_each, then the unkeyed default - the same
-		// three-way dispatch [identity.resolver.walkModule] makes, and the
-		// same order, because the addresses this loop builds have to be the
-		// addresses resolution builds. Reading for_each alone was the bug
-		// [stamp.moduleResourcesFrom] had (fixed in de7c0ae3ef): a count'd
-		// call fell through to ChildModuleKeys with a nil expression, which
-		// reports the single unkeyed instance a STATIC call has, so this
-		// walk indexed a count'd module's blocks under
+		// count first, then for_each, then the unkeyed default - made once,
+		// in [identity.ChildCallKeys], because the addresses this loop
+		// builds have to be the addresses resolution builds. Reading
+		// for_each alone was the bug [stamp.moduleResourcesFrom] had (fixed
+		// in de7c0ae3ef) and this walk had after it: a count'd call fell
+		// through to ChildModuleKeys with a nil expression, which reports
+		// the single unkeyed instance a STATIC call has, so this walk
+		// indexed a count'd module's blocks under
 		// "module.foo.aws_eip.pool" while resolution and stamping both name
 		// them "module.foo[0].aws_eip.pool". Every marker on such a block
 		// then missed [declared.countBlockFor], and [countBlock.module] -
 		// which is this modInst - carried the unkeyed path into
 		// [countBlock.instanceAddr], so a binding that did land named an
 		// address no instance has.
-		var keys []addrs.InstanceKey
-		var diag *hcl.Diagnostic
-		if count != nil {
-			keys, diag = identity.ChildModuleCountKeys(ctx, cfg.Module, fmt.Sprintf("module %q", name), count)
-		} else {
-			keys, diag = identity.ChildModuleKeys(ctx, cfg.Module, fmt.Sprintf("module %q", name), forEach)
-		}
+		keys, diag := identity.ChildCallKeys(ctx, cfg.Module, name)
 		if diag != nil {
 			// RuleChildModule already refused this call before discovery
 			// ever ran; nothing to index under it.

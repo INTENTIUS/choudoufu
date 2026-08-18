@@ -270,23 +270,10 @@ func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance,
 		// was read.
 		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		var forEach, count hcl.Expression
-		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
-			forEach = call.ForEach
-			count = call.Count
-		}
-		// count and for_each are mutually exclusive on a module call, the
-		// same as on a resource; count is tried first only because that is
-		// the order [resolver.buildExpansion] already uses for a resource's
-		// own count/for_each, not because either can be set alongside the
-		// other.
-		var keys []addrs.InstanceKey
-		var diag *hcl.Diagnostic
-		if count != nil {
-			keys, diag = ChildModuleCountKeys(r.ctx, r.mod, childSubject(name), count)
-		} else {
-			keys, diag = ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
-		}
+		// [ChildCallKeys] makes the count / for_each / static dispatch, in
+		// that order, and is shared with the three other walks that have to
+		// build the same addresses this one does.
+		keys, diag := ChildCallKeys(r.ctx, r.mod, name)
 		if diag != nil {
 			r.diags = r.diags.Append(diag)
 			continue

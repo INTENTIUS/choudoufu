@@ -499,9 +499,18 @@ func (an *analyzer) extendPlaceholders(placeholders map[string]cty.Value) bool {
 }
 
 // moduleInstancesOf enumerates the instances of one module path, expanding
-// for_each module calls through the same key computation resolution uses.
-// A call whose keys cannot be computed contributes nothing; lint's
-// child-module rule is what refuses that configuration, not this phase.
+// repeated module calls through [identity.ChildCallKeys] - the same key
+// computation, and the same count / for_each / static dispatch order,
+// resolution itself makes, so the module instances this phase reasons about
+// are the module instances that exist. A call whose keys cannot be computed
+// contributes nothing; lint's child-module rule is what refuses that
+// configuration, not this phase.
+//
+// Reading call.ForEach alone was the defect here (issue #285): a count'd
+// call has keyed instances, [0]..[n-1], and one unkeyed instance was
+// enumerated in their place, so every dependent's module instance was named
+// as no instance is - and a count = 0 call contributed one instance where
+// none exists at all.
 func (an *analyzer) moduleInstancesOf(module addrs.Module) []addrs.ModuleInstance {
 	insts := []addrs.ModuleInstance{addrs.RootModuleInstance}
 	node := an.cfg
@@ -510,16 +519,9 @@ func (an *analyzer) moduleInstancesOf(module addrs.Module) []addrs.ModuleInstanc
 		if !ok || child == nil || child.Module == nil {
 			return nil
 		}
-		var keys []addrs.InstanceKey
-		call := node.Module.ModuleCalls[name]
-		if call != nil && call.ForEach != nil {
-			var diag *hcl.Diagnostic
-			keys, diag = identity.ChildModuleKeys(an.ctx, node.Module, fmt.Sprintf("module %q", name), call.ForEach)
-			if diag != nil {
-				return nil
-			}
-		} else {
-			keys = []addrs.InstanceKey{addrs.NoKey}
+		keys, diag := identity.ChildCallKeys(an.ctx, node.Module, name)
+		if diag != nil {
+			return nil
 		}
 		next := make([]addrs.ModuleInstance, 0, len(insts)*len(keys))
 		for _, inst := range insts {
