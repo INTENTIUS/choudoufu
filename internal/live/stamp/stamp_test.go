@@ -505,6 +505,20 @@ var (
 		"aws_acm_certificate",
 		"aws_sfn_state_machine",
 		"aws_ebs_volume",
+
+		// Issue #245's "needs hand separator" slice, ratified into
+		// tools/row-gen/ratified.json: ten of the batch's 24 rows are
+		// taggable, per live/survey-full.json's signals.taggable.
+		"aws_kendra_data_source",
+		"aws_kendra_faq",
+		"aws_quicksight_analysis",
+		"aws_quicksight_custom_permissions",
+		"aws_quicksight_dashboard",
+		"aws_quicksight_data_set",
+		"aws_quicksight_data_source",
+		"aws_quicksight_template",
+		"aws_quicksight_theme",
+		"aws_quicksight_vpc_connection",
 	}
 	// The markerless retraction (#249, 2026-08-16) removed 77 entries from
 	// this list and from the per-cohort slices appended to it below: every
@@ -602,6 +616,24 @@ var (
 		// is the same standing every other type on this list has.
 		"aws_cloudwatch_otel_enrichment",
 		"aws_vpc_block_public_access_options",
+
+		// The other 14 of issue #245's "needs hand separator" slice
+		// (tools/row-gen/ratified.json): untaggable per
+		// live/survey-full.json's signals.taggable.
+		"aws_appautoscaling_policy",
+		"aws_ec2_local_gateway_route",
+		"aws_internet_gateway_attachment",
+		"aws_lakeformation_data_cells_filter",
+		"aws_lb_trust_store_revocation",
+		"aws_notifications_channel_association",
+		"aws_quicksight_refresh_schedule",
+		"aws_redshift_endpoint_authorization",
+		"aws_servicecatalog_principal_portfolio_association",
+		"aws_servicecatalog_product_portfolio_association",
+		"aws_signer_signing_profile_permission",
+		"aws_ssm_maintenance_window_target",
+		"aws_vpc_route_server_propagation",
+		"aws_vpc_route_server_vpc_association",
 	}
 )
 
@@ -1153,6 +1185,34 @@ func testSchemas() Schemas {
 		"aws_alb_target_group_attachment": untaggedSchema("id", "target_group_arn", "target_id", "port"),
 		"aws_lb_listener_certificate":     untaggedSchema("id", "listener_arn", "certificate_arn"),
 		"aws_alb_listener_certificate":    untaggedSchema("id", "listener_arn", "certificate_arn"),
+
+		// Issue #245's "needs hand separator" slice, ratified into
+		// tools/row-gen/ratified.json - taggability per
+		// live/survey-full.json's signals.taggable.
+		"aws_kendra_data_source":                             taggedSchema("id", "arn", "name"),
+		"aws_kendra_faq":                                     taggedSchema("id", "arn", "name"),
+		"aws_quicksight_analysis":                            taggedSchema("id", "arn", "analysis_id"),
+		"aws_quicksight_custom_permissions":                  taggedSchema("id", "arn", "custom_permissions_name"),
+		"aws_quicksight_dashboard":                           taggedSchema("id", "arn", "dashboard_id"),
+		"aws_quicksight_data_set":                            taggedSchema("id", "arn", "data_set_id"),
+		"aws_quicksight_data_source":                         taggedSchema("id", "arn", "data_source_id"),
+		"aws_quicksight_template":                            taggedSchema("id", "arn", "template_id"),
+		"aws_quicksight_theme":                               taggedSchema("id", "arn", "theme_id"),
+		"aws_quicksight_vpc_connection":                      taggedSchema("id", "arn", "vpc_connection_id"),
+		"aws_appautoscaling_policy":                          untaggedSchema("id", "arn", "name", "policy_type", "resource_id"),
+		"aws_ec2_local_gateway_route":                        untaggedSchema("id", "local_gateway_route_table_id", "destination_cidr_block"),
+		"aws_internet_gateway_attachment":                    untaggedSchema("id", "internet_gateway_id", "vpc_id"),
+		"aws_lakeformation_data_cells_filter":                untaggedSchema("id", "table_data", "database_name", "table_name"),
+		"aws_lb_trust_store_revocation":                      untaggedSchema("id", "trust_store_arn"),
+		"aws_notifications_channel_association":              untaggedSchema("id", "arn", "notification_configuration_arn"),
+		"aws_quicksight_refresh_schedule":                    untaggedSchema("id", "data_set_id", "schedule_id"),
+		"aws_redshift_endpoint_authorization":                untaggedSchema("id", "account", "cluster_identifier"),
+		"aws_servicecatalog_principal_portfolio_association": untaggedSchema("id", "portfolio_id", "principal_arn"),
+		"aws_servicecatalog_product_portfolio_association":   untaggedSchema("id", "portfolio_id", "product_id"),
+		"aws_signer_signing_profile_permission":              untaggedSchema("id", "profile_name", "action"),
+		"aws_ssm_maintenance_window_target":                  untaggedSchema("id", "window_id", "resource_type"),
+		"aws_vpc_route_server_propagation":                   untaggedSchema("id", "route_server_id", "route_table_id"),
+		"aws_vpc_route_server_vpc_association":               untaggedSchema("id", "route_server_id", "vpc_id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
