@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 2,
-    "cold_deploy": { "pass": 2, "fail": 0, "not_run": 0 },
-    "migrate": { "pass": 2, "fail": 0, "not_run": 0 },
-    "test_plan": { "pass": 1, "fail": 1, "not_run": 0 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 1 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 2 }
+    "estates": 3,
+    "cold_deploy": { "pass": 3, "fail": 0, "not_run": 0 },
+    "migrate": { "pass": 2, "fail": 1, "not_run": 0 },
+    "test_plan": { "pass": 1, "fail": 2, "not_run": 0 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 2 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 3 }
   },
   "estates": [
     {
@@ -34,7 +34,20 @@
         "test_apply": "not_run",
         "drift_reconverge": "not_run"
       },
-      "notes": "Landed f6a9f899d0 (2026-08-18), which also fixed a real generalizing bug on the way: live-import's Ratify loop skipped every resource inside a module block (regressed behind closed issue #59's child-module admission, which named five other root-only walkers but never live-import). module.lambda_function.{aws_lambda_function,aws_iam_role,aws_cloudwatch_log_group} now stamp correctly - this affects every real module usage, not just this estate, since virtually all published Terraform modules nest their resources under a module block. test_plan blocked on a separate, still-open gap: two resource blocks (aws_lambda_function_url, aws_lambda_function_recursion_config) use count = var.enable_x ? 1 : 0 with the var false/unset, so stock OpenTofu creates zero instances of either, but choudoufu's type-admission check runs per declared block rather than per resolved instance and refuses the plan outright. A local_file resource is also refused (outside the live-markers subset). Recommended next slot: a static count-is-zero evaluator feeding type admission - likely high-leverage, since count-gated optional-feature resources are an extremely common module idiom, not specific to this one."
+      "notes": "Landed f6a9f899d0 (2026-08-18), which also fixed a real generalizing bug on the way: live-import's Ratify loop skipped every resource inside a module block (regressed behind closed issue #59's child-module admission, which named five other root-only walkers but never live-import). module.lambda_function.{aws_lambda_function,aws_iam_role,aws_cloudwatch_log_group} now stamp correctly - this affects every real module usage, not just this estate, since virtually all published Terraform modules nest their resources under a module block. test_plan blocked on a separate, still-open gap: two resource blocks (aws_lambda_function_url, aws_lambda_function_recursion_config) use count = var.enable_x ? 1 : 0 with the var false/unset, so stock OpenTofu creates zero instances of either, but choudoufu's type-admission check runs per declared block rather than per resolved instance and refuses the plan outright. A local_file resource is also refused (outside the live-markers subset). Filed as #303. Recommended next slot: a static count-is-zero evaluator feeding type admission - likely high-leverage, since count-gated optional-feature resources are an extremely common module idiom, not specific to this one."
+    },
+    {
+      "dir": "live/e2e/corpus-rds-complete-postgres",
+      "source": "terraform-aws-modules/terraform-aws-rds examples/complete-postgres (tag v7.2.1)",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "fail",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed c239792018/47778a931a (2026-08-18). Crossed by an agent whose worktree predated the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here because that's what the agent's own base observed, but since cec3c4b9b1 is now on main and fixes exactly this class of defect (root-only walker in live-import's Ratify loop) for all 39 of this estate's resources (all module-nested), migrate needs re-verification against current main before trusting this row's fail as still current. Even if migrate now passes, test_plan is independently blocked by two newly-filed, distinct defects this crossing also found: #304 (count-index-in-tag can't trace a static lookup() into terraform-aws-security-group's own bundled rules table - 7 of 35 refusals) and #305 (aws_default_network_acl/aws_default_route_table/aws_default_security_group are unadmitted types, from terraform-aws-vpc's default-object adoption pattern). Two unrelated real floci gaps found and filed upstream on the fork: lex00/floci#51 (RDS cross-region backup replication), lex00/floci#52 (SecretsManager RotateSecret wrongly requires a Lambda ARN for RDS-managed rotation) - both worked around in the script with documented EMULATOR GAP deltas so stage 1 could stand up at all."
     }
   ]
 }
