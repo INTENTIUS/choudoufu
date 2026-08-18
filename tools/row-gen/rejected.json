@@ -78,6 +78,9 @@
         "internal/live/identity/table_cohort_apigateway.go"
       ]
     },
+    "aws_appautoscaling_scheduled_action": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ApplicationAutoScaling::ScalableTarget (parent aws_appautoscaling_target, already admitted), but aws_appautoscaling_scheduled_action.html.markdown has no Import section - the page ends at Attribute Reference (arn). No worked example naming a separator for the resource's own required arguments (name, service_namespace, resource_id, scalable_dimension) exists. Left unadmitted."
+    },
     "aws_appstream_directory_config": {
       "reason": "credential material: service_account_credentials.account_password is a Required plaintext AD service-account password persisted in config and state (provider doc 6.59.0, Argument Reference); same class as aws_ivs_playback_key_pair's client-supplied write-only material. Ruled by the maintainer 2026-08-15 (#175); the one class where rejection is the end state."
     },
@@ -93,6 +96,12 @@
         "internal/live/identity/table_cohort_streaming.go"
       ],
       "reason": "verifies as needing a config-supplied api_id component the classifier's flat server-assigned proposal dropped: the provider's Import section requires \"AppSync API ID and Function ID separated by -\", and api_id is a plain Required argument on this resource. Same generic-rule gap as aws_appsync_api_key. Left unadmitted."
+    },
+    "aws_autoscaling_attachment": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::AutoScaling::AutoScalingGroup (parent aws_autoscaling_group, already admitted), but aws_autoscaling_attachment.html.markdown has no Import section at all - the provider has never supported importing this resource (a long-standing, still-open gap). No worked example to read a separator from. Left unadmitted."
+    },
+    "aws_autoscaling_notification": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::AutoScaling::AutoScalingGroup (parent aws_autoscaling_group, already admitted), but aws_autoscaling_notification.html.markdown has no Import section - the page ends at Attribute Reference (group_names, notifications, topic_arn), none of which is a joined identity string. No worked example to read a separator from. Left unadmitted."
     },
     "aws_backup_selection": {
       "recovered_from": [
@@ -241,6 +250,12 @@
         "internal/live/identity/table_cohort_compute_platforms.go"
       ]
     },
+    "aws_elasticsearch_domain_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::Elasticsearch::Domain (parent aws_elasticsearch_domain, already admitted), but aws_elasticsearch_domain_policy.html.markdown has no Import section at all - \"This resource exports no additional attributes\" and no `terraform import` example anywhere on the page. Left unadmitted."
+    },
+    "aws_elb_attachment": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_elb_attachment.html.markdown has no Import section at all - no import block, no `terraform import` example - and its Attribute Reference states \"This resource exports no additional attributes\", so there is not even an `id` description to read a shape off of. No worked example anywhere in the doc to read a separator from, and inventing one for the two required arguments (elb, instance) would be a guess dressed as evidence. Left unadmitted."
+    },
     "aws_emr_instance_fleet": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
@@ -267,6 +282,9 @@
         "internal/live/identity/table_cohort_data.go"
       ],
       "reason": "verifies as needing three config-supplied components (catalog_id, database_name, table_name) the classifier's flat server-assigned proposal dropped, even though the classifier's own note printed the four-part ImportSyntax placeholder CATALOGID:DATABASENAME:TABLENAME:PARTITIONVALUES: database_name and table_name are plain Required arguments and catalog_id is a real (optional, account-id-defaulted) argument on this resource. Left unadmitted."
+    },
+    "aws_guardduty_detector_feature": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::GuardDuty::Detector (parent aws_guardduty_detector, already admitted), but aws_guardduty_detector_feature.html.markdown has no Import section - \"This resource exports no additional attributes\" and no worked example naming a separator for the resource's own required arguments (detector_id, name). Left unadmitted."
     },
     "aws_iam_access_key": {
       "recovered_from": [
@@ -350,6 +368,12 @@
         "internal/live/identity/table_cohort_storage.go"
       ]
     },
+    "aws_lb_cookie_stickiness_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_lb_cookie_stickiness_policy.html.markdown has no Import section - the page ends at Attribute Reference, which echoes name, load_balancer and lb_port back as computed values without ever showing a joined string or a `terraform import` example. No separator character is documented anywhere; the sibling aws_app_cookie_stickiness_policy IS documented (colon-joined) and was ratified, but that evidence does not transfer since the two are unrelated resource types with no shared schema. Left unadmitted."
+    },
+    "aws_lb_ssl_negotiation_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_lb_ssl_negotiation_policy.html.markdown has no Import section - the page ends at Attribute Reference (id, name, load_balancer, lb_port, attribute), none of which shows a joined string. No worked example to read a separator from. Left unadmitted."
+    },
     "aws_lexv2models_bot_version": {
       "recovered_from": [
         "internal/live/identity/table_cohort_stragglers.go"
@@ -372,6 +396,18 @@
         "internal/live/identity/table_cohort_stragglers.go"
       ]
     },
+    "aws_lightsail_instance_public_ports": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::Lightsail::Instance (parent aws_lightsail_instance, already admitted), but aws_lightsail_instance_public_ports.html.markdown has no Import section - the page ends at Attribute Reference (id - \"ID of the resource\" - with no format shown). No worked example to read a shape from for the resource's own instance_name argument. Left unadmitted."
+    },
+    "aws_load_balancer_backend_server_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_load_balancer_backend_server_policy.html.markdown has no Import section - the page ends at Attribute Reference (id, load_balancer_name, instance_port), which merely echoes the arguments back as computed values. No worked example to read a separator from. Left unadmitted."
+    },
+    "aws_load_balancer_listener_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_load_balancer_listener_policy.html.markdown has no Import section - the page ends at Attribute Reference (id, load_balancer_name, load_balancer_port). No worked example to read a separator from. Left unadmitted."
+    },
+    "aws_load_balancer_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_load_balancer_policy.html.markdown has no Import section - the page ends at Attribute Reference (id, policy_name, policy_type_name, load_balancer_name). No worked example to read a separator from. Left unadmitted."
+    },
     "aws_m2_deployment": {
       "recovered_from": [
         "live/e2e/estates/remainder/README.md"
@@ -383,6 +419,9 @@
     },
     "aws_pinpoint_app": {
       "reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but live/residue.go's DeprecatedServices roster hand-excludes the entire aws_pinpoint_ prefix: AWS announced Pinpoint end-of-support for October 30, 2026, folding existing functionality into End User Messaging, and internal/live/lint/residue_test.go's TestRefusalNamesDeprecatedServiceCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and contradicts the maintainer's own deprecated-service policy, which is not an identity-correctness question this batch's evidence can override. Left unadmitted."
+    },
+    "aws_proxy_protocol_policy": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::ElasticLoadBalancing::LoadBalancer (parent aws_elb, already admitted), but aws_proxy_protocol_policy.html.markdown has no Import section - the page ends at Attribute Reference (id, load_balancer). No worked example to read a separator from, and the second required argument (instance_ports) is a list, not a scalar, so even a guessed single-value join would misrepresent the shape. Left unadmitted."
     },
     "aws_qldb_stream": {
       "recovered_from": [
@@ -425,6 +464,9 @@
         "live/e2e/estates/remainder/README.md"
       ],
       "reason": "misclassified as server-assigned (registry primaryIdentifier is the single opaque field Id) when both real identity components - configuration_set_name and event_destination_name - are plain Required arguments on this resource; the Import section documents `configuration_set_name|event_destination_name`, not a server-minted value at all. Left unadmitted."
+    },
+    "aws_shield_application_layer_automatic_response": {
+      "reason": "issue #245's 'fold-child' slice: property-child of AWS::Shield::Protection (parent aws_shield_protection, already admitted), but aws_shield_application_layer_automatic_response.html.markdown has no Import section at all - \"This resource exports no additional attributes\" and no `terraform import` example anywhere on the page, unlike its sibling aws_shield_protection_health_check_association (which IS documented and was ratified). Left unadmitted."
     },
     "aws_ssm_document": {
       "reason": "identity verifies cleanly (client-named via name, confirmed against the provider's own Identity Schema, v6.59.0 Required: name) but live/residue.go's hand-curated emulatorBlocked roster excludes it outright: \"floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)\", and internal/live/lint/residue_test.go's TestRefusalNamesEmulatorBlockedCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and outruns what this batch's e2e/floci validation can confirm. Left unadmitted."

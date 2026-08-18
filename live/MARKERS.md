@@ -579,7 +579,7 @@ be the stable integration surface a future tool builds against.
 An estate is inherited by being granted access to it, and this is the grant.
 The marker is an ordinary resource tag, so on a type that has tags IAM can
 condition on it directly through `aws:ResourceTag`, with no second permission
-model to keep in sync. That is <!-- survey-gen:begin marker-governable-count -->680 of the 976<!-- survey-gen:end marker-governable-count -->
+model to keep in sync. That is <!-- survey-gen:begin marker-governable-count -->680 of the 997<!-- survey-gen:end marker-governable-count -->
 admitted AWS resource types; "What this grant cannot reach" below is the
 rest, and it is a real gap rather than a caveat.
 
@@ -701,24 +701,25 @@ nothing else. Both keys are ordinary resource tags, which is the whole reason
 the substitution works.
 
 <!-- survey-gen:begin marker-governable-gap -->
-296 of the 976 admitted AWS resource types carry no `tags` argument at all (`live/survey-full.json`'s taggability signal, joined to the admission table). A resource of one of those types carries `tofu-estate` no more than it carries `tofu-address`, so both conditions above are unmatched on it and both statements convey nothing about it. If a principal can act on such a resource, the grant is wider than its condition, and keeping the two in step is a second permission model. The top of this section says there is not one. There is, for these 296 types.
+317 of the 997 admitted AWS resource types carry no `tags` argument at all (`live/survey-full.json`'s taggability signal, joined to the admission table). A resource of one of those types carries `tofu-estate` no more than it carries `tofu-address`, so both conditions above are unmatched on it and both statements convey nothing about it. If a principal can act on such a resource, the grant is wider than its condition, and keeping the two in step is a second permission model. The top of this section says there is not one. There is, for these 317 types.
 
-This is not the markerless veto. The 140 types in `internal/live/identity`'s `MarkerlessTypes` are untaggable *and* server-minted, and none of them is admitted, so no estate contains one. The 296 here are admitted: a configuration declares them and this fork manages them, identified from the declaration itself rather than from a tag, which is what the client-named, parent-derived and account-derived admission paths mean. Being identifiable without a tag is a different property from being governable by one, and only the second is what an IAM condition needs.
+This is not the markerless veto. The 140 types in `internal/live/identity`'s `MarkerlessTypes` are untaggable *and* server-minted, and none of them is admitted, so no estate contains one. The 317 here are admitted: a configuration declares them and this fork manages them, identified from the declaration itself rather than from a tag, which is what the client-named, parent-derived and account-derived admission paths mean. Being identifiable without a tag is a different property from being governable by one, and only the second is what an IAM condition needs.
 
-They span 89 CloudFormation services.
+They span 95 CloudFormation services.
 
 <details>
 <summary>Untaggable admitted types per service</summary>
 
 | Service | Untaggable | Admitted in this service |
 |---|---|---|
-| EC2 | 28 | 94 |
+| EC2 | 29 | 95 |
+| S3 | 12 | 14 |
 | ApiGateway | 11 | 19 |
 | Cognito | 10 | 12 |
-| S3 | 9 | 11 |
+| IAM | 8 | 17 |
 | SSO | 8 | 10 |
 | WorkSpacesWeb | 8 | 18 |
-| IAM | 7 | 16 |
+| Lightsail | 7 | 15 |
 | ECR | 6 | 8 |
 | Events | 6 | 8 |
 | Glue | 6 | 18 |
@@ -738,10 +739,12 @@ They span 89 CloudFormation services.
 | AppStream | 3 | 6 |
 | AppSync | 3 | 6 |
 | Config | 3 | 6 |
+| EFS | 3 | 5 |
 | Lambda | 3 | 7 |
-| Lightsail | 3 | 11 |
 | OpenSearchServerless | 3 | 5 |
 | RDS | 3 | 17 |
+| Redshift | 3 | 7 |
+| SecretsManager | 3 | 4 |
 | WAFv2 | 3 | 7 |
 | ARCZonalShift | 2 | 2 |
 | BedrockAgentCore | 2 | 15 |
@@ -749,10 +752,10 @@ They span 89 CloudFormation services.
 | CodeArtifact | 2 | 4 |
 | EMR | 2 | 4 |
 | LakeFormation | 2 | 2 |
-| Redshift | 2 | 6 |
+| RAM | 2 | 4 |
 | S3ObjectLambda | 2 | 2 |
+| S3Outposts | 2 | 3 |
 | SMSVOICE | 2 | 7 |
-| SecretsManager | 2 | 3 |
 | SecurityHub | 2 | 7 |
 | VpcLattice | 2 | 14 |
 | ACMPCA | 1 | 2 |
@@ -766,14 +769,17 @@ They span 89 CloudFormation services.
 | CodeDeploy | 1 | 3 |
 | Connect | 1 | 12 |
 | ControlTower | 1 | 3 |
+| DataPipeline | 1 | 2 |
 | DataZone | 1 | 2 |
 | Detective | 1 | 2 |
 | DevOpsGuru | 1 | 1 |
 | ECS | 1 | 9 |
 | EKS | 1 | 8 |
 | ElastiCache | 1 | 8 |
+| ElasticLoadBalancing | 1 | 2 |
 | FIS | 1 | 2 |
 | FSx | 1 | 10 |
+| Grafana | 1 | 2 |
 | GuardDuty | 1 | 7 |
 | IoT | 1 | 11 |
 | KMS | 1 | 4 |
@@ -781,13 +787,12 @@ They span 89 CloudFormation services.
 | Lex | 1 | 2 |
 | Location | 1 | 6 |
 | NetworkFirewall | 1 | 6 |
+| Organizations | 1 | 5 |
 | PaymentCryptography | 1 | 2 |
 | QuickSight | 1 | 9 |
-| RAM | 1 | 3 |
 | ResourceGroups | 1 | 2 |
 | Route53Resolver | 1 | 7 |
 | S3Files | 1 | 3 |
-| S3Outposts | 1 | 2 |
 | S3Tables | 1 | 2 |
 | S3Vectors | 1 | 3 |
 | SNS | 1 | 2 |
@@ -796,6 +801,7 @@ They span 89 CloudFormation services.
 | Scheduler | 1 | 2 |
 | ServiceCatalogAppRegistry | 1 | 3 |
 | ServiceDiscovery | 1 | 5 |
+| Shield | 1 | 3 |
 | Signer | 1 | 1 |
 | Synthetics | 1 | 3 |
 | Transfer | 1 | 9 |
@@ -808,7 +814,7 @@ They span 89 CloudFormation services.
 
 **What to use instead, for those types.** The reachable scope is the ordinary one: a `Resource` ARN in the statement, the service's own resource policy, the account, the region. That is coarser than a marker and it is maintained beside the estate instead of by it, so it has to be revisited when the estate changes. This fork does not narrow it and does not claim to.
 
-**The count is a floor.** It is a fact about 976 types, and a taggable type can still go unmarked in one particular configuration - a resource declared inside a `for_each`'d module body, a `tags` argument this pass can neither read nor merge into. Those are properties of a configuration rather than of a type, so nothing here counts them; `internal/live/stamp` reports each one as a skip when it happens.
+**The count is a floor.** It is a fact about 997 types, and a taggable type can still go unmarked in one particular configuration - a resource declared inside a `for_each`'d module body, a `tags` argument this pass can neither read nor merge into. Those are properties of a configuration rather than of a type, so nothing here counts them; `internal/live/stamp` reports each one as a skip when it happens.
 
 **One further limit, on the within-estate half only.** An escaped `tofu-address` longer than one tag value is split across `tofu-address-2` through `tofu-address-4` (see "`tofu-address` continuation tags"), so `StringEquals` on `aws:ResourceTag/tofu-address` is compared against the first chunk alone. For such an address the condition is a prefix test over a value this grammar says is meaningless on its own, and it should not be written. The across-estate half is unaffected: `tofu-estate`'s own grammar caps it at 128 characters, so it never splits.
 <!-- survey-gen:end marker-governable-gap -->

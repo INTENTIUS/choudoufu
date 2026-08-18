@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 990,
-    "compared": 976,
+    "admitted_total": 1011,
+    "compared": 997,
     "not_in_mapped_set": 14,
     "adopted_unchanged": 854,
-    "adopted_unchanged_pct": 87.5,
-    "genuine_mismatches": 122,
-    "annotated": 122,
+    "adopted_unchanged_pct": 85.66,
+    "genuine_mismatches": 143,
+    "annotated": 143,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 26
   },
@@ -283,9 +283,9 @@
       "adopted_unchanged_pct": 100
     },
     "DataPipeline": {
-      "compared": 1,
+      "compared": 2,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 50
     },
     "DataSync": {
       "compared": 13,
@@ -328,9 +328,9 @@
       "adopted_unchanged_pct": 100
     },
     "EC2": {
-      "compared": 94,
+      "compared": 95,
       "adopted_unchanged": 77,
-      "adopted_unchanged_pct": 81.91
+      "adopted_unchanged_pct": 81.05
     },
     "ECR": {
       "compared": 8,
@@ -343,9 +343,9 @@
       "adopted_unchanged_pct": 100
     },
     "EFS": {
-      "compared": 2,
+      "compared": 5,
       "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 40
     },
     "EKS": {
       "compared": 8,
@@ -378,9 +378,9 @@
       "adopted_unchanged_pct": 50
     },
     "ElasticLoadBalancing": {
-      "compared": 1,
+      "compared": 2,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 50
     },
     "ElasticLoadBalancingV2": {
       "compared": 14,
@@ -438,9 +438,9 @@
       "adopted_unchanged_pct": 72.22
     },
     "Grafana": {
-      "compared": 1,
+      "compared": 2,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 50
     },
     "GuardDuty": {
       "compared": 7,
@@ -448,9 +448,9 @@
       "adopted_unchanged_pct": 100
     },
     "IAM": {
-      "compared": 16,
+      "compared": 17,
       "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 68.75
+      "adopted_unchanged_pct": 64.71
     },
     "IVS": {
       "compared": 2,
@@ -543,9 +543,9 @@
       "adopted_unchanged_pct": 50
     },
     "Lightsail": {
-      "compared": 11,
+      "compared": 15,
       "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 90.91
+      "adopted_unchanged_pct": 66.67
     },
     "Location": {
       "compared": 6,
@@ -658,9 +658,9 @@
       "adopted_unchanged_pct": 100
     },
     "Organizations": {
-      "compared": 4,
+      "compared": 5,
       "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 80
     },
     "PaymentCryptography": {
       "compared": 2,
@@ -688,9 +688,9 @@
       "adopted_unchanged_pct": 0
     },
     "RAM": {
-      "compared": 3,
+      "compared": 4,
       "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 75
     },
     "RDS": {
       "compared": 17,
@@ -708,9 +708,9 @@
       "adopted_unchanged_pct": 0
     },
     "Redshift": {
-      "compared": 6,
+      "compared": 7,
       "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 83.33
+      "adopted_unchanged_pct": 71.43
     },
     "RedshiftServerless": {
       "compared": 2,
@@ -773,9 +773,9 @@
       "adopted_unchanged_pct": 85.71
     },
     "S3": {
-      "compared": 11,
+      "compared": 14,
       "adopted_unchanged": 11,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 78.57
     },
     "S3Express": {
       "compared": 1,
@@ -793,9 +793,9 @@
       "adopted_unchanged_pct": 100
     },
     "S3Outposts": {
-      "compared": 2,
+      "compared": 3,
       "adopted_unchanged": 2,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 66.67
     },
     "S3Tables": {
       "compared": 2,
@@ -863,9 +863,9 @@
       "adopted_unchanged_pct": 100
     },
     "SecretsManager": {
-      "compared": 3,
+      "compared": 4,
       "adopted_unchanged": 3,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 75
     },
     "SecurityHub": {
       "compared": 7,
@@ -893,9 +893,9 @@
       "adopted_unchanged_pct": 100
     },
     "Shield": {
-      "compared": 2,
+      "compared": 3,
       "adopted_unchanged": 1,
-      "adopted_unchanged_pct": 50
+      "adopted_unchanged_pct": 33.33
     },
     "Signer": {
       "compared": 1,
@@ -1403,6 +1403,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_app_cookie_stickiness_policy",
+      "service": "ElasticLoadBalancing",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::ElasticLoadBalancing::LoadBalancer",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'my-elb:80:my-policy' joins an ELB name, a numeric port and a policy name with no argument name token in any segment; the numeric port defeats name-token attribution the same way aws_alb_target_group_attachment's port segment does. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_appautoscaling_policy",
@@ -3536,6 +3551,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_datapipeline_pipeline_definition",
+      "service": "DataPipeline",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::DataPipeline::Pipeline",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'df-1234567890' is a single opaque server-assigned pipeline id with no separator at all, so there is nothing for a composite rule to split - it reads as a plain client-named proposal except that the argument (pipeline_id) is itself the parent's own identity, which is the fold shape issue #68 built for. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_datasync_agent",
       "service": "DataSync",
       "proposed_bucket": "server-assigned",
@@ -4779,6 +4809,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_efs_backup_policy",
+      "service": "EFS",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EFS::FileSystem",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'fs-6fa144c6' is a single opaque file-system id with no separator, the same shape as aws_efs_file_system_policy and aws_efs_replication_configuration below - a singleton per-parent configuration whose whole identity is the parent's own id, restated under the child's own argument name. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_efs_file_system",
       "service": "EFS",
       "proposed_bucket": "server-assigned",
@@ -4788,6 +4833,36 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_efs_file_system_policy",
+      "service": "EFS",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EFS::FileSystem",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'fs-6fa144c6' is a single opaque file-system id with no separator, the same singleton shape as aws_efs_backup_policy. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
+      "tf_type": "aws_efs_replication_configuration",
+      "service": "EFS",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EFS::FileSystem",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'fs-id' is a single opaque file-system id with no separator, the same singleton shape as its two efs_* siblings; the child's own argument supplying it is named source_file_system_id rather than file_system_id, confirmed against the Argument Reference rather than assumed from the sibling rows. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_egress_only_internet_gateway",
@@ -5569,6 +5644,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_grafana_workspace_saml_configuration",
+      "service": "Grafana",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Grafana::Workspace",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'g-2054c75a02' is a single opaque workspace id with no separator - a singleton per-workspace configuration whose whole identity is the parent workspace's own server-assigned id. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_guardduty_detector",
       "service": "GuardDuty",
       "proposed_bucket": "server-assigned",
@@ -5862,6 +5952,21 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The documented import ID is a scalar segment followed by ONE SEGMENT PER ELEMENT of a collection-typed argument (user1/group1/group2), so the number of segments is a property of the configuration rather than of the type. Every grammar rule in importprecedence.go compares a fixed segment count against a fixed argument count, and this row has two arguments against three example segments, so the arity check refuses. Closing the gap needs the classifier to know that `groups` is a COLLECTION: the provider's schema says set(string), but the only per-argument facts the scrape carries are the argument's name and whether it is required, and live/survey-full.json carries signals rather than attribute types. The ratified row states the shape the doc states in prose (\"the user name and group names separated by /\")."
+    },
+    {
+      "tf_type": "aws_iam_user_login_profile",
+      "service": "IAM",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::IAM::User",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'myusername' is a single plain name with no separator - a singleton per-user configuration whose whole identity is the parent IAM user's own name. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_iam_user_policy",
@@ -6761,6 +6866,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_lightsail_bucket_resource_access",
+      "service": "Lightsail",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Lightsail::Bucket",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'example-bucket,example-instance' pairs a bucket name with a resource name, both opaque client-chosen strings carrying no argument name token the composite rules can match by name. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_lightsail_certificate",
       "service": "Lightsail",
       "proposed_bucket": "client-named",
@@ -6828,6 +6948,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_lightsail_domain_entry",
+      "service": "Lightsail",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Lightsail::Domain",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'www,example.com,A,127.0.0.1' has four comma-joined segments (entry name, domain, record type, target value); all four are opaque client-chosen or free-form values with no argument name token the composite rules can match by name. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_lightsail_instance",
       "service": "Lightsail",
       "proposed_bucket": "client-named",
@@ -6850,6 +6985,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_lightsail_lb_attachment",
+      "service": "Lightsail",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Lightsail::LoadBalancer",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'example-load-balancer,example-instance' pairs a load-balancer name with an instance name, both opaque client-chosen strings carrying no argument name token the composite rules can match by name. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_lightsail_lb_certificate",
       "service": "Lightsail",
       "proposed_bucket": "needs-hand-separator",
@@ -6863,6 +7013,21 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "The registry names a composite and no schema carries the separator, so the proposal deliberately claims nothing; the ratified row is the ratifiers' own reading of the doc page, pairing each segment of the example with its argument by eye. The fail-closed derivation (order recovered from the string, full arity, name-token match - the aws_route trap's guards) cannot attribute these segments without guessing: the example's values are placeholders or opaque identifiers that carry no argument's name token."
+    },
+    {
+      "tf_type": "aws_lightsail_lb_certificate_attachment",
+      "service": "Lightsail",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Lightsail::LoadBalancerTlsCertificate",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'example-load-balancer,example-certificate' pairs a load-balancer name with a certificate name, both opaque client-chosen strings; the parent's own identity (aws_lightsail_lb_certificate) is itself a composite of lb_name and name, restated here verbatim under the child's own argument names. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_lightsail_static_ip",
@@ -7998,6 +8163,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_organizations_policy_attachment",
+      "service": "Organizations",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Organizations::Policy",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example '123456789012:p-12345678' pairs a target id (account/OU/root, format varies by target kind) with an opaque policy id; the provider's newer plugin-framework Identity Schema also documents the same two required fields (policy_id, target_id) directly, but that schema path is not one classify.go's fold-child bucket reads from for Components today. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_organizations_resource_policy",
       "service": "Organizations",
       "proposed_bucket": "server-assigned",
@@ -8376,6 +8556,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ram_principal_association",
+      "service": "RAM",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::RAM::ResourceShare",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a full resource-share ARN with a principal (an account id, an Organizations ARN, or an OU ARN - three different shapes for the same argument), so a fixed arity/token match over the principal segment would be wrong for two of the three valid forms even where the resource-share ARN segment is attributable. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_ram_resource_association",
       "service": "RAM",
       "proposed_bucket": "composite",
@@ -8537,6 +8732,21 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "registry primary_identifier=[ClusterIdentifier, Account] is composite; the classifier proposes no row. The ratified row is account then cluster_identifier, colon-joined, following the doc's own order (which differs from the registry's ClusterIdentifier-first order) - both are real, Required Argument Reference entries."
+    },
+    {
+      "tf_type": "aws_redshift_logging",
+      "service": "Redshift",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Redshift::Cluster",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'cluster-id-12345678' is a single client-named cluster identifier with no separator - a singleton per-cluster configuration whose whole identity is the parent cluster's own identifier. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_redshift_parameter_group",
@@ -9103,12 +9313,42 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_s3_bucket_analytics_configuration",
+      "service": "S3",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the scraped Identity Schema for this row lists only [bucket], one fewer than the two components the doc's own worked example and Argument Reference actually require (bucket and the configuration's own name), so even a successful arity match against that schema would build the wrong (single-component) row. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_s3_bucket_intelligent_tiering_configuration",
       "service": "S3",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_inventory",
+      "service": "S3",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the scraped Identity Schema for this row lists only [bucket], one fewer than the two components the doc's own worked example and Argument Reference actually require (bucket and the configuration's own name), so even a successful arity match against that schema would build the wrong (single-component) row. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_s3_bucket_lifecycle_configuration",
@@ -9121,6 +9361,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_s3_bucket_metric",
+      "service": "S3",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::S3::Bucket",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the scraped Identity Schema for this row lists only [bucket], one fewer than the two components the doc's own worked example and Argument Reference actually require (bucket and the configuration's own name), so even a successful arity match against that schema would build the wrong (single-component) row. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_s3_bucket_object_lock_configuration",
@@ -9215,6 +9470,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_s3control_bucket_lifecycle_configuration",
+      "service": "S3Outposts",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::S3Outposts::Bucket",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example is a single S3 Outposts bucket ARN with no separator - a singleton per-bucket configuration whose whole identity is the parent bucket's own ARN. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_s3control_bucket_policy",
@@ -9741,6 +10011,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_secretsmanager_tag",
+      "service": "SecretsManager",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::SecretsManager::Secret",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a full secret ARN with a tag key; the ARN segment defeats name-token attribution the same way every ARN-embedding fold row in this ledger does, and the key argument, unlike aws_autoscaling_group_tag's, is a genuine top-level Required argument rather than nested inside a sub-block, confirmed against the Argument Reference before ratifying. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
+    },
+    {
       "tf_type": "aws_security_group",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
@@ -10257,6 +10542,21 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_shield_protection_health_check_association",
+      "service": "Shield",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::Shield::Protection",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'ff9592dc-...+arn:aws:route53:::healthcheck/...' joins an opaque protection id and a full ARN with '+', a separator none of the composite rules' separator vocabulary matches (the existing rules cover ',', '/', ':', '_'). The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_signer_signing_profile_permission",
@@ -10845,6 +11145,21 @@
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_verifiedaccess_instance_logging_configuration",
+      "service": "EC2",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::EC2::VerifiedAccessInstance",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example 'vai-1234567890abcdef0' is a single opaque instance id with no separator - a singleton per-instance configuration whose whole identity is the parent Verified Access instance's own server-assigned id. The ratified row is the ratifiers' reading of the provider's own Import section and Argument Reference."
     },
     {
       "tf_type": "aws_verifiedaccess_instance_trust_provider_attachment",

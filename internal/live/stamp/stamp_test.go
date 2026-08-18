@@ -634,6 +634,34 @@ var (
 		"aws_ssm_maintenance_window_target",
 		"aws_vpc_route_server_propagation",
 		"aws_vpc_route_server_vpc_association",
+
+		// Issue #245's "fold-child" slice, ratified into
+		// tools/row-gen/ratified.json: all 21 of the batch's new rows are
+		// untaggable, per live/survey-full.json's signals.taggable - every
+		// one is a property-child whose identity folds from an
+		// already-admitted parent's own tuple plus the child's own
+		// arguments, and none of them carries its own tags argument.
+		"aws_app_cookie_stickiness_policy",
+		"aws_shield_protection_health_check_association",
+		"aws_datapipeline_pipeline_definition",
+		"aws_efs_backup_policy",
+		"aws_efs_file_system_policy",
+		"aws_efs_replication_configuration",
+		"aws_grafana_workspace_saml_configuration",
+		"aws_iam_user_login_profile",
+		"aws_lightsail_bucket_resource_access",
+		"aws_lightsail_domain_entry",
+		"aws_lightsail_lb_attachment",
+		"aws_lightsail_lb_certificate_attachment",
+		"aws_organizations_policy_attachment",
+		"aws_ram_principal_association",
+		"aws_redshift_logging",
+		"aws_s3_bucket_analytics_configuration",
+		"aws_s3_bucket_inventory",
+		"aws_s3_bucket_metric",
+		"aws_s3control_bucket_lifecycle_configuration",
+		"aws_secretsmanager_tag",
+		"aws_verifiedaccess_instance_logging_configuration",
 	}
 )
 
@@ -1213,6 +1241,31 @@ func testSchemas() Schemas {
 		"aws_ssm_maintenance_window_target":                  untaggedSchema("id", "window_id", "resource_type"),
 		"aws_vpc_route_server_propagation":                   untaggedSchema("id", "route_server_id", "route_table_id"),
 		"aws_vpc_route_server_vpc_association":               untaggedSchema("id", "route_server_id", "vpc_id"),
+
+		// Issue #245's "fold-child" slice, ratified into
+		// tools/row-gen/ratified.json - all untaggable per
+		// live/survey-full.json's signals.taggable.
+		"aws_app_cookie_stickiness_policy":                  untaggedSchema("id", "load_balancer", "lb_port", "name", "cookie_name"),
+		"aws_shield_protection_health_check_association":    untaggedSchema("id", "shield_protection_id", "health_check_arn"),
+		"aws_datapipeline_pipeline_definition":              untaggedSchema("id", "pipeline_id"),
+		"aws_efs_backup_policy":                             untaggedSchema("id", "file_system_id"),
+		"aws_efs_file_system_policy":                        untaggedSchema("id", "file_system_id", "policy"),
+		"aws_efs_replication_configuration":                 untaggedSchema("id", "source_file_system_id"),
+		"aws_grafana_workspace_saml_configuration":          untaggedSchema("id", "workspace_id", "editor_role_values"),
+		"aws_iam_user_login_profile":                        untaggedSchema("id", "user"),
+		"aws_lightsail_bucket_resource_access":              untaggedSchema("id", "bucket_name", "resource_name"),
+		"aws_lightsail_domain_entry":                        untaggedSchema("id", "domain_name", "name", "type", "target"),
+		"aws_lightsail_lb_attachment":                       untaggedSchema("id", "lb_name", "instance_name"),
+		"aws_lightsail_lb_certificate_attachment":           untaggedSchema("id", "lb_name", "certificate_name"),
+		"aws_organizations_policy_attachment":               untaggedSchema("id", "policy_id", "target_id"),
+		"aws_ram_principal_association":                     untaggedSchema("id", "resource_share_arn", "principal"),
+		"aws_redshift_logging":                              untaggedSchema("id", "cluster_identifier"),
+		"aws_s3_bucket_analytics_configuration":             untaggedSchema("id", "bucket", "name"),
+		"aws_s3_bucket_inventory":                           untaggedSchema("id", "bucket", "name"),
+		"aws_s3_bucket_metric":                              untaggedSchema("id", "bucket", "name"),
+		"aws_s3control_bucket_lifecycle_configuration":      untaggedSchema("id", "bucket"),
+		"aws_secretsmanager_tag":                            untaggedSchema("id", "secret_id", "key", "value"),
+		"aws_verifiedaccess_instance_logging_configuration": untaggedSchema("id", "verifiedaccess_instance_id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.

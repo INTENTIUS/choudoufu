@@ -701,6 +701,36 @@
       "id"
     ]
   },
+  "aws_app_cookie_stickiness_policy": {
+    "type": "aws_app_cookie_stickiness_policy",
+    "components": [
+      {
+        "attrs": [
+          "load_balancer"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "lb_port"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "LOADBALANCER:LBPORT:NAME"
+  },
   "aws_appautoscaling_policy": {
     "type": "aws_appautoscaling_policy",
     "components": [
@@ -3455,6 +3485,18 @@
     "reason": "the DataPipeline service assigns this identity at create time; no argument reconstructs it.",
     "import_syntax": "PIPELINEID"
   },
+  "aws_datapipeline_pipeline_definition": {
+    "type": "aws_datapipeline_pipeline_definition",
+    "components": [
+      {
+        "attrs": [
+          "pipeline_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "PIPELINEID"
+  },
   "aws_datasync_agent": {
     "type": "aws_datasync_agent",
     "server_assigned": true,
@@ -4906,6 +4948,18 @@
       "id"
     ]
   },
+  "aws_efs_backup_policy": {
+    "type": "aws_efs_backup_policy",
+    "components": [
+      {
+        "attrs": [
+          "file_system_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FILESYSTEMID"
+  },
   "aws_efs_file_system": {
     "type": "aws_efs_file_system",
     "server_assigned": true,
@@ -4914,6 +4968,30 @@
     "identity_attrs": [
       "id"
     ]
+  },
+  "aws_efs_file_system_policy": {
+    "type": "aws_efs_file_system_policy",
+    "components": [
+      {
+        "attrs": [
+          "file_system_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FILESYSTEMID"
+  },
+  "aws_efs_replication_configuration": {
+    "type": "aws_efs_replication_configuration",
+    "components": [
+      {
+        "attrs": [
+          "source_file_system_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "SOURCEFILESYSTEMID"
   },
   "aws_egress_only_internet_gateway": {
     "type": "aws_egress_only_internet_gateway",
@@ -5949,6 +6027,18 @@
     "reason": "Grafana assigns the workspace's own id (g-...) at create time; every argument, including the optional name, describes the workspace but does not identify it.",
     "import_syntax": "ID"
   },
+  "aws_grafana_workspace_saml_configuration": {
+    "type": "aws_grafana_workspace_saml_configuration",
+    "components": [
+      {
+        "attrs": [
+          "workspace_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "WORKSPACEID"
+  },
   "aws_guardduty_detector": {
     "type": "aws_guardduty_detector",
     "server_assigned": true,
@@ -6313,6 +6403,18 @@
       }
     ],
     "import_syntax": "USERNAME/GROUPNAME1/GROUPNAME2..."
+  },
+  "aws_iam_user_login_profile": {
+    "type": "aws_iam_user_login_profile",
+    "components": [
+      {
+        "attrs": [
+          "user"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "USER"
   },
   "aws_iam_user_policy": {
     "type": "aws_iam_user_policy",
@@ -7538,6 +7640,27 @@
       "name"
     ]
   },
+  "aws_lightsail_bucket_resource_access": {
+    "type": "aws_lightsail_bucket_resource_access",
+    "components": [
+      {
+        "attrs": [
+          "bucket_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "resource_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKETNAME,RESOURCENAME"
+  },
   "aws_lightsail_certificate": {
     "type": "aws_lightsail_certificate",
     "components": [
@@ -7628,6 +7751,45 @@
       "domain_name"
     ]
   },
+  "aws_lightsail_domain_entry": {
+    "type": "aws_lightsail_domain_entry",
+    "components": [
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "domain_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "type"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "target"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAME,DOMAINNAME,TYPE,TARGET"
+  },
   "aws_lightsail_instance": {
     "type": "aws_lightsail_instance",
     "components": [
@@ -7658,6 +7820,27 @@
       "name"
     ]
   },
+  "aws_lightsail_lb_attachment": {
+    "type": "aws_lightsail_lb_attachment",
+    "components": [
+      {
+        "attrs": [
+          "lb_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "instance_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "LBNAME,INSTANCENAME"
+  },
   "aws_lightsail_lb_certificate": {
     "type": "aws_lightsail_lb_certificate",
     "components": [
@@ -7673,6 +7856,27 @@
       {
         "attrs": [
           "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "LBNAME,CERTIFICATENAME"
+  },
+  "aws_lightsail_lb_certificate_attachment": {
+    "type": "aws_lightsail_lb_certificate_attachment",
+    "components": [
+      {
+        "attrs": [
+          "lb_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "certificate_name"
         ],
         "identity_attr": "*"
       }
@@ -9033,6 +9237,27 @@
       "id"
     ]
   },
+  "aws_organizations_policy_attachment": {
+    "type": "aws_organizations_policy_attachment",
+    "components": [
+      {
+        "attrs": [
+          "target_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "policy_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "TARGETID:POLICYID"
+  },
   "aws_organizations_resource_policy": {
     "type": "aws_organizations_resource_policy",
     "server_assigned": true,
@@ -9511,6 +9736,27 @@
       "arn"
     ]
   },
+  "aws_ram_principal_association": {
+    "type": "aws_ram_principal_association",
+    "components": [
+      {
+        "attrs": [
+          "resource_share_arn"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "principal"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "RESOURCESHAREARN,PRINCIPAL"
+  },
   "aws_ram_resource_association": {
     "type": "aws_ram_resource_association",
     "components": [
@@ -9746,6 +9992,18 @@
       }
     ],
     "import_syntax": "ACCOUNT:CLUSTER_IDENTIFIER"
+  },
+  "aws_redshift_logging": {
+    "type": "aws_redshift_logging",
+    "components": [
+      {
+        "attrs": [
+          "cluster_identifier"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "CLUSTERIDENTIFIER"
   },
   "aws_redshift_parameter_group": {
     "type": "aws_redshift_parameter_group",
@@ -10432,8 +10690,50 @@
       "bucket"
     ]
   },
+  "aws_s3_bucket_analytics_configuration": {
+    "type": "aws_s3_bucket_analytics_configuration",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET:NAME"
+  },
   "aws_s3_bucket_intelligent_tiering_configuration": {
     "type": "aws_s3_bucket_intelligent_tiering_configuration",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET:NAME"
+  },
+  "aws_s3_bucket_inventory": {
+    "type": "aws_s3_bucket_inventory",
     "components": [
       {
         "attrs": [
@@ -10468,6 +10768,27 @@
       "id",
       "bucket"
     ]
+  },
+  "aws_s3_bucket_metric": {
+    "type": "aws_s3_bucket_metric",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ":"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET:NAME"
   },
   "aws_s3_bucket_object_lock_configuration": {
     "type": "aws_s3_bucket_object_lock_configuration",
@@ -10588,6 +10909,18 @@
     "identity_attrs": [
       "arn"
     ]
+  },
+  "aws_s3control_bucket_lifecycle_configuration": {
+    "type": "aws_s3control_bucket_lifecycle_configuration",
+    "components": [
+      {
+        "attrs": [
+          "bucket"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "BUCKET"
   },
   "aws_s3control_bucket_policy": {
     "type": "aws_s3control_bucket_policy",
@@ -11433,6 +11766,27 @@
       "secret_id"
     ]
   },
+  "aws_secretsmanager_tag": {
+    "type": "aws_secretsmanager_tag",
+    "components": [
+      {
+        "attrs": [
+          "secret_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "key"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "SECRETID,KEY"
+  },
   "aws_security_group": {
     "type": "aws_security_group",
     "server_assigned": true,
@@ -12162,6 +12516,27 @@
     "identity_attrs": [
       "protection_group_id"
     ]
+  },
+  "aws_shield_protection_health_check_association": {
+    "type": "aws_shield_protection_health_check_association",
+    "components": [
+      {
+        "attrs": [
+          "shield_protection_id"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "+"
+      },
+      {
+        "attrs": [
+          "health_check_arn"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "SHIELDPROTECTIONID+HEALTHCHECKARN"
   },
   "aws_signer_signing_profile_permission": {
     "type": "aws_signer_signing_profile_permission",
@@ -12984,6 +13359,18 @@
     "type": "aws_verifiedaccess_instance",
     "server_assigned": true,
     "reason": "the EC2 service assigns this identity at create time; no argument reconstructs it.",
+    "import_syntax": "VERIFIEDACCESSINSTANCEID"
+  },
+  "aws_verifiedaccess_instance_logging_configuration": {
+    "type": "aws_verifiedaccess_instance_logging_configuration",
+    "components": [
+      {
+        "attrs": [
+          "verifiedaccess_instance_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
     "import_syntax": "VERIFIEDACCESSINSTANCEID"
   },
   "aws_verifiedaccess_instance_trust_provider_attachment": {
