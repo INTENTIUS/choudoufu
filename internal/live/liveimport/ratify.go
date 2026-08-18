@@ -189,7 +189,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
-	if _, admitted := identity.LookupType(typeName); !admitted {
+	if _, admitted := identity.LookupType(typeName); !admitted && !admittedByProviderSchema(ctx, req, res, typeName) {
 		entry.Status = StatusUnadmittedType
 		entry.Detail = fmt.Sprintf(
 			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
@@ -297,6 +297,34 @@ func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 		Provider: addrs.ImpliedProviderForUnqualifiedType(res.Addr.Resource.ImpliedProvider()),
 		Alias:    res.ProviderConfig.Alias,
 	}
+}
+
+// admittedByProviderSchema is the schema-based admission fallback
+// internal/live/lint's admitted() already applies at plan/lint time
+// (identity.SynthesizeTypeIdentity): a type identity.DefaultTable does not
+// cover, but whose identity the provider's own schema settles completely
+// from a single required argument, the same way row-gen itself proposes a
+// [client-named] row. Without this, live-import refused to even read a
+// type that a plain live-plan over the identical configuration admits fine
+// - aws_s3_bucket_acl among six sibling aws_s3_bucket_* types, found
+// crossing terraform-aws-modules/terraform-aws-s3-bucket's "complete"
+// example, none of which have a static table row because the runtime
+// schema fallback already covers them everywhere else in this fork.
+//
+// Fetching the provider or its schema failing here is not itself reported:
+// it just means the fallback does not apply, and the caller's ordinary "no
+// identity knowledge" refusal stands exactly as it did before this existed.
+func admittedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
+	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
+	if err != nil {
+		return false
+	}
+	resp := provider.GetProviderSchema(ctx)
+	if resp.Diagnostics.HasErrors() {
+		return false
+	}
+	_, ok := identity.SynthesizeTypeIdentity(typeName, resp.ResourceTypes, nil)
+	return ok
 }
 
 func resourceSchema(ctx context.Context, provider providers.Interface, typeName string) (providers.Schema, error) {
