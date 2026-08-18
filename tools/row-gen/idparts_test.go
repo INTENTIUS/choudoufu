@@ -194,3 +194,45 @@ func TestTryDocNamedServerSegment_NoSeparatorRefuses(t *testing.T) {
 		t.Fatal("tryDocNamedServerSegment = true, want false (no separator)")
 	}
 }
+
+// TestTryDocNamedServerSegment_QuickSightFolderShape is issue #296's exit:
+// the doc's per-segment attribution names "folder ID name" as an Attribute
+// Reference export (importdocs-gen's best guess about which section defines
+// the segment), but `folder_id` is ALSO independently documented as a
+// Required, Forces-new Argument Reference bullet on the very same page - a
+// real, client-supplied argument, not a computed one. The values here are
+// aws_quicksight_folder's actual live/import-grammar.json row. Before this
+// issue's fix, docNamesServerSegment took the "attribute" attribution at
+// face value and this rule wrongly promoted the type to server-assigned;
+// the fix (routing through docMintedSegment, which subtracts
+// ArgumentNamesAnyDepth) must decline, leaving the type for the
+// argument-reconstruction rules that correctly bucket the other nine
+// CFN-modeled aws_quicksight_* types "needs hand separator".
+func TestTryDocNamedServerSegment_QuickSightFolderShape(t *testing.T) {
+	sep := ","
+	g := importGrammarRow{
+		TFType:          "aws_quicksight_folder",
+		ImportIDExample: "123456789012,example-id",
+		Separator:       &sep,
+		IDParts: []idPart{
+			{Token: "the AWS account ID", Source: "unknown"},
+			{Token: "folder ID name", Source: idPartSourceAttribute},
+		},
+		ArgumentNamesAnyDepth: []string{
+			"folder_id", "name", "aws_account_id", "folder_type",
+			"parent_folder_arn", "permissions", "region", "tags",
+			"actions", "principal",
+		},
+	}
+	p := proposal{
+		TFType:            "aws_quicksight_folder",
+		Bucket:            bucketNeedsHandSeparator,
+		PrimaryIdentifier: []string{"AwsAccountId", "FolderId"},
+	}
+	if tryDocNamedServerSegment(&p, g) {
+		t.Fatal("tryDocNamedServerSegment = true, want false (folder_id is independently a documented Argument Reference bullet, not server-minted)")
+	}
+	if p.Bucket != bucketNeedsHandSeparator {
+		t.Errorf("bucket = %s, want unchanged %s", p.Bucket, bucketNeedsHandSeparator)
+	}
+}

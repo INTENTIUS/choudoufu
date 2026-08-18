@@ -1178,19 +1178,37 @@ func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
 // that is not wholly read-only, so classify.go could settle nothing): when
 // the Import section's own prose names every segment of the documented
 // example and attributes at least one to the doc's own Attribute Reference
-// (importdocs-gen's per-segment attribution, issue #132), the ID carries a
+// AND that segment is not independently documented as a real, client-
+// supplied argument elsewhere in the same doc (docMintedSegment's own
+// ArgumentNamesAnyDepth subtraction - issue #242's fix for the veto,
+// extended here to this proposal-time rule by issue #296), the ID carries a
 // server-provided value no configuration argument supplies, so no
 // argument-reconstruction rule below can ever be right about this type -
 // the identity is server-assigned, discovered by listing, exactly what
-// WAFv2's "using `ID/Name/Scope`" (ID is the exported attribute) and
-// Transfer's "using the `server_id/agreement_id`" (agreement_id exported)
-// say outright. Tried before rules 4 and 5 because both try to reconstruct
-// a composite from argument names, and a doc-named server segment refutes
-// that reconstruction at the source: aws_ssoadmin_permission_set's example
-// happens to token-match the registry's two-ARN primaryIdentifier under
-// rule 5, but its own doc names the first segment `arn` - the exported
-// attribute - so the composite that reconstruction builds is one the
-// provider never accepts from configuration alone.
+// WAFv2's "using `ID/Name/Scope`" (ID is the exported attribute, and
+// neither "id" nor "ID" is ever a documented argument) and Transfer's
+// "using the `server_id/agreement_id`" (agreement_id exported) say
+// outright. Tried before rules 4 and 5 because both try to reconstruct a
+// composite from argument names, and a genuine doc-named server segment
+// refutes that reconstruction at the source: aws_ssoadmin_permission_set's
+// example happens to token-match the registry's two-ARN primaryIdentifier
+// under rule 5, but its own doc names the first segment `arn` - the
+// exported attribute, documented nowhere as an argument - so the composite
+// that reconstruction builds is one the provider never accepts from
+// configuration alone.
+//
+// aws_quicksight_folder is the counter-shape issue #296 found: its doc
+// attributes "folder ID name" to the Attribute Reference too, but
+// `folder_id` is ALSO independently documented as a Required, Forces-new
+// Argument Reference bullet on the very same page - the doc's own prose
+// attribution was importdocs-gen's best guess about which section defines
+// a segment, not proof that no OTHER section also defines it. Without the
+// cross-check this rule used to trust that guess outright and misclassify
+// every composite-of-real-arguments identity whose prose happens to echo
+// an argument name near "ID" the same way. docMintedSegment already
+// carries the correction (built for the markerless veto, issue #249) and
+// docNamesServerSegment does not, which is why this rule calls the former
+// instead of the latter.
 //
 // Claims no IdentityAttrs: which exported attribute (if any single one)
 // equals the whole joined ID is issue #44's declared non-goal, same as
@@ -1199,12 +1217,16 @@ func tryArgumentReferenceValueMatch(p *proposal, g importGrammarRow) bool {
 // prose segment names in their documented order around the pinned
 // separator - documentation only, per TypeIdentity's doc comment.
 func tryDocNamedServerSegment(p *proposal, g importGrammarRow) bool {
-	if !docNamesServerSegment(g) || g.Separator == nil {
+	if g.Separator == nil {
+		return false
+	}
+	segment, ok := docMintedSegment(g)
+	if !ok {
 		return false
 	}
 	p.Bucket = bucketServerAssigned
-	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration"
-	p.Notes = append(p.Notes, fmt.Sprintf("import docs name the ID's segments and attribute %s to the Attribute Reference, not the Argument Reference; a server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", serverSegmentTokens(g), quoteList(p.PrimaryIdentifier)))
+	p.Rule = "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration"
+	p.Notes = append(p.Notes, fmt.Sprintf("import docs attribute %q to the Attribute Reference and it is not independently documented as a configuration argument (nor covered by the provider's own Identity Schema); a genuinely server-provided segment makes the identity server-assigned despite the registry's composite primaryIdentifier %s", segment, quoteList(p.PrimaryIdentifier)))
 	return true
 }
 

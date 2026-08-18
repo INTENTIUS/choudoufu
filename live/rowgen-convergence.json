@@ -1388,7 +1388,7 @@
       "tf_type": "aws_appconfig_configuration_profile",
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1396,7 +1396,7 @@
       "tf_type": "aws_appconfig_deployment",
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1412,7 +1412,7 @@
       "tf_type": "aws_appconfig_environment",
       "service": "AppConfig",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -1915,7 +1915,7 @@
       "tf_type": "aws_bedrockagent_agent_alias",
       "service": "Bedrock",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -2130,7 +2130,7 @@
       "tf_type": "aws_budgets_budget_action",
       "service": "Budgets",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -4553,7 +4553,7 @@
       "tf_type": "aws_ecs_task_set",
       "service": "ECS",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -5377,7 +5377,7 @@
       "tf_type": "aws_guardduty_ipset",
       "service": "GuardDuty",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -5438,7 +5438,7 @@
       "tf_type": "aws_guardduty_publishing_destination",
       "service": "GuardDuty",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -5450,7 +5450,7 @@
       "tf_type": "aws_guardduty_threatintelset",
       "service": "GuardDuty",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
@@ -9804,7 +9804,7 @@
       "tf_type": "aws_ssoadmin_permission_set",
       "service": "SSO",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
@@ -9930,7 +9930,7 @@
       "tf_type": "aws_transfer_agreement",
       "service": "Transfer",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -10279,7 +10279,7 @@
       "tf_type": "aws_vpc_ipam_pool_cidr_allocation",
       "service": "EC2",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "matched": true,
       "annotated": false
     },
@@ -10602,7 +10602,7 @@
       "tf_type": "aws_wafv2_ip_set",
       "service": "WAFv2",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -10613,7 +10613,7 @@
       "tf_type": "aws_wafv2_regex_pattern_set",
       "service": "WAFv2",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -10624,7 +10624,7 @@
       "tf_type": "aws_wafv2_rule_group",
       "service": "WAFv2",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -10635,7 +10635,7 @@
       "tf_type": "aws_wafv2_web_acl",
       "service": "WAFv2",
       "proposed_bucket": "server-assigned",
-      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not a configuration argument, so the ID is not reconstructible from configuration",
+      "proposed_rule": "import-grammar precedence: the Import section's own prose names a segment that is an exported attribute, not independently documented as a configuration argument, so the ID is not reconstructible from configuration",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
