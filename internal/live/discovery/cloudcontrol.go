@@ -463,6 +463,117 @@ func importIDFromARN(ti identity.TypeIdentity, arnStr string) (importID, identit
 	if !parsed || a.ResourceID == "" {
 		return "", "", false
 	}
-	importID, composed := resolveCloudControlImportID(ti.Type, a.ResourceID)
+	// [arnCompositeImportID] rebuilds a.ResourceID into the provider's own
+	// documented import string for the handful of ARN shapes where
+	// [ParseARN]'s single first-separator cut does not land on it (issue
+	// #295's WAFv2 and GuardDuty cases). Every other shape - including one
+	// whose id itself legitimately contains "/", a CloudWatch Logs log
+	// group name, and Transfer's Agreement, whose ARN resource field
+	// already IS its documented "server_id/agreement_id" import string with
+	// no cut needed at all - passes through unchanged, exactly as before
+	// #295.
+	resourceID := a.ResourceID
+	if compose, found := arnCompositeImportID[a.Service][a.ResourceType]; found {
+		composed, composedOK := compose(a.ResourceID)
+		if !composedOK {
+			return "", "", false
+		}
+		resourceID = composed
+	}
+	importID, composed := resolveCloudControlImportID(ti.Type, resourceID)
 	return importID, "id", composed
+}
+
+// arnCompositeImportID rebuilds a.ResourceID into the provider's own
+// documented import string for the ARN service-and-resource-type shapes
+// where [ParseARN]'s single first-separator cut leaves behind something
+// other than that string outright.
+//
+// Issue #295 started as "WAFv2's import id is wrong" and a first pass here
+// took the ARN's trailing segment alone (the WAFv2 "id" attribute's own
+// bare value, confirmed against a live floci crossing:
+// `aws wafv2 list-web-acls` answers Id="<uuid>", matching exactly). That
+// passed every unit test and was WRONG anyway: a second live crossing, now
+// with the bare id as the import string, failed differently -
+// "Unexpected format of ID (\"<uuid>\"), expected ID/NAME/SCOPE", straight
+// from the provider's own ImportResourceState, before it ever calls AWS.
+// aws_wafv2_web_acl's Importer does not accept its own "id" attribute value
+// alone; it requires the three-part string wafv2_web_acl.html.markdown's
+// Import section documents verbatim ("ID/Name/Scope"), and GuardDuty's
+// three child types (ipset, threatIntelSet, publishingDestination)
+// document the same requirement in their own shape ("DETECTORID:ID"). The
+// generic Cloud-Control-identifier composer (composeCloudControlIdentifier,
+// [identity.TypeIdentity.Components]) exists for exactly this - a type
+// whose import string is not its bare id - but populating it needs a
+// [identity.TypeIdentity] row, outside this package.
+//
+// This table is the same fix at the ARN-parsing layer instead: each entry
+// takes a.ResourceID (the ARN's resource field, ParseARN's type marker
+// already cut off) and returns the exact string the provider's own "##
+// Import" doc section names, confirmed against
+// ~/Library/Caches/choudoufu/importdocs-gen for every entry, never guessed
+// at from the ARN's shape alone:
+//
+//   - wafv2's "global" and "regional" scope segments:
+//     global/webacl/{name}/{id} -> "{id}/{name}/CLOUDFRONT",
+//     regional/webacl/{name}/{id} -> "{id}/{name}/REGIONAL". The scope
+//     word is NOT the ARN's own "global"/"regional" spelling - the
+//     Importer rejects those - it is CLOUDFRONT/REGIONAL, the `scope`
+//     argument's own accepted values. All four WAFv2 ServerAssigned types
+//     (web_acl, ip_set, regex_pattern_set, rule_group) share this exact
+//     ARN and import-string shape, so keying by "global"/"regional" - not
+//     by TF type - covers all four without a per-type row.
+//   - guardduty's "detector" segment:
+//     detector/{detectorID}/ipset/{id} (and the same shape with
+//     "threatintelset" or "publishingdestination" in the third position,
+//     none of which the import string keeps at all) ->
+//     "{detectorID}:{id}".
+//
+// Transfer Family's Agreement (agreement/{serverID}/{agreementID}) has no
+// row here on purpose: its ARN resource field, with only the "agreement/"
+// type marker cut off by ParseARN, already reads "{serverID}/{agreementID}"
+// - byte-for-byte the "server_id/agreement_id" string
+// transfer_agreement.html.markdown's Import section documents. Adding a row
+// that reassembled it would be a no-op at best; an early draft of this
+// table instead cut it down to the bare agreement id alone, which would
+// have broken an import that ParseARN's unmodified output already gets
+// right.
+var arnCompositeImportID = map[string]map[string]func(resourceID string) (string, bool){
+	"wafv2": {
+		"global":   wafv2CompositeImportID("CLOUDFRONT"),
+		"regional": wafv2CompositeImportID("REGIONAL"),
+	},
+	"guardduty": {
+		"detector": guarddutyChildCompositeImportID,
+	},
+}
+
+// wafv2CompositeImportID returns a resolver for one WAFv2 scope: resourceID
+// is "{cfnTypeLiteral}/{name}/{id}" (webacl, ipset, regexpatternset or
+// rulegroup in the first position - never inspected, since the caller
+// already knows it is one of these four from the type the marker named),
+// and the provider's documented import string is "{id}/{name}/{scope}".
+func wafv2CompositeImportID(scope string) func(string) (string, bool) {
+	return func(resourceID string) (string, bool) {
+		parts := strings.SplitN(resourceID, "/", 3)
+		if len(parts) != 3 {
+			return "", false
+		}
+		name, id := parts[1], parts[2]
+		return id + "/" + name + "/" + scope, true
+	}
+}
+
+// guarddutyChildCompositeImportID composes GuardDuty's documented
+// "DETECTORID:ID" import string from resourceID's
+// "{detectorID}/{cfnTypeLiteral}/{id}" shape, dropping the literal
+// sub-resource-kind segment ("ipset", "threatintelset",
+// "publishingdestination") that carries no identity information at all.
+func guarddutyChildCompositeImportID(resourceID string) (string, bool) {
+	parts := strings.SplitN(resourceID, "/", 3)
+	if len(parts) != 3 {
+		return "", false
+	}
+	detectorID, id := parts[0], parts[2]
+	return detectorID + ":" + id, true
 }
