@@ -7,11 +7,6 @@ package check
 
 import (
 	"context"
-	"fmt"
-	"sort"
-
-	"github.com/hashicorp/hcl/v2"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -93,81 +88,14 @@ func estateForStamp(ctx context.Context, cfg *configs.Config) string {
 	return syntheticStampEstate
 }
 
-// declaredEstateNames is [internal/command.statelessEstateFromConfig]
-// reimplemented here rather than imported: internal/command already imports
-// internal/live/check (to share this package's analysis with
-// "choudoufu live-check"), so the reverse import would cycle. It walks the
-// same tree the same way - every managed resource's own tags argument, in
-// every module, read only when it is a literal object expression the static
-// evaluator can settle - and returns the distinct literal tofu-estate values
-// found, sorted.
+// declaredEstateNames is [discovery.DeclaredEstateNames]. It used to be a
+// body-for-body copy of internal/command's own, because internal/command
+// imports this package and the reverse import would cycle - and neither
+// copy had anything watching it. The shared implementation lives in
+// internal/live/discovery, which both this package and internal/command
+// already import for the marker tag keys themselves. Issue #285.
 func declaredEstateNames(ctx context.Context, cfg *configs.Config) []string {
-	seen := make(map[string]bool)
-	declaredEstateNamesFrom(ctx, cfg, seen)
-	out := make([]string, 0, len(seen))
-	for s := range seen {
-		out = append(out, s)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func declaredEstateNamesFrom(ctx context.Context, cfg *configs.Config, seen map[string]bool) {
-	if cfg == nil || cfg.Module == nil {
-		return
-	}
-	mod := cfg.Module
-	if mod.StaticEvaluator == nil {
-		return
-	}
-
-	names := make([]string, 0, len(mod.ManagedResources))
-	for name := range mod.ManagedResources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		rc := mod.ManagedResources[name]
-
-		content, _, contentDiags := rc.Config.PartialContent(&hcl.BodySchema{
-			Attributes: []hcl.AttributeSchema{{Name: "tags"}},
-		})
-		if contentDiags.HasErrors() {
-			continue
-		}
-		attr, ok := content.Attributes["tags"]
-		if !ok {
-			continue
-		}
-		pairs, pairDiags := hcl.ExprMap(attr.Expr)
-		if pairDiags.HasErrors() {
-			// A tags argument that is not written as an object literal - a
-			// merge() call, a variable - cannot be picked apart here.
-			continue
-		}
-		for _, pair := range pairs {
-			key, keyDiags := pair.Key.Value(nil)
-			if keyDiags.HasErrors() || key.IsNull() || key.Type() != cty.String || key.AsString() != discovery.TagEstate {
-				continue
-			}
-			val, valDiags := mod.StaticEvaluator.Evaluate(ctx, pair.Value, configs.StaticIdentifier{
-				Module:    cfg.Path,
-				Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
-				DeclRange: attr.Range,
-			})
-			if valDiags.HasErrors() || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() || val.Type() != cty.String {
-				continue
-			}
-			if s := val.AsString(); s != "" {
-				seen[s] = true
-			}
-		}
-	}
-
-	for _, name := range identity.SortedChildNames(cfg.Children) {
-		declaredEstateNamesFrom(ctx, cfg.Children[name], seen)
-	}
+	return discovery.DeclaredEstateNames(ctx, cfg)
 }
 
 // stampNeedsDiscovery builds [stamp.Request.NeedsDiscovery] from identity
