@@ -603,13 +603,25 @@ Every one of these has been hit, most more than once.
   pushed. Two independent fixes landed as sibling branches off the same
   stale base more than once, each one silently regressing the other until
   reconciled by hand.
-- **Never push floci's `origin/main` unless publishing genuinely needs it.**
-  A pushed branch triggers `ghcr-publish.yml` and republishes `:latest` at
-  whatever digest happens to be on `main` at that moment - which has dropped
-  an unrelated, already-merged fix mid-session. Build and `docker buildx
-  build --push` an explicit `ghcr.io/lex00/floci:<sha>` tag instead; it is
-  sufficient for a re-pin and does not race anything else touching that
-  branch.
+- **A local multi-arch `docker buildx build --push` is the real cost behind
+  a "30-minute build," and it is the wrong tool.** Building
+  `linux/amd64`+`linux/arm64` together on a single arm64 Mac cross-emulates
+  the non-native architecture through QEMU, sequentially, while competing
+  with every other agent running concurrently for the same CPU. Re-running
+  the full Maven suite locally on top of that makes it worse. floci's own
+  CI already does both jobs, off this machine: `ghcr-publish.yml` builds
+  each platform natively in parallel, one job per platform on its own
+  GitHub-hosted runner, and finishes in minutes; `ci.yml` runs the full
+  test suite on a separate runner at the same time. Neither competes with
+  local agent work. The right sequence once floci fixes are merged to
+  local `main`: fetch `origin/main`, confirm local `main` is a fast-forward
+  of it (merge first if it has moved - this is the same staleness check as
+  the bullet above, only checked in the other direction before pushing), push,
+  then poll `gh run list -R lex00/floci --workflow=ghcr-publish.yml --limit 1`
+  and `--workflow=ci.yml` instead of rebuilding or re-testing locally - both
+  finish long before a local multi-arch build would. Batch several floci
+  fixes into one push rather than pushing per fix; the push itself is now
+  cheap, but a CI/publish cycle per single-line fix still isn't free.
 - **A capability-manifest block regenerated from a stale worktree fails
   silently plausible-looking tests.** `tools/floci-capability-gen` gained
   a stricter evidence methodology partway through this campaign (self-
