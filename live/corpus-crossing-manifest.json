@@ -4,7 +4,7 @@
   "totals": {
     "estates": 4,
     "cold_deploy": { "pass": 3, "fail": 1, "not_run": 0 },
-    "migrate": { "pass": 2, "fail": 1, "not_run": 1 },
+    "migrate": { "pass": 3, "fail": 0, "not_run": 1 },
     "test_plan": { "pass": 1, "fail": 2, "not_run": 1 },
     "test_apply": { "pass": 1, "fail": 0, "not_run": 3 },
     "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 4 }
@@ -42,12 +42,12 @@
       "lane": "terraform-popular",
       "stages": {
         "cold_deploy": "pass",
-        "migrate": "fail",
+        "migrate": "pass",
         "test_plan": "fail",
         "test_apply": "not_run",
         "drift_reconverge": "not_run"
       },
-      "notes": "Landed c239792018/47778a931a (2026-08-18). Crossed by an agent whose worktree predated the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here because that's what the agent's own base observed, but since cec3c4b9b1 is now on main and fixes exactly this class of defect (root-only walker in live-import's Ratify loop) for all 39 of this estate's resources (all module-nested), migrate needs re-verification against current main before trusting this row's fail as still current. Even if migrate now passes, test_plan is independently blocked by two newly-filed, distinct defects this crossing also found: #304 (count-index-in-tag can't trace a static lookup() into terraform-aws-security-group's own bundled rules table - 7 of 35 refusals) and #305 (aws_default_network_acl/aws_default_route_table/aws_default_security_group are unadmitted types, from terraform-aws-vpc's default-object adoption pattern). Two unrelated real floci gaps found and filed upstream on the fork: lex00/floci#51 (RDS cross-region backup replication), lex00/floci#52 (SecretsManager RotateSecret wrongly requires a Lambda ARN for RDS-managed rotation) - both worked around in the script with documented EMULATOR GAP deltas so stage 1 could stand up at all."
+      "notes": "Landed c239792018/47778a931a (2026-08-18), crossed by an agent whose worktree predated the lambda-simple crossing's live-import child-module fix (cec3c4b9b1); migrate was recorded fail against that stale base. Re-verified 2026-08-18 against current main (which has cec3c4b9b1) in an isolated worktree: live-import's dry run now reports '23 of 39 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)' (all 39 module-nested resources considered, none dropped as non-root), and a real -approve stamped them for real - '23 resource(s) newly stamped, 0 already stamped, 0 failed, 16 skipped' - confirmed independently by reading the primary aws_db_instance's tags straight through the AWS CLI (0 tofu-address tags before, 1 after). The 16 skipped are not a regression: 13 are untaggable by design (aws_route_table_association, aws_route, aws_security_group_rule, aws_iam_role_policy_attachment, random_id - no tags argument in the provider schema, expected) and 3 are #305's still-open unadmitted-type gap (aws_default_network_acl/aws_default_route_table/aws_default_security_group). test_plan remains fail, and is confirmed to fail for exactly the two already-filed, still-open reasons rather than anything new: a live-plan run against the now-really-migrated estate still refuses with 35 count-index-in-tag sites (7 of them aws_security_group_rule.ingress_with_cidr_blocks, #304) and 5 unadmitted-type sites (the three default-object adopters actually created plus aws_default_vpc/aws_vpn_gateway_attachment declared at count=0, #305) - identical counts to the original crossing. Note: the committed run.sh's own stage-2 assertions still expect the OLD pre-fix '0 eligible' shape and pass only because they're now acting as a stale control, not a real check - the script needs a follow-up pass to assert the real, current numbers instead. Two unrelated real floci gaps found and filed upstream on the fork: lex00/floci#51 (RDS cross-region backup replication), lex00/floci#52 (SecretsManager RotateSecret wrongly requires a Lambda ARN for RDS-managed rotation) - both worked around in the script with documented EMULATOR GAP deltas so stage 1 could stand up at all."
     },
     {
       "dir": "live/e2e/corpus-vpc-complete",
