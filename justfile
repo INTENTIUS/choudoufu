@@ -152,6 +152,17 @@ demo-corpus-iam-policy:
 demo-repeated-module:
     bash live/e2e/repeated-module/run.sh
 
+# A module call expanded with count, crossed against a real emulator. Stamping
+# read only a module call's for_each, so every resource under a count'd call
+# was marked with the UNKEYED module path - an address identity resolution
+# never computes for it. Reads the tofu-address off three real VPCs with the
+# AWS CLI, then deletes the state file and rebinds to all three from the tags
+# alone. Point TOFU_BIN at a binary built before internal/live/stamp's
+# childExpansion and step 4 fails with module.one.aws_vpc.main. Needs Docker
+# and the AWS CLI, no corpus; runs on its own port (4607).
+demo-counted-module:
+    bash live/e2e/counted-module/run.sh
+
 # Issue #193's managed-argument projection end to end: a data source whose
 # argument reads an attribute the resource's own block sets, read against a
 # real emulator, with the parameter's live value moved out from under the
