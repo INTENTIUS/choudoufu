@@ -301,20 +301,67 @@ demo-corpus-raw-resolution-logs:
 # Issue #274's crossing: .corpus/mastino/prod-eu-west/services/crossref-agent,
 # four resources (a CloudWatch event rule and target driving a Lambda
 # function, with its EventBridge invoke permission) - the first Lambda-based
-# estate this campaign crosses. All four types are client-named and literal,
-# so no version override is needed even though `version = "~> 5"` resolves
-# to the release #269 flags. Needs a Lambda execution role, a VPC, two
-# subnets and a security group seeded through the AWS CLI over the estate's
-# own (untouched) data-source reads. The estate's own deprecated
-# `runtime = "nodejs14.x"` is applied as written; floci does not enforce
-# AWS's since-added rejection of new functions on that runtime. Applied,
-# state file deleted, replanned empty twice, all 4 rendered identities
-# checked against the emulator's own answer. BREAK=1 corrupts the expected
-# identity and the run must catch it in step 5 and nowhere else. Needs
-# Docker, the AWS CLI and a populated .corpus; runs on its own port (4701)
-# so it can run beside `just demo`.
+# estate this campaign crosses, and could not even bootstrap until #297 (a
+# fresh apply's aws_lambda_permission existence check hit floci's
+# not-found-shaped GetPolicy response before the function existed, which
+# surfaced as a hard "Cannot import for projection" failure). All four types
+# are client-named and literal, so no version override is needed even though
+# `version = "~> 5"` resolves to the release #269 flags. Needs a Lambda
+# execution role, a VPC, two subnets and a security group seeded through the
+# AWS CLI over the estate's own (untouched) data-source reads. The estate's
+# own deprecated `runtime = "nodejs14.x"` is applied as written; floci does
+# not enforce AWS's since-added rejection of new functions on that runtime.
+# `record_store "local" {}` (#275) is added to the live block: filename,
+# source_code_hash and publish are pure inputs the Lambda API never returns,
+# and without the record store a cold live-plan would propose the identical
+# update on aws_lambda_function forever - the first real corpus estate to
+# confirm #275's fix generalizes beyond its own live/e2e/lambda-residue
+# fixture. Applied, state file deleted, replanned empty twice, all 4
+# rendered identities checked against the emulator's own answer. BREAK=1
+# corrupts the expected identity and the run must catch it in step 5 and
+# nowhere else. Needs Docker, the AWS CLI and a populated .corpus; runs on
+# its own port (4701) so it can run beside `just demo`.
 demo-corpus-crossref-agent:
     bash live/e2e/corpus-crossref-agent/run.sh
+
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/datafiles-generator,
+# one resource (aws_s3_bucket.datafiles) - the rest of the estate's
+# ECS-based generator is commented out in the source itself, decommissioned
+# but the bucket kept. Six data sources OpenTofu evaluates unconditionally
+# (a VPC endpoint, an ECS cluster, two IAM roles, a security group and two
+# subnets) are seeded even though five feed only the estate's
+# commented-out resources. Hits the exact same class of gap
+# demo-corpus-raw-resolution-logs already isolated to the provider: the
+# deprecated `acl` argument, plus `force_destroy`, never round-trips through
+# aws_s3_bucket's Read, so a cold live-plan proposes the identical update
+# forever. Applied, state file deleted, replanned twice, bounded to exactly
+# that known acl/force_destroy update and nothing else, the rendered
+# identity (the literal bucket name) checked against S3's own answer both
+# times. BREAK=1 corrupts the expected identity and the run must catch it in
+# step 5 and nowhere else. Needs Docker, the AWS CLI and a populated
+# .corpus; runs on its own port (4704) so it can run beside `just demo`.
+demo-corpus-datafiles-generator:
+    bash live/e2e/corpus-datafiles-generator/run.sh
+
+# Issue #274's attempted crossing, and #298's repro:
+# .corpus/mastino/prod-eu-west/services/sitemaps-generator, three resources
+# (aws_s3_bucket.akita, aws_cloudwatch_log_group and aws_ecs_task_definition)
+# apply cleanly and are confirmed live through the AWS CLI, then live-plan
+# fails: discovery's Cloud Control fallback (needed because `version = "~> 5"`
+# resolves to 5.100.0, the release #269 documented as carrying no list
+# resources at all) finds the task definition correctly but hands
+# ImportResourceState the literal "family:revision" string instead of the
+# ARN, which this provider's importer for that type rejects. Re-pinning to
+# 6.58.0 (the #269 workaround demo-corpus-ecs-taskdef uses) clears that step
+# but trades it for a floci gap: aws_s3_bucket's tag read under that
+# provider version calls S3 Control's ListTagsForResource, addressed via an
+# account-ID-prefixed hostname floci cannot resolve. This script does not
+# fake a pass - it exits non-zero at step 5, distinguishing #298's exact
+# signature from any other failure. Needs Docker, the AWS CLI and a
+# populated .corpus; runs on its own port (4705) so it can run beside
+# `just demo`.
+demo-corpus-sitemaps-generator:
+    bash live/e2e/corpus-sitemaps-generator/run.sh
 
 # Issue #274's crossing: .corpus/govuk-aws/terraform/projects/infra-root-dns-zones,
 # two aws_route53_zone instances (internal + external) from GDS's Terraform
