@@ -662,6 +662,35 @@ var (
 		"aws_s3control_bucket_lifecycle_configuration",
 		"aws_secretsmanager_tag",
 		"aws_verifiedaccess_instance_logging_configuration",
+
+		// Issue #245's "assembled" bucket, the fifth and last slice: 19
+		// account/region-singleton types, ratified into
+		// tools/row-gen/ratified.json - 16 whose entire documented import ID
+		// is the run's own region (a Component{Cloud: "region"}, the same
+		// shape aws_cloudwatch_otel_enrichment and
+		// aws_vpc_block_public_access_options already hold above) and 3
+		// whose import ID is a fixed literal word the docs state directly.
+		// All 19 are untaggable per live/survey-full.json's signals.taggable;
+		// a per-account, per-region singleton has nothing to tag.
+		"aws_apprunner_default_auto_scaling_configuration_version",
+		"aws_auditmanager_account_registration",
+		"aws_devopsguru_event_sources_config",
+		"aws_devopsguru_service_integration",
+		"aws_ec2_allowed_images_settings",
+		"aws_glue_resource_policy",
+		"aws_iam_account_password_policy",
+		"aws_iot_event_configurations",
+		"aws_kinesis_account_settings",
+		"aws_macie2_classification_export_configuration",
+		"aws_observabilityadmin_telemetry_enrichment",
+		"aws_observabilityadmin_telemetry_evaluation",
+		"aws_observabilityadmin_telemetry_evaluation_for_organization",
+		"aws_sagemaker_servicecatalog_portfolio_status",
+		"aws_servicequotas_auto_management",
+		"aws_sesv2_account_vdm_attributes",
+		"aws_spot_datafeed_subscription",
+		"aws_xray_encryption_config",
+		"aws_xray_trace_segment_destination",
 	}
 )
 
@@ -1266,6 +1295,30 @@ func testSchemas() Schemas {
 		"aws_s3control_bucket_lifecycle_configuration":      untaggedSchema("id", "bucket"),
 		"aws_secretsmanager_tag":                            untaggedSchema("id", "secret_id", "key", "value"),
 		"aws_verifiedaccess_instance_logging_configuration": untaggedSchema("id", "verifiedaccess_instance_id"),
+
+		// Issue #245's "assembled" bucket: 16 account/region-singleton
+		// types whose entire documented import ID is the run's own region,
+		// the same shape as aws_vpc_block_public_access_options above.
+		"aws_apprunner_default_auto_scaling_configuration_version":     untaggedSchema("id", "region"),
+		"aws_auditmanager_account_registration":                        untaggedSchema("id", "region"),
+		"aws_devopsguru_event_sources_config":                          untaggedSchema("id", "region"),
+		"aws_devopsguru_service_integration":                           untaggedSchema("id", "region"),
+		"aws_ec2_allowed_images_settings":                              untaggedSchema("id", "region"),
+		"aws_glue_resource_policy":                                     untaggedSchema("id", "region"),
+		"aws_iot_event_configurations":                                 untaggedSchema("id", "region"),
+		"aws_kinesis_account_settings":                                 untaggedSchema("id", "region"),
+		"aws_macie2_classification_export_configuration":               untaggedSchema("id", "region"),
+		"aws_observabilityadmin_telemetry_enrichment":                  untaggedSchema("id", "region"),
+		"aws_observabilityadmin_telemetry_evaluation":                  untaggedSchema("id", "region"),
+		"aws_observabilityadmin_telemetry_evaluation_for_organization": untaggedSchema("id", "region"),
+		"aws_sagemaker_servicecatalog_portfolio_status":                untaggedSchema("id", "region"),
+		"aws_servicequotas_auto_management":                            untaggedSchema("id", "region"),
+		"aws_xray_encryption_config":                                   untaggedSchema("id", "region"),
+		"aws_xray_trace_segment_destination":                           untaggedSchema("id", "region"),
+		// The other 2: a fixed literal word the docs state directly as the
+		// whole import ID.
+		"aws_iam_account_password_policy": untaggedSchema("id"),
+		"aws_spot_datafeed_subscription":  untaggedSchema("id"),
 
 		// Two shapes that are not the marker tag map: a computed-only tags
 		// attribute, and tags carried as repeated blocks.
