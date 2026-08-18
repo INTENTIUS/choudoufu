@@ -67,14 +67,17 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	// 716, up from 713 (issue #274): three ADDED rows, not a moved one -
-	// internal/live/identity/testdata/markerless-veto-two-source-agreement's
-	// new fixture, one instance each of aws_cognito_risk_configuration,
-	// aws_detective_member and aws_lambda_function_event_invoke_config,
-	// three types the markerless-veto two-source exception newly admits.
-	// Every other CONCRETE row in the golden is byte-identical; see the
+	// 726, up from 723 (aws_lambda_permission's qualifier defect):
+	// three ADDED rows in a fresh fixture,
+	// internal/live/identity/testdata/omit-if-absent - unqualified,
+	// qualified and present_but_null, exercising [identity.Component.OmitIfAbsent]
+	// against the two shapes the provider's own Import section documents
+	// for aws_lambda_permission plus the corpus regression a for_each
+	// module's `qualifier = try(each.value.qualifier, null)` surfaced. Not
+	// a moved row - the fix corrects the RATIFIED row's own components, and
+	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        723,
+	"CONCRETE":        726,
 	"NEEDS_DISCOVERY": 562,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -105,25 +108,17 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-// 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
+// 2026-08-17: three ADDED rows (see identityGoldenPin's own
 // comment above) - a fresh fixture directory, not an edit to an existing
 // one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "324cebbb642609bee4b8b26cde7c64d005968adab7a7d53924b82706ac20d31f"
+const identityGoldenPinBodyDigest = "51d2c9029f50a1badb29aeea3249a70ae3a47b4a14bc9c52068324e1c150ab08"
 
-// 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
-// the body digest unchanged. The new directory is
-// internal/live/check/testdata/stamp-untaggable-record-located, the
-// onboarded half of the stamp-gate split: a markerless type under a
-// record_store, which resolves RECORD_LOCATED. It contributes no row
-// because this sweep runs SCHEMA-LESS by design, and
-// identity.LocatedType fails closed with no schema - the credential
-// exclusion is readable only from a schema and a predicate that cannot run
-// must refuse. So the located class is a class this instrument cannot see,
-// which is stated here rather than discovered later from a suspiciously
-// stable digest.
+// 2026-08-17: dirs 424 -> 425, instances 1397 -> 1400. The new
+// directory is internal/live/identity/testdata/omit-if-absent (see
+// identityGoldenPin's own comment above).
 const (
-	identityGoldenPinInstances = 1397
-	identityGoldenPinDirs      = 424
+	identityGoldenPinInstances = 1400
+	identityGoldenPinDirs      = 425
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

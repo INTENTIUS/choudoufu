@@ -46,7 +46,7 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 141, floor 100 | #249 |
-| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 96 | at most 96 | `live/rowgen-convergence.json summary.admitted_total` at 907, floor 850 | #132 |
+| [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 97 | at most 97 | `live/rowgen-convergence.json summary.admitted_total` at 907, floor 850 | #132 |
 | [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 893, floor 800 | #132 |
 | [`unreached-types`](#unreached-types) | 613 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
@@ -103,7 +103,7 @@ Where the bound has been:
 
 tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. With unruled mismatches held at zero, nothing else stops the ledger growing, because adding a ruling is always easier than fixing an extractor.
 
-Now **96 rulings**, at most **96**. At the bound.
+Now **97 rulings**, at most **97**. At the bound.
 
 every ruling names one of the 893 types the convergence artifact carries, over 907 admitted types.
 
@@ -126,6 +126,7 @@ Where the bound has been:
 - 92 the same day, and this one is accounted for. The cloud-singleton admission retired aws_arczonalshift_autoshift_observer_notification_status's ruling, whose own recorded exit condition was "retire when the vocabulary covers an unschemed example that IS a cloud value" - which is exactly the rule that landed. row-gen -convergence demanded the deletion rather than permitting it, and this entry reported the resulting slack within the hour. That is the first time this ledger has fallen for a reason its own annotation predicted.
 - 93 on 2026-08-17: the reviewed upward bump this entry's own rule allows for a newly admitted type the classifier cannot reproduce. aws_iam_user_group_membership is the first row whose import ID has a variable number of segments - one per element of a set-typed argument - and every grammar rule in importprecedence.go compares a FIXED segment count against a fixed argument count. The ruling's exit names the missing evidence rather than the missing rule: importdocs-gen scrapes an argument's name and whether it is required, and nothing anywhere in the artifacts says the argument is a collection.
 - 96 on 2026-08-17: the same reviewed upward bump, for three types issue #274's markerless-veto two-source exception admits. aws_cognito_risk_configuration, aws_detective_member and aws_lambda_function_event_invoke_config each have a composite CloudFormation primaryIdentifier with no read-only property AND an import-grammar row whose Import section names no server-provided segment - the two independent sources markerless.go now reads agree the identity is argument-built. All three are still classified server-assigned by tryOpaqueOverride: the scrape pinned only the FIRST of several documented import forms on each page, and that one form's example does not split against the registry's composite primaryIdentifier, which is exactly the shape tryOpaqueOverride reads as "the doc shows one opaque value". Each ruling's exit names the same missing capability: keeping every documented import form, not one pinned example, so a composite rule can test the registry's primaryIdentifier against whichever form demonstrates the split.
+- 97 on 2026-08-17: the same reviewed upward bump, fixing a wrong-marker defect rather than admitting a new type. aws_lambda_permission's ratified row omitted the qualifier the provider's Import section documents as a second, optional form, so two declarations differing only in qualifier resolved to one identity and collided under the duplicate-identity guard. The corrected row adds a component that is present with its own ':' separator in one documented form and wholly absent (separator included) in the other - identity.Component.OmitIfAbsent, a new field, since the table had no way to express a segment that vanishes together with its own separator. classify.go still pins only the first documented example and has no rule for this shape, so the fresh proposal cannot reproduce the fix. The ruling's exit names the same missing capability the entries above already do: keep every documented import form, not one pinned example.
 
 <a id="rowgen-unannotated-mismatches"></a>
 ### `rowgen-unannotated-mismatches`
@@ -134,7 +135,7 @@ Every admitted row tools/row-gen's classifier fails to reproduce carries a rulin
 
 Now **0 unruled mismatches**, at most **0**. At the bound.
 
-recomputed from 893 compared rows: 96 unmatched, every one of them named by one of the ledger's 96 rulings.
+recomputed from 893 compared rows: 97 unmatched, every one of them named by one of the ledger's 97 rulings.
 
 - Measured on live/rowgen-convergence.json summary.unannotated_mismatches.
 - Held against tools/row-gen/annotations.json. The value is recomputed as genuine_mismatches minus annotated and cross-checked against the ledger's own size, so the artifact's summary field cannot be the only witness to its own claim. row-gen writes the artifact; the ledger is hand-authored and reviewed.

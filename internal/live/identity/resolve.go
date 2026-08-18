@@ -1171,6 +1171,15 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		attr := firstPresent(attrs, comp.Attrs)
 		if attr == nil {
+			if comp.OmitIfAbsent {
+				// The provider's own grammar says this segment - and any
+				// Literal it carries as a prefix - is absent entirely when
+				// none of Attrs is set, not merely unknown. See
+				// [Component.OmitIfAbsent]. Contribute nothing to the
+				// import-ID string and nothing to any identity-attribute
+				// formula, and move on to the next component.
+				continue
+			}
 			if comp.Default != "" {
 				// The provider documents what omission means for this
 				// argument (an omitted event_bus_name is the "default"
@@ -1282,13 +1291,44 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			}
 			expr = narrowed
 		}
+		diagMark := len(r.diags)
 		got, ok := r.resolveExpr(expr, scope, ident)
 		if !ok {
+			// [Component.OmitIfAbsent]'s omission is not only syntactic. A
+			// for_each-driven module's ordinary way to say "this instance
+			// has no qualifier" is `qualifier = try(each.value.qualifier,
+			// null)` - the argument IS written, so the [attr == nil] branch
+			// above never sees it, and resolveExpr above just ran the FULL
+			// resolution machinery on it: resolveFallbackChain's try()
+			// arm-selection (fallback.go), a conditional's branch selection,
+			// or a bare literal, whichever shape the author wrote - and
+			// concluded the value is null, which stringValue reports as
+			// "Null identity argument". That is the identical wrong-refusal
+			// shape the name/name_prefix redirect above exists to avoid, for
+			// the identical reason: a value this package can prove is null
+			// should not be reported as a value it could not resolve. Only a
+			// failure that is EXACTLY that - nothing else went wrong along
+			// the way - redirects here; any other diagnostic (a truly
+			// dynamic value, an unresolvable reference) stands, because
+			// "not known until apply" is a true statement about it and
+			// "absent" is not.
+			if comp.OmitIfAbsent && onlyNullIdentityArgument(r.diags[diagMark:]) {
+				r.diags = r.diags[:diagMark]
+				continue
+			}
 			failed = true
 			continue
 		}
-		parts = append(parts, got...)
+		// The identity-attribute formula gets the resolved value alone; a
+		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
+		// is punctuation in the import-ID STRING, not part of the identity
+		// ATTRIBUTE's value, so it is added to parts only, after the formula
+		// has already captured the unprefixed value.
 		addTo(comp.identityAttrFor(attr.Name), got)
+		if comp.Literal != "" {
+			got = append([]Part{{Literal: comp.Literal}}, got...)
+		}
+		parts = append(parts, got...)
 	}
 	if failed {
 		return Resolution{}, false
@@ -2381,6 +2421,26 @@ func (r *resolver) evalPure(expr hcl.Expression, scope instScope, ident configs.
 		return cty.NilVal, diags.Append(valDiags)
 	}
 	return val, diags
+}
+
+// onlyNullIdentityArgument reports whether every diagnostic in a batch is
+// exactly [resolver.stringValue]'s "Null identity argument" - the signature
+// a resolveExpr call leaves behind when it fully resolved a component's
+// value and that value is a clean, wholly-known null, as opposed to any
+// other reason resolution failed along the way. An empty batch is not this:
+// resolveExpr always records at least one diagnostic when it returns false,
+// so an empty slice means the caller mismeasured, not that nothing is wrong.
+// See the OmitIfAbsent redirect in [resolver.resolveInstance].
+func onlyNullIdentityArgument(diags tfdiags.Diagnostics) bool {
+	if len(diags) == 0 {
+		return false
+	}
+	for _, d := range diags {
+		if d.Description().Summary != "Null identity argument" {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs.StaticIdentifier) (string, bool) {

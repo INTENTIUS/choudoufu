@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      96,
+		Bound:      97,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -452,6 +452,17 @@ func rowgenAnnotationRulings() Entry {
 				"capability: keeping every documented import form, not one pinned example, so a composite " +
 				"rule can test the registry's primaryIdentifier against whichever form demonstrates the " +
 				"split.",
+			"97 on 2026-08-17: the same reviewed upward bump, fixing a wrong-marker defect rather than " +
+				"admitting a new type. aws_lambda_permission's ratified row omitted the qualifier the " +
+				"provider's Import section documents as a second, optional form, so two declarations " +
+				"differing only in qualifier resolved to one identity and collided under the duplicate-" +
+				"identity guard. The corrected row adds a component that is present with its own ':' " +
+				"separator in one documented form and wholly absent (separator included) in the other - " +
+				"identity.Component.OmitIfAbsent, a new field, since the table had no way to express a " +
+				"segment that vanishes together with its own separator. classify.go still pins only the " +
+				"first documented example and has no rule for this shape, so the fresh proposal cannot " +
+				"reproduce the fix. The ruling's exit names the same missing capability the entries above " +
+				"already do: keep every documented import form, not one pinned example.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

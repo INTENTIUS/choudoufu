@@ -134,6 +134,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 			{
 				Literal:                "/",
 				Attrs:                  []string{"a", "b"},
+				OmitIfAbsent:           true,
 				Default:                "d",
 				ServerAssignedIfAbsent: true,
 				Cloud:                  identity.CloudAccountID,

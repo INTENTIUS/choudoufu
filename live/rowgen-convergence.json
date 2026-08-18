@@ -4,10 +4,10 @@
     "admitted_total": 907,
     "compared": 893,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 797,
-    "adopted_unchanged_pct": 89.25,
-    "genuine_mismatches": 96,
-    "annotated": 96,
+    "adopted_unchanged": 796,
+    "adopted_unchanged_pct": 89.14,
+    "genuine_mismatches": 97,
+    "annotated": 97,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 26
   },
@@ -529,8 +529,8 @@
     },
     "Lambda": {
       "compared": 7,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 85.71
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 71.43
     },
     "Lex": {
       "compared": 2,
@@ -6262,8 +6262,15 @@
       "service": "Lambda",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
-      "matched": true,
-      "annotated": false
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "The ratified row now carries the qualifier the provider's own Import section documents as a second, optional form ('Using qualifier: ... my_test_lambda_function:qualifier_name/AllowExecutionFromCloudWatch'), fixing a real defect: two aws_lambda_permission declarations differing only in qualifier previously rendered the identical import ID and collided under the duplicate-identity guard. classify.go's import-grammar row still pins only the FIRST documented example (import_id_example 'my_test_lambda_function/AllowExecutionFromCloudWatch', arguments [function_name, statement_id]) and has no vocabulary for a component that is present in one documented form and absent in another with its own separator, so the fresh proposal still derives the two-component row and cannot reproduce the ratified three-component one."
     },
     {
       "tf_type": "aws_launch_configuration",

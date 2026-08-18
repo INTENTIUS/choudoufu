@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=424 instances=1397
-# shape: class CONCRETE=723
+# shape: dirs=425 instances=1400
+# shape: class CONCRETE=726
 # shape: class NEEDS_DISCOVERY=562
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=324cebbb642609bee4b8b26cde7c64d005968adab7a7d53924b82706ac20d31f
+# shape: body-sha256=51d2c9029f50a1badb29aeea3249a70ae3a47b4a14bc9c52068324e1c150ab08
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -293,6 +293,9 @@ internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["a"]	CONCR
 internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["b"]	CONCRETE	tofu-signal-b	bucket=tofu-signal-b
 internal/live/identity/testdata/naming-signal-named	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/identity/testdata/non-identity-attr	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.present_but_null["from_map"]	CONCRETE	my_test_lambda_function/AllowFromMapNotification	function_name=my_test_lambda_function,statement_id=AllowFromMapNotification
+internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.qualified	CONCRETE	my_test_lambda_function:qualifier_name/AllowExecutionFromCloudWatch	function_name=my_test_lambda_function,qualifier=qualifier_name,statement_id=AllowExecutionFromCloudWatch
+internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.unqualified	CONCRETE	my_test_lambda_function/AllowExecutionFromCloudWatch	function_name=my_test_lambda_function,statement_id=AllowExecutionFromCloudWatch
 internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_rule.nightly	CONCRETE	ops-bus/nightly-sweep	event_bus_name=ops-bus,name=nightly-sweep
 internal/live/identity/testdata/parent-attr	aws_cloudwatch_event_target.nightly	CONCRETE	ops-bus/nightly-sweep/sweep	event_bus_name=ops-bus,rule=nightly-sweep,target_id=sweep
 internal/live/identity/testdata/parent-attr-composite	aws_s3_bucket_policy.data	CONCRETE	vol-0123456789abcdef0	bucket=vol-0123456789abcdef0
