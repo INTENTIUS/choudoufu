@@ -46,9 +46,31 @@ set -euo pipefail
 #   sqs get-queue-attributes --queue-url \
 #     https://sqs.us-east-1.amazonaws.com/000000000000/production_doi
 #
-# with the eu-west-1 queue's own ARN. A region rendered wrong in the import
-# identity would round-trip silently. So step 5 reads all 29 rendered
-# identity strings out of the run's own trace and asserts each one.
+# with the eu-west-1 queue's own ARN, when the request is actually signed
+# for eu-west-1 (i.e. the run's one configured provider region). A region
+# rendered wrong in the import identity would round-trip silently. So step 5
+# reads all 29 rendered identity strings out of the run's own trace and
+# asserts each one.
+#
+# Issue #287 item 3 asked whether this is a floci gap. It is not: verified
+# against AWS's own "Fix QueueDoesNotExist" guidance (the SDK/CLI never
+# derive the destination region from the QueueUrl text; the client's actual
+# configured region decides it) and against hashicorp/terraform-provider-aws
+# #44777, where a provider maintainer confirms importing cross-region needs
+# an explicit "@<region>" suffix on the id - a plain queue URL's embedded
+# host is never parsed for it. Rendered identities here carry no such
+# suffix. floci was measured (2026-08-18) reproducing exactly this: signing
+# for the SAME actual region a queue lives in but naming a DIFFERENT one in
+# the queue-url text still resolves and returns the true ARN (floci and
+# real AWS agree); signing for a genuinely DIFFERENT actual region correctly
+# answers QueueDoesNotExist (also verified, both ways, with two same-named
+# queues in two regions so the response body - not just the error/success
+# split - proves which region actually answered). So the probe below is not
+# an open emulator defect awaiting a fix; it is confirmation that a plain
+# queue-URL identity's region segment is structurally unobservable on the
+# wire once a run has one fixed provider region, on real AWS as much as on
+# floci. Step 5's string-level assertion is the permanent discriminator for
+# this class, not a stand-in for a fix that never lands.
 #
 #   bash live/e2e/corpus-message-queue/run.sh
 #
@@ -204,11 +226,17 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 export TF_VAR_access_key=test TF_VAR_secret_key=test
 
 # The wire does not discriminate the region segment of an SQS import
-# identity. Measured here rather than asserted, and the measurement is what
-# makes step 6 load-bearing: if this probe ever starts failing, a wrong
-# region WOULD be caught by the plan and step 6 is only belt and braces.
-# While it passes, the rendered string is the only place the region is
-# observable.
+# identity when the request's actual signed region is the one the queue
+# really lives in - which is the only case this run's single fixed provider
+# region can ever produce. Measured here rather than asserted, and the
+# measurement is what makes step 6 load-bearing: a genuinely wrong ACTUAL
+# region (the AWS CLI's own --region, not just the queue-url text) IS caught,
+# by both floci and real AWS - see the "WHAT IS ASSERTED" note above, which
+# has the #287-3 investigation and citations. That is a different, narrower
+# fact than "nothing about a queue URL is ever region-scoped," and this
+# probe exists to keep that distinction from eroding: if it ever starts
+# failing, a same-actual-region/wrong-label queue URL WOULD be caught by the
+# plan and step 6 becomes belt and braces instead of the only discriminator.
 probe_region_blindness() {
   awsl sqs create-queue --queue-name probe-region-blindness >/dev/null 2>&1 || return 1
   awsl sqs get-queue-attributes \
@@ -216,8 +244,10 @@ probe_region_blindness() {
     --attribute-names QueueArn >/dev/null 2>&1
 }
 if probe_region_blindness; then
-  log "  probe: the emulator answers a WRONG-region queue URL, so nothing on"
-  log "         the wire would reject a wrong region in an import identity"
+  log "  probe: signed for $REGION, a queue-url TEXT naming us-east-1 still"
+  log "         resolves - confirmed to match real AWS (#287 item 3), not a"
+  log "         floci gap: the wire never validates that text, only the"
+  log "         request's actual region, which step 6 cannot vary here"
 else
   log "  probe: the emulator rejected a wrong-region queue URL (noted; step 6"
   log "         is then belt and braces rather than the only discriminator)"
