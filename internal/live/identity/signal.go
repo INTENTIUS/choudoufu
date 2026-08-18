@@ -312,18 +312,7 @@ func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleIn
 	for _, name := range SortedChildNames(cfg.Children) {
 		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		var forEach, count hcl.Expression
-		if call, ok := r.mod.ModuleCalls[name]; ok && call != nil {
-			forEach = call.ForEach
-			count = call.Count
-		}
-		var keys []addrs.InstanceKey
-		var diag *hcl.Diagnostic
-		if count != nil {
-			keys, diag = ChildModuleCountKeys(r.ctx, r.mod, childSubject(name), count)
-		} else {
-			keys, diag = ChildModuleKeys(r.ctx, r.mod, childSubject(name), forEach)
-		}
+		keys, diag := ChildCallKeys(r.ctx, r.mod, name)
 		if diag != nil {
 			// Advisory, like every other diagnostic this collection produces
 			// (see the doc on [ScanConfig]): a module whose count or for_each

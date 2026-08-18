@@ -12,10 +12,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -650,26 +649,21 @@ func parentRef(attr, self string, allTypes []string, service identity.ServiceOf)
 	return best, best != ""
 }
 
-// taggable mirrors internal/live/stamp's predicate of the same name (a
-// top-level settable tags map of strings), which is also what
-// TestTaggableSetAgainstRealSchemas pins against the real provider.
+// taggable is [markers.Taggable] - the predicate the run itself applies -
+// and no longer a copy of the four clauses it had when this was written.
+//
+// The copy was missing the fifth, which #243 added: a tags map whose keys
+// the provider documents as naming objects that must already exist is
+// schema-identical to a free-form one and is not a marker surface. Measured
+// against the real schemas, the difference is nothing on hashicorp/aws
+// 6.59.0 - none of its 847 tags attributes carries a description at all -
+// and 17 resource types on hashicorp/google 7.44.0, where every one of the
+// 26 tags attributes is a Resource Manager tag binding. The signal this
+// function writes into live/survey-full.json is what row-gen's markerless
+// rule reads, so on any survey of that provider the copy would have
+// recorded 17 types as marker-carrying that the run refuses to stamp.
 func taggable(block *configschema.Block) bool {
-	if block == nil {
-		return false
-	}
-	attr, ok := block.Attributes["tags"]
-	if !ok || attr == nil {
-		return false
-	}
-	if !attr.Optional && !attr.Required {
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
+	return markers.Taggable(block)
 }
 
 // identityAttrNames splits an identity schema's attributes into the

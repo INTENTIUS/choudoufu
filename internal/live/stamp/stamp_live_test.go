@@ -378,6 +378,16 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 		Optional bool            `json:"optional"`
 		Required bool            `json:"required"`
 		Computed bool            `json:"computed"`
+		// Description is what the fifth clause of the predicate reads, and
+		// it was missing here: the attribute was rebuilt without it, so
+		// markers.VocabularyRefusal saw an empty string for every type and
+		// this test could not exercise that clause even when it fired. On
+		// hashicorp/aws 6.59.0 not one of the 847 tags attributes carries a
+		// description, so the field arrives empty and nothing moves - which
+		// is the point of reading it rather than assuming it. A release
+		// that starts describing them is exactly the change this pin exists
+		// to surface. Issue #285.
+		Description string `json:"description"`
 	}
 	type resourceSchema struct {
 		Block struct {
@@ -412,7 +422,9 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 				continue
 			}
 			// taggable reads nothing but the top-level tags attribute, so
-			// that attribute alone is rebuilt for it.
+			// that attribute alone is rebuilt for it - INCLUDING its
+			// description, which the fifth clause consults and which this
+			// rebuild used to drop on the floor.
 			block := &configschema.Block{Attributes: map[string]*configschema.Attribute{}}
 			if a, ok := rs.Block.Attributes["tags"]; ok {
 				ty, err := ctyjson.UnmarshalType(a.Type)
@@ -421,10 +433,11 @@ func TestTaggableSetAgainstRealSchemas(t *testing.T) {
 					continue
 				}
 				block.Attributes["tags"] = &configschema.Attribute{
-					Type:     ty,
-					Optional: a.Optional,
-					Required: a.Required,
-					Computed: a.Computed,
+					Type:        ty,
+					Optional:    a.Optional,
+					Required:    a.Required,
+					Computed:    a.Computed,
+					Description: a.Description,
 				}
 			}
 			if got := taggable(block); got != want {

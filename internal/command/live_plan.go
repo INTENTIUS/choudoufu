@@ -1220,76 +1220,13 @@ func statelessUndiscoveredNote(needs []identity.Resolution) string {
 // statelessEstateFromConfig reads the distinct tofu-estate values the
 // configuration stamps, sorted, over the whole static module tree.
 //
-// Only tag values that evaluate from configuration alone count. A tag built
-// from another resource's attribute is not readable here, and is not treated
-// as a partial answer: it is simply not one of the values, which at worst
-// costs the operator an -estate flag.
+// The walk itself is [discovery.DeclaredEstateNames]. It used to be written
+// out here and again, body for body, in internal/live/check - the two have
+// to give the same answer, since they report on the same run, and nothing
+// was watching either of them. Issue #285.
 func statelessEstateFromConfig(ctx context.Context, config *configs.Config) ([]string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-
-	seen := make(map[string]bool)
-	statelessEstateFromModule(ctx, config, seen)
-
-	out := make([]string, 0, len(seen))
-	for s := range seen {
-		out = append(out, s)
-	}
-	sort.Strings(out)
-	return out, diags
-}
-
-// statelessEstateFromModule is [statelessEstateFromConfig]'s recursive step:
-// one module's resources, then its children in name order.
-func statelessEstateFromModule(ctx context.Context, cfg *configs.Config, seen map[string]bool) {
-	if cfg == nil || cfg.Module == nil {
-		return
-	}
-	mod := cfg.Module
-	if mod.StaticEvaluator == nil {
-		return
-	}
-
-	for _, name := range sortedResourceKeys(mod.ManagedResources) {
-		rc := mod.ManagedResources[name]
-
-		content, _, contentDiags := rc.Config.PartialContent(&hcl.BodySchema{
-			Attributes: []hcl.AttributeSchema{{Name: "tags"}},
-		})
-		if contentDiags.HasErrors() {
-			continue
-		}
-		attr, ok := content.Attributes["tags"]
-		if !ok {
-			continue
-		}
-		pairs, pairDiags := hcl.ExprMap(attr.Expr)
-		if pairDiags.HasErrors() {
-			// A tags argument that is not written as an object literal - a
-			// merge() call, a variable - cannot be picked apart here.
-			continue
-		}
-		for _, pair := range pairs {
-			key, keyDiags := pair.Key.Value(nil)
-			if keyDiags.HasErrors() || key.IsNull() || key.Type() != cty.String || key.AsString() != discovery.TagEstate {
-				continue
-			}
-			val, valDiags := mod.StaticEvaluator.Evaluate(ctx, pair.Value, configs.StaticIdentifier{
-				Module:    cfg.Path,
-				Subject:   fmt.Sprintf("%s.tags", rc.Addr()),
-				DeclRange: attr.Range,
-			})
-			if valDiags.HasErrors() || val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() || val.Type() != cty.String {
-				continue
-			}
-			if s := val.AsString(); s != "" {
-				seen[s] = true
-			}
-		}
-	}
-
-	for _, name := range identity.SortedChildNames(cfg.Children) {
-		statelessEstateFromModule(ctx, cfg.Children[name], seen)
-	}
+	return discovery.DeclaredEstateNames(ctx, config), diags
 }
 
 // statelessNeedsDiscoveryProviders is the set of provider configurations
@@ -1597,15 +1534,6 @@ func statelessTags(tags []foreign.Tag) []views.StatelessTag {
 	for _, t := range tags {
 		out = append(out, views.StatelessTag{Key: t.Key, Value: t.Value})
 	}
-	return out
-}
-
-func sortedResourceKeys(m map[string]*configs.Resource) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
 	return out
 }
 

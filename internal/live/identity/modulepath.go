@@ -191,6 +191,50 @@ func childModuleForEachElements(ctx context.Context, mod *configs.Module, subjec
 	return elems, nil
 }
 
+// ChildCallKeys enumerates the instance keys of the module call named name
+// inside mod, and is the one place the count / for_each / static three-way
+// dispatch is written.
+//
+// It exists because that dispatch was written out longhand in four separate
+// walks, and the same limb went missing from three of them at different
+// times: [stamp.moduleResourcesFrom] (de7c0ae3ef), discovery's
+// walkCountBlocks (932cf2403e) and dataread's moduleInstancesOf each read
+// call.ForEach and never call.Count, so a count'd call fell through to
+// [ChildModuleKeys] with a nil expression - which reports the single
+// unkeyed instance a STATIC call has. Those walks then named a block
+// "module.foo.aws_eip.pool" while resolution, which did make the full
+// dispatch, names it "module.foo[0].aws_eip.pool". Nothing was watching
+// any of the copies, because a copy that agrees today looks correct.
+//
+// Order matters and is count first: count and for_each are mutually
+// exclusive on a module call, and this is the order
+// [resolver.buildExpansion] already uses for a resource's own pair. A call
+// with neither, or a name mod has no call for, is the single unkeyed
+// instance - which is what both key functions report for a nil expression,
+// so the three-way dispatch really is those two calls and no extra case.
+//
+// mod is the module the CALL is written in (the parent), the same scope
+// [ChildModuleKeys] documents for the expression it evaluates.
+//
+// A caller that needs the diagnostic reports it; a caller for whom an
+// unenumerable call is somebody else's refusal (lint's RuleChildModule
+// refuses these before any of these walks run) skips the child. Neither
+// may treat a diagnostic as "one unkeyed instance".
+func ChildCallKeys(ctx context.Context, mod *configs.Module, name string) ([]addrs.InstanceKey, *hcl.Diagnostic) {
+	var count, forEach hcl.Expression
+	if mod != nil {
+		if call, ok := mod.ModuleCalls[name]; ok && call != nil {
+			count = call.Count
+			forEach = call.ForEach
+		}
+	}
+	subject := fmt.Sprintf("module %q", name)
+	if count != nil {
+		return ChildModuleCountKeys(ctx, mod, subject, count)
+	}
+	return ChildModuleKeys(ctx, mod, subject, forEach)
+}
+
 // ChildModuleRepetitionData evaluates a module call's own count or for_each
 // expression - exactly as [ChildModuleCountKeys] and [ChildModuleKeys]
 // themselves do - and returns the each.key/each.value or count.index data

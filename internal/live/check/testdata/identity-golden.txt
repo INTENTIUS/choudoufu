@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=438 instances=1429
+# shape: dirs=441 instances=1435
 # shape: class CONCRETE=734
-# shape: class NEEDS_DISCOVERY=582
+# shape: class NEEDS_DISCOVERY=588
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=dc1fae92f6997c535a07fb876f4fac1d7c1d70310deb28acaec9ba7746a9d682
+# shape: body-sha256=a239c58f6139fb53f6c10342ff6965926041cb059c97186409d82a43cca8498a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -58,6 +58,12 @@ internal/live/discovery/testdata/count-module-walk/child	aws_eip.pool[1]	NEEDS_D
 internal/live/discovery/testdata/count-pool	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[2]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names	aws_vpc.root	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names	module.child.aws_vpc.child	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names	module.child.module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-clientnamed	aws_s3_bucket.renamed	CONCRETE	tofu-stateless-e2e-renamed	bucket=tofu-stateless-e2e-renamed
 internal/live/discovery/testdata/moved-gained-count	aws_eip.pool[0]	NEEDS_DISCOVERY		

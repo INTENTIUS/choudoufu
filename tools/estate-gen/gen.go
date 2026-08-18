@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -464,24 +465,15 @@ func blockRequired(nb *configschema.NestedBlock) bool {
 	}
 }
 
-// taggable mirrors internal/live/stamp's predicate (also duplicated in
-// tools/survey-gen/classify.go and tools/row-gen): a top-level, settable
-// tags argument typed map(string). estate tags are only ever added to a
-// type this returns true for.
+// taggable is [markers.Taggable] - the predicate the run itself applies -
+// rather than the copy of its first four clauses this used to carry.
+// Estate tags are only ever added to a type it returns true for, so a copy
+// that answered "yes" where the run answers "no" would write a marker into
+// a field the provider rejects. See tools/survey-gen/classify.go's taggable
+// for what the missing fifth clause is and what it measures against the
+// real schemas.
 func taggable(b *configschema.Block) bool {
-	if b == nil {
-		return false
-	}
-	attr, ok := b.Attributes["tags"]
-	if !ok || attr == nil || (!attr.Optional && !attr.Required) {
-		return false
-	}
-	ty := attr.Type
-	if !ty.IsMapType() {
-		return false
-	}
-	et := ty.ElementType()
-	return et == cty.String || et == cty.DynamicPseudoType
+	return markers.Taggable(b)
 }
 
 // render builds one resource block's full text - its coverage/provenance
