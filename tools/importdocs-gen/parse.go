@@ -247,6 +247,53 @@ type ArgumentRefEntry struct {
 	// about. Always empty for a Required argument: a required argument has
 	// no omitted case to default from. See cloudDefault for the test.
 	CloudDefault string `json:"cloud_default,omitempty"`
+
+	// DeclaredUnique is set when the bullet's own prose states that this
+	// argument's value must be unique - "Unique name used to identify the
+	// cache policy", "You must provide a unique name" - as opposed to
+	// merely being a name with no stated uniqueness constraint ("A name
+	// that identifies the Origin Access Control" carries none). See
+	// declaredUnique for the negation-aware test.
+	//
+	// Computed for every argument, Required included - unlike
+	// ServerAssignedIfAbsent and CloudDefault, both of which only apply to
+	// an omitted Optional argument, a uniqueness claim is most often made
+	// about a Required one (every measured case at v6.59.0 is).
+	//
+	// This is the provider-documentation half of issue #272's two-source
+	// admission rule: tools/row-gen cross-checks it against the CFN
+	// registry's own "Name" property description, and only where both
+	// agree may discovery match a live object's property against this
+	// argument's declared value instead of reading an ownership marker off
+	// it. Neither source alone is enough - see tools/row-gen/markerless.go
+	// for the two-source discipline this mirrors.
+	DeclaredUnique bool `json:"declared_unique,omitempty"`
+}
+
+// declaredUniqueRe matches the doc's own claim that an Argument Reference
+// bullet's value has to be unique - "Unique name used to identify the cache
+// policy", "You must provide a unique name", "Must be unique within your
+// account" - the wording issue #272 threads through as the provider-side
+// half of a two-source proof that a client-supplied argument may stand in
+// for a live object's identity when no ownership marker can be written.
+var declaredUniqueRe = regexp.MustCompile(`(?i)\bunique\b`)
+
+// declaredUniqueNegatedRe matches the doc's own denial that the value has to
+// be unique, in the same clause as the word itself - "do not need to be
+// unique", "does not need to be unique", "is not a unique identifier" -
+// which overrides declaredUniqueRe's bare keyword match. The exclusion
+// window stops at a clause boundary (no period crossed), so an unrelated
+// negation earlier in the same bullet ("Spaces are not allowed. The `name`
+// must be unique") does not suppress a real, later claim - aws_iam_role's
+// path argument bullet is exactly that shape in the cached docs.
+var declaredUniqueNegatedRe = regexp.MustCompile(`(?i)\b(?:not|n't)\b[^.]{0,40}\bunique\b`)
+
+// declaredUnique reports whether an Argument Reference bullet's full text
+// (parenthetical and prose both, the same argumentReferenceBodies text
+// serverAssignedIfAbsent reads) states that its own value must be unique.
+// See declaredUniqueRe and declaredUniqueNegatedRe for the two-part test.
+func declaredUnique(body string) bool {
+	return declaredUniqueRe.MatchString(body) && !declaredUniqueNegatedRe.MatchString(body)
 }
 
 // accountDefaultRe matches the doc's own statement that omitting an argument
@@ -391,6 +438,7 @@ func argumentReferenceEntries(doc string) []ArgumentRefEntry {
 			Required:               required,
 			ForceNew:               forceNewPhraseRe.MatchString(paren),
 			ServerAssignedIfAbsent: !required && serverAssignedIfAbsent(bodies[name]),
+			DeclaredUnique:         declaredUnique(bodies[name]),
 		}
 		if !required {
 			entry.CloudDefault = cloudDefault(bodies[name])

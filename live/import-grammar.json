@@ -1245,11 +1245,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "security_groups",
@@ -2101,13 +2103,15 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "port",
@@ -2318,7 +2322,8 @@
         },
         {
           "name": "quic_server_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "arguments_in_doc_order": [
@@ -2452,7 +2457,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "boot_mode",
@@ -2638,7 +2644,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "source_ami_id",
@@ -2707,7 +2714,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "source_instance_id",
@@ -3033,7 +3041,8 @@
         },
         {
           "name": "app_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "environment_name",
@@ -3123,7 +3132,8 @@
         },
         {
           "name": "app_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "branch_name",
@@ -3307,7 +3317,8 @@
         },
         {
           "name": "app_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "certificate_settings",
@@ -3417,7 +3428,8 @@
         },
         {
           "name": "app_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "branch_name",
@@ -4056,7 +4068,8 @@
         },
         {
           "name": "certificate_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "certificate_private_key",
@@ -4844,7 +4857,8 @@
         },
         {
           "name": "response_parameters",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "rest_api_id",
@@ -7421,7 +7435,8 @@
         },
         {
           "name": "resource_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "scalable_dimension",
@@ -7697,7 +7712,8 @@
         },
         {
           "name": "resource_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "role_arn",
@@ -8359,7 +8375,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "parameter",
@@ -8691,7 +8708,8 @@
       "argument_reference": [
         {
           "name": "app_authorization_arn",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "app_bundle_arn",
@@ -9048,7 +9066,8 @@
         },
         {
           "name": "connector_label",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "connector_profile_config",
@@ -9064,7 +9083,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -11300,7 +11320,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -11544,7 +11565,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -11774,7 +11796,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "access_endpoint",
@@ -12065,7 +12088,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "access_endpoints",
@@ -13692,7 +13716,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "recovery_approach",
@@ -14127,7 +14152,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "type",
@@ -14705,7 +14731,8 @@
         },
         {
           "name": "framework_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "roles",
@@ -14871,7 +14898,8 @@
         },
         {
           "name": "assessment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -15137,7 +15165,8 @@
         },
         {
           "name": "framework_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -15327,7 +15356,8 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "max_size",
@@ -16559,7 +16589,8 @@
         },
         {
           "name": "traffic_source",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "identifier",
@@ -16734,7 +16765,8 @@
         },
         {
           "name": "resource_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "scalable_dimension",
@@ -17176,7 +17208,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -17501,7 +17534,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -18277,12 +18311,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "compute_resources",
@@ -19269,7 +19305,8 @@
         },
         {
           "name": "job_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "output_data_config",
@@ -20111,7 +20148,8 @@
         },
         {
           "name": "provisioned_model_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -20393,7 +20431,8 @@
         },
         {
           "name": "agent_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "agent_version",
@@ -20692,7 +20731,8 @@
         {
           "name": "agent_id",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -20701,7 +20741,8 @@
         {
           "name": "knowledge_base_id",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "knowledge_base_state",
@@ -20788,7 +20829,8 @@
         },
         {
           "name": "knowledge_base_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
@@ -21937,7 +21979,8 @@
         {
           "name": "client_token",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -23557,7 +23600,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "approval_configuration",
@@ -24057,11 +24101,13 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "notification",
@@ -24458,7 +24504,8 @@
       "argument_reference": [
         {
           "name": "account_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "frequency",
@@ -24696,7 +24743,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "rule",
@@ -26731,7 +26779,8 @@
         },
         {
           "name": "parameter_overrides",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "regions",
@@ -26825,7 +26874,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "capabilities",
@@ -27292,7 +27342,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "min_ttl",
@@ -27712,7 +27763,8 @@
         },
         {
           "name": "web_acl_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "retain_on_delete",
@@ -28192,7 +28244,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "code",
@@ -28319,7 +28372,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "comment",
@@ -28616,7 +28670,8 @@
         },
         {
           "name": "web_acl_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "sole_id_part": {
@@ -28885,7 +28940,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "comment",
@@ -29049,7 +29105,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "sampling_rate",
@@ -29171,7 +29228,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "comment",
@@ -30176,7 +30234,8 @@
         },
         {
           "name": "kms_key_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -30462,7 +30521,8 @@
         },
         {
           "name": "alarm_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "alarm_rule",
@@ -30544,7 +30604,8 @@
         },
         {
           "name": "rule_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -30812,7 +30873,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -31543,11 +31605,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "schedule_expression",
@@ -31789,7 +31853,8 @@
         {
           "name": "target_id",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         }
       ],
       "arguments_in_doc_order": [
@@ -32623,12 +32688,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "skip_destroy",
@@ -33510,7 +33577,8 @@
         },
         {
           "name": "alarm_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "comparison_operator",
@@ -33764,12 +33832,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -33956,7 +34026,8 @@
         },
         {
           "name": "domain",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "encryption_key",
@@ -35791,7 +35862,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "provider_type",
@@ -35878,7 +35950,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "provider_endpoint",
@@ -37304,7 +37377,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "provider_type",
@@ -37391,7 +37465,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "provider_endpoint",
@@ -38581,7 +38656,8 @@
         },
         {
           "name": "username",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -39430,11 +39506,13 @@
         {
           "name": "version_name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "version_name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "volume_kms_key_id",
@@ -39594,11 +39672,13 @@
         {
           "name": "version_name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "version_name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "volume_kms_key_id",
@@ -43020,7 +43100,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -43478,7 +43559,8 @@
       "argument_reference": [
         {
           "name": "report_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "time_unit",
@@ -43644,7 +43726,8 @@
       "argument_reference": [
         {
           "name": "domain_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "default_expiration_days",
@@ -43731,7 +43814,8 @@
       "argument_reference": [
         {
           "name": "domain_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -43740,7 +43824,8 @@
         },
         {
           "name": "account_number",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "additional_information",
@@ -44097,7 +44182,8 @@
       "argument_reference": [
         {
           "name": "data_set_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "asset",
@@ -46126,7 +46212,8 @@
       "argument_reference": [
         {
           "name": "domain_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
@@ -46134,7 +46221,8 @@
         },
         {
           "name": "owning_project_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -47893,11 +47981,13 @@
         {
           "name": "identifier",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "identifier_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "instance_class",
@@ -48428,12 +48518,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "option_group_description",
@@ -48552,12 +48644,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "family",
@@ -48655,7 +48749,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -49201,12 +49296,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -50990,7 +51087,8 @@
         },
         {
           "name": "alias",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -52411,7 +52509,8 @@
         },
         {
           "name": "replication_config_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "replication_type",
@@ -52435,7 +52534,8 @@
         },
         {
           "name": "resource_identifier",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "supplemental_settings",
@@ -53369,13 +53469,15 @@
         {
           "name": "cluster_identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "cluster_identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "db_subnet_group_name",
@@ -53613,13 +53715,15 @@
         {
           "name": "identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "instance_class",
@@ -53729,12 +53833,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "family",
@@ -54065,12 +54171,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -56843,7 +56951,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -59080,7 +59189,8 @@
         },
         {
           "name": "auto_placement",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "availability_zone",
@@ -60471,7 +60581,8 @@
         },
         {
           "name": "rule_number",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "source_cidr_block",
@@ -60603,7 +60714,8 @@
         },
         {
           "name": "virtual_network_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -63563,7 +63675,8 @@
         },
         {
           "name": "family",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cpu",
@@ -64288,7 +64401,8 @@
         },
         {
           "name": "family",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cpu",
@@ -64726,7 +64840,8 @@
         },
         {
           "name": "creation_token",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "encrypted",
@@ -65624,7 +65739,8 @@
       "argument_reference": [
         {
           "name": "capability_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cluster_name",
@@ -66233,11 +66349,13 @@
         {
           "name": "node_group_name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "node_group_name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "node_repair_config",
@@ -66533,7 +66651,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -66641,7 +66760,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -66719,7 +66839,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "application",
@@ -66797,7 +66918,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "application",
@@ -67744,7 +67866,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -69111,7 +69234,8 @@
         },
         {
           "name": "id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "opacity",
@@ -69430,7 +69554,8 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "access_logs",
@@ -70642,7 +70767,8 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "configuration",
@@ -70884,7 +71010,8 @@
         },
         {
           "name": "identity_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "identity_name",
@@ -71896,11 +72023,13 @@
         },
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "release_label",
@@ -72061,7 +72190,8 @@
       "argument_reference": [
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
@@ -72209,11 +72339,13 @@
         },
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "auto_update",
@@ -72225,7 +72357,8 @@
         },
         {
           "name": "changeset_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -72233,7 +72366,8 @@
         },
         {
           "name": "read_write",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -72242,7 +72376,8 @@
         },
         {
           "name": "segment_configurations",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -72402,7 +72537,8 @@
         },
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "host_type",
@@ -72410,7 +72546,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -72469,7 +72606,8 @@
       "argument_reference": [
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "iam_role",
@@ -72477,7 +72615,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -72573,11 +72712,13 @@
         },
         {
           "name": "environment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "type",
@@ -75326,7 +75467,8 @@
         },
         {
           "name": "game_server_group_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "game_server_protection_policy",
@@ -77808,7 +77950,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "number_of_nodes",
@@ -78006,7 +78149,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "non_overridable_arguments",
@@ -78179,7 +78323,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "input_record_tables",
@@ -79417,7 +79562,8 @@
         },
         {
           "name": "key_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "key_role",
@@ -79594,7 +79740,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "grafana_role",
@@ -79672,7 +79819,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "seconds_to_live",
@@ -81273,11 +81421,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "group",
@@ -81437,12 +81587,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "path",
@@ -81644,12 +81796,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "path",
@@ -81831,12 +81985,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "path",
@@ -81964,11 +82120,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "policy",
@@ -82225,11 +82383,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "path",
@@ -82689,12 +82849,14 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "user",
@@ -82979,7 +83141,8 @@
       "argument_reference": [
         {
           "name": "identity_store_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -83142,7 +83305,8 @@
         {
           "name": "identity_store_id",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name",
@@ -83151,7 +83315,8 @@
         {
           "name": "user_name",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -85939,7 +86104,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "rule",
@@ -86361,7 +86527,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "server_certificate_arns",
@@ -87438,7 +87605,8 @@
         },
         {
           "name": "id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "index",
@@ -87550,7 +87718,8 @@
         },
         {
           "name": "execution_name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "state_machine_name",
@@ -88930,11 +89099,13 @@
         },
         {
           "name": "key_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "key_name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "public_key",
@@ -89656,7 +89827,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -90001,7 +90173,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "encryption_type",
@@ -90214,7 +90387,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "data_retention_in_hours",
@@ -90987,7 +91161,8 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "target_key_id",
@@ -91054,7 +91229,8 @@
         },
         {
           "name": "key_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "context",
@@ -91107,7 +91283,8 @@
       "argument_reference": [
         {
           "name": "custom_key_store_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -91334,7 +91511,8 @@
         {
           "name": "key_id",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "grantee_principal",
@@ -93298,7 +93476,8 @@
       "argument_reference": [
         {
           "name": "function_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "role",
@@ -93982,7 +94161,8 @@
       "argument_reference": [
         {
           "name": "layer_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "compatible_architectures",
@@ -94145,7 +94325,8 @@
         },
         {
           "name": "statement_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "version_number",
@@ -94574,11 +94755,13 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "security_groups",
@@ -94990,11 +95173,13 @@
         },
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "network_interfaces",
@@ -95347,11 +95532,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "security_groups",
@@ -96463,13 +96650,15 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "port",
@@ -96679,7 +96868,8 @@
         },
         {
           "name": "quic_server_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "arguments_in_doc_order": [
@@ -96795,13 +96985,15 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -97645,7 +97837,8 @@
         },
         {
           "name": "parent_intent_signature",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "rejection_statement",
@@ -97869,7 +98062,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "data_privacy",
@@ -98118,7 +98312,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -98420,7 +98615,8 @@
         },
         {
           "name": "slot_type_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "sub_slot_setting",
@@ -99202,7 +99398,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "power",
@@ -99491,7 +99688,8 @@
         },
         {
           "name": "relational_database_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "apply_immediately",
@@ -100064,7 +100262,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "add_on",
@@ -100233,11 +100432,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "pgp_key",
@@ -101311,7 +101512,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -101473,7 +101675,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "engine_type",
@@ -101725,11 +101928,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -101901,11 +102106,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -102020,11 +102227,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -102756,7 +102965,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "concurrent_jobs",
@@ -102834,7 +103044,8 @@
         },
         {
           "name": "channel_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -102889,7 +103100,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -103946,7 +104158,8 @@
         },
         {
           "name": "program_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "multiplex_program_settings",
@@ -104011,12 +104224,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "user_names",
@@ -104179,12 +104394,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "network_type",
@@ -104429,12 +104646,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -104508,12 +104727,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "kms_key_arn",
@@ -104580,12 +104801,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -107189,12 +107412,14 @@
           "name": "cluster_identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "cluster_identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "copy_tags_to_snapshot",
@@ -107505,12 +107730,14 @@
           "name": "identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "instance_class",
@@ -107632,12 +107859,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "family",
@@ -107967,7 +108196,8 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "family",
@@ -108048,12 +108278,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -108153,7 +108385,8 @@
           "name": "graph_name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "public_connectivity",
@@ -108241,7 +108474,8 @@
       "argument_reference": [
         {
           "name": "graph_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "vpc_id",
@@ -109313,12 +109547,14 @@
         {
           "name": "transit_gateway_id",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "vpc_id",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         }
       ],
       "import_id_template": {
@@ -109539,7 +109775,8 @@
         },
         {
           "name": "transit_gateway_attachment_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         }
       ],
       "sole_id_part": {
@@ -110174,7 +110411,8 @@
         },
         {
           "name": "vpc_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         }
       ],
       "import_id_template": {
@@ -112329,7 +112567,8 @@
       "argument_reference": [
         {
           "name": "contact_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "managed_notification_configuration_arn",
@@ -113101,7 +113340,8 @@
       "argument_reference": [
         {
           "name": "rule_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "rule",
@@ -113819,7 +114059,8 @@
         },
         {
           "name": "odb_network_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -114202,7 +114443,8 @@
         },
         {
           "name": "hostname_prefix",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "ssh_public_keys",
@@ -114214,7 +114456,8 @@
         },
         {
           "name": "cloud_exadata_infrastructure_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "cluster_name",
@@ -114246,7 +114489,8 @@
         },
         {
           "name": "odb_network_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -114482,7 +114726,8 @@
         },
         {
           "name": "peer_network_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "odb_network_arn",
@@ -114490,7 +114735,8 @@
         },
         {
           "name": "odb_network_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -114534,7 +114780,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "app_config",
@@ -115218,7 +115465,8 @@
         {
           "name": "package_name",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "package_type",
@@ -116425,11 +116673,13 @@
       "argument_reference": [
         {
           "name": "policy_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "target_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "skip_destroy",
@@ -116607,7 +116857,8 @@
         },
         {
           "name": "pipeline_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -118747,11 +118998,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "source_parameters",
@@ -119962,7 +120215,8 @@
         },
         {
           "name": "stream_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -120075,7 +120329,8 @@
       "argument_reference": [
         {
           "name": "account_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "authentication_method",
@@ -122813,7 +123068,8 @@
         },
         {
           "name": "session_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "user_name",
@@ -123039,7 +123295,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "policy_template",
@@ -123790,12 +124047,14 @@
           "name": "cluster_identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "cluster_identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "cluster_scalability_type",
@@ -124423,13 +124682,15 @@
         {
           "name": "identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "instance_class",
@@ -124585,12 +124846,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "family",
@@ -124964,7 +125227,8 @@
       "argument_reference": [
         {
           "name": "export_task_identifier",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "iam_role_arn",
@@ -125869,7 +126133,8 @@
         {
           "name": "snapshot_identifier",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "manual_snapshot_retention_period",
@@ -127289,7 +127554,8 @@
         {
           "name": "kms_key_id",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -127338,12 +127604,14 @@
           "name": "identifier",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "identifier_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -129090,7 +129358,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "scope",
@@ -129654,7 +129923,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         }
       ],
       "argument_names_any_depth": [
@@ -130012,11 +130282,13 @@
         },
         {
           "name": "key_management_service_arn",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "status",
@@ -130171,7 +130443,8 @@
         },
         {
           "name": "set_identifier",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "health_check_id",
@@ -130824,7 +131097,8 @@
         },
         {
           "name": "firewall_rule_group_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "priority",
@@ -130953,7 +131227,8 @@
         },
         {
           "name": "firewall_rule_group_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "mutation_protection",
@@ -130965,7 +131240,8 @@
         },
         {
           "name": "vpc_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -132373,7 +132649,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "network_type",
@@ -132713,7 +132990,8 @@
       "argument_reference": [
         {
           "name": "cell_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cells",
@@ -132764,7 +133042,8 @@
       "argument_reference": [
         {
           "name": "readiness_check_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "resource_set_name",
@@ -132806,7 +133085,8 @@
       "argument_reference": [
         {
           "name": "recovery_group_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cells",
@@ -132867,7 +133147,8 @@
       "argument_reference": [
         {
           "name": "resource_set_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "resource_set_type",
@@ -133392,7 +133673,8 @@
           "name": "bucket",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "bucket_namespace",
@@ -133402,7 +133684,8 @@
         {
           "name": "bucket_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "cors_rule",
@@ -133811,7 +134094,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -134045,7 +134329,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -134168,7 +134453,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "schedule",
@@ -134570,7 +134856,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -139434,7 +139721,8 @@
         },
         {
           "name": "code_repository_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "git_config",
@@ -139574,7 +139862,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "network_config",
@@ -139754,7 +140043,8 @@
         },
         {
           "name": "device_fleet_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "role_arn",
@@ -140053,7 +140343,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -140167,12 +140458,14 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "production_variants",
@@ -140332,7 +140625,8 @@
         },
         {
           "name": "feature_group_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "record_identifier_feature_name",
@@ -141350,7 +141644,8 @@
         },
         {
           "name": "image_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "role_arn",
@@ -141358,7 +141653,8 @@
         },
         {
           "name": "display_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -141416,7 +141712,8 @@
         },
         {
           "name": "image_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "base_image",
@@ -141872,7 +142169,8 @@
         },
         {
           "name": "tracking_server_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "mlflow_version",
@@ -141965,7 +142263,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "primary_container",
@@ -142394,7 +142693,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -142515,7 +142815,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "role_arn",
@@ -142625,7 +142926,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "on_create",
@@ -143664,7 +143966,8 @@
         },
         {
           "name": "workforce_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "cognito_config",
@@ -143772,7 +144075,8 @@
         },
         {
           "name": "workteam_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "member_definition",
@@ -143843,7 +144147,8 @@
       "argument_reference": [
         {
           "name": "savings_plan_offering_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "commitment",
@@ -143964,12 +144269,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -144089,12 +144396,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -144419,7 +144728,8 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "policy",
@@ -144732,7 +145042,8 @@
         },
         {
           "name": "version_stages",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "identity_schema_required": [
@@ -144915,13 +145226,15 @@
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "revoke_rules_on_delete",
@@ -145952,7 +146265,8 @@
         },
         {
           "name": "policy_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "target_id",
@@ -146835,7 +147149,8 @@
         },
         {
           "name": "security_control_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "standards_arn",
@@ -147023,11 +147338,13 @@
         },
         {
           "name": "source_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "source_version",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "sole_id_part": {
@@ -147131,7 +147448,8 @@
         },
         {
           "name": "source_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "source_version",
@@ -149010,7 +149328,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -151167,7 +151486,8 @@
       "argument_reference": [
         {
           "name": "tenant_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -151486,11 +151806,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "publish",
@@ -152108,12 +152430,14 @@
         {
           "name": "name",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "signature_validity_period",
@@ -152212,11 +152536,13 @@
         },
         {
           "name": "statement_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "statement_id_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "argument_names_any_depth": [
@@ -152499,11 +152825,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "display_name",
@@ -153454,11 +153782,13 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "policy",
@@ -154115,7 +154445,8 @@
         },
         {
           "name": "version_name",
-          "required": false
+          "required": false,
+          "declared_unique": true
         }
       ],
       "identity_schema_required": [
@@ -155200,7 +155531,8 @@
       "argument_reference": [
         {
           "name": "alias",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "type",
@@ -155988,7 +156320,8 @@
         },
         {
           "name": "client_token",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -157134,7 +157467,8 @@
         },
         {
           "name": "client_token",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -157321,7 +157655,8 @@
         },
         {
           "name": "target_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "volume_size_in_bytes",
@@ -158181,11 +158516,13 @@
         },
         {
           "name": "target_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "disk_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "preserve_existing_data",
@@ -158696,12 +159033,14 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
           "required": false,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -159147,7 +159486,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "vpc_security_group_ids",
@@ -159361,7 +159701,8 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "password",
@@ -160496,11 +160837,13 @@
         },
         {
           "name": "local_profile_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "partner_profile_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -160509,7 +160852,8 @@
         },
         {
           "name": "server_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "tags",
@@ -164927,7 +165271,8 @@
       "argument_reference": [
         {
           "name": "route_server_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "route_table_id",
@@ -164985,7 +165330,8 @@
       "argument_reference": [
         {
           "name": "route_server_id",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "vpc_id",
@@ -165592,7 +165938,8 @@
         {
           "name": "name",
           "required": true,
-          "force_new": true
+          "force_new": true,
+          "declared_unique": true
         },
         {
           "name": "port",
@@ -165730,11 +166077,13 @@
         },
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "priority",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "service_identifier",
@@ -166085,7 +166434,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "auth_type",
@@ -166399,7 +166749,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "type",
@@ -167677,7 +168028,8 @@
         {
           "name": "name",
           "required": false,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "metric_name",
@@ -169176,11 +169528,13 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -169290,11 +169644,13 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "description",
@@ -169468,7 +169824,8 @@
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "rule",
@@ -169790,11 +170147,13 @@
           "name": "name",
           "required": false,
           "force_new": true,
-          "server_assigned_if_absent": true
+          "server_assigned_if_absent": true,
+          "declared_unique": true
         },
         {
           "name": "name_prefix",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "region",
@@ -170261,7 +170620,8 @@
       "argument_reference": [
         {
           "name": "name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "priority",
@@ -170896,7 +171256,8 @@
       "argument_reference": [
         {
           "name": "organization_alias",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "delete_directory",
@@ -173782,7 +174143,8 @@
       "argument_reference": [
         {
           "name": "policy_name",
-          "required": true
+          "required": true,
+          "declared_unique": true
         },
         {
           "name": "policy_document",
@@ -173795,7 +174157,8 @@
         },
         {
           "name": "policy_revision_id",
-          "required": false
+          "required": false,
+          "declared_unique": true
         },
         {
           "name": "bypass_policy_lockout_check",
