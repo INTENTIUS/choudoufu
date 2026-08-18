@@ -13,7 +13,7 @@ set -uo pipefail
 # and closes it, and it stays as the permanent, minimal answer to "does the
 # canonical shape work," separate from any corpus estate's own baggage.
 #
-# Two bars, both real, both required:
+# Three bars, all real, all required:
 #
 #   GREENFIELD  write the config with a live block from the start, apply,
 #               every object gets a real marker (read back through the AWS
@@ -28,15 +28,23 @@ set -uo pipefail
 #               tags directly), then migrated with "choudoufu live-import
 #               -state=... -approve" and replanned. Empty.
 #
-# Both directions are checked against the SAME five resource types, so a
-# gap in either direction is visible rather than averaged away. A known,
-# non-fabricated gap found while building this: a bare "choudoufu plan"
-# (skipping live-import) only auto-adopts 3 of the 5 types on its own -
-# VPC/subnet/security-group match a live object by its own content, but
-# aws_instance and aws_internet_gateway do not yet, and need the explicit
-# live-import step. That gap is real; this script does not route around
-# it, it takes the path (live-import) that is documented for exactly this
-# case.
+#   DRIFT AND   against that same adopted estate, one live object (the EC2
+#   RECONVERGE  instance's Name tag) is changed out of band directly via
+#               the AWS CLI, never through choudoufu. The next
+#               "choudoufu plan" must propose fixing that ONE object and
+#               nothing else - not "everything looks different" - and
+#               applying it must reconverge the live tag back to what the
+#               configuration declares.
+#
+# Both of the first two directions are checked against the SAME five
+# resource types, so a gap in either direction is visible rather than
+# averaged away. A known, non-fabricated gap found while building this: a
+# bare "choudoufu plan" (skipping live-import) only auto-adopts 3 of the 5
+# types on its own - VPC/subnet/security-group match a live object by its
+# own content, but aws_instance and aws_internet_gateway do not yet, and
+# need the explicit live-import step. That gap is real; this script does
+# not route around it, it takes the path (live-import) that is documented
+# for exactly this case.
 #
 #   bash live/e2e/reference-ec2-vpc/run.sh
 #
@@ -47,9 +55,16 @@ set -uo pipefail
 #   FLOCI_PORT   host port for the greenfield emulator (default 4712).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt the expected identity string before
-#                the greenfield convergence check, proving the assertion
-#                is load-bearing rather than a grep that always matches.
+#   BREAK        set to 1 to run two negative controls instead of the real
+#                checks, proving both are load-bearing rather than a grep
+#                that always matches: (1) before the greenfield convergence
+#                check, the expected empty-plan assertion is skipped in
+#                favor of confirming the plan is NOT empty; (2) before the
+#                drift-and-reconverge check, a SECOND live object (the
+#                security group's Name tag) is also tampered out of band,
+#                and the single-object assertion must then correctly fail
+#                to hold (it is skipped in favor of confirming more than
+#                one object is proposed).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORK="$(mktemp -d)"
@@ -359,17 +374,82 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$ADOP
   || { grep -E '^  #' <<< "$ADOPT_PLAN_OUT"; fail "the post-adoption plan is not empty"; }
 log "  No changes. The infra terraform created, unmarked, is now under live markers with an empty plan."
 
+# ══════════════════════════════════════════════════════════════════════════
+# PART C: DRIFT AND RECONVERGE
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (Part B) is the one both stamped by choudoufu and
+# already proven to plan empty - the natural place to prove the OTHER
+# direction: a live object changed behind choudoufu's back is detected and
+# the fix is scoped to exactly that object, not "the whole estate looks
+# different." AWS_ENDPOINT_URL is still $ADOPT_ENDPOINT and PLAIN_INSTANCE_ID
+# is still the live instance's id, both set during part B above.
+
+log "=== C0. mutate one live object out of band, directly via the AWS CLI ==="
+if [ "${BREAK:-}" = "1" ]; then
+  DRIFT_SG_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-security-groups \
+    --filters "Name=group-name,Values=ec2-reference-sg" \
+    --query "SecurityGroups[0].GroupId" --output text)"
+  [ -n "$DRIFT_SG_ID" ] && [ "$DRIFT_SG_ID" != "None" ] || fail "no live security group found by its name"
+  aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 create-tags \
+    --resources "$DRIFT_SG_ID" --tags Key=Name,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: also tampered $DRIFT_SG_ID's Name tag - part C must now see TWO"
+  log "           drifted objects and fail the single-object assertion"
+fi
+
+aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 create-tags \
+  --resources "$PLAIN_INSTANCE_ID" --tags Key=Name,Value=tampered-out-of-band >/dev/null
+DRIFTED_VALUE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
+  --filters "Name=resource-id,Values=$PLAIN_INSTANCE_ID" "Name=key,Values=Name" \
+  --query "Tags[0].Value" --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated $PLAIN_INSTANCE_ID's Name tag to \"tampered-out-of-band\" directly via the AWS CLI - never through choudoufu"
+
+log "=== C1. choudoufu plan proposes fixing exactly that one object ==="
+DRIFT_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -30; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] \
+    && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than"
+  log "           one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  [ "$CHANGED_ADDRS" = "aws_instance.main" ] \
+    || fail "the plan proposes fixing $CHANGED_ADDRS, not aws_instance.main"
+  log "  the plan proposes fixing exactly one object: $CHANGED_ADDRS - nothing else in the diff"
+
+  log "=== C2. apply the reconverging plan; the drift is gone ==="
+  RECONVERGE_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -30; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
+    --filters "Name=resource-id,Values=$PLAIN_INSTANCE_ID" "Name=key,Values=Name" \
+    --query "Tags[0].Value" --output text)"
+  [ "$FIXED_VALUE" = "ec2-reference-instance" ] \
+    || fail "the instance's Name tag is \"$FIXED_VALUE\" after reconverging, not ec2-reference-instance"
+  log "  reconverged: $PLAIN_INSTANCE_ID's Name tag is back to \"ec2-reference-instance\", read via the AWS CLI"
+fi
+
 log ""
 log "=== PASS ==="
 log ""
 log "The reference project: VPC, subnet, internet gateway, security group,"
-log "EC2 instance. Both directions real, both checked against actual AWS"
-log "CLI reads rather than choudoufu's own report:"
+log "EC2 instance. Every direction real, every assertion checked against"
+log "actual AWS CLI reads rather than choudoufu's own report:"
 log ""
 log "  GREENFIELD  apply from a live block -> 5 marked -> empty plan ->"
 log "              empty plan again with the local record store deleted."
 log "  ADOPTION    plain terraform -> real state, zero markers -> choudoufu"
 log "              live-import -approve -> empty plan."
+log "  DRIFT       one live object tampered out of band -> choudoufu plan"
+log "              proposes fixing that object and nothing else -> apply"
+log "              reconverges it -> the live tag reads back as configured."
 log ""
 log "Known, non-fabricated gap this script does not paper over: a bare"
 log "'choudoufu plan' against unmarked infra (skipping live-import) only"
