@@ -565,6 +565,61 @@ func TestComposeCloudControlIdentifier(t *testing.T) {
 	}
 }
 
+// TestImportsWholeARNString pins issue #298's general shape - not just
+// aws_ecs_task_definition, but every ServerAssigned type whose
+// ImportSyntax is a single, unseparated placeholder ending "ARN" (the
+// shape tools/row-gen's tryOpaqueOverride writes only when the provider's
+// own "## Import" section documents that exact ARN example) - against a
+// sample of [identity.DefaultTable] rows confirmed by reading each type's
+// cached doc directly under ~/Library/Caches/choudoufu/importdocs-gen.
+func TestImportsWholeARNString(t *testing.T) {
+	tests := []struct {
+		typeName string
+		want     bool
+	}{
+		// Each of these documents a `terraform import`/`id =` example that
+		// is itself the type's own ARN, even though (for several) the
+		// type's identity SCHEMA names something else for the newer
+		// identity-object import path - which is exactly why signal 1
+		// (IdentityAttrs[0]=="arn") alone would miss them.
+		{"aws_ecs_task_definition", true},                     // family+revision identity schema, bare-ARN legacy import
+		{"aws_ram_resource_share", true},                      // ImportSyntax "ARN"
+		{"aws_datasync_location_efs", true},                   // ImportSyntax "ARN", IdentityAttrs [id, arn]
+		{"aws_detective_graph", true},                         // graph_arn identity schema, ImportSyntax GRAPHARN
+		{"aws_billing_view", true},                            // ImportSyntax "ARN"
+		{"aws_evidently_project", true},                       // ImportSyntax "ARN"
+		{"aws_networkfirewall_vpc_endpoint_association", true}, // ImportSyntax VPCENDPOINTASSOCIATIONARN
+		// aws_ivs_channel imports by ARN via signal 1
+		// (IdentityAttrs[0] == "arn") rather than ImportSyntax at all.
+		{"aws_ivs_channel", true},
+		// Regression guard, #124: an ARN-shaped Cloud Control identifier
+		// whose provider import wants the bare resource id, not the ARN -
+		// ImportSyntax is WORKSPACEID, not ARN-shaped.
+		{"aws_prometheus_workspace", false},
+		// Regression guard, #295: a compound, "/"-separated multi-segment
+		// ImportSyntax (ID/NAME/SCOPE) must not be mistaken for a single
+		// ARN token, even though IdentityAttrs does carry "arn" - just not
+		// first.
+		{"aws_wafv2_web_acl", false},
+		// A compound ":"-separated ImportSyntax naming no ARN at all.
+		{"aws_guardduty_ipset", false},
+		// An ordinary composite type with no ARN involved at all.
+		{"aws_route_table_association", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typeName, func(t *testing.T) {
+			ti, ok := identity.LookupType(tt.typeName)
+			if !ok {
+				t.Fatalf("identity.LookupType(%q) not found - has the admission table moved?", tt.typeName)
+			}
+			if got := importsWholeARNString(ti); got != tt.want {
+				t.Errorf("importsWholeARNString(%q) = %v, want %v (ImportSyntax=%q, IdentityAttrs=%v)",
+					tt.typeName, got, tt.want, ti.ImportSyntax, ti.IdentityAttrs)
+			}
+		})
+	}
+}
+
 func TestResolveCloudControlImportID(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -588,6 +643,19 @@ func TestResolveCloudControlImportID(t *testing.T) {
 		// "arn"), so its identifier stays whole.
 		{"ARN identifier, arn-identity type keeps the ARN", "aws_ivs_channel",
 			"arn:aws:ivs:us-east-1:000000000000:channel/abcDEF123", "arn:aws:ivs:us-east-1:000000000000:channel/abcDEF123", true},
+		// Issue #298: aws_ecs_task_definition's identity SCHEMA (consulted
+		// by importIdentity on the native ListResource path) is
+		// family+revision, not arn - so the IdentityAttrs[0]=="arn" check
+		// alone never catches it - but its ImportSyntax (TASKDEFINITIONARN)
+		// says the provider's legacy ID-string import IS the whole ARN,
+		// confirmed against ecs_task_definition.html.markdown's "## Import"
+		// section. Before the fix this returned the ARN's resource-id
+		// segment, "sitemaps-generator:1", which the provider's
+		// ImportResourceState rejects outright ("Expected ID in format of
+		// arn:PARTITION:ecs:REGION:ACCOUNTID:task-definition/FAMILY:REVISION").
+		{"ARN identifier, family+revision identity type with ARN-shaped ImportSyntax keeps the ARN", "aws_ecs_task_definition",
+			"arn:aws:ecs:eu-west-1:000000000000:task-definition/sitemaps-generator:1",
+			"arn:aws:ecs:eu-west-1:000000000000:task-definition/sitemaps-generator:1", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

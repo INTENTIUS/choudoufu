@@ -1507,8 +1507,10 @@ func tryArgumentReferenceComposite(p *proposal, g importGrammarRow) bool {
 }
 
 // deriveDocImportSyntax is issue #176's first fix, cosmetic-only in the same
-// sense tryCompoundArnImportSyntax is (ImportSyntax never decides anything;
-// Components/ServerAssigned do): a server-assigned proposal whose
+// sense tryCompoundArnImportSyntax is (this rule always writes at least two
+// separator-joined segments, so its output can never match issue #298's
+// single-token exception; Components/ServerAssigned still decide the actual
+// import): a server-assigned proposal whose
 // ImportSyntax would otherwise be templated from the registry's own
 // primaryIdentifier NAMES - joined with "-" in the registry's order - gets a
 // placeholder derived from the scraped evidence instead: the Import
@@ -1764,10 +1766,13 @@ var arnRe = regexp.MustCompile(`arn:aws[a-z0-9-]*:([a-z0-9-]+):`)
 // built from each ARN's own service token, instead of the flat single-
 // primaryIdentifier guess renderServerAssignedEntry would otherwise print.
 // Never overrides a rule 6/7 result (DerivedImportSyntax already set), and
-// never changes the bucket or IdentityAttrs - ImportSyntax is documentation
-// only (see TypeIdentity's own doc comment: "Components is what the code
-// follows"), so getting this placeholder's wording exactly right is not
-// load-bearing the way the other rules are.
+// never changes the bucket or IdentityAttrs. The "#"-joined placeholder
+// this rule writes is never mistaken for a single-ARN import string by
+// internal/live/discovery's importsWholeARNString (issue #298's one narrow
+// exception to "ImportSyntax is documentation only" - see TypeIdentity's
+// own doc comment): that check only matches a single token, and this
+// rule's output always carries a "#", so getting this placeholder's
+// wording exactly right stays cosmetic, same as before #298.
 func tryCompoundArnImportSyntax(p *proposal, g importGrammarRow) {
 	if p.Bucket != bucketServerAssigned || p.DerivedImportSyntax != "" {
 		return

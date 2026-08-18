@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# A real third-party estate attempted against a real emulator: issue #274's
+# A real third-party estate crossed against a real emulator: issue #274's
 # step 6, for .corpus/mastino/prod-eu-west/services/sitemaps-generator.
 #
 # Three resources - aws_s3_bucket.akita, aws_cloudwatch_log_group and
@@ -10,15 +10,10 @@ set -uo pipefail
 # sites. Picked as one of #274's smallest untouched real corpus estates,
 # smallest-first.
 #
-# THIS DOES NOT CROSS YET. Filed as #298 with a minimal repro rather than
-# forced into a workaround; internal/live/discovery is off limits this
-# session. Steps 0-4 below are real and pass: the estate applies cleanly
-# under its own declared `version = "~> 5"` (which resolves to 5.100.0, the
-# release #269 documented as carrying no list resources at all), and all
-# three resources are confirmed live through the AWS CLI. Step 5 is where it
-# stops.
-#
-# THE BLOCKER (#298). Deleting the state file and running live-plan fails:
+# #298, FIXED. Steps 0-4 below apply cleanly under the estate's own declared
+# `version = "~> 5"` (which resolves to 5.100.0, the release #269 documented
+# as carrying no list resources at all), and all three resources are
+# confirmed live through the AWS CLI. Step 5 used to stop here:
 #
 #   Error: Expected ID in format of
 #   arn:PARTITION:ecs:REGION:ACCOUNTID:task-definition/FAMILY:REVISION and
@@ -26,36 +21,76 @@ set -uo pipefail
 #
 #   Error: Cannot import for projection
 #
-# TF_LOG=trace shows discovery finding the task definition correctly -
+# TF_LOG=trace showed discovery finding the task definition correctly -
 # "listing aws_ecs_task_definition via Cloud Control (AWS::ECS::TaskDefinition),
-# 1 resources" - and the live object carries the right tofu-address tag,
-# confirmed independently through the AWS CLI. But the identity actually
-# handed to ImportResourceState is the literal "family:revision" join from
-# the row's IdentityAttrs, not the ARN Cloud Control's own listing carries -
-# and this provider's ImportResourceState for this type specifically demands
-# the ARN form.
+# 1 resources" - and the live object carried the right tofu-address tag,
+# confirmed independently through the AWS CLI. But the identity handed to
+# ImportResourceState was the literal "family:revision" join from the row's
+# IdentityAttrs, not the ARN Cloud Control's own listing carries - and this
+# provider's ImportResourceState for this type specifically demands the ARN
+# form, even though its newer identity-object import (used by the native
+# ListResource RPC path, see live/e2e/corpus-ecs-taskdef) wants
+# family+revision instead.
+#
+# THE FIX. internal/live/discovery/cloudcontrol.go's
+# resolveCloudControlImportID and importIDFromARN shared one inline check
+# ("does this type import by ARN?") that only ever looked at
+# IdentityAttrs[0]=="arn" - the newer identity-object convention - and had
+# no way to learn that a type's LEGACY id-string import wants the ARN when
+# its identity object does not. aws_ecs_task_definition's ImportSyntax
+# (TASKDEFINITIONARN, row-gen-derived straight from the provider's own "##
+# Import" section, which documents `terraform import
+# aws_ecs_task_definition.example arn:aws:ecs:...:task-definition/FAMILY:REVISION`
+# verbatim) already carried that answer; importsWholeARNString now reads it
+# as a second signal, and any other ServerAssigned type whose ImportSyntax
+# is a single ARN-suffixed token gets the same fix - not just this one type.
+# See internal/live/discovery/cloudcontrol_test.go's TestImportsWholeARNString
+# for the general shape and its regression guards.
 #
 # WHY THIS TYPE AND NOT ANALYTICS-WORKER. live/e2e/corpus-ecs-taskdef
-# crosses this exact resource type successfully, but only after pinning
-# `= 6.58.0`. Under that pin, discovery uses the provider's native
-# ListResource RPC, whose identity object carries family/revision AND
-# resolves to a real ARN for import. 5.100.0 has no ListResource support at
-# all (#269), so discovery falls back to Cloud Control listing here instead
-# - which finds the object fine but, on this evidence, does not carry an
-# ARN through to the import call the same way the native ListResource path
-# does.
+# crosses this exact resource type successfully under `= 6.58.0`, where
+# discovery uses the provider's native ListResource RPC and never reaches
+# the Cloud Control fallback this fix touches at all. 5.100.0 has no
+# ListResource support (#269), so discovery falls back to Cloud Control
+# listing here instead - which finds the object fine, and (after the fix)
+# now carries its ARN through to the import call the same way the native
+# ListResource path's identity object always did.
 #
-# PINNING TO 6.58.0 (THE #269 WORKAROUND) DOES NOT FIX THIS ESTATE EITHER.
-# It clears the aws_ecs_task_definition step, but then aws_s3_bucket.akita's
-# tag read under that provider version calls S3 Control's
-# ListTagsForResource, which the AWS SDK addresses via an account-ID-prefixed
-# virtual-hosted-style hostname (000000000000.127.0.0.1) that does not
-# resolve locally - confirmed not fixable by adding
-# `endpoints { s3control = "..." }` to the provider block; the SDK
-# constructs the account-prefixed host regardless of the endpoint override.
-# This is a floci capability gap (S3 Control virtual-hosted addressing), not
-# a choudoufu marker-path bug, and is out of scope for a fork change here -
-# see #298 for the full detail on both findings.
+# WHAT STILL DOES NOT CONVERGE, AND WHY - NEITHER IS #298. Fixing the
+# identity gets live-plan to run clean (exit 0, no state file, the task
+# definition materializing from its ARN), but the plan is not empty: it
+# proposes changes to BOTH declared resources, and both are pre-existing,
+# already-documented floci emulator gaps, not marker bugs:
+#
+#   - aws_ecs_task_definition.sitemaps-generator "must be replaced": floci's
+#     DescribeTaskDefinition response drops
+#     container_definitions[0].logConfiguration entirely, even though
+#     RegisterTaskDefinition was called WITH it - the exact gap
+#     live/e2e/corpus-ecs-taskdef's header documents and asserts by name for
+#     a different family (analytics-worker). Confirmed here on a SECOND,
+#     independent family (sitemaps-generator): not a fixture quirk.
+#   - aws_s3_bucket.akita "will be updated in-place" (+ acl, + force_destroy):
+#     the same acl/force_destroy drift live/e2e/corpus-datafiles-generator's
+#     header documents and asserts by name for a different bucket. Confirmed
+#     here on a SECOND, independent bucket: not a fixture quirk either.
+#
+# Both are asserted BY NAME below, the same "value, not verdict" departure
+# corpus-datafiles-generator takes: a floci fix that starts echoing
+# logConfiguration back, or stops needing the acl/force_destroy backfill,
+# turns this script red rather than silently green, and so does any THIRD
+# resource starting to drift.
+#
+# A THIRD, SEPARATE FINDING (also not #298, not fixed here): the plan also
+# warns "Tagged resource's ARN could not be joined to a resource type ...
+# no CFN type is known for ARN service \"ecs\" and resource segment
+# \"task-definition\"" - internal/live/discovery/tagging.go's arnJoinTable
+# (a curated, hand-maintained ARN-service+resource-type -> CFN-type ledger
+# used only by the estate-wide UNDECLARED-resource tag sweep, a different
+# code path than the one #298's fix touches) has no "ecs"/"task-definition"
+# row, only "ecs"/"cluster". This narrows sweep coverage for undeclared ECS
+# task definitions; it does not affect resolving this estate's OWN declared
+# instance, which is what #298 was about and what step 5 below asserts
+# fixed. Left as a follow-up rather than folded in here.
 #
 #   bash live/e2e/corpus-sitemaps-generator/run.sh
 #
@@ -69,11 +104,6 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#
-# Exit codes: 0 only once #298 is fixed and this crosses for real - this
-# script does not fake a pass. Today it exits non-zero at step 5, and
-# distinguishes the known, filed #298 signature from anything else so a
-# regression to a DIFFERENT failure is still visible as a difference.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CORPUS_DIR="${CORPUS_DIR:-$ROOT/.corpus}"
@@ -216,28 +246,72 @@ rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 [ ! -f "$EST/terraform.tfstate" ] || fail "the state file is still there"
 log "=== 4. state file deleted ==="
 
-# ── 5. THE BLOCKER (#298) ───────────────────────────────────────────────────
-log "=== 5. live-plan - this is where #298 stops it ==="
+# ── 5. live-plan, #298 fixed ────────────────────────────────────────────────
+log "=== 5. live-plan and the rendered identities ==="
 PLAN_OUT="$(cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
-if [ "$PLAN_RC" -eq 0 ]; then
-  fail "live-plan EXITED 0. That is a better world than the one this script was written in: #298 looks fixed. Re-read it and turn this into a real passing crossing (drop this step, assert the plan and identities the way live/e2e/corpus-datafiles-generator does)."
-fi
-if grep -qF 'Expected ID in format of arn:PARTITION:ecs:REGION:ACCOUNTID:task-definition/FAMILY:REVISION' <<< "$PLAN_OUT" \
-  && grep -qF 'Cannot import for projection' <<< "$PLAN_OUT"; then
-  log "  reproduced the known, filed blocker: #298"
-  log "  (Cloud-Control discovery's fallback identity for aws_ecs_task_definition"
-  log "   is \"$FAMILY:1\", which this provider's ImportResourceState rejects -"
-  log "   see the header for the full trace-level diagnosis)"
-else
-  printf '%s\n' "$PLAN_OUT" | grep -E '^Error' | head -10
-  fail "live-plan failed, but NOT with #298's signature. This is a DIFFERENT problem than the one this script documents - read the error above and file it separately rather than assuming it is #298."
-fi
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error|^│' | head -30; fail "live-plan exited $PLAN_RC"; }
+[ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
+log "  live-plan exited 0"
+
+WANT_TD_ID="arn:aws:ecs:${REGION}:000000000000:task-definition/${FAMILY}:1"
+grep -qF "materialized aws_ecs_task_definition.sitemaps-generator from import identity \"$WANT_TD_ID\"" <<< "$PLAN_OUT" \
+  || { grep -oE 'materialized aws_ecs_task_definition\.sitemaps-generator from import identity "[^"]*"' <<< "$PLAN_OUT"; \
+       fail "the task definition was not materialized from its ARN ($WANT_TD_ID) - #298 regressed"; }
+log "  aws_ecs_task_definition.sitemaps-generator materialized from its ARN, not \"$FAMILY:1\" - #298 fixed"
+
+grep -qF 'materialized aws_s3_bucket.akita from import identity "'"$BUCKET"'"' <<< "$PLAN_OUT" \
+  || fail "aws_s3_bucket.akita was not materialized from \"$BUCKET\""
+grep -qF 'materialized aws_cloudwatch_log_group.sitemaps-generator from import identity "'"$LOG_GROUP"'"' <<< "$PLAN_OUT" \
+  || fail "aws_cloudwatch_log_group.sitemaps-generator was not materialized from \"$LOG_GROUP\""
+log "  and the other two instances materialized from their own identities"
+
+# ── 6. the plan is not empty, and both gaps are pre-existing floci gaps ────
+# NOT #298: block_for and assert_known_diff below isolate the block for one
+# resource address out of the rendered plan (same technique
+# corpus-datafiles-generator's assert_only_known_diff uses) and check it is
+# EXACTLY one of the two known, already-documented emulator gaps this
+# script's header explains - never a create, a destroy, or an unexplained
+# attribute change.
+log "=== 6. the two known, pre-existing floci gaps - asserted by name, not hidden ==="
+block_for() {
+  local addr="$1" out="$2"
+  awk -v addr="$addr" '
+    $0 ~ ("^  # " addr " (will be|must be)") { grabbing=1 }
+    grabbing { print }
+    grabbing && /^    }$/ { exit }
+  ' <<< "$out"
+}
+
+TD_BLOCK="$(block_for 'aws_ecs_task_definition\.sitemaps-generator' "$PLAN_OUT")"
+[ -n "$TD_BLOCK" ] || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "no resource action block found for aws_ecs_task_definition.sitemaps-generator"; }
+grep -qE '^  # aws_ecs_task_definition\.sitemaps-generator must be replaced' <<< "$TD_BLOCK" \
+  || { printf '%s\n' "$TD_BLOCK"; fail "aws_ecs_task_definition.sitemaps-generator's action is not the known forced replace"; }
+grep -qF '+ logConfiguration = {' <<< "$TD_BLOCK" \
+  || { printf '%s\n' "$TD_BLOCK"; fail "the replace is not forced by the known logConfiguration gap (live/e2e/corpus-ecs-taskdef) - a DIFFERENT drift appeared"; }
+grep -qF '] # forces replacement' <<< "$TD_BLOCK" \
+  || { printf '%s\n' "$TD_BLOCK"; fail "container_definitions is not what forces the replace - a DIFFERENT drift appeared"; }
+log "  aws_ecs_task_definition.sitemaps-generator: the known logConfiguration-drop forced replace, nothing else"
+
+S3_BLOCK="$(block_for 'aws_s3_bucket\.akita' "$PLAN_OUT")"
+[ -n "$S3_BLOCK" ] || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "no resource action block found for aws_s3_bucket.akita"; }
+grep -qE '^  # aws_s3_bucket\.akita will be updated in-place' <<< "$S3_BLOCK" \
+  || { printf '%s\n' "$S3_BLOCK"; fail "aws_s3_bucket.akita's action is not the known in-place update"; }
+S3_ATTRS="$(grep -E '^ +[+~-] [A-Za-z_]+ +=' <<< "$S3_BLOCK")"
+S3_UNEXPECTED="$(grep -vE '\+ acl +=|\+ force_destroy +=' <<< "$S3_ATTRS")"
+[ -z "$S3_UNEXPECTED" ] || { printf '%s\n' "$S3_ATTRS"; fail "aws_s3_bucket.akita's update touches attributes beyond the known acl/force_destroy gap (live/e2e/corpus-datafiles-generator)"; }
+log "  aws_s3_bucket.akita: the known acl/force_destroy update, nothing else"
+
+grep -qE '^Plan: 1 to add, 1 to change, 1 to destroy\.$' <<< "$PLAN_OUT" \
+  || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "the plan summary is not exactly the two known-gap resources - a THIRD resource changed"; }
+log "  Plan: 1 to add, 1 to change, 1 to destroy - exactly the forced replace + the in-place update, nothing more"
 
 log ""
-log "=== BLOCKED (honest, not a false pass): #298 ==="
+log "=== CROSSED: #298 fixed ==="
 log ""
-log "DataCite's own sitemaps-generator estate applies cleanly - all 3"
-log "resources live, correctly tagged, confirmed through the AWS CLI - and"
-log "then fails at live-plan on exactly the signature #298 documents. Exit"
-log "code is non-zero on purpose: this estate does not cross yet."
-exit 1
+log "DataCite's own sitemaps-generator estate applies cleanly, all 3"
+log "resources correctly tagged and confirmed through the AWS CLI, and a"
+log "cold live-plan against a deleted state file resolves every instance -"
+log "including the task definition, now from its ARN rather than the bare"
+log "\"family:revision\" join #298 filed. The plan is not EMPTY - two"
+log "pre-existing, already-documented floci emulator gaps remain, asserted"
+log "by name above rather than hidden - but neither is a marker bug."

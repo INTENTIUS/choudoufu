@@ -52,8 +52,16 @@ type TypeIdentity struct {
 
 	// ImportSyntax documents the provider's import-ID grammar for this
 	// type, in the provider documentation's own notation (e.g.
-	// "ROUTETABLEID_DESTINATION"). Documentation only: Components is what
-	// the code follows.
+	// "ROUTETABLEID_DESTINATION"). Documentation only for every other
+	// purpose - Components is what the code follows for composing an
+	// import ID - with one narrow, deliberate exception:
+	// internal/live/discovery's importsWholeARNString reads it to tell a
+	// server-assigned type whose provider-documented legacy import ID IS
+	// its own ARN (a single ImportSyntax token ending "ARN", e.g.
+	// "TASKDEFINITIONARN") apart from one whose ARN-shaped Cloud Control
+	// identifier should be stripped to its bare resource-id segment
+	// instead (e.g. "WORKSPACEID") - see that function's doc comment and
+	// issue #298.
 	ImportSyntax string
 
 	// IdentityAttrs are the attribute names whose value equals this type's

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -348,6 +349,54 @@ func ccPropertiesTags(props map[string]any) (map[string]string, bool) {
 	return out, true
 }
 
+// arnImportSyntaxRe matches an [identity.TypeIdentity.ImportSyntax]
+// placeholder that is a single token - letters and underscores only -
+// ending in ARN: TASKDEFINITIONARN, GRAPHARN, POLICYARN, the bare ARN
+// itself. tools/row-gen's tryOpaqueOverride (importprecedence.go) only ever
+// writes this shape when the provider's own documented "## Import" section
+// shows an arn:-prefixed example verbatim, with no other segment - never
+// guessed from the CFN registry's property naming alone. A composite
+// syntax carrying any separator (",", ":", "/", "#", "|") fails this
+// pattern by construction, so a multi-ARN join (DataSync's
+// "DataSync-ARN#FSx-ARN") is never mistaken for this shape.
+var arnImportSyntaxRe = regexp.MustCompile(`^[A-Z_]*ARN$`)
+
+// importsWholeARNString reports whether ti's type imports by its own bare
+// ARN whenever only an ID string - not the provider's own identity object -
+// is available for the legacy Terraform import path every admitted type
+// still answers to. Two independent signals both say so, and either is
+// enough:
+//
+//   - ti.IdentityAttrs names "arn" first: the newer Terraform 1.12+
+//     resource-identity convention, the IVS family.
+//   - ti.ImportSyntax is [arnImportSyntaxRe]-shaped, which row-gen only
+//     produces when the provider's OWN documented Import section shows an
+//     arn:-prefixed example.
+//
+// The second signal is issue #298's fix. aws_ecs_task_definition's identity
+// SCHEMA (used for the newer identity-object import, and consulted by
+// [importIdentity] on the native ListResource path) is family+revision, not
+// arn - so the first signal alone never catches it - but its ImportSyntax is
+// TASKDEFINITIONARN, confirmed against ecs_task_definition.html.markdown's
+// "## Import" section, which documents `terraform import
+// aws_ecs_task_definition.example arn:aws:ecs:...:task-definition/FAMILY:REVISION`
+// verbatim. Without this signal, a Cloud Control ListResources identifier
+// that is ALREADY that object's own ARN (AWS::ECS::TaskDefinition's
+// primaryIdentifier is TaskDefinitionArn) gets stripped down to its bare
+// resource-id segment ("sitemaps-generator:1"), which this type's
+// ImportResourceState implementation rejects outright - the provider wants
+// the ARN whole for the ID-string path even though it wants family+revision
+// for the identity-object path. GitHub issue #124's aws_prometheus_workspace
+// is why the first signal alone was never widened to "every ARN-shaped
+// identifier, always": that type's own ImportSyntax is WORKSPACEID, not
+// ARN-shaped, so it still strips to the bare workspace id.
+func importsWholeARNString(ti identity.TypeIdentity) bool {
+	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
+		return true
+	}
+	return arnImportSyntaxRe.MatchString(ti.ImportSyntax)
+}
+
 // resolveCloudControlImportID turns a Cloud Control ListResources
 // identifier into the TF import identity, enforcing the composite rule
 // issue #47 states in one sentence: Cloud Control's "|"-joined identifier is
@@ -373,14 +422,13 @@ func resolveCloudControlImportID(typeName, identifier string) (string, bool) {
 		// to an identity the provider reports ABSENT (#124's aps cohort).
 		// This is the same arn-vs-id split [joinTaggedResource] already
 		// makes for a Tagging API ResourceARN; a type that genuinely
-		// imports by ARN (IdentityAttrs[0] == "arn", the IVS family) keeps
-		// the identifier whole.
+		// imports by ARN ([importsWholeARNString]) keeps the identifier
+		// whole.
 		if a, ok := cloudcontrol.ParseARN(identifier); ok && a.ResourceID != "" {
 			// The negated compound is the readable form here: the condition
 			// being tested is "this type is not arn-identified", and De
 			// Morgan's split states it as two unrelated-looking clauses.
-			if ti, tok := identity.LookupType(typeName); tok &&
-				!(len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn") { //nolint:staticcheck // QF1001: the negation is the claim
+			if ti, tok := identity.LookupType(typeName); tok && !importsWholeARNString(ti) { //nolint:staticcheck // QF1001: the negation is the claim
 				return a.ResourceID, true
 			}
 		}
@@ -438,7 +486,7 @@ func composeCloudControlIdentifier(ti identity.TypeIdentity, parts []string) (st
 
 // importIDFromARN derives a TF import identity for ti's type from one of
 // its own ARNs: arnStr itself when the type's identity IS its ARN
-// (IdentityAttrs[0] == "arn", the same check [joinTaggedResource] made
+// ([importsWholeARNString], the same check [joinTaggedResource] made
 // inline before this was factored out), or the ARN's parsed resource-id
 // segment, composed exactly as a Cloud Control ListResources identifier
 // would be ([resolveCloudControlImportID]) - because an ARN's resource id
@@ -456,7 +504,7 @@ func composeCloudControlIdentifier(ti identity.TypeIdentity, parts []string) (st
 // carries no id segment, or the identity table's Components could not
 // account for what Cloud Control's composer expects - never a guess.
 func importIDFromARN(ti identity.TypeIdentity, arnStr string) (importID, identityAttr string, ok bool) {
-	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
+	if importsWholeARNString(ti) {
 		return arnStr, "arn", true
 	}
 	a, parsed := cloudcontrol.ParseARN(arnStr)
