@@ -93,6 +93,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"check":        true, // this package: the instrument itself
 		"cloudcontrol": true, // a client for one AWS API
 		"docsref":      true, // parses the doc references refusals carry
+		"docrefs":      true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
 		"flocitest":    true, // test harness
 		"foreign":      true, // classification of unclaimed resources, inside discovery's stage
 		"harness":      true, // the burndown and assumptions registries; measures the instrument, is not part of it

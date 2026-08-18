@@ -142,7 +142,7 @@ type recordPayload struct {
 const recordStatusTainted = "tainted"
 
 // encodeObjectStatus turns a real [states.ObjectStatus] - the one
-// [states.ResourceInstanceObject.Decode] and AsTainted actually produce -
+// [states.ResourceInstanceObjectSrc.Decode] and AsTainted actually produce -
 // into recordPayload's Status string. Only ObjectReady and ObjectTainted
 // are legal here: those are the only two statuses a resource's *current*
 // object can hold once an apply has finished (states.ObjectPlanned is a
