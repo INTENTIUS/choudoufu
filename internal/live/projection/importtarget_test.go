@@ -72,7 +72,7 @@ func TestImportTargetRefusesRatherThanApproximatingACompositeID(t *testing.T) {
 	}
 
 	// And importAndRead refuses such a target before it reaches a provider.
-	_, _, diags := importAndRead(t.Context(), nil, compositeSchema(), "aws_composite_thing", target, "")
+	_, _, diags := importAndRead(t.Context(), nil, compositeSchema(), "aws_composite_thing", target, "", cty.NilVal, false)
 	if !diags.HasErrors() {
 		t.Fatal("a target with neither an identity nor an ID was sent to the provider")
 	}

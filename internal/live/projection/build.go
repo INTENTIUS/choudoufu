@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -1144,8 +1147,10 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 
 	modPath := addr.Module.Module()
 	var rc *configs.Resource
+	var modEval *configs.StaticEvaluator
 	if modCfg, ok := identity.ConfigForModule(b.cfg, addr.Module); ok && modCfg.Module != nil {
 		rc = modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+		modEval = modCfg.Module.StaticEvaluator
 	}
 	if rc == nil && !w.undeclared {
 		detail := fmt.Sprintf(
@@ -1184,7 +1189,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		return
 	}
 
-	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID)
+	// GitHub issue #287 item 8: seed BEFORE the read, not after, because the
+	// gap this closes is in what [providers.Configured.ImportResourceState]
+	// hands the provider going into [providers.Configured.ReadResource], not
+	// in anything this package does with the result. See
+	// [configuredTagsSeed]'s doc comment for the mechanism.
+	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
+
+	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
 	b.diags = b.diags.Append(matDiags)
 
 	switch status {
@@ -1550,6 +1562,162 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 	return sawError, detail
 }
 
+// configuredTagsSeed statically evaluates a taggable resource's own,
+// AS-WRITTEN "tags" argument - before [stamp.Stamp] ever touches it - for
+// GitHub issue #287 item 8: a stamped resource with a provider-level
+// default_tags block showed a permanent, spurious "tags" in-place diff,
+// re-adding the SAME keys on every single plan.
+//
+// The mechanism, verified directly against a live floci build rather than
+// inferred from the plan output (see the issue and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// GetRole both correctly return every tag, default_tags merged client-side
+// by terraform-provider-aws before the request ever reaches the emulator.
+// The gap is upstream of both. [providers.Configured.ImportResourceState]
+// answers a bare identity with no configuration in hand, so a provider
+// whose ReadResource distinguishes "explicitly declared" tags from
+// "arrived through the provider's own default_tags" using only the prior
+// state it is given sees an empty PriorState.tags and falls back to
+// comparing raw tag VALUES against its default_tags config - which
+// misclassifies any tag the configuration also declares explicitly, if it
+// happens to duplicate a default_tags entry. The estate this was found
+// against does exactly that: the caller's own `tags = var.tags` feeds BOTH
+// the resource's tags argument AND, through the same variable, the
+// provider block's default_tags map. A plain OpenTofu apply followed by a
+// plain refresh never hits this: the state written at CREATE already
+// carries the resource's own declared tags, so PriorState.tags is never
+// empty going into a later ReadResource. choudoufu has no persisted state -
+// every plan re-derives prior state through [importAndRead] - so it hits
+// the ambiguity on every single plan, forever, for any stamped resource
+// whose configuration redeclares a default_tags key. This is what re-seeds
+// the missing signal.
+//
+// This function deliberately reads the SAME cfg [Build] was given, which is
+// the configuration internal/command/live_plan.go's numbered pipeline
+// resolves and projects at step 7, BEFORE step 8 (stamp.Stamp) rewrites a
+// copy of it to add the marker entries - see that package's own doc
+// comment, "The seam: configuration synthesis, before the plan runs":
+// stamping mutates an in-memory copy, never a file, and never before a
+// projection has already been built from the unstamped one. So the "tags"
+// value this reads is exactly the author's own declaration, with no marker
+// entries in it - and that is precisely the right value to seed with: the
+// marker keys (tofu-estate, tofu-address, tofu-slot) never collide with a
+// real default_tags entry, so the provider's own ambiguity never touches
+// them either way. Only a key the configuration's OWN declaration happens
+// to share with default_tags needs this signal, and that is exactly the
+// key set this reads.
+//
+// Read from the schema - [markers.Taggable] plus a "tags_all" attribute,
+// the AWS provider's transparent-tagging convention present on nearly
+// every taggable AWS type - never from a type name list, so the fix
+// reaches every type sharing that convention rather than the two this
+// issue happened to name.
+//
+// A resource whose "tags" argument is not statically evaluable - it
+// references another resource's computed attribute, or an each/count value
+// this module-level evaluator has no repetition data for - is left alone:
+// the second return is false and [importAndRead] falls back to
+// ImportResourceState's own answer, exactly as it did before this existed.
+// That is the same "refuse rather than guess" choice [PlanInstances] makes
+// for the same reason.
+//
+// It decodes ONLY the "tags" attribute, deliberately never the resource's
+// whole config the way [PlanInstances]'s planOne does: this estate's own
+// aws_iam_role.this and aws_iam_openid_connect_provider.this resources have
+// OTHER arguments referencing a data source
+// (data.aws_iam_policy_document.this, data.aws_partition.current) that are
+// never statically evaluable, and a whole-block decode against
+// [configschema.Block.DecoderSpec] fails outright the moment any one
+// attribute cannot resolve - hcl's Body.Content, which backs
+// [hcl.Body.Content]-based decoding, errors on a body it was not given a
+// schema entry for just as readily as it errors on an unresolvable
+// reference. A single-attribute spec plus [hcldec.PartialDecode] asks only
+// about "tags" and tolerates every sibling argument the schema does not
+// mention, so a resource whose OTHER arguments are dynamic still gets its
+// (fully static) tags seeded.
+func configuredTagsSeed(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema) (val cty.Value, ok bool) {
+	if eval == nil || rc == nil || schema.Block == nil {
+		return cty.NilVal, false
+	}
+	if !markers.Taggable(schema.Block) {
+		return cty.NilVal, false
+	}
+	if attr, has := schema.Block.Attributes["tags_all"]; !has || attr == nil {
+		// Not the default_tags-merging convention: nothing to disambiguate.
+		return cty.NilVal, false
+	}
+	tagsAttr := schema.Block.Attributes["tags"]
+	if tagsAttr == nil {
+		return cty.NilVal, false
+	}
+
+	// A provider plugin is a subprocess doing arbitrary work on a value
+	// this package built; [PlanInstances]'s planOne guards the same decode
+	// call the same way, for the same reason.
+	defer func() {
+		if rec := recover(); rec != nil {
+			val, ok = cty.NilVal, false
+		}
+	}()
+
+	spec := hcldec.ObjectSpec{
+		"tags": &hcldec.AttrSpec{Name: "tags", Type: tagsAttr.Type, Required: false},
+	}
+
+	ident := configs.StaticIdentifier{
+		Module:    modPath,
+		Subject:   rc.Addr().String(),
+		DeclRange: rc.DeclRange,
+	}
+	refs, refDiags := lang.References(addrs.ParseRef, hcldec.Variables(rc.Config, spec))
+	if refDiags.HasErrors() {
+		return cty.NilVal, false
+	}
+	hclCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
+	if ctxDiags.HasErrors() {
+		return cty.NilVal, false
+	}
+	if hclCtx == nil {
+		hclCtx = &hcl.EvalContext{}
+	}
+
+	configVal, _, valDiags := hcldec.PartialDecode(rc.Config, spec, hclCtx)
+	if valDiags.HasErrors() || configVal == cty.NilVal || configVal.IsNull() {
+		return cty.NilVal, false
+	}
+	if !configVal.Type().HasAttribute("tags") {
+		return cty.NilVal, false
+	}
+	tagsVal := configVal.GetAttr("tags")
+	if tagsVal.IsNull() || !tagsVal.IsWhollyKnown() {
+		return cty.NilVal, false
+	}
+	return tagsVal, true
+}
+
+// withSeededTags returns a copy of v with its "tags" attribute replaced by
+// seed, when v is an object with a "tags" attribute of the exact same type
+// seed has. Any mismatch - v not an object, no "tags" attribute, a
+// different type - returns v unchanged and false: this is a best-effort
+// seed for [configuredTagsSeed]'s ambiguity, not a correctness requirement,
+// and a provider whose ImportResourceState returns a differently-shaped
+// stub than expected should be read exactly as it always was.
+func withSeededTags(v cty.Value, seed cty.Value) (cty.Value, bool) {
+	if v == cty.NilVal || v.IsNull() || !v.Type().IsObjectType() {
+		return v, false
+	}
+	ty := v.Type()
+	if !ty.HasAttribute("tags") || !seed.Type().Equals(ty.AttributeType("tags")) {
+		return v, false
+	}
+	attrs := make(map[string]cty.Value, len(ty.AttributeTypes()))
+	for name := range ty.AttributeTypes() {
+		attrs[name] = v.GetAttr(name)
+	}
+	attrs["tags"] = seed
+	return cty.ObjectVal(attrs), true
+}
+
 // importAndRead is the whole provider conversation for one instance, and
 // is the reason this package exists rather than calling into a graph walk:
 // ImportResourceState to turn an identity into a stub object, then
@@ -1566,7 +1734,12 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 // evaluation context, and the already-in-state check, and with one
 // deliberate semantic difference: where import treats a nonexistent remote
 // object as a hard error, a projection treats it as an ordinary absence.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
+//
+// tagsSeed and tagsSeedOK are [configuredTagsSeed]'s answer for this
+// instance, applied to the stub object ImportResourceState returns, BEFORE
+// ReadResource sees it - see the seeding step below for why this is the one
+// place in the whole conversation it can go.
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, tagsSeed cty.Value, tagsSeedOK bool) (*states.ResourceInstanceObject, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -1639,6 +1812,31 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 	obj := imported.AsInstanceObject()
 	if obj.Value == cty.NilVal || obj.Value.IsNull() {
 		return nil, statusAbsent, diags
+	}
+
+	// GitHub issue #287 item 8. ImportResourceState commonly leaves "tags"
+	// null or empty on the stub it returns - it has no configuration to
+	// consult, only the identity it was given - and a provider whose
+	// ReadResource treats PriorState.tags as the signal for "which raw tags
+	// were explicitly declared, as opposed to arriving through the
+	// provider's own default_tags" then has no signal at all: every raw tag
+	// whose VALUE happens to match a default_tags entry reads as
+	// default-derived, even one the configuration also declares explicitly.
+	// A resource with real, persisted state never hits this - its state
+	// already carries the tags the resource was created with, so an
+	// ordinary refresh's PriorState.tags carries the same signal a live
+	// create's response would. choudoufu has no such state: every plan
+	// re-derives prior state through exactly this call, so a projection
+	// that skipped this step would hit the ambiguity on every single plan,
+	// permanently, for any stamped resource whose configuration happens to
+	// redeclare a default_tags key - precisely GitHub issue #287's repro
+	// shape. Seeding PriorState.tags with what the configuration actually
+	// declares, when that is statically known, makes this call see what a
+	// genuinely persisted state would have shown.
+	if tagsSeedOK {
+		if seeded, ok := withSeededTags(obj.Value, tagsSeed); ok {
+			obj.Value = seeded
+		}
 	}
 
 	readResp := provider.ReadResource(ctx, providers.ReadResourceRequest{
