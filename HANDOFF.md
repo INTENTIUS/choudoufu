@@ -695,10 +695,108 @@ Every one of these has been hit, most more than once.
 
 ---
 
+## What to do next
+
+Ranked. Every item is filed, so the tracker carries the evidence and this list
+carries only the reason and the order. Nothing here is blocked on a decision.
+
+**Read "Why work drifts to the edges" first if you have not.** Four of these
+six are adoption work, and adoption is the secondary campaign. They are ranked
+high because they are what is measurable today, not because they are the goal.
+
+### 1. #284 - give `PlanInstances` a per-resource provider seam
+
+Five of the eight estates one blocker from clean are the same ACM pattern, so
+one mechanism moves all five. And the seam turns out to need **no cloud**:
+measured against the real provider offline, `domain_validation_options` folds
+with known domain names and the `for_each` refusal disappears. That makes it
+measurable by the corpus probe, unlike the `ReadInstances` plan it replaces.
+
+It cannot be wired as it stands - `PlanInstances` takes one configured provider
+and walks every module, so an aliased resource would be planned through the root
+default provider and mint an ARN from the wrong region. `dataread.Read`'s
+`Providers` seam is the shape to copy.
+
+### 2. #285 - four duplicated decisions with nothing watching them
+
+Two pairs found the same day were divergent AT HEAD, not hypothetically, and one
+of them was on three write paths. Six of seven audited pairs had no guard.
+`dataread.moduleInstancesOf` is the highest-ranked of the four left.
+
+Fix by making the source of truth single, not by patching the copy to agree.
+
+### 3. #286 - three rows omit an optional identity component
+
+`aws_route53_record` is missing `set_identifier`, which is the only thing
+separating weighted, latency and failover records that share a zone, name and
+type. Two declarations resolve to one identity, which is the wrong-marker class.
+`Component.OmitIfAbsent` already exists for exactly this shape.
+
+### 4. #283 - an estate spanning two provider configurations
+
+Marker discovery goes through one provider configuration per run. Every
+CloudFront-plus-WAF estate has two, because WAFv2 and ACM certificates for
+CloudFront must live in `us-east-1`. Not exotic - it is what AWS's own guidance
+produces.
+
+### 5. #274 - cross the estates that already pass
+
+28 of the 145 rate-capable deployments pass `live-check`; roughly sixteen have
+ever been run. Every crossing so far has found something no offline instrument
+could see, including three defects that write wrong markers to real objects.
+
+**This is the item closest to the primary goal**, and the cheapest evidence that
+the product works. `live/e2e/corpus-*.sh` are the templates.
+
+### 6. #287 - the floci gaps, and #272 behind them
+
+The unique-name binding leg cleared its estate and has **never bound against a
+cloud**, because the emulator returns a flat `Properties` shape where AWS nests
+it. That leg already shipped broken once on inspection-and-unit-test evidence
+alone (#285's first case), so treat "correct by inspection" here as unproven.
+
+Fork only, `github.com/lex00/floci`, never upstream. Its branch stays local and
+unpushed on purpose - see #287.
+
+### The thing that is NOT on this list, and why
+
+**Onboarding does not rescue the language wall.** Measured with
+`just onboarding-gap`: of the 71 blocked terraform-aws-modules examples, **2**
+are blocked only because they have not been onboarded, and of 117 blocked
+published deployments, **1**. Onboarding empties `logical-resource`
+(512 sites -> 102) and `markerless-type` (364 -> 28) across 93 estates and frees
+three of them.
+
+`unadmitted-type` does not move at all: **1520 -> 1520**, and it is the surviving
+blocker on 79 of the 90 estates onboarding helped. A `record_store` does not
+answer it.
+
+So admission is the wall, and it is the wall in the migrated form too. Do not
+spend a slot re-testing the hypothesis that a `live` block changes this; it has
+been measured.
+
+---
+
 ## Mid-flight, as of this handoff
 
 Nothing is blocked on a decision. These are the loose ends a fresh session
 would otherwise rediscover.
+
+**Entries below that are now resolved, so you can skip them.** They are kept
+because the reasoning is worth reading and because a ruling that was overturned
+is worth seeing overturned rather than deleted.
+
+- The record store carrying an identity for an unmarked object: BUILT and
+  crossed. #270, closed with the evidence.
+- Write-only arguments never converging: BUILT and crossed. #275, closed.
+- The `list + content match` path: renamed and then partly BUILT, as a leg that
+  binds on a name two sources prove unique. #272, still open because it has
+  never bound against a cloud.
+- The ACM cluster entries: the diagnosis stands, the plan does not. It is
+  `PlanInstances`, not `ReadInstances`, and it needs no cloud. See #284 and the
+  next-steps section above.
+- The parent-derived ruling: REFUTED, population zero. The entry says so and
+  should be read before anyone re-opens it.
 
 - **The corpus now has its modules, and that moved the ladder.** `corpus-fetch`
   and `corpus` have both been run and committed, so the module hole is closed.
