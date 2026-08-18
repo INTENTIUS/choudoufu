@@ -26,29 +26,37 @@ func TestMarkerlessRule(t *testing.T) {
 	}}
 
 	for _, tc := range []struct {
-		name       string
-		taggable   bool
-		admitted   bool
-		row        identity.TypeIdentity
-		classified bool
-		documented bool
-		want       bool
+		name         string
+		taggable     bool
+		contentMatch bool
+		admitted     bool
+		row          identity.TypeIdentity
+		classified   bool
+		documented   bool
+		want         bool
 	}{
-		{"admitted, untaggable, row says server-assigned", false, true, serverAssigned, false, false, true},
-		{"unadmitted, untaggable, classifier says server-assigned", false, false, identity.TypeIdentity{}, true, false, true},
-		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, identity.TypeIdentity{}, false, true, true},
+		{"admitted, untaggable, row says server-assigned", false, false, true, serverAssigned, false, false, true},
+		{"unadmitted, untaggable, classifier says server-assigned", false, false, false, identity.TypeIdentity{}, true, false, true},
+		{"unadmitted, untaggable, the docs name a server-minted segment", false, false, false, identity.TypeIdentity{}, false, true, true},
 
-		{"taggable and server-assigned is the mechanism working", true, true, serverAssigned, true, true, false},
-		{"untaggable but named from configuration needs no marker", false, true, clientNamed, false, false, false},
-		{"untaggable with a conditional component is a different problem", false, true, ifAbsent, false, false, false},
-		{"admitted: the ratified row overrules the classifier", false, true, clientNamed, true, false, false},
-		{"admitted: the ratified row overrules the docs too", false, true, clientNamed, false, true, false},
-		{"unadmitted and neither source says server-assigned", false, false, identity.TypeIdentity{}, false, false, false},
+		{"taggable and server-assigned is the mechanism working", true, false, true, serverAssigned, true, true, false},
+		{"untaggable but named from configuration needs no marker", false, false, true, clientNamed, false, false, false},
+		{"untaggable with a conditional component is a different problem", false, false, true, ifAbsent, false, false, false},
+		{"admitted: the ratified row overrules the classifier", false, false, true, clientNamed, true, false, false},
+		{"admitted: the ratified row overrules the docs too", false, false, true, clientNamed, false, true, false},
+		{"unadmitted and neither source says server-assigned", false, false, false, identity.TypeIdentity{}, false, false, false},
+
+		// Issue #272's bypass: the same untaggable, admitted,
+		// server-assigned shape as the very first case above, except the
+		// type has cleared the two-source content-match proof - and that
+		// alone flips the verdict, exactly the way taggable alone does.
+		{"admitted, untaggable, server-assigned, but content-match qualified", false, true, true, serverAssigned, false, false, false},
+		{"unadmitted, untaggable, classifier says server-assigned, but content-match qualified", false, true, false, identity.TypeIdentity{}, true, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := markerless(tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented); got != tc.want {
-				t.Errorf("markerless(taggable=%v, admitted=%v, row=%+v, classified=%v, documented=%v) = %v, want %v",
-					tc.taggable, tc.admitted, tc.row, tc.classified, tc.documented, got, tc.want)
+			if got := markerless(tc.taggable, tc.contentMatch, tc.admitted, tc.row, tc.classified, tc.documented); got != tc.want {
+				t.Errorf("markerless(taggable=%v, contentMatch=%v, admitted=%v, row=%+v, classified=%v, documented=%v) = %v, want %v",
+					tc.taggable, tc.contentMatch, tc.admitted, tc.row, tc.classified, tc.documented, got, tc.want)
 			}
 		})
 	}
@@ -72,7 +80,7 @@ func TestMarkerlessRosterNeedsSurveyMembership(t *testing.T) {
 		{TFType: "aws_not_in_survey", Bucket: bucketServerAssigned},
 	}
 
-	got := markerlessRoster(survey, proposals, nil)
+	got := markerlessRoster(survey, proposals, nil, nil)
 	want := []string{"aws_untaggable_sa"}
 	if len(got) != len(want) || got[0] != want[0] {
 		t.Errorf("markerlessRoster = %v, want %v - a type outside live/survey-full.json must never be "+
@@ -103,7 +111,12 @@ func TestMarkerlessRosterSpares442ServerAssignedTaggableRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vetoed := setOf(markerlessRoster(survey, proposals, importGrammar))
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, importGrammar, schemaFacts))
+	vetoed := setOf(markerlessRoster(survey, proposals, importGrammar, contentMatch))
 
 	var spared, caught int
 	for _, typeName := range identity.AdmittedTypes() {

@@ -267,7 +267,9 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	}
 	grammar := loadImportGrammarForTest(t)
 	survey := loadSurveyForTest(t)
-	vetoed := setOf(markerlessRoster(survey, loadAllForTest(t), grammar))
+	proposals := loadAllForTest(t)
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, loadSchemaFactsForTest(t)))
+	vetoed := setOf(markerlessRoster(survey, proposals, grammar, contentMatch))
 
 	rows, types := emittedRows(loadRatifiedForTest(t), recordBacked, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)

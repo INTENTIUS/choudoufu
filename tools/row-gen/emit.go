@@ -152,8 +152,12 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", logicalSchemasJSONRel, err)
 	}
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
+	}
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey, logical)
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		return err
 	}
@@ -190,15 +194,15 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, contentMatchTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
-// run, annotations.json's rulings and live/import-grammar.json's own
-// evidence, it returns the two generated files' contents by repo-relative
-// path, plus the two convergence measurements the summary line and tests
-// both want the counts of.
-func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
+// run, annotations.json's rulings, live/import-grammar.json's own evidence
+// and live/registry-schema-facts.json's, it returns the generated files'
+// contents by repo-relative path, plus the two convergence measurements the
+// summary line and tests both want the counts of.
+func buildEmitFiles(proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas, schemaFacts map[string]schemaFactEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
 	art := buildConvergence(proposals, annotations)
 
 	matched := make(map[string]bool, len(art.Types))
@@ -210,7 +214,8 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
 	}
-	vetoed := markerlessRoster(survey, proposals, grammar)
+	contentMatchRows := contentMatchRoster(proposals, grammar, schemaFacts)
+	vetoed := markerlessRoster(survey, proposals, grammar, contentMatchSet(contentMatchRows))
 	// The ratified corpus. Today it is read back out of [identity.DefaultTable],
 	// which is this generator's own previous output - that is issue #263's
 	// self-reference, and ratified.go is the file that ends it. The seam is
@@ -274,12 +279,17 @@ func buildEmitFiles(proposals []proposal, annotations map[string]annotation, gra
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", markerlessTableRel, err)
 	}
+	contentMatchSrc, err := renderContentMatchFile(contentMatchRows)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", contentMatchTableRel, err)
+	}
 
 	return map[string][]byte{
-		identityTableRel:   identitySrc,
-		lintTableRel:       lintSrc,
-		logicalTableRel:    logicalSrc,
-		markerlessTableRel: markerlessSrc,
+		identityTableRel:     identitySrc,
+		lintTableRel:         lintSrc,
+		logicalTableRel:      logicalSrc,
+		markerlessTableRel:   markerlessSrc,
+		contentMatchTableRel: contentMatchSrc,
 	}, identityPart, lintPart, nil
 }
 

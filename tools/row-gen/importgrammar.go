@@ -319,6 +319,13 @@ type argumentRefEntry struct {
 	// identity.CloudRegion's own string values. See emit.go's
 	// mergeCloudDefault, the merge this evidence feeds.
 	CloudDefault string `json:"cloud_default"`
+
+	// DeclaredUnique mirrors tools/importdocs-gen/parse.go's
+	// ArgumentRefEntry field of the same name: the bullet's own prose
+	// states that this argument's value must be unique. See contentmatch.go's
+	// contentMatchRoster, the join this evidence feeds - issue #272's
+	// provider-documentation half of the two-source admission rule.
+	DeclaredUnique bool `json:"declared_unique"`
 }
 
 type importGrammarArtifact struct {

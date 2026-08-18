@@ -77,6 +77,21 @@ func loadImportGrammarForTest(t *testing.T) map[string]importGrammarRow {
 	return grammar
 }
 
+// loadSchemaFactsForTest reads live/registry-schema-facts.json the same way
+// runEmit does, for contentMatchRoster's own CFN-registry evidence.
+func loadSchemaFactsForTest(t *testing.T) map[string]schemaFactEntry {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatalf("repoRoot: %v", err)
+	}
+	facts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		t.Fatalf("loadSchemaFacts: %v", err)
+	}
+	return facts
+}
+
 // TestEmitFilesMatchCommitted regenerates the two files -emit owns and
 // requires them to match what is committed byte-for-byte. Regenerate with:
 //
@@ -117,7 +132,7 @@ func TestEmitFilesMatchCommitted(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 	grammar := loadImportGrammarForTest(t)
 
-	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -163,7 +178,7 @@ func TestEmitPartitionsDisjointAndComplete(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	_, identityPart, lintPart, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}
@@ -254,7 +269,7 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	delete(broken, victim)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, _, _, err := buildEmitFiles(proposals, broken, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t))
 	if err == nil {
 		t.Fatalf("buildEmitFiles accepted an unreproduced, unruled type (%s): the gate is not firing", victim)
 	}
@@ -274,7 +289,7 @@ func TestEmitRendersValidGo(t *testing.T) {
 	annotations := loadAnnotationsForTest(t)
 
 	grammar := loadImportGrammarForTest(t)
-	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t))
+	files, _, _, err := buildEmitFiles(proposals, annotations, grammar, loadSurveyForTest(t), loadLogicalSchemasForTest(t), loadSchemaFactsForTest(t))
 	if err != nil {
 		t.Fatalf("buildEmitFiles: %v", err)
 	}

@@ -79,14 +79,21 @@ const markerlessReason = "the provider mints this type's identity and the type h
 	"so every instance would need marker discovery to be found again and there is nowhere to write the marker"
 
 // markerless reports whether the one rule vetoes this type: untaggable, and
-// server-assigned by whichever source decides admission for it.
+// server-assigned by whichever source decides admission for it - unless
+// issue #272's content-match rule has already proven the type findable
+// without a marker at all.
 //
 // admittedRow is the ratified row and admitted says whether there is one;
 // classifiedServerAssigned is the classifier's own verdict and
 // docServerMinted the provider documentation's, both consulted only when
-// no row exists. taggable is live/survey-full.json's signal.
-func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted bool) bool {
-	if taggable {
+// no row exists. taggable is live/survey-full.json's signal. contentMatch
+// is whether contentMatchRoster's two-source rule qualified this type
+// (identity.ContentMatchTypes membership) - a marker is what every OTHER
+// untaggable server-assigned type needs to be found again, and a type here
+// has a substitute for it, so the veto's whole premise ("nowhere to write
+// the marker, and nothing else identifies the object") does not hold.
+func markerless(taggable, contentMatch, admitted bool, admittedRow identity.TypeIdentity, classifiedServerAssigned, docServerMinted bool) bool {
+	if taggable || contentMatch {
 		return false
 	}
 	if admitted {
@@ -102,7 +109,14 @@ func markerless(taggable, admitted bool, admittedRow identity.TypeIdentity, clas
 // vetoed by the absence of a signal: a missing entry would decode as
 // taggable=false, and reading that as evidence of untaggability would veto
 // on silence. Survey membership is the precondition, not a fallback.
-func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow) []string {
+//
+// contentMatch is contentMatchRoster's own qualifying set, keyed by TF
+// type - issue #272's bypass. Passed in rather than recomputed here so
+// this function's own signature stays the two-argument-evidence shape its
+// callers already read; buildEmitFiles and propose.go's own caller each
+// compute it once and pass the same set to both this function and the
+// content-match table's own render.
+func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, importGrammar map[string]importGrammarRow, contentMatch map[string]bool) []string {
 	classified := make(map[string]bool, len(proposals))
 	documented := make(map[string]bool, len(proposals))
 	for _, p := range proposals {
@@ -129,7 +143,7 @@ func markerlessRoster(survey map[string]surveyEntry, proposals []proposal, impor
 	var out []string
 	for typeName, entry := range survey {
 		row, admitted := identity.DefaultTable[typeName]
-		if markerless(entry.Signals.Taggable, admitted, row, classified[typeName], documented[typeName]) {
+		if markerless(entry.Signals.Taggable, contentMatch[typeName], admitted, row, classified[typeName], documented[typeName]) {
 			out = append(out, typeName)
 		}
 	}

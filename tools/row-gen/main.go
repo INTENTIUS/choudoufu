@@ -74,6 +74,7 @@ const (
 	importGrammarJSONRel = "live/import-grammar.json"
 	annotationsJSONRel   = "tools/row-gen/annotations.json"
 	convergenceJSONRel   = "live/rowgen-convergence.json"
+	schemaFactsJSONRel   = "live/registry-schema-facts.json"
 )
 
 // Path literals continued: logicalSchemasJSONRel lives beside its own
