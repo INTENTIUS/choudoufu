@@ -64,11 +64,18 @@ func TestNoManagedDemandFromAnUnsetVariable(t *testing.T) {
 		}
 	})
 
-	// Both #183 shapes, because they refuse at different places. The for_each
-	// one never expands a block at all; the argument one expands and then
-	// refuses per instance, in the very branch a live-read unknown would
-	// reach.
-	for _, dir := range []string{"foreach-unset-var-map", "unset-var-identity-arg"} {
+	// All three #183 shapes, because they refuse at different places. The
+	// for_each one never expands a block at all; the argument one expands and
+	// then refuses per instance, in the very branch a live-read unknown would
+	// reach; and modulearg-unset-var carries the unknown ACROSS A MODULE
+	// BOUNDARY, where the partial-argument rebuild
+	// (internal/live/identity/partialargs.go) is the last thing that could
+	// invent a key set out of it. That third one exists because the rebuild
+	// substitutes an unknown for a leaf it cannot evaluate, and the whole
+	// safety argument for doing so is that an unknown ALREADY refuses - so
+	// the one shape that must never move is the one whose unknown was there
+	// before the rebuild existed.
+	for _, dir := range []string{"foreach-unset-var-map", "unset-var-identity-arg", "modulearg-unset-var"} {
 		t.Run(dir, func(t *testing.T) {
 			load, result, diags := resolveFixture(t, dir)
 			if len(load.UnsetVariables()) == 0 {

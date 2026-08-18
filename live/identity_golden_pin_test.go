@@ -67,14 +67,30 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
-	// 716, up from 713 (issue #274): three ADDED rows, not a moved one -
-	// internal/live/identity/testdata/markerless-veto-two-source-agreement's
-	// new fixture, one instance each of aws_cognito_risk_configuration,
-	// aws_detective_member and aws_lambda_function_event_invoke_config,
-	// three types the markerless-veto two-source exception newly admits.
+	// 721, up from 716: five ADDED rows, zero modified and zero removed, all
+	// five in two fixture directories added in the same commit
+	// (internal/live/identity/testdata/modulearg-partial and
+	// modulearg-partial-dynkey, for the partial module-argument rebuild in
+	// internal/live/identity/partialargs.go).
+	//
+	// Every added value was read against the provider's own import
+	// documentation before this number was moved, which is what the comment
+	// above asks for:
+	//
+	//	aws_iam_role.r                        the-role     "terraform import aws_iam_role.example developer_name"
+	//	module.u.aws_iam_group.g[0]           the-group    "terraform import aws_iam_group.developers developers"
+	//	module.u.aws_iam_user.this["alice"]   user-alice   "import IAM Users using the name"
+	//	module.u.aws_iam_user.this["bob"]     user-bob     ditto
+	//
+	// The fifth is modulearg-partial-dynkey's own aws_iam_role.r. That
+	// fixture's POINT is what it does NOT contribute: it moves the
+	// unresolvable reference from a value to a for_each KEY, and neither
+	// aws_iam_user instance appears in the golden, because a key set the
+	// configuration does not state must refuse rather than be half-named.
+	//
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        716,
+	"CONCRETE":        721,
 	"NEEDS_DISCOVERY": 562,
 	"PARENT_DERIVED":  95,
 	"RECORD_BACKED":   17,
@@ -105,10 +121,12 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-// 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
-// comment above) - a fresh fixture directory, not an edit to an existing
-// one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "3ea2c52fadef85e94719b4c1801477c68a7e70ded09d7c3780ff718b52dd983e"
+// 2026-08-17 (partial module arguments): five ADDED rows (see
+// identityGoldenPin's own comment above) - two fresh fixture directories, no
+// edit to an existing one, so every pre-existing row's digest contribution is
+// unchanged. `git diff` on the golden shows five + lines and no - line, which
+// is the distinction this digest exists to force someone to make.
+const identityGoldenPinBodyDigest = "b543bf37efabebd99cabd09eae0843ab5eccbb63a7a3db60046ce11d2534c891"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -121,9 +139,21 @@ const identityGoldenPinBodyDigest = "3ea2c52fadef85e94719b4c1801477c68a7e70ded09
 // must refuse. So the located class is a class this instrument cannot see,
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
+// 2026-08-17 (partial module arguments): dirs 417 -> 423, instances 1390 ->
+// 1395. Six new directories, five new instances. The arithmetic is worth
+// stating because the two numbers do not match and the gap is the point:
+// four of the six directories are the two fixture roots and their ./mod
+// children, contributing four instances; the fifth is
+// modulearg-partial-dynkey's mod, whose two aws_iam_user instances are
+// deliberately absent; and the sixth is
+// internal/live/check/testdata/modulearg-unset-var (plus its mod), the #183
+// guard, which contributes NOTHING by design - an unset required root
+// variable arrives as an unknown, and a rebuild that named instances out of
+// one would have reclassified the whole govuk-aws cohort. A directory that
+// adds no instance is the assertion there.
 const (
-	identityGoldenPinInstances = 1390
-	identityGoldenPinDirs      = 417
+	identityGoldenPinInstances = 1395
+	identityGoldenPinDirs      = 423
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
