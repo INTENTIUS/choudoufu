@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=445 instances=1442
-# shape: class CONCRETE=734
+# shape: dirs=445 instances=1444
+# shape: class CONCRETE=736
 # shape: class NEEDS_DISCOVERY=595
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=5ddecffcc0fbfee950398f6f1709eb35f98a4e26d9bc5006384ad9978a60addb
+# shape: body-sha256=a972f99512cdb9f0b004a62d81d289be1ea923673b45df19619f3f175d80a56d
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1093,7 +1093,9 @@ live/e2e/estates/lambda	aws_lambda_capacity_provider.app	CONCRETE	tofu-lambda-co
 live/e2e/estates/lambda	aws_lambda_code_signing_config.app	NEEDS_DISCOVERY		
 live/e2e/estates/lambda	aws_lambda_event_source_mapping.app	NEEDS_DISCOVERY		
 live/e2e/estates/lambda	aws_lambda_function.app	CONCRETE	tofu-lambda-cohort-function	function_name=tofu-lambda-cohort-function
-live/e2e/estates/lambda	aws_lambda_permission.app	CONCRETE	tofu-lambda-cohort-function/AllowMyDemoAPIInvoke	function_name=tofu-lambda-cohort-function,statement_id=AllowMyDemoAPIInvoke
+live/e2e/estates/lambda	aws_lambda_function_event_invoke_config.app	CONCRETE	tofu-lambda-cohort-function:placeholder	function_name=tofu-lambda-cohort-function,qualifier=placeholder
+live/e2e/estates/lambda	aws_lambda_layer_version_permission.app	CONCRETE	tofu-lambda-cohort-layer-version-permission,0	layer_name=tofu-lambda-cohort-layer-version-permission,version_number=0
+live/e2e/estates/lambda	aws_lambda_permission.app	CONCRETE	tofu-lambda-cohort-function:placeholder/AllowMyDemoAPIInvoke	function_name=tofu-lambda-cohort-function,qualifier=placeholder,statement_id=AllowMyDemoAPIInvoke
 live/e2e/estates/media	aws_ivs_channel.app	NEEDS_DISCOVERY		
 live/e2e/estates/media	aws_ivs_recording_configuration.app	NEEDS_DISCOVERY		
 live/e2e/estates/media	aws_ivschat_logging_configuration.app	NEEDS_DISCOVERY		
