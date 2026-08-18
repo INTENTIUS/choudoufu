@@ -59,6 +59,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 const (
@@ -279,9 +281,17 @@ const wrappedModuleDir = "wrapped"
 // README.md is deliberately absent: it is hand-owned (see generatedMD's doc
 // comment for the ownership split), so the generator never deletes one and
 // writeCohort writes one only when none exists.
+//
+// configs.LiveSidecarFilename (estate.chdf.hcl) joined this set in issue
+// #291: it is the file that turns a cohort from a marker-tagged fixture
+// into a plannable live estate (estateSidecarHCL in files.go), so it is
+// owned and regenerated exactly like versions.tf and locals.tf, always at
+// the cohort root even under -module-wrap - a live configuration belongs
+// to the root module, not a module a root calls into.
 func ownedFiles(cohort string) map[string]bool {
 	return map[string]bool{
 		"versions.tf":                           true,
+		configs.LiveSidecarFilename:             true,
 		"locals.tf":                             true,
 		"main.tf":                               true,
 		cohort + ".tf":                          true,
@@ -298,7 +308,20 @@ func ownedFiles(cohort string) map[string]bool {
 // configuration - every form the loader accepts, not only *.tf. The first
 // version of checkForeignTF filtered on ".tf" alone, and an audit walked a
 // resource-declaring iam.tf.json straight past it.
+//
+// configs.LiveSidecarFilename (estate.chdf.hcl) is checked by exact name
+// rather than by suffix, the same way internal/configs' own loader finds
+// it (parser_live_sidecar.go looks for that literal filename, not a
+// pattern) - matching it here is what keeps drift_test.go's diffDirs
+// comparing the sidecar's content instead of silently skipping it the way
+// a suffix-only filter would (issue #291; this is the same
+// filter-narrower-than-the-loader shape a prior audit found in the
+// ownership and drift checks reading only *.tf while the loader also
+// accepts *.tf.json and *.tofu).
 func isConfigFile(name string) bool {
+	if name == configs.LiveSidecarFilename {
+		return true
+	}
 	for _, suffix := range []string{".tf", ".tf.json", ".tofu", ".tofu.json"} {
 		if strings.HasSuffix(name, suffix) {
 			return true
@@ -442,6 +465,9 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 	}
 
 	if err := write("versions.tf", versionsTF(cohort)); err != nil {
+		return err
+	}
+	if err := write(configs.LiveSidecarFilename, estateSidecarHCL(cohort)); err != nil {
 		return err
 	}
 	if err := write(contentPrefix+"locals.tf", localsTF(cohort)); err != nil {

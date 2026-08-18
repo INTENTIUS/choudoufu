@@ -84,6 +84,7 @@ go run ./tools/estate-gen -cohort observability -types aws_cloudwatch_alarm_mute
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
+| `estate.chdf.hcl` | The live sidecar: `estate = "observability-cohort"` (same value as `locals.tf`'s `estate_tag`, see `estateTag`) plus a `record_store "local"`, so this cohort is a plannable estate and not only a marker-tagged fixture (issue #291). |
 | `locals.tf` | `estate_tag` — "observability-cohort", distinct from every other cohort's own tag. |
 | `observability.tf` | Every requested (coverage) resource. |
 | `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |

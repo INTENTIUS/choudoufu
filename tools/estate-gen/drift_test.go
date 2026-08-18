@@ -58,15 +58,48 @@ type driftEntry struct {
 	reason string
 }
 
-// Empty since 2026-08-14: the last entry was s3, whose recorded command
-// (bare -cohort, following admission growth) emitted a newly-mapped type -
-// aws_s3control_multi_region_access_point - that the acceptance tier then
-// failed on a generator defect (the identity argument emitted for a
-// Computed-only attribute; fixed in fillBlock). s3's GENERATED.md now pins
-// the six-type roster, so its regeneration reproduces the tree exactly and
-// pulling the new type in is a deliberate roster edit judged by a tier
-// run, not a side effect of regenerating.
-var knownDrift = map[string]driftEntry{}
+// Was empty from 2026-08-14 until issue #291's sidecar sweep regenerated
+// every cohort (to add estate.chdf.hcl, see files.go's estateSidecarHCL)
+// and found data.tf had drifted underneath it: the last entry was s3, whose
+// recorded command (bare -cohort, following admission growth) emitted a
+// newly-mapped type - aws_s3control_multi_region_access_point - that the
+// acceptance tier then failed on a generator defect (the identity argument
+// emitted for a Computed-only attribute; fixed in fillBlock). s3's
+// GENERATED.md now pins the six-type roster, so its regeneration reproduces
+// the tree exactly and pulling the new type in is a deliberate roster edit
+// judged by a tier run, not a side effect of regenerating.
+var knownDrift = map[string]driftEntry{
+	// #241 ("identity: let a stated argument win over the cloud value it
+	// defaults to") made catalog_id an identity component estate-gen now
+	// fills in for aws_glue_catalog_database, aws_glue_catalog_table,
+	// aws_glue_connection and aws_glue_data_catalog_encryption_settings.
+	// siblingRef's bare-identity-component path (this file's own doc
+	// comment on siblingRef, the constructedParentTypes branch) then wires
+	// the first three to aws_glue_data_catalog_encryption_settings.app's
+	// catalog_id - a cross-resource reference - rather than a literal,
+	// because siblingRef cannot tell "this component is a per-account value
+	// every sibling shares" from "this component is a foreign key to one
+	// particular sibling instance", the distinction parentRef/siblingRef
+	// were built to draw for every other identity-bound argument.
+	//
+	// The committed data.tf intentionally still pins the pre-#241
+	// rendering (no catalog_id on any of the four): regenerating live
+	// turns three of the four resources' identities from NEEDS_DISCOVERY
+	// into no formula at all in TestIdentityGolden
+	// (internal/live/check/identitygolden_test.go), because an
+	// identity-bearing argument that reads another resource's attribute is
+	// not statically evaluable - the same "resource reference, not
+	// var/local/path/terraform" wall a real user's configuration would hit.
+	// Fixing siblingRef to never point an identity-bearing argument at a
+	// sibling (only ever a literal, matched to keep siblings consistent
+	// the way pairedSeedLiteral already does for assembled-identity
+	// parents) is estate-gen's own bug and belongs in its own issue, not
+	// #291's sidecar-only scope.
+	"data": {
+		files:  []string{"data.tf: content differs"},
+		reason: "siblingRef wires catalog_id to a cross-resource reference on regeneration (post-#241), which regresses three resources' TestIdentityGolden entries from NEEDS_DISCOVERY to unresolvable; the committed tree pins the pre-#241 rendering until siblingRef is fixed to never reference a sibling for an identity-bearing argument",
+	},
+}
 
 // regenGaps: cohort -> why no working one-command regeneration exists yet.
 // A cohort listed here is skipped outright. Empty since the four

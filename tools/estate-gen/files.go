@@ -41,9 +41,29 @@ provider "aws" {
 `, cohort, providerSource, providerVersion)
 }
 
-// localsTF is locals.tf: just the estate_tag marker
-// (live/MARKERS.md, P0.3), "<cohort>-cohort" - the same naming convention
-// live/e2e/estates/lambda/locals.tf's "lambda-cohort" already uses.
+// estateTag is the one computation behind every place a cohort's estate
+// name appears: the "tofu-estate" value every taggable resource's tags
+// carry (localsTF's estate_tag, live/MARKERS.md P0.3) and the "estate"
+// argument the cohort's estate.chdf.hcl sidecar declares
+// (estateSidecarHCL). "<cohort>-cohort" is the naming convention
+// live/e2e/estates/lambda/locals.tf's "lambda-cohort" already used by
+// hand, distinct from the demo estate's "stateless-e2e" and from every
+// other cohort's own tag, so no two cohorts collide if ever applied
+// against the same account side by side.
+//
+// Issue #291: before the sidecar existed, only localsTF derived this
+// string, so there was nothing to drift against. Now that the sidecar's
+// "estate" value must equal the marker's estate value for the estate to
+// resolve any resource it tags, both callers go through this one function
+// instead of each formatting cohort+"-cohort" on its own - making the two
+// disagreeing is a change to this function's body, not a chance
+// hand-edit to one call site.
+func estateTag(cohort string) string {
+	return cohort + "-cohort"
+}
+
+// localsTF is locals.tf: just the estate_tag marker (live/MARKERS.md,
+// P0.3). See [estateTag].
 func localsTF(cohort string) string {
 	return fmt.Sprintf(`locals {
   # The marker's estate value (live/MARKERS.md, P0.3), distinct from the
@@ -52,7 +72,38 @@ func localsTF(cohort string) string {
   # side.
   estate_tag = %q
 }
-`, cohort+"-cohort")
+`, estateTag(cohort))
+}
+
+// estateSidecarHCL is estate.chdf.hcl (configs.LiveSidecarFilename), the
+// sidecar form of a module's live configuration
+// (internal/configs/parser_live_sidecar.go): a bare body with no wrapper
+// block, read by choudoufu and invisible to stock tooling because its
+// extension is deliberately not .tf or .tofu - see
+// internal/configs/testdata/valid-modules/live-sidecar/estate.chdf.hcl for
+// the reference shape this mirrors.
+//
+// Its "estate" argument is [estateTag], the same string localsTF's
+// estate_tag computes, so a cohort's markers and the estate they plan
+// under are structurally the same value (issue #291) rather than two
+// hand-synchronized ones.
+//
+// The record_store "local" block is what makes a cohort containing a
+// logical type (no server-assigned ID of its own to recover an identity
+// from) a plannable estate instead of a refused one:
+// internal/live/identity.LocatedType has nowhere to place a logical type
+// without one. ".tofu-records" is a relative, module-local directory,
+// the same path live/e2e/record-store/main.tf's inline record_store
+// already uses; validateRecordStorePath in internal/configs/live.go
+// accepts it (not absolute, not a state-file name, does not leave the
+// module directory).
+func estateSidecarHCL(cohort string) string {
+	return fmt.Sprintf(`estate = %q
+
+record_store "local" {
+  path = ".tofu-records"
+}
+`, estateTag(cohort))
 }
 
 // wrappedVariablesTF is the wrapped module's variables.tf, written only by
@@ -165,6 +216,7 @@ func generatedMD(cohort string, requested []string, g *generator, moduleWrap boo
 	b.WriteString("\n## Files\n\n")
 	b.WriteString("| File | Contents |\n|---|---|\n")
 	fmt.Fprintf(&b, "| `versions.tf` | `terraform`/`provider \"aws\"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |\n")
+	fmt.Fprintf(&b, "| `estate.chdf.hcl` | The live sidecar: `estate = %q` (same value as `locals.tf`'s `estate_tag`, see `estateTag`) plus a `record_store \"local\"`, so this cohort is a plannable estate and not only a marker-tagged fixture (issue #291). |\n", estateTag(cohort))
 	contentPrefix := ""
 	switch {
 	case len(moduleKeys) > 0:
@@ -176,7 +228,7 @@ func generatedMD(cohort string, requested []string, g *generator, moduleWrap boo
 		fmt.Fprintf(&b, "| `main.tf` | The one module call: `module \"%s\" { source = \"./%s\" }`. |\n", wrappedModuleDir, wrappedModuleDir)
 		contentPrefix = wrappedModuleDir + "/"
 	}
-	fmt.Fprintf(&b, "| `%slocals.tf` | `estate_tag` — %q, distinct from every other cohort's own tag. |\n", contentPrefix, cohort+"-cohort")
+	fmt.Fprintf(&b, "| `%slocals.tf` | `estate_tag` — %q, distinct from every other cohort's own tag. |\n", contentPrefix, estateTag(cohort))
 	fmt.Fprintf(&b, "| `%s%s.tf` | Every requested (coverage) resource. |\n", contentPrefix, cohort)
 	if hasSupporting(g) {
 		fmt.Fprintf(&b, "| `%ssupporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |\n", contentPrefix)
