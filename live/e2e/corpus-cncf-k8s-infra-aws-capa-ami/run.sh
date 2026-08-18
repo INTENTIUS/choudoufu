@@ -18,12 +18,38 @@ set -uo pipefail
 #   module.iam_github_oidc_role.aws_iam_role_policy_attachment.this["ImageBuilder"]
 #                                                    untaggable, an edge
 #
-# IT DOES NOT CROSS. It is BLOCKED BY CHOUDOUFU, not by floci - a genuine
-# language-parity defect, verified rather than assumed, and pinned here
-# rather than hidden, per this campaign's own discipline against
-# fabricating a clean convergence. Filed as issue #301.
+# ISSUE #301, THE LANGUAGE WALL THIS SCRIPT USED TO PIN, IS NOW FIXED.
 #
-# THE THREE DELTAS NEEDED JUST TO REACH THE BLOCKER:
+# The wall was a bare `each.value` (no trailing `.attr`) forwarding a
+# SIBLING managed resource's server-assigned attribute
+# (`aws_iam_policy.imagebuilder.arn`) across a module-call argument boundary
+# into a child that declares the receiving variable with a concrete type
+# (`variable "policies" { type = map(string) }`). #251's declared-type
+# conversion (internal/live/identity/typedvar.go) rebuilt the for_each
+# source as a whole cty value to apply that conversion, and unconditionally
+# DROPPED the pre-conversion expression the moment any concrete declared
+# type applied - so the sibling reference had no expression left to resolve
+# through by the time `policy_arn = each.value` asked for it, and identity
+# resolution's own static evaluator raised "Dynamic value in static
+# context" over a for_each whose KEY SET was, in fact, statically known the
+# whole time.
+#
+# #301's fix (typedvar.go's `preservedExpr`) carries the pre-conversion
+# expression across the hop in the one case where the declared type cannot
+# change what it renders as: a map or object element type of exactly
+# cty.String, or an unconstrained cty.DynamicPseudoType. Once the
+# expression survives, [resolver.resolveExpr]'s ordinary symbolic path
+# builds a PARENT_DERIVED formula for it through the SAME mechanism issue
+# #284 already built for a direct reference (`name =
+# aws_acm_certificate.cert.arn`) - no second resolution pass, no live
+# discovery, needed to CROSS the wall. See
+# TestBareEachValueThroughTypedModuleVarBuildsAFormula
+# (internal/live/identity/typedvar_test.go) for the fast, non-Docker
+# regression fixture, and #301's own tracker comment for the full trace.
+#
+# THE THREE DELTAS NEEDED TO REACH THE (NOW FIXED) WALL, kept exactly as
+# they were - none of this is a #301 concern, all of it is ordinary
+# onboarding or upstream drift a plain tofu/terraform run would hit too:
 #
 #   1. `backend "s3" {}` -> a live block (#268, ordinary).
 #
@@ -35,61 +61,42 @@ set -uo pipefail
 #      terraform-aws-modules/terraform-aws-iam@31b31d7, a `feat!` that also
 #      raised the module's own minimum AWS provider to 6.0), so the
 #      estate's `source = ".../modules/iam-github-oidc-provider"` 404s
-#      inside the freshly downloaded module. This is upstream module drift
-#      a plain `tofu`/`terraform` run today would hit identically - not a
-#      choudoufu defect - so DELTA 2 pins `version = "~> 5.0"` on both
-#      module calls (the last major series with the old subdirectory
-#      names, tag v5.60.0).
+#      inside the freshly downloaded module. DELTA 2 pins `version = "~>
+#      5.0"` on both module calls (the last major series with the old
+#      subdirectory names, tag v5.60.0).
 #
 #   3. The estate's own `version = "~> 5.66"` on the AWS provider resolves
 #      to 5.100.0, #269's "release with no list resources at all" shape.
 #      DELTA 3 pins `= 6.58.0`, the same fix other #274 scripts already use
 #      for the identical constraint.
 #
-# THE BLOCKER, found at the very first `apply` (nothing live yet, no
-# live-plan involved):
+# A FOURTH DELTA, unrelated to #301: `force_detach_policies = true` is
+# written by the iam-role module and IAM never returns it on a read, so
+# every cold run without a record_store proposes an in-place update that
+# never settles - issue #275's shape, and corpus-oidc-provider's own script
+# documents the identical delta in more depth. DELTA 4 adds one
+# `record_store "local"` block.
 #
-#   Error: Dynamic value in static context
-#
-#     on .terraform/modules/iam_github_oidc_role/modules/iam-github-oidc-role/main.tf line 83:
-#     83:   policy_arn = each.value
-#
-#   Unable to use each.value in static context, which is required by
-#   module.iam_github_oidc_role:module.iam_github_oidc_role.aws_iam_role_policy_attachment.this["ImageBuilder"].policy_arn
-#
-# `policies = { ImageBuilder = aws_iam_policy.imagebuilder.arn }` is passed
-# into the child module as a variable; the module's own resource does
-# `for_each = var.policies` / `policy_arn = each.value`. The for_each KEY
-# SET is statically known ("ImageBuilder", a literal map key) - this is a
-# `keyOnly` expansion, not a `Non-static for_each expression` refusal. What
-# fails is the bare `each.value` itself: a whole-value reference (no
-# trailing `.attr`) to a SIBLING managed resource's server-assigned ARN,
-# reached across a module-call argument boundary.
-#
-# VERIFIED AS A GENUINE DEFECT, not an acceptable limitation: the identical
-# config, same choudoufu binary, with ONLY the live block removed, applies
-# cleanly - `Plan: 4 to add, 0 to change, 0 to destroy` / `Apply complete!
-# Resources: 4 added, 0 changed, 0 destroyed.` Stock OpenTofu only requires
-# a for_each's own KEY SET known at plan time; values may resolve during
-# apply, and "attach the policy I just created to the role I just created"
-# is one of the single most common Terraform/OpenTofu patterns there is -
-# terraform-aws-modules/iam uses exactly this shape for every "attach N
-# policies to a role" call. Per #187's own ruling: "Parity is the bar...
-# If OpenTofu accepts it and we refuse, that is a defect."
-#
-# This is NOT the #187/#284 fix (DiscoverySiblingApply/PlanInstances, which
-# handles a for-comprehension for_each KEY SET derived from a managed
-# resource's own planned attributes, with each.value.<attr> selected out of
-# an object constructor) nor #252's Shape A/B (module-call repetition data,
-# and each.value.<attr> selection respectively). All three are confirmed
-# present on this tree. The gap is explicitly flagged in the source, not
-# merely unnoticed: internal/live/identity/resolve.go's `expansion.keyOnly`
-# doc comment says outright that resolving a bare each.value symbolically
-# in this position "is a further extension this fix does not make." See
-# issue #301 for the full trace.
+# THE BLOCKER THIS SCRIPT PINS NOW, discovered only once #301 stopped
+# masking it: with all four deltas applied, apply succeeds (4 added, then 0
+# added / 2 changed once the record store settles force_detach_policies),
+# but a replan is NOT empty. floci does not merge the provider-level
+# `default_tags` block into `aws_iam_role.this` or
+# `aws_iam_openid_connect_provider.this` at create time, though it reports
+# them present on a subsequent read - so every replan proposes adding the
+# four `var.tags` keys (managed-by, group, subproject, githubRepo) back.
+# The choudoufu-written marker tags (tofu-estate, tofu-address, tofu-slot)
+# round-trip perfectly in the same diff, which is what pins this as a
+# floci/default_tags gap and not a marker-writing defect: the ONLY thing
+# missing is exactly the set of tags the PROVIDER's own default_tags merge
+# is responsible for, never touched by anything in internal/live. This is
+# a genuinely different, orthogonal blocker from #301 and needs its own
+# issue rather than a fix folded into this one - filing it is left to
+# whoever picks this script back up.
 #
 # This script does not edit `policy_arn` to route around the sibling
-# reference - that would no longer be running the estate's own
+# reference, and does not disable `default_tags` to route around the new
+# blocker - either would no longer be running the estate's own
 # configuration, the same discipline corpus-crossref-orcid-agent's script
 # already documents for its own (floci-side) blocker.
 #
@@ -106,13 +113,14 @@ set -uo pipefail
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
 #
-# Exit codes: 0 when the run reaches exactly the pinned refusal and nothing
-# else has moved; non-zero if anything earlier fails, if the apply
-# unexpectedly SUCCEEDS (which would mean the language wall has been
-# extended to cover this shape, and this script should be rewritten into a
-# real crossing - state deletion, live-plan empty twice, BREAK=1 negative
-# control - per every other script in live/e2e), or if the apply fails for
-# a different reason than the one pinned above.
+# Exit codes: 0 when the run reaches exactly the state described above (four
+# resources created, the each.value wall crossed, and the pinned
+# default_tags drift and nothing else remaining on a replan); non-zero if
+# anything earlier fails, if the apply fails with the OLD each.value error
+# (which would mean #301 has regressed), or if a replan proposes anything
+# beyond the four pinned default_tags keys (which would mean either the
+# default_tags gap has been fixed - rewrite this into a real crossing - or
+# something new has broken).
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CORPUS_DIR="${CORPUS_DIR:-$ROOT/.corpus}"
@@ -166,6 +174,9 @@ log "  estate copied out of .corpus into $EST ($RES_N literal resource block + 2
 log "=== 1. onboarding deltas ==="
 
 # DELTA 1, ordinary onboarding: `backend "s3" {}` -> a live block.
+# DELTA 4, unrelated to #301: a record_store, so force_detach_policies (IAM
+# never returns it) has somewhere to live - see corpus-oidc-provider's own
+# script for the fuller trace of this same delta.
 grep -q 'backend "s3"' "$EST/providers.tf" || fail "no backend \"s3\" block found - the corpus pin has moved"
 grep -q 'version = "~> 5.66"' "$EST/providers.tf" \
   || { grep -n 'version' "$EST/providers.tf"; fail "the aws constraint is no longer ~> 5.66 - the corpus pin has moved"; }
@@ -185,13 +196,18 @@ terraform {
   # DELTA 1: was \`backend "s3" { ... }\` (#268).
   live {
     estate = "$ESTATE"
+
+    # DELTA 4: force_detach_policies needs somewhere to live (#275).
+    record_store "local" {
+      path = ".tofu-records"
+    }
   }
 }
 
 provider "aws" {
   region = var.region
 
-  access_key                  = "test" # DELTA 4, emulator wiring
+  access_key                  = "test" # DELTA 5, emulator wiring
   secret_key                  = "test"
   skip_credentials_validation = true
   skip_requesting_account_id  = true
@@ -204,9 +220,11 @@ provider "aws" {
 }
 EOF
 grep -q "estate = \"$ESTATE\"" "$EST/providers.tf" || fail "DELTA 1 did not land"
+grep -q 'record_store "local"' "$EST/providers.tf" || fail "DELTA 4 did not land"
 log "  DELTA 1  backend block removed, live block added             (#268)"
 log "  DELTA 3  aws provider pinned = 6.58.0                        (#269-shape)"
-log "  DELTA 4  emulator flags on the provider                      (emulator)"
+log "  DELTA 4  record_store \"local\" added                          (#275)"
+log "  DELTA 5  emulator flags on the provider                      (emulator)"
 
 # DELTA 2, module version pins: the estate's own module calls carry no
 # version constraint, so `init` resolves the latest release, which renamed
@@ -238,8 +256,13 @@ log "  healthy"
 export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
-# ── 3. init, and the apply: blocked by choudoufu, not by floci ─────────────
-log "=== 3. init and apply: pinned to the each.value/static-context refusal ==="
+plan_into() {
+  rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
+  ( cd "$EST" && "$TOFU" plan -input=false -no-color )
+}
+
+# ── 3. init, and the apply: #301 crossed ────────────────────────────────────
+log "=== 3. init and apply: the each.value wall is crossed ==="
 INIT_OUT="$(cd "$EST" && "$TOFU" init -input=false -no-color 2>&1)"
 INIT_RC=$?
 [ "$INIT_RC" -eq 0 ] || { printf '%s\n' "$INIT_OUT" | tail -30; fail "init failed"; }
@@ -250,74 +273,72 @@ log "  init OK, modules resolved to a 5.x release (old subdirectory names intact
 APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
 RC=$?
 
-if [ "$RC" -eq 0 ]; then
-  fail "the apply SUCCEEDED, which this script does not expect. That is GOOD NEWS: the language wall around a bare each.value forwarding a sibling resource's attribute across a module-call boundary has been extended to cover this shape. Rewrite this script into a real crossing (delete the state file, live-plan empty twice, BREAK=1 negative control) per every other script in live/e2e, and close issue #301."
-fi
-
-grep -qF 'Error: Dynamic value in static context' <<< "$APPLY_OUT" || {
+if grep -qF 'Error: Dynamic value in static context' <<< "$APPLY_OUT"; then
   printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│' | head -20
-  fail "the apply failed, but not with the pinned static-context error. Something else about the corpus pin or this fork has moved - read the errors above."
-}
-grep -qF 'module.iam_github_oidc_role:module.iam_github_oidc_role.aws_iam_role_policy_attachment.this["ImageBuilder"].policy_arn' <<< "$APPLY_OUT" || {
-  printf '%s\n' "$APPLY_OUT" | grep -E '^Error|^│|Unable to use' | head -20
-  fail "the apply failed with a static-context error, but not at the pinned policy_arn site. The corpus pin may have moved - read the errors above."
-}
-log "  apply failed exactly as pinned:"
-log "    Error: Dynamic value in static context"
-log "    Unable to use each.value in static context, which is required by"
-log "    module.iam_github_oidc_role:module.iam_github_oidc_role.aws_iam_role_policy_attachment.this[\"ImageBuilder\"].policy_arn"
+  fail "the apply refused with the OLD #301 error. The each.value fix (internal/live/identity/typedvar.go's preservedExpr) has regressed."
+fi
+[ "$RC" -eq 0 ] || { printf '%s\n' "$APPLY_OUT" | tail -40; fail "the apply failed, and not with the old #301 error - something else has moved. Read the errors above."; }
+grep -qE 'Apply complete! Resources: 4 added, 0 changed, 0 destroyed' <<< "$APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY_OUT"; fail "the apply did not create exactly 4 resources"; }
+log "  apply succeeded: $(grep -E 'Apply complete' <<< "$APPLY_OUT" | head -1)"
+log "  the bare each.value -> sibling ARN shape resolved to a PARENT_DERIVED"
+log "  formula and the estate applied clean on the first try - #301 crossed."
 
-# ── 4. the parity proof: the SAME config applies cleanly without live ──────
-log "=== 4. parity check: the identical config, live block removed, applies clean ==="
-PARITY="$WORK/parity"
-mkdir -p "$PARITY"
-cp "$SRC"/*.tf "$PARITY/"
-cat > "$PARITY/providers.tf" <<EOF
-terraform {
-  required_version = "~> 1.8.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= 6.58.0"
-    }
-  }
+# ── 4. force_detach_policies settles through the record store ─────────────
+log "=== 4. a second apply settles force_detach_policies through the record store ==="
+APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+[ $? -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the second apply (settling force_detach_policies through the record store) failed"; }
+grep -qE 'Apply complete! Resources: 0 added, [0-9]+ changed, 0 destroyed' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the second apply proposed adding or destroying something - expected only in-place changes"; }
+log "  $(grep -E 'Apply complete' <<< "$APPLY2_OUT" | head -1)"
+
+# ── 5. the pinned blocker: floci does not merge default_tags into these ────
+#      two IAM resource types at create time ────────────────────────────────
+log "=== 5. replan: the pinned default_tags gap, and nothing else ==="
+PLAN_OUT="$(plan_into 2>&1)"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the plan wrote a state file"
+
+CHANGES="$(grep -cE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT")"
+[ "$CHANGES" = "2" ] || {
+  grep -E '^  # .+ will be' <<< "$PLAN_OUT"
+  fail "the plan proposes $CHANGES resource changes, expected exactly 2 (the OIDC provider's and the role's tags). If this is 0, the default_tags gap has been fixed upstream in floci or the provider - rewrite this script into a real crossing (state deletion, live-plan empty twice, BREAK=1 negative control) per every other script in live/e2e, and close out this pin."
 }
+grep -qE '^  # module\.iam_github_oidc_provider\.aws_iam_openid_connect_provider\.this\[0\] will be updated in-place' <<< "$PLAN_OUT" \
+  || fail "expected the OIDC provider's in-place update - the corpus pin may have moved"
+grep -qE '^  # module\.iam_github_oidc_role\.aws_iam_role\.this\[0\] will be updated in-place' <<< "$PLAN_OUT" \
+  || fail "expected the role's in-place update - the corpus pin may have moved"
+grep -qE '^ +~ force_detach_policies' <<< "$PLAN_OUT" \
+  && fail "force_detach_policies is back in the diff - the record store did not settle it (DELTA 4 may not have taken effect)"
 
-provider "aws" {
-  region = var.region
+# The four default_tags keys, proposed as additions on both resources - and
+# nothing else. tofu-estate/tofu-address/tofu-slot must NOT appear as a
+# proposed change: if they do, the marker itself is drifting, which is a
+# choudoufu defect and a very different, much worse problem than a missing
+# provider tag.
+for key in managed-by group subproject githubRepo; do
+  grep -qE "^ +\+ \"${key}\"" <<< "$PLAN_OUT" \
+    || { grep -E '^ +[+~-] "' <<< "$PLAN_OUT"; fail "expected \"$key\" to be proposed as an added tag - the pinned drift has changed shape"; }
+done
+for marker in tofu-estate tofu-address tofu-slot; do
+  grep -qE "^ +[+~-] \"${marker}\"" <<< "$PLAN_OUT" \
+    && { grep -E '^ +[+~-] "' <<< "$PLAN_OUT"; fail "$marker appears as a proposed CHANGE - the ownership marker itself is drifting, which is a choudoufu defect, not the pinned floci gap"; }
+done
+log "  exactly 2 in-place updates, both adding back the same 4 default_tags"
+log "  keys (managed-by, group, subproject, githubRepo); the tofu-estate/"
+log "  tofu-address/tofu-slot markers are stable in the same diff."
 
-  access_key                  = "test"
-  secret_key                  = "test"
-  skip_credentials_validation = true
-  skip_requesting_account_id  = true
-  skip_metadata_api_check     = true
-  s3_use_path_style           = true
-
-  default_tags {
-    tags = var.tags
-  }
-}
-EOF
-perl -0pi -e 's/(source    = "terraform-aws-modules\/iam\/aws\/\/modules\/iam-github-oidc-provider"\n)/$1  version   = "~> 5.0"\n/' "$PARITY/oidc.tf"
-perl -0pi -e 's/(source    = "terraform-aws-modules\/iam\/aws\/\/modules\/iam-github-oidc-role"\n)/$1  version   = "~> 5.0"\n/' "$PARITY/oidc.tf"
-( cd "$PARITY" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "the parity check's own init failed"
-PARITY_OUT="$(cd "$PARITY" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
-PARITY_RC=$?
-[ "$PARITY_RC" -eq 0 ] || { printf '%s\n' "$PARITY_OUT" | tail -40; fail "the parity apply (no live block) failed too - if this ever happens, issue #301's premise (this is a live-marker-only regression) is WRONG and needs re-checking before anything else in this script is trusted"; }
-grep -qE 'Apply complete! Resources: 4 added' <<< "$PARITY_OUT" \
-  || { grep -E 'Apply complete' <<< "$PARITY_OUT"; fail "the parity apply did not create exactly 4 resources"; }
-log "  confirmed: the SAME binary, SAME config, live block removed:"
-log "    $(grep -E 'Apply complete' <<< "$PARITY_OUT" | head -1)"
-log "  so the refusal above is specific to the live marker path, not to this"
-log "  estate or to stock OpenTofu semantics."
+PLAN2_OUT="$(plan_into 2>&1)"
+CHANGES2="$(grep -cE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN2_OUT")"
+[ "$CHANGES2" = "2" ] || { grep -E '^  # .+ will be' <<< "$PLAN2_OUT"; fail "the replan is not stable: $CHANGES2 changes the second time, $CHANGES the first"; }
+log "  a second replan proposes the identical 2 changes - stable, not growing"
 
 log ""
-log "=== BLOCKED (choudoufu, not floci) ==="
+log "=== #301 CROSSED; BLOCKED ON A SEPARATE, UNRELATED FLOCI GAP ==="
 log ""
-log "Steps 0-2 above ran clean: three onboarding deltas (a live block, a"
-log "module version pin for unrelated upstream drift, and a #269-shape"
-log "provider version pin) get the estate to init. The first apply then"
-log "refuses a pattern stock OpenTofu applies without complaint - a bare"
-log "each.value forwarding a sibling resource's ARN through a module-call"
-log "for_each - and step 4 proves that with the same binary, same config,"
-log "live block removed. Filed as issue #301."
+log "The each.value language wall (issue #301) is fixed and this estate now"
+log "applies on the first try, four resources, no discovery pass needed. What"
+log "remains is floci not merging provider-level default_tags into"
+log "aws_iam_role/aws_iam_openid_connect_provider at create time - a"
+log "different, narrower gap that deserves its own issue rather than a fix"
+log "folded into this one. The ownership markers themselves are stable"
+log "throughout, which is what distinguishes this from a choudoufu defect."

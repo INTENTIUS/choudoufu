@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=452 instances=1468
+# shape: dirs=454 instances=1470
 # shape: class CONCRETE=742
-# shape: class NEEDS_DISCOVERY=613
-# shape: class PARENT_DERIVED=96
+# shape: class NEEDS_DISCOVERY=614
+# shape: class PARENT_DERIVED=97
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=0c7bc85a0ab6b37ffa7a281fc9244525d06ee7e4ca7aeb2a918499d1903628a4
+# shape: body-sha256=de6be4a7d02c659bd30535aca20be6e038b758e543fbd72c56e9dd1e39d9bafe
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -290,6 +290,8 @@ internal/live/identity/testdata/module-foreach-var	module.user["bob"].aws_iam_us
 internal/live/identity/testdata/module-foreach-var-collide	module.user["alice"].aws_iam_user.wrapped	CONCRETE	shared	name=shared
 internal/live/identity/testdata/module-foreach-var-collide	module.user["bob"].aws_iam_user.wrapped	CONCRETE	shared	name=shared
 internal/live/identity/testdata/module-foreach-var-collide/user	aws_iam_user.wrapped	CONCRETE	shared	name=shared
+internal/live/identity/testdata/module-foreach-var-typed-sibling-value	aws_iam_policy.imagebuilder	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-foreach-var-typed-sibling-value	module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"]	PARENT_DERIVED	gh-image-builder/${aws_iam_policy.imagebuilder.arn}	policy_arn=${aws_iam_policy.imagebuilder.arn},role=gh-image-builder
 internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.direct	CONCRETE	alice-admin	name=alice-admin
 internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.templated	CONCRETE	t-alice-admin	name=t-alice-admin
 internal/live/identity/testdata/module-foreach-var-wrapped	module.user["alice"].aws_iam_user.wrapped	CONCRETE	u-alice-admin	name=u-alice-admin

@@ -112,13 +112,37 @@ func TestTypedModuleVarConvertsEachValue(t *testing.T) {
 // the shape the corpus site the eachvalue merge cleared actually has, and it
 // is here so that a fix which declines typed variables outright fails rather
 // than passes.
+//
+// Key "b" (aws_sqs_queue.seed.max_message_size, a Computed attribute that is
+// not part of aws_sqs_queue's identity) used to be simply ABSENT here - a
+// hard refusal that never reached [Result], the same shape
+// TestTypedModuleVarConvertsEachValue's "b" still is. Issue #301's
+// [preservedExpr] carries the pre-conversion expression across a
+// map(string)/object(string-attr) hop now, so "b" reaches identity
+// composition exactly as it already did in TestUntypedModuleVarUnchanged
+// (declared type cty.DynamicPseudoType, which never dropped the expression
+// at all) - and gets the identical answer: max_message_size is not a
+// registered identity attribute, so [resolver.parentPart] resolves it to
+// [ClassNeedsDiscovery] via [DiscoveryMarkerFallback] instead of refusing.
+// This is the point of the fix, not a side effect of it: whether a module
+// variable declares map(string) or leaves the type off must not change
+// whether a reference through it resolves, and before #301 it did.
 func TestTypedModuleVarStringUnchanged(t *testing.T) {
 	cfg := loadConfigTree(t, filepath.Join("testdata", "typedvar-string"), nil)
 	result, _ := ResolveIn(context.Background(), cfg, CloudContext{AccountID: "000000000000", Region: "us-east-1"})
 
 	assertQueueIDs(t, result, map[string]string{
 		`module.child.aws_sqs_queue.q["a"]`: "https://sqs.us-east-1.amazonaws.com/000000000000/q-007",
+		`module.child.aws_sqs_queue.q["b"]`: "",
 	})
+
+	b := resolutionAt(t, result, `module.child.aws_sqs_queue.q["b"]`)
+	if b.Class != ClassNeedsDiscovery {
+		t.Errorf(`module.child.aws_sqs_queue.q["b"] resolved %s, want NEEDS_DISCOVERY`, b.Class)
+	}
+	if b.Cause != DiscoveryMarkerFallback {
+		t.Errorf(`module.child.aws_sqs_queue.q["b"] discovery cause is %s, want %s`, b.Cause, DiscoveryMarkerFallback)
+	}
 }
 
 // TestUntypedModuleVarUnchanged: a variable with no type argument has
@@ -126,13 +150,15 @@ func TestTypedModuleVarStringUnchanged(t *testing.T) {
 // is what OpenTofu uses too, so the answer is the raw one.
 //
 // Key "b" is aws_sqs_queue.seed.max_message_size read through an untyped
-// module variable rather than a typed one - unlike its siblings
-// TestTypedModuleVarConvertsEachValue and TestTypedModuleVarStringUnchanged,
-// a typed variable's own conversion machinery refuses this shape before
-// identity composition ever runs (a for_each/expansion refusal, which
-// [DiscoverableFallbackTypes] never answers), so those two still see "b"
-// refused outright. Here the untyped value reaches identity composition
-// itself and raises "Not an identity attribute" - max_message_size is a
+// module variable rather than a typed one. Before issue #301, this was the
+// one member of the family whose "b" reached identity composition at all -
+// TestTypedModuleVarConvertsEachValue's declared map(number) and
+// TestTypedModuleVarStringUnchanged's declared map(string) both dropped the
+// pre-conversion expression on the hop through their typed variable, so
+// their "b" refused outright before identity composition ever ran. #301's
+// [preservedExpr] closes that gap for the string-valued case -
+// TestTypedModuleVarStringUnchanged's "b" now reaches identity composition
+// and lands on exactly the same answer this test does. max_message_size is a
 // real, Computed schema attribute of aws_sqs_queue, but not part of its
 // identity - which GitHub issue #289's marker fallback now answers for
 // aws_sqs_queue (taggable and enumerable): "b" resolves to
@@ -152,6 +178,50 @@ func TestUntypedModuleVarUnchanged(t *testing.T) {
 	}
 	if b.Cause != DiscoveryMarkerFallback {
 		t.Errorf(`module.child.aws_sqs_queue.q["b"] discovery cause is %s, want %s`, b.Cause, DiscoveryMarkerFallback)
+	}
+}
+
+// TestBareEachValueThroughTypedModuleVarBuildsAFormula is issue #301's
+// headline shape: terraform-aws-modules/iam's "attach N policies to a role"
+// pattern, reduced. `policies = { ImageBuilder = aws_iam_policy.imagebuilder.arn }`
+// crosses a module-call boundary into a child that declares `variable
+// "policies" { type = map(string) }` and reads the value back with a BARE
+// `each.value` - no trailing `.attr`, unlike TestTypedModuleVarStringUnchanged's
+// `each.value` used as a whole string interpolated into a name and unlike
+// module-foreach-var's `each.value.role` (a selector, #260's original
+// shape). The distinguishing fact from every other fixture in this file:
+// the unproven element is not merely unresolvable (a Computed, non-identity
+// attribute) but IS the whole value of a registered identity attribute
+// (aws_iam_policy's arn) of a SIBLING resource - so once #301's
+// [preservedExpr] lets the pre-conversion expression survive the map(string)
+// hop, [resolver.resolveExpr]'s ordinary symbolic path
+// ([resolver.isSymbolic], [resolver.resolveTraversal], [resolver.parentPart])
+// builds a PARENT_DERIVED formula for it, the same mechanism issue #284
+// already built for a DIRECT reference (`name = aws_acm_certificate.cert.arn`)
+// - no [Context.ManagedResults] second pass required, because a bare
+// each.value over a keyOnly expansion never was symbolic-vs-evaluable in the
+// way a direct reference is; it was simply unreachable before #301 gave it
+// an expression to reach through at all.
+//
+// "role" is var.role_name, a plain literal passed at the call site, so only
+// policy_arn's formula half is symbolic; the rendered formula therefore has
+// one literal part and one parent-derived part, exactly as
+// aws_iam_role_policy_attachment's import syntax ROLENAME/POLICYARN says it
+// should.
+func TestBareEachValueThroughTypedModuleVarBuildsAFormula(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "module-foreach-var-typed-sibling-value"), nil)
+	result, diags := Resolve(context.Background(), cfg)
+	if diags.HasErrors() {
+		t.Fatalf("refused: %s", diags.Err())
+	}
+
+	res := resolutionAt(t, result, `module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"]`)
+	if res.Class != ClassParentDerived {
+		t.Fatalf(`module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"] resolved %s, want PARENT_DERIVED (diags: %s)`, res.Class, diags.Err())
+	}
+	const want = `module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"] PARENT_DERIVED gh-image-builder/${aws_iam_policy.imagebuilder.arn}`
+	if got := res.String(); got != want {
+		t.Errorf("rendered\n  %s\nwant\n  %s", got, want)
 	}
 }
 
