@@ -102,6 +102,10 @@ var refusals = []Refusal{
 		What:    "An import returned more than one object where one was expected; the extra objects are dropped and this says so rather than choosing silently.",
 	},
 	{
+		Summary: "Import reported absence as an error",
+		What:    "The provider's ImportResourceState call for a resource failed with a diagnostic shaped like a generic not-found response (terraform-plugin-sdk's retry.NotFoundError default message, or the raw AWS ResourceNotFoundException code) rather than an empty ImportedResources list. Treated as an ordinary absence, the same as an empty list or a null read result, not a provider failure.",
+	},
+	{
 		Summary: "Live resource marked for another address",
 		What:    "A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.",
 	},
