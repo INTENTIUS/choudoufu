@@ -63,6 +63,36 @@ type WriteBackRequest struct {
 	// for the reason [Result.LocatedVersions] gives: the versions belong to
 	// different namespaces and are not interchangeable.
 	LocatedVersions []RecordVersion
+
+	// ResidueStore is where GitHub issue #275's argument-level residue
+	// persists: the values this apply SENT for arguments the provider's
+	// Read does not give back. Nil makes the residue half of [WriteBack] a
+	// no-op.
+	ResidueStore *ResidueStore
+
+	// ResidueVersions is [Result.ResidueVersions] - the plan-time version
+	// of every residue record that already existed, playing exactly the
+	// role PriorVersions plays for record-backed instances.
+	ResidueVersions []RecordVersion
+
+	// Providers is how the residue half reaches a configured provider to
+	// classify with. It is needed because there is NO static answer to
+	// which arguments a provider's Read manages - issue #275 measured the
+	// whole of hashicorp/aws 6.59.0 looking for one - so the only way to
+	// find out is to ask the provider, twice, and compare. See
+	// [classifyResidue].
+	//
+	// Nil skips the residue half entirely, with a warning naming what was
+	// skipped rather than silently: an estate that declared a record_store
+	// and then never got a residue record written would show the perpetual
+	// diff forever with nothing saying why.
+	//
+	// The instances it hands back must be configured, exactly as
+	// [Providers] requires for the plan side. A run that closed its
+	// plan-time providers - which internal/command's stateless runner does,
+	// deliberately, before the plan graph starts - has to open new ones for
+	// this.
+	Providers Providers
 }
 
 // WriteBack persists every record-backed resource instance's post-apply
@@ -85,6 +115,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	diags = diags.Append(writeBackLocated(ctx, req))
+	diags = diags.Append(writeBackResidue(ctx, req))
 
 	if req.Store == nil {
 		return diags

@@ -66,6 +66,18 @@ type Result struct {
 	// interchangeable.
 	LocatedVersions []RecordVersion
 
+	// ResidueVersions is the same list again for GitHub issue #275's
+	// residue records, in address order: the version each residue record
+	// carried when this projection read it, so write-back's conditional Put
+	// opens with the right expected version. An instance with no entry here
+	// had no residue record - it has never been applied by a run that had a
+	// record_store, or the classifier proved nothing for it.
+	//
+	// Separate from both lists above for LocatedVersions' reason: three
+	// namespace roots, three sets of versions, and no way to open a
+	// conditional write against one namespace with another's version.
+	ResidueVersions []RecordVersion
+
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
 	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or

@@ -152,6 +152,23 @@ type Options struct {
 	// guessing. internal/live/lint's admission gate is supposed to make
 	// that unreachable, the same way it does for record-backed.
 	LocatedStore *LocatedStore
+
+	// ResidueStore is where GitHub issue #275's argument-level residue is
+	// read from: the values this estate last SENT for arguments the
+	// provider's Read never gives back, so that a cold replan does not
+	// re-propose sending them forever.
+	//
+	// A third namespace in ordinarily the same underlying store, a third
+	// point-lookup type with no List, and separate from both of the others
+	// for residue.go's reason: a residue key describes the arguments of a
+	// live cloud object, and the only enumeration in this package proposes
+	// destroying what it finds.
+	//
+	// Nil means no store, which is not an error at any level: an estate
+	// with no record_store block simply keeps the perpetual update it had
+	// before this mechanism existed. That is visible, which is why it is
+	// allowed to be the default.
+	ResidueStore *ResidueStore
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -214,6 +231,9 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	sort.Slice(b.locatedVersions, func(i, j int) bool {
 		return b.locatedVersions[i].Addr.String() < b.locatedVersions[j].Addr.String()
 	})
+	sort.Slice(b.residueVersions, func(i, j int) bool {
+		return b.residueVersions[i].Addr.String() < b.residueVersions[j].Addr.String()
+	})
 	sort.Slice(b.policyList, func(i, j int) bool {
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
@@ -225,6 +245,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		Unowned:         b.unownedList,
 		RecordVersions:  b.recordVersions,
 		LocatedVersions: b.locatedVersions,
+		ResidueVersions: b.residueVersions,
 		Policy:          b.policyList,
 	}
 	return res, diags.Append(b.diags)
@@ -300,6 +321,14 @@ type builder struct {
 	// entry here had no located record, which write-back reads as
 	// expectedVersion "" - a create assertion.
 	locatedVersions []RecordVersion
+
+	// residueVersions is the same field again for GitHub issue #275's
+	// residue records: the version read at plan time for every residue
+	// record that already existed, so [WriteBack]'s conditional Put opens
+	// with the right expected version. An instance with no entry here had
+	// no residue record, which write-back reads as expectedVersion "" - a
+	// create assertion.
+	residueVersions []RecordVersion
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -907,6 +936,13 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared) != ownershipOK {
 		return
 	}
+
+	// GitHub issue #275's residue, applied AFTER the ownership check and
+	// never before it. Ownership is decided on what the CLOUD said, and a
+	// stored value must never be in a position to answer "does this estate
+	// own this" - that is what the marker is for. Filling first would let a
+	// record about a filename argue about a tag.
+	b.fillResidueFor(ctx, addr, schema, obj)
 
 	if rc != nil {
 		obj.Dependencies = b.dependencies(rc, modPath, schema)

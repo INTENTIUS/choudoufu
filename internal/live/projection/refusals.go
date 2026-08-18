@@ -50,6 +50,10 @@ func (r Refusal) DocsRef() string {
 // refusals is the registry. Keep it sorted by Summary.
 var refusals = []Refusal{
 	{
+		Summary: "Argument values could not be recorded",
+		What:    "An apply could not classify or store the argument values a provider's read never gives back (GitHub issue #275) - no provider access, a failing read, or a store that refused the write. Nothing in the live system changed; the arguments involved will be proposed for update again on the next plan.",
+	},
+	{
 		Summary: "Cannot decode a persisted record",
 		What:    "A record read from the record store could not be decoded into the type it describes - a record written by a different version of this tool, or one edited by hand.",
 	},
@@ -160,6 +164,10 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryLocatedNoStore,
 		What:    "A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.",
+	},
+	{
+		Summary: SummaryResidueUnreadable,
+		What:    "An estate's residue record - the argument values an earlier apply sent that the provider's read never gives back (GitHub issue #275) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. The plan continues from what the provider returned, so those arguments are proposed for update again.",
 	},
 	{
 		Summary: "Resolved instance missing from the configuration",

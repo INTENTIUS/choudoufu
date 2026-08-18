@@ -554,6 +554,7 @@ func TestModule_liveRecordStoreRefused(t *testing.T) {
 		{"testdata/invalid-files/live-record-store-key-prefix-receipts.tf", `must not begin with the "tofu-receipts" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-hints.tf", `must not begin with the "tofu-hints" segment`},
 		{"testdata/invalid-files/live-record-store-key-prefix-located.tf", `must not begin with the "tofu-located" segment`},
+		{"testdata/invalid-files/live-record-store-key-prefix-residue.tf", `must not begin with the "tofu-residue" segment`},
 		{"testdata/invalid-files/live-record-store-duplicate.tf", "Duplicate record_store block"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
@@ -592,6 +593,8 @@ func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 		{"nested/tofu-hints", ""},
 		{"tofu-located-archive", ""},
 		{"nested/tofu-located", ""},
+		{"tofu-residue-archive", ""},
+		{"nested/tofu-residue", ""},
 
 		{"tofu-receipts", "must not begin with the \"tofu-receipts\" segment"},
 		{"tofu-receipts/my-estate", "must not begin with the \"tofu-receipts\" segment"},
@@ -604,6 +607,10 @@ func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 		{"tofu-located", "must not begin with the \"tofu-located\" segment"},
 		{"tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
 		{"/tofu-located/my-estate", "must not begin with the \"tofu-located\" segment"},
+
+		{"tofu-residue", "must not begin with the \"tofu-residue\" segment"},
+		{"tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
+		{"/tofu-residue/my-estate", "must not begin with the \"tofu-residue\" segment"},
 
 		{"", "empty"},
 		{"///", "empty"},
