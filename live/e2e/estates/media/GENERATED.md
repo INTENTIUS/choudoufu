@@ -38,6 +38,7 @@ go run ./tools/estate-gen -cohort media -types aws_ivs_channel,aws_ivs_recording
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
+| `estate.chdf.hcl` | The live sidecar: `estate = "media-cohort"` (same value as `locals.tf`'s `estate_tag`, see `estateTag`) plus a `record_store "local"`, so this cohort is a plannable estate and not only a marker-tagged fixture (issue #291). |
 | `locals.tf` | `estate_tag` — "media-cohort", distinct from every other cohort's own tag. |
 | `media.tf` | Every requested (coverage) resource. |
 

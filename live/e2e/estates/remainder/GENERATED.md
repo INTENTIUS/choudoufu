@@ -78,6 +78,7 @@ go run ./tools/estate-gen -cohort remainder -types aws_appconfig_application,aws
 | File | Contents |
 |---|---|
 | `versions.tf` | `terraform`/`provider "aws"` blocks, identical in shape to `live/e2e/estate/versions.tf`. |
+| `estate.chdf.hcl` | The live sidecar: `estate = "remainder-cohort"` (same value as `locals.tf`'s `estate_tag`, see `estateTag`) plus a `record_store "local"`, so this cohort is a plannable estate and not only a marker-tagged fixture (issue #291). |
 | `locals.tf` | `estate_tag` — "remainder-cohort", distinct from every other cohort's own tag. |
 | `remainder.tf` | Every requested (coverage) resource. |
 | `supporting.tf` | Resources this generator added on its own so a required argument had something to reference - not a coverage row (see the Provenance table above). |
