@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300"
+     role="img" aria-labelledby="split-title split-desc">
+  <title id="split-title">The three jobs of a state file, and where each one goes</title>
+  <desc id="split-desc">One state file on the left holds identity, values and
+  effects. On the right the same three jobs are held by tags on the resource, a
+  record store, and a receipt.</desc>
+
+  <!-- Palette matches site/static/style.css. Kept literal rather than
+       inherited so the file renders the same in GitHub, in an editor, and on
+       the site, none of which share a stylesheet. -->
+  <style>
+    .ink   { fill: #241f16; }
+    .muted { fill: #6b5f4e; }
+    .card  { fill: #f7f3e6; }
+    .dim   { fill: #ebe4d2; }
+    .rule  { stroke: #ded5c0; }
+    .olive { fill: #7d8a52; }
+    .brass { stroke: #c98a3d; }
+    text   { font-family: Georgia, "Iowan Old Style", serif; }
+    .h     { font-size: 15px; font-weight: 700; }
+    .l     { font-size: 13px; }
+    .s     { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  </style>
+
+  <!-- ── left: one file ─────────────────────────────────────────────── -->
+  <rect x="14" y="52" width="228" height="200" rx="8" class="dim"/>
+  <rect x="14" y="52" width="228" height="200" rx="8" fill="none" class="rule"/>
+  <text x="128" y="40" class="mono ink" text-anchor="middle">terraform.tfstate</text>
+
+  <rect x="34" y="74" width="188" height="52" rx="5" class="card"/>
+  <text x="48" y="94" class="s ink">Identity</text>
+  <text x="48" y="115" class="l muted">which live resource</text>
+
+  <rect x="34" y="128" width="188" height="52" rx="5" class="card"/>
+  <text x="48" y="148" class="s ink">Values</text>
+  <text x="48" y="169" class="l muted">what AWS cannot hold</text>
+
+  <rect x="34" y="182" width="188" height="52" rx="5" class="card"/>
+  <text x="48" y="202" class="s ink">Effects</text>
+  <text x="48" y="223" class="l muted">what leaves no trace</text>
+
+  <text x="128" y="272" class="s muted" text-anchor="middle">one permission boundary</text>
+
+  <!-- ── the three arrows ───────────────────────────────────────────── -->
+  <g class="brass" stroke-width="1.6" fill="none">
+    <path d="M 250 100 H 300 L 300 72  H 356" marker-end="url(#a)"/>
+    <path d="M 250 154 H 356" marker-end="url(#a)"/>
+    <path d="M 250 208 H 300 L 300 236 H 356" marker-end="url(#a)"/>
+  </g>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+            orient="auto-start-reverse">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#c98a3d"/>
+    </marker>
+  </defs>
+
+  <!-- ── right: three homes ─────────────────────────────────────────── -->
+  <g>
+    <rect x="364" y="46" width="342" height="52" rx="6" class="card"/>
+    <rect x="364" y="46" width="342" height="52" rx="6" fill="none" class="rule"/>
+    <circle cx="384" cy="72" r="5" class="olive"/>
+    <text x="400" y="69" class="h ink">Two tags on the resource</text>
+    <text x="400" y="88" class="l muted">read with any cloud tool, governed by your IAM</text>
+  </g>
+
+  <g>
+    <rect x="364" y="128" width="342" height="52" rx="6" class="card"/>
+    <rect x="364" y="128" width="342" height="52" rx="6" fill="none" class="rule"/>
+    <circle cx="384" cy="154" r="5" class="olive"/>
+    <text x="400" y="151" class="h ink">A record store you declare</text>
+    <text x="400" y="170" class="l muted">Parameter Store, S3, or a local directory</text>
+  </g>
+
+  <g>
+    <rect x="364" y="210" width="342" height="52" rx="6" class="card"/>
+    <rect x="364" y="210" width="342" height="52" rx="6" fill="none" class="rule"/>
+    <circle cx="384" cy="236" r="5" class="olive"/>
+    <text x="400" y="233" class="h ink">A receipt you declare</text>
+    <text x="400" y="252" class="l muted">an ordinary resource, visible in every plan</text>
+  </g>
+
+  <text x="535" y="284" class="s muted" text-anchor="middle">one boundary per resource</text>
+</svg>

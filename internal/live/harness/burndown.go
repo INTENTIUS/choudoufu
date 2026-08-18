@@ -473,26 +473,26 @@ func rowgenAnnotationRulings() Entry {
 				"'if the record also contains a set identifier, append it' form. Same missing capability " +
 				"as 97: classify.go pins one documented example and has no rule for a trailing segment " +
 				"present in a longer form and wholly absent in a shorter one.",
-				"122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward " +
-					"bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, " +
-					"which routes bucketNeedsHandSeparator and proposes no row regardless of what " +
-					"import-grammar.json knows - the classifier never reaches the composed_of_arguments rule " +
-					"for this bucket at all. live/import-grammar.json's own separator field independently " +
-					"confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or " +
-					"only partially resolved for every one of them: five are a mixed " +
-					"server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, " +
-					"aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, " +
-					"aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher " +
-					"cannot resolve because it names no real Argument Reference entry, or names an Optional " +
-					"auto-generated one the same way aws_lambda_permission's statement_id already does); ten " +
-					"have a registry that under-counts the doc's real argument count because it omits " +
-					"provider-defaulted arguments from primaryIdentifier (the eight QuickSight " +
-					"aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a " +
-					"registry field order or field set that plainly disagrees with the doc's own worked example " +
-					"(aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's " +
-					"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
-					"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
-					"catch-all. 98 + 24 = 122.",
+			"122 on 2026-08-18 (issue #245's 'needs hand separator' slice): the same reviewed upward " +
+				"bump, 24 newly admitted types. Every one has a composite CFN registry primaryIdentifier, " +
+				"which routes bucketNeedsHandSeparator and proposes no row regardless of what " +
+				"import-grammar.json knows - the classifier never reaches the composed_of_arguments rule " +
+				"for this bucket at all. live/import-grammar.json's own separator field independently " +
+				"confirms all 24 hand-chosen separator characters, but composed_of_arguments is unset or " +
+				"only partially resolved for every one of them: five are a mixed " +
+				"server-assigned-plus-argument composite (aws_kendra_data_source, aws_kendra_faq, " +
+				"aws_lb_trust_store_revocation, aws_ssm_maintenance_window_target, " +
+				"aws_signer_signing_profile_permission - a segment the scraper's argument-name matcher " +
+				"cannot resolve because it names no real Argument Reference entry, or names an Optional " +
+				"auto-generated one the same way aws_lambda_permission's statement_id already does); ten " +
+				"have a registry that under-counts the doc's real argument count because it omits " +
+				"provider-defaulted arguments from primaryIdentifier (the eight QuickSight " +
+				"aws_account_id-prefixed types, plus the two ServiceCatalog association types); two have a " +
+				"registry field order or field set that plainly disagrees with the doc's own worked example " +
+				"(aws_internet_gateway_attachment's AttachmentType, aws_redshift_endpoint_authorization's " +
+				"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
+				"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
+				"catch-all. 98 + 24 = 122.",
 			"143 on 2026-08-18 (issue #245's 'fold-child' slice): the same reviewed upward bump, 21 " +
 				"newly admitted types (aws_app_cookie_stickiness_policy, " +
 				"aws_shield_protection_health_check_association and 19 others), each a property-child of " +

@@ -1,5 +1,10 @@
 # OpenTofu Core Codebase Documentation
 
+> **Fork note.** This directory is inherited OpenTofu core documentation, kept
+> as upstream wrote it. It describes the code choudoufu forked, not what this
+> fork adds. For live markers, the admission table, receipts and the record
+> store, start at [`../contributing/README.md`](../contributing/README.md).
+
 This directory contains some documentation about the OpenTofu Core codebase,
 aimed at readers who are interested in making code contributions.
 

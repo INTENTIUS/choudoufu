@@ -1,52 +1,95 @@
+{{/*
+  The landing page is light on text by rule. Roughly 150 words of prose, no
+  paragraph past two sentences, nothing explained here. Every fold is a
+  picture, a chart, a command or links, with just enough words to label what
+  the reader sees. Explanation lives on the page that owns the topic.
+
+  No em dashes, colons or semicolons in visible text.
+
+  The reader already runs Terraform or OpenTofu. Nothing here teaches state.
+*/}}
+
 <section class="hero">
   <h1>choudoufu <img class="hero-icon" src="choudoufu-inline-64.png" alt="" width="64" height="64"></h1>
   <p class="tagline">IAM-governed state for OpenTofu.</p>
-</section>
 
-<div class="landing-card">
-
-<section class="lead">
-  <p class="versions">Experimental, AWS only. Built on <strong>OpenTofu {{.UpstreamVersion}}</strong>
-  (fork point
-  <a href="https://github.com/opentofu/opentofu/commit/03743ce6e8"><code>03743ce6e8</code></a>).</p>
-
-  <!-- The canonical description paragraph (#113): identical wording in
+  {{/* The canonical description paragraph (#113): identical wording in
        README.md's opening, this lead, and the GitHub repo description.
-       Change all three together or none. -->
-  <p>Each resource carries its own ownership record as ordinary cloud tags.
-  AWS can tell you what an estate contains. Your IAM already decides who may
-  read or change it.</p>
+       Change all three together or none. */}}
+  <p class="hero-lead">Each resource carries its own ownership record as
+  ordinary cloud tags. AWS can tell you what an estate contains. Your IAM
+  already decides who may read or change it. Experimental, AWS only.</p>
 
-  <p class="claim">An estate is inherited by being granted access to it.</p>
-
-  <p>Handover is granting a role. Splitting an estate in two is rewriting
-  tags. Whoever inherits one can list what they got with any cloud tool
-  before running anything.</p>
+  <p class="hero-sub">A fork of OpenTofu.</p>
 </section>
 
-<section class="demo">
-  <h2>Prove it in two minutes</h2>
-  <p>Paste this to a coding agent. It stands up a real estate against a local
-  AWS emulator and checks each claim above. The exit code is the verdict.</p>
-  <pre><code>Clone https://github.com/INTENTIUS/choudoufu, then do the following.
+{{/* Fold 1 is the model, because the model is the product.
+     Describe it on its own terms. The site used to define itself against a
+     state file at every turn, which tells a reader what this is not and
+     leaves them to work out what it is. The comparison earns its place once,
+     on the model page, for someone who wants the argument. */}}
+<section class="pieces">
+  <p class="pieces-lead">Three things have to survive between runs.</p>
 
-1. Confirm Docker is running (`docker info` must succeed).
-2. If Go is installed, skip this step. Otherwise download the latest
-   release tarball for this platform from
-   https://github.com/INTENTIUS/choudoufu/releases, extract it, and
-   export TOFU_BIN=&lt;absolute path to the extracted choudoufu binary&gt;.
-3. From the repo root, run: bash live/e2e/run.sh --expect 5
-4. Report each step's result as the script prints it, and the final exit code.
+  <img class="pieces-diagram" src="diagram-pieces.svg"
+       alt="Identity as two tags on the resource written by the apply, values in a record store written by choudoufu, effects as a receipt you declare, all three governed by your IAM">
 
-Exit code 0 means every claim the script makes about live resource markers
-held. Non-zero means one of them did not. Report which step failed.</code></pre>
-  <p class="next"><a href="compatibility.html">Will my config work?</a>
-  &middot; <a href="migrate.html">Migrate an existing estate</a>
-  &middot; <a href="start.html">Start a new one</a></p>
+  {{/* The cards do not restate the diagram. Each one adds the consequence
+       the picture cannot show, and links to the page that owns it. */}}
+  <div class="piece-cards">
+    <a class="piece" href="model-identity.html">
+      <strong class="piece-home">Identity</strong>
+      <span class="piece-note">Pure IAM. Who may change which resource is a
+      policy you already know how to write.</span>
+    </a>
+    <a class="piece" href="model-values.html">
+      <strong class="piece-home">Values</strong>
+      <span class="piece-note">Resources AWS has no object for.
+      <code>null_resource</code>, <code>random_pet</code>,
+      <code>time_static</code>.</span>
+    </a>
+    <a class="piece" href="model-effects.html">
+      <strong class="piece-home">Effects</strong>
+      <span class="piece-note">A database migration that ran. The plan shows it
+      coming before anything fires.</span>
+    </a>
+  </div>
+
+  <p class="pieces-more"><a href="model.html">Why they are separate, and what
+  it changes</a></p>
 </section>
 
+{{/* Fold 2. How far it goes, before any install link. Three charts, three
+     denominators, never merged. */}}
+<section class="progress">
+  <h2>How far it goes</h2>
+  {{template "chart" .Lint}}
+  {{template "chart" .Crossing}}
+  {{template "chart" .IAM}}
+</section>
+
+{{/* Fold 3. The command that turns a statistic into a personal answer. */}}
+<section class="verdict">
+  <h2>Check yours</h2>
+  <pre><code>choudoufu live-check</code></pre>
+  <p>In your config directory. No credentials.</p>
+</section>
+
+{{/* Fold 4. Estates as names and rungs. */}}
+<section class="estates">
+  <h2>Proven estates</h2>
+  <ul class="estate-list">
+    {{range .TopEstates 6}}<li>
+      <span class="estate-name">{{.Name}}</span>
+      <span class="estate-rung {{if .Complete}}estate-complete{{end}}">{{.Reached}}</span>
+    </li>{{end}}
+  </ul>
+  <p><a href="estates.html">All estates</a></p>
+</section>
+
+{{/* Fold 5. The destinations. */}}
 <section class="docs-nav">
-  <h2>Documentation</h2>
+  <h2>Docs</h2>
   <div class="docs-menu">
     {{range .Sections}}<div class="docs-menu-group">
       <h3>{{.Title}}</h3>
@@ -57,15 +100,39 @@ held. Non-zero means one of them did not. Report which step failed.</code></pre>
     </div>
     {{end}}
   </div>
-  <p>This site covers only what this fork adds. Everything that is plain
-  OpenTofu lives at <a href="https://opentofu.org/docs/">opentofu.org/docs</a>.</p>
 </section>
 
 <section class="legal">
-  <p>MPL-2.0, the same license as OpenTofu. Not affiliated with or endorsed
-  by OpenTofu or the Linux Foundation. OpenTofu is a registered trademark of
-  the Linux Foundation. The upstream project is
-  <a href="https://github.com/opentofu/opentofu">github.com/opentofu/opentofu</a>.</p>
+  <p>Experimental. AWS only. Built on OpenTofu {{.UpstreamVersion}} from fork point
+  <a href="https://github.com/opentofu/opentofu/commit/03743ce6e8"><code>03743ce6e8</code></a>.
+  Plain OpenTofu is documented at <a href="https://opentofu.org/docs/">opentofu.org</a>.</p>
+  <p>MPL-2.0. Not affiliated with or endorsed by OpenTofu or the Linux
+  Foundation. OpenTofu is a registered trademark of the Linux Foundation.</p>
 </section>
 
-</div>
+{{/* One chart. Titled bars with their own denominator, because the three on
+     this page do not share one. Widths are inline percentages so there is no
+     script and it reflows with the page. */}}
+{{define "chart"}}
+<figure class="chart" id="chart-{{.ID}}">
+  <figcaption>
+    <strong>{{.Title}}</strong>
+    <span class="denominator">{{.Denominator}}</span>
+  </figcaption>
+  <div class="bars">
+    {{range .Bars}}
+    <div class="bar-row{{if .Muted}} bar-muted{{end}}">
+      <span class="bar-label">{{.Label}}</span>
+      {{if .Unmeasured}}
+      <span class="bar-unmeasured">{{.Unmeasured}}</span>
+      <span class="bar-value"></span>
+      {{else}}
+      <span class="bar-track"><span class="bar-fill" style="width:{{printf "%.1f" .Percent}}%"></span></span>
+      <span class="bar-value">{{.Value}}</span>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+  <a class="chart-more" href="{{.Href}}">{{.HrefLabel}}</a>
+</figure>
+{{end}}

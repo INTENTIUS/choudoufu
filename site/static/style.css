@@ -1,22 +1,23 @@
-/* choudoufu docs — salmon tablecloth, cream menu card, espresso ink.
-   The salmon here must match the background rect baked into
-   docs/images/choudoufu.svg so the rendered logo art blends into the page. */
+/* choudoufu docs — fermentation: deep olive ground, cream card, brass accents.
+   --base must match the background rect baked into docs/images/choudoufu.svg
+   so the rendered logo art blends into the page. */
 
 :root {
-  --salmon: #fa8072;       /* page background, same as the logo tile */
-  --salmon-deep: #d95c4c;  /* borders and dividers on salmon */
-  --cream: #fff6ea;        /* content card, like a menu card */
-  --cream-dim: #f5e6cf;    /* code blocks, table headers */
-  --ink: #3a241a;          /* body text */
-  --espresso: #2c1710;     /* header, footer, headings */
-  --rust: #a63a1b;         /* links on cream */
-  --rust-dark: #7e2a10;    /* links on salmon, link hover */
-  --olive: #93a06b;        /* the stink lines; accents and note borders */
-  --olive-deep: #67713f;   /* sidebar section headings */
-  --muted: #7b5d4e;        /* secondary text on cream */
-  --border: #ead6bc;       /* hairlines on cream */
-  --note-bg: #f3f0dc;
-  --warning-bg: #fbe8cc;
+  --base: #4a5334;         /* page background, same as the logo tile */
+  --base-deep: #3a4128;    /* borders and dividers on the base */
+  --card: #f7f3e6;         /* content card */
+  --card-dim: #ebe4d2;     /* code blocks, table headers */
+  --ink: #241f16;          /* body text on card */
+  --ink-strong: #14110b;   /* headings */
+  --link: #8a5220;         /* links on card */
+  --link-on-base: #f0c9a4; /* links on the olive ground, and link hover */
+  --olive: #93a06b;        /* accents and note borders on card */
+  --olive-deep: #c9d3a8;   /* sidebar section headings, sits on the base */
+  --muted: #6b5f4e;        /* secondary text on card */
+  --border: #ded5c0;       /* hairlines on card */
+  --olive-fill: #7d8a52;   /* chart bars on card */
+  --note-bg: #f0eeda;
+  --warning-bg: #f8e9cc;
   --warning-border: #c98a3d;
   --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
   --font-body: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
@@ -29,7 +30,7 @@
 
 body {
   margin: 0;
-  background: var(--salmon);
+  background: var(--base);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 1.02rem;
@@ -44,7 +45,7 @@ body {
   justify-content: space-between;
   gap: 1.5rem;
   padding: 0.8rem 1.5rem;
-  background: var(--espresso);
+  background: var(--ink-strong);
   flex-wrap: wrap;
 }
 
@@ -55,7 +56,7 @@ body {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.25rem;
-  color: var(--cream);
+  color: var(--card);
   text-decoration: none;
 }
 
@@ -77,7 +78,7 @@ body {
 }
 
 .site-header nav a:hover {
-  color: var(--cream);
+  color: var(--card);
   text-decoration: underline;
 }
 
@@ -85,7 +86,7 @@ body {
 
 h1, h2, h3, h4 {
   font-family: var(--font-display);
-  color: var(--espresso);
+  color: var(--ink-strong);
   line-height: 1.25;
 }
 
@@ -93,19 +94,19 @@ h1 { font-size: 2.1rem; margin-top: 0; }
 h2 { font-size: 1.45rem; margin-top: 2.2rem; }
 h3 { font-size: 1.15rem; margin-top: 1.8rem; }
 
-a { color: var(--rust-dark); }
-a:hover { color: var(--espresso); }
+a { color: var(--link-on-base); }
+a:hover { color: var(--ink-strong); }
 
 code {
   font-family: var(--font-mono);
-  background: var(--cream-dim);
+  background: var(--card-dim);
   padding: 0.15em 0.35em;
   border-radius: 3px;
   font-size: 0.88em;
 }
 
 pre {
-  background: var(--cream-dim);
+  background: var(--card-dim);
   padding: 1rem;
   border-radius: 8px;
   overflow-x: auto;
@@ -140,7 +141,7 @@ th, td {
 }
 
 th {
-  background: var(--cream-dim);
+  background: var(--card-dim);
   font-family: var(--font-display);
   font-weight: 600;
 }
@@ -173,7 +174,7 @@ hr {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--espresso);
+  color: var(--ink-strong);
   margin: 1.4rem 0 0.4rem;
 }
 
@@ -189,19 +190,19 @@ hr {
   display: block;
   padding: 0.28rem 0.7rem;
   border-radius: 6px;
-  color: var(--rust-dark);
+  color: var(--link-on-base);
   text-decoration: none;
   font-size: 0.95rem;
 }
 
 .sidebar li a:hover {
-  background: var(--salmon-deep);
-  color: var(--cream);
+  background: var(--base-deep);
+  color: var(--card);
 }
 
 .sidebar li a.active {
-  background: var(--cream);
-  color: var(--rust);
+  background: var(--card);
+  color: var(--link);
   font-weight: 700;
 }
 
@@ -210,7 +211,7 @@ hr {
   display: block;
   padding: 0.28rem 0.7rem;
   font-size: 0.95rem;
-  color: var(--espresso);
+  color: var(--ink-strong);
   opacity: 0.45;
 }
 
@@ -236,15 +237,15 @@ hr {
 }
 
 .doc-card {
-  background: var(--cream);
+  background: var(--card);
   border-radius: 12px;
-  border: 1px solid var(--salmon-deep);
+  border: 1px solid var(--base-deep);
   padding: 2.2rem 2.6rem 2.8rem;
   min-width: 0;
 }
 
-.doc-card a { color: var(--rust); }
-.doc-card a:hover { color: var(--rust-dark); }
+.doc-card a { color: var(--link); }
+.doc-card a:hover { color: var(--link-on-base); }
 
 .doc-card > :first-child { margin-top: 0; }
 
@@ -309,11 +310,11 @@ hr {
   font-size: 1.35rem;
   font-weight: 600;
   margin: 0.2rem 0;
-  color: var(--espresso);
+  color: var(--ink-strong);
 }
 
 .versions {
-  color: var(--rust-dark);
+  color: var(--link-on-base);
   font-size: 0.9rem;
   margin: 0.6rem 0 0;
 }
@@ -323,15 +324,15 @@ hr {
    is 3.8:1, which fails AA; on cream those are 13.6:1 and 8.8:1. Only the
    hero's display type stays on the tablecloth. */
 .landing-card {
-  background: var(--cream);
+  background: var(--card);
   border-radius: 12px;
-  border: 1px solid var(--salmon-deep);
+  border: 1px solid var(--base-deep);
   padding: 2.2rem 2.6rem 1.6rem;
   min-width: 0;
 }
 
-.landing-card a { color: var(--rust); }
-.landing-card a:hover { color: var(--rust-dark); }
+.landing-card a { color: var(--link); }
+.landing-card a:hover { color: var(--link-on-base); }
 
 .landing-card > :first-child > :first-child { margin-top: 0; }
 
@@ -350,8 +351,8 @@ hr {
   font-size: 1.25rem;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--espresso);
-  border-left: 3px solid var(--rust);
+  color: var(--ink-strong);
+  border-left: 3px solid var(--link);
   padding-left: 0.9rem;
   margin: 1.3rem 0;
 }
@@ -370,7 +371,7 @@ hr {
 /* These sat on salmon and needed a cream fill to lift off it. Now that the
    whole landing body is cream, they recess instead. */
 .docs-menu-group {
-  background: var(--cream-dim);
+  background: var(--card-dim);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1.2rem;
@@ -397,12 +398,12 @@ hr {
 }
 
 .docs-menu-group a {
-  color: var(--rust);
+  color: var(--link);
   text-decoration: none;
 }
 
 .docs-menu-group a:hover {
-  color: var(--rust-dark);
+  color: var(--link-on-base);
   text-decoration: underline;
 }
 
@@ -433,7 +434,7 @@ hr {
 .site-footer {
   margin-top: 3rem;
   padding: 1.5rem 1.5rem 3rem;
-  background: var(--espresso);
+  background: var(--ink-strong);
   color: #d9b9a5;
   font-size: 0.85rem;
 }
@@ -457,15 +458,264 @@ hr {
 
   .sidebar {
     position: static;
-    background: var(--cream);
-    border: 1px solid var(--salmon-deep);
+    background: var(--card);
+    border: 1px solid var(--base-deep);
     border-radius: 10px;
     padding: 1rem 1.2rem;
   }
 
-  .sidebar li a { color: var(--rust); }
+  .sidebar li a { color: var(--link); }
 
   .doc-card {
     padding: 1.5rem 1.2rem 2rem;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Landing page, rebuilt.
+
+   The page is a stack of cards on the olive ground. Only the hero's display
+   type sits directly on the ground, and it is light, because body-weight ink
+   on the base fails AA the same way it did on the old salmon.
+   --------------------------------------------------------------------------- */
+
+.hero { color: var(--card); }
+.hero h1 { color: var(--card); }
+.hero .tagline { color: var(--card); }
+
+.hero-sub {
+  color: var(--link-on-base);
+  font-size: 1.02rem;
+  margin: 0.1rem 0 0;
+}
+
+/* Every section below the hero is its own card. */
+.split, .pieces, .progress, .verdict, .estates, .docs-nav {
+  background: var(--card);
+  border: 1px solid var(--base-deep);
+  border-radius: 12px;
+  padding: 1.6rem 1.8rem;
+  margin-bottom: 1.1rem;
+}
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 0; }
+
+.split-col { padding: 1.5rem 1.7rem; min-width: 0; }
+.split-col h2 {
+  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.split-then { border-right: 1px solid var(--border); }
+.split-then h2 { color: var(--muted); }
+.split-now h2 { color: var(--link); }
+
+.split dl { margin: 0; }
+.split dt {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-top: 0.9rem;
+}
+.split dt:first-child { margin-top: 0; }
+.split dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+.split-now dd { font-weight: 600; }
+
+.pieces ul { list-style: none; margin: 0; padding: 0; }
+.pieces li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.pieces li:last-child { border-bottom: none; }
+.pieces a { font-weight: 600; }
+
+/* Charts. Bars are inline percentage widths, so there is no script and the
+   whole thing reflows with the page. */
+.progress h2, .verdict h2, .estates h2 { margin-top: 0; }
+
+.chart { margin: 0 0 1.6rem; }
+.chart:last-of-type { margin-bottom: 0.6rem; }
+
+.chart figcaption { margin-bottom: 0.7rem; }
+.chart figcaption strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  color: var(--ink-strong);
+}
+.denominator {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 13rem 1fr 2.5rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.16rem 0;
+}
+.bar-label { font-size: 0.88rem; color: var(--ink); }
+.bar-track {
+  background: var(--card-dim);
+  border-radius: 3px;
+  height: 0.85rem;
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--olive-fill, #7d8a52);
+  border-radius: 3px;
+}
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  text-align: right;
+  color: var(--ink);
+}
+.bar-muted { opacity: 0.45; }
+
+.chart-more { font-size: 0.85rem; }
+
+.verdict pre { margin: 0.4rem 0 0.6rem; }
+.verdict p { font-size: 0.9rem; color: var(--muted); margin: 0; }
+
+.estate-list { list-style: none; margin: 0 0 0.9rem; padding: 0; }
+.estate-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.estate-list li:last-child { border-bottom: none; }
+.estate-name { font-family: var(--font-mono); font-size: 0.9rem; }
+.estate-rung { font-size: 0.85rem; color: var(--muted); text-align: right; }
+.estate-complete { color: var(--link); font-weight: 600; }
+
+.legal { color: var(--link-on-base); font-size: 0.82rem; padding: 0.4rem 0 2rem; }
+.legal a { color: var(--card); }
+
+@media (max-width: 40rem) {
+  .split { grid-template-columns: 1fr; }
+  .split-then { border-right: none; border-bottom: 1px solid var(--border); }
+  .bar-row { grid-template-columns: 9rem 1fr 2.2rem; }
+}
+
+/* Links inside the landing cards sit on cream, so they take the dark link
+   colour; the global `a` rule is tuned for the olive ground. */
+.split a, .pieces a, .progress a, .verdict a, .estates a, .docs-nav a {
+  color: var(--link);
+}
+.split a:hover, .pieces a:hover, .progress a:hover,
+.verdict a:hover, .estates a:hover, .docs-nav a:hover {
+  color: var(--ink-strong);
+}
+
+/* A row the source does not measure at all. It must never look like a bar of
+   length zero, which would publish a figure nobody produced. */
+.bar-unmeasured {
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Diagrams are authored at a fixed width and must reflow with the card. */
+.doc-card img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.4rem 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Landing fold 1: the three pieces.
+
+   This fold is the product, so it gets the room. The diagram carries the idea
+   and the three cards name where each job lands, each one a link into its own
+   page.
+   --------------------------------------------------------------------------- */
+
+.pieces-lead {
+  margin: 0 0 1.2rem;
+  font-size: 1.08rem;
+  color: var(--ink);
+}
+
+.pieces-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 1.6rem;
+}
+
+.piece-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+}
+
+.piece {
+  display: block;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--note-bg);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.piece:hover {
+  border-color: var(--olive);
+  background: var(--card-dim);
+}
+
+.piece-job {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.piece-home {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--link);
+  margin-bottom: 0.35rem;
+}
+
+.piece-note {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.pieces-more { margin: 1.1rem 0 0; font-size: 0.92rem; }
+
+@media (max-width: 44rem) {
+  .piece-cards { grid-template-columns: 1fr; }
+}
+
+.piece-note { font-weight: 400; }
+
+.hero-lead {
+  color: var(--card);
+  font-size: 1.02rem;
+  max-width: 40rem;
+  margin: 0.6rem 0 0.3rem;
 }

@@ -1,7 +1,14 @@
 # Security Reporting Process
 
+> **Fork note.** choudoufu is a fork and is not OpenTofu. Report anything
+> about **this** repository through
+> [choudoufu's private vulnerability reporting](https://github.com/INTENTIUS/choudoufu/security/advisories/new).
+> A report filed against `opentofu/opentofu` does not reach these maintainers,
+> and a vulnerability in live markers does not exist upstream. Use OpenTofu's
+> process only for a flaw in the code this fork inherited unchanged.
+
 Please report any security issue via
-[Private Vulnerability Reporting](https://github.com/opentofu/opentofu/security/advisories/new) where the issue will be triaged appropriately.
+[Private Vulnerability Reporting](https://github.com/INTENTIUS/choudoufu/security/advisories/new) where the issue will be triaged appropriately.
 Thank you in advance for helping to keep OpenTofu secure.
 
 # Security Release Process
@@ -33,7 +40,7 @@ via the [reporting policy](README.md#reporting-security-vulnerabilities).
 ### Public Disclosure Processes
 
 If you know of a publicly disclosed security vulnerability please IMMEDIATELY submit a report via
-[Private Vulnerability Reporting](https://github.com/opentofu/opentofu/security/advisories/new) to inform the Product
+[Private Vulnerability Reporting](https://github.com/INTENTIUS/choudoufu/security/advisories/new) to inform the Product
 Security Team (PST) about the vulnerability so they may start the patch, release, and communication
 process.
 

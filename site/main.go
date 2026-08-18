@@ -28,7 +28,7 @@ import (
 	"github.com/yuin/goldmark/parser"
 )
 
-//go:embed templates/*.html.tmpl
+//go:embed templates/*.html.tmpl templates/pages/*.html.tmpl
 var templatesFS embed.FS
 
 //go:embed static/*
@@ -55,6 +55,12 @@ type docPage struct {
 	ContentFile string // basename under site/content/
 	SourcePath  string // relative to the repo root
 	IsMDX       bool   // needs frontmatter + admonition preprocessing
+
+	// Template names a template under templates/pages/ instead of any
+	// markdown source. It is for a page whose body is a rendering of a
+	// committed artifact rather than prose, so its figures come from the
+	// same JSON the landing charts read and the two can never disagree.
+	Template string
 }
 
 // read returns the page's markdown, from whichever of the two sources it
@@ -76,54 +82,106 @@ func (p docPage) read(root string) ([]byte, string, error) {
 	}
 }
 
+// docPages is also the nav. Sections are grouped in declaration order, so the
+// order here is the order a reader meets them: what the thing is, who may
+// touch it, how far it goes, then how to use it.
 var docPages = []docPage{
+	{
+		Slug:        "model",
+		NavLabel:    "The three pieces",
+		Title:       "The three pieces",
+		Section:     "The model",
+		ContentFile: "model.md",
+	},
+	{
+		Slug:        "model-identity",
+		NavLabel:    "Identity",
+		Title:       "Identity",
+		Section:     "The model",
+		ContentFile: "model-identity.md",
+	},
+	{
+		Slug:        "model-values",
+		NavLabel:    "Values",
+		Title:       "Values",
+		Section:     "The model",
+		ContentFile: "model-values.md",
+	},
+	{
+		Slug:        "model-effects",
+		NavLabel:    "Effects",
+		Title:       "Effects",
+		Section:     "The model",
+		ContentFile: "model-effects.md",
+	},
+	{
+		Slug:     "governance",
+		NavLabel: "Scoping a role",
+		Title:    "Scoping a role",
+		Section:  "Governance",
+		Template: "governance",
+	},
+	{
+		Slug:     "progress",
+		NavLabel: "How far it goes",
+		Title:    "How far it goes",
+		Section:  "Progress",
+		Template: "progress",
+	},
+	{
+		Slug:     "estates",
+		NavLabel: "Estates",
+		Title:    "Estates",
+		Section:  "Progress",
+		Template: "estates",
+	},
+	{
+		Slug:        "compatibility",
+		NavLabel:    "Will my config work?",
+		Title:       "Will my config work?",
+		Section:     "Use it",
+		ContentFile: "compatibility.md",
+	},
 	{
 		Slug:        "migrate",
 		NavLabel:    "Migrate an existing estate",
 		Title:       "Migrate an existing estate",
-		Section:     "Start Here",
+		Section:     "Use it",
 		ContentFile: "migrate.md",
 	},
 	{
 		Slug:        "start",
 		NavLabel:    "Start a new estate",
 		Title:       "Start a new estate",
-		Section:     "Start Here",
+		Section:     "Use it",
 		ContentFile: "start.md",
-	},
-	{
-		Slug:        "compatibility",
-		NavLabel:    "Will my config work?",
-		Title:       "Will my config work?",
-		Section:     "Start Here",
-		ContentFile: "compatibility.md",
 	},
 	{
 		Slug:        "day2",
 		NavLabel:    "Day-2 operations",
 		Title:       "Day-2 operations",
-		Section:     "Start Here",
+		Section:     "Use it",
 		ContentFile: "day2.md",
 	},
 	{
 		Slug:        "storage",
 		NavLabel:    "Where things are stored",
 		Title:       "Where things are stored",
-		Section:     "Start Here",
+		Section:     "Use it",
 		ContentFile: "storage.md",
 	},
 	{
 		Slug:        "faq",
 		NavLabel:    "Questions",
 		Title:       "Questions",
-		Section:     "Start Here",
+		Section:     "Use it",
 		ContentFile: "faq.md",
 	},
 	{
 		Slug:        "reference",
 		NavLabel:    "Reference",
 		Title:       "Reference",
-		Section:     "Reference",
+		Section:     "Use it",
 		ContentFile: "reference.md",
 	},
 }
@@ -174,6 +232,26 @@ type landingData struct {
 	// from version/VERSION at build time so the landing page cannot drift
 	// from the tree it was generated in.
 	UpstreamVersion string
+
+	// The three progress charts, each read from its own committed artifact
+	// and each with its own denominator. They are shown stacked and never
+	// combined: "passes lint", "survives a run" and "IAM can scope it" are
+	// different questions and one score over all three would mean nothing.
+	Lint     chart
+	Crossing chart
+	IAM      chart
+
+	// Estates that have been taken through the crossing pipeline, best
+	// first. The landing page shows the top few; estates.html shows all.
+	Estates []estate
+}
+
+// TopEstates returns the first n estates, for the landing page's short list.
+func (d landingData) TopEstates(n int) []estate {
+	if len(d.Estates) < n {
+		return d.Estates
+	}
+	return d.Estates[:n]
 }
 
 // upstreamVersion reads version/VERSION and strips the -dev suffix that
@@ -236,6 +314,9 @@ func run(root, out string) error {
 		return fmt.Errorf("creating output dir: %w", err)
 	}
 
+	if err := copyDiagrams(root, out); err != nil {
+		return err
+	}
 	if err := copyStatic(out); err != nil {
 		return fmt.Errorf("copying static assets: %w", err)
 	}
@@ -257,7 +338,29 @@ func run(root, out string) error {
 	if err != nil {
 		return err
 	}
-	if err := landingTmpl.Execute(&landingBody, landingData{Sections: buildSidebar(""), UpstreamVersion: upstream}); err != nil {
+	// The three progress charts. A missing or malformed artifact is fatal:
+	// a site that silently drops a chart would read as "no limits here",
+	// which is the one impression this project must never give.
+	lint, err := loadLintLadder(root)
+	if err != nil {
+		return err
+	}
+	crossing, estates, err := loadCrossingLadder(root)
+	if err != nil {
+		return err
+	}
+	iam, err := loadIAMReach(root)
+	if err != nil {
+		return err
+	}
+	if err := landingTmpl.Execute(&landingBody, landingData{
+		Sections:        buildSidebar(""),
+		UpstreamVersion: upstream,
+		Lint:            lint,
+		Crossing:        crossing,
+		IAM:             iam,
+		Estates:         estates,
+	}); err != nil {
 		return fmt.Errorf("rendering landing content: %w", err)
 	}
 	if err := writePage(out, "index.html", layoutTmpl, layoutData{
@@ -268,32 +371,55 @@ func run(root, out string) error {
 		return err
 	}
 
+	// Pages rendered from an artifact rather than from prose. Their content
+	// is a template over the same JSON the landing charts read, so a figure
+	// on a destination page can never disagree with the headline that links
+	// to it.
+	dataPages, err := loadDataPages(root)
+	if err != nil {
+		return err
+	}
+	dataTmpl, err := template.ParseFS(templatesFS, "templates/pages/*.html.tmpl")
+	if err != nil {
+		return fmt.Errorf("parsing data-page templates: %w", err)
+	}
+
 	// Doc pages.
 	for _, p := range docPages {
-		raw, srcPath, err := p.read(root)
-		switch {
-		case err != nil && srcPath == "":
-			// The page is misdeclared; there is no location to name.
-			return err
-		case err != nil:
-			return fmt.Errorf("reading %s: %w", srcPath, err)
-		}
+		var htmlOut string
 
-		src := string(raw)
-		if p.IsMDX {
-			src = preprocessMDX(src)
-		}
+		if p.Template != "" {
+			var body bytes.Buffer
+			if err := dataTmpl.ExecuteTemplate(&body, p.Template, dataPages); err != nil {
+				return fmt.Errorf("rendering %s: %w", p.Template, err)
+			}
+			htmlOut = body.String()
+		} else {
+			raw, srcPath, err := p.read(root)
+			switch {
+			case err != nil && srcPath == "":
+				// The page is misdeclared; there is no location to name.
+				return err
+			case err != nil:
+				return fmt.Errorf("reading %s: %w", srcPath, err)
+			}
 
-		htmlOut, err := renderMarkdown(src)
-		if err != nil {
-			return fmt.Errorf("rendering %s: %w", srcPath, err)
+			src := string(raw)
+			if p.IsMDX {
+				src = preprocessMDX(src)
+			}
+
+			htmlOut, err = renderMarkdown(src)
+			if err != nil {
+				return fmt.Errorf("rendering %s: %w", srcPath, err)
+			}
 		}
 
 		if err := writePage(out, p.Slug+".html", layoutTmpl, layoutData{
 			Title:      p.Title,
 			CSSVersion: cssVer,
 			Sidebar:    buildSidebar(p.Slug + ".html"),
-			Content:    template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown
+			Content:    template.HTML(htmlOut), //nolint:gosec // rendered from repo-local trusted markdown and templates
 		}); err != nil {
 			return err
 		}
@@ -444,6 +570,38 @@ func buildSidebar(current string) []sidebarSection {
 		sections = append(sections, sidebarSection{Title: p.Section, Items: []navItem{item}})
 	}
 	return sections
+}
+
+// copyDiagrams writes the hand-authored SVGs from docs/diagrams into out.
+//
+// They are read from the repository rather than embedded so there is one copy
+// of each diagram, editable in place and diffable in review. A page
+// referencing a diagram that is not there is a broken image nobody notices, so
+// a missing directory is an error rather than a skip.
+func copyDiagrams(root, out string) error {
+	dir := filepath.Join(root, "docs", "diagrams")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", dir, err)
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".svg") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(out, e.Name()), data, 0o644); err != nil {
+			return err
+		}
+		n++
+	}
+	if n == 0 {
+		return fmt.Errorf("%s holds no .svg diagrams", dir)
+	}
+	return nil
 }
 
 // copyStatic writes every file embedded under static/ into out.

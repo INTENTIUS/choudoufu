@@ -73,9 +73,9 @@ func renderTagVerbSpan(root string, rows []Row) error {
 		if len(shown) > 6 {
 			shown, suffix = shown[:6], fmt.Sprintf(" and %d more", len(svcs)-6)
 		}
-		fmt.Fprintf(&b, "| `%s` | %d — %s%s |\n", op, len(svcs), strings.Join(shown, ", "), suffix)
+		fmt.Fprintf(&b, "| `%s` | %d. %s%s |\n", op, len(svcs), strings.Join(shown, ", "), suffix)
 	}
-	fmt.Fprintf(&b, "\n%d services carry an unambiguous tagging verb; %d do not, and a run cannot stamp a marker on those.\n",
+	fmt.Fprintf(&b, "\n%d services carry an unambiguous tagging verb. %d do not, and a run cannot stamp a marker on those.\n",
 		len(rows)-noVerb, noVerb)
 
 	out, err := markers.Replace(referenceMDRel, string(doc), spanTagVerbs, b.String())
