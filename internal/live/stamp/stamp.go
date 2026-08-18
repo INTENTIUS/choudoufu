@@ -258,7 +258,8 @@ const (
 	SkipUntagHandWritten SkipReason = "UNTAG_HAND_WRITTEN"
 
 	// SkipModuleKeyed is a resource declared inside a module call that sets
-	// for_each (59c, issue #59 phase 3), directly or through an ancestor.
+	// count or for_each (59c, issue #59 phase 3), directly or through an
+	// ancestor.
 	// This pass neither writes nor verifies its markers: the module's
 	// several instances share one HCL body for the resource's tags
 	// argument, and there is no way to inject a different literal
@@ -417,8 +418,8 @@ type moduleResource struct {
 	modInst addrs.ModuleInstance
 
 	// keyedAncestor is true when rc is declared inside a module call that
-	// sets for_each - directly, or through any ancestor module call - at
-	// any depth (59c, issue #59 phase 3). It is what tells [stamper.resource]
+	// sets count or for_each - directly, or through any ancestor module
+	// call - at any depth (59c, issue #59 phase 3). It is what tells [stamper.resource]
 	// to take the "cannot compute a per-instance marker" path instead of the
 	// ordinary one.
 	//
@@ -426,12 +427,12 @@ type moduleResource struct {
 	// ([identity.ModuleInstance]) even for such a resource, one visit per rc
 	// rather than one per instance: unlike the five walkers that read the
 	// live system, this package rewrites the configuration file's own text,
-	// and a for_each'd module's several instances share exactly one
+	// and a count'd or for_each'd module's several instances share exactly one
 	// *hclsyntax.Body for their tags argument. There is no way to inject two
 	// different literal tofu-address values into one shared body - only an
 	// expression that varies per real module instance could, and building
 	// one would mean rewriting the module call block to pass a variable
-	// through from its own each.key, which is configuration surgery well
+	// through from its own count.index or each.key, which is configuration surgery well
 	// beyond a tags argument and is not something this pass attempts. See
 	// [stamper.moduleKeyedResource].
 	keyedAncestor bool
@@ -473,7 +474,17 @@ func moduleResourcesFrom(cfg *configs.Config, keyedAncestor bool) []moduleResour
 	}
 	for _, name := range identity.SortedChildNames(cfg.Children) {
 		childKeyed := keyedAncestor
-		if call, ok := mod.ModuleCalls[name]; ok && call != nil && call.ForEach != nil {
+		// count keys a module call's instances exactly as for_each does -
+		// module.sites[0] and module.sites[1] are two module instances over
+		// one *configs.Config and one *hclsyntax.Body - so reading only
+		// ForEach here left the count'd case writing one literal
+		// tofu-address for every instance of the call. That is GitHub issue
+		// #280's defect, on the shape [privateBody] cannot help with:
+		// identity resolution expands the call (see
+		// [identity.ChildModuleCountKeys], reached from resolver.walkModule),
+		// so the single address written matches NEITHER live object rather
+		// than one of them.
+		if call, ok := mod.ModuleCalls[name]; ok && call != nil && (call.ForEach != nil || call.Count != nil) {
 			childKeyed = true
 		}
 		out = append(out, moduleResourcesFrom(cfg.Children[name], childKeyed)...)
@@ -829,10 +840,10 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 	body, ok := rc.Config.(*hclsyntax.Body)
 	hasTags := ok && body.Attributes != nil && body.Attributes[tagsArgument] != nil
 	detail := fmt.Sprintf(
-		"%s is declared inside a module call that expands with for_each, so its %s and %s markers cannot be computed here: "+
+		"%s is declared inside a module call that expands with count or for_each, so its %s and %s markers cannot be computed here: "+
 			"the module's instances share one configuration body for the resource's tags argument, and there is no single "+
 			"literal address that is right for all of them. Declare tags = { %s = ..., %s = ... } by hand, building the "+
-			"address from a variable the module call passes through from its own each.key (the ordinary way a value that "+
+			"address from a variable the module call passes through from its own count.index or each.key (the ordinary way a value that "+
 			"must vary per module instance reaches a child module's resources) - see live/LIMITATIONS.md, \"child-module\".",
 		addr, TagEstate, TagAddress, TagEstate, TagAddress,
 	)
