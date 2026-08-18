@@ -11,47 +11,40 @@ set -uo pipefail
 # crossed against a cloud before this script existed; #102 only ever used
 # it for a static, offline refusal-ranking measurement.
 #
-# THREE REAL DEFECTS THIS ESTATE FOUND, none of them narrow to RDS:
+# DEFECT A (choudoufu, FIXED - cec3c4b9b1). `choudoufu live-import`
+# originally considered root-module managed resource instances ONLY
+# (internal/live/liveimport/ratify.go: "if !mod.Addr.IsRoot() { ...
+# continue }", cited in its own doc comment as "see issue #59"). Every
+# single resource in this estate - all 39 of them - lives inside a child
+# module (module.vpc, module.security_group, module.db, module.db_default),
+# because that is how virtually every reusable, realistic Terraform
+# configuration is written. Issue #59 ("Epic: admit child modules") is
+# CLOSED, and identity/discovery/stamp/lint/mv all walked module trees
+# already (59b static, 59c keyed for_each) - but liveimport's own
+# restriction was never lifted to match. This crossing's first run found
+# that regression directly: "0 of 0 resource instance(s) are eligible for
+# stamping" and "39 resource instance(s) in a non-root module were not
+# considered". cec3c4b9b1 (found independently crossing terraform-aws-
+# modules/terraform-aws-lambda's "simple" example, live/e2e/corpus-lambda-
+# simple/run.sh) removed the root-only skip; Ratify now walks every module.
+# Re-verified against this estate below: migrate now stamps 23 of 39
+# resources for real, confirmed by reading the primary DB instance's tags
+# directly through the AWS CLI.
 #
-#   DEFECT A (choudoufu, blocks stage 2 outright). `choudoufu live-import`
-#   considers root-module managed resource instances ONLY
-#   (internal/live/liveimport/ratify.go: "if !mod.Addr.IsRoot() { ...
-#   continue }", cited in its own doc comment as "see issue #59"). Every
-#   single resource in this estate - all 39 of them - lives inside a child
-#   module (module.vpc, module.security_group, module.db, module.db_default),
-#   because that is how virtually every reusable, realistic Terraform
-#   configuration is written. Issue #59 ("Epic: admit child modules") is
-#   CLOSED, and identity/discovery/stamp/lint/mv all walk module trees now
-#   (59b static, 59c keyed for_each) - but liveimport's own restriction was
-#   never lifted to match, and its doc comment's citation of #59 is stale.
-#   The practical result: the dedicated "migrate an existing state-backed
-#   estate to markers" tool cannot migrate ANY module-structured estate,
-#   which is most of them. This is not a niche gap; it is close to the
-#   whole point of the tool. Root-causing this needs liveimport's Ratify to
-#   read the estate's config tree (which it currently never opens at all -
-#   see ratify.go's imports) to resolve a module-nested resource's provider
-#   configuration the same way stamp/discovery already do, which is a real
-#   design item, not a one-line fix. Reported here rather than attempted -
-#   see the HANDOFF entry this script's landing commit points to.
+# TWO STILL-OPEN DEFECTS, both filed, both surfaced by this crossing, both
+# now hit for real in stage 3 below (test plan) rather than demonstrated
+# separately:
 #
-#   DEFECT B (choudoufu, would ALSO block stage 3 once A is fixed).
-#   The lint phase (no cloud call) refuses 35 sites under rule
+#   #304 (identity: count-index-in-tag can't trace a static lookup() into a
+#   module's own bundled table). A real live-plan against the really-
+#   migrated estate (stage 3 below) refuses exactly 7 sites under rule
 #   count-index-in-tag ("count.index is not available in resource
-#   arguments"). 28 of those 35 are module.vpc's own per-AZ resources
-#   (aws_route_table_association.database, aws_network_acl_rule,
-#   aws_vpn_gateway_route_propagation, aws_route.*) indexing count.index
-#   into a SIBLING MANAGED RESOURCE's own attributes, e.g.
-#   `element(aws_subnet.database[*].id, count.index)` - genuinely not
-#   knowable before those subnets exist, so those 28 are CORRECT, expected
-#   refusals, not a defect.
-#
-#   The remaining 7 are the real defect, and they are all
-#   aws_security_group_rule.ingress_with_cidr_blocks (this estate's own
-#   ingress rule, and a near-universal terraform-aws-modules/security-group
-#   pattern): the identity-bearing arguments are built through
-#   `lookup(var.ingress_with_cidr_blocks[count.index], "from_port",
-#   var.rules[lookup(var.ingress_with_cidr_blocks[count.index], "rule",
-#   "_")][0])` - a lookup() whose DEFAULT branch is itself a nested
+#   arguments"), all of them aws_security_group_rule.ingress_with_cidr_
+#   blocks (this estate's own ingress rule, and a near-universal terraform-
+#   aws-modules/security-group pattern): the identity-bearing arguments are
+#   built through `lookup(var.ingress_with_cidr_blocks[count.index],
+#   "from_port", var.rules[lookup(var.ingress_with_cidr_blocks[count.index],
+#   "rule", "_")][0])` - a lookup() whose DEFAULT branch is itself a nested
 #   lookup()-keyed index into another variable, both fully static (a
 #   user-supplied literal plus the module's own bundled rules table, no
 #   managed resource involved anywhere in the chain). HCL evaluates both
@@ -59,25 +52,36 @@ set -uo pipefail
 #   has to prove the whole expression safe even though, for every element
 #   this estate actually supplies, the explicit branch is what wins at
 #   runtime - and it cannot, so it refuses a statically-resolvable value.
-#   Demonstrated in stage 3 below.
 #
-#   DEFECT C (choudoufu, would ALSO block stage 3 once A is fixed).
-#   aws_default_network_acl, aws_default_route_table and
-#   aws_default_security_group - the VPC module's "adopt the account's
-#   default objects" resources, created by this estate exactly as
-#   terraform-aws-modules/vpc creates them for most of its users - are
-#   unadmitted types: "not in the live-markers admission table, and neither
-#   the provider's identity schema nor this configuration's own arguments
-#   settled its identity either" (rule unadmitted-type). The refusal's own
-#   text names why: these default_* adopters have no CFN resource and no
-#   identity schema of their own, so nothing but a hand-ratified table entry
-#   can say what identifies one. The SAME lint pass reports two more sites
-#   of the identical rule - aws_default_vpc and aws_vpn_gateway_attachment -
-#   for module.vpc blocks this estate's own variables leave at count = 0;
-#   the identity walker evaluates every declared block regardless, so the
-#   refusal is a lint-time SITE count (5), not this estate's own applied
-#   INSTANCE count (3 - the three default_* adopters actually created; see
-#   stage 1's resource list). Also demonstrated in stage 3, no cloud.
+#   An earlier draft of this script, written and measured before this
+#   estate had ever actually been migrated (DEFECT A still open, nothing
+#   tagged anywhere), additionally counted 28 sites from module.vpc's own
+#   per-AZ resources indexing a sibling resource's attributes (e.g.
+#   `element(aws_subnet.database[*].id, count.index)`) and reasoned those
+#   were correct, unavoidable refusals - 35 total. Run for real against the
+#   really-migrated estate, none of those 28 fire: stage 3 below sees
+#   exactly 7 count-index-in-tag sites, not 35, and asserts that count
+#   rather than repeating the stale one.
+#
+#   #305 (admission: aws_default_network_acl/aws_default_route_table/
+#   aws_default_security_group are unadmitted). aws_default_network_acl,
+#   aws_default_route_table and aws_default_security_group - the VPC
+#   module's "adopt the account's default objects" resources, created by
+#   this estate exactly as terraform-aws-modules/vpc creates them for most
+#   of its users - are unadmitted types: "not in the live-markers admission
+#   table, and neither the provider's identity schema nor this
+#   configuration's own arguments settled its identity either" (rule
+#   unadmitted-type). The refusal's own text names why: these default_*
+#   adopters have no CFN resource and no identity schema of their own, so
+#   nothing but a hand-ratified table entry can say what identifies one.
+#   A real live-plan refuses exactly these 3 sites - this estate's applied
+#   INSTANCE count of default_* adopters (see stage 1's resource list). An
+#   earlier draft of this script counted 5, including aws_default_vpc and
+#   aws_vpn_gateway_attachment declared at count = 0 in module.vpc blocks
+#   this estate's own variables never enable; bc9ef26638 ("a resource block
+#   with a provably-zero count/for_each has no instance to refuse admission
+#   on", already on main) stopped those two from refusing at all, so a real
+#   run today never sees them either.
 #
 # TWO REAL FLOCI GAPS (genuine emulator gaps, not choudoufu bugs, filed and
 # worked around with documented deltas so stage 1 can still stand the
@@ -97,17 +101,20 @@ set -uo pipefail
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
 #   stage 1  cold deploy   PASS - real, verified, unmarked infrastructure.
-#   stage 2  migrate       BLOCKED by DEFECT A, asserted precisely (a
-#                          control, same spirit as other corpus-crossing
-#                          scripts' deliberately-broken steps: if this ever
-#                          reports something OTHER than the current known
-#                          bad behavior, the assertion fails loudly).
-#   stage 3  test plan     Cannot be run for real (nothing was migrated to
-#                          test against). DEFECTS B and C are demonstrated
-#                          instead, independently of A, with no cloud call
-#                          at all.
-#   stage 4  test apply    NOT RUN - depends on stage 3.
-#   stage 5  drift/reconverge  NOT RUN - depends on stage 2-4.
+#   stage 2  migrate       PASS - real: 23 of 39 resource instances stamped
+#                          for real (18 VERIFIED + 5 DRIFTED), the other 16
+#                          correctly skipped (13 UNTAGGABLE by provider
+#                          schema, 3 UNADMITTED_TYPE per #305), all asserted
+#                          against live-import's own report AND confirmed
+#                          independently through the AWS CLI.
+#   stage 3  test plan     BLOCKED, for real, by exactly #304 (7 sites) and
+#                          #305 (3 sites) - specific counts and resource
+#                          addresses asserted against a real live-plan run
+#                          on the really-migrated estate, state file
+#                          deleted first, with a BREAK=1 negative control.
+#   stage 4  test apply    NOT RUN - depends on stage 3, which does not
+#                          produce a clean plan while #304/#305 stand.
+#   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
 # A partial, honestly-reported pass is the point: this is the real, current
 # behavior of choudoufu against a real, popular module, not a green claim
@@ -125,9 +132,11 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt the expected stage-2 defect assertion,
-#                proving it is load-bearing rather than a grep that always
-#                matches.
+#   BREAK        set to 1 to corrupt the expected stage-3 #304/#305 site
+#                counts and one expected unadmitted-type name, proving
+#                those assertions are load-bearing rather than a grep that
+#                always matches. Stages 1 and 2 are unaffected and still
+#                pass; stage 3 is the one that must fail.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -146,6 +155,8 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 ESTATE="rds-complete-postgres"
 REGION="eu-west-1"
 INSTANCES=39
+ELIGIBLE=23
+SKIPPED=16
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -257,6 +268,10 @@ MARKER_COUNT="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" \
 [ "$MARKER_COUNT" = "0" ] || fail "the DB instance already carries a tofu-address tag before migration - this crossing proves nothing"
 log "  confirmed unmarked: $DB_ARN carries no tofu-address tag"
 
+log ""
+log "STAGE 1 (cold deploy): PASS"
+log ""
+
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
 
@@ -281,53 +296,68 @@ log "  DELTA 4  live block + local record_store added             (onboarding)"
 ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ADOPTED_EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "adopted init failed"; }
 
+log "=== 2a. live-import dry run: verify against the live system, write nothing ==="
 IMPORT_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" 2>&1)"
 IMPORT_RC=$?
 [ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -30; fail "live-import (dry run) exited $IMPORT_RC unexpectedly"; }
 
-WANT_CHILD="$INSTANCES"
-if [ "${BREAK:-}" = "1" ]; then
-  WANT_CHILD="$((INSTANCES - 1))"
-  log "  BREAK=1: expecting $WANT_CHILD non-root instances, one short of the"
-  log "           real $INSTANCES - this step must fail"
-fi
-grep -qF "0 of 0 resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)." <<< "$IMPORT_OUT" \
-  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import reported something OTHER than 0 eligible - DEFECT A may be fixed; read live/e2e/corpus-rds-complete-postgres/run.sh's header and update this script"; }
-grep -qF "$WANT_CHILD resource instance(s) in a non-root module were not considered (root module only, v1; see issue #59)." <<< "$IMPORT_OUT" \
-  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not report exactly $WANT_CHILD non-root instances excluded"; }
-log "  DEFECT A confirmed: live-import excludes all $INSTANCES resources -"
-log "  every one of them lives inside module.vpc, module.security_group,"
-log "  module.db or module.db_default. Root module only, v1; see issue #59"
-log "  (closed - its own doc comment's citation is stale, see this script's"
-log "  header)."
+grep -qF "$ELIGIBLE of $INSTANCES resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)." <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not report exactly $ELIGIBLE of $INSTANCES eligible - DEFECT A's fix (cec3c4b9b1) may have regressed, or this estate's resource shape has moved"; }
+grep -qF "No tag has been written. Rerun with -approve to stamp tofu-estate and tofu-address onto every eligible resource above." <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import's dry run did not report 'no tag written' correctly"; }
 
+# The eligible/skipped split, asserted by category so a shift in WHICH
+# resources land where (not just the totals) is caught too.
+VERIFIED_N="$(grep -oE '^VERIFIED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
+DRIFTED_N="$(grep -oE '^DRIFTED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
+UNTAGGABLE_N="$(grep -oE '^UNTAGGABLE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
+UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
+[ "${VERIFIED_N:-0}" = "18" ] || fail "expected 18 VERIFIED, got ${VERIFIED_N:-0}"
+[ "${DRIFTED_N:-0}" = "5" ] || fail "expected 5 DRIFTED, got ${DRIFTED_N:-0}"
+[ "${UNTAGGABLE_N:-0}" = "13" ] || fail "expected 13 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
+[ "${UNADMITTED_N:-0}" = "3" ] || fail "expected 3 UNADMITTED_TYPE (#305), got ${UNADMITTED_N:-0}"
+grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among UNADMITTED_TYPE"
+grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among UNADMITTED_TYPE"
+grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among UNADMITTED_TYPE"
+log "  $ELIGIBLE of $INSTANCES eligible (18 VERIFIED + 5 DRIFTED); $SKIPPED skipped"
+log "  (13 UNTAGGABLE by provider schema + 3 UNADMITTED_TYPE, #305); nothing"
+log "  written yet"
+
+log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
 APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
-grep -qF "0 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped." <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve stamped something - DEFECT A may be fixed; update this script"; }
-log "  -approve confirms it: 0 stamped. No marker exists to plan, apply, or"
-log "  drift-reconverge against - stages 3-5 cannot run against real"
-log "  migrated markers."
+grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, 0 failed, $SKIPPED skipped." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly"; }
+log "  $ELIGIBLE stamped, 0 failed, $SKIPPED skipped - matches the dry run exactly"
 
-# Read the DB instance's tags again: still unmarked, since nothing above
-# could have written one.
-STILL_UNMARKED="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" \
-  --query "length(TagList[?Key=='tofu-address'])" --output text)"
-[ "$STILL_UNMARKED" = "0" ] || fail "the DB instance carries a tofu-address tag after a run that reported 0 stamped - contradicts live-import's own report"
-log "  confirmed: $DB_ARN still carries no tofu-address tag"
+log "=== 2c. the primary DB instance's marker, read through the AWS CLI directly ==="
+WANT_DB_ADDR="module.db.module.db_instance.aws_db_instance.this:0"
+GOT_DB_ADDR="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" \
+  --query "TagList[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_DB_ADDR" = "$WANT_DB_ADDR" ] || fail "the primary DB instance carries tofu-address=$GOT_DB_ADDR, not $WANT_DB_ADDR"
+GOT_DB_ESTATE="$(awsl rds list-tags-for-resource --resource-name "$DB_ARN" \
+  --query "TagList[?Key=='tofu-estate'].Value | [0]" --output text)"
+[ "$GOT_DB_ESTATE" = "$ESTATE" ] || fail "the primary DB instance carries tofu-estate=$GOT_DB_ESTATE, not $ESTATE"
+log "  $DB_ARN now carries tofu-address=$GOT_DB_ADDR tofu-estate=$GOT_DB_ESTATE"
+log "  confirmed independently through the AWS CLI, never through choudoufu's own report"
 
-# ── 3. what stage 3 (test plan) would ALSO hit - no cloud needed ───────────
-log "=== 3. test plan: cannot run for real; DEFECTS B and C instead ==="
-log "  Nothing was migrated in stage 2, so there is no real empty-plan"
-log "  claim to make. What follows is not stage 3 - it is proof that fixing"
-log "  DEFECT A alone would not be enough: choudoufu live-plan's identity"
-log "  resolution (lint phase, no cloud call) refuses this SAME estate on"
-log "  two more grounds, independently of migration."
+log ""
+log "STAGE 2 (migrate): PASS"
+log ""
+
+# ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
+log "=== 3. test plan: real live-plan against the really-migrated estate ==="
+rm -f "$ADOPTED_EST/terraform.tfstate" "$ADOPTED_EST/terraform.tfstate.backup"
+[ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "the state file is still there"
+log "  no local state file - live-import above never wrote one (cloud tags"
+log "  only), and stage 2 never ran a plain-terraform apply in this"
+log "  directory, so this asserts what is already true rather than deleting"
+log "  something that would otherwise be there"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - DEFECTS B and/or C may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #304 and/or #305 may be fixed; update this script"; }
 # choudoufu wraps its "In module.X, ... RESOURCE.NAME:" context lines at a
 # fixed column when captured non-interactively, sometimes splitting the
 # resource name onto its own line. Flattened to one line per diagnostic
@@ -335,53 +365,73 @@ PLAN_RC=$?
 # where the wrap happened to land.
 PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< "$PLAN_OUT")"
 
-# 35 count-index-in-tag sites total. 28 belong to module.vpc's own per-AZ
-# resources indexing a SIBLING resource's attributes (element(aws_subnet...
-# [*].id, count.index)) - genuinely unknowable before those subnets exist,
-# so those are correct, expected refusals, not asserted on individually
-# here. The other 7 are all aws_security_group_rule.ingress_with_cidr_
-# blocks, and THAT is DEFECT B: a fully static expression (a literal plus
-# the module's own bundled rules table, no managed resource involved)
-# refused anyway.
+# Exactly 7 count-index-in-tag sites, all aws_security_group_rule.
+# ingress_with_cidr_blocks (#304: a fully static expression - a literal
+# plus the module's own bundled rules table, no managed resource involved -
+# refused anyway). This script's own earlier draft, written and measured
+# before this estate had ever been really migrated, documented 35 sites (28
+# more, from module.vpc's per-AZ resources indexing a sibling resource's
+# attributes) and reasoned that those 28 were correct, unavoidable
+# refusals. Running for real against the really-migrated estate shows they
+# do not fire at all: 0 module.vpc count-index-in-tag sites today, not 28.
+# Asserted here as "no site outside the known 7" rather than re-asserted at
+# 35, since 35 is not what a real run produces and re-planting a stale
+# number would only repeat the mistake this whole follow-up exists to fix.
+WANT_CIDX_N=7
+WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security_group)
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_CIDX_N=8
+  WANT_TYPES[1]="aws_default_dhcp_options"
+  log "  BREAK=1: expecting 8 count-index-in-tag sites (one more than the"
+  log "           real 7, #304) and aws_default_dhcp_options among the #305"
+  log "           unadmitted-type refusals - a real AWS default-object type,"
+  log "           same shape as the other two, just not one this estate's"
+  log "           lint pass actually names. Both wrong. This step must fail."
+fi
+
 CIDX_N="$(grep -c '^Error: count.index is not available in resource arguments$' <<< "$PLAN_OUT")"
-[ "$CIDX_N" = "35" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected 35 count-index-in-tag sites total, got $CIDX_N"; }
+[ "$CIDX_N" = "$WANT_CIDX_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_CIDX_N count-index-in-tag sites (#304), got $CIDX_N"; }
 SGR_N="$(grep -oF 'count.index in aws_security_group_rule.ingress_with_cidr_blocks:' <<< "$PLAN_FLAT" | wc -l | tr -d ' ')"
-[ "$SGR_N" = "7" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected 7 aws_security_group_rule.ingress_with_cidr_blocks count-index sites (DEFECT B), got $SGR_N"; }
-VPC_CIDX_N="$(grep -oE 'In module\.vpc, count\.index in [a-zA-Z0-9_.]+:' <<< "$PLAN_FLAT" | sort -u | wc -l | tr -d ' ')"
-log "  DEFECT B confirmed: 7 of the 35 count-index-in-tag sites are"
-log "  aws_security_group_rule.ingress_with_cidr_blocks, a fully static"
-log "  expression (terraform-aws-modules/security-group's lookup()-into-"
-log "  its-own-rules-table pattern) refused anyway. The other 28 (module.vpc,"
-log "  $VPC_CIDX_N distinct resource names) index a SIBLING resource's"
-log "  attributes and are correctly, expectedly refused - not a defect."
+[ "$SGR_N" = "$CIDX_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "not every count-index-in-tag site is aws_security_group_rule.ingress_with_cidr_blocks - a new site or shape appeared ($SGR_N of $CIDX_N are); #304 may need re-scoping"; }
+log "  #304 confirmed: exactly $CIDX_N count-index-in-tag sites, all"
+log "  aws_security_group_rule.ingress_with_cidr_blocks - terraform-aws-"
+log "  modules/security-group's lookup()-into-its-own-rules-table pattern,"
+log "  refused even though it is fully static."
 
 DEFAULT_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-[ "$DEFAULT_N" = "5" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected 5 unadmitted-type sites (DEFECT C), got $DEFAULT_N"; }
-for t in aws_default_network_acl aws_default_route_table aws_default_security_group aws_default_vpc aws_vpn_gateway_attachment; do
+[ "$DEFAULT_N" = "3" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected 3 unadmitted-type sites (#305), got $DEFAULT_N"; }
+for t in "${WANT_TYPES[@]}"; do
   grep -qE "In module\.[a-z_]+, ${t}\." <<< "$PLAN_FLAT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t among the unadmitted-type refusals"; }
+    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t among the unadmitted-type refusals (#305)"; }
 done
-log "  DEFECT C confirmed: 5 unadmitted-type sites. aws_default_network_acl,"
-log "  aws_default_route_table and aws_default_security_group are the three"
-log "  default-object adopters this estate actually creates; aws_default_vpc"
-log "  and aws_vpn_gateway_attachment are two more the same lint pass"
-log "  refuses in declared-but-count-0 module.vpc blocks."
+log "  #305 confirmed: exactly 3 unadmitted-type sites, all three default-"
+log "  object adopters this estate actually creates (aws_default_"
+log "  network_acl, aws_default_route_table, aws_default_security_group)."
+log "  This script's earlier draft counted 5, including aws_default_vpc and"
+log "  aws_vpn_gateway_attachment declared at count=0 in module.vpc blocks"
+log "  this estate's variables never enable; bc9ef26638 (already on main:"
+log "  \"a resource block with a provably-zero count/for_each has no"
+log "  instance to refuse admission on\") stopped those two from refusing at"
+log "  all, so a real run today never sees them."
 
 log ""
-log "=== 4. test apply: NOT RUN - depends on stage 3, which did not pass ==="
-log "=== 5. drift and reconverge: NOT RUN - depends on stages 2-4 ==="
+log "STAGE 3 (test_plan): BLOCKED for real - #304 (7 sites) and #305 (3 sites),"
+log "the specific counts and resource addresses asserted above, nothing new"
+log ""
+log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
+log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
 
 log ""
 log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
-log "  stage 2  migrate            BLOCKED - DEFECT A (choudoufu, see header)"
-log "  stage 3  test_plan          BLOCKED - DEFECTS B and C (choudoufu, see header)"
+log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
+log "  stage 3  test_plan          BLOCKED - #304 and #305 (choudoufu, see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
 log "39 real resources, real emulator, real unmarked infrastructure, real"
-log "migration attempt. Every assertion above reads live-import's or"
-log "live-plan's own output, or a tag read straight through the AWS CLI -"
-log "never choudoufu's own self-report. Run again with BREAK=1: stage 1"
-log "still passes and stage 2's defect-A assertion is the one that fails."
+log "migration. Every assertion above reads live-import's or live-plan's own"
+log "output, or a tag read straight through the AWS CLI - never choudoufu's"
+log "own self-report. Run again with BREAK=1: stages 1 and 2 still pass and"
+log "stage 3's #304/#305 site-count assertions are the ones that fail."
