@@ -50,16 +50,20 @@ func TestPlanInstancesAgainstTheAWSProvider(t *testing.T) {
 	dir := flocitest.CopyFixtureDir(t, filepath.Join("testdata", "plan-acm-validation"))
 	flocitest.Run(t, dir, terraformBin, "init", "-input=false", "-no-color")
 
-	provider, schema := launchAWSProvider(t, dir)
+	provider, _ := launchAWSProvider(t, dir)
 	defer func() { _ = provider }()
 
-	configured, ok := provider.(providers.Configured)
-	if !ok {
+	if _, ok := provider.(providers.Configured); !ok {
 		t.Fatalf("the configured AWS provider does not implement providers.Configured (%T)", provider)
 	}
 
 	cfg := loadConfig(t, dir)
-	got, diags := PlanInstances(ctx, cfg, schema.ResourceTypes, configured)
+	// The fixture declares one provider configuration and no alias, so
+	// answering every address with the one launched plugin is exactly what
+	// the seam would resolve to. TestPlanInstancesPlansThroughEachBlocksOwnProvider
+	// is where the SELECTION is under test; this one is about what the real
+	// AWS provider computes.
+	got, diags := PlanInstances(ctx, cfg, anyProvider(provider))
 	if diags.HasErrors() {
 		t.Fatalf("PlanInstances: %s", diags.Err())
 	}

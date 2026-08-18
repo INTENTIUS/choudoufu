@@ -20,19 +20,43 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// planStub answers PlanResourceChange and nothing else. The embedded
-// interface is nil on purpose: any other method this package starts calling
-// panics the test rather than returning a zero value that looks like an
-// answer.
+// planStub answers GetProviderSchema and PlanResourceChange and nothing
+// else. The embedded interface is nil on purpose: any other method this
+// package starts calling panics the test rather than returning a zero value
+// that looks like an answer.
+//
+// It serves its own schemas because [PlanInstances] takes them from the
+// provider it is about to call rather than from a map merged across every
+// provider a configuration uses - the process that decodes a block and the
+// process that plans it have to be one process.
 type planStub struct {
 	providers.Configured
-	calls int
-	plan  func(providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse
+	calls   int
+	schemas map[string]providers.Schema
+	plan    func(providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse
 }
 
 func (s *planStub) PlanResourceChange(_ context.Context, req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
 	s.calls++
 	return s.plan(req)
+}
+
+func (s *planStub) GetProviderSchema(context.Context) providers.GetProviderSchemaResponse {
+	schemas := s.schemas
+	if schemas == nil {
+		schemas = map[string]providers.Schema{"stub_cert": stubCertSchema()}
+	}
+	return providers.GetProviderSchemaResponse{ResourceTypes: schemas}
+}
+
+// anyProvider is a [Providers] that answers every address with one instance.
+// It is what a test that is not about provider SELECTION wants;
+// TestPlanInstancesPlansThroughEachBlocksOwnProvider is the one that is, and
+// it never uses this.
+func anyProvider(p providers.Interface) Providers {
+	return ProviderFunc(func(context.Context, addrs.AbsProviderConfig) (providers.Interface, error) {
+		return p, nil
+	})
 }
 
 // stubCertSchema is the shape under test: an argument the configuration
@@ -77,10 +101,9 @@ func derivingStub() *planStub {
 // provider the same question stock OpenTofu asks it.
 func TestPlanInstancesReturnsWhatTheProviderDerives(t *testing.T) {
 	cfg := loadConfig(t, "testdata/plan-computed")
-	schemas := map[string]providers.Schema{"stub_cert": stubCertSchema()}
 	stub := derivingStub()
 
-	got, diags := PlanInstances(context.Background(), cfg, schemas, stub)
+	got, diags := PlanInstances(context.Background(), cfg, anyProvider(stub))
 	if diags.HasErrors() {
 		t.Fatalf("PlanInstances: %s", diags.Err())
 	}
@@ -109,8 +132,7 @@ func TestPlanInstancesSkipsRepeatedResources(t *testing.T) {
 	cfg := loadConfig(t, "testdata/plan-computed")
 	stub := derivingStub()
 
-	got, _ := PlanInstances(context.Background(), cfg,
-		map[string]providers.Schema{"stub_cert": stubCertSchema()}, stub)
+	got, _ := PlanInstances(context.Background(), cfg, anyProvider(stub))
 
 	if _, ok := got["stub_cert.repeated"]; ok {
 		t.Error("stub_cert.repeated was planned; a repeated resource has one value per instance " +
@@ -133,8 +155,7 @@ func TestPlanInstancesOmitsWhatTheProviderDeclines(t *testing.T) {
 		return resp
 	}}
 
-	got, diags := PlanInstances(context.Background(), cfg,
-		map[string]providers.Schema{"stub_cert": stubCertSchema()}, refusing)
+	got, diags := PlanInstances(context.Background(), cfg, anyProvider(refusing))
 
 	if diags.HasErrors() {
 		t.Error("a provider declining one resource must not fail the whole pass: the caller's " +
@@ -149,8 +170,7 @@ func TestPlanInstancesOmitsWhatTheProviderDeclines(t *testing.T) {
 // every existing caller keeps today's behaviour exactly.
 func TestPlanInstancesNeedsAProvider(t *testing.T) {
 	cfg := loadConfig(t, "testdata/plan-computed")
-	got, diags := PlanInstances(context.Background(), cfg,
-		map[string]providers.Schema{"stub_cert": stubCertSchema()}, nil)
+	got, diags := PlanInstances(context.Background(), cfg, nil)
 	if diags.HasErrors() || len(got) != 0 {
 		t.Errorf("with no provider: got %v and errors=%v, want no values and no errors",
 			keysOf(got), diags.HasErrors())
@@ -182,8 +202,7 @@ func keysOf(m map[string]cty.Value) []string {
 // exist: a wrong value rather than a missing one.
 func TestPlanInstancesReachesIntoModules(t *testing.T) {
 	cfg := loadConfigWithModules(t, "testdata/plan-in-module")
-	got, diags := PlanInstances(context.Background(), cfg,
-		map[string]providers.Schema{"stub_cert": stubCertSchema()}, derivingStub())
+	got, diags := PlanInstances(context.Background(), cfg, anyProvider(derivingStub()))
 	if diags.HasErrors() {
 		t.Fatalf("PlanInstances: %s", diags.Err())
 	}

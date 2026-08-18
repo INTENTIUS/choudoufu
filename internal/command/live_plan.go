@@ -306,10 +306,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// describes it completely enough. See [identity.SynthesizeTypeIdentity].
 	// A run whose providers will not start gets no schemas and the hand
 	// table's answers, which is exactly what it got before.
-	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas:     resourceSchemas,
-		DataResults: dataResults,
-	})
+	//
+	// A first pass that refuses is no longer fatal on its own: see
+	// [statelessResolve] for the second pass and the bound on it.
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
@@ -1697,6 +1697,152 @@ func statelessDataReads(ctx context.Context, config *configs.Config, provs *stat
 		return nil, nil
 	}
 	return dataread.Read(ctx, config, analysis, provs)
+}
+
+// statelessResolve is the identity resolution every stateless command runs -
+// live-plan, plain plan/apply under a live block, and live-mv - with GitHub
+// issue #284's second pass folded in. All three call it rather than resolving
+// for themselves, because a rename computed over a different identity map
+// from the plan's would rewrite a marker the plan then disputes.
+//
+// # The two passes
+//
+// A first pass refuses the ACM/Route53 validation shape, and every shape like
+// it, for a value the PROVIDER knows and the configuration cannot state:
+//
+//	resource "aws_route53_record" "cert_validation" {
+//	  for_each = { for dvo in aws_acm_certificate.cert.domain_validation_options : ... }
+//	}
+//
+// [identity.DemandedManagedReads] reads that pass's own refusals back as the
+// managed resource blocks whose values would settle them.
+// [projection.PlanInstances] then asks each block's own provider what it
+// would fill in for a create - no cloud, no marker, no discovery, only a
+// configured provider process - and a second pass resolves with those values
+// in hand.
+//
+// # The bound: exactly one retry, and it is structural
+//
+// This is straight-line code rather than a loop, and the bound is a property
+// of PlanInstances rather than a budget someone could raise.
+// [projection.PlanInstances] plans a CREATE from a null prior state and never
+// consults the resolution at all, so a third pass would be handed the
+// identical value map the second was, and would produce the identical answer.
+// A counter would suggest otherwise.
+//
+// # Why the second pass has to earn its place
+//
+// The first pass's diagnostics are kept unless the second pass raises
+// strictly fewer errors. A second pass is given MORE information, so it
+// ordinarily refuses less; but supplying [identity.Context.ManagedResults]
+// also changes which references resolution treats as symbolic, and a
+// reference that took the symbolic formula route on the first pass can take
+// the evaluate-and-refuse route on the second. Without this test, wiring the
+// second pass in would trade a class of refusals away for another class of
+// refusals somewhere else, and the totals would hide it.
+//
+// The common case pays nothing at all: a first pass that resolved cleanly
+// returns immediately, and one that refused for reasons naming no managed
+// block never configures a provider.
+// provs is the interface rather than [*statelessProviders] on purpose: the
+// second pass's whole hazard is which provider answers, and a test that
+// cannot substitute one cannot see that.
+func statelessResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value) (*identity.Result, tfdiags.Diagnostics) {
+	ictx := identity.Context{
+		Schemas:     resourceSchemas,
+		DataResults: dataResults,
+	}
+	first, firstDiags := identity.ResolveWith(ctx, config, ictx)
+	if !firstDiags.HasErrors() {
+		return first, firstDiags
+	}
+
+	// Offline, and free: this reads the first pass's own refusals. Nothing
+	// demanded means a second pass has nothing new to work from, so no
+	// provider is configured and no plan call is made.
+	if len(identity.DemandedManagedReads(first, firstDiags)) == 0 {
+		return first, firstDiags
+	}
+
+	planned, planDiags := projection.PlanInstances(ctx, config, provs)
+	// PlanInstances never fails its caller - a resource it cannot plan is
+	// simply absent - so these are logged rather than raised. Raising them
+	// would turn a run that refuses today into a run that refuses today plus
+	// an aside about a provider.
+	for _, d := range planDiags {
+		log.Printf("[TRACE] live: planning managed values for the second resolution pass: %s", d.Description().Summary)
+	}
+	if len(planned) == 0 {
+		return first, firstDiags
+	}
+
+	ictx.ManagedResults = planned
+	second, secondDiags := identity.ResolveWith(ctx, config, ictx)
+	if errorCount(secondDiags) >= errorCount(firstDiags) {
+		log.Printf("[TRACE] live: the second resolution pass refused %d site(s) against the first pass's %d; keeping the first pass",
+			errorCount(secondDiags), errorCount(firstDiags))
+		return first, firstDiags
+	}
+	if downgraded := downgradedToDiscovery(first, second); downgraded != "" {
+		log.Printf("[TRACE] live: the second resolution pass downgraded %s to needs-discovery; keeping the first pass", downgraded)
+		return first, firstDiags
+	}
+	return second, secondDiags
+}
+
+// errorCount is the number of error-severity diagnostics, which is what
+// [statelessResolve] compares its two passes on. Warnings are excluded
+// deliberately: a pass that resolved more and warned more about what it
+// resolved is the better pass.
+func errorCount(diags tfdiags.Diagnostics) int {
+	n := 0
+	for _, d := range diags {
+		if d.Severity() == tfdiags.Error {
+			n++
+		}
+	}
+	return n
+}
+
+// downgradedToDiscovery names an instance the first pass resolved to a
+// computable identity and the second pass demoted to [identity.
+// ClassNeedsDiscovery], or "" when there is none. It is the half of the
+// ratchet that counting error diagnostics cannot see, and it is measured
+// rather than hypothetical.
+//
+// Supplying [identity.Context.ManagedResults] makes a reference to a covered
+// managed resource evaluable, so [identity.resolver.isSymbolic] stops routing
+// it down the symbolic-formula path. For an argument whose covered value is
+// UNKNOWN that trades a working formula for a discovery request. Measured on
+// simpleinfra's shared acm-certificate module against the real AWS provider
+// 6.59.0: aws_acm_certificate_validation.cert resolves
+// "PARENT_DERIVED ${aws_acm_certificate.cert.arn}" on a first pass and
+// NEEDS_DISCOVERY/SIBLING_APPLY on a second. That type is untaggable, so the
+// demotion turns into a hard stamp refusal one stage later - a refusal this
+// function's caller never sees, because internal/live/stamp runs downstream
+// of it. Counting identity's own errors would therefore have called a net
+// LOSS a net win.
+//
+// The right fix is in internal/live/identity: a covered reference whose value
+// is unknown should fall back to the symbolic path, so the formula survives.
+// Until it does, this keeps the second pass from being enabled at a cost.
+func downgradedToDiscovery(first, second *identity.Result) string {
+	if first == nil || second == nil {
+		return ""
+	}
+	was := make(map[string]identity.Class, first.Len())
+	for _, r := range first.All() {
+		was[r.Addr.String()] = r.Class
+	}
+	for _, r := range second.All() {
+		if r.Class != identity.ClassNeedsDiscovery {
+			continue
+		}
+		if prior, ok := was[r.Addr.String()]; ok && prior != identity.ClassNeedsDiscovery {
+			return r.Addr.String()
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------

@@ -191,7 +191,16 @@ func TestSiblingApplyUnderTheSubstitutingLoader(t *testing.T) {
 	// The pair matters - a mutation run that flipped that rule off left the
 	// first fixture passing, because the guard it was meant to exercise was
 	// never on the path.
-	for _, dir := range []string{"managed-result-foreach-unset-var", "managed-result-foreach-mixed-var"} {
+	//
+	// managed-result-foreach-var-key moves the variable into the for_each
+	// comprehension's KEY expression, which the other two cannot reach: they
+	// leave the instance addresses settled and put only the marker's value in
+	// doubt, while this one puts the ADDRESS in doubt. A fabricated instance
+	// key is a fabricated marker address, so every run with a different
+	// tfvars file would claim a different live object. It is added for GitHub
+	// issue #284, where a planned value makes dvo.domain_name known and the
+	// key expression's other half still is not.
+	for _, dir := range []string{"managed-result-foreach-unset-var", "managed-result-foreach-mixed-var", "managed-result-foreach-var-key"} {
 		t.Run(dir, func(t *testing.T) {
 			load := Load(context.Background(), filepath.Join("testdata", dir))
 			if load.Config == nil {
