@@ -129,6 +129,14 @@ func varConvertedElems(decl *configs.Variable, keys []cty.Value, elems []elemBin
 // collection is not available to read - the container could not be rebuilt,
 // or the conversion failed outright.
 //
+// An EMPTY chase answers before either of those questions is asked. Zero
+// keys is a known value regardless of the declared type: there is nothing
+// left to lose track of, no element to collapse against another, and the
+// key set the chase already holds - none - is already the whole answer. A
+// set is not exempt from this; the refusal below exists because an
+// UNREADABLE set has no key set to fall back on, and an empty one is not
+// unreadable, it is read.
+//
 // For every target but a set that costs the values and no more: a map, an
 // object, a list and a tuple all keep the keys they were given through a
 // conversion, so the key set the chase already holds is still the right one
@@ -140,6 +148,9 @@ func varConvertedElems(decl *configs.Variable, keys []cty.Value, elems []elemBin
 // than an incomplete one. Refusing costs a resolution; answering would cost a
 // marker naming something that does not exist.
 func unreadableConversion(ty cty.Type, keys []cty.Value, elems []elemBinding) ([]cty.Value, []elemBinding, bool) {
+	if len(keys) == 0 {
+		return keys, unboundLike(elems), true
+	}
 	if ty.IsSetType() {
 		return nil, nil, false
 	}
