@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      122,
+		Bound:      143,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -493,6 +493,30 @@ func rowgenAnnotationRulings() Entry {
 					"reversed order); the rest are plain scrape gaps where composed_of_arguments never resolved " +
 					"despite a matching separator. Each ruling's exit names its own shape rather than a shared " +
 					"catch-all. 98 + 24 = 122.",
+			"143 on 2026-08-18 (issue #245's 'fold-child' slice): the same reviewed upward bump, 21 " +
+				"newly admitted types (aws_app_cookie_stickiness_policy, " +
+				"aws_shield_protection_health_check_association and 19 others), each a property-child of " +
+				"an already-admitted CFN parent. bucketFoldChild never proposes Components at all - " +
+				"classify.go's own doc comment states the child's composite shape needs a human's " +
+				"separator and shape choice regardless of how clean the import-grammar evidence is - so " +
+				"every one of the 21 is unreproduced by construction, the same standing every other " +
+				"fold-child ruling in this ledger already carries. Two further fold-child candidates in " +
+				"the same unreached population (aws_cloudformation_stack_instances, " +
+				"aws_cloudformation_stack_set_instance) were left unratified because their CFN parent, " +
+				"aws_cloudformation_stack_set, is not itself admitted yet; three more " +
+				"(aws_autoscaling_group_tag, aws_autoscaling_traffic_source_attachment, " +
+				"aws_ssoadmin_customer_managed_policy_attachment) have their identity-bearing argument " +
+				"nested inside a sub-block Component.Attrs cannot read; one " +
+				"(aws_wafv2_web_acl_rule_group_association) has a conditional identity shape branching on " +
+				"which of two mutually exclusive nested blocks is populated; one " +
+				"(aws_lightsail_container_service_deployment_version) has a purely server-assigned, " +
+				"non-configurable differentiator (version); one (aws_ssm_default_patch_baseline) has an " +
+				"ambiguous identity where the doc's own alternate import forms suggest operating_system " +
+				"alone is the true key, not a fold of the parent baseline id; and 14 have no Import " +
+				"section in the provider's docs at all, so no separator has any evidenced source. None of " +
+				"those 22 were added to rejected.json: the parent-pending two are ratifiable once their " +
+				"parent is, and the rest are a generator/resolver capability gap, not a closed question. " +
+				"122 + 21 = 143.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

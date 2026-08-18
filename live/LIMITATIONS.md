@@ -3176,9 +3176,9 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_api_gateway_method`, `aws_api_gateway_method_response`,
 `aws_api_gateway_method_settings`, `aws_api_gateway_model`,
 `aws_api_gateway_rest_api_policy`, `aws_api_gateway_usage_plan_key`,
-`aws_appautoscaling_policy`, `aws_appflow_connector_profile`,
-`aws_appstream_fleet_stack_association`, `aws_appstream_user`,
-`aws_appsync_api_cache`, `aws_appsync_domain_name`,
+`aws_app_cookie_stickiness_policy`, `aws_appautoscaling_policy`,
+`aws_appflow_connector_profile`, `aws_appstream_fleet_stack_association`,
+`aws_appstream_user`, `aws_appsync_api_cache`, `aws_appsync_domain_name`,
 `aws_appsync_domain_name_api_association`,
 `aws_arczonalshift_autoshift_observer_notification_status`,
 `aws_arczonalshift_zonal_autoshift_configuration`, `aws_autoscaling_group`,
@@ -3209,6 +3209,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_config_conformance_pack`, `aws_config_organization_conformance_pack`,
 `aws_config_remediation_configuration`,
 `aws_connect_user_hierarchy_structure`, `aws_controltower_control`,
+`aws_datapipeline_pipeline_definition`,
 `aws_datazone_environment_blueprint_configuration`,
 `aws_db_instance_role_association`, `aws_db_proxy_default_target_group`,
 `aws_detective_member`, `aws_devopsguru_resource_collection`,
@@ -3226,18 +3227,21 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_ecr_pull_time_update_exclusion`,
 `aws_ecr_repository_creation_template`, `aws_ecr_repository_policy`,
 `aws_ecrpublic_repository_policy`, `aws_ecs_cluster_capacity_providers`,
-`aws_eks_access_policy_association`,
+`aws_efs_backup_policy`, `aws_efs_file_system_policy`,
+`aws_efs_replication_configuration`, `aws_eks_access_policy_association`,
 `aws_elasticache_user_group_association`, `aws_emr_security_configuration`,
 `aws_emr_studio_session_mapping`, `aws_fsx_s3_access_point_attachment`,
 `aws_glue_catalog_table`, `aws_glue_catalog_table_optimizer`,
 `aws_glue_classifier`, `aws_glue_data_catalog_encryption_settings`,
 `aws_glue_security_configuration`, `aws_glue_user_defined_function`,
-`aws_guardduty_member`, `aws_guardduty_organization_admin_account`,
+`aws_grafana_workspace_saml_configuration`, `aws_guardduty_member`,
+`aws_guardduty_organization_admin_account`,
 `aws_guardduty_organization_configuration`, `aws_iam_account_alias`,
 `aws_iam_group`, `aws_iam_group_policy`, `aws_iam_group_policy_attachment`,
 `aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
-`aws_iam_user_group_membership`, `aws_iam_user_policy`,
-`aws_iam_user_policy_attachment`, `aws_inspector2_delegated_admin_account`,
+`aws_iam_user_group_membership`, `aws_iam_user_login_profile`,
+`aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
+`aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_internet_gateway_attachment`,
 `aws_iot_thing`, `aws_kinesis_resource_policy`, `aws_kms_alias`,
 `aws_lakeformation_data_cells_filter`,
@@ -3245,8 +3249,10 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_lambda_layer_version_permission`, `aws_lambda_permission`,
 `aws_launch_configuration`, `aws_lb_listener_certificate`,
 `aws_lb_target_group_attachment`, `aws_lb_trust_store_revocation`,
-`aws_lexv2models_bot_locale`, `aws_lightsail_domain`,
-`aws_lightsail_lb_certificate`, `aws_lightsail_static_ip`,
+`aws_lexv2models_bot_locale`, `aws_lightsail_bucket_resource_access`,
+`aws_lightsail_domain`, `aws_lightsail_domain_entry`,
+`aws_lightsail_lb_attachment`, `aws_lightsail_lb_certificate`,
+`aws_lightsail_lb_certificate_attachment`, `aws_lightsail_static_ip`,
 `aws_location_tracker_association`, `aws_macie2_organization_admin_account`,
 `aws_msk_cluster_policy`, `aws_msk_scram_secret_association`,
 `aws_msk_single_scram_secret_association`, `aws_msk_topic`,
@@ -3263,29 +3269,32 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_opensearchserverless_access_policy`,
 `aws_opensearchserverless_lifecycle_policy`,
 `aws_opensearchserverless_security_policy`,
-`aws_paymentcryptography_key_alias`,
+`aws_organizations_policy_attachment`, `aws_paymentcryptography_key_alias`,
 `aws_pinpointsmsvoicev2_resource_policy`,
 `aws_prometheus_alert_manager_definition`,
 `aws_prometheus_query_logging_configuration`,
 `aws_prometheus_scraper_logging_configuration`,
-`aws_quicksight_refresh_schedule`, `aws_rds_cluster_role_association`,
-`aws_redshift_endpoint_access`, `aws_redshift_endpoint_authorization`,
-`aws_route`, `aws_route53_cidr_collection`, `aws_route53_cidr_location`,
+`aws_quicksight_refresh_schedule`, `aws_ram_principal_association`,
+`aws_rds_cluster_role_association`, `aws_redshift_endpoint_access`,
+`aws_redshift_endpoint_authorization`, `aws_redshift_logging`, `aws_route`,
+`aws_route53_cidr_collection`, `aws_route53_cidr_location`,
 `aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
 `aws_route53_record`, `aws_route53_resolver_firewall_rule`,
 `aws_route53_zone_association`, `aws_route_table_association`,
 `aws_s3_account_public_access_block`,
-`aws_s3_bucket_lifecycle_configuration`,
+`aws_s3_bucket_analytics_configuration`, `aws_s3_bucket_inventory`,
+`aws_s3_bucket_lifecycle_configuration`, `aws_s3_bucket_metric`,
 `aws_s3_bucket_object_lock_configuration`, `aws_s3_bucket_policy`,
 `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_replication_configuration`,
 `aws_s3_bucket_server_side_encryption_configuration`,
-`aws_s3_bucket_versioning`, `aws_s3control_bucket_policy`,
-`aws_s3control_multi_region_access_point`, `aws_s3files_file_system_policy`,
-`aws_s3tables_table_bucket_policy`, `aws_s3vectors_vector_bucket_policy`,
+`aws_s3_bucket_versioning`, `aws_s3control_bucket_lifecycle_configuration`,
+`aws_s3control_bucket_policy`, `aws_s3control_multi_region_access_point`,
+`aws_s3files_file_system_policy`, `aws_s3tables_table_bucket_policy`,
+`aws_s3vectors_vector_bucket_policy`,
 `aws_sagemaker_model_package_group_policy`, `aws_scheduler_schedule`,
 `aws_secretsmanager_secret_policy`, `aws_secretsmanager_secret_rotation`,
-`aws_security_group_rule`,
+`aws_secretsmanager_tag`, `aws_security_group_rule`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
 `aws_securityhub_standards_control`,
@@ -3296,6 +3305,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_servicecatalogappregistry_attribute_group_association`,
 `aws_ses_receipt_filter`, `aws_ses_receipt_rule`,
 `aws_ses_receipt_rule_set`, `aws_ses_template`,
+`aws_shield_protection_health_check_association`,
 `aws_signer_signing_profile_permission`, `aws_sns_topic_policy`,
 `aws_sqs_queue_policy`, `aws_ssm_maintenance_window_target`,
 `aws_ssm_patch_group`, `aws_ssm_resource_data_sync`,
@@ -3306,10 +3316,11 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_ssoadmin_managed_policy_attachments_exclusive`,
 `aws_ssoadmin_permission_set_inline_policy`,
 `aws_ssoadmin_permissions_boundary_attachment`,
-`aws_transfer_web_app_customization`, `aws_volume_attachment`,
-`aws_vpc_block_public_access_options`, `aws_vpc_dhcp_options_association`,
-`aws_vpc_endpoint_policy`, `aws_vpc_endpoint_private_dns`,
-`aws_vpc_endpoint_route_table_association`,
+`aws_transfer_web_app_customization`,
+`aws_verifiedaccess_instance_logging_configuration`,
+`aws_volume_attachment`, `aws_vpc_block_public_access_options`,
+`aws_vpc_dhcp_options_association`, `aws_vpc_endpoint_policy`,
+`aws_vpc_endpoint_private_dns`, `aws_vpc_endpoint_route_table_association`,
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
 `aws_vpc_route_server_propagation`, `aws_vpc_route_server_vpc_association`,
@@ -3379,6 +3390,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_cognito_user_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_in_group` | `aws_cognito_user_pool` | no (report-only) |
 | `aws_cognito_user_pool_ui_customization` | `aws_cognito_user_pool` | no (report-only) |
+| `aws_datapipeline_pipeline_definition` | `aws_datapipeline_pipeline` | no (report-only) |
 | `aws_datazone_environment_blueprint_configuration` | `aws_datazone_domain` | no (report-only) |
 | `aws_detective_member` | `aws_detective_graph` | no (report-only) |
 | `aws_ec2_client_vpn_route` | `aws_ec2_client_vpn_endpoint` | no (report-only) |
@@ -3391,18 +3403,22 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ecr_lifecycle_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecr_repository_policy` | `aws_ecr_repository` | no (report-only) |
 | `aws_ecrpublic_repository_policy` | `aws_ecrpublic_repository` | no (report-only) |
+| `aws_efs_backup_policy` | `aws_efs_file_system` | no (report-only) |
+| `aws_efs_file_system_policy` | `aws_efs_file_system` | no (report-only) |
 | `aws_elasticache_user_group_association` | `aws_elasticache_user_group` | no (report-only) |
 | `aws_emr_studio_session_mapping` | `aws_emr_studio` | no (report-only) |
 | `aws_glue_catalog_table` | `aws_glue_catalog` | no (report-only) |
 | `aws_glue_catalog_table_optimizer` | `aws_glue_catalog` | no (report-only) |
 | `aws_glue_data_catalog_encryption_settings` | `aws_glue_catalog` | no (report-only) |
 | `aws_glue_user_defined_function` | `aws_glue_catalog` | no (report-only) |
+| `aws_grafana_workspace_saml_configuration` | `aws_grafana_workspace` | no (report-only) |
 | `aws_guardduty_member` | `aws_guardduty_detector` | no (report-only) |
 | `aws_guardduty_organization_configuration` | `aws_guardduty_detector` | no (report-only) |
 | `aws_iam_group_policy_attachment` | `aws_iam_policy` | no (report-only) |
 | `aws_iam_role_policy` | `aws_iam_role` | no (report-only) |
 | `aws_iam_role_policy_attachment` | `aws_iam_role` | no (report-only) |
 | `aws_iam_user_group_membership` | `aws_iam_user` | no (report-only) |
+| `aws_iam_user_login_profile` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy` | `aws_iam_user` | no (report-only) |
 | `aws_iam_user_policy_attachment` | `aws_iam_user` | no (report-only) |
 | `aws_internet_gateway_attachment` | `aws_internet_gateway` | no (report-only) |
@@ -3427,22 +3443,28 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_networkmanager_prefix_list_association` | `aws_networkmanager_core_network` | no (report-only) |
 | `aws_networkmanager_transit_gateway_registration` | `aws_networkmanager_global_network` | no (report-only) |
 | `aws_notifications_channel_association` | `aws_notifications_notification_configuration` | no (report-only) |
+| `aws_organizations_policy_attachment` | `aws_organizations_policy` | no (report-only) |
 | `aws_prometheus_alert_manager_definition` | `aws_prometheus_workspace` | no (report-only) |
 | `aws_prometheus_query_logging_configuration` | `aws_prometheus_workspace` | no (report-only) |
 | `aws_prometheus_scraper_logging_configuration` | `aws_prometheus_scraper` | no (report-only) |
 | `aws_quicksight_refresh_schedule` | `aws_quicksight_data_set` | no (report-only) |
+| `aws_ram_principal_association` | `aws_ram_resource_share` | no (report-only) |
 | `aws_route` | `aws_route_table` | no (report-only) |
 | `aws_route53_record` | `aws_route53_zone` | no (report-only) |
 | `aws_route53_resolver_firewall_rule` | `aws_route53_resolver_firewall_domain_list` | no (report-only) |
 | `aws_route53_zone_association` | `aws_route53_zone` | no (report-only) |
 | `aws_route_table_association` | `aws_route_table` | no (report-only) |
+| `aws_s3_bucket_analytics_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_inventory` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_lifecycle_configuration` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3_bucket_metric` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_object_lock_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_policy` | `aws_s3_bucket` | yes |
 | `aws_s3_bucket_public_access_block` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_replication_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_server_side_encryption_configuration` | `aws_s3_bucket` | no (report-only) |
 | `aws_s3_bucket_versioning` | `aws_s3_bucket` | no (report-only) |
+| `aws_s3control_bucket_lifecycle_configuration` | `aws_s3control_bucket` | no (report-only) |
 | `aws_s3control_bucket_policy` | `aws_s3control_bucket` | no (report-only) |
 | `aws_s3files_file_system_policy` | `aws_s3files_file_system` | no (report-only) |
 | `aws_s3tables_table_bucket_policy` | `aws_s3tables_table_bucket` | no (report-only) |
@@ -3450,12 +3472,14 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_sagemaker_model_package_group_policy` | `aws_sagemaker_model_package_group` | no (report-only) |
 | `aws_secretsmanager_secret_policy` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_secretsmanager_secret_rotation` | `aws_secretsmanager_secret` | no (report-only) |
+| `aws_secretsmanager_tag` | `aws_secretsmanager_secret` | no (report-only) |
 | `aws_security_group_rule` | `aws_security_group` | no (report-only) |
 | `aws_service_discovery_instance` | `aws_service_discovery_service` | no (report-only) |
 | `aws_servicecatalog_portfolio_share` | `aws_servicecatalog_portfolio` | no (report-only) |
 | `aws_servicecatalog_principal_portfolio_association` | `aws_servicecatalog_portfolio` | no (report-only) |
 | `aws_servicecatalog_product_portfolio_association` | `aws_servicecatalog_product` | no (report-only) |
 | `aws_servicecatalogappregistry_attribute_group_association` | `aws_servicecatalogappregistry_attribute_group` | no (report-only) |
+| `aws_shield_protection_health_check_association` | `aws_shield_protection` | no (report-only) |
 | `aws_sns_topic_policy` | `aws_sns_topic` | no (report-only) |
 | `aws_sqs_queue_policy` | `aws_sqs_queue` | no (report-only) |
 | `aws_ssm_maintenance_window_target` | `aws_ssm_maintenance_window` | no (report-only) |
@@ -3467,6 +3491,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_ssoadmin_permission_set_inline_policy` | `aws_ssoadmin_permission_set` | no (report-only) |
 | `aws_ssoadmin_permissions_boundary_attachment` | `aws_ssoadmin_permission_set` | no (report-only) |
 | `aws_transfer_web_app_customization` | `aws_transfer_web_app` | no (report-only) |
+| `aws_verifiedaccess_instance_logging_configuration` | `aws_verifiedaccess_instance` | no (report-only) |
 | `aws_volume_attachment` | `aws_ebs_volume` | no (report-only) |
 | `aws_vpc_endpoint_policy` | `aws_vpc_endpoint` | no (report-only) |
 | `aws_vpc_endpoint_private_dns` | `aws_vpc_endpoint` | no (report-only) |
@@ -3487,7 +3512,7 @@ identity table's own comments already name for `aws_s3_bucket_policy` and
 | `aws_workspacesweb_user_access_logging_settings_association` | `aws_workspacesweb_user_access_logging_settings` | no (report-only) |
 | `aws_workspacesweb_user_settings_association` | `aws_workspacesweb_user_settings` | no (report-only) |
 
-**Total.** 137 types swept via a parent read.
+**Total.** 151 types swept via a parent read.
 <!-- survey-gen:end untaggable-parent-read -->
 
 Being parent-readable only says the sweep can *see* the child. Whether it
@@ -3515,10 +3540,10 @@ behavior is checked the way the bucket policy's was. See
 per-type reasoning as it stands.
 
 **The residue.** <!-- survey-gen:begin untaggable-residue -->
-`aws_acmpca_policy`, `aws_appautoscaling_policy`,
-`aws_appflow_connector_profile`, `aws_appstream_fleet_stack_association`,
-`aws_appstream_user`, `aws_appsync_domain_name`,
-`aws_appsync_domain_name_api_association`,
+`aws_acmpca_policy`, `aws_app_cookie_stickiness_policy`,
+`aws_appautoscaling_policy`, `aws_appflow_connector_profile`,
+`aws_appstream_fleet_stack_association`, `aws_appstream_user`,
+`aws_appsync_domain_name`, `aws_appsync_domain_name_api_association`,
 `aws_arczonalshift_autoshift_observer_notification_status`,
 `aws_arczonalshift_zonal_autoshift_configuration`, `aws_autoscaling_group`,
 `aws_backup_restore_testing_selection`,
@@ -3545,9 +3570,10 @@ per-type reasoning as it stands.
 `aws_ec2_transit_gateway_route`, `aws_ecr_pull_through_cache_rule`,
 `aws_ecr_pull_time_update_exclusion`,
 `aws_ecr_repository_creation_template`,
-`aws_ecs_cluster_capacity_providers`, `aws_eks_access_policy_association`,
-`aws_emr_security_configuration`, `aws_fsx_s3_access_point_attachment`,
-`aws_glue_classifier`, `aws_glue_security_configuration`,
+`aws_ecs_cluster_capacity_providers`, `aws_efs_replication_configuration`,
+`aws_eks_access_policy_association`, `aws_emr_security_configuration`,
+`aws_fsx_s3_access_point_attachment`, `aws_glue_classifier`,
+`aws_glue_security_configuration`,
 `aws_guardduty_organization_admin_account`, `aws_iam_account_alias`,
 `aws_iam_group`, `aws_iam_group_policy`,
 `aws_inspector2_delegated_admin_account`,
@@ -3555,7 +3581,9 @@ per-type reasoning as it stands.
 `aws_kinesis_resource_policy`, `aws_kms_alias`,
 `aws_lakeformation_data_cells_filter`,
 `aws_lambda_layer_version_permission`, `aws_lambda_permission`,
-`aws_launch_configuration`, `aws_lightsail_domain`,
+`aws_launch_configuration`, `aws_lightsail_bucket_resource_access`,
+`aws_lightsail_domain`, `aws_lightsail_domain_entry`,
+`aws_lightsail_lb_attachment`, `aws_lightsail_lb_certificate_attachment`,
 `aws_lightsail_static_ip`, `aws_macie2_organization_admin_account`,
 `aws_notifications_notification_hub`,
 `aws_opensearchserverless_access_policy`,
@@ -3564,9 +3592,10 @@ per-type reasoning as it stands.
 `aws_paymentcryptography_key_alias`,
 `aws_pinpointsmsvoicev2_resource_policy`,
 `aws_rds_cluster_role_association`, `aws_redshift_endpoint_access`,
-`aws_redshift_endpoint_authorization`, `aws_route53_cidr_collection`,
-`aws_route53_cidr_location`, `aws_route53_hosted_zone_dnssec`,
-`aws_route53_key_signing_key`, `aws_s3_account_public_access_block`,
+`aws_redshift_endpoint_authorization`, `aws_redshift_logging`,
+`aws_route53_cidr_collection`, `aws_route53_cidr_location`,
+`aws_route53_hosted_zone_dnssec`, `aws_route53_key_signing_key`,
+`aws_s3_account_public_access_block`,
 `aws_s3control_multi_region_access_point`, `aws_scheduler_schedule`,
 `aws_securityhub_configuration_policy_association`,
 `aws_securityhub_member`, `aws_securityhub_organization_admin_account`,
