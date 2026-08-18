@@ -156,22 +156,23 @@ func TestSiblingApplyDoesNotSwallowAnUnrelatedRefusal(t *testing.T) {
 // provenance, and it is here because every other test in this file exercises
 // the each-carried leg only.
 //
-// # A worse answer than the same configuration gets with no results at all
+// # The fallback that keeps this as good as the no-results answer
 //
 // Resolved with NOTHING in hand this fixture's log group comes back
-// PARENT_DERIVED, carrying the formula ${aws_acm_certificate.cert.arn} -
-// which is a better answer than the classification below, because marker
-// discovery can render it once the certificate is found. See
-// internal/live/check/testdata/identity-golden.txt, where that is the line
-// this fixture contributes.
+// PARENT_DERIVED, carrying the formula ${aws_acm_certificate.cert.arn} - a
+// better answer than a NEEDS_DISCOVERY/SIBLING_APPLY classification, because
+// marker discovery can render the formula once the certificate is found.
+// [resolver.managedCovered] used to cost this run that answer the moment it
+// held results for the certificate: the reference stopped being symbolic, so
+// [resolver.resolveExpr] evaluated it directly, got an unknown .arn, and
+// classified it instead of building the formula.
 //
-// The cause is [resolver.managedCovered], not this file: a reference it
-// admits stops being symbolic, so the expansion path that built the formula
-// is never reached, and before this classification existed the same input
-// produced a flat refusal instead. So the change here is an improvement on
-// what a run holding managed results got, and the remaining gap - a covered
-// reference whose value is unknown should fall BACK to the symbolic path
-// rather than forward to a classification - is a separate fix.
+// [resolver.resolveExpr] now retries a direct managed-attribute reference
+// through [resolver.resolveTraversal] - the same route isSymbolic would have
+// taken - whenever the evaluated value comes back unknown, so this fixture
+// renders the identical formula whether or not this run holds a plan for the
+// certificate. See internal/live/check/testdata/identity-golden.txt, where
+// that formula is the line this fixture contributes.
 func TestSiblingApplyFromADirectReference(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-direct-arg"), nil)
 
@@ -187,10 +188,12 @@ func TestSiblingApplyFromADirectReference(t *testing.T) {
 		t.Fatalf("refused: %s", diags.Err())
 	}
 	res := resolutionAt(t, result, "aws_cloudwatch_log_group.app")
-	got := fmt.Sprintf("%s %q cause=%s args=%v", res.Class, res.ImportID, res.Cause, res.CauseArgs)
-	const want = `NEEDS_DISCOVERY "" cause=SIBLING_APPLY args=[aws_acm_certificate.cert name]`
-	if got != want {
+	const want = `aws_cloudwatch_log_group.app PARENT_DERIVED ${aws_acm_certificate.cert.arn}`
+	if got := res.String(); got != want {
 		t.Errorf("rendered\n  %s\nwant\n  %s", got, want)
+	}
+	if res.Cause != "" || len(res.CauseArgs) != 0 {
+		t.Errorf("a formula answer should carry no discovery cause; got cause=%s args=%v", res.Cause, res.CauseArgs)
 	}
 }
 

@@ -1736,13 +1736,51 @@ func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, at
 func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
 	if !r.isSymbolic(expr, scope) {
 		mark := len(r.diags)
+		sibMark := len(r.pendingSiblingApply)
 		val, ok := r.evalStatic(expr, scope, ident)
 		if ok {
 			s, ok := r.stringValueIn(val, expr, scope, ident)
-			if !ok {
-				return nil, false
+			if ok {
+				return []Part{{Literal: s}}, true
 			}
-			return []Part{{Literal: s}}, true
+
+			// stringValueIn evaluated expr cleanly but the result was not
+			// wholly known (issue #284's managedCovered defect). When expr
+			// is ITSELF a direct traversal into a managed resource this
+			// run's results cover - the exact reason isSymbolic did not
+			// already send it through the formula path below, see
+			// [resolver.managedCovered] - retry through
+			// [resolver.resolveTraversal]. A PARENT_DERIVED formula is a
+			// better answer than the classification stringValueIn just
+			// recorded: marker discovery can render the formula once the
+			// sibling is found, where a NEEDS_DISCOVERY/SIBLING_APPLY
+			// classification can only say "wait for it".
+			//
+			// Guarded on managedCovered(trav) rather than tried for any
+			// unknown result: a bare traversal into a DATA resource, or an
+			// unset variable reached through a local, would make
+			// resolveTraversal refuse for its own unrelated reason, and
+			// this must not staple a second diagnostic onto the one
+			// stringValueIn already recorded for those. managedCovered is
+			// also precisely the condition [resolver.isSymbolic] used to
+			// decide this expr was not symbolic in the first place, so the
+			// retry only ever fires on the reference that decision was
+			// actually about.
+			if trav, tdiags := hcl.AbsTraversalForExpr(expr); !tdiags.HasErrors() && r.managedCovered(trav) {
+				preRetry := len(r.diags)
+				if parts, retryOK := r.resolveTraversal(trav, scope, ident); retryOK {
+					r.diags = r.diags[:mark]
+					r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+					return parts, true
+				}
+				// The retry did not apply either. Keep stringValueIn's own
+				// diagnostic, not resolveTraversal's - trav is provably a
+				// managed reference (managedCovered admitted it), so
+				// whatever resolveTraversal failed on is a different, less
+				// specific complaint about the same expression.
+				r.diags = r.diags[:preRetry]
+			}
+			return nil, false
 		}
 
 		// evalStatic just failed to evaluate the WHOLE expression, which,
