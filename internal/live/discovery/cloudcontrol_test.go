@@ -582,12 +582,12 @@ func TestImportsWholeARNString(t *testing.T) {
 		// type's identity SCHEMA names something else for the newer
 		// identity-object import path - which is exactly why signal 1
 		// (IdentityAttrs[0]=="arn") alone would miss them.
-		{"aws_ecs_task_definition", true},                     // family+revision identity schema, bare-ARN legacy import
-		{"aws_ram_resource_share", true},                      // ImportSyntax "ARN"
-		{"aws_datasync_location_efs", true},                   // ImportSyntax "ARN", IdentityAttrs [id, arn]
-		{"aws_detective_graph", true},                         // graph_arn identity schema, ImportSyntax GRAPHARN
-		{"aws_billing_view", true},                            // ImportSyntax "ARN"
-		{"aws_evidently_project", true},                       // ImportSyntax "ARN"
+		{"aws_ecs_task_definition", true},                      // family+revision identity schema, bare-ARN legacy import
+		{"aws_ram_resource_share", true},                       // ImportSyntax "ARN"
+		{"aws_datasync_location_efs", true},                    // ImportSyntax "ARN", IdentityAttrs [id, arn]
+		{"aws_detective_graph", true},                          // graph_arn identity schema, ImportSyntax GRAPHARN
+		{"aws_billing_view", true},                             // ImportSyntax "ARN"
+		{"aws_evidently_project", true},                        // ImportSyntax "ARN"
 		{"aws_networkfirewall_vpc_endpoint_association", true}, // ImportSyntax VPCENDPOINTASSOCIATIONARN
 		// aws_ivs_channel imports by ARN via signal 1
 		// (IdentityAttrs[0] == "arn") rather than ImportSyntax at all.
