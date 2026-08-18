@@ -1,53 +1,94 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# A real third-party estate crossed against a real emulator: issue #274's
-# step 6, for .corpus/iam/examples/iam-policy.
-#
-# This is a terraform-aws-modules EXAMPLE, not one org's private estate. That
-# distinction matters: the terraform-aws-iam examples are the configuration
-# an average user copies when they first reach for the aws provider, and
-# before this script existed nobody had crossed a module example at all -
-# every prior real-estate crossing was somebody's hand-written root module.
-# "does the module-example path work end to end" was an open question.
+# terraform-aws-modules/terraform-aws-iam's iam-policy example
+# (.corpus/iam/examples/iam-policy), crossed through choudoufu against
+# floci via the real, five-stage pipeline (cold deploy, migrate, test plan,
+# test apply, drift and reconverge) issue #274 tracks in
+# live/corpus-crossing-manifest.json. This is a terraform-aws-modules
+# EXAMPLE, not one org's private estate - the configuration an average user
+# copies when they first reach for the aws provider - and it was the first
+# module example ever crossed against a real emulator at all (this script's
+# predecessor). That predecessor ran a 2-3 stage shape (choudoufu apply from
+# a live block present from the start, delete state, replan empty twice);
+# this version adds a genuine plain-terraform cold deploy ahead of it and a
+# real drift-and-reconverge behind it, following live/e2e/corpus-vpc-complete
+# and live/e2e/corpus-lambda-simple's shape.
 #
 # The estate: two aws_iam_policy instances behind the iam-policy module - one
-# from a literal policy document, one from a rendered aws_iam_policy_document
-# data source - plus a third module instantiation with create = false that
-# contributes nothing. It passes live-check with zero refused sites and, until
-# this script existed, had never touched a cloud.
+# from a literal policy document with a server-assigned name_prefix, one
+# statically named from a rendered aws_iam_policy_document data source - plus
+# a third module instantiation with create = false that contributes nothing.
 #
-# THE ONE DELTA. Nothing here needed a provider pin, a backend edit, or an
-# emulator override beyond the standard three flags: the example's own
-# `version = ">= 6.28"` resolved straight to 6.60.0 with list resources
-# intact, and it declares no cloud/backend block to remove. The only real
-# edit is the provider block gaining floci's flags. That absence is itself a
-# finding: not every real estate costs #268 or #269, and this one didn't.
+# STAGE-BY-STAGE SHAPE (issue #274's five-stage pipeline; see
+# live/corpus-crossing-manifest.json):
 #
-# WHAT IS ASSERTED, and why it is not the verdict. An empty plan says the two
-# policies bound. It does not say WHAT they bound BY. Step 5 below reads both
-# rendered identity strings out of the run's own trace and checks each one
-# against a live aws_iam_policy read through the AWS CLI, never through
-# choudoufu. BREAK=1 corrupts one expected string the way a real defect
-# would - not a string nothing could produce, but the CORRECT policy ARN with
-# the wrong module's suffix - and step 5 must be the only step that goes red.
+#   1. COLD DEPLOY   plain `terraform apply` (real HashiCorp terraform, not
+#                     choudoufu), no live block anywhere - the honest proof
+#                     the estate is real and buildable, and genuinely
+#                     unmarked live infra for stage 2 to adopt.
+#   2. MIGRATE        `choudoufu live-import -state=<cold state> -estate=...
+#                     -approve`, then ONE ordinary `choudoufu apply` against
+#                     the now-live-blocked estate with no state file present.
+#                     That second command is not decoration - see "THE
+#                     TOFU-SLOT FINDING" below, it is required for stage 3 to
+#                     be genuinely empty.
+#   3. TEST PLAN      delete the state file (already gone by this point),
+#                     `choudoufu live-plan`, assert the plan proposes no
+#                     resource action *and* re-assert both rendered
+#                     identities against a live aws_iam_policy read through
+#                     the AWS CLI, never through choudoufu.
+#   4. TEST APPLY     apply that empty plan; assert a genuine no-op
+#                     (0 added, 0 changed, 0 destroyed) and that the
+#                     tofu-estate-tagged object count is unchanged.
+#   5. DRIFT AND      mutate one policy's Example tag out of band via the AWS
+#      RECONVERGE     CLI directly against floci, replan, assert the diff
+#                     proposes fixing exactly that one object and nothing
+#                     else, then apply and confirm it reconverged.
 #
-# ONE MORE THING THIS ESTATE FOUND: it declares root `output` blocks, and
-# live-plan holds no state between runs, so there is never a prior output
-# baseline to diff against. Every run therefore shows a permanent "Changes to
-# Outputs" section, and OpenTofu's renderer omits the "Plan: N to add, N to
-# change, N to destroy" line entirely whenever 0 resources change but the
-# outputs section is non-empty - it does not print "Plan: 0 to add, 0 to
-# change, 0 to destroy" either. A plan-summary grep that looks for that
-# exact line, as every earlier corpus-crossing script does, silently fails
-# on this shape of estate. Step 5 below asserts the absence of any resource
-# action header ("will be created" / "will be updated" / "will be
-# destroyed") instead, which is unaffected by whether outputs changed.
+# THE ONE ONBOARDING DELTA (stage 1). Nothing here needed a provider pin, a
+# backend edit, or an emulator override beyond the standard flags on the
+# provider block: the example's own `version = ">= 6.28"` resolves straight
+# to a current provider with list resources intact, and it declares no
+# cloud/backend block to remove.
+#
+# THE TOFU-SLOT FINDING, discovered building this script and not previously
+# documented in any corpus-crossing script that reached this far: live-import
+# -approve deliberately writes only tofu-estate and tofu-address (see
+# internal/live/stamp/doc.go, "tofu-slot comes in from outside" - a slot is
+# minted from a monotonic counter over the live set, a fact live-import's own
+# read-only-against-one-state-file view cannot compute). Both of this
+# estate's aws_iam_policy resources declare `count = var.create ? 1 : 0`, so
+# they are exactly the shape that needs one. Verified for real: the FIRST
+# choudoufu live-plan run immediately after live-import -approve (with the
+# state file already deleted) is NOT empty - it proposes adding
+# `tofu-slot = "0"` to both resources' tags, nothing else. Running one
+# ordinary `choudoufu apply` (live-markers, since the live block is present
+# and no state file exists) applies exactly that ("0 added, 2 changed, 0
+# destroyed") and every replan after is genuinely empty. This is real,
+# deliberate product behavior, not a defect discovered here - the doc comment
+# names the mechanism precisely - but no prior real crossing this deep had
+# both a count-based resource AND a stage 3 that actually ran to notice it.
+# It is folded into stage 2 (MIGRATE) below rather than stage 3, because it
+# is not a no-op and stage 4 (TEST APPLY) is specifically the assertion that
+# the FOLLOWING apply is one.
+#
+# THE OUTPUTS QUIRK, carried over from the predecessor script. This estate
+# declares root `output` blocks, and live-plan holds no state between runs,
+# so there is never a prior output baseline to diff against. Every run
+# therefore shows a permanent "Changes to Outputs" section, and OpenTofu's
+# renderer omits the "Plan: N to add, N to change, N to destroy" line
+# entirely whenever 0 resources change but the outputs section is non-empty -
+# it does not print "Plan: 0 to add, 0 to change, 0 to destroy" either. Every
+# empty-plan assertion below checks for the absence of a resource action
+# header ("will be created" / "will be updated" / "will be destroyed")
+# instead of a summary line, for exactly this reason.
 #
 #   bash live/e2e/corpus-iam-policy/run.sh
 #
-# Needs Docker and the AWS CLI. .corpus is read, never written: the estate is
-# copied out to a temp directory first, same as every other corpus crossing.
+# Needs Docker, the AWS CLI, and the real `terraform` binary on PATH for
+# stage 1. .corpus is read, never written: the estate is copied out to a
+# temp directory first, same as every other corpus crossing.
 #
 # Env overrides:
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
@@ -55,12 +96,16 @@ set -uo pipefail
 #                4566 and every other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt one expected identity string before
-#                step 5, proving the identity assertion is load-bearing.
+#   BREAK        set to 1 to corrupt one expected identity string ahead of
+#                stage 3's assertion (the same shape and resource type, the
+#                wrong module) AND to tamper a second, unrelated policy's tag
+#                ahead of stage 5's drift assertion - proving both are
+#                load-bearing rather than a grep/count that always matches.
 #
-# Exit codes: 0 on a real pass, non-zero on a real failure. Every assertion
-# reads command output, an exit code, or the emulator's own answer through
-# the AWS CLI.
+# Exit codes: 0 on a real pass of all five stages, non-zero on a real
+# failure. Every assertion reads command output, an exit code, or the
+# emulator's own answer through the AWS CLI, never choudoufu's own report of
+# itself.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC_EXAMPLE="$ROOT/.corpus/iam/examples/iam-policy"
@@ -91,6 +136,7 @@ log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
 docker info >/dev/null 2>&1 || fail "docker is not running"
 command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
+command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 [ -d "$SRC_EXAMPLE" ] || fail "$SRC_EXAMPLE is missing - run 'just corpus-fetch' first"
 [ -d "$SRC_MODULE" ] || fail "$SRC_MODULE is missing - run 'just corpus-fetch' first"
 
@@ -115,21 +161,18 @@ rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 [ -f "$EST/main.tf" ] || fail "the estate copy is missing main.tf"
 log "  estate + module copied out of .corpus into $WORK"
 
-# ── 1. the one delta ─────────────────────────────────────────────────────────
+# ── 1. the onboarding delta - emulator flags only, no live block yet ───────
 log "=== 1. the one onboarding delta ==="
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)\}/$1\n  access_key                   = "test"\n  secret_key                   = "test"\n  skip_credentials_validation  = true\n  skip_metadata_api_check      = true\n  s3_use_path_style            = true\n}/' "$EST/main.tf"
 grep -q 's3_use_path_style' "$EST/main.tf" || fail "the emulator delta did not match main.tf - the corpus pin has moved"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
-grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
-log "  DELTA  emulator flags + live block added; no backend, no version pin needed"
+log "  DELTA  emulator flags added to the provider block; no backend, no version pin, no live block yet"
 
-# ── 2. floci ────────────────────────────────────────────────────────────────
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_NAME failed"
 for _ in $(seq 1 45); do
   HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
-  grep -q '"iam"' <<< "$HEALTH" && break
+  grep -q '"iam"' <<< "${HEALTH:-}" && break
   sleep 2
 done
 grep -q '"iam"' <<< "${HEALTH:-}" || fail "floci did not come up healthy (iam) at $ENDPOINT"
@@ -138,92 +181,209 @@ log "  healthy"
 export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
-# ── 3. stand the estate up ──────────────────────────────────────────────────
-log "=== 3. init and apply: 2 policies (a third module instance is create=false) ==="
-( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null ) || fail "init failed"
-APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$APPLY_OUT" | tail -40
-  fail "the apply failed"
-}
-grep -qE 'Apply complete! Resources: 2 added' <<< "$APPLY_OUT" \
-  || { grep -E 'Apply complete' <<< "$APPLY_OUT"; fail "the apply did not create exactly 2 resources"; }
-log "  $(grep -E 'Apply complete' <<< "$APPLY_OUT")"
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
+( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+COLD_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
+[ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "the cold apply failed"; }
+grep -qE 'Apply complete! Resources: 2 added' <<< "$COLD_OUT" \
+  || { grep -E 'Apply complete' <<< "$COLD_OUT"; fail "the cold apply did not create exactly 2 resources"; }
+log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
+[ -f "$EST/terraform.tfstate" ] || fail "plain terraform left no state file to migrate from"
 
-# Read the policies back through the AWS CLI, never through choudoufu.
 POLICY1_ARN="arn:aws:iam::${ACCOUNT}:policy/example_from_data_source"
 POLICY2_ARN="$(awsl iam list-policies --path-prefix / \
   --query "Policies[?starts_with(PolicyName, 'example-') == \`true\`].Arn | [0]" --output text)"
 [ -n "$POLICY2_ARN" ] && [ "$POLICY2_ARN" != "None" ] || fail "could not find the name_prefix policy through the AWS CLI"
 log "  both policies live: $POLICY1_ARN and $POLICY2_ARN"
 
-MARKED="$(awsl resourcegroupstaggingapi get-resources \
+UNMARKED="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
-[ "$MARKED" = "2" ] || fail "expected 2 objects carrying tofu-estate=$ESTATE, got $MARKED"
-log "  2 of 2 objects carry markers; aws_iam_policy is fully taggable"
+[ "$UNMARKED" = "0" ] || fail "plain terraform's own objects already carry tofu-estate=$ESTATE before migration - this crossing proves nothing"
+log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 
-# ── 4. no state file, ever ──────────────────────────────────────────────────
+cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
+
+log ""
+log "STAGE 1 (cold deploy): PASS"
+log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
+# ordinary apply to converge tofu-slot (see the TOFU-SLOT FINDING above)
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
+grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
+
+( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "choudoufu init failed"; }
+
+# The cold state file is not touched by live-import (it reads the WORK copy
+# via -state) but is removed here regardless, ahead of the schedule stage 3
+# would otherwise remove it on - the live-markers apply a few lines down
+# must run with no state file present, same as every other command from here
+# on out (issue #73: no state ops).
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
-[ ! -f "$EST/terraform.tfstate" ] || fail "the state file is still there"
-log "=== 4. state file deleted ==="
 
-# ── 5. THE VALUE, not the verdict ───────────────────────────────────────────
-log "=== 5. live-plan, and the rendered identities read out of the run ==="
-plan_into() {
-  ( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color )
-}
+IMPORT_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -no-color 2>&1)"; IMPORT_RC=$?
+[ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -40; fail "live-import (dry run) failed"; }
+grep -qF "2 of 2 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 2 of 2 resources as eligible - the corpus pin or the fix under test has moved"; }
+grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
+log "  dry run: 2 of 2 eligible; nothing written yet"
+
+APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)"; APPROVE_RC=$?
+[ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
+grep -qF "2 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 2 of 2 resources cleanly"; }
+log "  2 stamped"
+
+WANT_POLICY1_ADDR="module.iam_policy_from_data_source.aws_iam_policy.policy:0"
+WANT_POLICY2_ADDR="module.iam_policy.aws_iam_policy.policy:0"
+# The literal tag VALUE stamped on a count/for_each instance escapes "[0]" to
+# ":0" (live/MARKERS.md's escaping rule, internal/live/markers.EscapeAddress)
+# - that is WANT_POLICY2_ADDR above, read via the AWS CLI. A live-plan diff's
+# own "# addr will be updated in-place" header renders the ordinary,
+# unescaped Terraform resource address instead ("[0]", not ":0") - a second,
+# bracket-form spelling of the same instance, needed only for the stage 5
+# comparison against that header text below.
+WANT_POLICY2_ADDR_BRACKET="module.iam_policy.aws_iam_policy.policy[0]"
+
+GOT_POLICY1_ADDR="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_POLICY1_ADDR" = "$WANT_POLICY1_ADDR" ] || fail "$POLICY1_ARN carries tofu-address=$GOT_POLICY1_ADDR, not $WANT_POLICY1_ADDR"
+GOT_POLICY2_ADDR="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_POLICY2_ADDR" = "$WANT_POLICY2_ADDR" ] || fail "$POLICY2_ARN carries tofu-address=$GOT_POLICY2_ADDR, not $WANT_POLICY2_ADDR"
+log "  markers verified directly against IAM, not through choudoufu's own report:"
+log "    $POLICY1_ARN -> tofu-address=$GOT_POLICY1_ADDR"
+log "    $POLICY2_ARN -> tofu-address=$GOT_POLICY2_ADDR"
+
+# The tofu-slot convergence apply (see this script's header). Both policies
+# declare count = var.create ? 1 : 0, so both need it.
+CONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
+[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the tofu-slot convergence apply failed"; }
+grep -qE 'Resources: 0 added, 2 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
+  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not change exactly 2 resources (expected: both policies gaining tofu-slot)"; }
+log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written on both)"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
+
+log ""
+log "STAGE 2 (migrate): PASS"
+log ""
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
+# identities re-asserted
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 3: test plan (live-plan empty, identities re-checked) ==="
+[ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
+
+plan_into() { ( cd "$EST" && "$TOFU" live-plan -input=false -no-color ); }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited $PLAN_RC"; }
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
-# Not a "Plan:" grep - see the header comment. This estate has root outputs,
-# live-plan carries no state to diff them against, and the summary line is
-# never printed while that is true, empty plan or not.
+# Not a "No changes."/"Plan:" grep - see the header comment on the outputs
+# quirk. This estate has root outputs and live-plan carries no state to diff
+# them against, so a "Plan:" summary line is never printed, empty or not.
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change"; }
 grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
   || { grep -E '^Foreign resources:' <<< "$PLAN_OUT"; fail "the plan reports foreign resources"; }
 log "  no resource change proposed; nothing foreign"
 
-WANT=("$POLICY1_ARN" "$POLICY2_ARN")
+WANT_POLICY1_ADDR2="$WANT_POLICY1_ADDR"
 if [ "${BREAK:-}" = "1" ]; then
-  WANT[0]="arn:aws:iam::${ACCOUNT}:policy/example_from_wrong_module"
-  log "  BREAK=1: expecting ${WANT[0]}, the SAME account and the SAME shape of"
-  log "           ARN as the real one, just the wrong policy name. The plan"
-  log "           above stayed empty. This step must fail."
+  WANT_POLICY1_ADDR2="module.iam_policy_disabled.aws_iam_policy.policy:0"
+  log "  BREAK=1: expecting tofu-address=$WANT_POLICY1_ADDR2 on the data-source"
+  log "           policy - the SAME shape and the SAME resource type, just the"
+  log "           wrong (and in fact never-created) module. This step must fail."
 fi
-for id in "${WANT[@]}"; do
-  grep -qF "from import identity \"$id\"" <<< "$PLAN_OUT" || {
-    grep -oE 'from import identity "[^"]*"' <<< "$PLAN_OUT" | sort -u
-    fail "no instance materialized from import identity \"$id\". The identities the run actually rendered are listed above."
-  }
-done
-GOT_N="$(grep -oE 'from import identity "[^"]*"' <<< "$PLAN_OUT" | sort -u | wc -l | tr -d ' ')"
-[ "$GOT_N" = "2" ] || fail "the run materialized $GOT_N distinct identities, expected 2"
-log "  both rendered identities asserted, and no third"
+GOT_POLICY1_ADDR2="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_POLICY1_ADDR2" = "$WANT_POLICY1_ADDR2" ] || fail "$POLICY1_ARN's tofu-address is $GOT_POLICY1_ADDR2, not $WANT_POLICY1_ADDR2"
+GOT_POLICY2_ADDR2="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_POLICY2_ADDR2" = "$WANT_POLICY2_ADDR" ] || fail "$POLICY2_ARN's tofu-address changed across the empty plan: $WANT_POLICY2_ADDR -> $GOT_POLICY2_ADDR2"
+log "  identity re-check (read via the AWS CLI, after the state file has never existed this run): both unchanged"
 
-# ── 6. and it converges ─────────────────────────────────────────────────────
-log "=== 6. the next run proposes nothing, and applying it adds nothing ==="
-PLAN2_OUT="$(plan_into 2>&1)"; PLAN2_RC=$?
-[ "$PLAN2_RC" -eq 0 ] || { printf '%s\n' "$PLAN2_OUT" | tail -30; fail "the second live-plan exited $PLAN2_RC"; }
-grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN2_OUT" \
-  && { grep -E '^  # .+ will be' <<< "$PLAN2_OUT"; fail "the second plan proposes a resource change, so the run does not converge"; }
+log ""
+log "STAGE 3 (test plan): PASS"
+log ""
 
-APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
-  printf '%s\n' "$APPLY2_OUT" | tail -30; fail "the second apply failed"; }
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
-  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the second apply was not a no-op"; }
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
 AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
-[ "$AFTER_N" = "2" ] || fail "there are now $AFTER_N objects carrying tofu-estate=$ESTATE, not 2"
-[ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the second run"
-log "  converged: nothing proposed, nothing added, still 2 policies, still no state file"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
+log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 
 log ""
-log "=== PASS ==="
+log "STAGE 4 (test apply): PASS"
 log ""
-log "A terraform-aws-modules EXAMPLE - the configuration a new user copies"
-log "first - applied 2 policies against an emulator, lost its state file, and"
-log "replanned empty twice. Both rendered identities were checked against"
-log "IAM's own answer. Run again with BREAK=1: everything above step 5 still"
-log "passes and step 5 goes red."
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
+if [ "${BREAK:-}" = "1" ]; then
+  # A second, unrelated object is mutated too - the assertion below must
+  # catch this as MORE than one object proposed, not silently pass.
+  awsl iam tag-policy --policy-arn "$POLICY2_ARN" --tags Key=Example,Value=tampered-by-BREAK
+  log "  BREAK=1: also tampered $POLICY2_ARN's Example tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
+fi
+
+awsl iam tag-policy --policy-arn "$POLICY1_ARN" --tags Key=Example,Value=tampered-out-of-band
+DRIFTED_VALUE="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated $POLICY1_ARN's Example tag to \"tampered-out-of-band\" directly via the AWS CLI"
+
+DRIFT_PLAN_OUT="$(plan_into 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -60; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$WANT_POLICY2_ADDR_BRACKET" && fail "the plan proposes changing $WANT_POLICY2_ADDR_BRACKET, which was never touched"
+  log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+
+  RECONVERGE_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -40; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
+  [ "$FIXED_VALUE" = "ex-iam-policy" ] || fail "$POLICY1_ARN's Example tag is \"$FIXED_VALUE\" after reconverging, not \"ex-iam-policy\""
+  log "  reconverged: $POLICY1_ARN's Example tag is back to \"ex-iam-policy\""
+
+  log ""
+  log "STAGE 5 (drift and reconverge): PASS"
+  log ""
+
+  log "=== PASS ==="
+  log ""
+  log "A terraform-aws-modules EXAMPLE - the configuration a new user copies"
+  log "first - crossed through all five stages: cold deploy with plain"
+  log "terraform, choudoufu live-import adoption plus the tofu-slot"
+  log "convergence apply it requires, an empty replan with the state file"
+  log "deleted and both rendered identities checked against IAM's own answer,"
+  log "a genuine no-op apply, and drift on one policy reconverging without"
+  log "touching the other."
+fi
