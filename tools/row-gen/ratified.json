@@ -4371,7 +4371,11 @@
     "type": "aws_ecs_task_definition",
     "server_assigned": true,
     "reason": "the ECS service assigns this identity at create time; no argument reconstructs it.",
-    "import_syntax": "TASKDEFINITIONARN"
+    "import_syntax": "TASKDEFINITIONARN",
+    "identity_attrs": [
+      "family",
+      "revision"
+    ]
   },
   "aws_ecs_task_set": {
     "type": "aws_ecs_task_set",
@@ -4578,7 +4582,11 @@
     "type": "aws_eks_pod_identity_association",
     "server_assigned": true,
     "reason": "EKS mints the association_id at create time; the provider's v6.59.0 identity schema requires cluster_name AND association_id and only the first is a configuration argument, so no argument reconstructs the whole identity. Taggable per live/survey-full.json, so the ownership marker is the discriminator and the cluster scope only narrows the candidate set.",
-    "import_syntax": "CLUSTER_NAME,ASSOCIATION_ID"
+    "import_syntax": "CLUSTER_NAME,ASSOCIATION_ID",
+    "identity_attrs": [
+      "association_id",
+      "cluster_name"
+    ]
   },
   "aws_elastic_beanstalk_application": {
     "type": "aws_elastic_beanstalk_application",
@@ -8195,7 +8203,11 @@
     "type": "aws_prometheus_anomaly_detector",
     "server_assigned": true,
     "reason": "AMP mints the anomaly detector's own id (ad-...) at create time; the provider's v6.59.0 identity schema requires id AND workspace_id and only the second is a configuration argument. Taggable per live/survey-full.json, so the ownership marker is the discriminator and the workspace scope only narrows the candidate set.",
-    "import_syntax": "ID"
+    "import_syntax": "ID",
+    "identity_attrs": [
+      "id",
+      "workspace_id"
+    ]
   },
   "aws_prometheus_query_logging_configuration": {
     "type": "aws_prometheus_query_logging_configuration",

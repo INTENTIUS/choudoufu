@@ -35,11 +35,38 @@ import (
 //
 // # The rule, and why it stops where it does
 //
-// A ServerAssigned row whose provider identity schema requires exactly one
-// attribute for import gets that attribute as an identity attribute. The
-// source is [surveyEntry.identityArg] - live/survey-full.json, the
-// provider's own resource identity schema, the same source classify.go
-// already prefers over the carve seed and the snake-cased guess.
+// A ServerAssigned row gets every attribute its provider identity schema
+// requires for import, appended in the schema's own order. The source is
+// [surveyEntry.requiredForImport] - live/survey-full.json, the provider's
+// own resource identity schema, the same source classify.go already prefers
+// over the carve seed and the snake-cased guess. This does not claim that
+// one required attribute alone equals the row's import identity: for
+// aws_ecs_task_definition (required: family, revision) neither does, since
+// ECS keeps many revisions of one family. What the rule does claim is
+// narrower and is all [identity.TypeIdentity.IdentityAttrs]'s two consumers
+// need - internal/live/discovery's importIdentity and
+// internal/live/liveimport's liveIDFrom both try the list in order and stop
+// at the first attribute the list result actually carries, so a type is
+// discoverable the moment ANY one of its schema's required attributes shows
+// up in the identity object the provider's ListResource RPC returns. Before
+// this rule such a row had no IdentityAttrs at all, so both fell back to
+// "id" - an attribute a composite-identity type's identity object does not
+// carry either, which is exactly the failure live/e2e/corpus-ecs-taskdef
+// pins.
+//
+// Measured against the table as committed before this change: three
+// ServerAssigned rows have no Components, no ratified IdentityAttrs, and a
+// survey identity schema requiring more than one attribute -
+// aws_ecs_task_definition ([family, revision]),
+// aws_eks_pod_identity_association ([association_id, cluster_name]) and
+// aws_prometheus_anomaly_detector ([id, workspace_id]). The single-attribute
+// case below already accounted for every other row this rule could reach;
+// widening it from "requires exactly one" to "requires any number" changes
+// nothing for rows already covered (a length-1 schema still contributes
+// exactly the one attribute it always did) and touches no row whose ratified
+// IdentityAttrs already disagrees - checked over all 342 ServerAssigned rows
+// that already carry IdentityAttrs, zero have a multi-attribute required
+// schema missing one of its own attributes from the ratified list.
 //
 // Two things bound it:
 //
@@ -126,15 +153,18 @@ func mergeIdentityAttrs(entry identity.TypeIdentity, survey surveyEntry) identit
 	if !entry.ServerAssigned {
 		return entry
 	}
-	attr, ok := survey.identityArg()
-	if !ok {
-		return entry
+	have := make(map[string]bool, len(entry.IdentityAttrs))
+	for _, attr := range entry.IdentityAttrs {
+		have[attr] = true
 	}
-	for _, have := range entry.IdentityAttrs {
-		if have == attr {
-			return entry
+	out := entry.IdentityAttrs
+	for _, attr := range survey.requiredForImport() {
+		if have[attr] {
+			continue
 		}
+		have[attr] = true
+		out = append(append([]string(nil), out...), attr)
 	}
-	entry.IdentityAttrs = append(append([]string(nil), entry.IdentityAttrs...), attr)
+	entry.IdentityAttrs = out
 	return entry
 }

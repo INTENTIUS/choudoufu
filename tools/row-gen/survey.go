@@ -81,3 +81,18 @@ func (e surveyEntry) identityArg() (string, bool) {
 	}
 	return e.Identity.RequiredForImport[0], true
 }
+
+// requiredForImport returns every attribute the provider's own resource
+// identity schema requires for import, in the schema's own order, or nil
+// when the type has no identity schema. Unlike identityArg it does not stop
+// at one attribute: it is [mergeIdentityAttrs]'s source for a server-assigned
+// row whose identity is composite (aws_ecs_task_definition's family +
+// revision), where no single attribute alone is the row's identity but each
+// is still a legitimate source [internal/live/discovery]'s importIdentity can
+// read a live value from.
+func (e surveyEntry) requiredForImport() []string {
+	if e.Identity == nil {
+		return nil
+	}
+	return e.Identity.RequiredForImport
+}
