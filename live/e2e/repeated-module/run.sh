@@ -247,9 +247,113 @@ grep -qE '^Foreign resources: (none|nothing was swept)' "$WORK/plan1.log" \
   || { grep -E '^Foreign resources:' "$WORK/plan1.log"; fail "the plan reports foreign resources"; }
 log "  no state file, nothing to create, nothing foreign"
 
+# ── 5b. THE VALUE, not the verdict ──────────────────────────────────────────
+# An empty plan says the 35 instances bound. It does not say what they bound
+# BY, and the whole subject of this script is a run that reported success
+# while binding the wrong things. So: every identity the run rendered must
+# name a hosted zone that exists, or a record set that exists IN THE ZONE THE
+# IDENTITY NAMES - checked against Route 53's own answer, never against
+# choudoufu's.
+#
+# This is also the only place the four trailing dots are checked. The plan
+# verdict cannot see them: a record whose identity carries the dot still
+# IMPORTS, because Route 53 accepts either spelling. It binds a real record
+# by a name Route 53 does not use, and only the string says so.
+log "=== 5b. the 35 rendered identities, against Route 53's own answer ==="
+live_keys() {
+  awsl route53 list-hosted-zones --query 'HostedZones[].Id' --output text \
+    | tr '\t' '\n' | sed 's|/hostedzone/||' > "$WORK/zones"
+  : > "$WORK/live"
+  while read -r z; do
+    [ -n "$z" ] || continue
+    awsl route53 list-resource-record-sets --hosted-zone-id "$z" \
+      --query 'ResourceRecordSets[].[Name,Type]' --output text \
+      | while IFS=$'\t' read -r n t; do
+          echo "${z}_${n%.}_${t}"
+        done >> "$WORK/live"
+  done < "$WORK/zones"
+  sort -u -o "$WORK/live" "$WORK/live"
+}
+live_keys
+
+# assert_identities <trace> <expected count> -> 0 clean, 1 something is wrong.
+# Prints every identity that names nothing live.
+assert_identities() {
+  local log="$1" want="$2" rc=0 n
+  grep -oE 'from import identity "[^"]*"' "$log" | sed 's/.*identity "//; s/"$//' | sort -u > "$WORK/ids"
+  n="$(grep -c . "$WORK/ids")"
+  [ "$n" = "$want" ] || { echo "  identity count is $n, expected $want"; rc=1; }
+  while read -r id; do
+    [ -n "$id" ] || continue
+    case "$id" in
+      Z*_*) grep -qxF "$id" "$WORK/live" || { echo "  \"$id\" names no live record set"; rc=1; };;
+      Z*)   grep -qxF "$id" "$WORK/zones" || { echo "  \"$id\" names no live hosted zone"; rc=1; };;
+      *)    echo "  \"$id\" is not a Route 53 identity shape"; rc=1;;
+    esac
+  done < "$WORK/ids"
+  return "$rc"
+}
+assert_identities "$WORK/plan1.log" "$INSTANCES" \
+  || fail "an identity the run rendered names no live object. The plan was EMPTY when this fired, which is the whole reason this step reads the strings."
+log "  all $INSTANCES rendered identities name a live hosted zone or record set"
+
+# And the seven zone identities are seven DISTINCT zone IDs. #280's end state
+# is seven addresses collapsed to one; the mirror of it is seven identities
+# collapsed to one zone, which the count above would not catch on its own
+# because the records would still be 28 distinct strings.
+ZIDS="$(grep -E '^Z' "$WORK/ids" | grep -vc '_')"
+[ "$ZIDS" = "$ZONES" ] \
+  || { grep -E '^Z' "$WORK/ids" | grep -v '_'
+       fail "the run rendered $ZIDS distinct hosted-zone identities, expected $ZONES"; }
+log "  $ZONES of them are distinct hosted-zone IDs, one per module call"
+
+# ── 5c. the control ─────────────────────────────────────────────────────────
+# Spell the CNAME names RELATIVE to their zone instead of absolutely. Route
+# 53 treats "2016" in zone rustconf.com as the same object as
+# "2016.rustconf.com.", so every one of the 13 CNAMEs still materialises,
+# still binds the record it already owns, and the plan is still empty. The
+# only thing that changes is the string the run rendered.
+#
+# That is the point of the control. A break the COUNT catches proves nothing
+# about the strings: it just means the instance did not resolve. This one
+# resolves. It has to be caught by the identity, or step 5b is decoration.
+#
+# (An earlier version of this control put a second trailing dot on the name.
+# It was caught by the count - 22 identities instead of 35 - because the
+# record then resolves to nothing at all. That is a weaker control and it is
+# recorded here so it is not tried again.)
+log "=== 5c. control: one identity deliberately broken ==="
+cp "$EST/impl/main.tf" "$WORK/impl.main.tf.orig"
+perl -0pi -e 's/(resource "aws_route53_record" "cname" \{.*?name    = each\.key == "\@" \? "\$\{var\.domain\}\." : )"\$\{each\.key\}\.\$\{var\.domain\}\."/$1each.key # CONTROL/s' "$EST/impl/main.tf"
+grep -q '# CONTROL' "$EST/impl/main.tf" \
+  || { grep -n 'name    =' "$EST/impl/main.tf"; fail "the control edit did not match"; }
+
+rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
+( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color ) > "$WORK/plan-break.log" 2>&1
+if assert_identities "$WORK/plan-break.log" "$INSTANCES" > "$WORK/break.out" 2>&1; then
+  fail "the identity assertion PASSED on a run whose identities are wrong. Step 5b is not measuring anything."
+fi
+grep -q 'names no live record set' "$WORK/break.out" \
+  || { cat "$WORK/break.out"; fail "the assertion fired, but not on a record-set string"; }
+log "  the assertion fires, and names the strings:"
+grep 'names no live record set' "$WORK/break.out" | head -3 | sed 's/^/  /'
+
+cp "$WORK/impl.main.tf.orig" "$EST/impl/main.tf"
+grep -q '# CONTROL' "$EST/impl/main.tf" && fail "the control was not reverted"
+rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
+
 # ── 6. and it converges ─────────────────────────────────────────────────────
 # One empty plan is a proposal. This is what applying it does.
 log "=== 6. the next run proposes nothing either, and applying it adds nothing ==="
+( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color ) > "$WORK/plan2.log" 2>&1 \
+  || { grep -E '^Error|^│' "$WORK/plan2.log" | head -20; fail "the second live-plan exited non-zero"; }
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan2.log" \
+  || { grep -E '^  # ' "$WORK/plan2.log" | head -20; fail "the second plan is not empty, so the run does not converge"; }
+assert_identities "$WORK/plan2.log" "$INSTANCES" \
+  || fail "the second run's identities do not all name live objects"
+log "  the second cold plan is empty too, with all $INSTANCES identities still binding"
+
+rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 APPLY2="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)" || {
   printf '%s\n' "$APPLY2" | tail -20; fail "the second apply failed"; }
 grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2" \

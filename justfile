@@ -147,8 +147,15 @@ demo-corpus-iam-policy:
 # plan, because the plan showed the right values while the cloud got the
 # wrong ones. Point TOFU_BIN at a binary built before
 # internal/live/stamp/sharedbody.go and step 4 fails with all seven
-# collapsed. Needs Docker, the AWS CLI and a populated .corpus; runs on its
-# own port (4606) so it can run beside `just demo`.
+# collapsed.
+#
+# It also crosses: 35 instances applied, the state file deleted, replanned
+# empty twice, and all 35 rendered import identities checked as strings
+# against Route 53's own answer. The estate is applied EXACTLY as the Rust
+# project wrote it - the four trailing dots in impl/main.tf are left on,
+# because #281 is fixed and the workaround that used to strip them is gone.
+# Needs Docker, the AWS CLI and a populated .corpus; runs on its own port
+# (4606) so it can run beside `just demo`.
 demo-repeated-module:
     bash live/e2e/repeated-module/run.sh
 
