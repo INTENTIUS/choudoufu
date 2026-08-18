@@ -72,11 +72,54 @@
 //     of 610 hold (#279). The rest of the grain stays hand data, extended
 //     the same way tools/estate-gen/overrides.go's typeOverrides table is.
 //
-// A digest with no entry at all, or a service/type with no row under a
-// digest that does have entries, means "not yet investigated" - never
-// "confirmed working". [FlociServiceCapability] and [FlociTypeCapability]
-// both report ok=false for that case, and callers must not read that as a
-// clean bill of health.
+// The three mechanisms are not interchangeable evidence for "does floci
+// support this type", and reading one as a substitute for another is
+// exactly the mistake issue #278 named:
+//
+//   - mechanism="" (the ordinary create/read path) is the only grain that
+//     answers what a real `tofu apply` needs: a create call that succeeds
+//     and a read/import call that returns usable properties. It is also by
+//     far the narrowest of the three - see live/floci-capabilities.json's
+//     own row counts per mechanism for the current pin, rather than a
+//     number here that would go stale - because there is no derivable
+//     minimal create recipe per type and every row is hand-curated one type
+//     at a time (issue #278's second and third options, neither attempted
+//     yet).
+//   - "cloudcontrol-list" is the broadest grain and the weakest: its probe
+//     (tools/floci-capability-gen -mode=cloudcontrol) never creates
+//     anything and never reads a populated object. "implemented" means only
+//     that a bare ListResources call against an arbitrary (possibly empty)
+//     collection did not return UnsupportedOperation or an unparseable
+//     error - nothing about whether Create would succeed, whether the
+//     properties a real read would need come back populated, or whether the
+//     provider's own API calls (which are not Cloud Control's) work at all.
+//     Two documented cases where this grain and the ordinary path disagree:
+//     aws_athena_named_query and aws_cloudwatch_query_definition both record
+//     "implemented" here on ListResources evidence, while the API the
+//     provider itself calls for each returns UnsupportedOperation; and
+//     CloudFront's list-public-keys answers with every item's Name unset,
+//     so a "successful" list is not a usable one. Treat a "cloudcontrol-list"
+//     row as evidence for internal/live/discovery's Cloud Control fallback
+//     working, never as evidence that a plain `resource` block for that type
+//     will apply.
+//   - "tagging-sweep" sits in between: its probe creates one real, tagged
+//     resource through the AWS CLI directly (never through Terraform or
+//     Cloud Control) and confirms it independently through that service's
+//     own native read, so "implemented" here is real evidence the type's
+//     native create/read path exists in floci - but it only ever proves
+//     that for the small, hand-curated set of types tagging.go's
+//     taggingRecipes covers, and it says nothing about whether the
+//     resourcegroupstaggingapi sweep itself (the thing this mechanism
+//     actually gates) would find a *different* type's resources.
+//
+// A digest with no entry at all, a service/type with no row under a digest
+// that does have entries, or a row recorded under a *different* mechanism
+// than the one a caller is about to exercise, all mean "not yet
+// investigated" for the question actually being asked - never "confirmed
+// working". [FlociServiceCapability] and [FlociTypeCapability] report
+// ok=false only for the first two; picking the right mechanism argument for
+// the third is the caller's job, and [FlociTypeCapability]'s own doc comment
+// says which mechanism answers which question.
 package residue
 
 import (
@@ -261,11 +304,37 @@ func FlociServiceCapability(digest, service string) (FlociCapability, bool) {
 
 // FlociTypeCapability is [FlociServiceCapability]'s finer-grained twin: a
 // Terraform provider-local resource type (e.g. "aws_redshift_cluster"),
-// optionally scoped to a discovery mechanism other than the ordinary
-// create/read path via mechanism ("tagging-sweep", "cloudcontrol-list" -
-// internal/live/flocitest's *CapabilityGate helpers use the same
-// vocabulary). mechanism "" means the ordinary path. Same ok=false
-// "not yet investigated" caveat as [FlociServiceCapability].
+// scoped to exactly one discovery mechanism via mechanism. Same ok=false
+// "not yet investigated" caveat as [FlociServiceCapability] - and here it
+// also covers a mechanism mismatch: a row recorded under
+// "cloudcontrol-list" is invisible to a call with mechanism="", and vice
+// versa. That is deliberate, not a gap to work around by trying every
+// mechanism until one returns ok=true - see this file's package doc for why
+// (issue #278). The three values mean:
+//
+//   - "" - the ordinary create/read path, the one a plain `resource` block
+//     and a real `tofu apply` actually take. This is the only mechanism
+//     whose "implemented" answers "does floci support this type" in the
+//     sense most callers mean by that question. Pass this when deciding
+//     whether to attempt or skip driving floci through a type's normal
+//     lifecycle.
+//   - "cloudcontrol-list" - internal/live/discovery's Cloud Control
+//     enumeration fallback (SourceCloudControl). Its "implemented" proves
+//     only that Cloud Control's ListResources call did not error for that
+//     type; it is not evidence the type's own create/read path works, and
+//     two types are on record disagreeing (see the package doc). Pass this
+//     only when the code under test is itself the Cloud Control discovery
+//     path, e.g. internal/live/flocitest.CloudControlListCapabilityGate.
+//   - "tagging-sweep" - internal/live/discovery's tagging-sweep enumeration
+//     path (SourceTagging). Pass this only when the code under test is
+//     itself that path, e.g.
+//     internal/live/flocitest.TaggingSweepCapabilityGate.
+//
+// A caller outside internal/live/flocitest's three named *CapabilityGate
+// wrappers should have a specific reason to call this directly with a
+// mechanism other than "" - and that reason should be "the code under test
+// takes that mechanism's own path", never "that's the mechanism with a row
+// for this type".
 func FlociTypeCapability(digest, tfType, mechanism string) (FlociCapability, bool) {
 	s := loadFlociCapabilities()
 	byType, ok := s.types[digest]
