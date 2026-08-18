@@ -1,0 +1,27 @@
+{
+  "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
+  "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
+  "totals": {
+    "estates": 1,
+    "cold_deploy": { "pass": 1, "fail": 0, "not_run": 0 },
+    "migrate": { "pass": 1, "fail": 0, "not_run": 0 },
+    "test_plan": { "pass": 1, "fail": 0, "not_run": 0 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 0 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 1 }
+  },
+  "estates": [
+    {
+      "dir": "live/e2e/reference-ec2-vpc",
+      "source": "hand-written reference project: the plainest getting-started shape (VPC/subnet/SG/IGW/EC2)",
+      "lane": "reference",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "pass",
+        "test_apply": "pass",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Verified end-to-end 2026-08-17/18. Predates the drift-and-reconverge stage being added to the pipeline shape; needs a follow-up pass to add it, same as every other pre-existing corpus-* script."
+    }
+  ]
+}
