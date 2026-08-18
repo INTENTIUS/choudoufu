@@ -194,7 +194,7 @@ func TestHandoffCarriesNoConflictMarkers(t *testing.T) {
 var conflictScannedFiles = []string{
 	"HANDOFF.md",
 	".claude/agents/live-markers.md",
-	".claude/skills/measuring-the-wall/SKILL.md",
+	".claude/skills/measuring-choudoufu/SKILL.md",
 	"live/HARNESS.md",
 	"live/LIMITATIONS.md",
 	"live/MARKERS.md",

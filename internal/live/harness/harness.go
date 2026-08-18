@@ -140,7 +140,7 @@ type Entry struct {
 	AgainstWhy string
 
 	// Instrument is how the number is obtained, in the terms
-	// .claude/skills/measuring-the-wall asks for: which reader, run
+	// .claude/skills/measuring-choudoufu asks for: which reader, run
 	// where, with what available.
 	Instrument string
 

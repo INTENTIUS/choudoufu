@@ -239,7 +239,7 @@ Every committed measurement artifact whose numbers get quoted is tracked and rea
 
 Evidence: git ls-tree over HEAD. None of these artifacts carries a commit field of its own, so the tree is the only date available - which is itself worth knowing, and is why the quoting rule is to name the commit rather than the file.
 
-Tracker: no issue; this is the measuring-the-wall skill's first instruction made executable.
+Tracker: no issue; this is the measuring-choudoufu skill's first instruction made executable.
 
 <a id="onboarding-non-blocking-ids"></a>
 ### `onboarding-non-blocking-ids`

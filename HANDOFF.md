@@ -3,15 +3,12 @@
 This file is the standing playbook. It says what the work is for, what makes
 a change acceptable, and how to take a task from the tracker to a merge.
 
-It deliberately carries **no ladder table, no site counts and no rankings**.
-Three earlier versions did. Each was stale within the hour, and one carried
-two rows that were wrong at the moment they were written. Every number in
-this project has been wrong at least once while being quoted confidently, so
-the numbers live in artifacts that regenerate and in the tracker, and this
-file tells you how to compute them.
+It carries **no ladder table, no site counts and no rankings**. Several
+earlier versions did, every one of them went stale within the hour, and one
+shipped two rows that were wrong when written. The numbers live in artifacts
+that regenerate and in the tracker; this file says how to compute them.
 
-Read `.claude/agents/live-markers.md` next for the operational detail, and
-`.claude/skills/measuring-the-wall/SKILL.md` before producing any figure.
+Read `.claude/agents/live-markers.md` next for the operational detail.
 
 ---
 
@@ -23,61 +20,78 @@ say what an estate contains and your existing IAM decides who may read or
 change it. An estate is inherited by being granted access to it: handover is
 granting a role, splitting an estate in two is rewriting tags.
 
-Three concrete pieces do the three jobs a state file does. Which real
-resource an address refers to is a **marker**, a tag on the resource. Values
-AWS has nowhere to put go in a `record_store`. Effects that leave nothing
-behind to read back get a **receipt** that tracks staleness.
+Three carriers do the three jobs a state file does. Which real resource an
+address refers to is a **marker**, two tags on the resource. Values AWS has
+nowhere to put go in a `record_store`. Effects that leave nothing behind to
+read back get a **receipt** that tracks staleness.
 
 Everything outside live markers is stock OpenTofu, from fork point
 `03743ce6e8`.
 
-**The thing to hold on to: the product's output is a string in a cloud tag.**
-Not a verdict, not a count. A marker that is wrong is worse than a marker
-that was refused, because a wrong one gets written to a real resource and
-adopts or displaces something. Keep that straight and most of the rest of
-this file follows from it.
+**The product's output is a string in a cloud tag.** Not a verdict, not a
+count. A marker that is wrong is worse than a marker that was refused,
+because a wrong one gets written to a real resource and adopts or displaces
+something. Most of this file follows from that.
+
+## The invariant
+
+Read this before anything else here, because every strategy this repository
+has abandoned was abandoned for forgetting it.
+
+**A migrated estate is tagged.** `internal/live/stamp` writes `tofu-estate`
+and `tofu-address` onto every taggable managed resource, and it reads
+taggability off the provider schema rather than off a list of type names. What
+carries no tag is the association, attachment and membership family, and those
+are admitted precisely because their identity is a composite of parents that
+are tagged.
+
+So a migrated estate is **tagged, plus derived-from-tagged. There is no third
+bucket.**
+
+Two things follow, and both have cost this project months.
+
+**Untaggability is not an identity problem.** It bounds what an
+`aws:ResourceTag` condition can govern, which `live/MARKERS.md`'s "What this
+grant cannot reach" states with its own generated figure. It says nothing
+about whether an estate can be planned. A wall framed as "untaggable"
+measures the marker and reports it as identity.
+
+**A test population that violates the invariant is testing adoption.** An
+estate whose parents carry no markers is a half-adopted stranger's estate. It
+is a legitimate thing to measure and it is not the product.
 
 ## What the campaign is
 
-**The primary goal is a fully migrated estate**: someone writes ordinary
-Terraform, adds a `live` block, applies, and choudoufu manages it from then on
-with no state file anywhere. That is the product. Everything else is secondary
-to it, including everything the rest of this section describes.
+**The goal is a fully migrated estate**: someone writes ordinary Terraform,
+adds a `live` block, applies, and choudoufu manages it from then on with no
+state file anywhere, with markers on every taggable resource and derivables
+hanging off tagged parents.
 
-Read that twice, because this document has spent most of its life pointing at
-something else, and every session that followed it drifted the same way. See
-"Why work drifts to the edges" below.
+The nearer goal, and the one every open task now serves, is that
+`tools/estate-gen` produces **properly marked estates of varying complexity,
+all of which work** - plan exact, apply succeeds, second plan empty, markers
+on the right objects.
 
-### The secondary campaign, and why it dominates the tooling
+### Adoption is a different question, and the corpus only measures that one
 
 `choudoufu live-check` reads a configuration directory with no cloud
-credentials and says whether an estate could be **adopted** — taken over
-as it stands, with no markers on anything yet. Type coverage is rarely what
-stops one. A `count.index` in a resource name, a `for_each` keyed by CIDRs, an
-identity argument read from a data source, a module output used in a static
-context — each of those stops one first.
+credentials and says whether an estate could be **adopted**: taken over as it
+stands, with no markers on anything. That is the hardest thing this fork ever
+does, and every offline instrument here measures it, because every corpus
+entry is somebody else's published configuration with a backend block and no
+`live` block.
 
-That set of refusals is the **language wall**. Burning it down matters, and it
-is what the corpus measures, because every corpus entry is somebody else's
-published configuration with a backend block and no `live` block.
+Adopting cold means deriving an identity for an object nobody has marked. A
+migrated estate has the marker already, so a whole family of these refusals is
+about a problem the product does not have.
 
-But adoption is the hardest thing choudoufu ever does, not the thing it is
-for. Adopting cold means deriving an identity for an object nobody has marked.
-A migrated estate has the marker already — choudoufu wrote it at create time —
-so a whole family of these refusals is about a problem the primary path does
-not have.
+**Do not read an offline corpus figure as a statement about the product
+working.**
 
-**Do not read a language-wall figure as a statement about the product
-working.** It is a statement about how much of a stranger's configuration
-could be taken over without editing it.
-
-The corpus is a set of third-party configurations pinned in
-`live/corpus-manifest.json` and materialized by `tools/corpus-fetch`. Only a
-subset are rate-capable published deployments; the rest are fixtures.
-Ranking against the wrong denominator has happened repeatedly, so establish
-which population a number is over before you use it, and count it rather than
-quoting a count from a document. The manifest holds globs, not entries, so
-even the corpus size is a measurement.
+The corpus is pinned in `live/corpus-manifest.json` and materialized by
+`tools/corpus-fetch`. Only a subset are rate-capable published deployments;
+the rest are fixtures and module examples. Establish which population a number
+is over before you use it, and count it rather than quoting a count.
 
 ---
 
@@ -94,19 +108,22 @@ are produced by `tools/row-gen`, `tools/survey-gen`, `tools/importdocs-gen`,
 documentation and CloudFormation metadata.
 
 **A fix that names a concrete `aws_*` type in generator control flow is the
-wrong fix.** It buys one cohort and leaves the next one to be hand-wired
-again by somebody who no longer knows why the first one was.
+wrong fix.** It buys one cohort and leaves the next to be hand-wired by
+somebody who no longer knows why the first one was.
 
-Hand-wiring is cheating even when it works. The right move is to find the
-property the type actually has, derive the rule from it, and then report how
-many *other* types the rule reaches. If the answer equals the number you set
-out to fix, you have written a hand-list with extra steps, and you should say
-so rather than land it.
+The right move is to find the property the type actually has, derive the rule
+from it, and then report how many *other* types the rule reaches. If that
+number equals the number you set out to fix, you have written a hand-list with
+extra steps, and you should say so rather than land it.
 
-A worked example of the shape: sibling references between resources were
-hand-wired per type pair until they were re-derived as generic
-`<base>_ids`/`<base>_arns` arguments, which deleted the hand-wiring and
-covered pairs nobody had enumerated.
+The worked example: sibling references between resources were hand-wired per
+type pair until they were re-derived as generic `<base>_ids`/`<base>_arns`
+arguments, which deleted the hand-wiring and covered pairs nobody had
+enumerated.
+
+Where a ruling genuinely cannot be derived it goes into a named ledger with
+its evidence and a ratchet, never into a generated file.
+`contributing/LIVE-TABLES.md` says which ledger and why.
 
 ### Parity is the bar
 
@@ -115,278 +132,130 @@ that we refuse, that is a defect, and the fix is to accept it rather than to
 document the refusal.
 
 The corollary catches people out: **refusing is not automatically the safe
-answer.** A refusal that stock does not make is its own defect. Before
-landing a new refusal, run the same configuration through stock and say what
-it did.
-
-This rule has already killed work in flight. Invented values in a corpus
-generator were removed under it, on the ground that stock produces nothing
-there either.
+answer.** Before landing a new refusal, run the same configuration through
+stock and say what it did.
 
 ### A wrong marker outranks a missing one
 
-Ordering for triage. A refusal is visible and annoying. A fabricated or
-misdirected marker is silent, gets written to a real resource, and can adopt
-another instance's object or leak one.
-
-So a defect that produces a wrong rendered identity outranks a whole class of
-refusals by count, every time.
+A refusal is visible and annoying. A fabricated or misdirected marker is
+silent, gets written to a real resource, and can adopt another instance's
+object or leak one.
 
 **And a wrong identity is invisible to every verdict-level check.** This was
-measured, not reasoned: `live/e2e/per-element` was run against floci with the
-canonicalising sort in `internal/live/identity/perelement.go` deliberately
-removed. The plan stayed empty, the second apply added nothing, and the
-foreign sweep came back clean — because the provider splits that import ID on
-`/` and puts the tail in a set, and a set has no order, so nothing on the wire
-objected. Only the assertion on the rendered string caught it.
+measured: `live/e2e/per-element` was run against floci with the canonicalising
+sort in `internal/live/identity/perelement.go` deliberately removed. The plan
+stayed empty, the second apply added nothing, and the foreign sweep came back
+clean, because the provider splits that import ID on `/` and puts the tail in
+a set, and a set has no order. Only the assertion on the rendered string
+caught it.
 
-Convergence is therefore not evidence that an identity is right. An e2e step
-that stops at "plan is empty" has proved the run terminates, not that it
-addressed the correct object. Assert the rendered identity itself.
+Convergence is not evidence that an identity is right. Assert the rendered
+identity itself.
 
 ### No claim without a measurement
 
 A closed issue needs a closing comment naming the number that changed and the
 commit it was computed at. Twelve issues were once closed with a figure and
-six of those figures were right; the rest argued from a comparison rather
-than a run.
+six of those figures were right; the rest argued from a comparison rather than
+a run.
 
 ---
 
-## Why work drifts to the edges
+## Why the offline corpus keeps pulling work the wrong way
 
-Read this before `just estate-plan`, because that command has pulled every
-session so far toward work almost nobody would care about, and it does it
-structurally rather than by anyone being careless.
-
-`estate-plan` ranks **blocked, unmigrated, third-party estates by fewest
-remaining blockers.** Four things follow, and all four point away from the
-primary goal:
+`tools/estate-plan` ranks blocked, unmigrated, third-party estates by fewest
+remaining blockers. It is a legitimate instrument for the adoption campaign
+and it is not an assignment for the product. Four reasons, all structural:
 
 1. It can only measure the PUBLISHED form. No corpus entry declares a `live`
-   block or a `record_store`, so nothing it prints says anything about a
-   migrated estate.
+   block or a `record_store`, so nothing it prints describes a migrated
+   estate.
 2. Fewest-blockers-first is the hard tail by construction. Everything ordinary
    cleared long ago and left the list, so the top line is reliably an exotic
-   estate with one exotic thing left. On 2026-08-17 the three estates at the
-   head cost a whole new mechanism each.
-3. terraform-aws-modules examples are excluded from the rate - correctly, since
-   onboarding an example onboards nobody's infrastructure - which also keeps
-   the code people actually write from ever reaching the top line. 74 of them
-   are in the corpus and 71 are blocked.
-4. Nothing measures whether a migrated estate APPLIES. The end-to-end
-   crossings under `live/e2e/` are the only evidence of that, and they are
-   written one at a time by hand.
+   estate with one exotic thing left.
+3. terraform-aws-modules examples are excluded from the rate, correctly, which
+   also keeps the code people actually write from reaching the top line.
+4. Nothing there measures whether a migrated estate APPLIES.
 
-So: the top line of `estate-plan` is a legitimate assignment for the ADOPTION
-campaign, and it is not the assignment for the product. Decide which you are
-doing before you run it, and say which in your report.
-
-**(1) is closed. `just onboarding-gap` measures the onboarded form** -
-`refusal-probe -schemas -onboarded` analyzes each entry twice, once as
-published and once after `internal/live/onboard`'s computed edit (a live
-sidecar declaring `record_store "local"`, backend or cloud block removed),
-in memory so nothing is written into `.corpus`. It reports both forms per
-population and which refusal classes the edit empties.
-
-What it found is worth carrying: at `56a568ec5f`, onboarding removes a whole
-refusal class from **93** estates and frees **3** of them - 2 of the 71
-blocked module examples and 1 of the 117 blocked published deployments.
-`logical-resource` falls 512 sites to 102 and `markerless-type` 364 to 28;
-every other class is unchanged to the site, on every entry. That is
-point 2's arithmetic again from the other side: an estate onboards when its
-LAST class clears, so emptying one class across ninety estates that each
-carry two others moves ninety estates nowhere.
-
-**(4) is still open**, and it is the gap that remains. `just onboarding-gap`
-is `check.Analyze` over edited text: it says nothing about whether the estate
-then applies, whether the markers land on the right objects, or whether a
-second plan is empty. "Cleared by onboarding" is step 5 of the loop below,
-not step 6.
-
-## Where the work is: one estate at a time
-
-**For the adoption campaign, run this and take the first line.**
-
-```
-just estate-plan -schemas
-```
-
-It sweeps the corpus and prints the blocked rate-capable deployments, fewest
-blockers first, each with the action class every blocker implies. Re-plan from
-a sweep you already have with `just estate-plan-from <file>`.
-
-**Pass `-schemas`, and check that it was passed.** Without it `LocatedType`
-fails closed and `markerless-type` reads as a blocker that a `record_store`
-already answers - which is a four-estate difference on its own, and three
-agents in one day drew wrong conclusions from a schema-less sweep.
+`just onboarding-gap` narrows (1) and does not close it. It applies
+`internal/live/onboard`'s computed edit - a live sidecar declaring
+`record_store "local"`, backend or cloud block removed - and re-analyzes the
+text. The result still describes an estate where **no resource carries a
+marker**. Onboarded form is not migrated form.
 
 **Never assign by refusal class.** That was tried for a full day: 1570 sites
-cleared, the ladder unmoved at 26. It could not have gone otherwise. The median
-blocked estate carries about two blocking classes, so clearing one class across
-forty estates leaves forty estates blocked. **An estate onboards when its LAST
-blocker clears**, which makes the estate the only unit that measures progress
-and therefore the only unit worth assigning.
+cleared, the ladder unmoved. The median blocked estate carries about two
+blocking classes, so clearing one class across forty estates leaves forty
+estates blocked. The refusal-class issues in the tracker are background on a
+blocker, never an assignment; the `wall-class` label is retired.
 
-The shape of the work, as of the last sweep: **44 of 90 blocked deployments
-are one blocker from clean**, and several of those are one blocker at one site.
-Recompute rather than quoting that.
+---
 
-**That list is ranked by fewest remaining blockers, which is "closest to done"
-and NOT "least complex".** The two get confused, including by people who have
-been working the list for a day. Everything ordinary cleared long ago and left
-it, so what remains is the hard tail by construction: an estate showing one
-blocker can be large and exotic, and simply have one thing left. On 2026-08-17
-the last three estates at the head of that list cost a whole new mechanism
-each - a record-carried identity, a name-binding discovery leg, and a managed
-read that is still unbuilt.
+## Where the work is
 
-**And a blocked estate is not the only work.** 28 real third-party estates pass
-`live-check` with zero refused sites, and as of 2026-08-17 exactly one of them
-had ever been run against a cloud. "live-check says clean" and "applies, loses
-its state file, and replans empty" are different claims, and only the second one
-is the product. The one crossing that had been done needed four deltas no
-offline instrument predicted, two of which became defects (#268, #269).
-Compute the passing set the same way you compute the blocked one, and treat it
-as a queue - see #274.
+The unit of progress is **an estate that works**, and the cheapest supply of
+those is the generator.
 
-Note what is *not* counted. `Resolves at plan time via a data-source read` is
-not a refusal — `dataread`'s own declaration says so, and `ClassifyOnboarding`
-lands such an estate on the data-read-eligible rung. It is printed against the
-estate because the read still has to succeed against a real cloud at step 6,
-but it does not order the queue. Counting it read 118 blocked and 56 one-away,
-and put a class no fix removes at the top of the board.
+`tools/estate-gen` already writes marker tag values into every taggable
+resource of its 32 cohorts. It does not yet emit a `live` block, a sidecar or
+a `record_store`, so not one cohort is a live configuration and the fork's own
+path never runs over them as estates. That is issue #291 and it is the head of
+the queue.
 
 ### The loop
 
-1. `just estate-plan`.
-2. Take the top estate. Selection is **by fewest blockers and nothing else** —
-   not by which estate the emulator happens to support. If it is marked with
-   unresolved modules its blockers are a floor, so run `just corpus-fetch`
-   first or take the next one.
-3. For each blocker, the matrix below says what kind of work it is.
-4. Drive **every** blocker on that estate to zero. A partial estate is worth
-   nothing.
-5. **Offline gate**: `go run ./tools/refusal-probe -entry <path> -v` reads
+1. Take the next cohort or estate from #291's list, in increasing complexity.
+2. Make it a real estate: sidecar, `record_store`, markers on every taggable
+   resource, derivables hanging off tagged parents.
+3. **Offline gate**: `go run ./tools/refusal-probe -entry <path> -v` reads
    `blocked=false`.
-6. **The real gate: make it run.** Stand the estate up against floci and
-   assert the product's own claims — `live-plan` is exact, `apply` succeeds,
-   a second plan is empty, and the markers land on the right objects.
+4. **The real gate: make it run.** Stand it up against floci and assert the
+   product's own claims - `live-plan` is exact, `apply` succeeds, a second
+   plan is empty, and the markers land on the right objects.
    `live/e2e/tagging-sweep/run.sh` and `live/e2e/create-over/run.sh` are the
    working shape; each is wired to a `just` recipe and each fails for a stated
    reason rather than by exit code alone.
-7. Regenerate, commit, go to 1.
+5. When a refusal fires on a resource that carries a marker, that is #289, not
+   an analysis gap. Read it before writing a derivation.
+6. Regenerate, commit, next cohort.
 
-**Step 5 is not step 6, and the gap between them is where the worst defects
+**Step 3 is not step 4, and the gap between them is where the worst defects
 live.** `blocked=false` means four fully-checked layers plus 2 of projection's
-27 refusals. Discovery is unchecked and 21 of its 25 refusals need a cloud. An
-estate can read clean and still be wrong: #266 was exactly that — every
-offline check passed while `live-plan` proposed creating a resource the estate
-already owned, once per run, forever.
+27 refusals. Discovery is unchecked and 21 of its 25 refusals need a cloud.
+#266 was exactly that: every offline check passed while `live-plan` proposed
+creating a resource the estate already owned, once per run, forever.
 
-**When floci cannot serve what the estate needs, that is a floci work item and
-not a reason to skip the estate.** The lane exists and was exercised today:
-fix it in the fork (`lex00/floci`), publish to ghcr, re-pin `live/floci-image`,
-and re-verify from this side rather than trusting the fix. #229 went through it
-end to end — `floci-capability-gen -mode=tagging` 0/7 to 7/7, with the tagging
-sweep's bind asserted afterwards instead of skipped.
+**When floci cannot serve what an estate needs, that is a floci work item and
+not a reason to skip the estate.** Fix it in the fork (`lex00/floci`), publish
+to ghcr, re-pin `live/floci-image`, and re-verify from this side rather than
+trusting the fix. #229 went through it end to end.
 
 **If a capability is genuinely beyond the emulator, the estate goes to live
-AWS.** Ask first, naming the estate and what it will create; that is real
+AWS.** Ask first, naming the estate and what it will create. That is real
 infrastructure and real spend, and it is not standing authorization.
-
-An estate whose blockers are all `RULE` is **not driveable**. Say so, skip it,
-and do not spend a slot proving it again.
 
 ### The decision matrix
 
-The product has three places to *carry* an identity: a **tag** on the
-resource, a **record_store** entry, or a **receipt**. A refusal is usually a
-statement that none of them applies yet, and *which* one it should have been
-is what decides the work.
-
-Usually, not always. Read the next section before concluding a refusal is one
-of these, because the most common wrong answer is to reach for a carrier when
-the identity needed no carrier at all.
+A refusal is usually a statement about where an identity lives. Which carrier
+it should have been is what decides the work.
 
 | Action | The identity is | The fix is | Done when |
 |---|---|---|---|
+| `ADOPTION-ONLY` | on the resource, as a marker | classify, do not refuse (#289) | the estate plans with the marker binding it |
 | `DERIVE` | in the configuration, and the analysis does not reach it | extend the static evaluation | the value renders; assert on `ImportID`, never a boolean |
 | `ADMIT` | knowable, but the type has no table row | a generator reaches it, or a ruling says it cannot | the row emits and `-convergence` exits 0 |
 | `DEFER` | not knowable at plan time at all | read it, record it, or order around it | the estate plans without it, and the marker is right when it lands |
 | `RULE` | refused on purpose | a maintainer decision, not code | out of scope; skip the estate |
 | `PARITY` | absent for stock too | nothing | confirm stock refuses identically, then stop |
 
-`tools/estate-plan`'s `blockerAction` holds the per-refusal classification with
-its reason. Both directions are enforced against `live/corpus-refusals.json`,
-which a different generator produces, so a renamed refusal fails rather than
-silently dropping out of the plan.
+`ADOPTION-ONLY` is the row that is new and the row that is largest.
+`tools/estate-plan`'s `blockerAction` does not carry it yet; #289 says which
+refusals belong in it and which do not.
 
-### Two questions, not one
-
-**The marker answers "may I delete this". It does not answer "which object is
-this".** Admission has drifted toward refusing a type because no marker can be
-written on it, and that is a different claim from "nothing says which instance
-this is".
-
-A resource can be perfectly identified by its own declaration and still have
-nowhere to hang a tag. Every association, attachment and membership in the
-provider is that shape. The identity table already carries such rows:
-`aws_iam_group_policy_attachment` is untaggable, has no ARN, and is admitted
-with a composite of `{group}` `/` `{policy_arn}`, both client-supplied. Count
-the admitted types on the `parent-derived` survey path, none of which is
-taggable, before arguing that untaggability decides anything.
-
-So a fourth answer belongs beside the three carriers: **the identity needs no
-carrier, because it re-derives from the declaration on every run.** Nothing is
-persisted and nothing is looked up. That is what the `client-named`,
-`parent-derived` and `account-derived` survey paths already mean, and it is the
-answer for an edge: an association's identity is its endpoints, which the
-configuration holds in full.
-
-Four consequences, in the order they are worth doing. Recompute every
-population before acting on one; the figures that motivated this are in the
-issue, not here.
-
-1. **Client-naming is provable without the provider's identity schema.**
-   `identity.Derivable` accepts only that schema as proof, and the provider
-   publishes one for well under half its types. A **required, non-computed**
-   argument cannot be a value the provider fills in, so the configuration
-   schema settles it alone. The `aws_vpc` and `aws_s3_bucket` caution in
-   `Derivable`'s doc comment is about Optional+Computed and stays excluded.
-   This is the widest of the four by a large margin.
-2. **When the provider ships no identity schema, the identity candidates are
-   in `live/import-grammar.json`**, scraped from the provider's own import
-   documentation. That artifact already exists and already carries the
-   composition for types the schema says nothing about.
-3. **A set-valued component serializes in canonical sorted order, all or
-   nothing.** Canonicalize only when *every* element yields a key; otherwise
-   leave the order alone rather than refusing the type. The objection that an
-   unordered set cannot produce an ordered import ID does not hold where the
-   provider parses that ID straight back into a set, which makes any order
-   round-trip and sorting merely deterministic. Check that it does before
-   relying on it.
-4. **Split "confirmed absent" from "never looked".** These collapse into one
-   verdict today, so a resource nobody could look at reads the same as one
-   confirmed missing, and declared-plus-absent proposes a create. A third
-   outcome with a total, exhaustive reason is what lets an unmarkable resource
-   stay inside the model instead of leaving it.
-
-`live/marker_identity_split_test.go` holds the part of this a reader cannot
-skip: no type may be vetoed as markerless while the survey classifies it
-client-named, because those are contradictory claims about the same fact and
-the veto currently wins in silence.
-
-The sibling project at `lex00/chant` reached the same wall and did not stop.
-Its ownership module is delete-permission only, carrying no identifier and no
-lookup; identity is recomputed from the declaration's own properties every
-run. Its untaggable share of the provider is roughly ours. Worth reading
-before redesigning any of this from scratch.
-
-**`DEFER` is the big column and it is where the campaign actually is.** The two
-largest sole-blockers, `Resolves at plan time via a data-source read` (28
-estates) and `markerless-type`, are both deferral questions, not analysis
-questions. `unadmitted-type` (20 estates) is the largest `ADMIT`.
+The distinction that decides the row: **the marker names an object, so it
+answers an identity-value refusal. It cannot answer an expansion refusal,**
+because the marker value *is* the instance address and an unknown key set
+means an unknown address. `count` and `for_each` stay analysis or parity work.
 
 ### Reading the tracker
 
@@ -394,20 +263,12 @@ questions. `unadmitted-type` (20 estates) is the largest `ADMIT`.
 `opentofu/opentofu`, silently. Pass `-R INTENTIUS/choudoufu` or run
 `gh repo set-default INTENTIUS/choudoufu` once.
 
-**Most wall issues are named after a refusal class**, which is the old frame.
-Read them as background on a blocker, not as an assignment. An issue title's
-figure was honest when written and the population has been recomputed twice —
-never rank off one without recomputing.
-
-Two ranking mistakes both already made here: counting estates that *carry* a
-refusal and calling it sole-blocker count, and using sole-blocker count where
-marginal cover was the question.
+An issue title's figure was honest when written and several populations have
+been recomputed since. Never rank off one without recomputing.
 
 ---
 
 ## Picking up a task
-
-The sequence below works from a cold start with no memory of prior sessions.
 
 **1. Establish where main actually is.**
 
@@ -430,102 +291,70 @@ One background wrapper reported exit 0 while its log said 1, because the
 status belonged to a trailing `echo`.
 
 **3. Scout before you fix.** Re-verify the issue's claim against the code.
-Roughly half the briefs written in this repo have been materially wrong, and
-several agents found out only after committing to an approach. A report with
-no commit is a good outcome.
+Roughly half the briefs written in this repository have been materially wrong.
+A report with no commit is a good outcome.
 
-In particular, check the issue is not already fixed:
+Check the issue is not already fixed:
 
 ```
 git merge-base --is-ancestor <sha> main
 ```
 
-`git log --grep` proves only that a commit exists somewhere. An issue was
-once closed citing a commit that sat on an unmerged branch whose test file
-did not exist on main.
+`git log --grep` proves only that a commit exists somewhere. An issue was once
+closed citing a commit that sat on an unmerged branch whose test file did not
+exist on main.
 
 **4. Split anything over about thirty minutes.** Long tasks here are almost
 never harder tasks; they are two jobs in one slot. Scouting is a separate job
-from fixing. Hand back the half you did with enough detail that the next slot
-starts from a correct brief.
+from fixing.
 
 **5. Work in a worktree.**
 
 ```
-git worktree add ../wt/<name> -b wall/<name> main
+git worktree add ../wt/<name> -b live/<name> main
 ```
 
 ---
 
 ## Measuring
 
-Read `.claude/skills/measuring-the-wall/SKILL.md` first. It is the catalogue
-of every way a number here has been wrong.
+Two instruments, answering different questions. You usually want both, and
+you should know what neither of them can see.
 
-Two instruments, answering different questions. You usually want both.
-
-**Before either: the corpus measures the PUBLISHED form of every estate, and
-choudoufu is a thing you migrate to.** Not one of the 145 entries declares a
-`live` block or a `record_store`; each still carries the backend it was
-published with, and a module may declare one or the other but never both. So a
-refusal that the onboarding edit clears is not a language wall - it is the
-estate not having been onboarded, which is true of all of them.
-
-Two consequences, and both have already cost a slot here.
-
-Choudoufu does not care whether a type is taggable. Taggability is about the
-MARKER, which answers "may I delete this". What decides whether an estate can
-run is whether the identity is DERIVABLE, and for an object choudoufu created
-it is, because choudoufu minted the ID. Framing a wall as "untaggable" measures
-the marker and reports it as an identity problem.
-
-And when a finding is cleared by an operator edit rather than by a change in
-this repository, measure the ONBOARDED form: copy the estate out of `.corpus`,
-swap the published backend for a live block, and run the probe on the copy.
-`5e6cf9c86f` did exactly this - `blocked=0, sites=0, 13 instances` on an estate
-that reads blocked in published form - and it is the only measurement that
-answers the question. An agent that measured the published form and reported
-"nothing cleared" was measuring an unmigrated config against a migrated-platform
-capability.
-
-The demotion that follows is only safe when the promise is enforced downstream.
-`5e6cf9c86f` could demote because `internal/live/projection` raises
-"Record-backed instance with no record store" as an ERROR at plan time, so an
-operator who writes the live block and forgets the store is stopped by name.
-Without that guard the demotion trades a refusal for a silent failure.
+**Before either: the corpus measures the PUBLISHED form, and choudoufu is a
+thing you migrate to.** Not one entry declares a `live` block or a
+`record_store`. So a refusal that the onboarding edit clears is not a language
+wall, it is the estate not having been onboarded, which is true of all of
+them - and a refusal that a *marker* would clear is not one either, which is
+what nothing currently measures.
 
 **`tools/refusal-probe` counts refusals.**
 
 ```
-go run ./tools/refusal-probe -out before.json          # ~20s, all 250 entries
+go run ./tools/refusal-probe -out before.json          # ~20s, no schemas
+go run ./tools/refusal-probe -schemas -out before.json # ~3min warm
 go run ./tools/refusal-probe -diff before.json,after.json
 go run ./tools/refusal-probe -entry .corpus/vpc -v
-go run ./tools/refusal-probe -schemas -out before.json # ~2.5min warm
 ```
 
 It writes where you point it, so several people can measure concurrently in
 one tree. `just corpus` cannot.
 
-A fresh worktree has no `.corpus` - it is gitignored - and a sweep there used
-to report 31 in-repo fixtures with exit 0 and nothing else said. The probe now
-refuses unless every manifest source expands to something on disk and every
-fetched source sits at the commit the manifest pins. Get the corpus with `just
-corpus-fetch`, or symlink one in from a checkout that already has it.
-`-allow-partial-corpus` measures anyway and stamps the sweep, and `-diff` will
-not compare a stamped sweep against a full one.
+**Pass `-schemas`.** Without it `LocatedType` fails closed and
+`markerless-type` reads as a blocker that a `record_store` already answers.
+The default mode is blind to the whole stamp layer and to every rule that
+returns false when schemas are nil. Its bound is asymmetric: it over-reports
+sites and under-reports the verdict.
 
-`-diff` refuses any pair whose difference is not the change under test: two
-trees, two manifests, one side schema-backed, two provider versions, or two
-different sets of entries. It reports - without refusing - the inputs that are
-allowed to move and still change the meaning: module install state, var files,
-and per-provider acquisition.
+A fresh worktree has no `.corpus`; it is gitignored. Get it with
+`just corpus-fetch`, or symlink one in. `-diff` refuses any pair whose
+difference is not the change under test.
 
-The default mode runs without provider schemas. It is blind to the whole
-stamp layer, to every rule that returns false when schemas are nil, and to
-non-AWS estates. **Its bound is asymmetric**: it over-reports sites and
-under-reports the verdict, because blocked configurations rise once schemas
-are present. A fix validated only against the default mode can look like it
-unblocked something it did not.
+**What the probe cannot tell you today**: which resource type a refusal fired
+on, for anything in the identity layer. `check.Site.Type` is populated only by
+the type-shaped lint rules, so the cause axis reads `reference:*` or empty for
+every identity refusal. That is #290, and it is why #289 is priced in types
+rather than in sites.
 
 **`TestIdentityGolden` pins the rendered value.**
 
@@ -540,8 +369,7 @@ identity attributes.
 This is the only instrument here that measures what a marker will say rather
 than whether something refused. Six defects shipped green because nothing did
 that. **If your change moves a line, explain it. Do not run `-update` to make
-it quiet** — and the shape pin in `live/identity_golden_pin_test.go` will
-stop you anyway.
+it quiet** - `TestIdentityGoldenShapeIsPinned` will stop you anyway.
 
 ### Two numbers, not one
 
@@ -549,97 +377,72 @@ Report **sites and instances** together. Sites falling means the analyzer
 stopped complaining. Instances rising means resources that could not be
 identified now can.
 
-But instances rising is not by itself good news, and this is the sharpest
-lesson available. Reverting a known conversion defect fabricated three
-identities and lost two correct ones, and the instance count went **up**.
-Every aggregate this repository records called that regression an
-improvement. Only a value assertion separates the two.
+But instances rising is not by itself good news. Reverting a known conversion
+defect fabricated three identities and lost two correct ones, and the instance
+count went **up**. Every aggregate this repository records called that
+regression an improvement. Only a value assertion separates the two.
 
-**And "entries WORSE must be 0" is not the gate it reads as.** It has now
-twice flagged a correct fix as a regression, both times the same way: a
-refusal that fired once at the block level starts firing per argument or per
-instance, because the block now expands where it previously refused wholesale.
-Five honest refusals naming an argument each are more information than one
-naming a block, and expanding is what stock does.
+**"Entries WORSE must be 0" is not the gate it reads as.** It has twice
+flagged a correct fix as a regression the same way: a refusal that fired once
+at the block level starts firing per argument, because the block now expands
+where it previously refused wholesale. Five honest refusals naming an argument
+each are more information than one naming a block.
 
 Maintainer ruling, 2026-08-17: **sites are not the measure.** What a change
 must not do is lose an instance or change a rendered identity. Report entries
-worse by site count, explain each, and do not revert a fix on that number
-alone - the campaign counts estates onboarded. The module-argument fix landed
-with 24 entries improved and 11 worse by sites, no instance lost anywhere, no
-golden line changed, and blocked 194 -> 193.
+worse by site count, explain each, and do not revert on that number alone.
 
-### Caveats that travel with any ladder figure
+### Caveats that travel with any offline figure
 
 Layers come in three lists, not two. Lint, identity, dataread and stamp are
-fully checked. **Projection is partly checked**: 2 of its 27 refusals need
-no cloud, and the rest do. **Discovery is unchecked**, though 4 of its 25 are
-computable offline and wiring them is #261; the other 21 are verdicts about
-listed cloud objects and genuinely cannot be reached without one.
+fully checked. **Projection is partly checked**: 2 of its 27 refusals need no
+cloud. **Discovery is unchecked**, though 4 of its 25 are computable offline
+(#261); the other 21 are verdicts about listed cloud objects.
 
-So `clean` does not mean "this onboards". The supportable sentence names the
-share: *"N of the rate-capable deployments pass the offline checks this
-instrument runs, which is four full passes plus 2 of projection's 27."*
-
-The corpus does not install registry modules by default, so an entry with
-module calls measures a fraction of its refusal surface and every per-entry
-number for it is a floor.
+So `clean` does not mean "this onboards", and it certainly does not mean "this
+applies". The corpus does not install registry modules by default, so an entry
+with module calls measures a fraction of its refusal surface.
 
 ---
 
 ## Landing a change
 
 **Assert on rendered identities.** `res.ImportID` and `res.IdentityValues`,
-never a predicate boolean. Predicates have been green while markers were
-wrong six times; a duplicate-marker bug shipped with a passing analyzer.
+never a predicate boolean. Predicates have been green while markers were wrong
+six times; a duplicate-marker bug shipped with a passing analyzer.
 
 **Assert the instance count separately from the key set.** One bug's entire
 signature was two instances where OpenTofu makes three.
 
-**Mutation-check every boundary fixture.** Remove the stated obstacle and
-only that, and confirm the case then resolves. Otherwise you have proved the
-case refuses, not that it refuses for the reason you claimed. The same
-technique applied to a guard is how you find out the guard is decorative: one
-compatibility leg turned out to be untested at the layer where it mattered,
-and only a deliberate mutation revealed it.
+**Mutation-check every boundary fixture.** Remove the stated obstacle and only
+that, and confirm the case then resolves. The same technique applied to a
+guard is how you find out the guard is decorative.
 
 **A test nothing runs is not a test.** One harness sat red on main for weeks,
 wired to no `just` recipe, no CI step and no README mention. Wire it, then
 break it deliberately once and watch it go red.
 
-**Regenerate, never hand-merge, a generated artifact.** Two have conflicted
-on merge and both had to be regenerated.
+**Regenerate, never hand-merge, a generated artifact.**
 
 **Run a generator twice and diff, but know what that proves.** It catches
-nondeterminism, and one generator was silently nondeterministic through
-sporadic subprocess handshake failures. It does **not** prove the artifact is
-the one its inputs imply.
-
-`row-gen -emit` reads its own previous output — `markerlessRoster` looks up
-`identity.DefaultTable`, which is `table_generated.go` — and has more than
-one fixed point. A mutation retracted 217 rows; reverting the mutation and
-re-running did not restore them, and the wrong state survived a second run
-while exiting 0 and converging. Only `git checkout --` brought it back. So
-byte-identical across two runs means "this is *a* fixed point", not "this is
-correct". That is #263, and it matters because the two-run diff has been
-cited as the acceptance bar on several table changes.
+nondeterminism. It does **not** prove the artifact is the one its inputs
+imply. `row-gen -emit` reads its own previous output, so byte-identical across
+two runs means "this is *a* fixed point", not "this is correct". Emptying
+`DefaultTable`'s literal and running `-emit` twice yields a 14-row table,
+byte-identical, exit 0, 878 rows gone. That is #263, and the restore is
+`git checkout --`, never a re-run.
 
 **`marksafe` guards `internal/live`.** A new call to a cty accessor needs a
 proof its receiver cannot be marked, `ContainsMarked` before anything that
-iterates, and a new package under `internal/live` must be classified. Note
-the asymmetry it exists for: a marked element hoists its mark to the
-container only for a set.
+iterates, and a new package under `internal/live` must be classified.
 
 ---
 
 ## What is enforced, and what is not
 
-Prose is re-read only by whoever happens to read it, and this project keeps
-discovering that its prose was stale. So rules get converted into tests
-whenever they can be. When you find yourself writing a rule into a document,
-ask first whether it can be a test.
-
-The pattern to copy, in `live/`:
+Prose is re-read only by whoever happens to read it. So rules become tests
+whenever they can. When you find yourself writing a rule into a document, ask
+first whether it can be a test.
 
 | Guard | What it holds |
 |---|---|
@@ -649,22 +452,20 @@ The pattern to copy, in `live/`:
 | `TestBurndownBoundsHold` | every migrated ratchet, each computing its own number and pinning the denominator it is a fraction of |
 | `TestEveryToolHasAGitignoreEntry`, `TestNoCompiledBinaryIsTracked` | no multi-megabyte binary lands in a commit again |
 | `TestOperationalBriefIsTracked` | the brief cannot go back to being untracked local state |
-| `TestMarkerlessVetoNeverContradictsClientNaming` | the marker stays delete permission and does not become identity: no type is vetoed as markerless while the survey calls it client-named, and a resolved exception has to be deleted |
+| `TestMarkerlessVetoNeverContradictsClientNaming` | the marker stays delete permission and does not become identity |
+| `TestRejectedLedgerIsDisjointFromAdmitted` | a type cannot be both admitted and vetoed |
+| `TestCauseCatalogCoversEveryCause` | a new discovery cause appears in the probe's breakdown without an edit |
 
-The bounds those ratchets used to carry as scattered constants now live in
+The bounds those ratchets used to carry as scattered constants live in
 `internal/live/harness`, one entry each, computing their number at run time
 and naming the denominator they are a fraction of. `live/HARNESS.md` renders
-them. Migrating them found one that had stopped bounding anything.
+them.
 
 What they have in common is worth copying deliberately. Each is a registry
-checked against the tree rather than a hand-list. Each exception is written
-in Go and carries its reason. Each fails in **both** directions: when the
-thing it guards moves, and when the guard itself stops describing anything
-real. A pin on something that no longer exists passes forever.
-
-Some rules stay prose because they are about judgment rather than about the
-tree: parity, splitting long work, and the worktree hygiene below. Those
-depend on being read.
+checked against the tree rather than a hand-list. Each exception is written in
+Go and carries its reason. Each fails in **both** directions: when the thing
+it guards moves, and when the guard itself stops describing anything real. A
+pin on something that no longer exists passes forever.
 
 ---
 
@@ -682,14 +483,14 @@ Every one of these has been hit, most more than once.
   commits is trivially an ancestor of main. A prune loop on that predicate
   destroyed five running agents' work in one command.
 - **`.gitignore` needs `/.corpus`, not `/.corpus/`.** Agents symlink the
-  corpus into worktrees rather than refetching 250 repositories, and a
-  directory pattern does not match a symlink.
+  corpus into worktrees, and a directory pattern does not match a symlink.
 - **A new tool binary needs a `.gitignore` entry.**
 - **Cohort ownership is split**: `GENERATED.md` and `.tf` belong to
   `estate-gen`; `README.md` is hand-owned.
+- **`just estate-plan` is not a recipe.** Only `just estate-plan-from <sweep>`
+  is. Run the tool directly for a fresh plan.
 - **Two branches can merge cleanly in text and be semantically
-  incompatible.** One wrote a test against a signature another had changed.
-  Run the tests on the merge result, not on the branch.
+  incompatible.** Run the tests on the merge result, not on the branch.
 - **Shell substitution in a `-m` commit message** will eat things like
   `${count.index}`. Use `-F` with a message file.
 
@@ -697,420 +498,109 @@ Every one of these has been hit, most more than once.
 
 ## What to do next
 
-Ranked, and every item is filed so the tracker carries the evidence while this
-list carries only the reason and the order. Nothing is blocked on a decision.
+Ranked. Every item is filed, so the tracker carries the evidence and this list
+carries only the reason and the order.
 
-**Read "Why work drifts to the edges" first if you have not.** Items 2 to 4 are
-adoption work. They are ranked where they are because they are what is
-measurable today, not because they are the goal.
+### 1. #291 - estate-gen must produce estates, not fixtures
 
-### 1. `unadmitted-type` - the actual wall, and nobody has worked it as a campaign
+32 cohorts, 685 resource blocks, 522 already carrying marker tags, and not one
+cohort declaring a `live` block or a `record_store`. Adding the sidecar and
+the store turns the generator's whole output into estates the fork's own path
+can run, at a scale hand-written crossings will never reach.
 
-This is the one to take. Measured with `just onboarding-gap`: onboarding empties
-`logical-resource` (512 sites -> 102) and `markerless-type` (364 -> 28) across 93
-estates, and moves `unadmitted-type` by **zero - 1520 -> 1520**. It is the
-surviving blocker on **79 of the 90** estates onboarding helped, and it is both
-remaining ADMIT estates at the head of `estate-plan`.
+This is the head of the queue because it supplies the test bed everything else
+needs, and because "properly marked estates of varying complexity, all of
+which work" is the goal state.
 
-So admission is the wall, and it is the wall in the MIGRATED form too. Do not
-spend a slot re-testing whether a `live` block changes that; it has been
-measured.
+### 2. #289 - the resolver ignores the marker it stamps
 
-#245 is the shape of the work: 669 AWS types sit in neither the identity table
-nor the veto ledger. Every other item on this list is worth one to five estates.
-This one is worth most of them.
+221 taggable admitted types have their identity composed from configuration,
+and every one of them carries a marker in a migrated estate. `identity`
+consults the marker on one condition only, `entry.ServerAssigned`, so the
+other 221 are refused for a cold identity they do not need. 198 of them are
+enumerable, which is the gate; the remaining 23 must keep the refusal.
 
-### 2. #284 - the `managedCovered` fallback, before any more ACM work
-
-Not optional and not cheap, which the last slot established by measuring it.
-Without it the second pass is a net **loss**: it demotes
-`aws_acm_certificate_validation` from PARENT_DERIVED to NEEDS_DISCOVERY, and
-that type is untaggable, so the demotion becomes a hard stamp refusal - 1 site
-on rust-forge, 24 on domain-redirects.
-
-The naive fix does not work. The knownness test cannot be per-object or
-per-attribute, because the certificate's own planned `domain_validation_options`
-is not wholly known either, and either test flips the reference back to symbolic
-and undoes the for_each fix. It needs a post-evaluation fallback in identity's
-argument path.
-
-Note also that the five ACM estates can never be shown unblocking by the corpus
-probe: that shared module's `for_each` reads a managed attribute AND a data
-source, and the data half needs `dataread`, which an offline probe cannot run.
-Measure it the way #284's comment does, with a real provider over the estates.
+#290 is its measurement prerequisite and is small: identity refusals carry no
+resource type, so the change cannot be priced in sites until they do.
 
 ### 3. #274 - cross the estates that have never run
 
-Twelve of the 28 passing estates still have not touched a cloud. This is the
-item closest to the primary goal and the cheapest evidence per slot: every
+Twelve of the 28 passing estates still have not touched a cloud. Every
 crossing so far has found something no offline instrument could see, including
 all three of the wrong-marker defects fixed on 2026-08-17.
 
-`live/e2e/corpus-*.sh` are the templates. `just onboarding-gap` says which
-estates are worth standing up.
+### 4. #245 - admission, which migration does not fix
 
-### 4. #288, then #287
+A type with no row is unadmitted whether or not the resource carries a marker,
+because nothing sweeps for a type the configuration cannot declare. 669 AWS
+types sit in neither the identity table nor the veto ledger.
 
-`aws_wafv2_web_acl` has no list operation and no Cloud Control fallback, and it
-is the last thing between GOV.UK's cloudfront estate and an apply. **It may be a
-class rather than a type** - nobody has counted admitted types with neither
-route, and if it is a class then the class is the deliverable.
+### 5. #284, then #288, then #287
 
-#287 is what keeps #272's unique-name binding unverifiable against a cloud. That
-leg already shipped broken once on inspection-and-unit-test evidence alone, so
-treat "correct by inspection" there as unproven.
+#284 is the `managedCovered` fallback, and without it the second pass is a net
+loss: it demotes `aws_acm_certificate_validation` from PARENT_DERIVED to
+NEEDS_DISCOVERY, and that type is untaggable, so the demotion becomes a hard
+stamp refusal.
+
+#288 is `aws_wafv2_web_acl`, which has no list operation and no Cloud Control
+fallback, and may be a class rather than a type - nobody has counted admitted
+types with neither route. #287 is what keeps #272's unique-name binding
+unverifiable against a cloud.
 
 ### Loose ends worth an hour, not a slot
 
 - `lint.worstCaseChildKey` (`internal/live/lint/lint.go:198`) returns
   `addrs.NoKey` for a count'd call, so `checkOverlongAddresses` under-measures
-  the address budget inside every count'd module. A fifth `for_each`-only
-  reading; consequence is a missed refusal rather than a wrong marker.
+  the address budget inside every count'd module.
 - `live/survey-full.json` carries a stale `path` for
   `aws_s3_account_public_access_block` that regeneration moves. It feeds
   row-gen, so it is not a no-op edit.
-- #282's wrong proposal is still in the queue for someone to paste.
+- `row-gen`'s report still names paste targets that no longer exist
+  (`table_cohort_<cohort>.go`, `admission_cohort_<cohort>.go`). The target is
+  `tools/row-gen/ratified.json`.
+- #263's cure is half done. `ratified.json` holds the rows with a
+  byte-identical round-trip proof, and `-emit` still reads `DefaultTable`. The
+  flip is three reads - `emittedRows`, `buildConvergence`, `markerlessRoster` -
+  and the convergence one is load-bearing.
 
 ---
 
-## Mid-flight, as of this handoff
+## Rulings worth not relitigating
 
-Nothing is blocked on a decision. These are the loose ends a fresh session
-would otherwise rediscover.
+Kept because each was reached by measurement and each has been re-opened at
+least once from prose alone.
 
-**Entries below that are now resolved, so you can skip them.** They are kept
-because the reasoning is worth reading and because a ruling that was overturned
-is worth seeing overturned rather than deleted.
-
-- The record store carrying an identity for an unmarked object: BUILT and
-  crossed. #270, closed with the evidence.
-- Write-only arguments never converging: BUILT and crossed. #275, closed.
-- The `list + content match` path: renamed and then partly BUILT, as a leg that
-  binds on a name two sources prove unique. #272, still open because it has
-  never bound against a cloud.
-- The ACM cluster entries: the diagnosis stands, the plan does not. It is
-  `PlanInstances`, not `ReadInstances`, and it needs no cloud. See #284 and the
-  next-steps section above.
-- The parent-derived ruling: REFUTED, population zero. The entry says so and
-  should be read before anyone re-opens it.
-- Marker discovery across several provider configurations: the refusal is gone
-  and the per-provider sweep it sat on top of was already built (#69). #283,
-  closed. The cloudfront estate now stops on #288 instead.
-- The four duplicated decisions: closed by construction, and the module-walk
-  drift turned out to be a class of four that `identity.ChildCallKeys` now
-  answers once. #285, closed.
-
-- **The corpus now has its modules, and that moved the ladder.** `corpus-fetch`
-  and `corpus` have both been run and committed, so the module hole is closed.
-  Two published deployments that read unblocked did so only because their
-  modules were absent, and refusal sites roughly doubled. Nothing regressed:
-  the committed ladder had been measured with a hole. Four entries still report
-  install errors and stay a floor, named in the fetch log.
-- **Two refusals fire that no corpus run had ever reached**, because both live
-  only inside installed modules. `Null identity argument` is `firstPresent`
-  choosing an alternation member by syntactic presence while a sibling holds
-  the value. `moved-block` is `declaresSubject` collapsing an instance address
-  to its resource, so every keyed rename terraform-aws-modules ships reads as
-  un-vacated. Both are classified `DERIVE` in `blockerAction` with the
-  reasoning; neither is any estate's sole blocker, so neither reorders the
-  queue. Neither is fixed.
-- **Ratification has a safe home now.** `-emit` reads
-  `tools/row-gen/ratified.json` rather than the table it writes, so adding a
-  row is an edit to a hand-owned input followed by a regeneration. Verified by
-  mutation: delete rows from `table_generated.go`, re-emit, and they come back
-  - where before they stayed deleted while the run exited 0 and "converged".
-  `aws_accessanalyzer_analyzer` went through that path and cleared an estate.
-  Two things a ratifier still has to do that nothing tells them up front: pin
-  the type's taggability in the right `internal/live/stamp` cohort, and expect
-  the lint fixtures that used the type *because* it was unadmitted to need a
-  new one.
-- **`row-gen`'s report still names paste targets that do not exist**
-  (`table_cohort_<cohort>.go`, `admission_cohort_<cohort>.go`). They went when
-  `-emit` took ownership. The target is `ratified.json`; the report has not
-  been told.
-- **Most of the queue's head is not language-wall work, and that is now
-  measured rather than suspected.** Of the 28 blocked estates carrying any
-  unset-variable site, 13 go to zero blockers when values are supplied and 15
-  keep real ones - all 13 govuk-aws. Of the estates one blocker from clean, a
-  large share are non-AWS types, which #5 rules out of scope. `estate-plan`
-  annotates both and sorts them behind driveable work; it does not reclassify
-  or drop them, because #183 rules they stay blocked honestly.
-- **RULED AND LANDED 2026-08-17: the `list + content match` survey path
-  named a mechanism this fork does not have, and is now `enumerable,
-  unbindable`.** The rest of this entry is the case that produced the
-  ruling; the token it names no longer appears in any artifact.
-  `tools/survey-gen` assigned it from
-  "untaggable + Cloud-Control-enumerable", which is an ENUMERATION fact
-  labelled as an ADMISSION fact. `internal/live/discovery` binds by reading
-  the marker tags and by nothing else: the Cloud Control leg lists an object,
-  refines it with GetResource, and discards it when neither carried tags
-  (`cloudcontrol.go`'s `ProblemNoTags`, severity error). `internal/live/foreign`
-  says the same in words - a content match is "surfaced for explicit adoption
-  and never bound automatically", because "inferring it from a content match
-  would be exactly the guess the marker spec exists to forbid".
-  `internal/live/doc.go` states both the promise and the denial within twenty
-  lines, and `lint.go` offers the path to a user as one of four options.
-  So the markerless veto is RIGHT and its stated reason is WRONG: the accurate
-  reason is that marker discovery is the only binding mechanism there is.
-  Narrowing the veto on this signal was investigated and rejected - it would
-  release 62 vetoed types onto an unimplemented path and turn a lint refusal
-  that names the type into a per-plan discovery error. The question was
-  whether path 4 was aspirational or simply wrong. The maintainer ruled it
-  wrong: the token was renamed rather than the capability built, moving 142
-  rows in `live/survey-full.json` and 9 in `live/survey.json`, with no
-  verdict changed. `aws_eip` came off the exception list in the same pass -
-  its hand row had claimed the same non-existent wiring while the thing that
-  binds an eip is the `tofu-slot` tag.
-- **The ACM cluster needs the key set AND the each.value path. My earlier
-  "one fix, not two" note here was wrong, and this is the correction.**
-  Wiring the provider plan through end to end removes the `for_each` refusal
-  on rust-lang-org exactly as intended, and then reads 3 sites/5 instances
-  before against 4 sites/4 instances after: two refusals appear one layer down
-  (a data source inside the for_each body, and an identity argument carried
-  through `each.value` that is unknown until apply) and one resolved instance
-  is LOST. The experiment that produced the earlier note substituted a static
-  key set and set the record's name from a direct resource attribute
-  reference, which defers; the real configuration carries it through
-  `each.value`, which refuses. The library half is landed and tested
-  (projection.PlanInstances, pluginschema.AcquireSession,
-  check.Context.ManagedResults); the probe wiring is not, because a change
-  that clears a refusal and loses a marker is the wrong trade.
-- **The ACM gap and the lost instance are ONE defect, diagnosed: an unknown
-  REFUSES where a deferral CLASSIFIES.** Planning rust-lang-org loses
-  `module.certificate.aws_acm_certificate_validation.cert`, which resolved
-  PARENT_DERIVED with an empty ImportID and afterwards does not resolve at
-  all. The cause is not the plan: before it, a reference to the unexpanded
-  record block defers; after it, the block expands and its unknown-until-apply
-  values refuse. More information made the answer worse. The two refusals that
-  appear one layer down are the same thing seen from the other side.
-  So one fix covers all of it - treat an identity value that is unknown
-  BECAUSE it comes from a resource this run planned the way a direct reference
-  to that resource is already treated.
-  The obstacle was thought to be provenance: an unset required variable also
-  evaluates to an unknown, and deferring THAT would reverse #183's honesty.
-- **RESOLVED 2026-08-17: cty marks cannot carry that provenance, and half the
-  problem needed no carrier at all.** Marks are out on evidence, not taste.
-  `IsMarked()` is not a policy test in this fork - it guards panicking
-  accessors, roughly 70 of them across `identity`, `lint`, `stamp`,
-  `dataread`, `check`, `foreign` and `projection`, and `internal/live/marksafe`
-  is a static prover that requires exactly that guard shape
-  (`marksafe.go:285`, `ProofGuarded`). The fork's guards also spell it
-  `IsMarked()` where stock spells it `HasMark(marks.Sensitive)`, so they
-  cannot tell two mark kinds apart. A second kind would mean rewriting every
-  guard and teaching marksafe a new proof form, with a missed site producing
-  either a wrong refusal or a panic.
-  The key-set half then turned out to be plain parity. Stock asks a `for_each`
-  two different questions - `IsKnown()` for a map or object, `IsWhollyKnown`
-  only for a set, because a set's elements ARE its keys while a map's values
-  never enter an address (`internal/lang/evalchecks/eval_for_each.go:144`).
-  This package asked `IsWhollyKnown` of all three and so refused a map with
-  literal keys and apply-time values that stock plans. `forEachKeysKnown`
-  fixes that and needs no provenance: stock's own rule already separates "I
-  cannot say which instances exist" from "I cannot say what is inside them".
-  #183's cohort stays refused, but NOT for free, and an earlier version of this
-  entry got that wrong in a way that would have talked the next agent into a
-  silent reclassification. It said an unset required root variable "does not
-  evaluate to an unknown at all" because `configs.StaticEvaluator` refuses it
-  outright. That is true through the identity package's OWN loader, which is
-  what `TestForEachUnsetVariableStillRefuses` uses, and false through
-  `internal/live/check`, which is what `refusal-probe`, `just corpus` and
-  `live-check` use: `check/load.go:266` substitutes
-  `cty.UnknownVal(variable.ConstraintType)`.
-  Measured both ways on the same fixture,
-  `internal/live/identity/testdata/foreach-unset-var-map`: identity's own loader
-  gives `No value for required variable`; `check.Dir` gives `Non-static for_each
-  expression` with 0 instances. The cohort agrees -
-  `.corpus/govuk-aws/terraform/projects/app-elasticsearch6` carries `Non-static
-  identity argument`, 7 sites, `unset_var_only: true`.
-  So the #183 guard is weaker than it reads, and the provenance discriminator is
-  genuinely required IN THE CHECK PATH and genuinely unnecessary in `live-plan`,
-  which has no substitute loader. A floci run cannot prove #183 stays refused,
-  because floci exercises the path where the problem does not exist.
-  **The second half is still open and no estate has cleared.** An identity
-  argument left unknown by the provider's plan must classify as
-  `ClassNeedsDiscovery`, not refuse at `resolve.go:2352`. The carrier for that
-  is the expansion rather than the value: leave a not-wholly-known element out
-  of `eachValues` and build the expansion `keyOnly`, so `expansion.scope`
-  leaves `each.value` unbound and the structural route that already produces
-  PARENT_DERIVED/NEEDS_DISCOVERY takes over. Unbuilt because it was not
-  verified that the structural route terminates correctly for a comprehension
-  loop variable rather than a resource instance address.
-- **RULED 2026-08-17: a type whose identity is fully determined by parents
-  choudoufu already tags and admits needs no marker of its own.** The
-  markerless veto reads two facts - untaggable, provider-minted identity - and
-  never asks the third: does the configuration already state enough to name
-  the object. `tools/survey-gen/classify.go:303` reasons from carrier signals,
-  and checks for a parent reference only inside the already-`derivable`
-  branch, over the provider's IDENTITY-SCHEMA attributes. A type with no
-  identity schema never reaches that check whatever its configuration says.
-  `internal/live/discovery/parent_read.go:48 parentReadSweep` is the mechanism
-  and it is already wired. Roughly a third of the 148-type veto has a required
-  argument pointing at a taggable, admitted parent - recomputed outside the
-  generator, so treat the figure as unverified until the generator says it.
-  Ruled in the same pass: **widen the derivability rule to read
-  mutually-exclusive argument groups.** An argument the schema marks Optional
-  only because it is one member of an `ExactlyOneOf` group, where the
-  configuration states exactly one member, counts as stated. That is what
-  `aws_eip_association` needs - its `allocation_id` / `instance_id` /
-  `network_interface_id` are all Optional for that reason alone.
-  Open under this ruling: the three CloudFront policy types have a required
-  client-supplied `name` and no identity schema at all, so nothing routes them
-  anywhere. Whether the name identifies the object is an evidence question -
-  if AWS does not enforce uniqueness, matching on name could adopt an object
-  the operator made by hand.
-- **REFUTED 2026-08-17, same day, by measurement: the parent-derived ruling
-  has a qualifying population of ZERO.** Do not re-open it without new
-  evidence. Three independent checks:
-  (1) The intersection of `MarkerlessTypes` with `tools/row-gen/ratified.json`
-  is 0 of 148, and `emittedRows` ships only ratified rows - so sparing a type
-  from the veto does not put it in `DefaultTable`. It falls through to
-  `SynthesizeTypeIdentity`, which refuses it anyway, and the refusal merely
-  changes from `markerless-type` to `unadmitted-type`. Same estates, same
-  sites.
-  (2) The wire protocol carries no exclusion groups at all.
-  `docs/plugin-protocol/tfplugin6.9.proto`'s `Attribute` has eleven fields and
-  none of them is `ExactlyOneOf` / `ConflictsWith` / `AtLeastOneOf` /
-  `RequiredWith`. Those are enforced provider-side at `ValidateResourceConfig`
-  and never reach this fork. So the ExactlyOneOf half of the ruling cannot be
-  implemented as stated, and would not have reached `aws_eip_association`
-  anyway, which has no identity schema at all.
-  (3) CloudFormation's own model refutes the parent story per type.
-  `AWS::GlobalAccelerator::Listener` has primary identifier `[ListenerArn]`
-  with `ListenerArn` read-only; `AcceleratorArn` is a create-only INPUT, not
-  part of the identifier, and an accelerator carries many listeners.
-  `AWS::EC2::EIPAssociation` is primary `[Id]`, read-only. Contrast
-  `AWS::S3::BucketPolicy`, primary `[Bucket]` with no read-only properties -
-  that is the shape where a parent genuinely is the identity, and those types
-  are already admitted. Of the 148 markerless types, 4 have an identifier free
-  of read-only properties and 0 of those link to an eligible parent.
-  The "51 types with a required argument pointing at a taggable admitted
-  parent" figure is real but measures the wrong side: a required ARGUMENT is
-  about "may I delete this", and the ruling was stated over "which object is
-  this".
-- **RULED 2026-08-17: the record store MAY hold an identity for an object
-  that carries no marker, because an ID is not a permission.** The reasoning,
-  because it is the part worth keeping. `live/MARKERS.md` claimed the marker
-  is an ordinary tag "so IAM can condition on it directly through
-  `aws:ResourceTag`, with no second permission model to keep in sync". For an
-  UNTAGGABLE type that condition can never match, so the published estate
-  grant already conveys nothing on such an object - the governance claim is
-  not available for these types today, and storing an ID takes nothing away.
-  That claim has since been scoped where it is made: see MARKERS.md's "What
-  this grant cannot reach", which carries the derived figure - 221 of the 884
-  admitted AWS types are untaggable, across 77 CloudFormation services, and
-  the grant governs the other 663.
-  This holds for governance WITHIN an estate as well as across estates, and
-  the within-estate half is the one to check first, because it is the finer
-  claim: granting a principal rights over one declared address means
-  conditioning on `aws:ResourceTag/tofu-address`, and an untaggable object
-  carries that tag no more than it carries `tofu-estate`. Both grants are
-  unavailable for it, for the same reason, and MARKERS.md publishes both
-  without saying so.
-  The split is therefore: "may I delete this" stays with IAM, scoped by ARN or
-  resource policy, and was never choudoufu's to give for an untaggable type;
-  "which object is this" is what the record answers, and only that. A record
-  entry must never be read as delete authority.
-  The failure mode is better than a state file's and that is why the trade is
-  acceptable. Lose the record and the declared instance reads unbound, finds
-  nothing, and a CREATE is proposed, while `internal/live/foreign` surfaces
-  the existing object as unclaimed - and by construction an unclaimed resource
-  "can never enter the prior state and the plan engine has nothing to propose
-  destroying". A lost record risks an announced duplicate. It does not risk a
-  silent deletion.
-  Note what this does NOT license: the guided-discovery hint written to the
-  same store stays non-authoritative (`guided.go:21-24`, a bad hint "never
-  changes what the sweep does ... it only changes cost",
-  `TestGuided_equivalence`). A record that carries identity is a different
-  class from a hint and must not be conflated with one.
-- **Framing for that design, from the maintainer: choudoufu has to have an
-  ANSWER here, and the answer may be a toggle rather than a rule.** Worth
-  writing down because it changes what the fix is aiming at.
-  The unknown-vs-unknown distinction is not really about provenance. It maps
-  onto the parity rule exactly. An unset required variable evaluates to an
-  unknown AND stock refuses the same configuration, so refusing is
-  parity-correct. A resource attribute that is unknown until apply evaluates
-  to an unknown AND stock plans it without complaint, so refusing is a parity
-  DEFECT. Same value, opposite correct answers, and what separates them is
-  whether stock would proceed - not anything about the value itself.
-  That suggests the refusal is in the wrong PLACE rather than being the wrong
-  rule. At the point of use the two unknowns are indistinguishable; at the
-  source they are not, and an unset required variable is knowable exactly
-  where the variable is read. Refusing there and deferring everywhere else is
-  the shape that lets an ordinary estate onboard, and it is not what the
-  resolver does today.
-  A marker does not have to exist at plan time. It has to exist after apply,
-  which is when the value does - that is what ClassNeedsDiscovery and
-  ClassParentDerived already mean, and the ACM records are exactly that shape.
-  And a strict mode that refuses anything it cannot name up front is a
-  legitimate thing to want, because it is what makes live-check a gate worth
-  running. It cannot be the ONLY mode, however, since the same setting decides
-  whether an ordinary estate is onboardable at all. Do not assume which way
-  round the default goes; that is the maintainer's, and the two modes need
-  separate measurements before it is chosen.
-- **MEASURED, and it argues against the general form.** Before choosing a
-  default, the cost of each mode was measured rather than guessed. Suppressing
-  the point-of-use `Non-static identity argument` refusal across the whole
-  corpus frees exactly FIVE rate-capable estates - app-licensify-documentdb,
-  infra-content-data-admin, infra-public-wafs, infra-specialist-publisher,
-  infra-stack-dns-zones - and every one of them is a govuk-aws
-  unset-variable estate, which is precisely the cohort #183 rules must stay
-  blocked. No ACM estate is freed, because in the unplanned state they are
-  blocked on the for_each, not on this. And rate-capable instances do not move
-  at all: 2584 before, 2584 after.
-  So a blanket "defer every unknown" would reverse #183, free nothing the
-  campaign wants, and resolve not one additional identity. It would hide a
-  refusal rather than answer it - which is the failure mode a rising site
-  count normally reveals and this one would not, because the sites simply
-  disappear.
-  That is a strong argument for the source-versus-point-of-use split above
-  rather than for a mode switch on its own. The point-of-use refusal is doing
-  exactly one job today, and that job is refusing unset-variable estates; the
-  apply-time unknowns it would also need to defer are not reached until a plan
-  supplies the values. Any toggle has to be built on top of that distinction,
-  not instead of it.
-- **Superseded, kept for the reasoning:** A scout concluded that deriving the `for_each` key set would only
-  reveal the identity refusal underneath, because the record's `name` and
-  `type` come from `resource_record_name`/`_type` and are known only after
-  apply. That is wrong. Substituting a statically-knowable key set into
-  `.corpus/simpleinfra/terraform/shared/modules/acm-certificate/main.tf` while
-  leaving an identity argument genuinely computed
-  (`name = aws_acm_certificate.cert.arn`) takes the estate to ZERO blockers -
-  four informational data-read findings and nothing else. An apply-time
-  identity argument defers; it does not refuse. So the whole cluster turns on
-  the key set alone, and whoever picks it up should not budget for the second
-  half. The corpus was restored after the experiment.
-- **Three shapes remain, each with its next step named.** The ACM
-  DNS-validation `for_each` blocks four estates at one shared module line and
-  is a confirmed parity defect - stock plans it; the machinery to resolve the
-  adoption case is `projection.ReadInstances`, which is landed and has no
-  non-test caller. `markerless-type` blocks five, and those types really are
-  server-minted and untaggable, so they need the edge-identity idea in "Two
-  questions, not one", not a veto correction.
-  `simpleinfra/team-members-access` needs a variadic-tail component before
-  its row can be written at all.
-- **The typed-variable half of Shape B** was in progress and stopped. Its
-  fixture `shapeb-absent-typed` pins today's behaviour, so the debt cannot go
-  quiet; #260's closing comment has the design.
-- **#263's cure is half done.** `tools/row-gen/ratified.json` holds the 878
-  rows with a byte-identical round-trip proof, and `-emit` still reads
-  `DefaultTable`. The flip is three reads, not one — `emittedRows`,
-  `buildConvergence` and `markerlessRoster` — and the convergence one is
-  load-bearing.
-- **Worktrees under `../wt/` are live.** Never prune one by whether its branch
-  merged: a branch with no commits is trivially an ancestor of main, and a
-  prune loop on that predicate destroyed five agents' work in one command.
+- **The parent-derived widening of the markerless veto: REFUTED, population
+  zero.** Three independent checks, on 2026-08-17. Do not re-open without new
+  evidence.
+- **`list + content match` was never an admission path.** The token named a
+  mechanism this fork does not have and is now `enumerable, unbindable`.
+  `internal/live/discovery` binds by reading marker tags and by nothing else.
+- **The record store MAY hold an identity for an object that carries no
+  marker, because an ID is not a permission.** "May I delete this" stays with
+  IAM, scoped by ARN or resource policy. "Which object is this" is what the
+  record answers, and only that.
+- **cty marks cannot carry provenance.** `IsMarked()` guards roughly 70
+  panicking accessors across `internal/live`, and `marksafe` is a static
+  prover requiring exactly that guard shape. A second mark kind would mean
+  rewriting every guard.
+- **A blanket "defer every unknown" was measured and rejected.** It frees five
+  rate-capable estates, all of them govuk-aws unset-variable estates that #183
+  rules must stay blocked, and moves rate-capable instances not at all: 2584
+  before, 2584 after.
+- **Receipts never migrate onto the record store.** A receipt's value must
+  stay readable with `aws ssm get-parameter` by someone with no binary.
+  `live/RECEIPTS.md` has the four guards.
 
 ## Session-perishable state
 
 Anything that rots faster than this file lives elsewhere on purpose.
 
 - Work items and their current figures: the tracker.
-- Ladder and refusal figures: regenerate with `just corpus`, or measure with
+- Refusal figures: regenerate with `just corpus`, or measure with
   `refusal-probe` against the tree you are on.
-- Pinned floci image, provider pins and their drift guards: `live/floci-image`
-  and the tests in `live/pins_drift_test.go` and `live/flociimage_test.go`,
-  which fail if a measurement outlives its stated reason.
+- Pinned floci image and provider pins: `live/floci-image` and the tests in
+  `live/pins_drift_test.go` and `live/flociimage_test.go`.
 - Adversarial audits have found real defects in work that was green,
   committed and believed finished, and CI caught none of them. An extra audit
-  pass buys more than an extra CI run. Treat that as a standing option, not a
-  one-off.
+  pass buys more than an extra CI run. Treat that as a standing option.

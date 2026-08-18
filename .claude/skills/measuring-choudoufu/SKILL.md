@@ -1,9 +1,9 @@
 ---
-name: measuring-the-wall
-description: How to produce a number about choudoufu's language wall that survives contact with the next reader. Use when measuring refusals, ranking work, claiming a fix moved something, or reading a figure someone else produced.
+name: measuring-choudoufu
+description: How to produce a number about choudoufu that survives contact with the next reader. Use when measuring refusals, ranking work, claiming a fix moved something, or reading a figure someone else produced.
 ---
 
-# Measuring the wall
+# Measuring choudoufu
 
 Every number in this project has been wrong at least once, usually while
 being quoted confidently. This is the accumulated list of how, and what to
@@ -11,6 +11,29 @@ do instead.
 
 The failure is never arithmetic. It is always that the number answered a
 different question than the one it was quoted for.
+
+## The first question: which estate are you measuring
+
+A migrated estate is tagged. `internal/live/stamp` writes `tofu-estate` and
+`tofu-address` onto every taggable managed resource, and what carries no tag
+is the association family, whose identity derives from tagged parents. Tagged
+plus derived-from-tagged, and no third bucket.
+
+**Every offline instrument here measures configurations where that invariant
+does not hold.** No corpus entry declares a `live` block or a `record_store`,
+and no resource in one carries a marker. So a corpus figure is a statement
+about adopting a stranger's infrastructure cold, which is the hardest thing
+this fork does and is not what the product is for.
+
+Say which population your number is over, before anything else:
+
+- **published form** - the corpus as fetched. Adoption.
+- **onboarded form** - `internal/live/onboard`'s computed edit applied
+  (`refusal-probe -onboarded`). Still unmarked, still adoption.
+- **migrated form** - markers present. Only `live/e2e/` has any, and they are
+  hand-written one estate at a time.
+
+A figure that does not name one of those three has not been read yet.
 
 ## Before you produce a number
 
@@ -209,21 +232,25 @@ wired to no `just` recipe, no CI step and no README mention.
 
 ## Strategy: what the measurements have actually shown
 
-Re-derive these rather than trusting them — they are here as leads, not
-facts, and several have already inverted once.
+Re-derive these rather than trusting them. They are leads, not facts, and
+several have already inverted once.
 
-- **The wall is shallow.** Median 2 blocking classes per estate. Most
-  estates are one or two fixes from moving; a handful carry ten or more.
-  Rank estates by proximity, not classes by reach.
+- **Refusal-class burndown does not move estates.** 1570 sites cleared in a
+  day, the ladder unmoved. The median blocked estate carries about two
+  blocking classes, so clearing one class across forty estates leaves forty
+  estates blocked. The estate is the only unit that measures progress.
 - **A large slice is parity, not defect.** Whole classes are 100%
   unset-required-variable artifacts that stock OpenTofu refuses identically.
-  Those gate nothing an operator with tfvars would see, and they should not
-  sit in a cover.
-- **`clean` has a ceiling well below 145.** An informational data-read
-  finding keeps an estate off `clean` and no fix removes it.
-- **The blockers cluster by organisation.** Two orgs and two language
-  features accounted for 38 of 60 at one measurement. A house style is a
-  different kind of target than a language feature.
-- **Adversarial audit finds what CI does not** — 33 defects to zero, and
-  read-only auditors finish in half an implementer's time because they run
-  no generators.
+  Those gate nothing an operator with tfvars would see.
+- **A large slice is adoption-only.** A refusal that fires because the
+  configuration cannot yield an identity, on a resource that would carry a
+  marker naming it, is answering a question a migrated estate has already
+  answered. Which refusals those are is in the tracker; the population is
+  measured in types because nothing can yet measure it in sites.
+- **Untaggability is not an identity fact.** It bounds what an
+  `aws:ResourceTag` condition governs. A wall framed as untaggable measures
+  the marker and reports it as identity, and that substitution has cost this
+  repository more slots than any other single error.
+- **Adversarial audit finds what CI does not** - 33 defects to zero, and
+  read-only auditors finish in half an implementer's time because they run no
+  generators.

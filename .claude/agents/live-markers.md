@@ -33,30 +33,46 @@ receipts move to per-estate cloud records (`record_store`), and what remains in
 the state file is effects only — `null_resource`, `terraform_data`, `time_*`,
 non-secret `random_*` — through the stock provider lifecycle, as upstream.
 
-## Two questions, not one
+## The invariant, and the confusion it prevents
 
-**The marker answers "may I delete this". It does not answer "which object is
-this".** Before you conclude a type cannot be admitted, check which of the two
-you are actually stuck on. Refusing a type because no tag can be written on it
-is a different claim from "nothing says which instance this is", and treating
-them as one is the largest single source of wrongly-refused types here.
+**A migrated estate is tagged.** `internal/live/stamp` writes `tofu-estate`
+and `tofu-address` onto every taggable managed resource, reading taggability
+off the provider schema rather than off a list of type names. What carries no
+tag is the association, attachment and membership family, and those are
+admitted precisely because their identity is a composite of parents that are
+tagged. Tagged, plus derived-from-tagged. There is no third bucket.
 
-A resource can be fully identified by its own declaration and have nowhere to
-hang a tag. Every association, attachment and membership is that shape.
-`aws_iam_group_policy_attachment` is untaggable, has no ARN, and is admitted
-as `{group}` `/` `{policy_arn}`. So a fourth answer sits beside the tag, the
-record_store and the receipt: **the identity needs no carrier at all, because
-it re-derives from the declaration every run.** That is what the
-`client-named`, `parent-derived` and `account-derived` survey paths mean.
+**The marker identifies the resource.** `tofu-address` is the answer to "which
+live object does this block own", and for every taggable server-assigned type
+it is the whole recovery mechanism (`internal/live/discovery`). Any statement
+that a marker does not identify a resource is wrong; an earlier version of
+this section said exactly that and it misled several sessions.
 
-An edge's identity is its endpoints, and the configuration already holds them.
+The narrow true claim underneath it: **untaggability does not imply
+unidentifiability.** A resource can be fully identified by its own declaration
+and have nowhere to hang a tag. `aws_iam_group_policy_attachment` is
+untaggable, has no ARN, and is admitted as `{group}` `/` `{policy_arn}`. So a
+fourth answer sits beside the tag, the record_store and the receipt: the
+identity needs no carrier at all, because it re-derives from the declaration
+every run. That is what the `client-named`, `parent-derived` and
+`account-derived` survey paths mean.
+
+Untaggability bounds one thing only: what an `aws:ResourceTag` condition can
+govern, which `live/MARKERS.md`'s "What this grant cannot reach" states with
+its own generated figure. **A wall framed as "untaggable" measures the marker
+and reports it as identity**, and that substitution has cost this repository
+more slots than any other single error.
 
 `live/marker_identity_split_test.go` enforces the part that can be enforced:
 no type may be vetoed as markerless while `live/survey-full.json` classifies
-it client-named. HANDOFF.md's section of the same name carries the four
-consequences worth acting on and the order to take them in. Read it before
-proposing that a type is inherently unadmittable - that claim has been wrong
-here more often than it has been right.
+it client-named.
+
+The consequence for your work: **a refusal that fires on a resource carrying a
+marker is an adoption-only refusal**, not an analysis gap. The resolver
+consults the marker on one condition today, `entry.ServerAssigned` at
+`resolve.go:1057`, and refuses everything else that will not fold from
+configuration. Read the tracker's marker-first issue before writing a
+derivation for one.
 
 ## The measurement trap, which is the main thing to avoid
 
@@ -349,7 +365,7 @@ one to three times. Two of those were buying nothing, so:
   numbers are never the measurement; and its result arrives too late in an
   agent's turn to change any decision.
 
-  **Read `.claude/skills/measuring-the-wall/SKILL.md` before producing or
+  **Read `.claude/skills/measuring-choudoufu/SKILL.md` before producing or
   quoting any number.** It carries every way a figure has actually been
   wrong here — quoted from a branch predating a merge, touches counted as
   sole blockers, the wrong denominator, sites reported where instances was
@@ -499,6 +515,10 @@ is a success and should lead your report, not be buried in it.
 
 ## Where the work lives
 
-The issue tracker, and nowhere else. `gh issue list -R INTENTIUS/choudoufu`.
-There is no handoff document; one existed, accumulated four false load-bearing
-claims across three sessions, and was retired into the tracker.
+`HANDOFF.md` carries the order and the reason; the tracker carries the
+evidence and the figures. `gh issue list -R INTENTIUS/choudoufu` - a bare `gh`
+in this clone resolves to `opentofu/opentofu`, silently.
+
+The current goal state: `tools/estate-gen` produces properly marked estates of
+varying complexity, all of which plan exact, apply, replan empty, and put
+their markers on the right objects.
