@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=425 instances=1400
+# shape: dirs=427 instances=1410
 # shape: class CONCRETE=726
-# shape: class NEEDS_DISCOVERY=562
+# shape: class NEEDS_DISCOVERY=572
 # shape: class PARENT_DERIVED=95
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=51d2c9029f50a1badb29aeea3249a70ae3a47b4a14bc9c52068324e1c150ab08
+# shape: body-sha256=1fdaea1879372e1a52e74eb8e43c23db570f5fd592443a4160e5733baf58f10a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -41,6 +41,16 @@ internal/live/dataread/testdata/remote-state-ineligible-backend	aws_instance.thi
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.east	CONCRETE	tofu-alias-e2e-east	bucket=tofu-alias-e2e-east
 internal/live/discovery/testdata/alias-e2e	aws_s3_bucket.west	CONCRETE	tofu-alias-e2e-west	bucket=tofu-alias-e2e-west
 internal/live/discovery/testdata/cloudcontrol-e2e	aws_glue_registry.demo	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.counted[0].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.counted[1].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.counted[1].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.keyed["a"].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.keyed["a"].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.keyed["b"].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk	module.keyed["b"].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk/child	aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/count-module-walk/child	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[2]	NEEDS_DISCOVERY		
