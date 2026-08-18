@@ -193,7 +193,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 
 	// ---- estate-gen per-cohort overrides ------------------------------
 	"tools/estate-gen/overrides_cohort_ai_location.go":          {Reason: estateGenCohortReason, Data: 21, Code: 1},
-	"tools/estate-gen/overrides_cohort_apigateway.go":           {Reason: estateGenCohortReason, Data: 19, Code: 20},
+	"tools/estate-gen/overrides_cohort_apigateway.go":           {Reason: estateGenCohortReason, Data: 24, Code: 22},
 	"tools/estate-gen/overrides_cohort_compute_platforms.go":    {Reason: estateGenCohortReason, Data: 13, Code: 0},
 	"tools/estate-gen/overrides_cohort_connect_euc.go":          {Reason: estateGenCohortReason, Data: 11, Code: 1},
 	"tools/estate-gen/overrides_cohort_data.go":                 {Reason: estateGenCohortReason, Data: 9, Code: 3},
@@ -242,8 +242,20 @@ const (
 	// Two Data literals (the map key and its NeedsSupporting: []string{"aws_s3_bucket"}
 	// entry) and one Code-classed g.byType["aws_s3_bucket"] lookup inside
 	// the deleted Apply closure, all deleted, none moved.
-	typeLiteralDataTotal = 421
-	typeLiteralCodeTotal = 124
+	// 421 -> 426 data, 124 -> 126 code, same day: apigateway's aws_lb was
+	// missing both subnets and subnet_mapping (neither schema-Required),
+	// so terraform validate refused it with "one of `subnet_mapping,subnets`
+	// must be specified" - the same ExactlyOneOf-shaped gap this file's
+	// header measured (live/import-grammar.json already extracts it as
+	// aws_lb's own exclusive_groups entry, which estate-gen does not yet
+	// consume generically). Two new typeOverridesApigateway entries
+	// (aws_lb, aws_api_gateway_vpc_link) added five Data literals (two map
+	// keys, three inside aws_api_gateway_vpc_link's
+	// NeedsSupporting: []string{"aws_lb","aws_subnet","aws_vpc"}) and two
+	// Code-classed g.byType[...] sibling lookups (aws_lb's Apply reads
+	// "aws_subnet", aws_api_gateway_vpc_link's Apply reads "aws_lb").
+	typeLiteralDataTotal = 426
+	typeLiteralCodeTotal = 126
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and

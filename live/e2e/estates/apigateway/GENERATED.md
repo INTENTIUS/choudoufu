@@ -33,12 +33,14 @@ go run ./tools/estate-gen -cohort apigateway -types aws_api_gateway_api_key,aws_
 | `aws_api_gateway_stage.app` | coverage | rest_api_id mis-wired the same way as aws_api_gateway_documentation_version above; deployment_id has no identity-table candidate because aws_api_gateway_deployment is not admitted this batch (rejected), so it is left as the generic placeholder string - a stage is its own coverage row and the deployment it names existing is not this type's identity concern |
 | `aws_api_gateway_usage_plan.app` | coverage | none |
 | `aws_api_gateway_usage_plan_key.app` | coverage | none |
-| `aws_api_gateway_vpc_link.app` | coverage | none |
+| `aws_api_gateway_vpc_link.app` | coverage | target_arns names a real Network Load Balancer (this type's own doc example pairs it with one, subnet_mapping and all), but nothing else in this cohort renders a subnet or VPC for that load balancer to attach to - the same gap aws_lb's own override above exists to close. NeedsSupporting pulls in aws_lb, aws_subnet and aws_vpc so the referenced load balancer can actually create against floci instead of 400ing with "one of subnet_mapping,subnets must be specified"; description and target_arns are set to exactly what seedFromExample already supplied before this type carried an override (seedFromExample is suppressed for any overridden type, so this Apply keeps carrying them by hand). |
 | `aws_apigatewayv2_api.app` | coverage | protocol_type is a fixed enum (validate: "expected protocol_type to be one of [WEBSOCKET HTTP]"), not the generic placeholder |
 | `aws_apigatewayv2_domain_name.app` | coverage | domain_name_configuration's three required arguments are each validated: certificate_arn as a well-formed ARN (validate: "invalid ARN: arn: invalid prefix"), endpoint_type and security_policy as fixed enums (validate: "expected ... to be one of [...]") |
 | `aws_apigatewayv2_stage.app` | coverage | none |
 | `aws_apigatewayv2_vpc_link.app` | coverage | none |
-| `aws_lb.apigateway` | supporting, not coverage | none |
+| `aws_lb.apigateway` | supporting, not coverage | neither subnets nor subnet_mapping is schema-Required (both Optional in the wire schema), so the required-only pass leaves both unset and terraform validate refuses with "one of `subnet_mapping,subnets` must be specified" - a provider-side ExactlyOneOf-shaped rule the doc page states as a NOTE ("one of either subnets or subnet_mapping is required") rather than as schema.Required; live/import-grammar.json already extracts it as an exclusive_groups entry for aws_lb ([["subnet_mapping","subnets"]]), which estate-gen does not yet consume generically (a wider fix than this one cohort's gap). aws_api_gateway_vpc_link's v1 VPC Link only accepts a Network Load Balancer as its target ("List of network load balancer arns" - api_gateway_vpc_link.html.markdown), and ec2-networking's own aws_lb feeds a network_load_balancer_arns argument too, so load_balancer_type is set to network here rather than left at the application default - which also means one subnet is sufficient (floci's ElbV2Service only enforces the two-Availability-Zone rule for type "application"). |
+| `aws_subnet.apigateway` | supporting, not coverage | none |
+| `aws_vpc.apigateway` | supporting, not coverage | none |
 
 ## Requested types
 
