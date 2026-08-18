@@ -17,28 +17,34 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// objectOnlySchemas builds the one provider schema this file needs: a type
-// whose identity is two client-named attributes, which is what makes
+// objectOnlySchemas builds the one provider schema
+// [TestIdentityObjectCollisionRendersAttributesNotAnEmptyString] needs: a
+// type whose identity is two client-named attributes, which is what makes
 // [SynthesizeTypeIdentity] mark the entry [TypeIdentity.IdentityObjectOnly]
 // and [classify] leave its import ID empty on purpose.
 //
 // It is built here rather than read from a provider so the test states its
-// own premise. The shape is aws_autoscaling_schedule's, the type the corpus
-// hit this on.
+// own premise. The shape used to be aws_autoscaling_schedule's, the type the
+// corpus hit this on, until issue #245's composite-bucket ratification batch
+// gave that type a real "/"-joined import ID straight from the provider's
+// own documented Import section - confirmed unambiguous, so the type is now
+// genuinely admitted rather than object-only, and testdata/identity-object-
+// only's synthetic type carries the shape instead. See that fixture's own
+// comment.
 func objectOnlySchemas() map[string]providers.Schema {
 	return map[string]providers.Schema{
-		"aws_autoscaling_schedule": {
+		"aws_test_identity_object_only": {
 			Block: &configschema.Block{
 				Attributes: map[string]*configschema.Attribute{
-					"autoscaling_group_name": {Type: cty.String, Required: true},
-					"scheduled_action_name":  {Type: cty.String, Required: true},
+					"group_name":  {Type: cty.String, Required: true},
+					"action_name": {Type: cty.String, Required: true},
 				},
 			},
 			IdentitySchema: &configschema.Object{
 				Nesting: configschema.NestingSingle,
 				Attributes: map[string]*configschema.Attribute{
-					"autoscaling_group_name": {Type: cty.String, Required: true},
-					"scheduled_action_name":  {Type: cty.String, Required: true},
+					"group_name":  {Type: cty.String, Required: true},
+					"action_name": {Type: cty.String, Required: true},
 				},
 			},
 		},
@@ -49,8 +55,13 @@ func objectOnlySchemas() map[string]providers.Schema {
 // regression: three schedules in one group, differing only in the action
 // name, must resolve to three distinct identities. Before the collision key
 // read [Resolution.IdentityValues], all three compared equal on an import ID
-// that is empty by design, and a configuration whose resources are perfectly
-// distinct was refused.
+// that is empty by design (aws_autoscaling_schedule was object-only at the
+// time), and a configuration whose resources are perfectly distinct was
+// refused. Issue #245 gave aws_autoscaling_schedule a real import ID, so
+// this fixture is no longer object-only, but it is still exactly the shape
+// [Resolution.IdentityValues] has to get right regardless: three distinct
+// live objects must resolve as three, on the identity attributes rather than
+// on whatever else happens to be true of the import ID.
 //
 // The assertion is on the rendered identity attributes rather than on
 // whether any diagnostic fired, so a future change that keeps the count of
@@ -59,7 +70,7 @@ func objectOnlySchemas() map[string]providers.Schema {
 func TestIdentityObjectResolutionsAreComparedByTheirAttributes(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "identity-object-distinct"), nil)
 
-	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: objectOnlySchemas()})
+	result, diags := Resolve(context.Background(), cfg)
 
 	want := map[string]string{
 		`aws_autoscaling_schedule.this["morning"]`:                          "morning",
@@ -78,9 +89,6 @@ func TestIdentityObjectResolutionsAreComparedByTheirAttributes(t *testing.T) {
 		if got := res.IdentityValues["autoscaling_group_name"]; got != "shared-group" {
 			t.Errorf("%s autoscaling_group_name is %q, want %q", addr, got, "shared-group")
 		}
-		if res.ImportID != "" {
-			t.Errorf("%s import ID is %q; an identity-object-only type has none, which is the whole reason the collision key cannot read it", addr, res.ImportID)
-		}
 	}
 
 	for _, d := range diags {
@@ -97,21 +105,41 @@ func TestIdentityObjectResolutionsAreComparedByTheirAttributes(t *testing.T) {
 // TestIdentityObjectCollisionStillFires is the other direction, and it is the
 // one a fix like this can quietly break: comparing a more precise key must
 // not stop the check from firing on two blocks that really do name the same
-// live object.
+// live object. aws_autoscaling_schedule now has a real import ID (issue
+// #245), so the collision text is the ordinary import-ID form; the
+// object-only display form is
+// [TestIdentityObjectCollisionRendersAttributesNotAnEmptyString]'s job.
 func TestIdentityObjectCollisionStillFires(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "identity-object-distinct"), nil)
 
-	_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: objectOnlySchemas()})
+	_, diags := Resolve(context.Background(), cfg)
 
 	if !hasDiag(diags, "Two resources with the same identity", "aws_autoscaling_schedule.duplicate_b") {
 		t.Fatalf("duplicate_a and duplicate_b name the same group and action and were not refused:\n%s", renderDiags(diags))
 	}
-	// The refusal has to name the identity, and for a type with no import ID
-	// that means the attributes - not an empty string that says nothing.
+	if !hasDiag(diags, "Two resources with the same identity", `the identity "other-group/same-action"`) {
+		t.Errorf("the collision did not render the ratified import ID:\n%s", renderDiags(diags))
+	}
+}
+
+// TestIdentityObjectCollisionRendersAttributesNotAnEmptyString is
+// [TestIdentityObjectCollisionStillFires]'s original assertion, now pinned
+// to the synthetic object-only type ([objectOnlySchemas]) rather than to
+// aws_autoscaling_schedule: the refusal has to name the identity, and for a
+// type with no import ID that means the attributes, not an empty string
+// that says nothing.
+func TestIdentityObjectCollisionRendersAttributesNotAnEmptyString(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "identity-object-only"), nil)
+
+	_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: objectOnlySchemas()})
+
+	if !hasDiag(diags, "Two resources with the same identity", "aws_test_identity_object_only.duplicate_b") {
+		t.Fatalf("duplicate_a and duplicate_b name the same group and action and were not refused:\n%s", renderDiags(diags))
+	}
 	if hasDiag(diags, "Two resources with the same identity", `the identity ""`) {
 		t.Errorf("the collision was reported against an empty identity string:\n%s", renderDiags(diags))
 	}
-	if !hasDiag(diags, "Two resources with the same identity", "scheduled_action_name=same-action") {
+	if !hasDiag(diags, "Two resources with the same identity", "action_name=same-action") {
 		t.Errorf("the collision did not render the identity attributes:\n%s", renderDiags(diags))
 	}
 }

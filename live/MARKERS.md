@@ -579,7 +579,7 @@ be the stable integration surface a future tool builds against.
 An estate is inherited by being granted access to it, and this is the grant.
 The marker is an ordinary resource tag, so on a type that has tags IAM can
 condition on it directly through `aws:ResourceTag`, with no second permission
-model to keep in sync. That is <!-- survey-gen:begin marker-governable-count -->663 of the 893<!-- survey-gen:end marker-governable-count -->
+model to keep in sync. That is <!-- survey-gen:begin marker-governable-count -->670 of the 952<!-- survey-gen:end marker-governable-count -->
 admitted AWS resource types; "What this grant cannot reach" below is the
 rest, and it is a real gap rather than a caveat.
 
@@ -701,57 +701,63 @@ nothing else. Both keys are ordinary resource tags, which is the whole reason
 the substitution works.
 
 <!-- survey-gen:begin marker-governable-gap -->
-230 of the 893 admitted AWS resource types carry no `tags` argument at all (`live/survey-full.json`'s taggability signal, joined to the admission table). A resource of one of those types carries `tofu-estate` no more than it carries `tofu-address`, so both conditions above are unmatched on it and both statements convey nothing about it. If a principal can act on such a resource, the grant is wider than its condition, and keeping the two in step is a second permission model. The top of this section says there is not one. There is, for these 230 types.
+282 of the 952 admitted AWS resource types carry no `tags` argument at all (`live/survey-full.json`'s taggability signal, joined to the admission table). A resource of one of those types carries `tofu-estate` no more than it carries `tofu-address`, so both conditions above are unmatched on it and both statements convey nothing about it. If a principal can act on such a resource, the grant is wider than its condition, and keeping the two in step is a second permission model. The top of this section says there is not one. There is, for these 282 types.
 
-This is not the markerless veto. The 140 types in `internal/live/identity`'s `MarkerlessTypes` are untaggable *and* server-minted, and none of them is admitted, so no estate contains one. The 230 here are admitted: a configuration declares them and this fork manages them, identified from the declaration itself rather than from a tag, which is what the client-named, parent-derived and account-derived admission paths mean. Being identifiable without a tag is a different property from being governable by one, and only the second is what an IAM condition needs.
+This is not the markerless veto. The 140 types in `internal/live/identity`'s `MarkerlessTypes` are untaggable *and* server-minted, and none of them is admitted, so no estate contains one. The 282 here are admitted: a configuration declares them and this fork manages them, identified from the declaration itself rather than from a tag, which is what the client-named, parent-derived and account-derived admission paths mean. Being identifiable without a tag is a different property from being governable by one, and only the second is what an IAM condition needs.
 
-They span 78 CloudFormation services.
+They span 86 CloudFormation services.
 
 <details>
 <summary>Untaggable admitted types per service</summary>
 
 | Service | Untaggable | Admitted in this service |
 |---|---|---|
-| EC2 | 22 | 88 |
+| EC2 | 24 | 90 |
 | ApiGateway | 11 | 19 |
 | Cognito | 10 | 12 |
-| S3 | 8 | 10 |
+| S3 | 9 | 11 |
+| SSO | 8 | 10 |
 | WorkSpacesWeb | 8 | 18 |
 | IAM | 7 | 16 |
-| SSO | 7 | 9 |
 | ECR | 6 | 8 |
 | Events | 6 | 8 |
 | Glue | 6 | 18 |
 | Logs | 6 | 12 |
 | Route53 | 6 | 8 |
+| AutoScaling | 5 | 5 |
 | CloudFront | 5 | 15 |
 | NetworkManager | 5 | 17 |
+| SES | 5 | 13 |
 | DynamoDB | 4 | 5 |
 | ElasticLoadBalancingV2 | 4 | 13 |
 | MSK | 4 | 8 |
-| SES | 4 | 12 |
+| Notifications | 4 | 5 |
 | APS | 3 | 7 |
+| AppStream | 3 | 6 |
 | AppSync | 3 | 6 |
-| Config | 3 | 5 |
+| Config | 3 | 6 |
 | Lambda | 3 | 7 |
 | Lightsail | 3 | 11 |
 | OpenSearchServerless | 3 | 5 |
 | RDS | 3 | 17 |
 | SSM | 3 | 7 |
+| WAFv2 | 3 | 7 |
 | ARCZonalShift | 2 | 2 |
-| AppStream | 2 | 5 |
-| AutoScaling | 2 | 2 |
 | BedrockAgentCore | 2 | 15 |
 | CloudWatch | 2 | 7 |
 | CodeArtifact | 2 | 4 |
 | EMR | 2 | 4 |
+| S3ObjectLambda | 2 | 2 |
+| SMSVOICE | 2 | 7 |
 | SecretsManager | 2 | 3 |
 | SecurityHub | 2 | 7 |
+| ServiceCatalog | 2 | 5 |
 | VpcLattice | 2 | 14 |
-| WAFv2 | 2 | 6 |
 | ACMPCA | 1 | 2 |
+| AccessAnalyzer | 1 | 2 |
 | Amplify | 1 | 3 |
 | AppFlow | 1 | 2 |
+| Athena | 1 | 3 |
 | Backup | 1 | 7 |
 | CodeBuild | 1 | 4 |
 | CodeDeploy | 1 | 3 |
@@ -763,41 +769,43 @@ They span 78 CloudFormation services.
 | ECS | 1 | 9 |
 | EKS | 1 | 8 |
 | ElastiCache | 1 | 8 |
+| FIS | 1 | 2 |
 | FSx | 1 | 10 |
 | GuardDuty | 1 | 7 |
 | IoT | 1 | 11 |
 | KMS | 1 | 4 |
 | Kinesis | 1 | 3 |
+| LakeFormation | 1 | 1 |
 | Lex | 1 | 2 |
 | Location | 1 | 6 |
 | NetworkFirewall | 1 | 6 |
-| Notifications | 1 | 2 |
 | PaymentCryptography | 1 | 2 |
+| RAM | 1 | 3 |
 | Redshift | 1 | 5 |
+| ResourceGroups | 1 | 2 |
 | Route53Resolver | 1 | 7 |
 | S3Files | 1 | 3 |
 | S3Outposts | 1 | 2 |
 | S3Tables | 1 | 2 |
 | S3Vectors | 1 | 3 |
-| SMSVOICE | 1 | 5 |
 | SNS | 1 | 2 |
 | SQS | 1 | 2 |
 | SageMaker | 1 | 27 |
 | Scheduler | 1 | 2 |
-| ServiceCatalog | 1 | 4 |
 | ServiceCatalogAppRegistry | 1 | 3 |
 | ServiceDiscovery | 1 | 5 |
+| Synthetics | 1 | 3 |
 | Transfer | 1 | 9 |
 | WAFRegional | 1 | 4 |
 | XRay | 1 | 3 |
 
 </details>
 
-14 further untaggable admitted types are absent from that table because `live/mapping.json` places them in no CloudFormation service at all: `aws_acmpca_policy`, `aws_bedrock_model_invocation_logging_configuration`, `aws_guardduty_organization_admin_account`, `aws_guardduty_organization_configuration`, `aws_iam_account_alias`, `aws_iam_user_group_membership`, `aws_inspector2_delegated_admin_account`, `aws_inspector2_member_association`, `aws_macie2_organization_admin_account`, `aws_s3_account_public_access_block`, `aws_security_group_rule`, `aws_securityhub_member`, `aws_securityhub_standards_control` and `aws_securityhub_standards_control_association`. They are named rather than dropped, because a service table that silently loses part of its subject reads as a complete one.
+42 further untaggable admitted types are absent from that table because `live/mapping.json` places them in no CloudFormation service at all: `aws_acmpca_policy`, `aws_amplify_backend_environment`, `aws_apprunner_custom_domain_association`, `aws_bedrock_model_invocation_logging_configuration`, `aws_cloudfrontkeyvaluestore_key`, `aws_codecommit_approval_rule_template_association`, `aws_connect_lambda_function_association`, `aws_connect_phone_number_contact_flow_association`, `aws_datazone_asset_type`, `aws_directory_service_conditional_forwarder`, `aws_directory_service_trust`, `aws_ebs_fast_snapshot_restore`, `aws_guardduty_organization_admin_account`, `aws_guardduty_organization_configuration`, `aws_iam_account_alias`, `aws_iam_user_group_membership`, `aws_inspector2_delegated_admin_account`, `aws_inspector2_member_association`, `aws_iot_thing_group_membership`, `aws_lakeformation_lf_tag_expression`, `aws_lambda_function_scaling_config`, `aws_lambda_provisioned_concurrency_config`, `aws_licensemanager_association`, `aws_macie2_organization_admin_account`, `aws_networkmanager_attachment_routing_policy_label`, `aws_opensearch_authorize_vpc_endpoint_access`, `aws_opensearch_package_association`, `aws_organizations_delegated_administrator`, `aws_redshiftserverless_custom_domain_association`, `aws_route53_vpc_association_authorization`, `aws_s3_account_public_access_block`, `aws_security_group_rule`, `aws_securityhub_member`, `aws_securityhub_standards_control`, `aws_securityhub_standards_control_association`, `aws_servicecatalog_budget_resource_association`, `aws_servicequotas_service_quota`, `aws_ses_identity_policy`, `aws_sesv2_email_identity_policy`, `aws_ssoadmin_region`, `aws_transfer_access` and `aws_workmail_domain`. They are named rather than dropped, because a service table that silently loses part of its subject reads as a complete one.
 
 **What to use instead, for those types.** The reachable scope is the ordinary one: a `Resource` ARN in the statement, the service's own resource policy, the account, the region. That is coarser than a marker and it is maintained beside the estate instead of by it, so it has to be revisited when the estate changes. This fork does not narrow it and does not claim to.
 
-**The count is a floor.** It is a fact about 893 types, and a taggable type can still go unmarked in one particular configuration - a resource declared inside a `for_each`'d module body, a `tags` argument this pass can neither read nor merge into. Those are properties of a configuration rather than of a type, so nothing here counts them; `internal/live/stamp` reports each one as a skip when it happens.
+**The count is a floor.** It is a fact about 952 types, and a taggable type can still go unmarked in one particular configuration - a resource declared inside a `for_each`'d module body, a `tags` argument this pass can neither read nor merge into. Those are properties of a configuration rather than of a type, so nothing here counts them; `internal/live/stamp` reports each one as a skip when it happens.
 
 **One further limit, on the within-estate half only.** An escaped `tofu-address` longer than one tag value is split across `tofu-address-2` through `tofu-address-4` (see "`tofu-address` continuation tags"), so `StringEquals` on `aws:ResourceTag/tofu-address` is compared against the first chunk alone. For such an address the condition is a prefix test over a value this grammar says is meaningless on its own, and it should not be written. The across-estate half is unaffected: `tofu-estate`'s own grammar caps it at 128 characters, so it never splits.
 <!-- survey-gen:end marker-governable-gap -->

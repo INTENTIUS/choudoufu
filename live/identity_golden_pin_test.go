@@ -92,7 +92,20 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE": 736,
+	//
+	// 741, up from 736 (issue #245's composite-bucket ratification batch):
+	// five ADDED rows in internal/live/identity/testdata/identity-object-
+	// distinct, all aws_autoscaling_schedule - duplicate_a, duplicate_b and
+	// three this[...] instances. That type used to have no
+	// identity.DefaultTable row at all (this fixture only resolved it
+	// through the test's own schema-based synthesis, in
+	// internal/live/identity/collisionkey_test.go); the batch ratified it
+	// as a real "/"-joined composite (autoscaling_group_name/
+	// scheduled_action_name) straight from the provider's own documented
+	// Import section, so this schema-less sweep now resolves it on its
+	// own. Not a moved row - no pre-existing CONCRETE row used this type
+	// before; see the digest below.
+	"CONCRETE": 741,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -185,7 +198,18 @@ var identityGoldenPin = map[string]int{
 // ADDED rows, a class-preserving rename (aws_iam_user.team ->
 // aws_iam_group.team in two fixtures) made so those two tests keep
 // exercising the general refusal shape rather than #289's new answer.
-const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377dbe0c56bdc6b43781416610"
+// 2026-08-17 (issue #245's composite-bucket ratification batch):
+// TestIdentityGolden's own diff, read before this line was edited, reported
+// "0 identities changed, 5 added, 0 removed". Zero CHANGED is the
+// load-bearing half: the batch's 59 newly ratified rows are all types no
+// in-repo fixture used before, except aws_autoscaling_schedule, which
+// internal/live/identity/testdata/identity-object-distinct already
+// exercised through the collision-key test's own schema-based synthesis
+// (never through this schema-less sweep, which had no row for it at all).
+// The 5 ADDED rows are exactly that fixture's five aws_autoscaling_schedule
+// instances, now resolved for the first time by this sweep; no other
+// pre-existing marker's rendered string moved.
+const identityGoldenPinBodyDigest = "1304d4f34abe241ca530e2e5abe74db795b98609673ed2c7163f9e3b1e6050c7"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -257,9 +281,22 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // row (local_sensitive_file is a logical type, not an AWS resource), so it
 // contributes a directory and zero golden instance lines - same shape as
 // local_file's own fixture.
+// 2026-08-17 (issue #245's composite-bucket ratification batch): dirs 449
+// -> 450, instances 1456 -> 1461. The new directory is
+// internal/live/identity/testdata/identity-object-only, a synthetic
+// stand-in fixture for the identity-object-only collision-display
+// regression collisionkey_test.go used to pin against
+// aws_autoscaling_schedule before this batch gave that type a real
+// ratified row (see identityGoldenPin's own comment). It contributes zero
+// golden instance lines: its resource type is deliberately fictional
+// (aws_test_identity_object_only), so this schema-less sweep cannot admit
+// it - only collisionkey_test.go's own ResolveWith, with its dedicated
+// synthetic schema, resolves it. The five extra instances are entirely
+// aws_autoscaling_schedule's, in the pre-existing identity-object-distinct
+// directory.
 const (
-	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 449
+	identityGoldenPinInstances = 1461
+	identityGoldenPinDirs      = 450
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

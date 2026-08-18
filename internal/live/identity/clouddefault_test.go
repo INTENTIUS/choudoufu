@@ -180,6 +180,25 @@ func TestCloudDefaultAttrIsSingleSourced(t *testing.T) {
 		// provider" - the same wording as s3control_storage_lens_configuration's
 		// bullet above, quoted from the same v6.59.0 doc page.
 		"aws_s3_account_public_access_block": "account_id",
+		// Issue #245's composite-bucket ratification batch, four more
+		// account-defaulting catalog_id/account_id arguments, each quoted
+		// from its own pinned v6.59.0 doc page's Argument Reference:
+		// lf_tag's catalog_id: "ID of the Data Catalog to create the tag
+		// in. If omitted, this defaults to the AWS Account ID."
+		"aws_lakeformation_lf_tag": "catalog_id",
+		// lf_tag_expression's catalog_id: "ID of the Data Catalog. Defaults
+		// to the account ID if not specified."
+		"aws_lakeformation_lf_tag_expression": "catalog_id",
+		// s3control_object_lambda_access_point's account_id: "AWS account
+		// ID for the owner of the bucket for which you want to create an
+		// Object Lambda Access Point. Defaults to automatically determined
+		// account ID of the Terraform AWS provider."
+		"aws_s3control_object_lambda_access_point": "account_id",
+		// s3control_object_lambda_access_point_policy's account_id: "AWS
+		// account ID for the account that owns the Object Lambda Access
+		// Point. Defaults to automatically determined account ID of the
+		// Terraform AWS provider."
+		"aws_s3control_object_lambda_access_point_policy": "account_id",
 	}
 	for typeName, wantAttr := range want {
 		if got[typeName] != wantAttr {

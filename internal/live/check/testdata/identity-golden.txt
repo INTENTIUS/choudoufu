@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=449 instances=1456
-# shape: class CONCRETE=736
+# shape: dirs=450 instances=1461
+# shape: class CONCRETE=741
 # shape: class NEEDS_DISCOVERY=607
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=59ff423719b88b0e06e4b4f4fbc6609e977ae6377dbe0c56bdc6b43781416610
+# shape: body-sha256=1304d4f34abe241ca530e2e5abe74db795b98609673ed2c7163f9e3b1e6050c7
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -225,6 +225,11 @@ internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
+internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
+internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
+internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["go-offline-to-celebrate-new-year"]	CONCRETE	shared-group/go-offline-to-celebrate-new-year	autoscaling_group_name=shared-group,scheduled_action_name=go-offline-to-celebrate-new-year
+internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["morning"]	CONCRETE	shared-group/morning	autoscaling_group_name=shared-group,scheduled_action_name=morning
+internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["night"]	CONCRETE	shared-group/night	autoscaling_group_name=shared-group,scheduled_action_name=night
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["a"]	PARENT_DERIVED	${aws_subnet.this["a"].id}/rtb-fixed	
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["b"]	PARENT_DERIVED	${aws_subnet.this["b"].id}/rtb-fixed	
 internal/live/identity/testdata/indexed-traversal	aws_subnet.this["a"]	NEEDS_DISCOVERY		

@@ -75,8 +75,15 @@ func TestDerivableFields(t *testing.T) {
 		},
 		// Not in the hand table: the shape a wiring batch would pick up.
 		// aws_cloudwatch_log_metric_filter used to stand here; it is in the
-		// table now (issue #65's observability batch).
-		"aws_wafv2_web_acl_association": {
+		// table now (issue #65's observability batch). aws_wafv2_web_acl_
+		// association stood here next; issue #245's composite-bucket
+		// ratification batch admitted it. aws_verifiedpermissions_identity_
+		// source is deliberately declined rather than admitted (its second
+		// component, identity_source_id, is server-minted, not a
+		// configuration argument the Argument Reference names - see
+		// tools/row-gen/rejected.json), so it is not going anywhere the
+		// next batch would pick it up from under this test again.
+		"aws_verifiedpermissions_identity_source": {
 			args:     map[string]string{"name": "req", "resource_arn": "req", "id": "optcomp"},
 			identity: map[string]string{"name": "req", "resource_arn": "req", "account_id": "opt"},
 		},
@@ -103,17 +110,17 @@ func TestDerivableFields(t *testing.T) {
 		t.Errorf("context attributes are %v, want [account_id region]", known.Context)
 	}
 
-	candidate := byType["aws_wafv2_web_acl_association"]
+	candidate := byType["aws_verifiedpermissions_identity_source"]
 	if candidate.InTable {
-		t.Error("aws_wafv2_web_acl_association is not in the hand table")
+		t.Error("aws_verifiedpermissions_identity_source is not in the hand table")
 	}
 	if !reflect.DeepEqual(candidate.IdentityAttrs, []string{"name", "resource_arn"}) {
 		t.Errorf("identity attributes are %v, want [name resource_arn]", candidate.IdentityAttrs)
 	}
 
 	newOnes := DerivableNew(schemas)
-	if len(newOnes) != 1 || newOnes[0].Type != "aws_wafv2_web_acl_association" {
-		t.Errorf("the new-candidate set is %v, want only aws_wafv2_web_acl_association", newOnes)
+	if len(newOnes) != 1 || newOnes[0].Type != "aws_verifiedpermissions_identity_source" {
+		t.Errorf("the new-candidate set is %v, want only aws_verifiedpermissions_identity_source", newOnes)
 	}
 }
 
@@ -127,10 +134,13 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 		},
 		// Deliberately a type the hand table does not cover, so the InTable
 		// split has something on both sides. aws_sqs_queue used to stand
-		// here (the messaging batch, #40, #44 wired it), and then
+		// here (the messaging batch, #40, #44 wired it), then
 		// aws_cloudwatch_log_metric_filter (issue #65's observability
-		// batch wired that one).
-		"aws_wafv2_web_acl_association": {
+		// batch wired that one), then aws_wafv2_web_acl_association (issue
+		// #245's composite-bucket batch). aws_verifiedpermissions_identity_
+		// source is declined rather than admitted (see derive_test.go's
+		// other use of it above), so it stays out of the hand table.
+		"aws_verifiedpermissions_identity_source": {
 			args:     map[string]string{"name": "req", "resource_arn": "req"},
 			identity: map[string]string{"name": "req", "resource_arn": "req", "account_id": "opt"},
 		},
@@ -146,7 +156,7 @@ func TestVerificationCarriesDerivable(t *testing.T) {
 			newly = append(newly, d.Type)
 		}
 	}
-	if !reflect.DeepEqual(newly, []string{"aws_wafv2_web_acl_association"}) {
-		t.Errorf("new candidates are %v, want [aws_wafv2_web_acl_association]", newly)
+	if !reflect.DeepEqual(newly, []string{"aws_verifiedpermissions_identity_source"}) {
+		t.Errorf("new candidates are %v, want [aws_verifiedpermissions_identity_source]", newly)
 	}
 }
