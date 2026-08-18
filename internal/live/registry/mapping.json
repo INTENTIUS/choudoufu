@@ -5,13 +5,12 @@
     "mapped": 1090,
     "fold": 170,
     "tf_only": 116,
-    "cfn_unmodeled": 303,
-    "deprecated_service": 7,
+    "cfn_unmodeled": 310,
+    "deprecated_service": 0,
     "unclassified": 13,
     "by_via": {
       "alias": 174,
-      "cfn-unmodeled": 303,
-      "deprecated-service": 7,
+      "cfn-unmodeled": 310,
       "fold": 170,
       "former2": 47,
       "name": 744,
@@ -11467,9 +11466,9 @@
     {
       "tf_type": "aws_waf_geo_match_set",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
+      "note": "no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_waf_ipset",
@@ -11481,23 +11480,23 @@
     {
       "tf_type": "aws_waf_rate_based_rule",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
+      "note": "no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_waf_regex_match_set",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
+      "note": "no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_waf_regex_pattern_set",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
+      "note": "no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_waf_rule",
@@ -11509,9 +11508,9 @@
     {
       "tf_type": "aws_waf_rule_group",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic: a service AWS has superseded with the unified WAFv2 API (live/residue.go's DeprecatedServices; every AWS::WAF:: registry type ships no working handler)"
+      "note": "no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_waf_size_constraint_set",
@@ -11572,9 +11571,9 @@
     {
       "tf_type": "aws_wafregional_regex_match_set",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic Regional: a service AWS has superseded with the unified WAFv2 API, same as WAF Classic (live/residue.go's DeprecatedServices; every AWS::WAFRegional:: registry type ships no working handler)"
+      "note": "no AWS::WAFRegional:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic Regional is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API, same as WAF Classic), but that family-level judgment is not why this type has no row; other AWS::WAFRegional:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_wafregional_regex_pattern_set",
@@ -11593,9 +11592,9 @@
     {
       "tf_type": "aws_wafregional_rule_group",
       "cfn_type": null,
-      "via": "deprecated-service",
+      "via": "cfn-unmodeled",
       "fold_parent": null,
-      "note": "WAF Classic Regional: a service AWS has superseded with the unified WAFv2 API, same as WAF Classic (live/residue.go's DeprecatedServices; every AWS::WAFRegional:: registry type ships no working handler)"
+      "note": "no AWS::WAFRegional:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic Regional is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API, same as WAF Classic), but that family-level judgment is not why this type has no row; other AWS::WAFRegional:: siblings that do have a registry type map normally"
     },
     {
       "tf_type": "aws_wafregional_size_constraint_set",

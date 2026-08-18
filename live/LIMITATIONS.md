@@ -3631,7 +3631,7 @@ registry-side footprint is computed against `live/registry.json`.
 
 **Total.** 77 CloudFormation Registry types across 8 services.
 
-7 Terraform types carry `live/mapping.json`'s own `via: "deprecated-service"` (issue #53): a TF prefix under one of the services above whose entire CFN Registry footprint ships no working handler at all, so a family sweep can never recover a real mapping for it either.
+0 Terraform types carry `live/mapping.json`'s own `via: "deprecated-service"` (issue #53): a TF prefix under one of the services above whose entire CFN Registry footprint ships no working handler at all, so a family sweep can never recover a real mapping for it either.
 <!-- survey-gen:end residue-deprecated -->
 
 #### CloudFormation-only constructs
@@ -3796,12 +3796,14 @@ empty until a sweep adds its first entry.
 |---|---|
 | 8 | same registry gap as aws_storagegateway_cache - AWS::StorageGateway's only registered CFN type is TapePool |
 | 6 | real Device Farm resource; live/registry.json has zero AWS::DeviceFarm::* types |
+| 5 | no AWS::WAF:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API), but that family-level judgment is not why this type has no row; other AWS::WAF:: siblings that do have a registry type map normally |
 | 4 | AWS::WorkMail has zero CFN Registry resource types at all - same evidence as aws_workmail_default_domain |
 | 4 | real DataExchange resource; live/registry.json has zero AWS::DataExchange::* types |
 | 4 | searched the registry for an AWS::AppFabric service: no AWS::AppFabric::* type exists anywhere in live/registry.json |
 | 3 | no AWS::ServiceQuotas::* type exists in the registry at all - same registry-search evidence as aws_servicequotas_auto_management |
 | 3 | real CodeCatalyst resource; live/registry.json has zero AWS::CodeCatalyst::* types (service unmodeled by CFN entirely) |
 | 3 | searched the registry for a Chime SDK Voice CFN service: none exists at all |
+| 2 | no AWS::WAFRegional:: registry type names this specific resource (absent from the CFN Registry roster entirely, not merely unmatched by name) - WAF Classic Regional is on live/residue.go's DeprecatedServices list (a service AWS has superseded with the unified WAFv2 API, same as WAF Classic), but that family-level judgment is not why this type has no row; other AWS::WAFRegional:: siblings that do have a registry type map normally |
 | 2 | real account-level Cost Optimization Hub setting; live/registry.json has zero AWS::CostOptimizationHub::* types |
 | 2 | searched the registry for an AWS::CloudHSM service: none exists anywhere in live/registry.json |
 | 1 | AWS::EC2::Snapshot itself has no CFN Registry resource type at all (registry search for 'snapshot' under EC2 finds only SnapshotBlockPublicAccess), so the CreateVolumePermission attribute TF exposes as a separate resource cannot be modeled either |
@@ -4069,7 +4071,7 @@ empty until a sweep adds its first entry.
 | 1 | uploads/manages an object's content in an S3 bucket - a data-plane operation (PutObject/DeleteObject), not account/control-plane infrastructure the CloudFormation Registry models. Deprecated by the provider in favor of aws_s3_object (identical functionality); see that row for the canonical evidence. |
 | 1 | uploads/manages an object's content in an S3 bucket - a real, live piece of data-plane activity, but not a control-plane resource the CloudFormation Registry models (there is no AWS::S3::Object type; S3's modeled types are AccessGrant, AccessGrantsInstance, AccessGrantsLocation, AccessPoint, Bucket, BucketPolicy, MultiRegionAccessPoint, MultiRegionAccessPointPolicy, StorageLens, StorageLensGroup only). |
 
-**Total.** 303 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
+**Total.** 310 Terraform AWS resource types that are real infrastructure with no CloudFormation Registry model at all. Each row's own note is in `live/mapping.json`.
 <!-- survey-gen:end residue-cfn-unmodeled -->
 
 #### Unclassified Terraform types

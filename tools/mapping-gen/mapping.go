@@ -258,7 +258,7 @@ func buildMapping(tfTypes, cfnTypes []string, src Sources) (Mapping, []NeedsAlia
 			}
 		}
 		if row.Via == viaNone && row.Note != nil && *row.Note == unexplainedNoteText {
-			row = classifyTaxonomy(tf, eligibleDeprecated, src.IdentitySchema)
+			row = classifyTaxonomy(tf, eligibleDeprecated, index, src.IdentitySchema)
 		}
 		switch row.Via {
 		case viaName, viaAlias, viaServiceAlias, viaFormer2:

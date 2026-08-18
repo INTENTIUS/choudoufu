@@ -32,7 +32,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Evidence-only | 316 types | An identity-argument name no current evidence source states. |
 | Fold-children | 73 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
-| Of those, with no CloudFormation model | 303 cfn-unmodeled, 116 tf-only, 7 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
+| Of those, with no CloudFormation model | 310 cfn-unmodeled, 116 tf-only, 0 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
 ## The admitted set
 
