@@ -92,7 +92,18 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE": 737,
+	//
+	// 742, up from 737 (issue #245's composite-bucket ratification batch,
+	// merged 2026-08-18): five ADDED rows in
+	// internal/live/identity/testdata/identity-object-distinct, all
+	// aws_autoscaling_schedule - duplicate_a, duplicate_b and three
+	// this[...] instances. That type used to have no identity.DefaultTable
+	// row at all; the batch ratified it as a real "/"-joined composite
+	// (autoscaling_group_name/scheduled_action_name) straight from the
+	// provider's own documented Import section. Not a moved row - no
+	// pre-existing CONCRETE row used this type before; see the digest
+	// below.
+	"CONCRETE": 742,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -185,7 +196,7 @@ var identityGoldenPin = map[string]int{
 // ADDED rows, a class-preserving rename (aws_iam_user.team ->
 // aws_iam_group.team in two fixtures) made so those two tests keep
 // exercising the general refusal shape rather than #289's new answer.
-const identityGoldenPinBodyDigest = "ffcbf37e5a6f6742dc220a6ca1a210550b1314fa465749cdc03e5e9f9a754f2f"
+const identityGoldenPinBodyDigest = "0c7bc85a0ab6b37ffa7a281fc9244525d06ee7e4ca7aeb2a918499d1903628a4"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -282,9 +293,18 @@ const identityGoldenPinBodyDigest = "ffcbf37e5a6f6742dc220a6ca1a210550b1314fa465
 // dispatch this test exists to exercise, onto
 // aws_cloudfront_realtime_log_config, which does not. Same directory, same
 // class, one address swapped for another - net zero on every count above.
+// 2026-08-18 (merge of #245 slice 3, ratify the composite bucket): dirs
+// 451 -> 452, instances 1463 -> 1468, CONCRETE 737 -> 742. One new fixture,
+// internal/live/identity/testdata/identity-object-distinct - five ADDED
+// rows, all aws_autoscaling_schedule (duplicate_a, duplicate_b and three
+// this[...] instances) - exercising the batch's ratification of that type
+// as a real "/"-joined composite (autoscaling_group_name/
+// scheduled_action_name) read straight from the provider's documented
+// Import section. That type previously had no identity.DefaultTable row at
+// all; every pre-existing CONCRETE row in the golden is byte-identical.
 const (
-	identityGoldenPinInstances = 1463
-	identityGoldenPinDirs      = 451
+	identityGoldenPinInstances = 1468
+	identityGoldenPinDirs      = 452
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

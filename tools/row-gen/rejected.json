@@ -1,6 +1,9 @@
 {
   "note": "Types a ratification batch considered and did not admit. PROPOSE reads this as a veto set so it never re-proposes a type already ruled out by name. Recovered from the 'Rejected, and deliberately absent from this table' prose in the per-cohort identity and admission fragments that issue #96 deleted (readable at d40d9f5ded^) and from live/e2e/estates/remainder/README.md; recovered_from names the source each type came from. THE INVARIANT: this set and internal/live/identity.DefaultTable are disjoint. A type that is admitted must not be vetoed, because two contradictory rulings are not conservatism. TestRejectedLedgerIsDisjointFromAdmitted enforces it. Issue #131 rebuilt the ledger against that invariant: the first recovery harvested every type name adjacent to the word Rejected rather than the subject of each '- <type>:' bullet, which admitted 58 types into the veto set and lost 5 genuine rejections. Over-inclusion is safe only among types nobody admitted; among admitted types it is a defect. A blocked_on field names the issue an entry is waiting on, where one has been identified; loadRejectedTypes reads only the key set, so the field is for a human tracing why a type is still here. Fourteen entries carry blocked_on #233 as of 2026-08-16: untaggable types whose identity carries a server-minted segment beside a config-supplied one, where the refusal is not about vocabulary the table lacks (it carries 51 such rows) but about having nowhere to write an ownership marker.",
   "rejected": {
+    "aws_acmpca_permission": {
+      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[CertificateAuthorityArn, Principal] is composite (len>1), but the provider's aws_acmpca_permission.html.markdown carries no Import section at all - no import block, no `terraform import` example, nothing. There is no worked example anywhere in the doc to read a separator character off, and inventing one (a comma, a colon) would be a guess dressed as evidence. A fuller extraction would need the provider to document an import path for this resource at all; until it does, the separator genuinely has no source. Left unadmitted."
+    },
     "aws_amplify_webhook": {
       "recovered_from": [
         "internal/live/identity/table_cohort_compute_platforms.go"
@@ -378,16 +381,25 @@
     "aws_medialive_multiplex_program": {
       "reason": "the pinned provider's import leaves multiplex_id (ForceNew) unset - reproduced directly against floci 2026-08-14: terraform import by the documented PROGRAM_NAME/MULTIPLEX_ID id populates program_name and settings but not multiplex_id, so a marker-rebuilt plan always proposes replacement (#124). Re-admittable if a future pass backfills null ForceNew arguments from the identity components that composed the import id."
     },
+    "aws_pinpoint_app": {
+      "reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but live/residue.go's DeprecatedServices roster hand-excludes the entire aws_pinpoint_ prefix: AWS announced Pinpoint end-of-support for October 30, 2026, folding existing functionality into End User Messaging, and internal/live/lint/residue_test.go's TestRefusalNamesDeprecatedServiceCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and contradicts the maintainer's own deprecated-service policy, which is not an identity-correctness question this batch's evidence can override. Left unadmitted."
+    },
     "aws_qldb_stream": {
       "recovered_from": [
         "internal/live/identity/table_cohort_databases.go",
         "internal/live/identity/table_cohort_remainder.go"
       ]
     },
+    "aws_quicksight_folder": {
+      "reason": "row-gen -propose offered this as its sole proposed:server-assigned candidate (issue #245's server-assigned slice), rule class 'the Import section's own prose names a segment that is an exported attribute, not a configuration argument' at a reported 16/16 historical match - but the 17th instance fails the spot-check contract's own step 1. The provider's aws_quicksight_folder.html.markdown Argument Reference lists folder_id as (Required, Forces new resource): a client-supplied argument, not a computed attribute; aws_account_id is likewise a real (Optional) argument that defaults to the provider's own account. Both segments of the import ID (\"AWS account ID and folder ID name separated by a comma\") are configuration-derived, not server-minted. The registry evidence agrees and was overridden incorrectly: primary_identifier=[AwsAccountId, FolderId], both in create_only_properties, NEITHER in read_only_properties - the exact shape of all nine other CFN-modeled aws_quicksight_* types (analysis, custom_permissions, dashboard, data_set, data_source, refresh_schedule, template, theme, vpc_connection), every one of which row-gen correctly buckets 'needs hand separator' rather than server-assigned. The classifier's note ('attribute[s] folder ID name to the Attribute Reference, not the Argument Reference') is factually wrong: folder_id is in the Argument Reference. This is a live bug in the import-grammar-precedence rule (tools/row-gen/importprecedence.go) that fires on the computed `id` attribute's prose description ('A comma-delimited string joining AWS account ID and folder ID') without checking whether the named segment is independently a real argument elsewhere in the doc. Left unadmitted; the rule itself needs a fix in a separate slot, not a per-type override here. See issue #245."
+    },
     "aws_route53_query_log": {
       "recovered_from": [
         "internal/live/identity/table_cohort_route53_cloudfront.go"
       ]
+    },
+    "aws_s3_access_point": {
+      "reason": "issue #245's composite-bucket ratification batch: the provider's own Import section documents TWO distinct forms - `account_id:name` for an access point on a general-purpose S3 bucket, and a bare ARN (`arn:aws:s3-outposts:...:accesspoint/NAME`) for one on an S3 on Outposts bucket, chosen by which kind of bucket the access point belongs to, not by which of the two arguments is present. identity.Component's OmitIfAbsent only expresses an optional SEGMENT within one fixed grammar (aws_lambda_permission's qualifier is the precedent); it cannot express two entirely different ID grammars for the same type. A fuller extraction would need a discriminated-union identity shape - an ARN-template form (the 'proposed: assembled template' bucket's own mechanism) alongside the composite form, chosen by whether `bucket` resolves to an Outposts ARN - which does not exist yet."
     },
     "aws_s3control_multi_region_access_point_policy": {
       "recovered_from": [
@@ -414,15 +426,27 @@
       ],
       "reason": "misclassified as server-assigned (registry primaryIdentifier is the single opaque field Id) when both real identity components - configuration_set_name and event_destination_name - are plain Required arguments on this resource; the Import section documents `configuration_set_name|event_destination_name`, not a server-minted value at all. Left unadmitted."
     },
+    "aws_ssm_document": {
+      "reason": "identity verifies cleanly (client-named via name, confirmed against the provider's own Identity Schema, v6.59.0 Required: name) but live/residue.go's hand-curated emulatorBlocked roster excludes it outright: \"floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)\", and internal/live/lint/residue_test.go's TestRefusalNamesEmulatorBlockedCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and outruns what this batch's e2e/floci validation can confirm. Left unadmitted."
+    },
     "aws_transfer_ssh_key": {
       "recovered_from": [
         "internal/live/identity/table_cohort_remainder.go"
       ]
     },
+    "aws_verifiedpermissions_identity_source": {
+      "reason": "issue #245's composite-bucket ratification batch: the provider's Import section documents the ID as `policy_store_id:identity_source_id`, but only policy_store_id is a real configuration argument (Argument Reference: policy_store_id, configuration, principal_entity_type, region) - identity_source_id names neither an argument nor an exported attribute anywhere on the doc page (Attribute Reference lists only policy_id). It is minted by Verified Permissions at create time, the same server-minted-second-segment shape aws_bedrockagentcore_agent_runtime_endpoint was ratified under (live/rowgen-convergence.json), which needs a server-assigned row with parent-scoped discovery rather than a composite of two configuration arguments - a design a ratification batch, not row-gen's classifier, has to make."
+    },
     "aws_vpc_endpoint_service_allowed_principal": {
       "recovered_from": [
         "internal/live/identity/table_cohort_ec2_networking.go"
       ]
+    },
+    "aws_vpc_network_performance_metric_subscription": {
+      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[Source, Destination, Metric, Statistic] is composite (len>1), but the provider's aws_vpc_network_performance_metric_subscription.html.markdown has no Import section - the page ends at Attribute Reference (`period`). No worked example exists to read a 3- or 4-part separator and ordering off of. Left unadmitted."
+    },
+    "aws_vpn_connection_route": {
+      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[DestinationCidrBlock, VpnConnectionId] is composite (len>1), but the provider's aws_vpn_connection_route.html.markdown has no Import section - the page ends at Attribute Reference, which merely echoes the two arguments (destination_cidr_block, vpn_connection_id) back as computed values without ever showing a joined string or a `terraform import` example. No separator character is documented anywhere. Left unadmitted."
     },
     "aws_vpn_gateway_attachment": {
       "reason": "recovered by re-running the fragment scrape with the bullet-subject rule (#131); the first pass collected every type name near the word Rejected, which both over- and under-counted",
@@ -435,24 +459,6 @@
         "live/e2e/estates/remainder/README.md"
       ],
       "reason": "verifies as needing two config-supplied components (vpn_gateway_id, route_table_id) the classifier's flat server-assigned proposal dropped: this is a pure association resource with no independent server-minted id; both arguments are the resource's own real, non-computed arguments. Left unadmitted."
-    },
-    "aws_pinpoint_app": {
-      "reason": "identity verifies cleanly (server-assigned via id, confirmed against the provider's Import section) but live/residue.go's DeprecatedServices roster hand-excludes the entire aws_pinpoint_ prefix: AWS announced Pinpoint end-of-support for October 30, 2026, folding existing functionality into End User Messaging, and internal/live/lint/residue_test.go's TestRefusalNamesDeprecatedServiceCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and contradicts the maintainer's own deprecated-service policy, which is not an identity-correctness question this batch's evidence can override. Left unadmitted."
-    },
-    "aws_ssm_document": {
-      "reason": "identity verifies cleanly (client-named via name, confirmed against the provider's own Identity Schema, v6.59.0 Required: name) but live/residue.go's hand-curated emulatorBlocked roster excludes it outright: \"floci answers ssm:CreateDocument with UnsupportedOperation, so no SSM document can be created against the emulator at all (choudoufu#26)\", and internal/live/lint/residue_test.go's TestRefusalNamesEmulatorBlockedCohort names this exact type, by construct, as the cohort's own fixture. Admitting it breaks that fixture and outruns what this batch's e2e/floci validation can confirm. Left unadmitted."
-    },
-    "aws_quicksight_folder": {
-      "reason": "row-gen -propose offered this as its sole proposed:server-assigned candidate (issue #245's server-assigned slice), rule class 'the Import section's own prose names a segment that is an exported attribute, not a configuration argument' at a reported 16/16 historical match - but the 17th instance fails the spot-check contract's own step 1. The provider's aws_quicksight_folder.html.markdown Argument Reference lists folder_id as (Required, Forces new resource): a client-supplied argument, not a computed attribute; aws_account_id is likewise a real (Optional) argument that defaults to the provider's own account. Both segments of the import ID (\"AWS account ID and folder ID name separated by a comma\") are configuration-derived, not server-minted. The registry evidence agrees and was overridden incorrectly: primary_identifier=[AwsAccountId, FolderId], both in create_only_properties, NEITHER in read_only_properties - the exact shape of all nine other CFN-modeled aws_quicksight_* types (analysis, custom_permissions, dashboard, data_set, data_source, refresh_schedule, template, theme, vpc_connection), every one of which row-gen correctly buckets 'needs hand separator' rather than server-assigned. The classifier's note ('attribute[s] folder ID name to the Attribute Reference, not the Argument Reference') is factually wrong: folder_id is in the Argument Reference. This is a live bug in the import-grammar-precedence rule (tools/row-gen/importprecedence.go) that fires on the computed `id` attribute's prose description ('A comma-delimited string joining AWS account ID and folder ID') without checking whether the named segment is independently a real argument elsewhere in the doc. Left unadmitted; the rule itself needs a fix in a separate slot, not a per-type override here. See issue #245."
-    },
-    "aws_acmpca_permission": {
-      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[CertificateAuthorityArn, Principal] is composite (len>1), but the provider's aws_acmpca_permission.html.markdown carries no Import section at all - no import block, no `terraform import` example, nothing. There is no worked example anywhere in the doc to read a separator character off, and inventing one (a comma, a colon) would be a guess dressed as evidence. A fuller extraction would need the provider to document an import path for this resource at all; until it does, the separator genuinely has no source. Left unadmitted."
-    },
-    "aws_vpc_network_performance_metric_subscription": {
-      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[Source, Destination, Metric, Statistic] is composite (len>1), but the provider's aws_vpc_network_performance_metric_subscription.html.markdown has no Import section - the page ends at Attribute Reference (`period`). No worked example exists to read a 3- or 4-part separator and ordering off of. Left unadmitted."
-    },
-    "aws_vpn_connection_route": {
-      "reason": "issue #245's 'needs hand separator' slice: the CFN registry's primary_identifier=[DestinationCidrBlock, VpnConnectionId] is composite (len>1), but the provider's aws_vpn_connection_route.html.markdown has no Import section - the page ends at Attribute Reference, which merely echoes the two arguments (destination_cidr_block, vpn_connection_id) back as computed values without ever showing a joined string or a `terraform import` example. No separator character is documented anywhere. Left unadmitted."
     }
   }
 }
