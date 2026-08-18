@@ -239,9 +239,13 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // carries "qualifier", from #175's already-ratified component that this
 // cohort's committed lambda.tf predated regenerating against. All three are
 // named in #294's own commit message; nothing here is unexplained.
+// 2026-08-17 (#258): dirs 445 -> 447, instances unchanged at 1456. Two new
+// fixture directories (typedvar-emptyset and its child module) pin the
+// currently-unreachable empty-set-target chase; zero instance lines added,
+// changed or removed - fixture bookkeeping, not a behavior change.
 const (
 	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 445
+	identityGoldenPinDirs      = 447
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
