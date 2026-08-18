@@ -77,13 +77,7 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-<<<<<<< HEAD
-	"CONCRETE":        726,
-	"NEEDS_DISCOVERY": 580,
-	"PARENT_DERIVED":  96,
-	"RECORD_BACKED":   17,
-=======
-	"CONCRETE": 723,
+	"CONCRETE": 726,
 	// 570, up from 562 (issue #271): eight ADDED rows, one per new fixture
 	// directory, each of them that fixture's own aws_acm_certificate.cert.
 	// A certificate's identity is its ARN, minted at create, so
@@ -100,9 +94,8 @@ var identityGoldenPin = map[string]int{
 	// and it renders the formula ${aws_acm_certificate.cert.arn}. The
 	// fixture exists for what happens when a run DOES hold managed results,
 	// which this instrument never does.
-	"PARENT_DERIVED":  96,
+	"PARENT_DERIVED": 96,
 	"RECORD_BACKED":  17,
->>>>>>> worktree-agent-a9c1b8c34c1638e75
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -130,19 +123,6 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-<<<<<<< HEAD
-// 2026-08-17: three ADDED rows (see identityGoldenPin's own
-// comment above) - a fresh fixture directory, not an edit to an existing
-// one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
-
-// 2026-08-17: dirs 424 -> 425, instances 1397 -> 1400. The new
-// directory is internal/live/identity/testdata/omit-if-absent (see
-// identityGoldenPin's own comment above).
-const (
-	identityGoldenPinInstances = 1419
-	identityGoldenPinDirs      = 435
-=======
 // 2026-08-17 (issue #271): nine ADDED rows across eight new fixture
 // directories, and zero MODIFIED ones. TestIdentityGolden's own diff, read
 // before this line was edited, reported "0 identities changed, 9 added, 0
@@ -169,7 +149,6 @@ const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86
 const (
 	identityGoldenPinInstances = 1419
 	identityGoldenPinDirs      = 435
->>>>>>> worktree-agent-a9c1b8c34c1638e75
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
