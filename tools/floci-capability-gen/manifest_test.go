@@ -81,22 +81,6 @@ func TestReplaceMechanismKeepsOtherMechanismsUntouched(t *testing.T) {
 	}
 }
 
-func TestAllKnownServicesUnionsEveryDigest(t *testing.T) {
-	art := &manifestArtifact{Images: []imageArtifact{
-		{Digest: "sha256:aaa", Services: []serviceRow{{Service: "networkmanager"}, {Service: "ecr"}}},
-		{Digest: "sha256:bbb", Services: []serviceRow{{Service: "storagegateway"}}},
-	}}
-	got := art.allKnownServices()
-	for _, want := range []string{"networkmanager", "ecr", "storagegateway"} {
-		if !got[want] {
-			t.Errorf("allKnownServices() missing %q: %v", want, got)
-		}
-	}
-	if len(got) != 3 {
-		t.Errorf("allKnownServices() = %v, want exactly 3 entries", got)
-	}
-}
-
 // TestWriteManifestRoundTrips writes an artifact and reads it back through
 // loadManifest, checking the on-disk shape is exactly what live/flocicap.go
 // expects to embed and parse (same field names, same nesting).

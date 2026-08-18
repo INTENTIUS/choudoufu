@@ -40,8 +40,25 @@ func TestFlociServiceCapability(t *testing.T) {
 		t.Errorf("networkmanager entry is missing evidence or a source citation: %+v", cap)
 	}
 
-	if _, ok := FlociServiceCapability(pinnedDigest, "s3"); ok {
-		t.Error("expected no manifest entry for s3 (never investigated), got one")
+	// s3 used to have no entry at all ("never investigated" - the old
+	// -mode=services watchlist only ever checked services some past run
+	// had already recorded). Issue #276 made the watchlist self-expanding
+	// from floci's own live health response, so every service the pinned
+	// image names - 82 of them, s3 included - now gets a real round trip
+	// instead of staying an unexamined gap.
+	s3cap, ok := FlociServiceCapability(pinnedDigest, "s3")
+	if !ok {
+		t.Fatal("expected a manifest entry for s3 at the pinned digest (issue #276 widened -mode=services past its old fixed watchlist)")
+	}
+	if s3cap.Status != FlociImplemented {
+		t.Errorf("s3 status = %q, want %q", s3cap.Status, FlociImplemented)
+	}
+	if s3cap.Evidence == "" || s3cap.Source == "" {
+		t.Errorf("s3 entry is missing evidence or a source citation: %+v", s3cap)
+	}
+
+	if _, ok := FlociServiceCapability(pinnedDigest, "totally-fictional-service-xyz"); ok {
+		t.Error("expected no manifest entry for a service that does not exist, got one")
 	}
 	if _, ok := FlociServiceCapability("sha256:doesnotexist", "networkmanager"); ok {
 		t.Error("expected no manifest entry for an unknown digest, got one")
