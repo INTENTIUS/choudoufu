@@ -49,9 +49,21 @@ type Corpus struct {
 	// above, repeated here so the artifact carries its own scope. See
 	// [PartiallyCheckedLayers] for why there are three lists rather than
 	// two.
-	Checked   []Layer        `json:"checked_layers"`
-	Partial   []PartialLayer `json:"partially_checked_layers"`
-	Unchecked []Layer        `json:"unchecked_layers"`
+	//
+	// Partial is the schema-backed list - [PartiallyCheckedLayers], "2 of
+	// 27" for projection - which is what every [CorpusEntry] whose own
+	// Schemas is true actually ran. PartialWithoutSchemas
+	// ([PartiallyCheckedLayersFor](false), "1 of 27") is what an entry with
+	// Schemas false ran instead: GitHub issue #265, one list read as true of
+	// every entry overstated the ones this corpus measured with no provider
+	// at all. Totals.WithoutSchemas ("configs_without_schemas") is how many
+	// of Entries that was; this corpus can and does mix both in one run, so
+	// neither list alone describes it, and the artifact carries both rather
+	// than picking one to be silently wrong about the other's entries.
+	Checked               []Layer        `json:"checked_layers"`
+	Partial               []PartialLayer `json:"partially_checked_layers"`
+	PartialWithoutSchemas []PartialLayer `json:"partially_checked_layers_without_schemas"`
+	Unchecked             []Layer        `json:"unchecked_layers"`
 }
 
 // CorpusEntry is one configuration's line in the table.
@@ -265,9 +277,10 @@ const maxExamples = 5
 // NewCorpus starts an empty corpus fold.
 func NewCorpus() *Corpus {
 	return &Corpus{
-		Checked:   CheckedLayers(),
-		Partial:   PartiallyCheckedLayers(),
-		Unchecked: UncheckedLayers(),
+		Checked:               CheckedLayers(),
+		Partial:               PartiallyCheckedLayers(),
+		PartialWithoutSchemas: PartiallyCheckedLayersFor(false),
+		Unchecked:             UncheckedLayers(),
 	}
 }
 

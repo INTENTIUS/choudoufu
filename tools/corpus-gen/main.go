@@ -504,9 +504,22 @@ func renderTable(artifact Artifact) string {
 		// however many of its refusals still need a cloud, and read as
 		// unchecked understates it by the ones this run computed; the share
 		// is the only rendering that is true of both.
+		//
+		// This is the schema-backed list: what a [check.CorpusEntry] with
+		// Schemas true actually ran. GitHub issue #265: it overstated the
+		// entries below with no schema at all, which is why they get their
+		// own line rather than being covered by this one silently.
 		fmt.Fprintf(&b, "Partly checked: %s - %d of %d refusals (%s); the rest need a cloud.\n",
 			partial.Layer, len(partial.Refusals), partial.Total,
 			strings.Join(partial.Refusals, "; "))
+	}
+	if artifact.Totals.WithoutSchemas > 0 {
+		for _, partial := range artifact.PartialWithoutSchemas {
+			fmt.Fprintf(&b, "Partly checked, without a schema (%d of %d configs - see configs_without_schemas): %s - %d of %d refusals (%s); the rest need a cloud or a schema.\n",
+				artifact.Totals.WithoutSchemas, artifact.Totals.Configs,
+				partial.Layer, len(partial.Refusals), partial.Total,
+				strings.Join(partial.Refusals, "; "))
+		}
 	}
 	if len(artifact.Unchecked) > 0 {
 		b.WriteString("The unchecked stages each need a cloud. ")

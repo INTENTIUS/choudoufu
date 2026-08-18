@@ -200,7 +200,8 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// outside projection's own tests ever called either. Running them here
 	// is what makes the "projection is unchecked" caveat every corpus number
 	// carries true of what is actually unchecked rather than of the whole
-	// stage - see [PartiallyCheckedLayers].
+	// stage - see [PartiallyCheckedLayers] and, for a run with no schema at
+	// all, [PartiallyCheckedLayersFor].
 	//
 	// Findings, not warnings: both are hard errors in [projection.Build], so
 	// a configuration carrying one does not onboard. Expect the clean count
@@ -216,6 +217,16 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// the fixture. It is still computed here: this is the check that would
 	// catch a bug in identity resolution letting one through, and a check
 	// that finds nothing is exactly what a working invariant looks like.
+	//
+	// report.Schemas (set at the top of this function from the same
+	// actx.Schemas) is reused for the hasSchemas argument below rather than
+	// recomputed. GitHub issue #265: EmptyImportIdentityDiagnostics resolves
+	// nothing for any resource when it has no schema (build.go's own
+	// `if schema == nil { continue }`), so a schema-less run only computed
+	// the first of the two refusals PartiallyCheckedLayers() names - claiming
+	// both there overstated a report that never had a schema to decide the
+	// second one with. [PartiallyCheckedLayersFor] narrows the claim to what
+	// this call actually ran.
 	if result != nil {
 		// Set here rather than in the initializer above, deliberately. It is
 		// the record that this pass ran, so it must be written by the code
@@ -225,7 +236,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		// the truth for the early returns - a configuration that did not
 		// load, or one identity could not resolve at all, had no projection
 		// half run over it and should not claim one.
-		report.Partial = PartiallyCheckedLayers()
+		report.Partial = PartiallyCheckedLayersFor(report.Schemas)
 
 		resolutions := report.Identities
 		projDiags := projection.CyclicIdentityDiagnostics(resolutions)

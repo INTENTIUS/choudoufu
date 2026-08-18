@@ -105,7 +105,10 @@ type PartialLayer struct {
 	Total int `json:"total"`
 }
 
-// PartiallyCheckedLayers are the stages [Analyze] runs some of.
+// PartiallyCheckedLayers are the stages [Analyze] runs some of, when a
+// provider schema is available. It is [PartiallyCheckedLayersFor](true); see
+// that function for the schema-less case, which drops one of the two named
+// refusals.
 //
 // The two-bucket split this replaces made every headline number carry a
 // caveat that was wrong in both directions at once: "projection is
@@ -118,13 +121,35 @@ type PartialLayer struct {
 // pins each one against that stage's own registry, so a rename there is a
 // test failure here rather than a finding that silently reads unregistered.
 func PartiallyCheckedLayers() []PartialLayer {
+	return PartiallyCheckedLayersFor(true)
+}
+
+// PartiallyCheckedLayersFor is [PartiallyCheckedLayers] narrowed to what a
+// single run actually computed. hasSchemas is whether that run had any
+// provider schema at all (a non-empty [flatSchemas]).
+//
+// GitHub issue #265: [projection.EmptyImportIdentityDiagnostics] (this
+// package's RefusalEmptyImportIdentity) reads schemas.ResourceTypeConfig for
+// every resource and skips any with a nil result, so a schema-less run
+// produces nothing for it, for every configuration - a zero that is the
+// absence of evidence, not a clean pass. [PartiallyCheckedLayers]'s constant
+// "2 of 27" was true of what the code CAN compute with a schema and false of
+// what a schema-less run - the default for tools/refusal-probe without
+// -schemas, for TestIdentityGolden, and for "choudoufu live-check" with no
+// provider available - actually did. This is the narrow fix: the same
+// layer, the same Total, one fewer refusal when there was no schema to
+// decide it with. RefusalCyclicIdentities needs no schema
+// ([projection.CyclicIdentityDiagnostics] takes resolutions alone), so it
+// stays either way.
+func PartiallyCheckedLayersFor(hasSchemas bool) []PartialLayer {
+	refusals := []string{RefusalCyclicIdentities}
+	if hasSchemas {
+		refusals = append(refusals, RefusalEmptyImportIdentity)
+	}
 	return []PartialLayer{{
-		Layer: LayerProjection,
-		Refusals: []string{
-			RefusalCyclicIdentities,
-			RefusalEmptyImportIdentity,
-		},
-		Total: len(projection.Refusals()),
+		Layer:    LayerProjection,
+		Refusals: refusals,
+		Total:    len(projection.Refusals()),
 	}}
 }
 
