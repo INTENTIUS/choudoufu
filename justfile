@@ -228,9 +228,11 @@ estate-plan-from sweep:
 # one; live/e2e is where "applies, loses its state file, replans empty" is
 # still proved one estate at a time.
 #
-# ~3 min warm. Pass -schemas or the answer is wrong in a specific direction:
-# identity.LocatedType fails closed without them, so markerless-type reads as
-# surviving onboarding when a record_store answers it.
+# ~3 min warm. -schemas is not optional: identity.LocatedType fails closed
+# without them, so markerless-type reads as surviving onboarding when a
+# record_store answers it.
+#
+# Both forms of every corpus entry: what onboarding clears, and what it does not.
 onboarding-gap sweep="/tmp/choudoufu-onboarded.json":
     go run ./tools/refusal-probe -schemas -onboarded -quiet -out {{sweep}}
 
