@@ -173,6 +173,24 @@ demo-corpus-oidc-provider:
 demo-corpus-govuk-oidc:
     bash live/e2e/corpus-govuk-oidc/run.sh
 
+# A PINNED DEFECT, not a passing crossing: exit 0 means it is still there.
+# Both .corpus/mastino/prod-eu-west/services/analytics-worker and
+# .../datafile-generator die on "Listed resource with no identity" over
+# aws_ecs_task_definition, and they still do. This runs DataCite's own
+# resource block and its own container_definitions file against floci: it
+# applies, it carries its marker, ListTaskDefinitions answers, and the
+# provider resolves the revision ARN - and then the cold replan refuses,
+# because the generated row looks this type up by `id` while the provider's
+# own identity schema (live/survey-full.json) says family + revision. The
+# script asserts both halves: the refusal BY NAME and the enumeration
+# working, so a regression in either is not hidden by the other. The two
+# estates also read two data sources this floci build cannot answer at all -
+# a private hosted zone and elbv2 - which is why this is one resource and
+# not the estate. Needs Docker, the AWS CLI and a populated .corpus; runs on
+# its own port (4694).
+demo-corpus-ecs-taskdef:
+    bash live/e2e/corpus-ecs-taskdef/run.sh
+
 # Issue #274's cloudfront leg, and the first live-cloud contact for the
 # unique-name discovery mechanism (aws_cloudfront_cache_policy,
 # aws_cloudfront_origin_request_policy - "unique-name" in
@@ -201,6 +219,21 @@ demo-corpus-govuk-oidc:
 # `just demo`.
 demo-corpus-cloudfront:
     bash live/e2e/corpus-cloudfront/run.sh
+
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/salesforce-api,
+# 6 instances - the lambda-residue defect (filename, source_code_hash,
+# publish never settling without a record_store) at twice the population,
+# since this estate deploys TWO filename-zipped Lambdas rather than one,
+# plus the aws_cloudwatch_event_rule/target pair and two aws_lambda_permission
+# instances riding along. Same two-phase shape as demo-records: PHASE 1 with
+# no record_store reproduces the defect and shows applying it does not
+# settle it; PHASE 2 adds one record_store block, applies once, and replans
+# empty twice. All 6 rendered identities are checked against the emulator's
+# own answer. BREAK=1 corrupts one expected string and the run must catch it
+# in step 6 and nowhere else. Needs Docker, the AWS CLI and a populated
+# .corpus; runs on its own port (4697) so it can run beside `just demo`.
+demo-corpus-salesforce-api:
+    bash live/e2e/corpus-salesforce-api/run.sh
 
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
