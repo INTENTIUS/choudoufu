@@ -225,8 +225,21 @@ func worstCaseChildKey(ctx context.Context, mod *configs.Module, call *configs.M
 // has no state file, so there is nowhere for a backend to put one and
 // nothing for a lock to protect - and it never asks: no file under
 // internal/live reads mod.Backend or mod.CloudConfig, so the block sits
-// unread rather than merely unwise, and there is nothing unsafe about
-// leaving it in place while onboarding.
+// unread rather than merely unwise.
+//
+// That is true only of the run that reaches this warning, though, and this
+// warning can only ever be reached from a module with no live block: mod
+// arrives here already fully decoded, and internal/configs/module.go's
+// appendFile hard-refuses to decode a module that has both a live block and
+// a backend (or cloud) block, before this function - or anything else - can
+// run over it (GitHub issue #268). So every time this fires, deleting the
+// backend or cloud block is optional for the run in front of the operator,
+// which is the -estate flag path (live-plan, live-import, live-mv are the
+// only commands that accept -estate without a live block). It stops being
+// optional the moment a live block is added, which is mandatory for every
+// other command, apply included - internal/command/arguments has no -estate
+// flag for apply. The messages below say so, rather than promising a
+// blanket "not required" that only the flag path can honor.
 func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	if backend := mod.Backend; backend != nil {
 		*issues = append(*issues, Issue{
@@ -234,10 +247,17 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: fmt.Sprintf("backend %q", backend.Type),
 			Module:    path,
 			Detail: "a backend configures where authoritative state is stored and locked. " +
-				"Here the live system is that store, and this block is ignored: choudoufu " +
-				"reads no state from it and takes no lock through it. Deleting it is still " +
-				"the recommended edit, so that the configuration says what actually happens, " +
-				"but it is not required",
+				"This configuration has no live block yet, so the live system does not " +
+				"govern it: choudoufu reads no state from this block and takes no lock " +
+				"through it, and deleting it changes nothing about this run's outcome. " +
+				"That holds only while there is no live block, though. Add one - which " +
+				"every command but live-plan, live-import and live-mv requires, since " +
+				"those three are the only ones with an -estate flag - and the decoder " +
+				"refuses to load a module carrying both a live and a backend block at all " +
+				"(\"Both a backend and a live configuration are present\"), before lint or " +
+				"anything else runs. If a live block is coming, delete this block now: " +
+				"leaving it produces that hard load failure at that point, not a warning " +
+				"like this one",
 			Subject: backend.DeclRange,
 		})
 	}
@@ -248,10 +268,17 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Construct: "cloud block",
 			Module:    path,
 			Detail: "a cloud block is a remote state backend under another name, with " +
-				"remote locking attached. Here the live system is the store, and concurrent " +
-				"writes to a record are settled by conditional write; this block is ignored " +
-				"the same way a backend block is. Deleting it is still the recommended edit, " +
-				"but it is not required",
+				"remote locking attached. This configuration has no live block yet, so " +
+				"the live system does not govern it: choudoufu reads no state from this " +
+				"block and takes no lock through it, the same way a backend block is " +
+				"ignored. That holds only while there is no live block, though. Add one - " +
+				"which every command but live-plan, live-import and live-mv requires, " +
+				"since those three are the only ones with an -estate flag - and the " +
+				"decoder refuses to load a module carrying both a live and a cloud block " +
+				"at all (\"Both a cloud and a live configuration are present\"), before " +
+				"lint or anything else runs. If a live block is coming, delete this block " +
+				"now: leaving it produces that hard load failure at that point, not a " +
+				"warning like this one",
 			Subject: cloud.DeclRange,
 		})
 	}

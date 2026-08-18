@@ -168,9 +168,13 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 	// blocks a configuration. What it can still do is be the ONLY warning on
 	// an otherwise-clean estate, which is worth naming explicitly rather
 	// than folding into an unqualified "nothing is refused" - the deletion
-	// is still the recommended edit even though it is no longer required.
-	// Computed here, where the warning IDs are, per this function's own rule
-	// that what is true is decided below the view.
+	// is still the recommended edit, and not required for THIS check, which
+	// runs with no live block by design (see LiveCheckCommand's doc
+	// comment). It stops being optional the moment a live block is added,
+	// which plan and apply both need and which live-check does not exercise
+	// (GitHub issue #268: internal/configs/module.go refuses to load a
+	// module carrying both). Computed here, where the warning IDs are, per
+	// this function's own rule that what is true is decided below the view.
 	out.OnlyBackendRemains = !report.Blocked() && len(report.Warnings) > 0
 	for _, warning := range report.Warnings {
 		if warning.ID != string(lint.RuleStateBackend) {

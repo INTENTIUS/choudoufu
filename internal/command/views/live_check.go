@@ -194,10 +194,18 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		// recommends deleting it; nothing else in this report surfaces that
 		// recommendation, so it is worth this one dedicated sentence rather
 		// than folding into the generic clean verdict below.
+		//
+		// #268: "not required" is only true of this check, which runs with
+		// no live block by design. Plan and apply both need one, and a live
+		// block beside this one refuses to load at all - so the wording
+		// below says when deletion stops being optional, rather than
+		// leaving a blanket "not required" that only holds here.
 		fmt.Fprintf(&b, "\n%s already moves under live resource markers.\n", rep.Dir)
-		fmt.Fprintf(&b, "The only warning below is its backend or cloud block: the live system is the store,\n")
-		fmt.Fprintf(&b, "and this block is ignored. Deleting it is still the recommended edit, so the\n")
-		fmt.Fprintf(&b, "configuration says what actually happens, but it is not required.\n")
+		fmt.Fprintf(&b, "The only warning below is its backend or cloud block: this check ran with no live\n")
+		fmt.Fprintf(&b, "block, so the block is ignored. Deleting it is the recommended edit, and it is not\n")
+		fmt.Fprintf(&b, "required for a check like this one - but it is required the moment a live block is\n")
+		fmt.Fprintf(&b, "added, which plan and apply both need: a live block beside this one refuses to\n")
+		fmt.Fprintf(&b, "load. Delete it now rather than at that point.\n")
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	} else {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
