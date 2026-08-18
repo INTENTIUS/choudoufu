@@ -1137,8 +1137,22 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.Bl
 		// statelessProviders.resourceSchemas drops rather than resolves), a
 		// partial acquisition - and each one fails the run later with a
 		// message that names the real problem.
+		//
+		// disco.Cause.BindsByName() is exempt for the reason
+		// [stamp.stamper.mustStamp] already exempts it from the ERROR this
+		// same skip would otherwise escalate to at stamp time: an untaggable
+		// instance whose name AWS itself refuses to issue twice is found by
+		// that name, marker or no marker (see [identity.DiscoveryUniqueName]).
+		// This function re-derives severity from res.Skipped independently of
+		// mustStamp's own verdict, and until this check existed it did not
+		// consult BindsByName at all - so every unique-name type (
+		// aws_cloudfront_cache_policy and siblings, issue #274) failed here
+		// on its very first apply, unconditionally, before discovery ever
+		// got a chance to bind it. mustStamp got this right from the start;
+		// this reader had silently regressed the same population it exists
+		// to protect.
 		disco, marked := needsDiscovery[skip.Addr.String()]
-		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked {
+		if skip.Reason == stamp.SkipAlreadyStamped || skip.Reason == stamp.SkipModuleKeyedTrusted || skip.Reason.Unknown() || !marked || disco.Cause.BindsByName() {
 			continue
 		}
 		diags = diags.Append(tfdiags.Sourceless(
