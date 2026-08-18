@@ -530,3 +530,93 @@ func TestCascadeSitesCountsOnlyTheShadowClasses(t *testing.T) {
 			"supplying a variable does not touch it", got)
 	}
 }
+
+// TestSweepVersionSkewDecodesProbeJSON pins the field names in
+// [sweepVersionSkew] against a fixture shaped exactly like
+// tools/refusal-probe's real versionSkew JSON output (schemas.go). The two
+// structs live in different package main binaries that cannot import one
+// another, so nothing but a test keeps their tags in agreement - a silent
+// rename on either side would decode every field to its zero value instead
+// of failing to compile, which is exactly the failure mode issue #269's own
+// signal must not have.
+func TestSweepVersionSkewDecodesProbeJSON(t *testing.T) {
+	const fixture = `{
+		"name": "simpleinfra/terraform/team-members-access",
+		"origin": "published deployment",
+		"blocked": false,
+		"refusals": {},
+		"sites": 0,
+		"unresolved_modules": 0,
+		"causes": null,
+		"unset_var_sites": 0,
+		"version_skew": {
+			"provider": "hashicorp/aws",
+			"constraint": "~> 5.64",
+			"pinned_version": "6.59.0",
+			"own_version": "5.100.0",
+			"needs_discovery": ["aws_iam_policy"],
+			"missing_under_own": ["aws_iam_policy"],
+			"diverges": true
+		}
+	}`
+
+	var e sweepEntry
+	if err := json.Unmarshal([]byte(fixture), &e); err != nil {
+		t.Fatalf("decoding fixture: %v", err)
+	}
+	if e.VersionSkew == nil {
+		t.Fatal("VersionSkew is nil; the field name or nesting disagrees with the probe's output")
+	}
+	s := e.VersionSkew
+	if s.Provider != "hashicorp/aws" || s.Constraint != "~> 5.64" {
+		t.Errorf("Provider/Constraint = %q/%q, want hashicorp/aws/~> 5.64", s.Provider, s.Constraint)
+	}
+	if s.PinnedVersion != "6.59.0" || s.OwnVersion != "5.100.0" {
+		t.Errorf("PinnedVersion/OwnVersion = %q/%q, want 6.59.0/5.100.0", s.PinnedVersion, s.OwnVersion)
+	}
+	if !s.Diverges {
+		t.Error("Diverges = false, want true")
+	}
+	if len(s.MissingUnderOwn) != 1 || s.MissingUnderOwn[0] != "aws_iam_policy" {
+		t.Errorf("MissingUnderOwn = %v, want [aws_iam_policy]", s.MissingUnderOwn)
+	}
+}
+
+// TestFalseCleanEntriesOnlyDivergingUnblocked pins every edge
+// [falseCleanEntries] has to get right: it is not a second blocker queue, it
+// is specifically the entries [buildQueue] would silently skip.
+func TestFalseCleanEntriesOnlyDivergingUnblocked(t *testing.T) {
+	diverging := &sweepVersionSkew{Provider: "hashicorp/aws", Constraint: "~> 5.64",
+		PinnedVersion: "6.59.0", OwnVersion: "5.100.0",
+		MissingUnderOwn: []string{"aws_iam_policy"}, Diverges: true}
+	agreeing := &sweepVersionSkew{Provider: "hashicorp/aws", Constraint: "= 6.58.0",
+		PinnedVersion: "6.59.0", OwnVersion: "6.58.0", Diverges: false}
+
+	s := sweep{Entries: []sweepEntry{
+		// The motivating case: reads clean, own constraint would not work.
+		{Name: "unblocked-and-diverges", Origin: ratePopulation, Blocked: false, VersionSkew: diverging},
+		// Already in the ordinary queue via Blocked=true; must not ALSO
+		// appear here, or the same real problem would be reported twice
+		// under two different headings.
+		{Name: "blocked-and-diverges", Origin: ratePopulation, Blocked: true, VersionSkew: diverging},
+		// Checked and found no regression - present, but Diverges is false.
+		{Name: "unblocked-no-skew", Origin: ratePopulation, Blocked: false, VersionSkew: agreeing},
+		// Never checked at all (no schemas, or nothing needed discovery).
+		{Name: "unblocked-no-signal", Origin: ratePopulation, Blocked: false, VersionSkew: nil},
+		// Right shape, wrong population - must not leak into the rate query.
+		{Name: "module-example-diverges", Origin: modulePopulation, Blocked: false, VersionSkew: diverging},
+	}}
+
+	got := falseCleanEntries(s, ratePopulation)
+	if len(got) != 1 || got[0].Name != "unblocked-and-diverges" {
+		names := make([]string, len(got))
+		for i, e := range got {
+			names[i] = e.Name
+		}
+		t.Fatalf("falseCleanEntries(rate) = %v, want exactly [unblocked-and-diverges]", names)
+	}
+
+	if got := falseCleanEntries(s, modulePopulation); len(got) != 1 || got[0].Name != "module-example-diverges" {
+		t.Errorf("falseCleanEntries(modules) did not isolate the module-population row: %v", got)
+	}
+}

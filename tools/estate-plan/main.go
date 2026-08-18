@@ -223,6 +223,32 @@ type sweepEntry struct {
 	// reachability rather than a causal claim, so this annotates an
 	// estate and never reclassifies one.
 	UnsetVarSites int `json:"unset_var_sites"`
+
+	// VersionSkew is refusal-probe's issue #269 signal, -schemas mode only.
+	// It exists because Blocked above is measured against ONE provider
+	// version every entry is pinned to for comparison, and an entry can
+	// read Blocked false under that pin while its OWN required_providers
+	// constraint resolves to a release with weaker list-resource coverage -
+	// a live-plan-time "Unlistable marker-discovered type" refusal this
+	// plan's queues, built from Blocked alone, would never see. See
+	// [falseCleanEntries].
+	VersionSkew *sweepVersionSkew `json:"version_skew,omitempty"`
+}
+
+// sweepVersionSkew mirrors tools/refusal-probe's versionSkew JSON shape.
+// Only the fields this program reports are declared; the two structs are
+// kept independent (main.go/package main cannot import one another) but
+// their JSON tags must agree, which [TestVersionSkewDecodes] checks against
+// a fixture shaped like the probe's real output.
+type sweepVersionSkew struct {
+	Provider        string   `json:"provider"`
+	Constraint      string   `json:"constraint,omitempty"`
+	PinnedVersion   string   `json:"pinned_version"`
+	OwnVersion      string   `json:"own_version,omitempty"`
+	OwnError        string   `json:"own_error,omitempty"`
+	NeedsDiscovery  []string `json:"needs_discovery"`
+	MissingUnderOwn []string `json:"missing_under_own,omitempty"`
+	Diverges        bool     `json:"diverges"`
 }
 
 // ratePopulation is the only origin that counts as progress. See the package
@@ -282,6 +308,24 @@ func main() {
 		fmt.Printf("UNMAPPED REFUSALS (%d) - add them to blockerAction with a reason:\n", len(unknownAll))
 		for _, id := range unknownAll {
 			fmt.Printf("  %s\n", id)
+		}
+		fmt.Println()
+	}
+
+	falseClean := append(falseCleanEntries(s, ratePopulation), falseCleanEntries(s, modulePopulation)...)
+	if len(falseClean) > 0 {
+		// This is not a third queue: these entries are not in plan or
+		// modules at all, because Blocked read false and buildQueue skips
+		// exactly that. It exists so "blocked 0" is never read as "will
+		// apply" - see issue #269 and [falseCleanEntries].
+		fmt.Printf("FALSE CLEAN (issue #269) - %d entr(y/ies) read blocked:false but own provider\n", len(falseClean))
+		fmt.Println("constraint resolves to a release with weaker list-resource coverage than this run's pin;")
+		fmt.Println("a real live-plan would refuse them on \"Unlistable marker-discovered type\":")
+		for _, e := range falseClean {
+			s := e.VersionSkew
+			fmt.Printf("  %s: %s@%s -> %s (pinned %s); cannot list: %s\n",
+				e.Name, s.Provider, s.Constraint, s.OwnVersion, s.PinnedVersion,
+				strings.Join(s.MissingUnderOwn, ", "))
 		}
 		fmt.Println()
 	}
@@ -701,6 +745,32 @@ func (e estate) driveable() bool {
 		}
 	}
 	return len(e.Blockers) == 0
+}
+
+// falseCleanEntries returns, within origin, every entry that read Blocked
+// false in the sweep and therefore never enters [buildQueue] at all, but
+// whose [sweepEntry.VersionSkew] says its OWN provider constraint would fail
+// a real live-plan (issue #269). buildQueue's filter is "!e.Blocked ->
+// skip", so this is the one place these entries are visible in this
+// program's output; nothing above silently reclassifies them, because
+// Blocked itself is unchanged - see [sweepEntry.VersionSkew]'s doc for why
+// that pinned measurement stays exactly as it read.
+//
+// Sorted by name for the same reason [buildQueue]'s output is: two people
+// reading one sweep should see the same order.
+func falseCleanEntries(s sweep, origin string) []sweepEntry {
+	var out []sweepEntry
+	for _, e := range s.Entries {
+		if e.Origin != origin || e.Blocked {
+			continue
+		}
+		if e.VersionSkew == nil || !e.VersionSkew.Diverges {
+			continue
+		}
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // buildPlan orders blocked rate-capable estates by how many distinct classes

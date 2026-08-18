@@ -304,6 +304,15 @@ type totals struct {
 	EntriesPartialSchemas int `json:"entries_partial_schemas"`
 	EntriesNoSchemas      int `json:"entries_no_schemas"`
 
+	// EntriesVersionChecked counts entries [acquirer.versionSkewFor] actually
+	// evaluated - a requirement on the pinned provider plus at least one
+	// marker-discovered type - and EntriesVersionSkew the subset of those
+	// where the entry's OWN constraint resolves to a release with weaker
+	// list-resource coverage than the pinned measurement. -schemas mode
+	// only. See issue #269 and [entry.VersionSkew].
+	EntriesVersionChecked int `json:"entries_version_checked"`
+	EntriesVersionSkew    int `json:"entries_version_skew"`
+
 	// Onboarding is the second form's aggregate, in -onboarded mode only.
 	// It is a nested object rather than a set of onboarded_* siblings so
 	// that no reader can pick "blocked" out of this struct and get the
@@ -367,6 +376,17 @@ type entry struct {
 	// files are discovered from disk, so two trees can disagree about them
 	// while agreeing about everything else.
 	VarFiles []string `json:"var_files,omitempty"`
+
+	// VersionSkew is issue #269's signal, -schemas mode only: whether this
+	// entry's OWN provider version constraint would resolve to a release
+	// with weaker list-resource coverage than the version every entry is
+	// otherwise pinned to for comparison. Nil when -schemas is off, when
+	// this entry declares no requirement for the pinned provider, or when
+	// nothing it declares needs marker discovery at all - see
+	// [acquirer.versionSkewFor]. A non-nil value with Diverges false means
+	// the check ran and found no regression, which is not the same fact as
+	// "the check did not run" - read the field, not just its presence.
+	VersionSkew *versionSkew `json:"version_skew,omitempty"`
 
 	// Onboarding is what internal/live/onboard concluded about this entry,
 	// and Onboarded the analysis of the edited form. Both are nil outside
@@ -578,6 +598,7 @@ func sweep(opts sweepOptions) (*run, error) {
 		var rep check.Report
 		var provRows []entryProvider
 		var schemas map[string]providers.Schema
+		var skew *versionSkew
 		switch {
 		case acq == nil:
 			// No Schemas: that is the whole bound the default mode carries.
@@ -588,11 +609,19 @@ func sweep(opts sweepOptions) (*run, error) {
 			// the loaded configuration is what says which providers this
 			// entry needs, and check.Dir hides it between the two calls.
 			load := check.Load(ctx, ref.Dir, varFiles...)
+			var needs []providerNeed
 			if load.Config != nil {
-				schemas, provRows = acq.schemasFor(providerNeeds(load.Config))
+				needs = providerNeeds(load.Config)
+				schemas, provRows = acq.schemasFor(needs)
 			}
 			rep = check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
 			rep.Load = load
+			if needs != nil {
+				// versionSkewFor reads rep.Identities, so it has to run
+				// after Analyze, not beside the schemasFor call above -
+				// see issue #269 and [acquirer.versionSkewFor].
+				skew = acq.versionSkewFor(needs, rep)
+			}
 		}
 
 		// Marks refusals that read a required variable with no value. It
@@ -613,6 +642,13 @@ func sweep(opts sweepOptions) (*run, error) {
 			Providers:        provRows,
 			ModulesInstalled: modulesInstalled(ref.Dir),
 			VarFiles:         ref.VarFiles,
+			VersionSkew:      skew,
+		}
+		if skew != nil {
+			r.Totals.EntriesVersionChecked++
+			if skew.Diverges {
+				r.Totals.EntriesVersionSkew++
+			}
 		}
 		for _, f := range rep.Findings {
 			e.Refusals[f.ID] += len(f.Sites)
@@ -827,6 +863,34 @@ func summarizeSchemaBound(r *run) {
 	if len(floating) > 0 {
 		fmt.Printf("  %d requirement(s) not in the lock file, so resolved to whatever is current today: %s\n",
 			len(floating), strings.Join(floating, ", "))
+	}
+	summarizeVersionSkew(r)
+}
+
+// summarizeVersionSkew reports issue #269's signal: entries measured against
+// the run's -provider-version pin whose OWN required_providers constraint
+// resolves to a real release with weaker list-resource coverage. This does
+// not change Blocked, Sites or any other total above - the pinned
+// measurement everything else in this program compares is unaffected - it
+// is the separate, honest answer to "would this entry's own constraint
+// actually work".
+func summarizeVersionSkew(r *run) {
+	if r.Totals.EntriesVersionChecked == 0 {
+		fmt.Println("  version skew: no entry both required the pinned provider and declared a")
+		fmt.Println("  marker-discovered type, so there was nothing to check")
+		return
+	}
+	fmt.Printf("  version skew: %d entr(y/ies) checked (pinned provider + a marker-discovered type), "+
+		"%d diverge - own constraint resolves to a release that cannot list a type this run's pin can\n",
+		r.Totals.EntriesVersionChecked, r.Totals.EntriesVersionSkew)
+	for _, e := range r.Entries {
+		s := e.VersionSkew
+		if s == nil || !s.Diverges {
+			continue
+		}
+		fmt.Printf("    %s: %s@%s -> %s (pinned %s); own version cannot list: %s\n",
+			e.Name, s.Provider, s.Constraint, s.OwnVersion, s.PinnedVersion,
+			strings.Join(s.MissingUnderOwn, ", "))
 	}
 }
 
