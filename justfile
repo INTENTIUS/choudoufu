@@ -183,11 +183,14 @@ demo-corpus-govuk-oidc:
 # because the generated row looks this type up by `id` while the provider's
 # own identity schema (live/survey-full.json) says family + revision. The
 # script asserts both halves: the refusal BY NAME and the enumeration
-# working, so a regression in either is not hidden by the other. The two
-# estates also read two data sources this floci build cannot answer at all -
-# a private hosted zone and elbv2 - which is why this is one resource and
-# not the estate. Needs Docker, the AWS CLI and a populated .corpus; runs on
-# its own port (4694).
+# working, so a regression in either is not hidden by the other. This is one
+# resource rather than the whole estate because these two estates read
+# twelve data sources between them and the emulator has had to grow into
+# them one at a time; the private hosted zone that used to be named here is
+# no longer among the gaps, and elbv2 never was - that service is fully
+# implemented and registered under its signing name, elasticloadbalancing,
+# which is the key /_localstack/health reports it under. Needs Docker, the
+# AWS CLI and a populated .corpus; runs on its own port (4694).
 demo-corpus-ecs-taskdef:
     bash live/e2e/corpus-ecs-taskdef/run.sh
 

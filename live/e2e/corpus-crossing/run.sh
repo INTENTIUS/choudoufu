@@ -177,12 +177,22 @@ perl -0pi -e 's/^(  region\s*= (?:var\.region|"us-east-1")\n)/$1  skip_credentia
   || fail "DELTA 3 reached $(grep -c 'DELTA 3' "$EST/input.tf") provider blocks, expected 2 - the corpus pin has moved"
 log "  DELTA 3  emulator flags on both providers        (emulator)"
 
-# DELTA 4, an emulator gap. aws_route53_zone.internal is a PRIVATE zone;
-# floci answers AssociateVPCWithHostedZone with a bare 404 UnknownError, and
-# create-hosted-zone --vpc returns PrivateZone: false for a zone it was
-# handed a VPC for. The zone stays, its VPC association does not - which
-# costs the run nothing it is measuring, since what makes this zone
-# interesting is that it shares a NAME with aws_route53_zone.production.
+# DELTA 4, an emulator gap that has since been closed and that this delta
+# has NOT yet caught up with. aws_route53_zone.internal is a PRIVATE zone.
+# Up to pin sha256:94c5a40e, floci answered AssociateVPCWithHostedZone with
+# a bare 404 UnknownError and create-hosted-zone --vpc returned
+# PrivateZone: false for a zone it was handed a VPC for, so the zone stayed
+# and its VPC association did not - which cost the run nothing it is
+# measuring, since what makes this zone interesting is that it shares a NAME
+# with aws_route53_zone.production.
+#
+# Pin sha256:62476090 implements the whole association: create-with-VPC
+# yields a private zone, GetHostedZone reports its VPCs, and Associate /
+# Disassociate / ListHostedZonesByVPC all answer. Removing this delta - the
+# perl substitution and its two grep guards - and letting the estate's own
+# vpc block through is the right next change here. It is left in place only
+# because deleting it needs a full run of this script to prove, which is a
+# separate act from the fix that made it removable.
 perl -0pi -e 's/  vpc \{\n    vpc_id = var\.vpc_id\n  \}\n/  # DELTA 4: floci cannot associate a VPC with a hosted zone.\n/' "$EST/main.tf"
 grep -q 'DELTA 4' "$EST/main.tf" || fail "DELTA 4 did not match the private zone's vpc block - the corpus pin has moved"
 grep -q 'vpc_id = var.vpc_id' "$EST/main.tf" && fail "DELTA 4 left a vpc block behind"

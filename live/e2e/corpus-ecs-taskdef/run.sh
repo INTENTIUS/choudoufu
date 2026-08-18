@@ -60,16 +60,28 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
-# The two data reads floci cannot answer, recorded here because they are the
-# reason this script is one resource and not the estate:
+# The estate's data reads, and what the emulator does with them. Both entries
+# below used to be reasons this script is one resource and not the estate;
+# both have since been answered, and they are kept here as the record of what
+# was measured against which pin.
 #
 #   data "aws_route53_zone" "internal" { name = "datacite.org", private_zone = true }
-#     floci reports Config.PrivateZone = false for a hosted zone created WITH
-#     a VPC, so no zone ever matches private_zone = true. The same gap is
+#     Answered since sha256:62476090. Up to sha256:94c5a40e, floci reported
+#     Config.PrivateZone = false for a hosted zone created WITH a VPC - the
+#     Terraform AWS provider never sends HostedZoneConfig.PrivateZone, it
+#     sends a VPC and lets Route 53 infer the rest - so nothing matched
+#     private_zone = true, and the sibling public read then failed the other
+#     way with "multiple Route 53 Hosted Zones matched". The same gap is
 #     documented at live/e2e/corpus-crossing/run.sh's DELTA 4.
 #
 #   data "aws_lb" "default" / data "aws_lb_listener" "default"
-#     elbv2 is not in this build's /_localstack/health service list at all.
+#     Always answered. This comment used to say elbv2 was absent from
+#     /_localstack/health; the service is fully implemented and registered
+#     under its signing name, elasticloadbalancing, which is the key the
+#     health endpoint reports it under. What WAS missing until
+#     sha256:62476090 is DescribeLoadBalancerAttributes, which answered an
+#     empty set, so aws_lb read idle_timeout 0 and enable_http2 false where
+#     AWS gives 60 and true.
 log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
 docker info >/dev/null 2>&1 || fail "docker is not running"
