@@ -17,10 +17,10 @@ resource "aws_api_gateway_rest_api" "api" {
   name = "public"
 }
 
-resource "aws_cloudwatch_log_group" "by_ip" {
+resource "aws_iam_group" "by_ip" {
   name = "logs-${aws_instance.web.public_ip}"
 }
 
-resource "aws_cloudwatch_log_group" "by_root" {
+resource "aws_iam_group" "by_root" {
   name = "logs-${aws_api_gateway_rest_api.api.root_resource_id}"
 }

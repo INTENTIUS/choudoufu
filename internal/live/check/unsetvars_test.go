@@ -80,6 +80,15 @@ resource "aws_s3_bucket" "dist" {
 // rather than per-site - or if it read the whole file rather than the
 // refusal's own range - this refusal would be excused by a variable it never
 // touches, and the caveat would become noise attached to everything.
+//
+// The impure resource is aws_iam_group, not aws_s3_bucket as this fixture
+// read before GitHub issue #289: aws_s3_bucket is taggable and enumerable,
+// so its own marker fallback now answers "Identity derived from an impure
+// function" for it too, which withdraws the finding this test looks up by
+// title entirely - a different, correct outcome from what THIS test pins,
+// which is how an impure-function refusal that DOES still fire gets
+// attributed. aws_iam_group has no tags argument and stays outside that
+// gate, so it keeps refusing exactly as before.
 func TestRefusalNotReadingAnUnsetVariableIsNotAttributed(t *testing.T) {
 	rep := analyzeDir(t, map[string]string{
 		"main.tf": `
@@ -89,8 +98,8 @@ resource "aws_s3_bucket" "named" {
   bucket = "acme-dist-${var.account_id}"
 }
 
-resource "aws_s3_bucket" "impure" {
-  bucket = "acme-${uuid()}"
+resource "aws_iam_group" "impure" {
+  name = "acme-${uuid()}"
 }
 `,
 	})
@@ -120,6 +129,9 @@ resource "aws_s3_bucket" "impure" {
 // broken implementation that scanned whole files. requireUnset below is what
 // stops that from being possible again - a test of attribution that runs
 // with nothing to attribute is not testing attribution.
+// The impure resource is aws_iam_group, not aws_s3_bucket as this fixture
+// read before GitHub issue #289 - see
+// TestRefusalNotReadingAnUnsetVariableIsNotAttributed for why.
 func TestAttributionIsScopedToTheRefusalsOwnRange(t *testing.T) {
 	rep := analyzeDir(t, map[string]string{
 		"main.tf": `
@@ -129,8 +141,8 @@ resource "aws_s3_bucket" "far_away" {
   bucket = "acme-dist-${var.account_id}"
 }
 
-resource "aws_s3_bucket" "impure" {
-  bucket = "acme-${uuid()}"
+resource "aws_iam_group" "impure" {
+  name = "acme-${uuid()}"
 }
 `,
 	})

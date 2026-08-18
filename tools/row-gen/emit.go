@@ -202,7 +202,7 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
@@ -299,11 +299,24 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", markerlessTableRel, err)
 	}
 
+	// GitHub issue #289's roster. Computed over the ratified rows about to
+	// ship (types, the map buildEmitFiles is already building for
+	// renderIdentityFile) rather than over ratified itself, for the same
+	// reason the convergence comparison above reads rows instead of the
+	// last-committed table: a row ratified but not yet admitted has to be
+	// eligible the moment it ships, not one generator run later.
+	fallback := discoverableFallbackRoster(rows, survey, proposals)
+	discoverableFallbackSrc, err := renderDiscoverableFallbackFile(fallback)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", discoverableFallbackTableRel, err)
+	}
+
 	return map[string][]byte{
-		identityTableRel:   identitySrc,
-		lintTableRel:       lintSrc,
-		logicalTableRel:    logicalSrc,
-		markerlessTableRel: markerlessSrc,
+		identityTableRel:             identitySrc,
+		lintTableRel:                 lintSrc,
+		logicalTableRel:              logicalSrc,
+		markerlessTableRel:           markerlessSrc,
+		discoverableFallbackTableRel: discoverableFallbackSrc,
 	}, identityPart, lintPart, nil
 }
 

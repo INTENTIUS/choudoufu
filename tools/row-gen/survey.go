@@ -24,15 +24,24 @@ type surveyEntry struct {
 }
 
 // surveySignals is the per-type signal block tools/survey-gen derives from
-// the provider's own schema. Only taggable is read here, and it is
-// [internal/live/markers.Taggable] itself - survey-gen calls that function
-// rather than reimplementing it, which it did until issue #285. The copy
-// had four of the five clauses, missing the one #243 added: a tags map
-// whose keys the provider documents as naming objects that must already
-// exist is schema-identical to a free-form one and is not a marker surface.
-// See markerless.go for the one rule that consults this.
+// the provider's own schema. Taggable is [internal/live/markers.Taggable]
+// itself - survey-gen calls that function rather than reimplementing it,
+// which it did until issue #285. The copy had four of the five clauses,
+// missing the one #243 added: a tags map whose keys the provider documents
+// as naming objects that must already exist is schema-identical to a
+// free-form one and is not a marker surface. See markerless.go for the one
+// rule that consults Taggable.
+//
+// ListResource is whether the provider ships a native list resource for
+// this type (survey-gen's own signal, sourced from the provider's plugin
+// framework list-resource registration). discoverablefallback.go is the one
+// rule that consults it: it is one of the two independent ways a type can be
+// found again without reading its identity from configuration, the other
+// being live/registry.json's CloudFormation list handler joined through
+// live/mapping.json.
 type surveySignals struct {
-	Taggable bool `json:"taggable"`
+	Taggable     bool `json:"taggable"`
+	ListResource bool `json:"list_resource"`
 }
 
 // surveyIdentity is the identity half of a survey entry: the provider's own

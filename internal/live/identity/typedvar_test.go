@@ -122,13 +122,35 @@ func TestTypedModuleVarStringUnchanged(t *testing.T) {
 // TestUntypedModuleVarUnchanged: a variable with no type argument has
 // ConstraintType cty.DynamicPseudoType, which converts nothing. The raw value
 // is what OpenTofu uses too, so the answer is the raw one.
+//
+// Key "b" is aws_sqs_queue.seed.max_message_size read through an untyped
+// module variable rather than a typed one - unlike its siblings
+// TestTypedModuleVarConvertsEachValue and TestTypedModuleVarStringUnchanged,
+// a typed variable's own conversion machinery refuses this shape before
+// identity composition ever runs (a for_each/expansion refusal, which
+// [DiscoverableFallbackTypes] never answers), so those two still see "b"
+// refused outright. Here the untyped value reaches identity composition
+// itself and raises "Not an identity attribute" - max_message_size is a
+// real, Computed schema attribute of aws_sqs_queue, but not part of its
+// identity - which GitHub issue #289's marker fallback now answers for
+// aws_sqs_queue (taggable and enumerable): "b" resolves to
+// [ClassNeedsDiscovery] rather than refusing, with no import ID.
 func TestUntypedModuleVarUnchanged(t *testing.T) {
 	cfg := loadConfigTree(t, filepath.Join("testdata", "typedvar-untyped"), nil)
 	result, _ := ResolveIn(context.Background(), cfg, CloudContext{AccountID: "000000000000", Region: "us-east-1"})
 
 	assertQueueIDs(t, result, map[string]string{
 		`module.child.aws_sqs_queue.q["a"]`: "https://sqs.us-east-1.amazonaws.com/000000000000/q-007",
+		`module.child.aws_sqs_queue.q["b"]`: "",
 	})
+
+	b := resolutionAt(t, result, `module.child.aws_sqs_queue.q["b"]`)
+	if b.Class != ClassNeedsDiscovery {
+		t.Errorf(`module.child.aws_sqs_queue.q["b"] resolved %s, want NEEDS_DISCOVERY`, b.Class)
+	}
+	if b.Cause != DiscoveryMarkerFallback {
+		t.Errorf(`module.child.aws_sqs_queue.q["b"] discovery cause is %s, want %s`, b.Cause, DiscoveryMarkerFallback)
+	}
 }
 
 // TestTypedModuleVarAppliesOptionalDefaults pins the half of

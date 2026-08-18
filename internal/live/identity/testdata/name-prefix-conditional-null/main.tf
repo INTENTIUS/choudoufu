@@ -36,9 +36,22 @@ resource "aws_iam_role" "named_conditional" {
 }
 
 # name evaluates to null and there is no name_prefix sibling at all: a
-# genuinely broken configuration (nothing names this role), which must keep
-# refusing exactly as before this fix - a peek that finds no prefix sibling
-# must never suppress the "Null identity argument" diagnostic.
+# genuinely broken configuration by ITSELF - nothing here names this role
+# from configuration alone - so the peek that finds no prefix sibling must
+# never suppress the "Null identity argument" diagnostic; that much is
+# still pinned below.
+#
+# What changed under GitHub issue #289: aws_iam_role is taggable and
+# enumerable (its own tofu-address marker is exactly what AWS's own
+# behaviour for an omitted/null name argument already invites - the
+# provider invents a name at create time either way), so
+# [resolver.markerFallback] now answers "Null identity argument" for it the
+# same way [Component.ServerAssignedIfAbsent] already answers the
+# OMITTED-argument spelling of this identical convention two resources
+# above. The instance still never resolves from CONFIGURATION - the
+# diagnostic still fires and is still withdrawn only afterward, never
+# suppressed up front - it just no longer stays a hard refusal for a type a
+# migrated estate already marks.
 resource "aws_iam_role" "broken_no_prefix" {
   name                = var.use_prefix_a ? null : "unused-c"
   assume_role_policy  = "{}"

@@ -147,6 +147,31 @@ const (
 	// the identity arguments that wait on it, in component order. The slice
 	// is therefore at least one long and index 0 is always the sibling.
 	DiscoverySiblingApply DiscoveryCause = "SIBLING_APPLY"
+
+	// DiscoveryMarkerFallback is GitHub issue #289's answer: this
+	// instance's identity could not be built from its own configuration -
+	// a sensitive value, an impure function, a circular reference, an
+	// argument left unset, any of the shapes
+	// [markerFallbackRefusals] names - but its TYPE is
+	// [DiscoverableFallbackTypes]: taggable, and enumerable through a
+	// native list resource or a Cloud Control list handler. A migrated
+	// estate already carries the tofu-address marker on this instance, so
+	// the question configuration just failed to answer is exactly the one
+	// the marker answers, the same way it answers
+	// [DiscoveryServerAssigned] - the two differ only in WHY configuration
+	// could not build the value: a type-level fact for ServerAssigned, one
+	// instance's own expression for this cause.
+	//
+	// It is distinct from DiscoveryServerAssigned because the underlying
+	// claim is different and a reader needs to be able to tell them apart:
+	// ServerAssigned means no configuration edit could ever help, and this
+	// cause means a DIFFERENT instance of the identical resource type,
+	// written differently, resolves from configuration alone every day -
+	// this one instance's own expression is what did not fold. See
+	// [resolver.markerFallback] for the mechanism and
+	// internal/live/identity/markerfallback.go for the refusal set it
+	// answers.
+	DiscoveryMarkerFallback DiscoveryCause = "MARKER_FALLBACK"
 )
 
 // AllDiscoveryCauses is every cause this package can produce, in a stable
@@ -162,6 +187,7 @@ func AllDiscoveryCauses() []DiscoveryCause {
 		DiscoveryNamePrefix,
 		DiscoveryUniqueName,
 		DiscoverySiblingApply,
+		DiscoveryMarkerFallback,
 	}
 }
 

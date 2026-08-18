@@ -26,6 +26,15 @@ import (
 // whichever was found reports "Null identity argument" - a hard, wrong
 // refusal for an instance that resolves to ClassNeedsDiscovery under every
 // other spelling of the identical convention.
+//
+// GitHub issue #289 changed the adversarial case below: aws_iam_role is
+// taggable and enumerable, so [resolver.markerFallback] now withdraws
+// "Null identity argument" for it too, the same way it withdraws every
+// other identity-VALUE refusal on a [DiscoverableFallbackTypes] member.
+// What this test still pins is that the withdrawal happens - the peek
+// added for the two cases above must never turn the null value itself
+// into a false "fine" (a CONCRETE resolution built from nothing) - not
+// that the type keeps refusing outright, which it no longer does.
 func TestNamePrefixConditionalNullDefersToDiscovery(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "name-prefix-conditional-null"), nil)
 
@@ -45,28 +54,35 @@ func TestNamePrefixConditionalNullDefersToDiscovery(t *testing.T) {
 	}
 
 	// The adversarial case: name evaluates to null and there is no
-	// name_prefix sibling at all in the body. Nothing names this role, and
-	// the peek this fix adds must never turn that into a false "fine" -
-	// [resolutionAt] itself requires an OK resolution, so a config that
-	// still needs to fail here has to be checked directly against diags,
-	// not through a resolution class.
-	foundBroken := false
+	// name_prefix sibling at all in the body. Nothing names this role from
+	// its OWN configuration, and the peek added for the two cases above
+	// must never turn that into a false "fine" straight off the null value:
+	// the only acceptable way out is through the ordinary
+	// [DiscoveryMarkerFallback] door every other unresolvable identity on a
+	// [DiscoverableFallbackTypes] member takes, never a fabricated CONCRETE
+	// resolution built from nothing.
+	//
+	// diags no longer carries "Null identity argument" for this instance -
+	// [resolver.markerFallback] withdraws it once it decides every
+	// diagnostic the instance raised is answerable - so this can no longer
+	// be checked by finding the diagnostic. What is checked instead is that
+	// no error diagnostic AT ALL still names broken_no_prefix (the peek
+	// really did let resolution run its ordinary course rather than
+	// special-casing the null value itself) alongside the resolution class.
 	for _, d := range diags {
 		desc := d.Description()
-		if desc.Summary != "Null identity argument" {
-			continue
-		}
-		foundBroken = true
-		if !strings.Contains(desc.Detail, "aws_iam_role.broken_no_prefix.name") {
-			t.Errorf("Null identity argument diagnostic did not name broken_no_prefix: %q", desc.Detail)
+		if strings.Contains(desc.Detail, "aws_iam_role.broken_no_prefix") {
+			t.Errorf("a diagnostic still names broken_no_prefix after the marker fallback should have withdrawn it: %q: %q", desc.Summary, desc.Detail)
 		}
 	}
-	if !foundBroken {
-		t.Fatal("aws_iam_role.broken_no_prefix has no name_prefix sibling and its name evaluates to null; it must still raise \"Null identity argument\", not resolve or defer silently")
+	broken := resolutionAt(t, result, "aws_iam_role.broken_no_prefix")
+	if broken.Class != ClassNeedsDiscovery {
+		t.Fatalf("broken_no_prefix resolved %s; a name that evaluates to null with no name_prefix sibling must defer to the marker (aws_iam_role is taggable and enumerable), never resolve CONCRETE from nothing", broken.Class)
 	}
-	for _, r := range result.All() {
-		if r.Addr.String() == "aws_iam_role.broken_no_prefix" {
-			t.Errorf("broken_no_prefix resolved (%s); a genuinely unnamed resource must not resolve at all", r.Class)
-		}
+	if broken.Cause != DiscoveryMarkerFallback {
+		t.Errorf("broken_no_prefix's discovery cause is %s, want %s - it must have reached NEEDS_DISCOVERY through the withdrawn-refusal door, not some other path", broken.Cause, DiscoveryMarkerFallback)
+	}
+	if broken.ImportID != "" {
+		t.Errorf("broken_no_prefix has import ID %q; a NEEDS_DISCOVERY resolution must never carry one", broken.ImportID)
 	}
 }

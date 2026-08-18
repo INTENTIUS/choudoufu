@@ -515,10 +515,17 @@ func TestResolveErrors(t *testing.T) {
 			wantAbsent:  `aws_cloudwatch_log_group.sized_by_single[0]`,
 		},
 		{
+			// aws_iam_group (not aws_cloudwatch_log_group, which this
+			// fixture used before GitHub issue #289): aws_cloudwatch_log_group
+			// is taggable and enumerable, so a marker fallback now answers
+			// this shape for it - see markerfallback.go and
+			// DiscoverableFallbackTypes. aws_iam_group carries no tags
+			// argument at all, so it stays outside that gate and this
+			// case still exercises the general, ungated refusal.
 			dir:         "computed-expression",
 			wantSummary: "Identity not resolvable from configuration",
-			wantDetail:  `aws_cloudwatch_log_group.app.name`,
-			wantAbsent:  `aws_cloudwatch_log_group.app`,
+			wantDetail:  `aws_iam_group.app.name`,
+			wantAbsent:  `aws_iam_group.app`,
 		},
 		{
 			dir:         "missing-identity-arg",

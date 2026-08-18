@@ -170,13 +170,13 @@ func TestForEachProvenValueRefusesMarked(t *testing.T) {
 			}
 		}
 	}
-	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["alice"]`)); ok {
-		t.Errorf(`aws_iam_user.team["alice"] resolved to import ID %q; its value is sensitive`, got.ImportID)
+	if got, ok := result.Get(mustAddr(t, `aws_iam_group.team["alice"]`)); ok {
+		t.Errorf(`aws_iam_group.team["alice"] resolved to import ID %q; its value is sensitive`, got.ImportID)
 	}
 	// carol is the control: an ordinary string in the same object, so the
 	// refusal above is about the mark and not about the block.
-	if res := resolutionAt(t, result, `aws_iam_user.team["carol"]`); res.ImportID != "carol-from-config" {
-		t.Errorf(`aws_iam_user.team["carol"] import ID is %q, want %q`, res.ImportID, "carol-from-config")
+	if res := resolutionAt(t, result, `aws_iam_group.team["carol"]`); res.ImportID != "carol-from-config" {
+		t.Errorf(`aws_iam_group.team["carol"] import ID is %q, want %q`, res.ImportID, "carol-from-config")
 	}
 }
 
@@ -187,11 +187,11 @@ func TestForEachProvenValueRefusesImpure(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "foreach-value-impure"), nil)
 	result, _ := Resolve(context.Background(), cfg)
 
-	if got, ok := result.Get(mustAddr(t, `aws_iam_user.team["alice"]`)); ok {
-		t.Errorf(`aws_iam_user.team["alice"] resolved to import ID %q; its value calls uuid()`, got.ImportID)
+	if got, ok := result.Get(mustAddr(t, `aws_iam_group.team["alice"]`)); ok {
+		t.Errorf(`aws_iam_group.team["alice"] resolved to import ID %q; its value calls uuid()`, got.ImportID)
 	}
-	if res := resolutionAt(t, result, `aws_iam_user.team["carol"]`); res.ImportID != "carol-from-config" {
-		t.Errorf(`aws_iam_user.team["carol"] import ID is %q, want %q`, res.ImportID, "carol-from-config")
+	if res := resolutionAt(t, result, `aws_iam_group.team["carol"]`); res.ImportID != "carol-from-config" {
+		t.Errorf(`aws_iam_group.team["carol"] import ID is %q, want %q`, res.ImportID, "carol-from-config")
 	}
 }
 

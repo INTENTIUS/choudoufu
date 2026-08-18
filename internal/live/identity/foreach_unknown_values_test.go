@@ -205,6 +205,13 @@ func TestSiblingApplyFromADirectReference(t *testing.T) {
 // that is already applied. The rule asks whether the covered VALUE is unknown,
 // not whether the expression happens to mention a covered resource, and this
 // is where that distinction is pinned.
+//
+// The child is aws_iam_group, not aws_cloudwatch_log_group as this fixture
+// read before GitHub issue #289: that type's own marker fallback would now
+// answer the data-source-unknown refusal below too, which would make this
+// test pass for the wrong reason - the instance not resolving at all,
+// rather than the instance not being wrongly attributed to the certificate.
+// aws_iam_group has no tags argument and stays outside that gate.
 func TestSiblingApplyNotClaimedForAKnownSibling(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-known-plus-data"), nil)
 
@@ -225,7 +232,7 @@ func TestSiblingApplyNotClaimedForAKnownSibling(t *testing.T) {
 	}
 	if result != nil {
 		for _, res := range result.All() {
-			if res.Addr.Resource.Resource.Type == "aws_cloudwatch_log_group" {
+			if res.Addr.Resource.Resource.Type == "aws_iam_group" {
 				t.Errorf("%s was classified as %v (cause %s, import ID %q); the certificate it names is wholly known and is not what this run is waiting on",
 					res.Addr, res.Class, res.Cause, res.ImportID)
 			}
