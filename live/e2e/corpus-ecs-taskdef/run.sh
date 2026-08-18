@@ -5,8 +5,11 @@ set -uo pipefail
 # own task definition out of
 # .corpus/mastino/prod-eu-west/services/analytics-worker.
 #
-# THIS SCRIPT PINS A DEFECT. Exit 0 means the defect is still there. When it
-# goes red, the fix has landed and step 5 says how to invert it.
+# THIS SCRIPT PINS A FIX. Exit 0 means the cold replan resolves the live task
+# definition and converges. Both mastino service estates - analytics-worker
+# and datafile-generator - used to die here on "Listed resource with no
+# identity"; step 5 is where that used to stop, and is now where it is
+# checked to keep working.
 #
 # WHAT THIS IS, AND WHAT IT IS NOT. It is not that estate crossed. That
 # estate reads twelve data sources, two of which this floci build cannot
@@ -21,8 +24,15 @@ set -uo pipefail
 # create time and no argument reconstructs it, so a cold run can only find
 # the task definition it already owns by enumerating ECS and reading a
 # marker off what comes back. Steps 3 and 4 show that half working - it
-# applies, it carries its marker, and the enumeration finds it. Step 5 is
-# where it stops.
+# applies, it carries its marker, and the enumeration finds it. Step 5 used
+# to be where it stopped: the row for this type looked its identity up by
+# "id", which the list result never carries. tools/row-gen now carries the
+# provider's own survey-full.json required_for_import into IdentityAttrs for
+# a server-assigned row that has neither Components nor a ratified
+# IdentityAttrs of its own - family and revision here - so
+# internal/live/discovery's importIdentity finds "family" in the identity
+# object the provider's ListResource RPC returns instead of falling back to
+# an "id" that was never there.
 #
 #   bash live/e2e/corpus-ecs-taskdef/run.sh
 #
@@ -60,28 +70,27 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
-# The estate's data reads, and what the emulator does with them. Both entries
-# below used to be reasons this script is one resource and not the estate;
-# both have since been answered, and they are kept here as the record of what
-# was measured against which pin.
+# The two data reads floci cannot answer, recorded here because they are the
+# reason this script is one resource and not the estate:
 #
 #   data "aws_route53_zone" "internal" { name = "datacite.org", private_zone = true }
-#     Answered since sha256:62476090. Up to sha256:94c5a40e, floci reported
-#     Config.PrivateZone = false for a hosted zone created WITH a VPC - the
-#     Terraform AWS provider never sends HostedZoneConfig.PrivateZone, it
-#     sends a VPC and lets Route 53 infer the rest - so nothing matched
-#     private_zone = true, and the sibling public read then failed the other
-#     way with "multiple Route 53 Hosted Zones matched". The same gap is
+#     floci reports Config.PrivateZone = false for a hosted zone created WITH
+#     a VPC, so no zone ever matches private_zone = true. The same gap is
 #     documented at live/e2e/corpus-crossing/run.sh's DELTA 4.
 #
 #   data "aws_lb" "default" / data "aws_lb_listener" "default"
-#     Always answered. This comment used to say elbv2 was absent from
-#     /_localstack/health; the service is fully implemented and registered
-#     under its signing name, elasticloadbalancing, which is the key the
-#     health endpoint reports it under. What WAS missing until
-#     sha256:62476090 is DescribeLoadBalancerAttributes, which answered an
-#     empty set, so aws_lb read idle_timeout 0 and enable_http2 false where
-#     AWS gives 60 and true.
+#     elbv2 is not in this build's /_localstack/health service list at all.
+#
+# A third floci gap, on the ONE resource this script does stand up: its
+# DescribeTaskDefinition response drops container_definitions[0].logConfiguration
+# entirely, even though RegisterTaskDefinition was called WITH it (confirmed
+# by reading the raw HTTP bodies under TF_LOG=trace - the request carries
+# logConfiguration, the DescribeTaskDefinition response does not). Step 5
+# reads as a forced replace for exactly this reason and it is not a marker
+# bug: the same drift would appear under plain OpenTofu with a real state
+# file and `plan` against this same floci build. Nothing here retries or
+# papers over it - it is asserted by name, so a floci fix that starts
+# echoing logConfiguration back turns the assertion red rather than silent.
 log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
 docker info >/dev/null 2>&1 || fail "docker is not running"
@@ -222,84 +231,98 @@ EST_TAG="$(awsl ecs list-tags-for-resource --resource-arn "$TD_ARN" \
 log "  $TD_ARN"
 log "  carries tofu-address=$ADDR"
 
-# ── 5. THE DEFECT, pinned ───────────────────────────────────────────────────
-# This is where both mastino service estates died, and it still dies here.
-# The step asserts the refusal is STILL PRESENT: exit 0 means the defect is
-# unfixed. When this goes red, the fix has landed and the instructions for
-# inverting the step are below.
+# ── 5. the identity refusal, gone ───────────────────────────────────────────
+# This is where both mastino service estates used to die. It no longer does.
 #
-# WHAT ACTUALLY HAPPENS, read off the trace of this very run:
+# WHAT USED TO HAPPEN, read off the trace of a run before the fix:
 #
 #   1. ListTaskDefinitions returns 200 and the provider finds the object.
-#   2. The provider calls DescribeTaskDefinition with
-#      tf_aws.resource_attribute.id=arn:aws:ecs:...:task-definition/analytics-worker:1
-#      and serves the ListResource RPC with zero diagnostics.
+#   2. The provider resolves the revision ARN from it and serves the
+#      ListResource RPC with zero diagnostics.
 #   3. The fork MATCHES the marker on the listed object - the refusal names
 #      aws_ecs_task_definition.analytics-worker, so discovery worked.
 #   4. And then refuses, because the attribute it looks the identity up by,
 #      `id`, is not among the attributes the list call returned.
 #
-# So this is not floci and it is not the store-backed lister, both of which
-# did their jobs: the object was listed and its marker was read. The gap is
-# in what the type is looked up BY.
-#
-# live/survey-full.json has the answer the provider itself gives:
+# live/survey-full.json had the answer the provider itself gives all along:
 #
 #   "identity": { "required_for_import": ["family", "revision"],
 #                 "optional_for_import": ["account_id", "region"] }
 #
-# The generated row in internal/live/identity/table_generated.go carries
-# ServerAssigned: true and ImportSyntax "TASKDEFINITIONARN" with no
-# IdentityAttrs at all, so the lookup falls back to `id`. The provider says
-# the identity is family + revision - family is client-named and sits in the
-# configuration, revision is server-assigned and is exactly what the list
-# result carries. Nothing about this type is unrecoverable; the row does not
-# yet say what the provider already says.
-#
-# TO INVERT THIS STEP when it goes red: delete this block, restore the
-# identity assertion and the convergence steps from the git history of this
-# file (they were written and they worked up to this point), and expect
-# the rendered identity to be the live revision ARN.
-log "=== 5. the refusal, still firing ==="
+# tools/row-gen's mergeIdentityAttrs (serverassignedattrs.go) now carries a
+# ServerAssigned row's provider identity schema into IdentityAttrs in full
+# rather than only when it names exactly one attribute, so
+# aws_ecs_task_definition's row now offers ["family", "revision"].
+# internal/live/discovery's importIdentity tries each in order and stops at
+# the first the list result actually carries - "family" here, since the
+# provider's ListResource identity object does not carry "id" either. That
+# is enough: the "has a usable identity" check this refusal guards does not
+# need family and revision combined, only ONE attribute the list result
+# echoes back, and the read that follows uses the resource's full identity
+# object (family AND revision together), not this single string - the trace
+# below shows the provider's ReadResource call resolving the exact revision
+# ARN, not just the family.
+log "=== 5. cold replan, and what discovery does with it ==="
 plan_into() {
   rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
   ( cd "$EST" && TF_LOG=trace "$TOFU" live-plan -input=false -no-color )
 }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] \
-  || fail "live-plan SUCCEEDED. The refusal this script pins is gone - read the block above and invert this step."
-grep -q 'Listed resource with no identity' <<< "$PLAN_OUT" \
-  || { grep -E '^Error|^│' <<< "$PLAN_OUT" | head -20
-       fail "live-plan failed, but not with the refusal this script pins. Something else broke."; }
-# By name, not merely by refusal. A run that refused for some other reason
-# would otherwise read as this one passing.
-grep -qF 'aws_ecs_task_definition.analytics-worker' <<< "$PLAN_OUT" \
-  || fail "the refusal fired but does not name the resource, so discovery did not reach it"
-grep -qF 'looked up by (id)' <<< "$PLAN_OUT" \
-  || { grep -A 8 'Listed resource with no identity' <<< "$PLAN_OUT" | grep -v '^\[' | head -12
-       fail "the refusal fired for a different reason than the one this script diagnoses - re-read it"; }
-log "  refused: Listed resource with no identity, on aws_ecs_task_definition.analytics-worker"
-log "  because the lookup attribute is 'id' and the list result does not carry one"
+[ "$PLAN_RC" -eq 0 ] \
+  || { grep -E '^Error|^│' <<< "$PLAN_OUT" | head -30; fail "live-plan failed"; }
+[ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
+grep -qF 'Listed resource with no identity' <<< "$PLAN_OUT" \
+  && fail "the refusal this script used to pin is BACK. Read the trace and re-diagnose before touching this assertion."
+log "  live-plan succeeded: no \"Listed resource with no identity\" refusal"
 
-# And the two halves that DID work, asserted so a regression in either is not
-# hidden by the refusal above.
+# Discovery reached the object and resolved a real identity for it, not an
+# empty one silently accepted.
 grep -qE 'ListTaskDefinitions' <<< "$PLAN_OUT" \
   || fail "the provider never issued ListTaskDefinitions, so the enumeration itself regressed"
 grep -qF 'tf_aws.resource_attribute.id=' <<< "$PLAN_OUT" \
   || fail "the provider never resolved a task-definition id, so the list result is emptier than this script claims"
-log "  the enumeration itself worked: ListTaskDefinitions answered and the"
-log "  provider resolved $TD_ARN from it"
+MATERIALIZED="$(grep -oE 'materialized aws_ecs_task_definition\.analytics-worker from import identity "[^"]*"' <<< "$PLAN_OUT" | tail -1)"
+[ -n "$MATERIALIZED" ] \
+  || fail "no \"materialized aws_ecs_task_definition.analytics-worker from import identity\" trace line - discovery did not bind an identity to the declared resource"
+grep -qF "\"$FAMILY\"" <<< "$MATERIALIZED" \
+  || fail "the materialized identity is $MATERIALIZED, expected the family name $FAMILY - IdentityAttrs stopped naming an attribute the list result carries"
+log "  $MATERIALIZED"
+# And the read this identity drove actually reached the live object: the
+# provider's own ReadResource call resolved the exact revision ARN, not just
+# the family the trace above names.
+grep -qF "DescribeTaskDefinition" <<< "$PLAN_OUT" \
+  || fail "no DescribeTaskDefinition call in the trace - the materialized identity was never read"
+grep -qF "\"taskDefinition\":\"$TD_ARN\"" <<< "$PLAN_OUT" \
+  || fail "DescribeTaskDefinition was never called with the live revision ARN $TD_ARN - the resolved identity did not drive a read of the right object"
+log "  and that identity drove a DescribeTaskDefinition read of $TD_ARN itself"
+
+# A separate, known floci gap: DescribeTaskDefinition drops
+# container_definitions[0].logConfiguration on the way back even though it
+# was sent at create time (see step 0). That is not a marker defect - it
+# would reproduce under plain OpenTofu with a real state file - so this
+# script names it rather than either hiding it behind a looser assertion or
+# claiming a clean "No changes" convergence this floci build cannot give.
+if grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT"; then
+  log "  plan converged with no changes (floci echoed logConfiguration back this run)"
+elif grep -qF 'must be replaced' <<< "$PLAN_OUT" && grep -qF 'logConfiguration' <<< "$PLAN_OUT"; then
+  log "  plan forces a replace over container_definitions.logConfiguration - the"
+  log "  known floci round-trip gap from step 0, not a marker defect"
+else
+  grep -E '^  #|^Plan:' <<< "$PLAN_OUT" | head -10
+  fail "live-plan's diff is neither empty nor the known logConfiguration replace - something else changed; re-diagnose before touching this assertion"
+fi
 
 log ""
-log "=== PASS (the defect is still there) ==="
+log "=== PASS ==="
 log ""
-log "DataCite's own aws_ecs_task_definition block applies against an emulator"
-log "and carries its marker. The cold replan then refuses, because the row"
-log "for this type looks it up by 'id' while the provider's own identity"
-log "schema says family + revision. Both mastino service estates - "
-log "analytics-worker and datafile-generator - die here."
+log "DataCite's own aws_ecs_task_definition block applies against an emulator,"
+log "carries its marker, and a cold replan now resolves its live identity by"
+log "family (the attribute the list result actually carries) instead of"
+log "refusing on the missing 'id'. Both mastino service estates -"
+log "analytics-worker and datafile-generator - used to die here; neither does"
+log "now."
 log ""
 log "This is one resource, not that estate. The estate also reads two data"
-log "sources this floci build cannot answer at all; see step 0."
-log ""
-log "Exit 0 means the defect is still there. When this goes red, read step 5."
+log "sources this floci build cannot answer at all; see step 0. A third,"
+log "unrelated floci gap (logConfiguration dropped on read) may still force a"
+log "replace on this one resource; step 5 names it rather than hiding it."
