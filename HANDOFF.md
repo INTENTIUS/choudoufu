@@ -532,8 +532,12 @@ all three of the wrong-marker defects fixed on 2026-08-17.
 ### 4. #245 - admission, which migration does not fix
 
 A type with no row is unadmitted whether or not the resource carries a marker,
-because nothing sweeps for a type the configuration cannot declare. 669 AWS
-types sit in neither the identity table nor the veto ledger.
+because nothing sweeps for a type the configuration cannot declare. See
+`live/HARNESS.md`'s `unreached-types` entry for the current count of AWS
+types in neither the identity table nor the veto ledger - not restated here,
+because a copy goes stale the moment a batch lands and nothing would say so
+(issue #256 item 3: this line read "669" for multiple batches after the real
+count had moved to 613).
 
 ### 5. #284, then #288, then #287
 
