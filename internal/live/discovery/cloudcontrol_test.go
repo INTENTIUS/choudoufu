@@ -602,6 +602,109 @@ func TestResolveCloudControlImportID(t *testing.T) {
 	}
 }
 
+// TestImportIDFromARN is issue #295 at the layer that actually matters, and
+// pins the SECOND fix a live floci crossing forced: a first pass here took
+// the ARN's trailing segment alone (WAFv2's bare "id" attribute value,
+// confirmed correct against `aws wafv2 list-web-acls`) and that still
+// failed against a real emulator - "Unexpected format of ID (\"<uuid>\"),
+// expected ID/NAME/SCOPE", straight from the AWS provider's own
+// ImportResourceState, because that resource's Importer does not accept
+// its bare id at all. [arnCompositeImportID] rebuilds the full string each
+// provider's own "## Import" doc section names, and this test pins that
+// string exactly - not just that some non-empty value came out.
+func TestImportIDFromARN(t *testing.T) {
+	tests := []struct {
+		name     string
+		typeName string
+		arn      string
+		wantID   string
+		wantAttr string
+		wantOK   bool
+	}{
+		{
+			// Confirmed against a live floci crossing (issue #295): applied
+			// as `arn:aws:wafv2:us-east-1:000000000000:global/webacl/cdn_poc_govuk/39984a03-9d79-46db-bd03-1fefbc57f2e3`,
+			// `aws wafv2 list-web-acls --scope CLOUDFRONT` answers
+			// Id=39984a03-9d79-46db-bd03-1fefbc57f2e3, and importing with
+			// exactly this composed string is what let live-plan bind and
+			// read the object back without error.
+			name:     "wafv2 web acl, global scope: id/name/CLOUDFRONT, not the bare id and not the ARN's own \"global\" spelling",
+			typeName: "aws_wafv2_web_acl",
+			arn:      "arn:aws:wafv2:us-east-1:000000000000:global/webacl/cdn_poc_govuk/9a032e21-0000-4c6d-8c8c-000000000000",
+			wantID:   "9a032e21-0000-4c6d-8c8c-000000000000/cdn_poc_govuk/CLOUDFRONT",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			name:     "wafv2 ip set, regional scope: id/name/REGIONAL",
+			typeName: "aws_wafv2_ip_set",
+			arn:      "arn:aws:wafv2:us-east-1:000000000000:regional/ipset/my-set/9a032e21-0000-4c6d-8c8c-000000000000",
+			wantID:   "9a032e21-0000-4c6d-8c8c-000000000000/my-set/REGIONAL",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			name:     "guardduty ip set: detectorID:id, the literal \"ipset\" segment dropped",
+			typeName: "aws_guardduty_ipset",
+			arn:      "arn:aws:guardduty:us-east-1:000000000000:detector/12abc34d567e8fa901bc2d34eexample/ipset/98abc34d567e8fa901bc2d34eexample",
+			wantID:   "12abc34d567e8fa901bc2d34eexample:98abc34d567e8fa901bc2d34eexample",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			name:     "guardduty threat intel set: same detectorID:id shape, different literal segment",
+			typeName: "aws_guardduty_threatintelset",
+			arn:      "arn:aws:guardduty:us-east-1:000000000000:detector/12abc34d567e8fa901bc2d34eexample/threatintelset/98abc34d567e8fa901bc2d34eexample",
+			wantID:   "12abc34d567e8fa901bc2d34eexample:98abc34d567e8fa901bc2d34eexample",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			// No row in arnCompositeImportID for transfer/agreement on
+			// purpose: ParseARN's unmodified ResourceID already IS the
+			// documented "server_id/agreement_id" import string. An early
+			// draft of this fix added a row that cut it down to the bare
+			// agreement id alone, which would have broken an import that
+			// worked before #295 touched this function at all.
+			name:     "transfer agreement: unmodified ResourceID already is server_id/agreement_id",
+			typeName: "aws_transfer_agreement",
+			arn:      "arn:aws:transfer:us-east-1:000000000000:agreement/s-0123456789abcdef0/a-0123456789abcdef0",
+			wantID:   "s-0123456789abcdef0/a-0123456789abcdef0",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			name:     "cloudwatch logs log group: id starts with /, must not be touched by any composite rule",
+			typeName: "aws_cloudwatch_log_group",
+			arn:      "arn:aws:logs:us-east-1:123456789012:log-group:/estate/app",
+			wantID:   "/estate/app",
+			wantAttr: "id",
+			wantOK:   true,
+		},
+		{
+			name:     "elasticloadbalancing v2 load balancer: arn-primary short-circuits before the shape table is even consulted",
+			typeName: "aws_lb",
+			arn:      "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/main/50dc6c495c0c9188",
+			wantID:   "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/main/50dc6c495c0c9188",
+			wantAttr: "arn",
+			wantOK:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ti, ok := identity.LookupType(tt.typeName)
+			if !ok {
+				t.Fatalf("%s must be in identity.DefaultTable for this test", tt.typeName)
+			}
+			gotID, gotAttr, gotOK := importIDFromARN(ti, tt.arn)
+			if gotOK != tt.wantOK || gotID != tt.wantID || gotAttr != tt.wantAttr {
+				t.Errorf("importIDFromARN(%s, %q) = (%q, %q, %v), want (%q, %q, %v)",
+					tt.typeName, tt.arn, gotID, gotAttr, gotOK, tt.wantID, tt.wantAttr, tt.wantOK)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // List failure and the sweep's untaggable gap, for parity with the native
 // path's equivalents.
