@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/zclconf/go-cty/cty"
 )
 
 // #251: a value chased through a module variable is the CALL's argument
@@ -193,6 +195,91 @@ func TestTypedModuleVarAppliesOptionalDefaults(t *testing.T) {
 func TestTypedModuleVarFailedConversionRefuses(t *testing.T) {
 	cfg := loadConfigTree(t, filepath.Join("testdata", "typedvar-badconv"), nil)
 	result, _ := ResolveIn(context.Background(), cfg, CloudContext{AccountID: "000000000000", Region: "us-east-1"})
+
+	assertQueueIDs(t, result, map[string]string{})
+}
+
+// TestUnreadableConversionEmptyIsKnownForEverySetTarget is #258: an empty key
+// set reaching unreadableConversion answered "unknown" for a set target and
+// "known, empty" for everything else, though emptiness is exactly as known
+// either way - there is nothing left to lose track of. Function-level rather
+// than a fixture, because this branch is not reachable through the corpus
+// today: a literal empty collection evaluates whole and never reaches
+// [rebuiltContainer]'s chase at all (see
+// TestUnreadableConversionEmptyBranchIsUnreachableThroughAFixture below,
+// which pins that whole-evaluation currently short-circuits this path so a
+// future producer that DOES reach it - a comprehension that filters
+// everything out, a splat over an empty parent - inherits the fix rather
+// than the bug).
+func TestUnreadableConversionEmptyIsKnownForEverySetTarget(t *testing.T) {
+	setKeys, setVals, setOK := unreadableConversion(cty.Set(cty.String), nil, nil)
+	if !setOK || len(setKeys) != 0 || len(setVals) != 0 {
+		t.Errorf("unreadableConversion(set(string), nil, nil) = %v, %v, %v; want [], [], true", setKeys, setVals, setOK)
+	}
+
+	// The map case was already correct; pinned here so the two answers are
+	// compared in one place rather than trusted to agree by construction.
+	mapKeys, mapVals, mapOK := unreadableConversion(cty.Map(cty.String), nil, nil)
+	if !mapOK || len(mapKeys) != 0 || len(mapVals) != 0 {
+		t.Errorf("unreadableConversion(map(string), nil, nil) = %v, %v, %v; want [], [], true", mapKeys, mapVals, mapOK)
+	}
+
+	// Every other target rebuiltContainer/unreadableConversion dispatch on:
+	// object, list and tuple. None of these should regress alongside the fix.
+	for _, ty := range []cty.Type{
+		cty.Object(map[string]cty.Type{"a": cty.String}),
+		cty.List(cty.String),
+		cty.Tuple([]cty.Type{cty.String}),
+	} {
+		keys, vals, ok := unreadableConversion(ty, nil, nil)
+		if !ok || len(keys) != 0 || len(vals) != 0 {
+			t.Errorf("unreadableConversion(%s, nil, nil) = %v, %v, %v; want [], [], true", ty.FriendlyName(), keys, vals, ok)
+		}
+	}
+}
+
+// TestRebuiltContainerOtherTwoRefusalsUnaffected is the fix's negative space:
+// rebuiltContainer refuses for three reasons - empty, a repeated key, a
+// non-consecutive integer key - and only the first is an ordinary known
+// value. The other two are genuinely ambiguous shapes ("the container's own
+// comment calls backstops") and must still refuse exactly as before, both at
+// rebuiltContainer itself and through unreadableConversion for a set target,
+// which is the dispatch #258's fix touches.
+func TestRebuiltContainerOtherTwoRefusalsUnaffected(t *testing.T) {
+	repeatedKeys := []cty.Value{cty.StringVal("a"), cty.StringVal("a")}
+	repeatedBindings := []elemBinding{{val: cty.StringVal("x")}, {val: cty.StringVal("y")}}
+	if _, ok := rebuiltContainer(repeatedKeys, repeatedBindings); ok {
+		t.Error("rebuiltContainer with a repeated key succeeded; want false")
+	}
+	if _, _, ok := unreadableConversion(cty.Set(cty.String), repeatedKeys, repeatedBindings); ok {
+		t.Error("unreadableConversion(set, repeated key) succeeded; want a hard refusal")
+	}
+
+	gapKeys := []cty.Value{cty.NumberIntVal(0), cty.NumberIntVal(2)}
+	gapBindings := []elemBinding{{val: cty.StringVal("x")}, {val: cty.StringVal("y")}}
+	if _, ok := rebuiltContainer(gapKeys, gapBindings); ok {
+		t.Error("rebuiltContainer with a non-consecutive integer key succeeded; want false")
+	}
+	if _, _, ok := unreadableConversion(cty.Set(cty.String), gapKeys, gapBindings); ok {
+		t.Error("unreadableConversion(set, non-consecutive integer key) succeeded; want a hard refusal")
+	}
+}
+
+// TestUnreadableConversionEmptyBranchIsUnreachableThroughAFixture is the
+// corpus-side half of #258's own claim: `s = []` against a set(string)
+// module variable, chased through a for_each comprehension, resolves zero
+// instances with no diagnostic today - because a literal empty collection
+// evaluates WHOLE ([resolver.evaluatedCollElements]) and never reaches
+// [resolver.staticCollElems]'s chase, so [rebuiltContainer] and
+// unreadableConversion never run for it. If this test starts failing, #258's
+// reachability analysis no longer holds and the fix above needs revisiting
+// alongside whatever changed.
+func TestUnreadableConversionEmptyBranchIsUnreachableThroughAFixture(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "typedvar-emptyset"), nil)
+	result, diags := ResolveIn(context.Background(), cfg, CloudContext{AccountID: "000000000000", Region: "us-east-1"})
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
 
 	assertQueueIDs(t, result, map[string]string{})
 }
