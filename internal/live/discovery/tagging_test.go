@@ -55,6 +55,7 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 	tests := []struct {
 		name             string
 		arn              string
+		tags             map[string]string
 		wantTypeName     string
 		wantIdentityAttr string
 		// wantImportID is checked verbatim when set; wantImportIsARN checks
@@ -177,10 +178,28 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			// distinction lives only in the key's Origin, which the ARN
 			// does not carry. Same shape as the security-group-rule case
 			// below, one CFN type mapped from two admitted TF types.
-			name:          "kms key: genuinely ambiguous between a customer-managed and an external key",
+			name:          "kms key: genuinely ambiguous between a customer-managed and an external key, no marker to break the tie",
 			arn:           "arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab",
 			wantOK:        false,
 			wantReasonHas: []string{"aws_kms_external_key", "aws_kms_key", "more than one TF type"},
+		},
+		{
+			// Same ARN shape as the row above, but this key's own marker
+			// says which of the two admitted TF types it is - the
+			// mapping-side counterpart of the cloudwatch alarm and
+			// security-group-rule cases: one CFN type, two admitted TF
+			// types, settled by the object's own marker instead of the
+			// ARN.
+			name: "kms key: CFN type is unambiguous, TF type is not, but the object's own marker names the external key",
+			arn:  "arn:aws:kms:us-east-1:123456789012:key/1234abcd-12ab-34cd-56ef-1234567890ab",
+			tags: map[string]string{
+				TagEstate:  "demo",
+				TagAddress: "aws_kms_external_key.byok",
+			},
+			wantTypeName:     "aws_kms_external_key",
+			wantIdentityAttr: "id",
+			wantImportID:     "1234abcd-12ab-34cd-56ef-1234567890ab",
+			wantOK:           true,
 		},
 		{
 			name:             "route53 hosted zone: global, no region or account in the ARN",
@@ -207,10 +226,65 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 			wantOK:           true,
 		},
 		{
-			name:          "ec2 security group rule: genuinely ambiguous between ingress and egress",
+			name:          "ec2 security group rule: genuinely ambiguous between ingress and egress, no marker to break the tie",
 			arn:           "arn:aws:ec2:us-east-1:123456789012:security-group-rule/sgr-0123456789abcdef0",
 			wantOK:        false,
 			wantReasonHas: []string{"AWS::EC2::SecurityGroupEgress", "AWS::EC2::SecurityGroupIngress", "more than one CFN type"},
+		},
+		{
+			// Same ARN shape as the row above, but this object carries its
+			// own tofu-address marker (GetResources returns tags inline) -
+			// ground truth about which of the two rule types it is. The
+			// marker breaks the ARN-shape tie instead of the whole object
+			// being refused as unresolved.
+			name: "ec2 security group rule: ARN alone is ambiguous, but the object's own marker names the egress side",
+			arn:  "arn:aws:ec2:us-east-1:123456789012:security-group-rule/sgr-0123456789abcdef0",
+			tags: map[string]string{
+				TagEstate:  "demo",
+				TagAddress: "aws_vpc_security_group_egress_rule.out",
+			},
+			wantTypeName:     "aws_vpc_security_group_egress_rule",
+			wantIdentityAttr: "id",
+			wantImportID:     "sgr-0123456789abcdef0",
+			wantOK:           true,
+		},
+		{
+			name:          "cloudwatch alarm: genuinely ambiguous between a metric alarm and a composite alarm, no marker to break the tie",
+			arn:           "arn:aws:cloudwatch:us-east-1:123456789012:alarm:tofu-app-cloudwatch-alarm",
+			wantOK:        false,
+			wantReasonHas: []string{"AWS::CloudWatch::Alarm", "AWS::CloudWatch::CompositeAlarm", "more than one CFN type"},
+		},
+		{
+			// Issue: TestCohortAcceptance's messaging cohort found this for
+			// real - a composite alarm's own live object, correctly tagged
+			// with its own address, refused as a "malformed marker" because
+			// the ARN-shape join alone could not tell it apart from a
+			// metric alarm and guessed wrong. The object's own marker
+			// settles it.
+			name: "cloudwatch alarm: ARN alone is ambiguous, but the object's own marker names the composite alarm",
+			arn:  "arn:aws:cloudwatch:us-east-1:123456789012:alarm:tofu-messaging-cohort-cloudwatch-composite-alarm",
+			tags: map[string]string{
+				TagEstate:  "messaging-cohort",
+				TagAddress: "aws_cloudwatch_composite_alarm.app",
+			},
+			wantTypeName:     "aws_cloudwatch_composite_alarm",
+			wantIdentityAttr: "id",
+			wantImportID:     "tofu-messaging-cohort-cloudwatch-composite-alarm",
+			wantOK:           true,
+		},
+		{
+			// The other side of the same tie: a metric alarm's own marker
+			// resolves to the metric alarm CFN type just as cleanly.
+			name: "cloudwatch alarm: ARN alone is ambiguous, but the object's own marker names the metric alarm",
+			arn:  "arn:aws:cloudwatch:us-east-1:123456789012:alarm:tofu-messaging-cohort-cloudwatch-metric-alarm",
+			tags: map[string]string{
+				TagEstate:  "messaging-cohort",
+				TagAddress: "aws_cloudwatch_metric_alarm.messaging",
+			},
+			wantTypeName:     "aws_cloudwatch_metric_alarm",
+			wantIdentityAttr: "id",
+			wantImportID:     "tofu-messaging-cohort-cloudwatch-metric-alarm",
+			wantOK:           true,
 		},
 		{
 			name:          "ec2 carrier gateway: mapped in live/mapping.json but not in identity.DefaultTable",
@@ -270,7 +344,7 @@ func TestJoinTaggedResourceRealArtifacts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := joinTaggedResource(roster, tt.arn)
+			got := joinTaggedResource(roster, tt.arn, tt.tags)
 			if got.ok != tt.wantOK {
 				t.Fatalf("joinTaggedResource(%q).ok = %v, want %v (reason: %s)", tt.arn, got.ok, tt.wantOK, got.reason)
 			}
@@ -319,7 +393,7 @@ func TestJoinTaggedResourceAmbiguousRosterMapping(t *testing.T) {
 		t.Fatalf("registry.Parse: %v", err)
 	}
 
-	got := joinTaggedResource(roster, "arn:aws:iam::123456789012:role/deploy")
+	got := joinTaggedResource(roster, "arn:aws:iam::123456789012:role/deploy", nil)
 	if got.ok {
 		t.Fatalf("an ambiguous CFN-to-TF mapping resolved anyway: %+v", got)
 	}
