@@ -249,7 +249,7 @@ func TestShippedSchemaFactsCountsMatchItsRows(t *testing.T) {
 		t.Fatalf("decoding %s: %v", schemaFactsRel, err)
 	}
 
-	var perms, acts, required, enums, members int
+	var perms, acts, required, enums, members, withUniqueProp, declaredUnique int
 	for _, ty := range art.Types {
 		if len(ty.HandlerPermissions) > 0 {
 			perms++
@@ -266,6 +266,12 @@ func TestShippedSchemaFactsCountsMatchItsRows(t *testing.T) {
 				members += len(e.Members)
 			}
 		}
+		if ty.UniqueNameProperty != nil {
+			withUniqueProp++
+			if ty.UniqueNameProperty.DeclaredUnique {
+				declaredUnique++
+			}
+		}
 	}
 
 	for _, c := range []struct {
@@ -278,9 +284,206 @@ func TestShippedSchemaFactsCountsMatchItsRows(t *testing.T) {
 		{"with_required", art.Counts.WithRequired, required},
 		{"with_enums", art.Counts.WithEnums, enums},
 		{"enum_members", art.Counts.EnumMembers, members},
+		{"with_unique_name_property", art.Counts.WithUniqueNameProperty, withUniqueProp},
+		{"unique_name_property_declared_unique", art.Counts.UniqueNamePropertyDeclaredUnique, declaredUnique},
 	} {
 		if c.got != c.want {
 			t.Errorf("counts.%s = %d, but the rows say %d", c.name, c.got, c.want)
 		}
+	}
+}
+
+// TestFindUniqueNameProperty pins issue #272's CFN-registry evidence source
+// against the real schema shapes measured in the cached registry zip at
+// v6.59.0 (see live/registry-schema-facts.json once regenerated). Every
+// fixture below is the real properties/definitions shape for the named
+// type, trimmed to what the function reads.
+func TestFindUniqueNameProperty(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  string
+		want *UniqueNameProperty
+	}{
+		{
+			// AWS::CloudFront::CachePolicy, one of the issue's two worked
+			// PROVEN examples: the whole mutable config, Name included, is
+			// wrapped in one top-level object.
+			name: "cache policy - wrapped config, proven unique",
+			doc: `{
+				"typeName": "AWS::CloudFront::CachePolicy",
+				"properties": {
+					"Id": {"type": "string"},
+					"CachePolicyConfig": {"$ref": "#/definitions/CachePolicyConfig"}
+				},
+				"definitions": {
+					"CachePolicyConfig": {
+						"type": "object",
+						"properties": {
+							"Name": {"type": "string", "description": "A unique name to identify the cache policy."},
+							"Comment": {"type": "string", "description": "A comment."}
+						}
+					}
+				}
+			}`,
+			want: &UniqueNameProperty{Path: []string{"CachePolicyConfig", "Name"}, DeclaredUnique: true},
+		},
+		{
+			// AWS::CloudFront::OriginAccessControl - the issue's own
+			// worked NOT-proven negative case: same wrapped-config shape,
+			// but the description never says "unique".
+			name: "origin access control - wrapped config, not proven (permanent negative case)",
+			doc: `{
+				"typeName": "AWS::CloudFront::OriginAccessControl",
+				"properties": {
+					"Id": {"type": "string"},
+					"OriginAccessControlConfig": {"$ref": "#/definitions/OriginAccessControlConfig"}
+				},
+				"definitions": {
+					"OriginAccessControlConfig": {
+						"type": "object",
+						"properties": {
+							"Name": {"type": "string", "description": "A name that identifies the origin access control."}
+						}
+					}
+				}
+			}`,
+			want: &UniqueNameProperty{Path: []string{"OriginAccessControlConfig", "Name"}, DeclaredUnique: false},
+		},
+		{
+			// AWS::EKS::Cluster's real shape: a plain top-level Name, no
+			// wrapping at all.
+			name: "top-level Name, proven unique",
+			doc: `{
+				"typeName": "AWS::EKS::Cluster",
+				"properties": {
+					"Name": {"type": "string", "description": "The unique name to give to your cluster."},
+					"Arn": {"type": "string"}
+				}
+			}`,
+			want: &UniqueNameProperty{Path: []string{"Name"}, DeclaredUnique: true},
+		},
+		{
+			// AWS::ResilienceHub::App's real shape: the resource's OWN
+			// top-level Name says nothing about uniqueness, and its only
+			// "unique"-bearing Name lives on EventSubscriptions, an
+			// array - so this must resolve on the top-level property, not
+			// fall through to the array member.
+			name: "top-level Name present alongside an unrelated array member's Name",
+			doc: `{
+				"typeName": "AWS::ResilienceHub::App",
+				"properties": {
+					"Name": {"type": "string", "description": "Name of the app."},
+					"EventSubscriptions": {
+						"type": "array",
+						"items": {"$ref": "#/definitions/EventSubscription"}
+					}
+				},
+				"definitions": {
+					"EventSubscription": {
+						"type": "object",
+						"properties": {
+							"Name": {"type": "string", "description": "Unique name to identify an event subscription."}
+						}
+					}
+				}
+			}`,
+			want: &UniqueNameProperty{Path: []string{"Name"}, DeclaredUnique: false},
+		},
+		{
+			// AWS::IoTSiteWise::AssetModel's real shape: no top-level
+			// Name property at all, and the only "unique"-wording Name in
+			// the whole schema lives inside AssetModelCompositeModels, an
+			// array - one of the issue's own "12+ other resource types"
+			// that the structural gate has to exclude.
+			name: "Name only inside an array-wrapped definition - never a candidate",
+			doc: `{
+				"typeName": "AWS::IoTSiteWise::AssetModel",
+				"properties": {
+					"AssetModelId": {"type": "string"},
+					"AssetModelCompositeModels": {
+						"type": "array",
+						"items": {"$ref": "#/definitions/AssetModelCompositeModel"}
+					}
+				},
+				"definitions": {
+					"AssetModelCompositeModel": {
+						"type": "object",
+						"properties": {
+							"Name": {"type": "string", "description": "A unique, friendly name for the asset composite model."}
+						}
+					}
+				}
+			}`,
+			want: nil,
+		},
+		{
+			// A type with no Name property anywhere.
+			name: "no Name property at all",
+			doc: `{
+				"typeName": "AWS::Test::Nameless",
+				"properties": {
+					"Id": {"type": "string"}
+				}
+			}`,
+			want: nil,
+		},
+		{
+			// A top-level property that IS a $ref to a definitions entry
+			// with no Name of its own - must not fall through to some
+			// other definition.
+			name: "wrapped config with no Name inside it",
+			doc: `{
+				"typeName": "AWS::Test::NoNameInWrapper",
+				"properties": {
+					"Config": {"$ref": "#/definitions/Config"}
+				},
+				"definitions": {
+					"Config": {
+						"type": "object",
+						"properties": {
+							"Comment": {"type": "string", "description": "A unique comment, believe it or not."}
+						}
+					}
+				}
+			}`,
+			want: nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := findUniqueNameProperty([]byte(tc.doc))
+			if err != nil {
+				t.Fatalf("findUniqueNameProperty: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("findUniqueNameProperty = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDeclaredUniqueText pins the negation-aware test's own behavior,
+// independent of the structural walk above - the same discipline
+// tools/importdocs-gen's TestArgumentReferenceEntries_DeclaredUnique holds
+// itself to, over the registry's prose instead of the provider's.
+func TestDeclaredUniqueText(t *testing.T) {
+	tests := []struct {
+		name string
+		desc string
+		want bool
+	}{
+		{"proven unique", "A unique name to identify the cache policy.", true},
+		{"not proven", "A name that identifies the origin access control.", false},
+		{"explicit denial, do not", "Alias names do not need to be unique.", false},
+		{"explicit denial, does not", "This value does not need to be unique.", false},
+		{"unrelated negation does not suppress a later positive", "Spaces are not allowed. The name must be unique.", true},
+		{"empty description", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := declaredUniqueText(tc.desc); got != tc.want {
+				t.Errorf("declaredUniqueText(%q) = %v, want %v", tc.desc, got, tc.want)
+			}
+		})
 	}
 }
