@@ -33,6 +33,21 @@
     "cloud-platform-infrastructure), CC0-1.0 (both cisagov repos),",
     "Apache-2.0 (k8s.io).",
     "",
+    "sumaform (added 2026-08-18, license checked same day: BSD) is pinned",
+    "the same way - no tag, commit alone - but is not itself a single",
+    "operator's deployment root the way the rest of this population is: it",
+    "is a reusable OpenTofu framework (like the terraform-aws-modules",
+    "sources above), just one its own maintainers ship as an OpenTofu-",
+    "native project with no versioned releases to pin against. Its own",
+    "shipped root config is main.tf.aws.example - a template its own",
+    "README has every user copy to main.tf before running tofu, not a",
+    "file the OpenTofu loader reads directly - so this glob alone finds no",
+    "config files; live/e2e/corpus-sumaform-aws/run.sh does that copy plus",
+    "one further reduction (drops two of the four host roles the example",
+    "wires up - see that script's header for why) in its own scratch copy,",
+    "which is why this entry exists for reproducibility and the pinned",
+    "fetch rather than for a corpus-gen number.",
+    "",
     "var_files and var_file_layout (#183, reworked to the parity ruling on",
     "2026-08-15) run each estate the way its own operator does: with the",
     "tfvars files the estate's own repository ships, discovered from its",
@@ -269,6 +284,15 @@
     {
       "glob": ".corpus/cloud-platform/terraform/global-resources",
       "origin": "published deployment"
+    },
+    {
+      "glob": ".corpus/sumaform",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/sumaform",
+        "repo": "https://github.com/uyuni-project/sumaform.git",
+        "commit": "c8a590801d0c7f60d9667f03391455a897900078"
+      }
     }
   ],
 
