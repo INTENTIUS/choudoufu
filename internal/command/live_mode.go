@@ -21,7 +21,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
-	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -480,10 +479,9 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// their schemas, so that a type with no hand-written table row resolves
 	// when the provider's own identity schema describes it completely enough.
 	// See [identity.SynthesizeTypeIdentity].
-	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas:     resourceSchemas,
-		DataResults: dataResults,
-	})
+	// The same two-pass resolution live-plan runs, through the same helper:
+	// see [statelessResolve].
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a

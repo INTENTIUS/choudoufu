@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=435 instances=1419
+# shape: dirs=437 instances=1420
 # shape: class CONCRETE=726
-# shape: class NEEDS_DISCOVERY=580
+# shape: class NEEDS_DISCOVERY=581
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175
+# shape: body-sha256=8733abd68626d005932be2fcd4e5ab881c2b7ed5d1b2592571d5c08f28a08038
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -21,6 +21,7 @@ internal/live/check/testdata/data-read-blocked	aws_instance.web	NEEDS_DISCOVERY
 internal/live/check/testdata/managed-result-foreach	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach-mixed-var	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach-unset-var	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/check/testdata/managed-result-foreach-var-key	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_cache_policy.example	NEEDS_DISCOVERY		

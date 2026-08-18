@@ -190,10 +190,9 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// The same resolution a plan runs, with the same inputs, for the reason
 	// the comment above gives: a rename that derived the identity map
 	// differently from a plan would rewrite a marker a plan then disputes.
-	resolutions, idDiags := identity.ResolveWith(ctx, config, identity.Context{
-		Schemas:     resourceSchemas,
-		DataResults: dataResults,
-	})
+	// Through the same helper a plan uses, second pass and all: see
+	// [statelessResolve].
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal for the same reason it is fatal in a plan: an identity map

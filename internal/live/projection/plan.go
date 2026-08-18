@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -64,10 +65,30 @@ import (
 // result: the resolution that wanted it then refuses exactly as it does
 // today. A provider that returns an error about a value it cannot compute is
 // answering the question, and the answer is "no".
-func PlanInstances(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, prov providers.Configured) (map[string]cty.Value, tfdiags.Diagnostics) {
+//
+// # Why the provider arrives as a seam rather than as one instance
+//
+// provs is [Providers], the same seam [Build] and [dataread.Read] take, and
+// it is not a convenience. A resource selects its provider configuration per
+// block, and the answer the provider gives depends on how that configuration
+// is configured: an AWS provider pointed at one region derives a different
+// ARN than the same provider pointed at another. Planning an aliased resource
+// through the root default provider therefore mints a value from the WRONG
+// region, and a wrong value ranks below a missing one everywhere in this
+// package. [providerscope.ResolveResource] settles which configuration a
+// block names, honouring an ancestor module call's providers mapping; a block
+// whose provider cannot be configured contributes nothing, exactly as one the
+// provider declines does.
+//
+// The type's schema comes from that same provider's own GetProviderSchema
+// response rather than from a map the caller merged across providers, for the
+// same reason and in the same shape [dataread.reader.readSource] does it: the
+// process that decodes the block and the process that plans it must be one
+// process.
+func PlanInstances(ctx context.Context, cfg *configs.Config, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	out := map[string]cty.Value{}
-	if cfg == nil || cfg.Module == nil || prov == nil || len(schemas) == 0 {
+	if cfg == nil || cfg.Module == nil || provs == nil {
 		return out, diags
 	}
 	eval := cfg.Module.StaticEvaluator
@@ -75,8 +96,50 @@ func PlanInstances(ctx context.Context, cfg *configs.Config, schemas map[string]
 		return out, diags
 	}
 
-	planModule(ctx, cfg, schemas, prov, out)
+	planModule(ctx, cfg, &planProviders{source: provs, entries: map[string]*planProviderEntry{}}, out)
 	return out, diags
+}
+
+// planProviders resolves each provider configuration once per pass and
+// remembers both the configured instance and its schemas. It is deliberately
+// separate from [providerCache], which additionally runs the identity-schema
+// verification [Build] needs and this pass has no business raising.
+//
+// The failure is sticky and silent. A provider that will not configure is not
+// retried once per resource block, and it produces no diagnostic: every
+// resource it would have served is simply absent from the result, which is
+// the one outcome this whole pass promises for anything it cannot answer.
+type planProviders struct {
+	source  Providers
+	entries map[string]*planProviderEntry
+}
+
+type planProviderEntry struct {
+	provider providers.Configured
+	schemas  map[string]providers.Schema
+	ok       bool
+}
+
+func (p *planProviders) get(ctx context.Context, addr addrs.AbsProviderConfig) *planProviderEntry {
+	key := addr.String()
+	if e, seen := p.entries[key]; seen {
+		return e
+	}
+	e := &planProviderEntry{}
+	p.entries[key] = e
+
+	prov, err := p.source.ConfiguredProvider(ctx, addr)
+	if err != nil || prov == nil {
+		return e
+	}
+	schema := prov.GetProviderSchema(ctx)
+	if schema.Diagnostics.HasErrors() {
+		return e
+	}
+	e.provider = prov
+	e.schemas = schema.ResourceTypes
+	e.ok = true
+	return e
 }
 
 // planModule plans one module node and then its children.
@@ -93,7 +156,7 @@ func PlanInstances(ctx context.Context, cfg *configs.Config, schemas map[string]
 // "aws_acm_certificate.cert" from a child module would be filed against a
 // root resource that does not exist, which is a wrong value rather than a
 // missing one.
-func planModule(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, prov providers.Configured, out map[string]cty.Value) {
+func planModule(ctx context.Context, cfg *configs.Config, provs *planProviders, out map[string]cty.Value) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -107,11 +170,17 @@ func planModule(ctx context.Context, cfg *configs.Config, schemas map[string]pro
 			// for a set of instances whose key set is the thing in question.
 			continue
 		}
-		schema, ok := schemas[res.Type]
+		// The block's OWN provider configuration, not the root default one:
+		// see PlanInstances' doc comment on the wrong-region hazard.
+		entry := provs.get(ctx, providerscope.ResolveResource(cfg, res))
+		if !entry.ok {
+			continue
+		}
+		schema, ok := entry.schemas[res.Type]
 		if !ok || schema.Block == nil {
 			continue
 		}
-		val, ok := planOne(ctx, eval, cfg.Path, res, schema, prov)
+		val, ok := planOne(ctx, eval, cfg.Path, res, schema, entry.provider)
 		if !ok {
 			continue
 		}
@@ -129,7 +198,7 @@ func planModule(ctx context.Context, cfg *configs.Config, schemas map[string]pro
 			(call.Count != nil || call.ForEach != nil) {
 			continue
 		}
-		planModule(ctx, child, schemas, prov, out)
+		planModule(ctx, child, provs, out)
 	}
 }
 
