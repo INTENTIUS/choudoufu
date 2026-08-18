@@ -6,7 +6,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 39,
-      "sites": 323,
+      "sites": 321,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -2107,26 +2107,18 @@
     {
       "name": ".corpus/govuk-infrastructure/terraform/deployments/cloudfront",
       "origin": "published deployment",
-      "blocked": true,
+      "blocked": false,
       "loaded": true,
-      "instances": 14,
-      "sites": 2,
+      "instances": 16,
+      "sites": 0,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 2,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
       "profile": {
-        "onboarding_class": "language-blocked",
-        "refusals": [
-          {
-            "layer": "lint",
-            "id": "markerless-type",
-            "sites": 2
-          }
-        ]
+        "onboarding_class": "clean"
       },
       "provider_schemas": [
         {
@@ -2241,7 +2233,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "identity",
@@ -2661,11 +2656,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 0,
-      "sites": 96,
+      "sites": 95,
       "unresolved_modules": 0,
       "unset_variables": 1,
       "schemas": true,
-      "shadowed": 24,
+      "shadowed": 38,
       "var_files": [
         ".corpus/govuk-infrastructure/terraform/variables/integration/common.tfvars"
       ],
@@ -2687,12 +2682,6 @@
             "categories": {
               "module_output": 4
             }
-          },
-          {
-            "layer": "identity",
-            "id": "Non-static for_each expression",
-            "sites": 1,
-            "unset_var_only": true
           },
           {
             "layer": "identity",
@@ -4521,14 +4510,13 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 2,
+            "sites": 1,
             "unset_var_only": true
           },
           {
             "layer": "identity",
             "id": "Non-static identity argument",
-            "sites": 2,
-            "unset_var_only": true
+            "sites": 3
           },
           {
             "layer": "identity",
@@ -4638,14 +4626,13 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 3,
-      "sites": 106,
+      "instances": 4,
+      "sites": 105,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 1,
       "profile": {
-        "onboarding_class": "language-blocked",
+        "onboarding_class": "data-read-eligible",
         "refusals": [
           {
             "layer": "dataread",
@@ -4654,11 +4641,6 @@
             "categories": {
               "data_source": 45
             }
-          },
-          {
-            "layer": "lint",
-            "id": "markerless-type",
-            "sites": 1
           },
           {
             "layer": "lint",
@@ -4779,11 +4761,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 39,
+      "sites": 49,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 7,
+      "shadowed": 3,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -4813,11 +4795,11 @@
       "blocked": true,
       "loaded": true,
       "instances": 6,
-      "sites": 23,
+      "sites": 24,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 3,
+      "shadowed": 1,
       "provider_schemas": [
         {
           "provider": "hashicorp/aws",
@@ -4847,7 +4829,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 59,
-      "sites": 299,
+      "sites": 270,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4881,7 +4863,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 27,
+      "sites": 26,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4915,7 +4897,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 55,
-      "sites": 259,
+      "sites": 245,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4949,7 +4931,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 8,
-      "sites": 50,
+      "sites": 48,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -4987,7 +4969,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 10,
-      "sites": 29,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5021,7 +5003,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 20,
-      "sites": 192,
+      "sites": 191,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5055,7 +5037,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 73,
+      "sites": 71,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5089,7 +5071,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 57,
+      "sites": 53,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5127,7 +5109,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5161,7 +5143,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 4,
-      "sites": 19,
+      "sites": 18,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5195,7 +5177,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 7,
-      "sites": 22,
+      "sites": 21,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5228,7 +5210,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 35,
+      "sites": 34,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5262,7 +5244,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 9,
-      "sites": 34,
+      "sites": 33,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -5296,7 +5278,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 17,
-      "sites": 92,
+      "sites": 91,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6672,7 +6654,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 13,
-      "sites": 398,
+      "sites": 397,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -6793,7 +6775,7 @@
       "blocked": true,
       "loaded": true,
       "instances": 18,
-      "sites": 29,
+      "sites": 27,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
@@ -7108,7 +7090,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7172,7 +7157,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7324,7 +7312,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7391,7 +7382,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 6
+            "sites": 6,
+            "categories": {
+              "managed_resource": 6
+            }
           }
         ]
       },
@@ -7427,7 +7421,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           }
         ]
       },
@@ -7532,7 +7529,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7595,7 +7595,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7725,7 +7728,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           }
         ]
       },
@@ -7760,7 +7766,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           }
         ]
       },
@@ -7797,7 +7806,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 1
+            "sites": 1,
+            "categories": {
+              "managed_resource": 1
+            }
           },
           {
             "layer": "lint",
@@ -7831,12 +7843,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 29,
-      "sites": 17,
+      "instances": 30,
+      "sites": 16,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 3,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -7852,7 +7864,10 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 2
+            "sites": 2,
+            "categories": {
+              "managed_resource": 2
+            }
           },
           {
             "layer": "identity",
@@ -7862,7 +7877,7 @@
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 4
+            "sites": 3
           }
         ]
       },
@@ -7878,12 +7893,12 @@
       "origin": "published deployment",
       "blocked": true,
       "loaded": true,
-      "instances": 86,
-      "sites": 14,
+      "instances": 88,
+      "sites": 12,
       "unresolved_modules": 0,
       "unset_variables": 0,
       "schemas": true,
-      "shadowed": 4,
+      "shadowed": 2,
       "profile": {
         "onboarding_class": "language-blocked",
         "refusals": [
@@ -7898,12 +7913,15 @@
           {
             "layer": "identity",
             "id": "Non-static for_each expression",
-            "sites": 4
+            "sites": 4,
+            "categories": {
+              "managed_resource": 4
+            }
           },
           {
             "layer": "lint",
             "id": "markerless-type",
-            "sites": 3
+            "sites": 1
           },
           {
             "layer": "lint",
@@ -9601,16 +9619,12 @@
       "title": "Resource type has nowhere to write an ownership marker",
       "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
       "raised_by": "internal/live/lint",
-      "configs": 94,
-      "sites": 441,
+      "configs": 92,
+      "sites": 364,
       "types": [
         {
           "type": "aws_vpn_gateway_route_propagation",
           "sites": 155
-        },
-        {
-          "type": "aws_lambda_function_event_invoke_config",
-          "sites": 71
         },
         {
           "type": "aws_lambda_layer_version",
@@ -9653,10 +9667,6 @@
           "sites": 4
         },
         {
-          "type": "aws_cloudfront_response_headers_policy",
-          "sites": 3
-        },
-        {
           "type": "aws_ecr_registry_scanning_configuration",
           "sites": 3
         },
@@ -9666,10 +9676,6 @@
         },
         {
           "type": "aws_apigatewayv2_route",
-          "sites": 2
-        },
-        {
-          "type": "aws_cloudfront_cache_policy",
           "sites": 2
         },
         {
@@ -9690,10 +9696,6 @@
         },
         {
           "type": "aws_cloudfront_origin_access_identity",
-          "sites": 1
-        },
-        {
-          "type": "aws_cloudfront_origin_request_policy",
           "sites": 1
         },
         {
@@ -9719,10 +9721,10 @@
       ],
       "examples": [
         ".corpus/alb/examples/complete-alb/.terraform/modules/lambda_with_allowed_triggers/main.tf:151",
-        ".corpus/alb/examples/complete-alb/.terraform/modules/lambda_with_allowed_triggers/main.tf:218",
         ".corpus/alb/examples/complete-alb/.terraform/modules/lambda_without_allowed_triggers/main.tf:151",
-        ".corpus/alb/examples/complete-alb/.terraform/modules/lambda_without_allowed_triggers/main.tf:218",
-        ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:53"
+        ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:53",
+        ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:1209",
+        ".corpus/alb/examples/complete-alb/.terraform/modules/vpc/main.tf:1222"
       ],
       "registered": true
     },
@@ -9813,7 +9815,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
       "raised_by": "internal/configs",
       "configs": 66,
-      "sites": 1131,
+      "sites": 1135,
       "examples": [
         ".corpus/alb/examples/complete-alb/.terraform/modules/acm/main.tf:51",
         ".corpus/alb/examples/complete-alb/.terraform/modules/acm/main.tf:52",
@@ -9848,7 +9850,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
       "raised_by": "internal/configs",
       "configs": 51,
-      "sites": 430,
+      "sites": 434,
       "examples": [
         ".corpus/alb/examples/complete-alb/.terraform/modules/acm/main.tf:13",
         ".corpus/alb/examples/complete-alb/.terraform/modules/acm/main.tf:13",
@@ -9883,8 +9885,8 @@
       "what": "An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.",
       "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
       "raised_by": "internal/configs",
-      "configs": 31,
-      "sites": 237,
+      "configs": 32,
+      "sites": 239,
       "examples": [
         ".corpus/alb/examples/complete-alb/main.tf:180",
         ".corpus/alb/examples/complete-alb/main.tf:180",
@@ -9938,7 +9940,7 @@
       "docs_ref": "live/LIMITATIONS.md, \"Non-static identity argument\"",
       "raised_by": "internal/live/identity",
       "configs": 23,
-      "sites": 81,
+      "sites": 82,
       "examples": [
         ".corpus/cool-assessment/.terraform/modules/read_terraform_state.read_terraform_state/role.tf:28",
         ".corpus/cool-assessment/.terraform/modules/read_write_terraform_state.read_terraform_state/role.tf:28",
@@ -9955,14 +9957,32 @@
       "what": "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.",
       "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
       "raised_by": "internal/live/identity",
-      "configs": 20,
-      "sites": 73,
+      "configs": 19,
+      "sites": 71,
       "examples": [
         ".corpus/cool-assessment/debiandesktop_ec2.tf:86",
         ".corpus/cool-assessment/efs.tf:22",
         ".corpus/cool-assessment/efs.tf:39",
         ".corpus/cool-assessment/egressassess_ec2.tf:100",
         ".corpus/cool-assessment/gophish_ec2.tf:140"
+      ],
+      "registered": true
+    },
+    {
+      "layer": "identity",
+      "id": "Not an identity attribute",
+      "title": "Not an identity attribute",
+      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
+      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
+      "raised_by": "internal/live/identity",
+      "configs": 12,
+      "sites": 33,
+      "examples": [
+        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
+        ".corpus/cool-assessment/transitgateway.tf:69",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
+        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
       ],
       "registered": true
     },
@@ -9985,20 +10005,20 @@
       "registered": true
     },
     {
-      "layer": "identity",
-      "id": "Not an identity attribute",
-      "title": "Not an identity attribute",
-      "what": "An identity argument reads an attribute of another resource that is not part of that resource's identity.",
-      "docs_ref": "live/LIMITATIONS.md, \"Not an identity attribute\"",
-      "raised_by": "internal/live/identity",
-      "configs": 10,
-      "sites": 31,
+      "layer": "dataread",
+      "id": "Data source not readable before resolution",
+      "title": "Data source not readable before resolution",
+      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
+      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
+      "raised_by": "internal/live/dataread",
+      "configs": 8,
+      "sites": 18,
       "examples": [
-        ".corpus/cool-assessment/dynamodb_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/s3_endpoint_client_sg.tf:16",
-        ".corpus/cool-assessment/transitgateway.tf:69",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23",
-        ".corpus/cyhy-amis/terraform/bod_bastion_security_group_rules.tf:23"
+        ".corpus/eks/node_groups.tf:22",
+        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:202",
+        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:239",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:133",
+        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:170"
       ],
       "registered": true
     },
@@ -10020,20 +10040,20 @@
       "registered": true
     },
     {
-      "layer": "dataread",
-      "id": "Data source not readable before resolution",
-      "title": "Data source not readable before resolution",
-      "what": "A data source's value is needed to resolve an identity, a count or a for_each, but the data source depends on a managed resource, names one in depends_on, or has an argument that is not statically evaluable, so it cannot be read before the plan.",
-      "docs_ref": "live/LIMITATIONS.md, \"Data source not readable before resolution\"",
-      "raised_by": "internal/live/dataread",
-      "configs": 7,
-      "sites": 16,
+      "layer": "identity",
+      "id": "Null identity argument",
+      "title": "Null identity argument",
+      "what": "An identity argument evaluates to null.",
+      "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+      "raised_by": "internal/live/identity",
+      "configs": 6,
+      "sites": 45,
       "examples": [
-        ".corpus/eks/node_groups.tf:22",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:202",
-        ".corpus/govuk-aws/terraform/projects/app-publishing-amazonmq/main.tf:239",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:133",
-        ".corpus/govuk-infrastructure/terraform/deployments/govuk-publishing-infrastructure/amazonmq.tf:170"
+        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/main.tf:462",
+        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
+        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
+        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
+        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216"
       ],
       "registered": true
     },
@@ -10052,24 +10072,6 @@
         ".corpus/ecs/examples/complete/.terraform/modules/autoscaling_sg/main.tf:154",
         ".corpus/ecs/examples/ec2-autoscaling/.terraform/modules/autoscaling_sg/main.tf:154",
         ".corpus/lambda/examples/with-vpc-s3-endpoint/.terraform/modules/security_group_lambda/main.tf:448"
-      ],
-      "registered": true
-    },
-    {
-      "layer": "identity",
-      "id": "Null identity argument",
-      "title": "Null identity argument",
-      "what": "An identity argument evaluates to null.",
-      "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
-      "raised_by": "internal/live/identity",
-      "configs": 4,
-      "sites": 43,
-      "examples": [
-        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/main.tf:462",
-        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
-        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
-        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216",
-        ".corpus/iam/examples/iam-role-for-service-accounts/.terraform/modules/eks/node_groups.tf:216"
       ],
       "registered": true
     },
@@ -11296,15 +11298,26 @@
       "configs": 0,
       "sites": 0,
       "registered": true
+    },
+    {
+      "layer": "stamp",
+      "id": "Two resources share one configuration body",
+      "title": "Two resources share one configuration body",
+      "what": "Two resources in the configuration reached one HCL body, so the ownership marker written for one of them would be the marker the other carries too. A module source called more than once is parsed once - every call shares the syntax tree - and each call is supposed to get its own body for a resource's arguments; this fires when one did not. It is a defect in how the run loaded the configuration rather than a fault in the configuration, and it is a hard error because a marker shared between two live objects is worse than no marker at all.",
+      "docs_ref": "live/LIMITATIONS.md, \"Two resources share one configuration body\"",
+      "raised_by": "internal/live/stamp",
+      "configs": 0,
+      "sites": 0,
+      "registered": true
     }
   ],
   "totals": {
     "configs": 250,
     "loaded": 249,
-    "instances": 4319,
-    "sites": 17320,
+    "instances": 4325,
+    "sites": 17258,
     "refusals_fired": 27,
-    "refusals_in_set": 128,
+    "refusals_in_set": 129,
     "configs_without_schemas": 3,
     "refusals_unregistered": 0
   },
@@ -11323,10 +11336,10 @@
       "origin": "published deployment",
       "configs": 145,
       "loaded": 144,
-      "blocked": 119,
-      "clean": 25,
-      "instances": 2584,
-      "sites": 3901,
+      "blocked": 118,
+      "clean": 26,
+      "instances": 2590,
+      "sites": 3894,
       "reads_as": "rate"
     },
     {
@@ -11336,7 +11349,7 @@
       "blocked": 71,
       "clean": 3,
       "instances": 1034,
-      "sites": 13409,
+      "sites": 13354,
       "reads_as": "ranking"
     }
   ],
@@ -11347,7 +11360,7 @@
     "classes": [
       {
         "class": "clean",
-        "configs": 25
+        "configs": 26
       },
       {
         "class": "backend-only",
@@ -11359,11 +11372,11 @@
       },
       {
         "class": "data-read-eligible",
-        "configs": 37
+        "configs": 38
       },
       {
         "class": "language-blocked",
-        "configs": 64
+        "configs": 62
       },
       {
         "class": "unreadable",
@@ -12090,7 +12103,7 @@
         "Cyclic parent-derived identities",
         "Empty import identity"
       ],
-      "total": 27
+      "total": 30
     }
   ],
   "unchecked_layers": [
