@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 10,
-    "cold_deploy": { "pass": 8, "fail": 2, "not_run": 0 },
-    "migrate": { "pass": 7, "fail": 1, "not_run": 2 },
-    "test_plan": { "pass": 1, "fail": 7, "not_run": 2 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 9 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 10 }
+    "estates": 11,
+    "cold_deploy": { "pass": 9, "fail": 2, "not_run": 0 },
+    "migrate": { "pass": 8, "fail": 1, "not_run": 2 },
+    "test_plan": { "pass": 1, "fail": 8, "not_run": 2 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 10 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 11 }
   },
   "estates": [
     {
@@ -139,6 +139,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed 521941f77e (2026-08-18), 80 resources across 12 module calls - the largest crossing tonight (mixed instances, warm pools, EFA interfaces, attribute-based instance requirements, external launch templates, lifecycle hooks, scheduled actions, scaling policies, the count-is-zero-per-instance admission fix genuinely exercised for real via the ignore_desired_capacity_changes-gated aws_autoscaling_group.this/.idc pair). cold_deploy is recorded fail because the COMMITTED script runs against the currently-pinned image, which does not yet include this crossing's own floci fixes - three real gaps found and fixed (AttachTrafficSources/DetachTrafficSources/DescribeTrafficSources, PutScheduledUpdateGroupAction/DescribeScheduledActions/DeleteScheduledAction, including catching a real botocore-vs-docs discrepancy: AWS's own DescribeTrafficSources doc example shows a flattened list shape that botocore's actual service-2.json does not use, confirmed by watching a real apply hang until the wire shape was fixed to match botocore), pushed and merged into floci's own main (9ff82512) but not yet reconciled into choudoufu's pin. Manually verified, but NOT YET encoded in the automated script (needs the re-pin first): with a locally-rebuilt fixed image, 79 of 80 resources stand up (blocked only by aws_ec2_capacity_reservation.targeted, filed as lex00/floci#64, heavier EC2-side work than this slot covered), migrate stamps 36 of 65 eligible cleanly, and live-plan against that real migrated state showed zero refusals for every ASG/schedule/policy/launch-template/IAM/ALB/SQS resource - exactly 5 refusals total: 1 correct provisioner refusal (dead local-exec on the service-linked role, same shape sumaform found) plus #305's default_* trio and a NEW one, filed as #310: aws_autoscaling_traffic_source_attachment is unadmitted despite a fully composite, all-required, documented identity (autoscaling_group_name + a nested traffic_source block's identifier/type) - the schema-fallback admission that already handles the sibling aws_autoscaling_schedule the same way apparently doesn't reach identity components sitting inside a nested block rather than top-level. Re-verification against the re-pinned image is the clear next step, same pattern as rds-complete-postgres and eks-basic."
+    },
+    {
+      "dir": "live/e2e/corpus-alb-complete",
+      "source": "terraform-aws-modules/terraform-aws-alb examples/complete-alb (tag v9.9.0), its flagship application-load-balancer example",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 2c654caa23 (2026-08-18), 80 resources. cold_deploy and migrate genuinely pass (48 of 80 eligible, 44 stamped - 4 failed to stamp on a real, filed floci gap, lex00/floci#65: ELBv2 DescribeListeners/DescribeRules drop AuthenticateCognitoConfig/AuthenticateOidcConfig entirely, so those 4 listener-rule sites can't round-trip; 32 skipped - 28 untaggable by design, 4 unadmitted). test_plan blocked by #305 (3 sites) and a NEW one, filed as #309: aws_cognito_user_pool_client is unadmitted despite a parent-scoped ListUserPoolClients existing (via the already-admitted aws_cognito_user_pool parent) - a concrete lead for a fix, not attempted here. Three real floci gaps found, fixed, and merged to floci main (9ff82512, already reconciled into that history - not a pending PR): #58 (ACM wildcard-SAN DNS validation record kept a literal \"*.\" in its name), #61 (S3 log-delivery-write canned ACL rejected), #62 (EC2 instance-type catalog missing t3.nano). One floci gap found and left open as real feature work: #63 (Cognito CreateUserPoolDomain entirely unimplemented), worked around with a documented delta. Deliberately did NOT re-pin live/floci-image here - bumping the pin without a matching floci-capabilities.json regen breaks TestFlociServiceCapability/TestFlociTypeCapability, and several other crossings tonight need the same regen, so this was left for a single centralized reconciliation rather than each crossing re-pinning independently and colliding. Verified twice via FLOCI_IMAGE override pointed at the real published digest (sha256:217f859688b5...) instead."
     }
   ]
 }
