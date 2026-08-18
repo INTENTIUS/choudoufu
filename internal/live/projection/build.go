@@ -1085,6 +1085,74 @@ const (
 	statusFailed
 )
 
+// notFoundDiagnosticSignals are the textual shapes an error-severity
+// diagnostic out of ImportResourceState takes when a provider is actually
+// answering "there is no such object", not failing to answer at all.
+// Textual is all there can be: a diagnostic that has crossed the provider
+// plugin protocol carries only Summary/Detail strings (tfdiags.Description),
+// nothing structured about the underlying provider error survives the wire.
+//
+//   - "couldn't find resource" is the exact, hardcoded default message
+//     terraform-plugin-sdk's retry.NotFoundError renders when a provider's
+//     internal finder comes back empty and sets no more specific text. It
+//     is a generic SDK convention used across the whole of
+//     terraform-provider-aws wherever a resource's Read is built on a
+//     "find the live object or report NotFoundError" finder, not a
+//     type-specific string. aws_lambda_permission - whose import lookup
+//     calls GetPolicy on the function, not the permission, and so 404s
+//     with this shape the moment the function itself does not exist yet
+//     either - is a confirmed instance (issue #297), not the only one this
+//     is meant to cover.
+//   - "ResourceNotFoundException" is AWS's own API error code, for a
+//     provider that surfaces the untranslated API error instead of going
+//     through the generic finder convention above.
+var notFoundDiagnosticSignals = []string{
+	"couldn't find resource",
+	"ResourceNotFoundException",
+}
+
+// notFoundDiagnostics reports whether every error-severity diagnostic in
+// diags matches one of [notFoundDiagnosticSignals], so an
+// ImportResourceState response that came back with diagnostics can still be
+// folded into statusAbsent the same as an empty ImportedResources list or a
+// null read result - the "ordinary absence" this package's doc comments
+// promise. detail is the first matching diagnostic's rendered text, for the
+// warning that replaces the discarded error.
+//
+// A response mixing a not-found-shaped diagnostic with any other
+// error-severity diagnostic - a credentials problem, a malformed request, a
+// genuine provider failure - does not match: every error present has to be
+// not-found-shaped, or this reports false and the caller's existing hard
+// stop applies untouched. That also means a warning-only response (no
+// errors at all) never reaches this function, since it is only consulted
+// under importResp.Diagnostics.HasErrors().
+func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
+	sawError := false
+	detail := ""
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		sawError = true
+		desc := d.Description()
+		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
+		matched := false
+		for _, signal := range notFoundDiagnosticSignals {
+			if strings.Contains(desc.Summary, signal) || strings.Contains(desc.Detail, signal) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, ""
+		}
+		if detail == "" {
+			detail = text
+		}
+	}
+	return sawError, detail
+}
+
 // importAndRead is the whole provider conversation for one instance, and
 // is the reason this package exists rather than calling into a graph walk:
 // ImportResourceState to turn an identity into a stub object, then
@@ -1118,6 +1186,26 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
+		if ok, detail := notFoundDiagnostics(importResp.Diagnostics); ok {
+			// Some providers answer "there is no such object" as an error
+			// diagnostic out of ImportResourceState rather than an empty
+			// ImportedResources list - aws_lambda_permission is a confirmed
+			// instance, whose import lookup calls GetPolicy on the
+			// *function* and gets ResourceNotFoundException back when the
+			// function itself does not exist yet either (issue #297). That
+			// is still an ordinary absence, not a provider that could not
+			// answer, so it takes the same path an empty list or a null
+			// read result already takes below.
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Import reported absence as an error",
+				fmt.Sprintf(
+					"Looking up the %s with identity %q failed with what reads as a not-found response rather than a genuine error: %s. Treating it as an ordinary absence.",
+					typeName, importID, detail,
+				),
+			))
+			return nil, statusAbsent, diags
+		}
 		// The provider could not answer the question. That is different
 		// from answering "there is no such object", which is either an
 		// empty ImportedResources or a null object out of the read below.

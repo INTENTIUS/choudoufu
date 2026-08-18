@@ -574,6 +574,84 @@ func TestBuildImportError(t *testing.T) {
 	assertOmitted(t, res, map[string]Reason{`aws_route_table.main`: ReasonFailed})
 }
 
+// TestBuildAbsentByNotFoundImportError covers the third way a provider says
+// "no such object": ImportResourceState errors, but with a diagnostic
+// shaped like the generic not-found conventions this package recognizes
+// (issue #297 - aws_lambda_permission's GetPolicy-on-the-function is the
+// confirmed instance). This has to fold into the same ordinary absence as
+// an empty import or a null read, not the hard failure TestBuildImportError
+// covers for a genuine error.
+func TestBuildAbsentByNotFoundImportError(t *testing.T) {
+	cfg := loadConfig(t, "testdata/derived")
+	rtb := mustAddr(t, `aws_route_table.main`)
+
+	cloud := newFakeCloud()
+	cloud.importErrors["aws_route_table/rtb-imported"] = "couldn't find resource"
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: rtb, Class: identity.ClassConcrete, ImportID: "rtb-imported"},
+	}, cloud.providers(t))
+
+	assertNoErrors(t, diags)
+	if !hasDiag(diags, "Import reported absence as an error", "rtb-imported") {
+		t.Errorf("no warning recorded for the folded not-found error:\n%s", renderDiags(diags))
+	}
+	assertOmitted(t, res, map[string]Reason{`aws_route_table.main`: ReasonAbsent})
+	if cloud.reads != 0 {
+		t.Errorf("the provider was asked to read %d times after a not-found import error; there was nothing to read", cloud.reads)
+	}
+}
+
+// TestBuildAbsentByRawNotFoundCode is the same, through the other signal:
+// the raw AWS API error code instead of the generic SDK message, for a
+// provider that surfaces the untranslated API error.
+func TestBuildAbsentByRawNotFoundCode(t *testing.T) {
+	cfg := loadConfig(t, "testdata/derived")
+	rtb := mustAddr(t, `aws_route_table.main`)
+
+	cloud := newFakeCloud()
+	cloud.importErrors["aws_route_table/rtb-imported"] = "operation error EC2: DescribeRouteTables, https response error StatusCode: 400, ResourceNotFoundException: Route table rtb-imported not found"
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: rtb, Class: identity.ClassConcrete, ImportID: "rtb-imported"},
+	}, cloud.providers(t))
+
+	assertNoErrors(t, diags)
+	assertOmitted(t, res, map[string]Reason{`aws_route_table.main`: ReasonAbsent})
+}
+
+// TestBuildImportErrorMixedWithNotFound: a response carrying a
+// not-found-shaped diagnostic ALONGSIDE a genuine error diagnostic must not
+// be swallowed - every error-severity diagnostic has to be not-found-shaped
+// for the response to count as an ordinary absence, or a real failure
+// riding alongside a coincidental not-found-shaped message would silently
+// let a plan proceed to CREATE something that should have refused instead.
+func TestBuildImportErrorMixedWithNotFound(t *testing.T) {
+	cfg := loadConfig(t, "testdata/derived")
+	rtb := mustAddr(t, `aws_route_table.main`)
+
+	cloud := newFakeCloud()
+	cloud.importErrorLists["aws_route_table/rtb-imported"] = []string{
+		"couldn't find resource",
+		"AccessDenied: not authorized to perform ec2:DescribeRouteTables",
+	}
+
+	res, diags := BuildFrom(context.Background(), cfg, []identity.Resolution{
+		{Addr: rtb, Class: identity.ClassConcrete, ImportID: "rtb-imported"},
+	}, cloud.providers(t))
+
+	if !diags.HasErrors() {
+		t.Fatal("a mixed not-found-plus-genuine-error import produced no error diagnostics")
+	}
+	if !hasDiag(diags, "Cannot import for projection", "rtb-imported") {
+		t.Errorf("the mixed import failure is not reported as a hard stop:\n%s", renderDiags(diags))
+	}
+	if !strings.Contains(renderDiags(diags), "AccessDenied") {
+		t.Errorf("the genuine error's own message was dropped:\n%s", renderDiags(diags))
+	}
+	assertOmitted(t, res, map[string]Reason{`aws_route_table.main`: ReasonFailed})
+}
+
 // TestBuildReadError: the same, one call later.
 func TestBuildReadError(t *testing.T) {
 	cfg := loadConfig(t, "testdata/derived")
@@ -700,7 +778,12 @@ type fakeCloud struct {
 	// emptyImports maps "type/importID" to "return no imported resources".
 	emptyImports map[string]bool
 	importErrors map[string]string
-	readErrors   map[string]string
+	// importErrorLists maps "type/importID" to more than one error
+	// diagnostic on the same ImportResourceState response - a mixed
+	// response is what a not-found-shaped diagnostic alongside a genuine
+	// one looks like on the wire.
+	importErrorLists map[string][]string
+	readErrors       map[string]string
 
 	imports []string
 	reads   int
@@ -708,11 +791,12 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		objects:      make(map[string]map[string]string),
-		tags:         make(map[string]map[string]string),
-		emptyImports: make(map[string]bool),
-		importErrors: make(map[string]string),
-		readErrors:   make(map[string]string),
+		objects:          make(map[string]map[string]string),
+		tags:             make(map[string]map[string]string),
+		emptyImports:     make(map[string]bool),
+		importErrors:     make(map[string]string),
+		importErrorLists: make(map[string][]string),
+		readErrors:       make(map[string]string),
 	}
 }
 
@@ -753,6 +837,12 @@ func (c *fakeCloud) provider(t *testing.T) providers.Interface {
 		key := r.TypeName + "/" + r.Target.ID
 		c.imports = append(c.imports, key)
 
+		if msgs, ok := c.importErrorLists[key]; ok {
+			for _, msg := range msgs {
+				resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("%s", msg))
+			}
+			return resp
+		}
 		if msg, ok := c.importErrors[key]; ok {
 			resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("%s", msg))
 			return resp
