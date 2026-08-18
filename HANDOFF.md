@@ -477,6 +477,20 @@ identities and lost two correct ones, and the instance count went **up**.
 Every aggregate this repository records called that regression an
 improvement. Only a value assertion separates the two.
 
+**And "entries WORSE must be 0" is not the gate it reads as.** It has now
+twice flagged a correct fix as a regression, both times the same way: a
+refusal that fired once at the block level starts firing per argument or per
+instance, because the block now expands where it previously refused wholesale.
+Five honest refusals naming an argument each are more information than one
+naming a block, and expanding is what stock does.
+
+Maintainer ruling, 2026-08-17: **sites are not the measure.** What a change
+must not do is lose an instance or change a rendered identity. Report entries
+worse by site count, explain each, and do not revert a fix on that number
+alone - the campaign counts estates onboarded. The module-argument fix landed
+with 24 entries improved and 11 worse by sites, no instance lost anywhere, no
+golden line changed, and blocked 194 -> 193.
+
 ### Caveats that travel with any ladder figure
 
 Layers come in three lists, not two. Lint, identity, dataread and stamp are
