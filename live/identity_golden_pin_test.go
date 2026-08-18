@@ -74,10 +74,25 @@ var identityGoldenPin = map[string]int{
 	// three types the markerless-veto two-source exception newly admits.
 	// Every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE":        723,
-	"NEEDS_DISCOVERY": 562,
-	"PARENT_DERIVED":  95,
-	"RECORD_BACKED":   17,
+	"CONCRETE": 723,
+	// 570, up from 562 (issue #271): eight ADDED rows, one per new fixture
+	// directory, each of them that fixture's own aws_acm_certificate.cert.
+	// A certificate's identity is its ARN, minted at create, so
+	// NEEDS_DISCOVERY is what it has always resolved to and these eight say
+	// nothing new about the mechanism - they are the by-product of every
+	// #271 fixture needing a certificate to point at. No pre-existing row
+	// changed class; see the digest below.
+	"NEEDS_DISCOVERY": 570,
+	// 96, up from 95 (issue #271):
+	// internal/live/identity/testdata/managed-read-direct-arg's
+	// aws_cloudwatch_log_group.app, whose name is
+	// aws_acm_certificate.cert.arn. Resolved with no managed results - which
+	// is what this sweep does - that is the ordinary symbolic-reference path
+	// and it renders the formula ${aws_acm_certificate.cert.arn}. The
+	// fixture exists for what happens when a run DOES hold managed results,
+	// which this instrument never does.
+	"PARENT_DERIVED": 96,
+	"RECORD_BACKED":  17,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -105,10 +120,13 @@ var identityGoldenPin = map[string]int{
 //	env -u PWD go test ./internal/live/check -run TestIdentityGolden -update
 //
 // then copy the body-sha256 from the regenerated file's header.
-// 2026-08-17 (issue #274): three ADDED rows (see identityGoldenPin's own
-// comment above) - a fresh fixture directory, not an edit to an existing
-// one, so every pre-existing row's digest contribution is unchanged.
-const identityGoldenPinBodyDigest = "324cebbb642609bee4b8b26cde7c64d005968adab7a7d53924b82706ac20d31f"
+// 2026-08-17 (issue #271): nine ADDED rows across eight new fixture
+// directories, and zero MODIFIED ones. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 9 added, 0
+// removed". That zero is the load-bearing half: the sibling-apply
+// classification #271 added is gated on a run holding managed results, this
+// sweep supplies none, and so not one pre-existing marker moved.
+const identityGoldenPinBodyDigest = "de6330c362464cc36871a2bc4c7111a23adc13a66d16e82fdbd3bff3b9396540"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -121,9 +139,13 @@ const identityGoldenPinBodyDigest = "324cebbb642609bee4b8b26cde7c64d005968adab7a
 // must refuse. So the located class is a class this instrument cannot see,
 // which is stated here rather than discovered later from a suspiciously
 // stable digest.
+// 2026-08-17 (issue #271): dirs 424 -> 432 and instances 1397 -> 1406. Eight
+// new fixture directories for the sibling-apply discriminator, contributing
+// eight certificates and one log group. Both numbers rise by exactly what the
+// eight directories hold.
 const (
-	identityGoldenPinInstances = 1397
-	identityGoldenPinDirs      = 424
+	identityGoldenPinInstances = 1406
+	identityGoldenPinDirs      = 432
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
