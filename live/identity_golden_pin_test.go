@@ -93,14 +93,36 @@ var identityGoldenPin = map[string]int{
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
 	"CONCRETE": 734,
-	// 570, up from 562 (issue #271): eight ADDED rows, one per new fixture
-	// directory, each of them that fixture's own aws_acm_certificate.cert.
-	// A certificate's identity is its ARN, minted at create, so
-	// NEEDS_DISCOVERY is what it has always resolved to and these eight say
-	// nothing new about the mechanism - they are the by-product of every
-	// #271 fixture needing a certificate to point at. No pre-existing row
-	// changed class; see the digest below.
-	"NEEDS_DISCOVERY": 589,
+	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
+	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
+	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
+	// schemas, which is what this sweep does),
+	// internal/live/identity/testdata/module-provider-remap (both provider
+	// aliases' aws_cloudwatch_log_group.this),
+	// internal/live/identity/testdata/name-prefix-conditional-null
+	// (aws_iam_role.broken_no_prefix), internal/live/identity/testdata/
+	// naming-signal (aws_cloudwatch_log_group.split[1], aws_s3_bucket.nulled),
+	// internal/live/identity/testdata/shapeb-trydata
+	// (module.u.aws_iam_user.this["alice"]),
+	// internal/live/lint/testdata/receipt-leaf (two sites) and
+	// receipt-leaf-dynamic-name (one site), and
+	// live/e2e/estates/ecs-eks's own aws_eks_access_entry.app. Every one of
+	// these types is [identity.DiscoverableFallbackTypes]: taggable and
+	// enumerable, so a migrated estate's marker now answers what
+	// configuration alone could not, the same way ServerAssigned already
+	// does for the other 589. No pre-existing row changed class - not a
+	// moved row anywhere in this delta; see the digest below.
+	//
+	// Four rows also swapped class-preserving addresses this same commit:
+	// internal/live/identity/testdata/foreach-value-impure and
+	// foreach-value-sensitive renamed their CONCRETE aws_iam_user.team
+	// blocks to aws_iam_group.team, so those two tests keep pinning the
+	// general (ungated) refusal shape rather than #289's new answer for a
+	// taggable, enumerable type - four rows removed, four added, same
+	// class, same rendered values, net zero. See
+	// internal/live/identity/markerfallback.go's own doc comment for why
+	// aws_iam_user could not stay: it is taggable and enumerable too.
+	"NEEDS_DISCOVERY": 601,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -152,7 +174,18 @@ var identityGoldenPin = map[string]int{
 // or quic_server_id before this fix, so no pre-existing marker's rendered
 // string moved - only the three fresh fixtures exercising the newly
 // admitted optional components contributed rows.
-const identityGoldenPinBodyDigest = "7eb01dd80dde1a273bde8451d08ce24fb0e5933936ab2449a165eefb12087c7b"
+// 2026-08-17 (issue #289): TestIdentityGolden's own diff, read before this
+// line was edited, reported "0 identities changed, 16 added, 4 removed".
+// Both halves are load-bearing. Zero CHANGED means no pre-existing marker's
+// rendered string moved - the marker fallback only ever fires on the
+// FAILURE path, after configuration has already failed to yield a value,
+// so a row that resolved before this change resolves identically after it.
+// 16 ADDED is the class breakdown identityGoldenPin's own comment details.
+// The 4 REMOVED are not a loss: they are the other half of 4 of the 16
+// ADDED rows, a class-preserving rename (aws_iam_user.team ->
+// aws_iam_group.team in two fixtures) made so those two tests keep
+// exercising the general refusal shape rather than #289's new answer.
+const identityGoldenPinBodyDigest = "7a4b4d9c61b14b88bc518fa6ccb8e6cec22f4dc2b6f1dba4735678c78e0342b7"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -174,8 +207,14 @@ const identityGoldenPinBodyDigest = "7eb01dd80dde1a273bde8451d08ce24fb0e5933936a
 // route53-zone-association-vpc-region and target-group-attachment-optional -
 // contributing two, two and four instances respectively. Both numbers rise
 // by exactly what the three directories hold.
+// 2026-08-17 (issue #289): dirs unchanged at 443, instances 1436 -> 1448.
+// No fixture directory was added or removed - every one of the 16 ADDED
+// rows and 4 REMOVED rows (net +12) came from editing existing fixtures,
+// most of them to swap a testing-generic resource type. See
+// identityGoldenPin's own comment for the class breakdown and
+// internal/live/identity/markerfallback.go for the mechanism.
 const (
-	identityGoldenPinInstances = 1436
+	identityGoldenPinInstances = 1448
 	identityGoldenPinDirs      = 443
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as

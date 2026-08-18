@@ -1095,6 +1095,18 @@ func UnmarkedDiscoveryDetail(addr addrs.ConfigResource, disco identity.BlockDisc
 				"%s is named through %s, so the provider appends a random suffix at create time and this run cannot say what the object will be called. The ownership marker is the only handle left. Naming it with %s instead of %s makes the identity computable and needs no marker at all; applying as written "+lint.UnfindableClause,
 				addr, prefix, base, prefix)
 		}
+
+	case identity.DiscoveryMarkerFallback:
+		// Unlike every case above, there is no configuration edit to
+		// offer: whatever this instance's own expression does - a
+		// sensitive value, a circular reference, an argument left unset -
+		// is a fact about THIS instance, not a defect a rewrite is
+		// guaranteed to fix, and CauseArgs carries none of the specific
+		// shapes [resolver.markerFallback] answers. See
+		// [identity.DiscoveryMarkerFallback].
+		return fmt.Sprintf(
+			"%s's identity does not fold from its own configuration, but the type is tagged and listable, so a migrated estate's ownership marker is the only thing any later run can find it by. %s",
+			addr, lost)
 	}
 
 	// DiscoveryServerAssigned, and every cause whose subjects did not

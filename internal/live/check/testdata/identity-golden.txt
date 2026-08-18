@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=443 instances=1436
+# shape: dirs=443 instances=1448
 # shape: class CONCRETE=734
-# shape: class NEEDS_DISCOVERY=589
+# shape: class NEEDS_DISCOVERY=601
 # shape: class PARENT_DERIVED=96
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=7eb01dd80dde1a273bde8451d08ce24fb0e5933936ab2449a165eefb12087c7b
+# shape: body-sha256=7a4b4d9c61b14b88bc518fa6ccb8e6cec22f4dc2b6f1dba4735678c78e0342b7
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -97,6 +97,8 @@ internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	es
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_ecs_cluster.main	CONCRETE	prod-cluster	name=prod-cluster
+internal/live/identity/testdata/concrete-parent-attr	aws_ecs_service.web	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concrete-parent-attr	aws_eks_access_entry.assumed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_iam_role.assumed	CONCRETE	release-assumed	name=release-assumed
 internal/live/identity/testdata/concrete-parent-attr	aws_lambda_function.fdi	CONCRETE	fdi-ingest	function_name=fdi-ingest
 internal/live/identity/testdata/concrete-parent-attr-unknown	aws_iam_role.assumed	CONCRETE	release-assumed	name=release-assumed
@@ -194,8 +196,8 @@ internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["a"]	CON
 internal/live/identity/testdata/foreach-tuple-literal	aws_iam_role.team["b"]	CONCRETE	team-b	name=team-b
 internal/live/identity/testdata/foreach-unknown-values-set	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/identity/testdata/foreach-value-impure	aws_iam_group.admins	CONCRETE	admins	name=admins
-internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
-internal/live/identity/testdata/foreach-value-impure	aws_iam_user.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
+internal/live/identity/testdata/foreach-value-impure	aws_iam_group.team["bob"]	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-impure	aws_iam_group.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
 internal/live/identity/testdata/foreach-value-keyonly	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-keyonly	aws_iam_user.team["alice"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-merge-precedence	aws_iam_group.admins	CONCRETE	admins	name=admins
@@ -215,8 +217,8 @@ internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_group.admin
 internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["alice"]	CONCRETE	alice-from-config	name=alice-from-config
 internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["bob"]	CONCRETE	bob-from-config	name=bob-from-config
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.admins	CONCRETE	admins	name=admins
-internal/live/identity/testdata/foreach-value-sensitive	aws_iam_user.team["bob"]	CONCRETE	admins	name=admins
-internal/live/identity/testdata/foreach-value-sensitive	aws_iam_user.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
+internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["bob"]	CONCRETE	admins	name=admins
+internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["a"]	PARENT_DERIVED	${aws_subnet.this["a"].id}/rtb-fixed	
 internal/live/identity/testdata/indexed-traversal	aws_route_table_association.assoc["b"]	PARENT_DERIVED	${aws_subnet.this["b"].id}/rtb-fixed	
 internal/live/identity/testdata/indexed-traversal	aws_subnet.this["a"]	NEEDS_DISCOVERY		
@@ -296,6 +298,8 @@ internal/live/identity/testdata/module-provider-region	module.child.aws_arczonal
 internal/live/identity/testdata/module-provider-region	module.child.aws_sqs_queue.inchild	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-provider-region/child	aws_arczonalshift_autoshift_observer_notification_status.inchild	CONCRETE	eu-west-1	
 internal/live/identity/testdata/module-provider-region/child	aws_sqs_queue.inchild	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-provider-remap	module.east.aws_cloudwatch_log_group.this	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-provider-remap	module.west.aws_cloudwatch_log_group.this	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-provider-remap	random_pet.seed	RECORD_BACKED		
 internal/live/identity/testdata/module-sibling-count	module.a_with_children.module.nested.aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
 internal/live/identity/testdata/module-sibling-count/child-leaf	aws_cloudwatch_log_group.b	CONCRETE	/b-leaf-count/should-not-exist	name=/b-leaf-count/should-not-exist
@@ -306,13 +310,16 @@ internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_group.g[0]	CO
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["alice"]	CONCRETE	user-alice	name=user-alice
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["bob"]	CONCRETE	user-bob	name=user-bob
 internal/live/identity/testdata/modulearg-partial-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.broken_no_prefix	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.named_conditional	CONCRETE	explicit-name-2	name=explicit-name-2
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-discovery	aws_db_parameter_group.named	CONCRETE	engine-params	name=engine-params
 internal/live/identity/testdata/name-prefix-discovery	aws_db_parameter_group.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-discovery	aws_iam_role.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/naming-signal	aws_cloudwatch_log_group.split[0]	CONCRETE	/signal/zero	name=/signal/zero
+internal/live/identity/testdata/naming-signal	aws_cloudwatch_log_group.split[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/naming-signal	aws_s3_bucket.named	CONCRETE	tofu-signal-named	bucket=tofu-signal-named
+internal/live/identity/testdata/naming-signal	aws_s3_bucket.nulled	NEEDS_DISCOVERY		
 internal/live/identity/testdata/naming-signal	aws_s3_bucket.prefixed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/naming-signal	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.one	CONCRETE	tofu-signal-one	bucket=tofu-signal-one
@@ -371,6 +378,7 @@ internal/live/identity/testdata/setkey-whole	module.child.aws_iam_user.u["n-e-be
 internal/live/identity/testdata/shapeb-absent	module.u.aws_iam_user.this["alice"]	CONCRETE	fallback	name=fallback
 internal/live/identity/testdata/shapeb-poison	module.u.aws_iam_user.this["alice"]	CONCRETE	alice-user	name=alice-user
 internal/live/identity/testdata/shapeb-poison	module.u.aws_iam_user.this["bob"]	CONCRETE	bob-user	name=bob-user
+internal/live/identity/testdata/shapeb-trydata	module.u.aws_iam_user.this["alice"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/shapeb-tryref	aws_iam_role.r	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/shapeb-tryref	module.u.aws_iam_user.this["alice"]	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/sibling-literal-attr	aws_route53_zone.production	NEEDS_DISCOVERY		
@@ -564,8 +572,11 @@ internal/live/lint/testdata/overlong-address	aws_vpc.yyyyyyyyyyyyyyyyyyyyyyyyyyy
 internal/live/lint/testdata/overlong-address	aws_vpc.yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy[1]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/provisioner	aws_s3_bucket.data	CONCRETE	tofu-stateless-lint-data	bucket=tofu-stateless-lint-data
 internal/live/lint/testdata/receipt-leaf	aws_iam_role.leaks_via_depends_on	CONCRETE	leaks-via-depends-on	name=leaks-via-depends-on
+internal/live/lint/testdata/receipt-leaf	aws_s3_bucket.leaks_via_argument	NEEDS_DISCOVERY		
+internal/live/lint/testdata/receipt-leaf	aws_s3_bucket.reads_ordinary_param	NEEDS_DISCOVERY		
 internal/live/lint/testdata/receipt-leaf	aws_ssm_parameter.demo_effect	CONCRETE	/tofu-receipts/stateless-e2e/demo-effect	name=/tofu-receipts/stateless-e2e/demo-effect
 internal/live/lint/testdata/receipt-leaf	aws_ssm_parameter.ordinary_param	CONCRETE	/app/config/flag	name=/app/config/flag
+internal/live/lint/testdata/receipt-leaf-dynamic-name	aws_s3_bucket.reads_dynamic	NEEDS_DISCOVERY		
 internal/live/lint/testdata/receipt-leaf-dynamic-name	aws_ssm_parameter.dynamic_name	CONCRETE	/tofu-receipts/e2e/effect	name=/tofu-receipts/e2e/effect
 internal/live/lint/testdata/receipt-secret	aws_ssm_parameter.hashes_the_pointer	CONCRETE	/tofu-receipts/stateless-e2e/hashes-the-pointer	name=/tofu-receipts/stateless-e2e/hashes-the-pointer
 internal/live/lint/testdata/receipt-secret	aws_ssm_parameter.hashes_the_secret	CONCRETE	/tofu-receipts/stateless-e2e/hashes-the-secret	name=/tofu-receipts/stateless-e2e/hashes-the-secret
@@ -1006,6 +1017,7 @@ live/e2e/estates/ecs-eks	aws_ecs_cluster_capacity_providers.app	CONCRETE	tofu-ec
 live/e2e/estates/ecs-eks	aws_ecs_daemon.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_ecs_daemon_task_definition.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_ecs_service.app	CONCRETE	tofu-ecs-eks-cohort-ecs-cluster/tofu-ecs-eks-cohort-ecs-service	cluster=tofu-ecs-eks-cohort-ecs-cluster,name=tofu-ecs-eks-cohort-ecs-service
+live/e2e/estates/ecs-eks	aws_eks_access_entry.app	NEEDS_DISCOVERY		
 live/e2e/estates/ecs-eks	aws_eks_addon.app	CONCRETE	tofu-ecs-eks-cohort-eks-cluster:tofu-ecs-eks-cohort-eks-addon	addon_name=tofu-ecs-eks-cohort-eks-addon,cluster_name=tofu-ecs-eks-cohort-eks-cluster
 live/e2e/estates/ecs-eks	aws_eks_capability.app	CONCRETE	tofu-ecs-eks-cohort-eks-cluster,tofu-ecs-eks-cohort-eks-capability	capability_name=tofu-ecs-eks-cohort-eks-capability,cluster_name=tofu-ecs-eks-cohort-eks-cluster
 live/e2e/estates/ecs-eks	aws_eks_cluster.app	CONCRETE	tofu-ecs-eks-cohort-eks-cluster	name=tofu-ecs-eks-cohort-eks-cluster

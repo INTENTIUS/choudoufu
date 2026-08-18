@@ -343,6 +343,13 @@ func TestConcreteParentAttributeNeedsSchemas(t *testing.T) {
 // the parent's class - ServerAssigned rows never resolve CONCRETE, so their
 // objects are not in the projection before a formula renders - and not a
 // missing schema entry that a fuller schema map would quietly remove.
+//
+// The child is aws_iam_group, not aws_cloudwatch_log_group as this fixture
+// read before GitHub issue #289: that type is taggable and enumerable, so
+// its own marker fallback would now answer this "Not an identity
+// attribute" refusal too, which is a different, correct behaviour this
+// test is not about. aws_iam_group carries no tags argument, so the
+// refusal below is the parent-class rule alone, ungated.
 func TestServerAssignedParentAttributeStillRefused(t *testing.T) {
 	schemas := concreteParentTestSchemas()
 	for _, want := range []struct{ typeName, attr string }{
@@ -361,8 +368,8 @@ func TestServerAssignedParentAttributeStillRefused(t *testing.T) {
 		t.Fatal("a post-apply attribute of a server-assigned parent was accepted")
 	}
 	wantRefused := map[string]bool{
-		`aws_cloudwatch_log_group.by_ip`:   true,
-		`aws_cloudwatch_log_group.by_root`: true,
+		`aws_iam_group.by_ip`:   true,
+		`aws_iam_group.by_root`: true,
 	}
 	for _, res := range result.All() {
 		if wantRefused[res.Addr.String()] && res.Class == ClassParentDerived {

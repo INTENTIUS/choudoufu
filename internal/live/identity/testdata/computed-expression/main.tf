@@ -5,6 +5,6 @@ resource "aws_iam_role" "app" {
   name = "estate-app"
 }
 
-resource "aws_cloudwatch_log_group" "app" {
+resource "aws_iam_group" "app" {
   name = upper(aws_iam_role.app.name)
 }

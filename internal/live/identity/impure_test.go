@@ -35,13 +35,13 @@ func TestImpureFunctionIdentityRefused(t *testing.T) {
 			dir:         "impure-name",
 			wantSummary: "Identity derived from an impure function",
 			wantDetail:  "uuid()",
-			wantAbsent:  []string{"aws_s3_bucket.data", "aws_cloudwatch_log_group.app"},
+			wantAbsent:  []string{"aws_iam_group.data", "aws_iam_group.app"},
 		},
 		{
 			dir:         "impure-local",
 			wantSummary: "Non-static identity argument",
-			wantDetail:  "aws_s3_bucket.data.bucket",
-			wantAbsent:  []string{"aws_s3_bucket.data"},
+			wantDetail:  "aws_iam_group.data.name",
+			wantAbsent:  []string{"aws_iam_group.data"},
 		},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {

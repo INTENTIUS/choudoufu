@@ -961,7 +961,20 @@ func (r *resolver) instance(addr addrs.AbsResourceInstance, rng hcl.Range) (Reso
 	r.instVisit[key] = true
 	defer delete(r.instVisit, key)
 
+	// diagMark is where addr's own attempt starts, so a failure below can
+	// be handed to [resolver.markerFallback] - GitHub issue #289's second
+	// chance for a type the marker already answers. It is captured here,
+	// once, rather than inside resolveInstance, so the window covers every
+	// diagnostic that call raises - including "Circular identity
+	// reference" from a re-entrant call to THIS function for the same key,
+	// which resolveInstance itself never sees.
+	diagMark := len(r.diags)
 	res, ok := r.resolveInstance(addr, rng)
+	if !ok {
+		if fb, fbOK := r.markerFallback(addr, diagMark); fbOK {
+			res, ok = fb, true
+		}
+	}
 	if !ok {
 		r.instFailed[key] = true
 		return Resolution{}, false

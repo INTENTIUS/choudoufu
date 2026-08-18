@@ -129,6 +129,11 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 		// sibling, so the sentence has to name it and say applying it first
 		// is the way out. See [identity.DiscoverySiblingApply].
 		identity.DiscoverySiblingApply: {"takes name from aws_acm_certificate.cert", "Applying aws_acm_certificate.cert first"},
+		// GitHub issue #289's cause: this instance's own expression did not
+		// fold, but its TYPE is taggable and listable, so the marker is the
+		// answer regardless of which expression failed - there is no single
+		// argument to name, unlike every case above.
+		identity.DiscoveryMarkerFallback: {"identity does not fold from its own configuration", "tagged and listable"},
 	}
 
 	details := make(map[identity.DiscoveryCause]string)
@@ -173,8 +178,8 @@ func TestUnmarkedDiscoveryDetail_everyCauseIsToldApart(t *testing.T) {
 	for cause, detail := range details {
 		distinct[detail] = append(distinct[detail], cause)
 	}
-	if len(distinct) != 5 {
-		t.Errorf("expected 5 distinct sentences across %d causes, got %d: %v", len(details), len(distinct), distinct)
+	if len(distinct) != 6 {
+		t.Errorf("expected 6 distinct sentences across %d causes, got %d: %v", len(details), len(distinct), distinct)
 	}
 }
 

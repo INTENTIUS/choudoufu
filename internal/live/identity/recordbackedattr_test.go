@@ -34,7 +34,7 @@ import (
 
 // recordBackedTestSchemas is a caricature of the real hashicorp/null,
 // hashicorp/random and builtin terraform schemas. The child type in the
-// fixtures, aws_cloudwatch_log_group, deliberately gets no entry: it is a
+// fixtures, aws_iam_group, deliberately gets no entry: it is a
 // ratified DefaultTable row and resolves from the table alone, so these
 // schemas describe only the parents whose attributes are being read.
 //
@@ -86,9 +86,9 @@ func TestRecordBackedParentAttributeResolves(t *testing.T) {
 		wantAttr   string
 		wantPrefix string
 	}{
-		{`aws_cloudwatch_log_group.from_pet`, `random_pet.suffix`, "id", "svc-"},
-		{`aws_cloudwatch_log_group.from_data`, `terraform_data.seed`, "output", "seeded-"},
-		{`aws_cloudwatch_log_group.from_null`, `null_resource.gate`, "id", "gated-"},
+		{`aws_iam_group.from_pet`, `random_pet.suffix`, "id", "svc-"},
+		{`aws_iam_group.from_data`, `terraform_data.seed`, "output", "seeded-"},
+		{`aws_iam_group.from_null`, `null_resource.gate`, "id", "gated-"},
 	}
 	for _, tc := range cases {
 		res := resolutionAt(t, result, tc.child)
@@ -118,12 +118,12 @@ func TestRecordBackedParentAttributeResolves(t *testing.T) {
 
 	// Two record-backed parents in one identity: the branch has to compose
 	// with itself, not merely supply a whole identity on its own.
-	both := resolutionAt(t, result, `aws_cloudwatch_log_group.from_both`)
+	both := resolutionAt(t, result, `aws_iam_group.from_both`)
 	if both.Class != ClassParentDerived {
-		t.Fatalf("aws_cloudwatch_log_group.from_both resolved %s (%s), want PARENT_DERIVED", both.Class, both.Reason)
+		t.Fatalf("aws_iam_group.from_both resolved %s (%s), want PARENT_DERIVED", both.Class, both.Reason)
 	}
 	if n := len(both.Formula.Parents); n != 2 {
-		t.Errorf("aws_cloudwatch_log_group.from_both names %d parents (%v), want 2", n, both.Formula.Parents)
+		t.Errorf("aws_iam_group.from_both names %d parents (%v), want 2", n, both.Formula.Parents)
 	}
 }
 

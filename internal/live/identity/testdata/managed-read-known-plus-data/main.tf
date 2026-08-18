@@ -14,6 +14,6 @@ resource "aws_acm_certificate" "cert" {
   validation_method = "DNS"
 }
 
-resource "aws_cloudwatch_log_group" "app" {
+resource "aws_iam_group" "app" {
   name = "${aws_acm_certificate.cert.domain_name}-${data.aws_region.current.name}"
 }

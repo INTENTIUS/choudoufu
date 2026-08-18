@@ -10,6 +10,6 @@ resource "random_pet" "suffix" {
   length = 2
 }
 
-resource "aws_cloudwatch_log_group" "from_missing" {
+resource "aws_iam_group" "from_missing" {
   name = "nope-${random_pet.suffix.no_such_attribute}"
 }
