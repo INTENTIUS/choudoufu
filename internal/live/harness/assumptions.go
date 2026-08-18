@@ -67,6 +67,7 @@ type Assumption struct {
 func Assumptions() []Assumption {
 	return []Assumption{
 		checkedLayersAreFour(),
+		corpusArtifactCurrency(),
 		credentialExclusionsAreFour(),
 		artifactsAreCommitDated(),
 		onboardingNonBlockingIDs(),
@@ -330,6 +331,84 @@ func credentialExclusionsAreFour() Assumption {
 			}
 			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no fifth veto cites credential material",
 				len(sanctionedCredentialExclusions)), nil
+		},
+	}
+}
+
+// gitLog1 returns the full SHA of the newest commit touching path, or "" if
+// no commit touches it (an untracked or nonexistent path).
+func gitLog1(root, path string) (string, error) {
+	out, err := exec.Command("git", "-C", root, "log", "-1", "--format=%H", "--", path).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 10 {
+		return sha[:10]
+	}
+	return sha
+}
+
+// corpusArtifactCurrency reports how many commits touching internal/live
+// have landed since live/corpus-refusals.json was last regenerated.
+//
+// Issue #256 item 7: nothing said this at the point of reading, so every
+// quoted corpus figure - sites, instances, blocked configs, the ladder -
+// silently describes a tree up to several behaviour-changing commits old.
+// At the scouting pass's own commit, the artifact was four commits behind
+// internal/live, two of them identity behaviour changes.
+//
+// This deliberately never fails on staleness alone: regenerating costs
+// about two minutes plus a provider acquisition, so a committed artifact
+// lagging HEAD by a few commits is normal, not a defect, the same way any
+// build artifact lags its sources between commits. What must not happen is
+// a reader learning the lag only by re-deriving it by hand, which is what
+// the original scouting pass had to do. This only errors when the git
+// history itself cannot answer the question - the same failure mode
+// artifactsAreCommitDated already treats as unable-to-run rather than pass.
+func corpusArtifactCurrency() Assumption {
+	return Assumption{
+		ID: "corpus-artifact-currency",
+		Claim: CorpusJSON + " is dated against the newest commit touching internal/live, and the gap " +
+			"between them - zero or not - is reported rather than left for a reader to re-derive.",
+		Consequence: "Every quoted corpus figure is read as describing HEAD. When the artifact instead " +
+			"describes a tree several behaviour-changing commits old, a before/after comparison, a " +
+			"ranking, or a closed-issue figure can be wrong by exactly the size of what those commits " +
+			"changed, with nothing at the point of reading saying so.",
+		Evidence: "git log over " + CorpusJSON + "'s own path versus internal/live's newest touching " +
+			"commit. This is the instrument the original scouting pass (issue #256 item 7) proposed and " +
+			"used by hand once; this makes it something every reader gets without re-deriving it.",
+		Tracker:  "#256",
+		Recorded: []string{CorpusJSON, "internal/live"},
+		Check: func(r *Repo) (string, error) {
+			artifactCommit, err := gitLog1(r.Root, CorpusJSON)
+			if err != nil {
+				return "", fmt.Errorf("finding the commit that last touched %s: %w", CorpusJSON, err)
+			}
+			if artifactCommit == "" {
+				return "", fmt.Errorf("%s has no commit history; it is untracked or the checkout has none", CorpusJSON)
+			}
+			liveCommit, err := gitLog1(r.Root, "internal/live")
+			if err != nil {
+				return "", fmt.Errorf("finding the newest commit touching internal/live: %w", err)
+			}
+			if liveCommit == "" || liveCommit == artifactCommit {
+				return fmt.Sprintf("%s is current with the newest internal/live commit (%s)",
+					CorpusJSON, shortSHA(artifactCommit)), nil
+			}
+			out, err := exec.Command("git", "-C", r.Root, "rev-list", "--count",
+				artifactCommit+"..HEAD", "--", "internal/live").Output()
+			if err != nil {
+				return "", fmt.Errorf("counting commits since %s touched internal/live: %w", shortSHA(artifactCommit), err)
+			}
+			n := strings.TrimSpace(string(out))
+			return fmt.Sprintf("%s was last regenerated at %s; %s later commit(s) have touched "+
+				"internal/live since (newest: %s). Every figure quoted from it describes that older "+
+				"tree, not HEAD.",
+				CorpusJSON, shortSHA(artifactCommit), n, shortSHA(liveCommit)), nil
 		},
 	}
 }

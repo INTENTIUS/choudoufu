@@ -243,9 +243,16 @@ const identityGoldenPinBodyDigest = "59ff423719b88b0e06e4b4f4fbc6609e977ae6377db
 // fixture directories (typedvar-emptyset and its child module) pin the
 // currently-unreachable empty-set-target chase; zero instance lines added,
 // changed or removed - fixture bookkeeping, not a behavior change.
+// 2026-08-17 (issue #256 item 6, merged independently of #258 above): dirs
+// 447 -> 448, instances and digest unchanged. A new fixture,
+// internal/live/check/testdata/backend-only-real, proves OnboardingBackendOnly's
+// coupling to lint.RuleStateBackend's severity through the real analyze.go
+// pipeline rather than a fabricated Findings slice. It declares only a
+// backend block and no resources, so it adds one directory and zero
+// instances.
 const (
 	identityGoldenPinInstances = 1456
-	identityGoldenPinDirs      = 447
+	identityGoldenPinDirs      = 448
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

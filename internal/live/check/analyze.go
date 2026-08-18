@@ -823,8 +823,8 @@ type Site struct {
 	// Category classifies the reference-subject shape behind this site -
 	// [configs.ReferenceCategory], read off the raising diagnostic's Extra
 	// field rather than parsed from Detail. Set only for
-	// [configs.StaticValidateReferences]'s refusals; every other rule
-	// leaves it empty rather than guessing. See #178.
+	// [configs.staticScopeData.StaticValidateReferences]'s refusals; every
+	// other rule leaves it empty rather than guessing. See #178.
 	Category configs.ReferenceCategory
 
 	// File, Line and Column locate it.

@@ -1021,7 +1021,7 @@ func (r *resolver) namedLeaf(expr hcl.Expression, scope instScope, ident configs
 // direct reference to that same resource would face. The only thing that
 // changes is that a module boundary no longer stops the walk.
 //
-// This is the boundary [configs.StaticValidateReferences] refuses with
+// This is the boundary [configs.staticScopeData.StaticValidateReferences] refuses with
 // "Module output not supported in static context" (internal/configs's
 // static_scope.go), and that refusal is correct for what it guards: a
 // static context there is one that must be resolved before the module tree

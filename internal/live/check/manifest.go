@@ -11,7 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
+
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 // Manifest is the corpus definition: which configurations get measured, where
@@ -295,19 +296,19 @@ func varFilesFor(root, match string, source ManifestSource) []string {
 
 // HasConfigFiles reports whether a directory holds any OpenTofu
 // configuration files directly.
+//
+// This defers to configs.IsEmptyDir rather than restating the loader's
+// accepted suffixes as a second hand-list: an earlier version matched only
+// ".tf" and ".tf.json", so a ".tofu"-only directory was invisible to the
+// corpus - not refused, not counted, simply missing from every denominator,
+// with no test catching it because none compared this filter against the
+// loader's own (issue #256 item 2). configs.IsEmptyDir walks through
+// (*Parser).dirFiles, the same file-recognition path LoadConfigDir uses, so
+// this now always matches what the loader would actually accept.
 func HasConfigFiles(dir string) bool {
-	files, err := os.ReadDir(dir)
+	empty, err := configs.IsEmptyDir(dir)
 	if err != nil {
 		return false
 	}
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-		name := file.Name()
-		if strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json") {
-			return true
-		}
-	}
-	return false
+	return !empty
 }

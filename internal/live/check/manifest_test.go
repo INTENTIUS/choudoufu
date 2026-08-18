@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/configs"
 )
 
 func writeManifest(t *testing.T, body string) string {
@@ -89,6 +91,64 @@ func TestResolveSkipsDirectoriesWithNoConfiguration(t *testing.T) {
 	}
 	if entries[0].Origin != "test" {
 		t.Errorf("origin is %q, want test", entries[0].Origin)
+	}
+}
+
+// TestHasConfigFilesMatchesTheLoaderSuffixes is issue #256 item 2: an
+// earlier HasConfigFiles matched only ".tf" and ".tf.json" by hand, so a
+// ".tofu"-only directory was invisible to the corpus - not refused, not
+// counted, simply missing from every denominator. HasConfigFiles now defers
+// to configs.IsEmptyDir instead of restating the suffix list, but that only
+// guards against drift if something checks the two against an oracle
+// neither of them is built from.
+//
+// The oracle here is configs.NewParser(nil).LoadConfigDir actually parsing a
+// resource out of the file - the loader's real parse path, not a copy of its
+// suffix constants (which are unexported and cannot be imported to compare
+// against). If HasConfigFiles and the real loader ever disagree on whether a
+// filename is configuration, this fails without anyone having to notice the
+// mismatch by reading corpus numbers.
+func TestHasConfigFilesMatchesTheLoaderSuffixes(t *testing.T) {
+	const resourceHCL = `resource "null_resource" "x" {}`
+	const resourceJSON = `{"resource": {"null_resource": {"x": {}}}}`
+
+	cases := []struct {
+		name     string
+		filename string
+		content  string
+		loadable bool
+	}{
+		{"tf", "main.tf", resourceHCL, true},
+		{"tf_json", "main.tf.json", resourceJSON, true},
+		{"tofu", "main.tofu", resourceHCL, true},
+		{"tofu_json", "main.tofu.json", resourceJSON, true},
+		{"txt", "main.txt", resourceHCL, false},
+		{"markdown", "README.md", "# not config\n", false},
+		{"hidden_tf", ".main.tf", resourceHCL, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, tc.filename), []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			parser := configs.NewParser(nil)
+			mod, diags := parser.LoadConfigDir(dir, configs.RootModuleCallForTesting())
+			if tc.loadable && diags.HasErrors() {
+				t.Fatalf("test fixture is wrong: loader rejected %s: %s", tc.filename, diags)
+			}
+			loaderSees := mod != nil && len(mod.ManagedResources) == 1
+			if loaderSees != tc.loadable {
+				t.Fatalf("test fixture is wrong: loader recognizes %s = %v, want %v", tc.filename, loaderSees, tc.loadable)
+			}
+
+			if got := HasConfigFiles(dir); got != tc.loadable {
+				t.Errorf("HasConfigFiles(%s) = %v, want %v (the real loader recognizes it: %v)",
+					tc.filename, got, tc.loadable, loaderSees)
+			}
+		})
 	}
 }
 

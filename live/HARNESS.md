@@ -48,7 +48,7 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 141, floor 100 | #249 |
 | [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 98 | at most 98 | `live/rowgen-convergence.json summary.admitted_total` at 907, floor 850 | #132 |
 | [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 893, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 613 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`unreached-types`](#unreached-types) | 612 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -158,9 +158,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **613 provider resource types**, at most **613**. At the bound.
+Now **612 provider resource types**, at most **613**, so the bound is stale by 1 and should be lowered to the measurement.
 
-907 admitted, 80 hand-vetoed, 141 markerless-vetoed, over a roster of 1699.
+907 admitted, 81 hand-vetoed, 141 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.
@@ -206,6 +206,20 @@ Everything an offline report says is derived from four fully checked analysis pa
 Evidence: internal/live/check/catalog.go's CheckedLayers, PartiallyCheckedLayers and UncheckedLayers, cross-checked against all three of the committed corpus artifact's own header lists, share included. internal/live/check's TestLayersClassifyEveryLivePackage is what forbids a new package joining no list; this holds the three lists themselves to their recorded contents. Projection moved from unchecked to partial when #224's two exported provider-free entry points finally got a caller. Discovery stays wholly unchecked, and #261's plan to move it was measured and refused: of the four refusals its provider-free declared scan can raise, two are caller-bug guards check.Analyze cannot trip, one ("One marker value for two declared addresses") needs two declared addresses escaping to one marker value, which markerkey's excluded runes and #178's reversible key escaping make unreachable for anything identity resolves, and the fourth measures the same quantity as lint.RuleOverlongAddress, an already fully checked layer - see internal/live/check's TestLintCoversTheDeclaredScan.
 
 Tracker: #102
+
+<a id="corpus-artifact-currency"></a>
+### `corpus-artifact-currency`
+
+live/corpus-refusals.json is dated against the newest commit touching internal/live, and the gap between them - zero or not - is reported rather than left for a reader to re-derive.
+
+**If this stops being true.** Every quoted corpus figure is read as describing HEAD. When the artifact instead describes a tree several behaviour-changing commits old, a before/after comparison, a ranking, or a closed-issue figure can be wrong by exactly the size of what those commits changed, with nothing at the point of reading saying so.
+
+- `live/corpus-refusals.json`
+- `internal/live`
+
+Evidence: git log over live/corpus-refusals.json's own path versus internal/live's newest touching commit. This is the instrument the original scouting pass (issue #256 item 7) proposed and used by hand once; this makes it something every reader gets without re-deriving it.
+
+Tracker: #256
 
 <a id="credential-exclusions-are-exactly-four"></a>
 ### `credential-exclusions-are-exactly-four`

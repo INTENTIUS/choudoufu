@@ -181,7 +181,7 @@ type EntryRefusal struct {
 
 	// Categories breaks this refusal's sites down by reference-subject
 	// category (see [configs.ReferenceCategory]) - populated only for
-	// [configs.StaticValidateReferences]'s refusals, and omitted entirely
+	// [configs.staticScopeData.StaticValidateReferences]'s refusals, and omitted entirely
 	// when none of this refusal's sites carried one, so every other rule's
 	// row in the artifact stays exactly as small as it was before #178.
 	Categories map[configs.ReferenceCategory]int `json:"categories,omitempty"`

@@ -6,6 +6,7 @@
 package check
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -178,6 +179,56 @@ func TestOnboardingClassDerivesFromRefusalIDsOnly(t *testing.T) {
 		if got := ClassifyOnboarding(true, tc.ids); got != tc.want {
 			t.Errorf("ClassifyOnboarding(true, %v) = %q, want %q", tc.ids, got, tc.want)
 		}
+	}
+}
+
+// TestBackendOnlyRungCoupledToRuleSeverity is issue #256 item 6.
+// OnboardingBackendOnly's switch-case in ClassifyOnboarding can be true only
+// when every ID in a report's Findings equals lint.RuleStateBackend's ID -
+// but analyze.go routes any SeverityWarning-rule finding (RuleStateBackend
+// is one, per #210) to Report.Warnings instead of Report.Findings, and
+// ClassifyOnboarding is only ever called with refusalIDs(report.Findings).
+// So as long as the rule stays warning-severity, a real backend/cloud-block
+// config can never reach Findings with only that ID in it, and the rung is
+// structurally dead - a rung every ladder table still prints and can never
+// show a nonzero count for.
+//
+// TestOnboardingLadderPinsEachClass exercises OnboardingBackendOnly by
+// constructing a Finding for RuleStateBackend directly, which proves the
+// switch statement's own logic but not that a real analysis run can ever
+// produce that input - it bypasses analyze.go's severity routing entirely,
+// the same synthetic-fixture gap the audit-trap list in CLAUDE.md warns
+// about ("a ratchet that measures agreement with itself").
+//
+// This test goes through the real pipeline (Dir, which runs Load then
+// Analyze) on a fixture with nothing wrong except a backend block, and
+// couples the two ends directly: RuleStateBackend at warning severity must
+// classify OnboardingClean (not OnboardingBackendOnly), and the moment the
+// rule's severity is raised to fatal, this test starts failing until it is
+// updated to expect OnboardingBackendOnly instead - which is exactly the
+// "move together or fail" property #256 asked for, checked against a real
+// analysis run rather than a hand-built Findings slice.
+func TestBackendOnlyRungCoupledToRuleSeverity(t *testing.T) {
+	report := Dir(context.Background(), filepath.Join("testdata", "backend-only-real"), Context{})
+	if !report.Readable() {
+		t.Fatalf("fixture did not load: %+v", report.Load)
+	}
+
+	class := ClassifyOnboarding(report.Readable(), refusalIDs(report.Findings))
+	isWarning := lint.RuleStateBackend.Severity() == lint.SeverityWarning
+
+	switch {
+	case isWarning && class != OnboardingClean:
+		t.Errorf("RuleStateBackend is warning-severity, so a backend-only config's finding never reaches "+
+			"Findings and OnboardingBackendOnly is unreachable - want class %q, got %q. If something now "+
+			"routes a warning-severity finding into Findings, OnboardingBackendOnly just became reachable "+
+			"and every ladder table's rung count needs re-checking.",
+			OnboardingClean, class)
+	case !isWarning && class != OnboardingBackendOnly:
+		t.Errorf("RuleStateBackend is no longer warning-severity, so its finding now reaches Findings and "+
+			"a backend-only config should classify %q - got %q instead. This test's own expectation needs "+
+			"updating for the new severity, which is the point: the ladder rung and the rule severity must "+
+			"move together, not silently drift apart", OnboardingBackendOnly, class)
 	}
 }
 

@@ -32,6 +32,11 @@ var guardedPackages = []string{
 	"cloudcontrol",
 	"dataread",
 	"discovery",
+	// Issue #256 item 8's godoc citation sweep: parses Go source with
+	// go/ast for symbol names and touches no cty.Value at all, so like
+	// "onboard" below it is held to zero rather than deferred - it has
+	// nothing to defer.
+	"docrefs",
 	"docsref",
 	"flocitest",
 	"foreign",
