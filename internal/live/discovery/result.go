@@ -772,6 +772,21 @@ const (
 	// - the tag index holds a resource marked for this exact address that
 	// no listed object matched - the detail says so outright.
 	ProblemUnreadableMarker ProblemKind = "UNREADABLE_MARKER"
+
+	// ProblemAmbiguousContentMatch is issue #272's content-match leg
+	// finding more than one live candidate carrying the same value a
+	// declared instance's own identity-bearing argument names
+	// ([scanTypeContentMatch]). This is the leg's own version of
+	// [ProblemAmbiguousTagJoin]'s question - which live object is this
+	// declared instance's - and it is answered the same way: not at all.
+	// Binding any one of the candidates would risk adopting a different
+	// instance's resource, so none is bound and every candidate's
+	// identifier is named. An error, because two live objects with the
+	// same client-supplied name in one account is the situation the
+	// two-source uniqueness proof (tools/row-gen's contentMatchRoster) was
+	// supposed to make impossible - seeing it anyway means the evidence
+	// was wrong for this account, not that a winner should be guessed.
+	ProblemAmbiguousContentMatch ProblemKind = "AMBIGUOUS_CONTENT_MATCH"
 )
 
 // Severity is the diagnostic severity a problem of this kind carries.

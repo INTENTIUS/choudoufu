@@ -1163,13 +1163,26 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 
 	ts, ok := schemas.Get(typeName)
 	if !ok {
-		// No native list resource. Before refusing, see whether Cloud
-		// Control can enumerate this type instead (issue #47): the mapped
-		// CFN type has to exist and be listable with no required input, and
-		// a caller has to have configured a Cloud Control client at all -
-		// nil Request.CloudControl is "the fallback does not apply here",
-		// not an error, so every existing caller that never heard of Cloud
-		// Control keeps today's refusal unchanged.
+		// No native list resource. Before falling to the tag-based Cloud
+		// Control leg, see whether issue #272's content-match leg applies:
+		// a type in [identity.ContentMatchTypes] carries no tags argument
+		// at all, so routing it through [scanTypeCloudControl] would only
+		// ever produce [ProblemNoTags] - every listed candidate genuinely
+		// has no Tags property to read. The same nil-CloudControl guard
+		// applies here as below: a caller that never configured one gets
+		// today's refusal unchanged.
+		if req.CloudControl != nil {
+			if binding, ok := identity.ContentMatchTypes[typeName]; ok {
+				return scanTypeContentMatch(ctx, req, decl, typeName, binding, res, sweep)
+			}
+		}
+		// Before refusing, see whether Cloud Control can enumerate this
+		// type instead (issue #47): the mapped CFN type has to exist and be
+		// listable with no required input, and a caller has to have
+		// configured a Cloud Control client at all - nil Request.CloudControl
+		// is "the fallback does not apply here", not an error, so every
+		// existing caller that never heard of Cloud Control keeps today's
+		// refusal unchanged.
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
 			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep)
 		}
@@ -2207,4 +2220,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
 	ProblemAmbiguousTagJoin:       "Listed resource matched more than one tagged resource",
 	ProblemUnreadableMarker:       "Unbound instance with unreadable live markers of its type",
+	ProblemAmbiguousContentMatch:  "Content match found more than one live candidate",
 }
