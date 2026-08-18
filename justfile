@@ -544,6 +544,42 @@ demo-corpus-crossref-related-agent:
 demo-reference-ec2-vpc:
     bash live/e2e/reference-ec2-vpc/run.sh
 
+# .corpus/rds/examples/complete-postgres, from terraform-aws-modules/
+# terraform-aws-rds - the de facto standard way people provision RDS
+# Postgres, and the first RDS estate ever crossed against a cloud (#102 only
+# ever used it for a static, offline measurement). Follows the five-stage
+# shape (cold deploy / migrate / test plan / test apply / drift-reconverge),
+# and is a genuine partial pass, reported honestly rather than routed
+# around: stage 1 stands up 39 real resources with plain terraform, no
+# choudoufu involved. Stage 2 (choudoufu live-import) then finds that EVERY
+# ONE of those 39 lives inside a child module (module.vpc,
+# module.security_group, module.db, module.db_default) - and live-import
+# considers root-module resources only, so it migrates none of them. Issue
+# #59 (child-module admission) is closed and identity/discovery/stamp/lint/
+# mv all walk module trees now; live-import's own restriction was never
+# lifted to match. Stage 3 shows that fixing that alone would not be
+# enough: choudoufu live-plan (no cloud call) separately refuses this same
+# estate on two more real grounds - terraform-aws-modules/security-group's
+# ingress_with_cidr_blocks builds an identity argument through a
+# lookup()-keyed index the static walker cannot trace (7 of 35
+# count-index-in-tag sites; the other 28 are module.vpc resources correctly
+# refused for indexing a sibling resource's own attributes), and the VPC
+# module's default_* adopters (aws_default_network_acl/route_table/
+# security_group, all three actually created here) are unadmitted types (5
+# sites, 2 more from declared-but-inert blocks). Two more real, unrelated
+# floci gaps (cross-region automated-backups-replication has no matching
+# RDS action; SecretsManager RotateSecret wrongly requires a Lambda ARN for
+# an RDS-managed secret's Lambda-less hosted rotation) are worked around
+# with documented deltas so stage 1 can stand the estate up at all - see
+# the script's header for the full account, including the exact code
+# locations and the two floci issues filed for them. BREAK=1 corrupts the
+# stage-2 defect assertion, proving it is load-bearing. Needs Docker, the
+# AWS CLI, real terraform (stage 1 is deliberately not choudoufu) and a
+# populated .corpus (`just corpus-fetch`); runs on its own port (4720) so it
+# can run beside `just demo`.
+demo-corpus-rds-complete-postgres:
+    bash live/e2e/corpus-rds-complete-postgres/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
