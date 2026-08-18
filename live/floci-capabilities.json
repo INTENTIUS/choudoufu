@@ -5459,7 +5459,7 @@
         {
           "type": "aws_docdbelastic_cluster",
           "status": "broken",
-          "evidence": "CreateCluster reaches a router-recognized handler, but the response is an HTML error page rather than a JSON error body (deserialization failed: invalid character '<' looking for beginning of value)",
+          "evidence": "CreateCluster reaches a router-recognized handler, but the response is an HTML error page rather than a JSON error body (deserialization failed: invalid character '\u003c' looking for beginning of value)",
           "source": "live/e2e/estates/databases/README.md, \"Floci coverage\""
         },
         {
@@ -25709,6 +25709,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_amplify_branch",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Amplify::Branch, {}) made a resource but the following ListResourcesScoped(AWS::Amplify::Branch, [AppId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_amplify_domain_association",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -25723,11 +25730,25 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_api_gateway_base_path_mapping",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ApiGateway::BasePathMapping, {}) made a resource but the following ListResourcesScoped(AWS::ApiGateway::BasePathMapping, [DomainName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_api_gateway_client_certificate",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::ApiGateway::ClientCertificate, {}) made a resource but the following ListResources(AWS::ApiGateway::ClientCertificate) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_api_gateway_documentation_version",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ApiGateway::DocumentationVersion, {}) made a resource but the following ListResourcesScoped(AWS::ApiGateway::DocumentationVersion, [RestApiId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_api_gateway_domain_name",
@@ -25744,6 +25765,20 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_api_gateway_gateway_response",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ApiGateway::GatewayResponse, {}) made a resource but the following ListResourcesScoped(AWS::ApiGateway::GatewayResponse, [RestApiId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_api_gateway_model",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ApiGateway::Model, {}) made a resource but the following ListResourcesScoped(AWS::ApiGateway::Model, [RestApiId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_api_gateway_rest_api",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -25751,11 +25786,25 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_api_gateway_stage",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unverified",
+          "evidence": "ListResourcesScoped(AWS::ApiGateway::Stage, [RestApiId]) returned 0 resources without erroring, but nothing could be created to prove it answers: CreateResource(AWS::ApiGateway::Stage, {}) ended FAILED: CreateResource is not supported for AWS::ApiGateway::Stage.",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_api_gateway_usage_plan",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::ApiGateway::UsagePlan, {}) made a resource but the following ListResources(AWS::ApiGateway::UsagePlan) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_api_gateway_usage_plan_key",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ApiGateway::UsagePlanKey, {}) made a resource but the following ListResourcesScoped(AWS::ApiGateway::UsagePlanKey, [UsagePlanId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_api_gateway_vpc_link",
@@ -25779,6 +25828,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_apigatewayv2_stage",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unverified",
+          "evidence": "ListResourcesScoped(AWS::ApiGatewayV2::Stage, [ApiId]) returned 0 resources without erroring, but nothing could be created to prove it answers: CreateResource(AWS::ApiGatewayV2::Stage, {}) ended FAILED: CreateResource is not supported for AWS::ApiGatewayV2::Stage.",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_apigatewayv2_vpc_link",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -25800,11 +25856,32 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_appconfig_configuration_profile",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::AppConfig::ConfigurationProfile, {}) made a resource but the following ListResourcesScoped(AWS::AppConfig::ConfigurationProfile, [ApplicationId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_appconfig_deployment",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::AppConfig::Deployment, {}) made a resource but the following ListResourcesScoped(AWS::AppConfig::Deployment, [ApplicationId EnvironmentId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_appconfig_deployment_strategy",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::AppConfig::DeploymentStrategy, {}) made a resource but the following ListResources(AWS::AppConfig::DeploymentStrategy) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_appconfig_environment",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::AppConfig::Environment, {}) made a resource but the following ListResourcesScoped(AWS::AppConfig::Environment, [ApplicationId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_appconfig_extension",
@@ -25903,6 +25980,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::AppSync::Api, {}) made a resource but the following ListResources(AWS::AppSync::Api) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_appsync_channel_namespace",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::AppSync::ChannelNamespace, {}) made a resource but the following ListResourcesScoped(AWS::AppSync::ChannelNamespace, [ApiId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_appsync_domain_name",
@@ -26080,6 +26164,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_bedrockagent_agent_alias",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Bedrock::AgentAlias, {}) made a resource but the following ListResourcesScoped(AWS::Bedrock::AgentAlias, [AgentId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_bedrockagent_flow",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -26106,6 +26197,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::BedrockAgentCore::Runtime, {}) made a resource but the following ListResources(AWS::BedrockAgentCore::Runtime) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_bedrockagentcore_agent_runtime_endpoint",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::BedrockAgentCore::RuntimeEndpoint, {}) made a resource but the following ListResourcesScoped(AWS::BedrockAgentCore::RuntimeEndpoint, [AgentRuntimeId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_bedrockagentcore_api_key_credential_provider",
@@ -26183,6 +26281,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::BedrockAgentCore::PolicyEngine, {}) made a resource but the following ListResources(AWS::BedrockAgentCore::PolicyEngine) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_bedrockagentcore_resource_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::BedrockAgentCore::ResourcePolicy, {}) made a resource but the following ListResourcesScoped(AWS::BedrockAgentCore::ResourcePolicy, [ResourceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_bedrockagentcore_workload_identity",
@@ -26437,6 +26542,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_cloudwatch_log_account_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Logs::AccountPolicy, {}) made a resource but the following ListResourcesScoped(AWS::Logs::AccountPolicy, [PolicyType]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_cloudwatch_log_anomaly_detector",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -26491,6 +26603,20 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Logs::ResourcePolicy, {}) made a resource but the following ListResources(AWS::Logs::ResourcePolicy) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_cloudwatch_log_stream",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Logs::LogStream, {}) made a resource but the following ListResourcesScoped(AWS::Logs::LogStream, [LogGroupName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_cloudwatch_log_subscription_filter",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Logs::SubscriptionFilter, {}) made a resource but the following ListResourcesScoped(AWS::Logs::SubscriptionFilter, [LogGroupName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_cloudwatch_log_transformer",
@@ -26556,6 +26682,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_codedeploy_deployment_group",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::CodeDeploy::DeploymentGroup, {}) made a resource but the following ListResourcesScoped(AWS::CodeDeploy::DeploymentGroup, [ApplicationName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_codegurureviewer_repository_association",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -26596,6 +26729,41 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Cognito::IdentityPool, {}) made a resource but the following ListResources(AWS::Cognito::IdentityPool) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_cognito_identity_pool_provider_principal_tag",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Cognito::IdentityPoolPrincipalTag, {}) made a resource but the following ListResourcesScoped(AWS::Cognito::IdentityPoolPrincipalTag, [IdentityPoolId IdentityProviderName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_cognito_identity_provider",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Cognito::UserPoolIdentityProvider, {}) made a resource but the following ListResourcesScoped(AWS::Cognito::UserPoolIdentityProvider, [UserPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_cognito_resource_server",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Cognito::UserPoolResourceServer, {}) made a resource but the following ListResourcesScoped(AWS::Cognito::UserPoolResourceServer, [UserPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_cognito_user",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Cognito::UserPoolUser, {}) made a resource but the following ListResourcesScoped(AWS::Cognito::UserPoolUser, [UserPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_cognito_user_group",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Cognito::UserPoolGroup, {}) made a resource but the following ListResourcesScoped(AWS::Cognito::UserPoolGroup, [UserPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_cognito_user_pool",
@@ -26647,11 +26815,81 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_connect_contact_flow",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::ContactFlow, {}) made a resource but the following ListResourcesScoped(AWS::Connect::ContactFlow, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_contact_flow_module",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::ContactFlowModule, {}) made a resource but the following ListResourcesScoped(AWS::Connect::ContactFlowModule, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_hours_of_operation",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::HoursOfOperation, {}) made a resource but the following ListResourcesScoped(AWS::Connect::HoursOfOperation, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_connect_instance",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Connect::Instance, {}) made a resource but the following ListResources(AWS::Connect::Instance) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_phone_number",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::PhoneNumber, {}) made a resource but the following ListResourcesScoped(AWS::Connect::PhoneNumber, [TargetArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_queue",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::Queue, {}) made a resource but the following ListResourcesScoped(AWS::Connect::Queue, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_quick_connect",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::QuickConnect, {}) made a resource but the following ListResourcesScoped(AWS::Connect::QuickConnect, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_routing_profile",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::RoutingProfile, {}) made a resource but the following ListResourcesScoped(AWS::Connect::RoutingProfile, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_security_profile",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::SecurityProfile, {}) made a resource but the following ListResourcesScoped(AWS::Connect::SecurityProfile, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_user",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::User, {}) made a resource but the following ListResourcesScoped(AWS::Connect::User, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_connect_user_hierarchy_group",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Connect::UserHierarchyGroup, {}) made a resource but the following ListResourcesScoped(AWS::Connect::UserHierarchyGroup, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_controltower_baseline",
@@ -26785,6 +27023,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::DataZone::Domain, {}) made a resource but the following ListResources(AWS::DataZone::Domain) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_datazone_environment_blueprint_configuration",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::DataZone::EnvironmentBlueprintConfiguration, {}) made a resource but the following ListResourcesScoped(AWS::DataZone::EnvironmentBlueprintConfiguration, [DomainIdentifier]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_db_event_subscription",
@@ -27123,6 +27368,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_ec2_transit_gateway_metering_policy_entry",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::TransitGatewayMeteringPolicyEntry, {}) made a resource but the following ListResourcesScoped(AWS::EC2::TransitGatewayMeteringPolicyEntry, [TransitGatewayMeteringPolicyId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_ec2_transit_gateway_multicast_domain",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -27144,11 +27396,39 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_ec2_transit_gateway_policy_table_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::TransitGatewayPolicyTableAssociation, {}) made a resource but the following ListResourcesScoped(AWS::EC2::TransitGatewayPolicyTableAssociation, [TransitGatewayPolicyTableId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_route",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::TransitGatewayRoute, {}) made a resource but the following ListResourcesScoped(AWS::EC2::TransitGatewayRoute, [TransitGatewayRouteTableId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_ec2_transit_gateway_route_table",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::EC2::TransitGatewayRouteTable, {}) made a resource but the following ListResources(AWS::EC2::TransitGatewayRouteTable) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_route_table_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::TransitGatewayRouteTableAssociation, {}) made a resource but the following ListResourcesScoped(AWS::EC2::TransitGatewayRouteTableAssociation, [TransitGatewayRouteTableId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_ec2_transit_gateway_route_table_propagation",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::TransitGatewayRouteTablePropagation, {}) made a resource but the following ListResourcesScoped(AWS::EC2::TransitGatewayRouteTablePropagation, [TransitGatewayRouteTableId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_ec2_transit_gateway_vpc_attachment",
@@ -27263,11 +27543,53 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_eks_access_entry",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EKS::AccessEntry, {}) made a resource but the following ListResourcesScoped(AWS::EKS::AccessEntry, [ClusterName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_eks_addon",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EKS::Addon, {}) made a resource but the following ListResourcesScoped(AWS::EKS::Addon, [ClusterName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_eks_capability",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EKS::Capability, {}) made a resource but the following ListResourcesScoped(AWS::EKS::Capability, [ClusterName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_eks_cluster",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::EKS::Cluster, {}) made a resource but the following ListResources(AWS::EKS::Cluster) returned 1 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_eks_fargate_profile",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EKS::FargateProfile, {}) made a resource but the following ListResourcesScoped(AWS::EKS::FargateProfile, [ClusterName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_eks_node_group",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unverified",
+          "evidence": "ListResourcesScoped(AWS::EKS::Nodegroup, [ClusterName]) returned 0 resources without erroring, but nothing could be created to prove it answers: CreateResource(AWS::EKS::Nodegroup, {}) ended FAILED: CreateResource is not supported for AWS::EKS::Nodegroup.",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_eks_pod_identity_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EKS::PodIdentityAssociation, {}) made a resource but the following ListResourcesScoped(AWS::EKS::PodIdentityAssociation, [ClusterName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_elastic_beanstalk_application",
@@ -27459,6 +27781,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_glue_catalog_table_optimizer",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Glue::TableOptimizer, {}) made a resource but the following ListResourcesScoped(AWS::Glue::TableOptimizer, [CatalogId DatabaseName TableName Type]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_glue_classifier",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -27513,6 +27842,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Glue::Trigger, {}) made a resource but the following ListResources(AWS::Glue::Trigger) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_glue_user_defined_function",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Glue::UserDefinedFunction, {}) made a resource but the following ListResourcesScoped(AWS::Glue::UserDefinedFunction, [DatabaseName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_glue_workflow",
@@ -27963,6 +28299,27 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_lambda_function_event_invoke_config",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Lambda::EventInvokeConfig, {}) made a resource but the following ListResourcesScoped(AWS::Lambda::EventInvokeConfig, [FunctionName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_lambda_layer_version_permission",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Lambda::LayerVersionPermission, {}) made a resource but the following ListResourcesScoped(AWS::Lambda::LayerVersionPermission, [LayerVersionArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_lambda_permission",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Lambda::Permission, {}) made a resource but the following ListResourcesScoped(AWS::Lambda::Permission, [FunctionName]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_launch_template",
           "mechanism": "cloudcontrol-list",
           "status": "implemented",
@@ -28264,6 +28621,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_msk_cluster_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::MSK::ClusterPolicy, {}) made a resource but the following ListResourcesScoped(AWS::MSK::ClusterPolicy, [ClusterArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_msk_replicator",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28271,11 +28635,25 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_msk_scram_secret_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::MSK::BatchScramSecret, {}) made a resource but the following ListResourcesScoped(AWS::MSK::BatchScramSecret, [ClusterArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_msk_serverless_cluster",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::MSK::ServerlessCluster, {}) made a resource but the following ListResources(AWS::MSK::ServerlessCluster) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_msk_single_scram_secret_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::MSK::BatchScramSecret, {}) made a resource but the following ListResourcesScoped(AWS::MSK::BatchScramSecret, [ClusterArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_msk_topic",
@@ -28390,6 +28768,20 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_networkmanager_customer_gateway_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::CustomerGatewayAssociation, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::CustomerGatewayAssociation, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_networkmanager_device",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::Device, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::Device, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_networkmanager_dx_gateway_attachment",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28404,6 +28796,34 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_networkmanager_link",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::Link, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::Link, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_networkmanager_link_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::LinkAssociation, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::LinkAssociation, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_networkmanager_prefix_list_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::CoreNetworkPrefixListAssociation, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::CoreNetworkPrefixListAssociation, [CoreNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_networkmanager_site",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::Site, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::Site, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_networkmanager_site_to_site_vpn_attachment",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28416,6 +28836,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::NetworkManager::TransitGatewayPeering, {}) made a resource but the following ListResources(AWS::NetworkManager::TransitGatewayPeering) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_networkmanager_transit_gateway_registration",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::NetworkManager::TransitGatewayRegistration, {}) made a resource but the following ListResourcesScoped(AWS::NetworkManager::TransitGatewayRegistration, [GlobalNetworkId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_networkmanager_transit_gateway_route_table_attachment",
@@ -28522,6 +28949,13 @@
           "source": "hand probe against this digest; original investigation recorded under sha256:488f4d6d"
         },
         {
+          "type": "aws_opensearchserverless_access_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::OpenSearchServerless::AccessPolicy, {}) made a resource but the following ListResourcesScoped(AWS::OpenSearchServerless::AccessPolicy, [Type]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_opensearchserverless_collection",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28536,11 +28970,39 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_opensearchserverless_lifecycle_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::OpenSearchServerless::LifecyclePolicy, {}) made a resource but the following ListResourcesScoped(AWS::OpenSearchServerless::LifecyclePolicy, [Type]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_opensearchserverless_security_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::OpenSearchServerless::SecurityPolicy, {}) made a resource but the following ListResourcesScoped(AWS::OpenSearchServerless::SecurityPolicy, [Type]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_organizations_account",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Organizations::Account, {}) made a resource but the following ListResources(AWS::Organizations::Account) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_organizations_organizational_unit",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Organizations::OrganizationalUnit, {}) made a resource but the following ListResourcesScoped(AWS::Organizations::OrganizationalUnit, [ParentId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_organizations_policy",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Organizations::Policy, {}) made a resource but the following ListResourcesScoped(AWS::Organizations::Policy, [Type]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_organizations_resource_policy",
@@ -28613,6 +29075,20 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_prometheus_anomaly_detector",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::APS::AnomalyDetector, {}) made a resource but the following ListResourcesScoped(AWS::APS::AnomalyDetector, [Arn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_prometheus_rule_group_namespace",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::APS::RuleGroupsNamespace, {}) made a resource but the following ListResourcesScoped(AWS::APS::RuleGroupsNamespace, [Arn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_prometheus_scraper",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28652,6 +29128,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::RAM::ResourceShare, {}) made a resource but the following ListResources(AWS::RAM::ResourceShare) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_rbin_rule",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Rbin::Rule, {}) made a resource but the following ListResourcesScoped(AWS::Rbin::Rule, [ResourceType]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_rds_cluster_instance",
@@ -28814,6 +29297,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_route",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unverified",
+          "evidence": "ListResourcesScoped(AWS::EC2::Route, [RouteTableId]) returned 0 resources without erroring, but nothing could be created to prove it answers: CreateResource(AWS::EC2::Route, {}) ended FAILED: CreateResource is not supported for AWS::EC2::Route.",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_route53_cidr_collection",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28919,6 +29409,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_route53recoverycontrolconfig_safety_rule",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Route53RecoveryControl::SafetyRule, {}) made a resource but the following ListResourcesScoped(AWS::Route53RecoveryControl::SafetyRule, [ControlPanelArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_route53recoveryreadiness_cell",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -28996,6 +29493,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_s3control_bucket",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::S3Outposts::Bucket, {}) made a resource but the following ListResourcesScoped(AWS::S3Outposts::Bucket, [OutpostId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_s3control_multi_region_access_point",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29008,6 +29512,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::S3::StorageLens, {}) made a resource but the following ListResources(AWS::S3::StorageLens) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_s3files_access_point",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::S3Files::AccessPoint, {}) made a resource but the following ListResourcesScoped(AWS::S3Files::AccessPoint, [FileSystemId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_s3files_file_system",
@@ -29339,6 +29850,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_servicecatalog_portfolio_share",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ServiceCatalog::PortfolioShare, {}) made a resource but the following ListResourcesScoped(AWS::ServiceCatalog::PortfolioShare, [PortfolioId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_servicecatalog_product",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29358,6 +29876,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::ServiceCatalogAppRegistry::AttributeGroup, {}) made a resource but the following ListResources(AWS::ServiceCatalogAppRegistry::AttributeGroup) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_servicecatalogappregistry_attribute_group_association",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::ServiceCatalogAppRegistry::AttributeGroupAssociation, {}) made a resource but the following ListResourcesScoped(AWS::ServiceCatalogAppRegistry::AttributeGroupAssociation, [ApplicationArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_ses_template",
@@ -29493,6 +30018,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_ssm_service_setting",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::SSM::ServiceSetting, {}) made a resource but the following ListResourcesScoped(AWS::SSM::ServiceSetting, [SettingId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_ssmcontacts_contact",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29528,11 +30060,32 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_ssoadmin_application",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::SSO::Application, {}) made a resource but the following ListResourcesScoped(AWS::SSO::Application, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_ssoadmin_application_assignment",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::SSO::ApplicationAssignment, {}) made a resource but the following ListResources(AWS::SSO::ApplicationAssignment) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_ssoadmin_instance_access_control_attributes",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::SSO::InstanceAccessControlAttributeConfiguration, {}) made a resource but the following ListResourcesScoped(AWS::SSO::InstanceAccessControlAttributeConfiguration, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_ssoadmin_permission_set",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::SSO::PermissionSet, {}) made a resource but the following ListResourcesScoped(AWS::SSO::PermissionSet, [InstanceArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_storagegateway_tape_pool",
@@ -29598,6 +30151,13 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_transfer_agreement",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Transfer::Agreement, {}) made a resource but the following ListResourcesScoped(AWS::Transfer::Agreement, [ServerId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_transfer_certificate",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29624,6 +30184,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::Transfer::Server, {}) made a resource but the following ListResources(AWS::Transfer::Server) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_transfer_user",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::Transfer::User, {}) made a resource but the following ListResourcesScoped(AWS::Transfer::User, [ServerId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_transfer_web_app",
@@ -29738,6 +30305,20 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_vpc_ipam_pool_cidr",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::IPAMPoolCidr, {}) made a resource but the following ListResourcesScoped(AWS::EC2::IPAMPoolCidr, [IpamPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_vpc_ipam_pool_cidr_allocation",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::EC2::IPAMAllocation, {}) made a resource but the following ListResourcesScoped(AWS::EC2::IPAMAllocation, [IpamPoolId]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_vpc_ipam_resource_discovery",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29801,11 +30382,32 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_vpclattice_access_log_subscription",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::VpcLattice::AccessLogSubscription, {}) made a resource but the following ListResourcesScoped(AWS::VpcLattice::AccessLogSubscription, [ResourceIdentifier]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_vpclattice_domain_verification",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::VpcLattice::DomainVerification, {}) made a resource but the following ListResources(AWS::VpcLattice::DomainVerification) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_vpclattice_listener",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::VpcLattice::Listener, {}) made a resource but the following ListResourcesScoped(AWS::VpcLattice::Listener, [ServiceIdentifier]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_vpclattice_listener_rule",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::VpcLattice::Rule, {}) made a resource but the following ListResourcesScoped(AWS::VpcLattice::Rule, [ServiceIdentifier ListenerIdentifier]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_vpclattice_resource_configuration",
@@ -29871,6 +30473,34 @@
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
         },
         {
+          "type": "aws_wafv2_ip_set",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::WAFv2::IPSet, {}) made a resource but the following ListResourcesScoped(AWS::WAFv2::IPSet, [Scope]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_wafv2_regex_pattern_set",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::WAFv2::RegexPatternSet, {}) made a resource but the following ListResourcesScoped(AWS::WAFv2::RegexPatternSet, [Scope]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_wafv2_rule_group",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::WAFv2::RuleGroup, {}) made a resource but the following ListResourcesScoped(AWS::WAFv2::RuleGroup, [Scope]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
+          "type": "aws_wafv2_web_acl",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::WAFv2::WebACL, {}) made a resource but the following ListResourcesScoped(AWS::WAFv2::WebACL, [Scope]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
+        },
+        {
           "type": "aws_wafv2_web_acl_logging_configuration",
           "mechanism": "cloudcontrol-list",
           "status": "unimplemented",
@@ -29918,6 +30548,13 @@
           "status": "unimplemented",
           "evidence": "CreateResource(AWS::WorkSpacesWeb::DataProtectionSettings, {}) made a resource but the following ListResources(AWS::WorkSpacesWeb::DataProtectionSettings) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
           "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol, create/list round trip)"
+        },
+        {
+          "type": "aws_workspacesweb_identity_provider",
+          "mechanism": "cloudcontrol-list-scoped",
+          "status": "unimplemented",
+          "evidence": "CreateResource(AWS::WorkSpacesWeb::IdentityProvider, {}) made a resource but the following ListResourcesScoped(AWS::WorkSpacesWeb::IdentityProvider, [PortalArn]) returned 0 resources, none of them the identifier the create had just named - the call succeeds without enumerating what exists",
+          "source": "live probe (tools/floci-capability-gen -mode=cloudcontrol-scoped, create/list round trip)"
         },
         {
           "type": "aws_workspacesweb_ip_access_settings",

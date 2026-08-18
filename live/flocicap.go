@@ -40,8 +40,16 @@
 //   - Types (Terraform provider-local resource types, e.g.
 //     "aws_redshift_cluster"), each optionally scoped to a discovery
 //     mechanism other than the ordinary create/read path
-//     ("tagging-sweep", "cloudcontrol-list" - internal/live/flocitest's
-//     *CapabilityGate helpers use the same vocabulary). This grain is finer
+//     ("tagging-sweep", "cloudcontrol-list", "cloudcontrol-list-scoped" -
+//     internal/live/flocitest's *CapabilityGate helpers use the same
+//     vocabulary). "cloudcontrol-list-scoped" is "cloudcontrol-list"'s
+//     counterpart for a type whose Cloud Control list handler requires
+//     scoping input (registry.Roster.EnumerationSourceScoped, the exact
+//     population EnumerationSource excludes) - tools/floci-capability-gen's
+//     -mode=cloudcontrol-scoped probes it the same way, with a synthetic
+//     placeholder scope rather than a real parent object, because floci's
+//     ListResources ignores ResourceModel scoping entirely regardless of
+//     which mechanism sent it (issue #277). This grain is finer
 //     than a health-endpoint probe can answer by itself: a service can
 //     report "running" while a specific operation it exposes is still
 //     unimplemented, or routed to the wrong handler, or reaches a handler

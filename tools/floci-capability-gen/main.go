@@ -90,6 +90,39 @@
 //     hand-curated, exactly like every "types" row this manifest ships with
 //     under mechanism="".
 //
+//   - -mode=cloudcontrol-scoped (part of the default "all", alongside
+//     -mode=cloudcontrol): the same round trip, for the complementary
+//     population - every registry-ratified type whose Cloud Control list
+//     handler requires SCOPING input (registry.Roster.
+//     EnumerationSourceScoped, live/registry.json's
+//     handlers.list_required_input), which -mode=cloudcontrol structurally
+//     cannot reach because it only ever asks EnumerationSource (issue
+//     #277). internal/live/discovery/cloudcontrol_scoped.go's
+//     ParentScopedChildSpec/ListResourcesScoped mechanism is what this leg
+//     exists to give a manifest row: create with an empty desired state,
+//     then internal/live/cloudcontrol.Client.ListResourcesScoped - scoped
+//     with a synthetic placeholder value for every required property,
+//     never a real parent object - and look for the identifier the create
+//     named.
+//
+//     A synthetic scope round-trips identically to a real one against
+//     floci: its ListResources implementation takes no ResourceModel
+//     parameter anywhere in its call chain and answers every live resource
+//     of the type regardless of what (if anything) was sent to scope by -
+//     [cloudcontrol.Client.ListResourcesScoped]'s own doc comment records
+//     this, verified by reading floci's handler directly. So this leg does
+//     not need a parent object to exist first the way a probe against real
+//     AWS would; what it establishes is the same fact -mode=cloudcontrol
+//     establishes for its own population (does the type have real
+//     Cloud-Control-reachable list support in floci at all), never that
+//     floci's scoping filter itself works, because floci has none to
+//     verify.
+//
+//     Written under the "cloudcontrol-list-scoped" mechanism, a distinct
+//     grain from "cloudcontrol-list" so a reader can tell which leg a row
+//     came from - the two mechanisms never share a type, by construction of
+//     EnumerationSource vs. EnumerationSourceScoped.
+//
 // Usage, against a floci instance already running (this tool starts none
 // itself):
 //
@@ -146,12 +179,13 @@
 // Every run merges into the committed live/floci-capabilities.json rather
 // than replacing it: -mode=services rewrites only the resolved digest's own
 // services array, -mode=cloudcontrol rewrites only that digest's
-// mechanism="cloudcontrol-list" type rows, -mode=tagging rewrites only that
-// digest's mechanism="tagging-sweep" type rows, and every other row (every
-// mechanism="" entry, and every other digest's own entries) is carried
-// through untouched. No mode ever writes anything for a digest it could not
-// resolve or an endpoint it could not reach - an honest "could not check"
-// stays absent from the manifest, which
+// mechanism="cloudcontrol-list" type rows, -mode=cloudcontrol-scoped
+// rewrites only that digest's mechanism="cloudcontrol-list-scoped" type
+// rows, -mode=tagging rewrites only that digest's mechanism="tagging-sweep"
+// type rows, and every other row (every mechanism="" entry, and every other
+// digest's own entries) is carried through untouched. No mode ever writes
+// anything for a digest it could not resolve or an endpoint it could not
+// reach - an honest "could not check" stays absent from the manifest, which
 // [FlociServiceCapability]/[FlociTypeCapability] already read as "not yet
 // investigated", never as a fabricated "implemented".
 package main
@@ -184,7 +218,7 @@ func main() {
 	endpoint := flag.String("endpoint", "", "the running floci instance to probe, e.g. http://localhost:4566 (required)")
 	image := flag.String("image", "", "the floci image ref this endpoint is running: repo@sha256:... directly, or a mutable tag/name to resolve via `docker inspect` (required)")
 	region := flag.String("region", "us-east-1", "region for the Cloud Control sweep's SigV4 credential scope; floci does not verify signatures, so this rarely matters")
-	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "tagging", or "all"`)
+	mode := flag.String("mode", "all", `which probe(s) to run: "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", or "all"`)
 	watch := flag.String("watch", "", "comma-separated extra service ids to check for in -mode=services, beyond every service id already recorded for any digest in the manifest")
 	out := flag.String("out", "", "manifest path; empty defaults to live/floci-capabilities.json")
 	timeout := flag.Duration("timeout", 30*time.Minute, "overall timeout for the probe(s); the cloudcontrol round trip measured 12s over 610 types against a warm local container, so this is headroom for a cold one, not an estimate of the cost")
@@ -204,9 +238,9 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 		return fmt.Errorf("-image is required")
 	}
 	switch mode {
-	case "services", "cloudcontrol", "tagging", "all":
+	case "services", "cloudcontrol", "cloudcontrol-scoped", "tagging", "all":
 	default:
-		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\", \"tagging\" or \"all\", got %q", mode)
+		return fmt.Errorf("-mode must be \"services\", \"cloudcontrol\", \"cloudcontrol-scoped\", \"tagging\" or \"all\", got %q", mode)
 	}
 
 	root, err := repoRoot()
@@ -255,6 +289,15 @@ func run(endpoint, image, region, mode, watch, out string, timeout time.Duration
 		}
 		img.replaceMechanism("cloudcontrol-list", rows)
 		fmt.Fprintf(os.Stderr, "floci-capability-gen: cloudcontrol-list: %d rows recorded (of %d listable types checked)\n", len(rows), checked)
+	}
+
+	if mode == "cloudcontrol-scoped" || mode == "all" {
+		rows, checked, err := probeCloudControlScoped(ctx, root, endpoint, region)
+		if err != nil {
+			return fmt.Errorf("running the scoped Cloud Control sweep: %w", err)
+		}
+		img.replaceMechanism("cloudcontrol-list-scoped", rows)
+		fmt.Fprintf(os.Stderr, "floci-capability-gen: cloudcontrol-list-scoped: %d rows recorded (of %d scoped-listable types checked)\n", len(rows), checked)
 	}
 
 	if mode == "tagging" {
