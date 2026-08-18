@@ -443,6 +443,24 @@ demo-corpus-mobile-backend:
 demo-corpus-service-linked-roles:
     bash live/e2e/corpus-service-linked-roles/run.sh
 
+# Issue #274's crossing: .corpus/mastino/prod-eu-west/services/store-crawler-results,
+# four resources - aws_cloudwatch_event_rule, aws_cloudwatch_event_target,
+# aws_lambda_function and aws_lambda_permission - DataCite's own periodic
+# job, structurally identical to demo-corpus-crossref-agent's four types and
+# named as one of #274's "nine more genuinely unattempted" in its comment
+# thread. The same four seeded reads (a Lambda role, a VPC, two subnets and
+# a security group) and the same record_store delta for the Lambda's
+# filename/source_code_hash/publish (#275) apply unchanged; unlike
+# crossref-orcid-agent's sibling estate, the deployment zip's handler file
+# actually matches what main.tf names, so this one does not hit #287 item
+# 7's floci gap. Applied, state file deleted, replanned empty twice, all 4
+# rendered identities checked against the emulator's own answer. BREAK=1
+# corrupts the expected identity and the run must catch it in step 5 and
+# nowhere else. Needs Docker, the AWS CLI and a populated .corpus; runs on
+# its own port (4708) so it can run beside `just demo`.
+demo-corpus-store-crawler-results:
+    bash live/e2e/corpus-store-crawler-results/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
