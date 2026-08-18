@@ -424,6 +424,61 @@ func TestMarkerJoinKeysCoverBothSpellings(t *testing.T) {
 	}
 }
 
+// TestScanTypeMarkerFallbackBindsAnUnlistableTaggableType is issue #293 at
+// unit scale: aws_route_table has no list route at all in this fake cloud
+// (the shape aws_wafv2_web_acl and aws_iam_service_linked_role are in for
+// real, neither native nor Cloud Control), and the estate's tag index -
+// #266's same [markerIndex], one GetResources call - still finds the
+// declared instance by its own marker. The ordinary refusal
+// (ProblemTypeNotListable) must not fire.
+func TestScanTypeMarkerFallbackBindsAnUnlistableTaggableType(t *testing.T) {
+	cloud := newFakeCloud()
+	want := ownAllDiscovered(cloud)
+	cloud.unlistable("aws_route_table")
+
+	srv := &taggingServer{}
+	markedARN(srv, "arn:aws:ec2:us-east-1:000000000000:route-table/rtb-1", `aws_route_table.main`)
+
+	res, diags := discoverFixture(t, cloud, taggingRequest(t, srv))
+	assertNoErrors(t, diags)
+	assertBound(t, res, want)
+
+	if problems := problemsOfKind(res, ProblemTypeNotListable); len(problems) != 0 {
+		t.Errorf("aws_route_table still refused as not-listable:\n%s", renderProblems(problems))
+	}
+	scan, ok := res.ScanFor("aws_route_table")
+	if !ok || scan.Source != SourceTagging || scan.Listed != 1 {
+		t.Errorf("aws_route_table scan = %+v, want Source=%s Listed=1", scan, SourceTagging)
+	}
+}
+
+// TestScanTypeMarkerFallbackLeavesAnUntaggableTypeRefused is the other half
+// of #293's gate: an unlistable type with no tags attribute at all could
+// never have carried a marker, so the tag index being available changes
+// nothing and the caller's original refusal must stand, unweakened, exactly
+// as it did before this fallback existed.
+func TestScanTypeMarkerFallbackLeavesAnUntaggableTypeRefused(t *testing.T) {
+	cloud := newFakeCloud()
+	ownAllDiscovered(cloud)
+	cloud.unlistable("aws_route_table")
+	cloud.untagged["aws_route_table"] = true
+
+	srv := &taggingServer{}
+	markedARN(srv, "arn:aws:ec2:us-east-1:000000000000:route-table/rtb-1", `aws_route_table.main`)
+
+	res, diags := discoverFixture(t, cloud, taggingRequest(t, srv))
+	if !diags.HasErrors() {
+		t.Fatalf("an untaggable unlistable type produced no error, even with a marker sitting in the tag index:\n%s", res)
+	}
+	problems := problemsOfKind(res, ProblemTypeNotListable)
+	if len(problems) != 1 || problems[0].TypeName != "aws_route_table" {
+		t.Fatalf("want one type-not-listable problem for aws_route_table:\n%s", res)
+	}
+	if _, ok := res.BindingFor(mustAddr(t, `aws_route_table.main`)); ok {
+		t.Error("an untaggable type must never be bound through the tag index")
+	}
+}
+
 func renderProblems(ps []Problem) string {
 	var b strings.Builder
 	for _, p := range ps {

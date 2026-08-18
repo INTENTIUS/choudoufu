@@ -61,6 +61,19 @@ func (ts TypeSchema) HasIdentity() bool {
 // does not implement listing yields.
 type Schemas struct {
 	byType map[string]TypeSchema
+
+	// resourceByType is every managed resource type's schema the provider
+	// reports, independent of whether the type is listable at all -
+	// unlike byType, which GetProviderSchema's own ListResourceTypes keys
+	// this artifact to. A caller that needs to ask "can this type carry a
+	// tag" for a type with no list route (issue #293's declared-resource
+	// marker-index fallback, which has to gate on taggability before it
+	// runs) cannot get an answer from byType, because a type absent from
+	// ListResourceTypes never gets a TypeSchema there at all. The data was
+	// already on the wire - GetProviderSchemaResponse.ResourceTypes covers
+	// every managed resource type regardless of list support - so this
+	// just keeps the half [ListSchemas] used to discard.
+	resourceByType map[string]*configschema.Block
 }
 
 // Len is the number of types the provider can list.
@@ -88,6 +101,15 @@ func (s Schemas) Get(typeName string) (TypeSchema, bool) {
 	return ts, ok
 }
 
+// ResourceSchema returns the managed resource type's own schema for
+// typeName, regardless of whether the provider offers a list route for it -
+// the question [Schemas.Get] cannot answer for a type with no list
+// resource. False for a type the provider does not implement at all.
+func (s Schemas) ResourceSchema(typeName string) (*configschema.Block, bool) {
+	b, ok := s.resourceByType[typeName]
+	return b, ok
+}
+
 // ListSchemas reports which resource types the given provider handle can
 // list, and the schemas involved in listing each of them.
 //
@@ -110,7 +132,13 @@ func ListSchemas(ctx context.Context, provider any) (Schemas, tfdiags.Diagnostic
 		return Schemas{}, diags
 	}
 
-	schemas := Schemas{byType: make(map[string]TypeSchema, len(resp.ListResourceTypes))}
+	schemas := Schemas{
+		byType:         make(map[string]TypeSchema, len(resp.ListResourceTypes)),
+		resourceByType: make(map[string]*configschema.Block, len(resp.ResourceTypes)),
+	}
+	for name, resSchema := range resp.ResourceTypes {
+		schemas.resourceByType[name] = resSchema.Block
+	}
 	for name, listSchema := range resp.ListResourceTypes {
 		if listSchema.Block == nil {
 			// A list schema with no configuration block is unusable: there

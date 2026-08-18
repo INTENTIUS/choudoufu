@@ -131,6 +131,39 @@ func elbLoadBalancerEntry() arnJoinEntry {
 	}
 }
 
+// iamRoleEntry is iam's "role" segment, shared by two CFN types the same
+// way elasticloadbalancing's "loadbalancer" segment is shared by two -
+// AWS::IAM::Role and AWS::IAM::ServiceLinkedRole, told apart by the same
+// kind of real, documented ARN grammar [elbLoadBalancerEntry] leans on: a
+// service-linked role's resource id always starts with the literal
+// "aws-service-role/" segment IAM itself prepends
+// (arn:aws:iam::ACCOUNT:role/aws-service-role/SERVICE/NAME, confirmed
+// against a live floci-created role while crossing issue #293's
+// service-linked-roles corpus estate), which an ordinary role's id - a bare
+// name or an operator-chosen path - never carries by construction: IAM
+// reserves that prefix for its own service-linked roles and refuses to let
+// a CreateRole call use it.
+//
+// Getting this wrong is not a cosmetic miscount: before this entry existed,
+// every service-linked role's ARN joined to AWS::IAM::Role regardless of
+// its own marker, and [fileTaggingCandidate] reported ProblemMalformedMarker
+// for every one of them (its tofu-address correctly names
+// aws_iam_service_linked_role, "aws_iam_role" is what the join, wrongly,
+// went looking for) - an error diagnostic on a resource whose marker was
+// never malformed at all.
+func iamRoleEntry() arnJoinEntry {
+	const role, serviceLinked = "AWS::IAM::Role", "AWS::IAM::ServiceLinkedRole"
+	return arnJoinEntry{
+		resolve: func(a cloudcontrol.ARN) []string {
+			if strings.HasPrefix(a.ResourceID, "aws-service-role/") {
+				return []string{serviceLinked}
+			}
+			return []string{role}
+		},
+		coverage: []string{role, serviceLinked},
+	}
+}
+
 // arnJoinTable is the curated ARN-service-and-resource-type -> CFN-type
 // join, keyed by ARN service and then by the ARN's resource-type segment
 // (the empty string for a bare-id ARN with no type segment at all - an S3
@@ -154,7 +187,7 @@ func elbLoadBalancerEntry() arnJoinEntry {
 // parameter's own name conventionally starts with "/" and the ARN's
 // "parameter/" divider swallows exactly one of them.
 var arnJoinTable = map[string]map[string]arnJoinEntry{
-	"iam": {"role": single("AWS::IAM::Role")},
+	"iam": {"role": iamRoleEntry()},
 	"s3":  {"": single("AWS::S3::Bucket")},
 	"sns": {"": single("AWS::SNS::Topic")},
 	"ec2": {
@@ -441,30 +474,19 @@ func joinTaggedResource(roster *registry.Roster, arnStr string) arnJoinOutcome {
 			tfType, cfnType)}
 	}
 
-	// The identity IS the ARN: hand it out directly, never through the
-	// composer - composing an already-final value would be pointless at
-	// best and wrong wherever the resource-id segment lost information
-	// ParseARN's type/id split does not preserve (an ARN's own account and
-	// region, for one).
-	if len(ti.IdentityAttrs) > 0 && ti.IdentityAttrs[0] == "arn" {
-		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, importID: arnStr, identityAttr: "arn", ok: true}
-	}
-
-	// Every other type: the resource-id segment goes through the exact same
-	// composer [scanTypeCloudControl] uses for a Cloud Control ListResources
-	// identifier. An ARN's resource id never contains Cloud Control's "|"
-	// separator, so this always takes [resolveCloudControlImportID]'s
-	// single-part branch - used directly, needing no table entry - which is
-	// correct here for the same reason its own doc comment gives: a
-	// single-part identifier already is the whole of what a native list
-	// result's identity attribute would have been.
-	importID, composed := resolveCloudControlImportID(tfType, a.ResourceID)
+	// The identity IS the ARN, or the resource-id segment composes through
+	// the same path a Cloud Control ListResources identifier would -
+	// [importIDFromARN] carries the reasoning for both, factored out so
+	// [scanTypeMarkerFallback] (issue #293) can reach it without going
+	// through the ARN-to-CFN-type join above, which it does not need: it
+	// already knows tfType from the tag itself.
+	importID, identityAttr, composed := importIDFromARN(ti, arnStr)
 	if !composed {
 		return arnJoinOutcome{cfnType: cfnType, typeName: tfType, reason: fmt.Sprintf(
 			"%s's identity table entry could not compose an import ID from the ARN's resource id %q",
 			tfType, a.ResourceID)}
 	}
-	return arnJoinOutcome{cfnType: cfnType, typeName: tfType, importID: importID, identityAttr: "id", ok: true}
+	return arnJoinOutcome{cfnType: cfnType, typeName: tfType, importID: importID, identityAttr: identityAttr, ok: true}
 }
 
 // ---------------------------------------------------------------------------

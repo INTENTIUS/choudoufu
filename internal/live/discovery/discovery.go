@@ -1183,6 +1183,23 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		if cfnType, ccOK := cloudControlSource(req, typeName); ccOK {
 			return scanTypeCloudControl(ctx, req, decl, typeName, cfnType, res, sweep)
 		}
+
+		// Issue #293. Neither route above found a way to list typeName at
+		// all. A declared instance of a taggable type still has one more
+		// place to look before this refuses: the estate's tag index issue
+		// #266 already fetched, which finds a resource by its own marker
+		// and ARN rather than by enumerating its type - see
+		// [scanTypeMarkerFallback]'s doc comment for the full reasoning,
+		// including why the sweep never takes this branch. Gated on
+		// taggability first so an untaggable type - which could never
+		// carry a marker for the index to find - reaches the same refusal
+		// it always has, unweakened.
+		if !sweep && typeTaggable(schemas, typeName) {
+			if fbDiags, ok := scanTypeMarkerFallback(ctx, req, decl, typeName, res); ok {
+				return diags.Append(fbDiags)
+			}
+		}
+
 		res.Scans = append(res.Scans, scan)
 		if sweep {
 			return diags.Append(sweepGapDiag(res, SweepGap{
@@ -1568,6 +1585,24 @@ func markerTypeOf(escaped string) string {
 	}
 	head, _, _ := strings.Cut(escaped, ".")
 	return head
+}
+
+// typeTaggable reports whether typeName's own managed resource schema has a
+// settable tags map at all - [markers.Taggable], the same predicate
+// live/survey-full.json's signals.taggable column and stamping itself use,
+// read via [listclient.Schemas.ResourceSchema] rather than [Schemas.Get] so
+// a type with no list route still gets an answer. It is what
+// [scanTypeMarkerFallback] (issue #293) gates on before ever asking the tag
+// index about a type that could never have carried a marker in the first
+// place - a false here is not "the index found nothing", it is "there was
+// never anything for the index to find", and the caller's existing refusal
+// must stand unweakened.
+func typeTaggable(schemas listclient.Schemas, typeName string) bool {
+	block, ok := schemas.ResourceSchema(typeName)
+	if !ok {
+		return false
+	}
+	return markers.Taggable(block)
 }
 
 // markerCapable reports whether a resource type can carry the ownership
