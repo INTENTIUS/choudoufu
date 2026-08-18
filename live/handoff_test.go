@@ -126,13 +126,45 @@ func TestHandoffFiguresMatchTheirPins(t *testing.T) {
 		{"rendered identities", identityGoldenPinInstances},
 		{"configuration directories", identityGoldenPinDirs},
 	} {
-		if !strings.Contains(text, strconv.Itoa(c.n)) {
-			t.Errorf("%s does not mention %d, the pinned number of %s.\n"+
-				"Either the pin moved and the playbook still quotes the old figure, or the sentence describing the golden was dropped.\n"+
-				"Both mean a reader is being told the instrument is a different size than it is.",
-				handoffPath, c.n, c.what)
+		if !figureAnchored(text, c.n, c.what) {
+			t.Errorf("%s does not attach %d to %q anywhere.\n"+
+				"A bare digit run is not enough: %d also matches inside a longer number (1%d, %d0) and inside an "+
+				"unrelated PR or issue reference, and a strings.Contains check over the whole document cannot tell "+
+				"those apart from the sentence that actually names the figure.\n"+
+				"Either the pin moved and the playbook still quotes the old figure, or the sentence describing the "+
+				"golden was dropped while a decoy digit run elsewhere kept the old check quiet.",
+				handoffPath, c.n, c.what, c.n, c.n, c.n)
 		}
 	}
+}
+
+// digitRun matches a maximal run of ASCII digits, so figureAnchored can
+// compare it against the pinned number as a whole rather than as a
+// substring - the difference between "400" and "4001" or "14000".
+var digitRun = regexp.MustCompile(`[0-9]+`)
+
+// figureAnchored reports whether n appears in text as a standalone digit
+// run - never as part of a longer one - immediately next to (across
+// whitespace) the literal phrase describing what it counts.
+//
+// This is deliberately stronger than "the digit string occurs somewhere in
+// the document": a PR number, an issue number, or a line reference satisfies
+// a bare strings.Contains identically to the sentence that actually names
+// the figure, which is exactly how a deleted sentence left this check green
+// with the digits still present elsewhere as unrelated numbers.
+func figureAnchored(text string, n int, phrase string) bool {
+	want := strconv.Itoa(n)
+	for _, loc := range digitRun.FindAllStringIndex(text, -1) {
+		if text[loc[0]:loc[1]] != want {
+			continue
+		}
+		before := strings.TrimRight(text[:loc[0]], " \t")
+		after := strings.TrimLeft(text[loc[1]:], " \t")
+		if strings.HasPrefix(after, phrase) || strings.HasSuffix(before, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestHandoffCarriesNoConflictMarkers is the cheapest guard here and it exists
@@ -215,31 +247,56 @@ func readHandoff(t *testing.T, root string) string {
 // convention is that anything a reader would type or open is in one.
 var backticked = regexp.MustCompile("`([^`\n]+)`")
 
+// fencedBlock matches the body of a ``` fenced code block: everything
+// between the line that opens the fence and the line that closes it. The
+// playbook puts every runnable command line - `go run`, `go test`, `just`
+// invocations with real arguments - in one of these rather than in an
+// inline span, so a checker that only reads inline spans never sees them.
+var fencedBlock = regexp.MustCompile("(?s)```[^\n]*\n(.*?)\n```")
+
 // pathish recognises a repo-relative path: at least one slash, and a
 // component that looks like a file or a directory rather than prose.
 var pathish = regexp.MustCompile(`^[A-Za-z0-9_.][A-Za-z0-9_./-]*/[A-Za-z0-9_./-]+$`)
 
+// handoffCitedPaths finds every repo-relative path the playbook names,
+// whether it sits alone in an inline `code span` or as an operand inside a
+// command line - `go run ./tools/x -flag y`, `env -u PWD go test
+// ./internal/live/check/ -run Foo` - in either an inline span or a fenced
+// block. Both sources are tokenised and validated the same way: this is the
+// "tool leg" the package doc comment already promises, folded into the path
+// check rather than built as a parallel extractor.
 func handoffCitedPaths(root, text string) []string {
 	seen := map[string]bool{}
 	for _, m := range backticked.FindAllStringSubmatch(text, -1) {
-		s := strings.TrimSpace(m[1])
+		addPathTokens(root, m[1], seen)
+	}
+	for _, m := range fencedBlock.FindAllStringSubmatch(text, -1) {
+		addPathTokens(root, m[1], seen)
+	}
+	return sortedSet(seen)
+}
 
-		// Command lines are checked by the recipe and tool legs instead;
-		// picking the path out of them here would double-count and would
-		// also catch flag values that are not paths.
-		if strings.ContainsAny(s, " \t") {
+// addPathTokens splits s - an inline code span or a fenced block's body -
+// on whitespace and adds every token that resolves to a real path under
+// root to seen. A bare path (no whitespace) is a no-op split of one, so an
+// inline `tools/refusal-probe` citation goes through the identical checks a
+// `go run ./tools/refusal-probe -out x.json` command line's operand does.
+func addPathTokens(root, s string, seen map[string]bool) {
+	for _, tok := range strings.Fields(s) {
+		// Glob and wildcard forms name a family, not a file, and a
+		// placeholder segment like <path>, <name> or <sha> names a value
+		// the reader supplies, not a repository artifact - this is what
+		// keeps `git worktree add ../wt/<name> -b wall/<name> main` from
+		// being checked against a literal directory named "<name>".
+		if strings.ContainsAny(tok, "*<>${}|") {
 			continue
 		}
-		// Glob and wildcard forms name a family, not a file.
-		if strings.ContainsAny(s, "*<>${}|") {
-			continue
-		}
-		s = strings.TrimSuffix(s, "/")
-		if !pathish.MatchString(s) {
+		tok = strings.TrimSuffix(tok, "/")
+		if !pathish.MatchString(tok) {
 			continue
 		}
 		// ./tools/x is how a go command spells it; the repo path is the same.
-		s = strings.TrimPrefix(s, "./")
+		tok = strings.TrimPrefix(tok, "./")
 		// A GitHub repo slug (opentofu/opentofu, INTENTIUS/choudoufu) is
 		// spelled exactly like a two-segment path. Recognition is therefore
 		// "the first segment is a real entry at the repo root" rather than a
@@ -250,13 +307,12 @@ func handoffCitedPaths(root, text string) []string {
 		// skipped rather than reported. A typo in any later segment - which
 		// is the common case, since the first segment is a short familiar
 		// word - still fails.
-		first, _, _ := strings.Cut(s, "/")
+		first, _, _ := strings.Cut(tok, "/")
 		if _, err := os.Stat(filepath.Join(root, first)); err != nil {
 			continue
 		}
-		seen[s] = true
+		seen[tok] = true
 	}
-	return sortedSet(seen)
 }
 
 // notYetCreated are paths the playbook names on purpose while they do not yet
