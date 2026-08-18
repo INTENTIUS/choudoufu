@@ -58,27 +58,32 @@ set -uo pipefail
 #
 # WHAT STILL DOES NOT CONVERGE, AND WHY - NEITHER IS #298. Fixing the
 # identity gets live-plan to run clean (exit 0, no state file, the task
-# definition materializing from its ARN), but the plan is not empty: it
-# proposes changes to BOTH declared resources, and both are pre-existing,
-# already-documented floci emulator gaps, not marker bugs:
+# definition materializing from its ARN), but the plan used not to be
+# empty: it proposed changes to BOTH declared resources, and both were
+# pre-existing, already-documented floci emulator gaps, not marker bugs:
 #
 #   - aws_ecs_task_definition.sitemaps-generator "must be replaced": floci's
-#     DescribeTaskDefinition response drops
+#     DescribeTaskDefinition response dropped
 #     container_definitions[0].logConfiguration entirely, even though
 #     RegisterTaskDefinition was called WITH it - the exact gap
-#     live/e2e/corpus-ecs-taskdef's header documents and asserts by name for
-#     a different family (analytics-worker). Confirmed here on a SECOND,
-#     independent family (sitemaps-generator): not a fixture quirk.
+#     live/e2e/corpus-ecs-taskdef's header documented and asserted by name
+#     for a different family (analytics-worker). Confirmed here on a
+#     SECOND, independent family (sitemaps-generator): not a fixture quirk.
+#     FIXED fork-side 2026-08-18 (issue #287 item 5, lex00/floci commit
+#     5d435915): the pinned image now echoes logConfiguration back, so this
+#     instance materializes with an empty diff and drops out of the plan
+#     entirely - step 6 now asserts its ABSENCE from the rendered plan.
 #   - aws_s3_bucket.akita "will be updated in-place" (+ acl, + force_destroy):
 #     the same acl/force_destroy drift live/e2e/corpus-datafiles-generator's
 #     header documents and asserts by name for a different bucket. Confirmed
-#     here on a SECOND, independent bucket: not a fixture quirk either.
+#     here on a SECOND, independent bucket: not a fixture quirk either. Not
+#     fixed here - still asserted by name below.
 #
-# Both are asserted BY NAME below, the same "value, not verdict" departure
-# corpus-datafiles-generator takes: a floci fix that starts echoing
-# logConfiguration back, or stops needing the acl/force_destroy backfill,
-# turns this script red rather than silently green, and so does any THIRD
-# resource starting to drift.
+# The remaining gap is asserted BY NAME below, the same "value, not verdict"
+# departure corpus-datafiles-generator takes: a floci fix that stops needing
+# the acl/force_destroy backfill turns this script red rather than silently
+# green, and so does any resource starting to drift beyond what step 6
+# names.
 #
 # A THIRD, SEPARATE FINDING (also not #298, not fixed here): the plan also
 # warns "Tagged resource's ARN could not be joined to a resource type ...
@@ -265,14 +270,16 @@ grep -qF 'materialized aws_cloudwatch_log_group.sitemaps-generator from import i
   || fail "aws_cloudwatch_log_group.sitemaps-generator was not materialized from \"$LOG_GROUP\""
 log "  and the other two instances materialized from their own identities"
 
-# ── 6. the plan is not empty, and both gaps are pre-existing floci gaps ────
+# ── 6. one known, pre-existing floci gap remains (the other, #287-5, fixed) ─
 # NOT #298: block_for and assert_known_diff below isolate the block for one
 # resource address out of the rendered plan (same technique
 # corpus-datafiles-generator's assert_only_known_diff uses) and check it is
-# EXACTLY one of the two known, already-documented emulator gaps this
+# EXACTLY the one remaining known, already-documented emulator gap this
 # script's header explains - never a create, a destroy, or an unexplained
-# attribute change.
-log "=== 6. the two known, pre-existing floci gaps - asserted by name, not hidden ==="
+# attribute change. The task definition's own logConfiguration gap (#287
+# item 5) is fixed as of the pinned image, so it is asserted ABSENT from
+# the plan entirely, not present-but-known.
+log "=== 6. the remaining known, pre-existing floci gap - asserted by name, not hidden ==="
 block_for() {
   local addr="$1" out="$2"
   awk -v addr="$addr" '
@@ -283,14 +290,8 @@ block_for() {
 }
 
 TD_BLOCK="$(block_for 'aws_ecs_task_definition\.sitemaps-generator' "$PLAN_OUT")"
-[ -n "$TD_BLOCK" ] || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "no resource action block found for aws_ecs_task_definition.sitemaps-generator"; }
-grep -qE '^  # aws_ecs_task_definition\.sitemaps-generator must be replaced' <<< "$TD_BLOCK" \
-  || { printf '%s\n' "$TD_BLOCK"; fail "aws_ecs_task_definition.sitemaps-generator's action is not the known forced replace"; }
-grep -qF '+ logConfiguration = {' <<< "$TD_BLOCK" \
-  || { printf '%s\n' "$TD_BLOCK"; fail "the replace is not forced by the known logConfiguration gap (live/e2e/corpus-ecs-taskdef) - a DIFFERENT drift appeared"; }
-grep -qF '] # forces replacement' <<< "$TD_BLOCK" \
-  || { printf '%s\n' "$TD_BLOCK"; fail "container_definitions is not what forces the replace - a DIFFERENT drift appeared"; }
-log "  aws_ecs_task_definition.sitemaps-generator: the known logConfiguration-drop forced replace, nothing else"
+[ -z "$TD_BLOCK" ] || { printf '%s\n' "$TD_BLOCK"; fail "aws_ecs_task_definition.sitemaps-generator has a rendered plan block - the #287-5 logConfiguration fix regressed, or a DIFFERENT drift appeared (is FLOCI_IMAGE pointed at an older pin?)"; }
+log "  aws_ecs_task_definition.sitemaps-generator: no plan block at all - #287-5's logConfiguration fix holds"
 
 S3_BLOCK="$(block_for 'aws_s3_bucket\.akita' "$PLAN_OUT")"
 [ -n "$S3_BLOCK" ] || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "no resource action block found for aws_s3_bucket.akita"; }
@@ -301,17 +302,21 @@ S3_UNEXPECTED="$(grep -vE '\+ acl +=|\+ force_destroy +=' <<< "$S3_ATTRS")"
 [ -z "$S3_UNEXPECTED" ] || { printf '%s\n' "$S3_ATTRS"; fail "aws_s3_bucket.akita's update touches attributes beyond the known acl/force_destroy gap (live/e2e/corpus-datafiles-generator)"; }
 log "  aws_s3_bucket.akita: the known acl/force_destroy update, nothing else"
 
-grep -qE '^Plan: 1 to add, 1 to change, 1 to destroy\.$' <<< "$PLAN_OUT" \
-  || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "the plan summary is not exactly the two known-gap resources - a THIRD resource changed"; }
-log "  Plan: 1 to add, 1 to change, 1 to destroy - exactly the forced replace + the in-place update, nothing more"
+grep -qE '^Plan: 0 to add, 1 to change, 0 to destroy\.$' <<< "$PLAN_OUT" \
+  || { grep -E '^Plan:' <<< "$PLAN_OUT"; fail "the plan summary is not exactly the one remaining known-gap resource - a THIRD resource changed, or #287-5 regressed"; }
+log "  Plan: 0 to add, 1 to change, 0 to destroy - exactly the in-place update, nothing more"
 
 log ""
-log "=== CROSSED: #298 fixed ==="
+log "=== CROSSED: #298 fixed, #287 item 5 fixed ==="
 log ""
 log "DataCite's own sitemaps-generator estate applies cleanly, all 3"
 log "resources correctly tagged and confirmed through the AWS CLI, and a"
 log "cold live-plan against a deleted state file resolves every instance -"
 log "including the task definition, now from its ARN rather than the bare"
-log "\"family:revision\" join #298 filed. The plan is not EMPTY - two"
-log "pre-existing, already-documented floci emulator gaps remain, asserted"
-log "by name above rather than hidden - but neither is a marker bug."
+log "\"family:revision\" join #298 filed. The plan is not EMPTY - one"
+log "pre-existing, already-documented floci emulator gap remains (the S3"
+log "acl/force_destroy backfill), asserted by name above rather than"
+log "hidden - it is not a marker bug. The task definition's own gap"
+log "(logConfiguration dropped on read) is fixed as of the pinned image and"
+log "now materializes with an empty diff, confirmed on a second, independent"
+log "family beyond live/e2e/corpus-ecs-taskdef's analytics-worker."

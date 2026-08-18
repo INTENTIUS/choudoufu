@@ -81,16 +81,24 @@ awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 #   data "aws_lb" "default" / data "aws_lb_listener" "default"
 #     elbv2 is not in this build's /_localstack/health service list at all.
 #
-# A third floci gap, on the ONE resource this script does stand up: its
-# DescribeTaskDefinition response drops container_definitions[0].logConfiguration
-# entirely, even though RegisterTaskDefinition was called WITH it (confirmed
-# by reading the raw HTTP bodies under TF_LOG=trace - the request carries
-# logConfiguration, the DescribeTaskDefinition response does not). Step 5
-# reads as a forced replace for exactly this reason and it is not a marker
-# bug: the same drift would appear under plain OpenTofu with a real state
-# file and `plan` against this same floci build. Nothing here retries or
-# papers over it - it is asserted by name, so a floci fix that starts
-# echoing logConfiguration back turns the assertion red rather than silent.
+# A third floci gap, on the ONE resource this script does stand up, USED TO
+# force step 5 into a replace: DescribeTaskDefinition dropped
+# container_definitions[0].logConfiguration entirely, even though
+# RegisterTaskDefinition was called WITH it (confirmed by reading the raw
+# HTTP bodies under TF_LOG=trace - the request carried logConfiguration, the
+# DescribeTaskDefinition response did not). It was not a marker bug: the
+# same drift would have reproduced under plain OpenTofu with a real state
+# file and `plan` against that floci build.
+#
+# Fixed fork-side 2026-08-18 (issue #287 item 5, lex00/floci commit
+# 5d435915): ContainerDefinition had no logConfiguration field on the model
+# at all - EcsJsonHandler.parseContainerDefinitions never read the JSON key
+# off a RegisterTaskDefinition request body, so the value never reached the
+# model to begin with, and the response builder had nothing to render back
+# out on Describe/List either. live/floci-image now pins a build with this
+# fixed, so step 5 converges clean by default; its assertion still tolerates
+# the old forced-replace shape defensively, for a FLOCI_IMAGE override
+# pointed at an older pin.
 log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
 docker info >/dev/null 2>&1 || fail "docker is not running"
@@ -296,17 +304,18 @@ grep -qF "\"taskDefinition\":\"$TD_ARN\"" <<< "$PLAN_OUT" \
   || fail "DescribeTaskDefinition was never called with the live revision ARN $TD_ARN - the resolved identity did not drive a read of the right object"
 log "  and that identity drove a DescribeTaskDefinition read of $TD_ARN itself"
 
-# A separate, known floci gap: DescribeTaskDefinition drops
-# container_definitions[0].logConfiguration on the way back even though it
-# was sent at create time (see step 0). That is not a marker defect - it
-# would reproduce under plain OpenTofu with a real state file - so this
-# script names it rather than either hiding it behind a looser assertion or
-# claiming a clean "No changes" convergence this floci build cannot give.
+# A separate floci gap, fixed 2026-08-18 (see step 0): DescribeTaskDefinition
+# used to drop container_definitions[0].logConfiguration on the way back
+# even though it was sent at create time. The pinned image now echoes it
+# back, so the expected outcome is a clean converge; the elif branch stays
+# as a named, non-silent fallback for a FLOCI_IMAGE pointed at an older pin,
+# rather than this script failing opaquely against one.
 if grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' <<< "$PLAN_OUT"; then
   log "  plan converged with no changes (floci echoed logConfiguration back this run)"
 elif grep -qF 'must be replaced' <<< "$PLAN_OUT" && grep -qF 'logConfiguration' <<< "$PLAN_OUT"; then
   log "  plan forces a replace over container_definitions.logConfiguration - the"
-  log "  known floci round-trip gap from step 0, not a marker defect"
+  log "  pre-#287-5 floci round-trip gap, not a marker defect (is FLOCI_IMAGE"
+  log "  pointed at an older pin?)"
 else
   grep -E '^  #|^Plan:' <<< "$PLAN_OUT" | head -10
   fail "live-plan's diff is neither empty nor the known logConfiguration replace - something else changed; re-diagnose before touching this assertion"
@@ -324,5 +333,6 @@ log "now."
 log ""
 log "This is one resource, not that estate. The estate also reads two data"
 log "sources this floci build cannot answer at all; see step 0. A third,"
-log "unrelated floci gap (logConfiguration dropped on read) may still force a"
-log "replace on this one resource; step 5 names it rather than hiding it."
+log "unrelated floci gap - logConfiguration dropped on read - forced a replace"
+log "on this one resource until #287 item 5 fixed it fork-side 2026-08-18;"
+log "step 5 still checks for it by name in case FLOCI_IMAGE points elsewhere."
