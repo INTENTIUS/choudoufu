@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 8,
-    "cold_deploy": { "pass": 7, "fail": 1, "not_run": 0 },
-    "migrate": { "pass": 6, "fail": 1, "not_run": 1 },
-    "test_plan": { "pass": 1, "fail": 6, "not_run": 1 },
-    "test_apply": { "pass": 1, "fail": 0, "not_run": 7 },
-    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 8 }
+    "estates": 9,
+    "cold_deploy": { "pass": 8, "fail": 1, "not_run": 0 },
+    "migrate": { "pass": 7, "fail": 1, "not_run": 1 },
+    "test_plan": { "pass": 1, "fail": 7, "not_run": 1 },
+    "test_apply": { "pass": 1, "fail": 0, "not_run": 8 },
+    "drift_reconverge": { "pass": 0, "fail": 0, "not_run": 9 }
   },
   "estates": [
     {
@@ -113,6 +113,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed d583dc93b7 (2026-08-18) - the FIRST OpenTofu-native estate crossed (uyuni-project's own maintainers describe it as \"OpenTofu configuration,\" not \"Terraform configuration\"), versus every prior estate tonight being Terraform-authored/OpenTofu-compatible via terraform-aws-modules. Deliberately reduced slice: the full main.tf.aws.example composes four AWS host roles from one leaf module, backend_modules/aws/host, but three of the four (bastion, module.mirror, module.minion) have no root-facing toggle to disable real SSH/Salt provisioning - the \"real boot behavior, out of scope for an emulator\" case. Only module.server exposes provision=false; module.base's own network submodule was also unusable (create_network=true needs CreateDhcpOptions/ReplaceRouteTableAssociation, neither implemented in floci), so this estate's own plain VPC/subnet/NAT resources stand in for it. A real floci gap found and fixed on the way: sumaform's ami.tf evaluates ~23 data \"aws_ami\" blocks unconditionally (one per supported guest OS) regardless of which single image an estate actually launches, and floci's catalog had zero SUSE/Marketplace/Rocky/RHEL entries - seeded 20, reconciled into the combined image alongside tonight's other three floci fixes. cold_deploy and migrate genuinely pass (11 resources, 9 of 11 stamped - 2 correctly untaggable). test_plan blocked by two real, structural rules baked into backend_modules/aws/host itself (the one leaf module every AWS host role shares, so this isn't an artifact of the reduced slice), and on reading both rules' own reasoning neither looks like a choudoufu defect - both are correct, deliberate refusals, not filed: (1) an unconditional, provisioner-less connection block that checkProvisioners flags on its own terms by documented design, dead code in sumaform's own module; (2) lifecycle { ignore_changes = [tags] } on the WHOLE tags argument of aws_instance.instance and aws_ebs_volume.data_disk - sumaform's own comment explains why (SUSE's internal AWS accounts add tags on apply that need preserving), but ignoring the whole argument also silently discards the update that would write tofu-address/tofu-estate, the exact marker-safety failure #306 was about tonight. The fix sumaform's own error text names - ignore_changes = [tags[\"Owner\"]], not the whole argument - is an edit to sumaform's module, out of scope here."
+    },
+    {
+      "dir": "live/e2e/corpus-ecs-fargate",
+      "source": "terraform-aws-modules/terraform-aws-ecs examples/fargate (tag v7.6.0), its Fargate flagship example",
+      "lane": "terraform-popular",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed dd83121592 (2026-08-18), 62 resources: ECS cluster (Container Insights, FARGATE/FARGATE_SPOT split), a BLUE_GREEN service behind an ALB, ECS Exec, ECS Service Connect, a two-container task definition plus a standalone second one, a CloudMap namespace, nested ALB/VPC modules. cold_deploy and migrate genuinely pass (43 of 62 stamped: 26 VERIFIED + 17 DRIFTED; 19 skipped - 16 untaggable by design, 3 blocked by #305). test_plan blocked by 4 sites: #305's familiar default_* trio (3 sites) and a NEW one, filed as #308: the child-module for_each keyset prover (internal/live/identity/foreach_keyset.go) has no case for a for-comprehension (for k, v in var.container_definitions : k => v if ...) and doesn't chase a bare var.X for_each source across a module-call boundary to the literal object constructor at the caller, whose keys are actually static even though one unrelated attribute value inside the map is dynamic - resolve.go's resource-level forEachOverComprehension already does the equivalent per-entry evaluation the module-call prover lacks. Two real floci gaps found and filed but not fixed, both sized as real modeling work rather than quick patches: lex00/floci#59 (CreateCluster silently drops settings/Container Insights, default_capacity_provider_strategy never serialized back) and lex00/floci#60 (CreateService/DescribeServices drop scheduling_strategy, enable_ecs_managed_tags, enable_execute_command, health_check_grace_period_seconds, deployment_controller, blue-green load_balancer.advanced_configuration, service_connect_configuration entirely - scheduling_strategy's omission in particular forces the AWS provider to propose destroy-and-recreate on every plan after creation, a real non-idempotency bug independent of choudoufu). Neither floci gap blocks this crossing's own outcome since test_plan already refuses earlier, upstream of any ECS-field diff."
     }
   ]
 }
