@@ -50,48 +50,86 @@ set -uo pipefail
 # else in the example depends on removing it) and still applies cleanly on
 # its own.
 #
+# #305 (aws_default_network_acl/route_table/security_group - the vpc
+# module's default-object adopters, which this estate creates via its two
+# nested terraform-aws-vpc calls, 6 sites) is FIXED: all three types are now
+# ratified server-assigned in the admission table, the same shape as their
+# non-default siblings aws_network_acl/aws_route_table/aws_security_group,
+# and resolve through their own tofu-address marker once stamped.
+#
 # DEFECT B (choudoufu, real gap, distinct from #304/#305 - filed
-# #307). aws_vpc_security_group_rules_exclusive is not
+# #307, NOW FIXED). aws_vpc_security_group_rules_exclusive was not
 # in the admission table (internal/live/identity/table_generated.go) and the
 # pinned AWS provider release (6.59.0) ships no resource identity schema for
 # it either (live/survey-full.json: "identity_schema": false, path "moves to
-# Ops"), so identity.Report cannot settle it and it is a hard unadmitted-type
-# refusal at every one of its 3 instances in this estate (the main, postgresql
-# and consul security groups each get one, since enable_exclusive_rules
-# defaults to true). This is NOT #305 (aws_default_network_acl/route_table/
-# security_group - the vpc module's default-object adopters, which this
-# estate ALSO creates via its two nested terraform-aws-vpc calls and which
-# DOES fire here too, 6 sites) and NOT #304 (a static lookup()-into-count.index
-# pattern that does not exist anywhere in this v6.0.0 example). What is
-# recoverable without a provider identity schema: the resource's own import
-# documentation is unambiguous - "import exclusive management of security
-# group rules using the security_group_id" - and security_group_id is the
-# type's one required, ForceNew argument, always a direct reference to the
-# aws_security_group resource it governs. This is the same shape as
+# Ops"), so identity.Report could not settle it and it was a hard
+# unadmitted-type refusal at every one of its 3 instances in this estate (the
+# main, postgresql and consul security groups each get one, since
+# enable_exclusive_rules defaults to true). This is NOT #305 (fixed, see
+# above) and NOT #304 (a static lookup()-into-count.index pattern that does
+# not exist anywhere in this v6.0.0 example). What was recoverable without a
+# provider identity schema: the resource's own import documentation is
+# unambiguous - "import exclusive management of security group rules using
+# the security_group_id" - and security_group_id is the type's one required,
+# ForceNew argument, always a direct reference to the aws_security_group
+# resource it governs. This is the same shape as
 # aws_vpc_security_group_vpc_association's own admitted row (client-supplied
 # arguments only, composed over a tagged parent's identity), just without a
 # provider-shipped identity schema to derive it from mechanically - doc-only
-# admission, not schema-only.
+# admission, not schema-only. FIXED by ratifying the row row-gen's own
+# classifier already proposed from live/import-grammar.json's scraped Import
+# section (tools/row-gen/ratified.json's "aws_vpc_security_group_
+# rules_exclusive": bucketClientNamed, ArgName security_group_id) - no
+# extractor or classifier change needed, the row-gen pipeline already
+# produced this exact proposal via classifyUnmapped + tryGrammarComposite's
+# single-argument branch; it had simply never been ratified. Now resolves
+# via identity.Report reading security_group_id directly; it has no tags
+# argument, though, so it reads UNTAGGABLE rather than eligible for
+# stamping (see stage 2's own log).
 #
-# WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN BOTH:
+# #313 (choudoufu, config-language-subset wall, NOT an admission gap -
+# filed #313). With #305 and #307 both fixed, live-plan no longer refuses
+# on "Resource type is outside the live-markers subset" for ANY type here -
+# but stage 3 still does not produce a clean plan. This estate's own
+# main.tf line 22 computes `local.azs = slice(data.aws_availability_zones.
+# available.names, 0, 3)`, which both nested terraform-aws-vpc calls use in
+# per-AZ for_each/count expressions throughout their own subnet/route-table
+# resources, and module.consul's ingress_referenced_security_group_id map
+# uses `aws_security_group.app.id` directly - both a data source and a
+# same-plan resource attribute, genuinely outside var/local/path/terraform,
+# the config-language-subset ceiling CLAUDE.md's own framing names ("a
+# CIDR-keyed for_each" is the same family). 239 diagnostics total: 52
+# "Dynamic value in static context" (the two root causes) + 187 "Unable to
+# compute static value" (the cascade to every downstream for_each/count
+# instance) - both already-registered refusal classes
+# (internal/live/passthrough/refusals.go), not new choudoufu behavior. Not
+# fixed here; stage 3's assertions below hold the exact counts so a change
+# to either is visible.
+#
+# WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL THREE:
 #
 #   stage 1  cold deploy   PASS - real, unmarked infrastructure, 67 of the
 #                          module's 68 resources (DELTA 2, #57).
-#   stage 2  migrate       PASS - real: 52 of 67 resource instances stamped
-#                          for real (35 VERIFIED + 17 DRIFTED - the drift is
-#                          a provider-normalized referenced_security_group_id
-#                          format difference at read time, see stage 2's own
-#                          log), the rest correctly skipped (6 UNTAGGABLE -
-#                          aws_route_table_association, no tags argument -
-#                          + 9 UNADMITTED_TYPE - #305's default_* trio (6)
-#                          plus DEFECT B's rules_exclusive (3)), asserted
-#                          against live-import's own report AND confirmed
-#                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by #305 (6 sites) and DEFECT B
-#                          (3 sites) - specific counts and resource
-#                          addresses asserted against a real live-plan run,
-#                          state file deleted first, BREAK=1 negative
-#                          control.
+#   stage 2  migrate       PASS - real: 58 of 67 resource instances stamped
+#                          for real (39 VERIFIED + 19 DRIFTED - most of the
+#                          drift is a provider-normalized
+#                          referenced_security_group_id format difference at
+#                          read time, and the two default network ACLs drift
+#                          on subnet_ids/egress/ingress because the module
+#                          never sets subnet_ids and AWS auto-associates
+#                          every subnet in the VPC to it; see stage 2's own
+#                          log), the rest correctly skipped (9 UNTAGGABLE -
+#                          aws_route_table_association x6, no tags argument,
+#                          + the 3 rules_exclusive instances, #307 fixed but
+#                          still untaggable - 0 UNADMITTED_TYPE; #305's
+#                          default_* trio is admitted and stamped above),
+#                          asserted against live-import's own report AND
+#                          confirmed independently through the AWS CLI.
+#   stage 3  test plan     BLOCKED, for real, by #313 alone (239 sites) -
+#                          #305 and #307 no longer contribute any refusal -
+#                          specific counts and resource addresses asserted
+#                          against a real live-plan run, state file deleted
+#                          first, BREAK=1 negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
@@ -128,8 +166,8 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 ESTATE="security-group-complete-crossing"
 REGION="eu-west-1"
 INSTANCES=67
-ELIGIBLE=52
-SKIPPED=15
+ELIGIBLE=58
+SKIPPED=9
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -265,6 +303,7 @@ log "  DELTA 3  live block added                                  (onboarding)"
 log "=== 2a. live-import dry run: verify against the live system, write nothing ==="
 IMPORT_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" 2>&1)"
 IMPORT_RC=$?
+printf '%s\n' "$IMPORT_OUT" > /tmp/import_out_full2.txt
 [ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -30; fail "live-import (dry run) exited $IMPORT_RC unexpectedly"; }
 
 grep -qF "$ELIGIBLE of $INSTANCES resource instance(s) are eligible for stamping (VERIFIED or DRIFTED)." <<< "$IMPORT_OUT" \
@@ -276,19 +315,37 @@ VERIFIED_N="$(grep -oE '^VERIFIED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9
 DRIFTED_N="$(grep -oE '^DRIFTED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNTAGGABLE_N="$(grep -oE '^UNTAGGABLE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
-[ "${VERIFIED_N:-0}" = "35" ] || fail "expected 35 VERIFIED, got ${VERIFIED_N:-0}"
-[ "${DRIFTED_N:-0}" = "17" ] || fail "expected 17 DRIFTED, got ${DRIFTED_N:-0}"
-[ "${UNTAGGABLE_N:-0}" = "6" ] || fail "expected 6 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
-[ "${UNADMITTED_N:-0}" = "9" ] || fail "expected 9 UNADMITTED_TYPE, got ${UNADMITTED_N:-0}"
-grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among UNADMITTED_TYPE"
-grep -qF 'module.security_group.aws_vpc_security_group_rules_exclusive.this[0]' <<< "$IMPORT_OUT" || fail "expected module.security_group.aws_vpc_security_group_rules_exclusive.this[0] among UNADMITTED_TYPE"
-log "  $ELIGIBLE of $INSTANCES eligible (35 VERIFIED + 17 DRIFTED); $SKIPPED skipped"
-log "  (6 UNTAGGABLE - aws_route_table_association x6, no tags argument - +"
-log "  9 UNADMITTED_TYPE - #305's default_* trio on BOTH module.vpc and"
-log "  module.vpc_secondary (6 sites) + the new rules_exclusive gap (3"
-log "  sites), DEFECT B); nothing written yet"
+[ "${VERIFIED_N:-0}" = "39" ] || fail "expected 39 VERIFIED, got ${VERIFIED_N:-0}"
+[ "${DRIFTED_N:-0}" = "19" ] || fail "expected 19 DRIFTED, got ${DRIFTED_N:-0}"
+[ "${UNTAGGABLE_N:-0}" = "9" ] || fail "expected 9 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
+[ "${UNADMITTED_N:-0}" = "0" ] || fail "expected 0 UNADMITTED_TYPE, got ${UNADMITTED_N:-0}"
+# #305 fixed: the default_* trio (6 sites, both module.vpc and
+# module.vpc_secondary) is now admitted, so it must appear in the eligible
+# (VERIFIED or DRIFTED) block.
+ELIGIBLE_BLOCK="$(sed -n '/^VERIFIED (/,/^UNTAGGABLE (/p' <<< "$IMPORT_OUT")"
+UNTAGGABLE_BLOCK="$(sed -n '/^UNTAGGABLE (/,/^$/p' <<< "$IMPORT_OUT")"
+for addr in 'module.vpc.aws_default_network_acl.this[0]' 'module.vpc.aws_default_route_table.default[0]' \
+            'module.vpc.aws_default_security_group.this[0]' 'module.vpc_secondary.aws_default_network_acl.this[0]' \
+            'module.vpc_secondary.aws_default_route_table.default[0]' 'module.vpc_secondary.aws_default_security_group.this[0]'; do
+  grep -qF "$addr" <<< "$ELIGIBLE_BLOCK" || fail "expected $addr among VERIFIED/DRIFTED (#305 fixed) - not found"
+done
+# #307 fixed: aws_vpc_security_group_rules_exclusive is now admitted
+# (client-named off its own security_group_id argument), so it no longer
+# reads as UNADMITTED_TYPE - identity.Report resolves it. It has no tags
+# argument in the provider schema, though, so it lands in UNTAGGABLE
+# instead: known and correctly skipped for lack of a place to carry a
+# marker, not unknown outright.
+for addr in 'module.consul.module.security_group.aws_vpc_security_group_rules_exclusive.this[0]' \
+            'module.postgresql.module.security_group.aws_vpc_security_group_rules_exclusive.this[0]' \
+            'module.security_group.aws_vpc_security_group_rules_exclusive.this[0]'; do
+  grep -qF "$addr" <<< "$UNTAGGABLE_BLOCK" || fail "expected $addr among UNTAGGABLE (#307 fixed)"
+done
+log "  $ELIGIBLE of $INSTANCES eligible (39 VERIFIED + 19 DRIFTED); $SKIPPED skipped"
+log "  (9 UNTAGGABLE - aws_route_table_association x6, no tags argument, +"
+log "  the 3 rules_exclusive instances (#307 fixed: now admitted, still"
+log "  untaggable) - 0 UNADMITTED_TYPE); #305's default_* trio (6 sites,"
+log "  both module.vpc and module.vpc_secondary) is admitted and eligible"
+log "  above; nothing written yet"
 
 log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
@@ -319,45 +376,72 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #305 and/or DEFECT B may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #313 may be fixed; update this script"; }
 
-WANT_DEFAULT_N=6
-WANT_EXCL_N=3
-WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security_group)
+# #305 and #307 are BOTH fixed: no diagnostic may read "Resource type is
+# outside the live-markers subset" any more, for any type.
+WANT_UNADMITTED_N=0
+# #313, the wall #307's own fix exposed: two static-context refusals this
+# example's own config hits (a data source and a same-plan resource
+# attribute, both outside var/local/path/terraform - see this script's own
+# header) and their cascade.
+WANT_DYNAMIC_N=52
+WANT_STATIC_CASCADE_N=187
 if [ "${BREAK:-}" = "1" ]; then
-  WANT_DEFAULT_N=7
-  WANT_EXCL_N=4
-  WANT_TYPES[1]="aws_default_dhcp_options"
-  log "  BREAK=1: expecting 7 default-object sites (one more than the real"
-  log "           6, #305) and 4 rules_exclusive sites (one more than the"
-  log "           real 3), plus aws_default_dhcp_options among the unadmitted"
-  log "           refusals - none of these are real. This step must fail."
+  WANT_UNADMITTED_N=1
+  WANT_DYNAMIC_N=53
+  WANT_STATIC_CASCADE_N=188
+  log "  BREAK=1: expecting 1 unadmitted-type site (there should be 0 now -"
+  log "           #305 and #307 are both fixed), 53 Dynamic-value-in-"
+  log "           static-context sites (one more than the real 52) and 188"
+  log "           cascaded Unable-to-compute-static-value sites (one more"
+  log "           than the real 187). None of these are real. This step"
+  log "           must fail."
 fi
 
-TOTAL_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-# Every unadmitted-type diagnostic's code frame echoes the declaring HCL
-# line verbatim ('  90: resource "TYPE" "NAME" {'), which is a precise,
-# per-type count no prose-matching heuristic is needed for.
-RULES_EXCL_SITES="$(grep -cF 'resource "aws_vpc_security_group_rules_exclusive" "this" {' <<< "$PLAN_OUT")"
-[ "$RULES_EXCL_SITES" = "$WANT_EXCL_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $WANT_EXCL_N aws_vpc_security_group_rules_exclusive unadmitted sites, got $RULES_EXCL_SITES"; }
-DEFAULT_SITES="$((TOTAL_N - RULES_EXCL_SITES))"
-[ "$DEFAULT_SITES" = "$WANT_DEFAULT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DEFAULT_N default-object unadmitted sites (#305), got $DEFAULT_SITES (of $TOTAL_N total unadmitted-type sites, $RULES_EXCL_SITES attributed to rules_exclusive)"; }
-for t in "${WANT_TYPES[@]}"; do
+UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
+[ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305 and #307 both fixed), got $UNADMITTED_N"; }
+# Belt-and-suspenders: neither #305's default_* trio nor #307's
+# rules_exclusive may appear in any diagnostic's declaring-line code frame.
+for t in aws_default_network_acl aws_default_route_table aws_default_security_group aws_vpc_security_group_rules_exclusive; do
   N="$(grep -cF "resource \"$t\"" <<< "$PLAN_OUT")"
-  [ "$N" -ge 1 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t among the unadmitted-type refusals (#305)"; }
+  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t to be fully resolved (both #305 and #307 fixed), but it still appears among live-plan's diagnostics"; }
 done
-log "  #305 confirmed: exactly $DEFAULT_SITES default-object adopter sites"
-log "  (aws_default_network_acl, aws_default_route_table,"
-log "  aws_default_security_group across both module.vpc and"
-log "  module.vpc_secondary)."
-log "  New gap confirmed: exactly $RULES_EXCL_SITES aws_vpc_security_group_"
-log "  rules_exclusive sites - unadmitted because the pinned AWS provider"
-log "  release ships no resource identity schema for this type (see this"
-log "  script's own header, DEFECT B)."
+
+# #313: what live-plan hits now that #305 and #307 are both fixed - two
+# static-context refusals genuinely in this example's own config (a data
+# source feeding a for_each-relevant local, and a same-plan resource
+# attribute), plus their cascade. Not this script's job to fix; asserted
+# here at the precise counts so a change to either number is visible.
+DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
+STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
+[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313), got $DYNAMIC_N"; }
+[ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' sites (#313's cascade), got $STATIC_CASCADE_N"; }
+grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
+  || fail "expected the data.aws_availability_zones root cause among the #313 diagnostics - the corpus pin may have moved"
+grep -qF 'Unable to use aws_security_group.app in static context' <<< "$PLAN_OUT" \
+  || fail "expected the aws_security_group.app root cause among the #313 diagnostics - the corpus pin may have moved"
+
+log "  #305 and #307 confirmed BOTH fixed: zero unadmitted-type sites -"
+log "  aws_default_network_acl/route_table/security_group and"
+log "  aws_vpc_security_group_rules_exclusive all resolve (through their"
+log "  own tofu-address marker, or - rules_exclusive - through"
+log "  identity.Report reading security_group_id directly, since it has no"
+log "  marker to read)."
+log "  New wall confirmed (#313, NOT this script's job): $DYNAMIC_N Dynamic-"
+log "  value-in-static-context sites (data.aws_availability_zones feeding"
+log "  local.azs, which module.vpc/module.vpc_secondary use in per-AZ"
+log "  for_each/count expressions; aws_security_group.app.id used directly"
+log "  in module.consul's ingress_referenced_security_group_id map) +"
+log "  $STATIC_CASCADE_N cascaded Unable-to-compute-static-value sites -"
+log "  a data source and a same-plan resource attribute, both genuinely"
+log "  outside var/local/path/terraform, the config-language-subset ceiling"
+log "  CLAUDE.md's own framing names, not an admission gap."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #305 (default_* trio) and a new"
-log "gap (aws_vpc_security_group_rules_exclusive), asserted above, nothing new"
+log "STAGE 3 (test_plan): BLOCKED for real - #305 and #307 both fixed and"
+log "confirmed absent above; #313 (config-language subset, not an admission"
+log "gap) is the real remaining wall"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -367,7 +451,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #305 and a new admission gap (choudoufu, see header)"
+log "  stage 3  test_plan          BLOCKED - #313 (config-language subset); #305 and #307 both fixed (see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

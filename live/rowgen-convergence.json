@@ -1,21 +1,21 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1032,
-    "compared": 1018,
+    "admitted_total": 1036,
+    "compared": 1022,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 875,
-    "adopted_unchanged_pct": 85.95,
-    "genuine_mismatches": 143,
-    "annotated": 143,
+    "adopted_unchanged": 876,
+    "adopted_unchanged_pct": 85.71,
+    "genuine_mismatches": 146,
+    "annotated": 146,
     "unannotated_mismatches": 0,
-    "scrape_gap_mismatches": 26
+    "scrape_gap_mismatches": 29
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 66,
-      "adopted_unchanged": 60,
-      "adopted_unchanged_pct": 90.91
+      "compared": 70,
+      "adopted_unchanged": 61,
+      "adopted_unchanged_pct": 87.14
     },
     "ACMPCA": {
       "compared": 2,
@@ -3864,6 +3864,57 @@
       ],
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_default_network_acl",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=tf-only); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "server-assigned"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "not_in_mapped_set in spirit though technically compared: live/mapping.json carries this type via=\"tf-only\" (cfn_type null, no CloudFormation model of AWS's \"adopt the account's already-created default network ACL\" idiom), so classifyUnmapped always proposes bucketEvidenceOnly for it regardless of the type's own import-grammar evidence — none of applyImportGrammarPrecedence's upgrade rules run against an evidence-only proposal except the cloud/literal-singleton and confirmed-guess rules, and this type is none of those shapes. The ratified row is server-assigned all the same: the type is taggable (live/survey-full.json), and AWS itself mints exactly one default network ACL per VPC and assigned its id (acl-…) when the VPC was created, before this resource block ever applied — the same shape as its sibling aws_network_acl, already ratified server-assigned in this table."
+    },
+    {
+      "tf_type": "aws_default_route_table",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=tf-only); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "server-assigned"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "not_in_mapped_set in spirit though technically compared: live/mapping.json carries this type via=\"tf-only\" (cfn_type null, no CloudFormation model of the \"adopt\" idiom), so classifyUnmapped always proposes bucketEvidenceOnly for it. The ratified row is server-assigned: the type is taggable, and AWS mints exactly one default route table per VPC, assigning its own id (rtb-…) when the VPC was created — the same shape as its sibling aws_route_table, already ratified server-assigned. The provider's own Import section text is additionally unreliable here (see evidence), which independently rules out deriving an identity from it mechanically."
+    },
+    {
+      "tf_type": "aws_default_security_group",
+      "service": "(no CFN model)",
+      "proposed_bucket": "evidence-only",
+      "proposed_rule": "no CloudFormation model (live/mapping.json via=tf-only); the provider's own import documentation is the only identity evidence there is",
+      "mismatch_classes": [
+        "server-assigned"
+      ],
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)",
+        "import-syntax-wording"
+      ],
+      "scrape_gap": true,
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "not_in_mapped_set in spirit though technically compared: live/mapping.json carries this type via=\"tf-only\" (cfn_type null, no CloudFormation model of the \"adopt\" idiom), so classifyUnmapped always proposes bucketEvidenceOnly for it, and this type's import-grammar row carries no sole_id_part at all for any rule to act on. The ratified row is server-assigned: the type is taggable, and AWS mints exactly one default security group per VPC, assigning its own id (sg-…) when the VPC was created — the same shape as its sibling aws_security_group, already ratified server-assigned. The optional vpc_id argument names the parent VPC but is not the security group's own identity."
     },
     {
       "tf_type": "aws_detective_graph",
@@ -11676,6 +11727,17 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_vpc_security_group_rules_exclusive",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false

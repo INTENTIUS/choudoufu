@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      143,
+		Bound:      146,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -517,6 +517,26 @@ func rowgenAnnotationRulings() Entry {
 				"those 22 were added to rejected.json: the parent-pending two are ratifiable once their " +
 				"parent is, and the rest are a generator/resolver capability gap, not a closed question. " +
 				"122 + 21 = 143.",
+			"146 on 2026-08-18 (issue #305): the same reviewed upward bump, three newly admitted " +
+				"types - aws_default_network_acl, aws_default_route_table, aws_default_security_group, " +
+				"terraform-aws-vpc's 'adopt the account's default object instead of creating one' idiom, " +
+				"hit by name in four separate real-estate crossings the same night (vpc-complete, " +
+				"rds-complete-postgres, security-group-complete, and reachable through ecs-fargate and " +
+				"autoscaling-complete's own vpc dependency). All three are live/mapping.json via=tf-only " +
+				"rows (no CloudFormation model of an 'adopt an existing default object' resource), so " +
+				"classifyUnmapped always proposes bucketEvidenceOnly for them regardless of their own " +
+				"import-grammar evidence; none of applyImportGrammarPrecedence's upgrade rules run " +
+				"against an evidence-only proposal for a shape this plain (no cloud/account singleton, no " +
+				"confirmed guess). All three are ratified server-assigned, the same shape as their non-" +
+				"default siblings aws_network_acl, aws_route_table and aws_security_group: taggable per " +
+				"live/survey-full.json, and AWS itself mints exactly one default of each per VPC, " +
+				"assigning its own id before the resource block first applies - the required " +
+				"default_network_acl_id/default_route_table_id argument and the optional vpc_id argument " +
+				"each name a parent, not a fresh identity this table derives. Each ruling's exit names " +
+				"the same missing capability: classifyUnmapped has no rule proposing bucketServerAssigned " +
+				"for a cfn-unmodeled type from import-grammar evidence (sole_id_part.source==own-id, or " +
+				"an import_id_example sharing a same-service sibling's id-prefix convention) at all. " +
+				"143 + 3 = 146.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()
