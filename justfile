@@ -240,6 +240,45 @@ demo-corpus-cloudfront:
 demo-corpus-salesforce-api:
     bash live/e2e/corpus-salesforce-api/run.sh
 
+# Issue #274's crossing, one of the three smallest untouched real corpus
+# estates picked smallest-first to establish the method rather than to
+# maximise instance count in one slot:
+# .corpus/govuk-aws/terraform/projects/infra-cyber-cloudwatch-to-splunk, one
+# aws_cloudwatch_log_subscription_filter. It cost two of #274's four
+# onboarding-delta classes despite the single instance: `backend "s3" {}`
+# to remove (#268) and `version = "~> 3.25"`, old enough to resolve to a
+# release with no list resources at all (#269's shape). The type has no
+# tags argument, so its identity - log_group_name and filter name, joined
+# the way the provider's own import syntax joins them - re-derives from the
+# declaration and needs no marker carrier. Applied, state file deleted,
+# replanned empty twice, the rendered identity checked against CloudWatch
+# Logs' own answer. BREAK=1 corrupts the expected identity and the run must
+# catch it in step 5 and nowhere else. Needs Docker, the AWS CLI and a
+# populated .corpus; runs on its own port (4698) so it can run beside
+# `just demo`.
+demo-corpus-cloudwatch-splunk:
+    bash live/e2e/corpus-cloudwatch-splunk/run.sh
+
+# Issue #274's crossing, another of the three smallest untouched real corpus
+# estates: .corpus/iam/examples/iam-read-only-policy, a terraform-aws-modules
+# EXAMPLE using a DIFFERENT iam module than demo-corpus-iam-policy - one that
+# builds its policy from a generated allowed_services matrix rather than a
+# literal document, instantiated three times with only the first
+# contributing a resource (the other two use create_policy = false and
+# create = false respectively). The module's own use_name_prefix defaults to
+# true, so the policy's name is server-assigned (the NAME_PREFIX discovery
+# shape, same as demo-corpus-oidc-provider's role) rather than statically
+# derivable, and the assertion reads the ARN IAM actually minted. No
+# backend, no version pin needed - `version = ">= 6.28"` resolves straight
+# to 6.60.0 clean, the same absence-is-a-finding result demo-corpus-iam-policy
+# found. Applied, state file deleted, replanned empty twice, the rendered
+# identity checked against IAM's own answer. BREAK=1 corrupts the expected
+# identity and the run must catch it in step 5 and nowhere else. Needs
+# Docker, the AWS CLI and a populated .corpus; runs on its own port (4699)
+# so it can run beside `just demo`.
+demo-corpus-iam-read-only-policy:
+    bash live/e2e/corpus-iam-read-only-policy/run.sh
+
 # Issue #280's crossing: .corpus/simpleinfra/terraform/dns calls one local
 # module seven times, and every one of the seven hosted zones used to come
 # back carrying module.rustconf_com.aws_route53_zone.zone - one identity on
