@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -210,17 +211,25 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) 
 }
 
 // TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance is
-// the half of the ratchet that counting error diagnostics cannot see, and it
-// is measured rather than hypothetical: simpleinfra's shared acm-certificate
-// module, against the real AWS provider 6.59.0, resolves
-// aws_acm_certificate_validation.cert as PARENT_DERIVED on a first pass and
-// NEEDS_DISCOVERY/SIBLING_APPLY on a second, because supplying managed
-// results makes the reference evaluable instead of symbolic. That type is
-// untaggable, so the demotion becomes a hard refusal in internal/live/stamp -
-// downstream of where the two passes are compared.
+// the half of the ratchet that counting error diagnostics cannot see.
 //
-// So the second pass here clears one refusal and raises none, which the error
-// count calls a win, and it must still be rejected.
+// It used to be measured directly against simpleinfra's shared
+// acm-certificate module: a first pass resolved aws_acm_certificate_
+// validation.cert as PARENT_DERIVED and a second, given the certificate's
+// planned value, evaluated the same bare `aws_acm_certificate.cert.arn`
+// reference instead of treating it as symbolic, got an unknown, and dropped
+// it to NEEDS_DISCOVERY/SIBLING_APPLY. Issue #284's managedCovered fix closed
+// exactly that shape - [resolver.resolveExpr] now retries a bare traversal
+// into a covered managed resource through [resolver.resolveTraversal] when
+// the evaluated value comes back unknown, so a direct reference like that one
+// no longer downgrades, and this fixture's log group name is wrapped in a
+// template (`"app-${aws_acm_certificate.cert.arn}"`) to keep exercising the
+// ratchet: the retry only fires on hcl.AbsTraversalForExpr(expr), which a
+// template is not, so the reference inside one still evaluates directly and
+// still drops to NEEDS_DISCOVERY on a second pass.
+//
+// So the second pass here still clears the for_each refusal and raises none,
+// which the error count still calls a win, and it must still be rejected.
 func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-downgrade"))
 	prov := &certPlanningProvider{known: true}
@@ -243,7 +252,7 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *t
 			got = fmt.Sprintf("%s %q", res.Class, formula)
 		}
 	}
-	const want = `PARENT_DERIVED "${aws_acm_certificate.cert.arn}"`
+	const want = `PARENT_DERIVED "app-${aws_acm_certificate.cert.arn}"`
 	if got != want {
 		t.Errorf("aws_cloudwatch_log_group.app resolved to %s, want %s - the second pass traded a "+
 			"renderable formula for a discovery request and was accepted anyway", got, want)
@@ -253,6 +262,51 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *t
 	// first pass was kept whole rather than merged with the second.
 	if !keptDiags.HasErrors() {
 		t.Error("the run came back clean; the first pass's for_each refusal should have been kept along with its resolution")
+	}
+}
+
+// TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives is
+// the "net gain" the previous test's own doc comment describes: the shape
+// the ratchet used to reject entirely because the log group's direct
+// aws_acm_certificate.cert.arn reference downgraded alongside the for_each
+// it settled. With issue #284's managedCovered fix in place, that direct
+// reference no longer downgrades, so the ratchet has nothing left to reject
+// and the second pass is accepted whole: the for_each resolves AND the log
+// group keeps its formula, in one pass, with no errors.
+func TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives(t *testing.T) {
+	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-direct-fixed"))
+	prov := &certPlanningProvider{known: true}
+
+	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	if prov.plans == 0 {
+		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
+	}
+	if diags.HasErrors() {
+		t.Fatalf("refused: %s", diags.Err())
+	}
+
+	var got []string
+	for _, res := range result.All() {
+		formula := ""
+		if res.Formula != nil {
+			formula = res.Formula.String()
+		}
+		got = append(got, fmt.Sprintf("%s %s %q formula=%q cause=%s", res.Addr, res.Class, res.ImportID, formula, res.Cause))
+	}
+	sort.Strings(got)
+	want := []string{
+		`aws_acm_certificate.cert NEEDS_DISCOVERY "" formula="" cause=SERVER_ASSIGNED`,
+		`aws_cloudwatch_log_group.app PARENT_DERIVED "" formula="${aws_acm_certificate.cert.arn}" cause=`,
+		`aws_route53_record.cert_validation["example.com"] NEEDS_DISCOVERY "" formula="" cause=SIBLING_APPLY`,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("resolved %d instance(s):\n  %s\nwant %d:\n  %s",
+			len(got), strings.Join(got, "\n  "), len(want), strings.Join(want, "\n  "))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("instance %d rendered\n  %s\nwant\n  %s", i, got[i], want[i])
+		}
 	}
 }
 

@@ -12,13 +12,21 @@
 # cleared, none raised. In the real estate the demoted type is untaggable, so
 # the demotion becomes a hard refusal in internal/live/stamp - downstream of
 # where the two passes are compared, and invisible to the comparison.
+#
+# The name is wrapped in a template rather than written as the bare
+# `aws_acm_certificate.cert.arn` reference issue #284's managedCovered fix
+# now rescues: [resolver.resolveExpr]'s retry only fires on
+# hcl.AbsTraversalForExpr(expr), which a template with literal text around
+# the reference is not. This fixture is what is left of the downgrade once
+# that fix lands, and it is what keeps this test proving the ratchet rather
+# than a scenario the fix has already made unreachable.
 resource "aws_acm_certificate" "cert" {
   domain_name       = "example.com"
   validation_method = "DNS"
 }
 
 resource "aws_cloudwatch_log_group" "app" {
-  name = aws_acm_certificate.cert.arn
+  name = "app-${aws_acm_certificate.cert.arn}"
 }
 
 resource "aws_route53_record" "cert_validation" {
