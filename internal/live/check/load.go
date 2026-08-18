@@ -56,11 +56,39 @@ import (
 // live/corpus-manifest.json, not the directory or anyone's real -var-file.
 // Every other caller passes none, and Load then behaves exactly as before.
 func Load(ctx context.Context, dir string, varFiles ...string) LoadResult {
+	return LoadOverlay(ctx, dir, nil, varFiles...)
+}
+
+// LoadOverlay is [Load] with an in-memory overlay of the configuration files:
+// a map of path to content, where each path is the one the loader would join
+// itself (filepath.Join(dir, name)). A path already on disk is read as the
+// overlay's content instead; a path that is not becomes a file the directory
+// appears to hold. Nothing else about the directory changes, and nothing is
+// written anywhere.
+//
+// It exists for internal/live/onboard, which computes the source edit that
+// turns a state-backed module into a live one so that the ONBOARDED form of a
+// configuration can be measured. Every other way of doing that is worse:
+//
+//   - Editing in place would write into a corpus checkout shared by every
+//     concurrent worktree, and a dirty checkout silently contaminates every
+//     later measurement.
+//   - Copying the module aside breaks it. A corpus entry is a directory
+//     inside somebody's repository and its module sources reach out of it -
+//     "../../" is how every terraform-aws-modules example calls the module
+//     it demonstrates - so a copy of the entry alone resolves none of them
+//     and would report a different configuration under the same name.
+//
+// The overlay reaches the configuration parser only. Variable values and the
+// .terraform module manifest are still read from disk, which is correct: the
+// onboarding edit touches neither, and a module install is an input to the
+// measurement rather than part of it.
+func LoadOverlay(ctx context.Context, dir string, overlay map[string][]byte, varFiles ...string) LoadResult {
 	var result LoadResult
 
 	vars := newVariableValues(dir, varFiles...)
 	result.vars = vars
-	parser := configs.NewParser(nil)
+	parser := configs.NewParser(overlayFS(overlay))
 
 	rootCall := configs.NewStaticModuleCall(addrs.RootModule, hcl.Range{}, vars.value, dir, defaultWorkspace)
 	rootMod, diags := parser.LoadConfigDir(dir, rootCall)

@@ -174,18 +174,35 @@ primary goal:
    onboarding an example onboards nobody's infrastructure - which also keeps
    the code people actually write from ever reaching the top line. 74 of them
    are in the corpus and 71 are blocked.
-4. Nothing measures whether a migrated estate works. The end-to-end crossings
-   under `live/e2e/` are the only evidence that exists, and they are written
-   one at a time by hand.
+4. Nothing measures whether a migrated estate APPLIES. The end-to-end
+   crossings under `live/e2e/` are the only evidence of that, and they are
+   written one at a time by hand.
 
 So: the top line of `estate-plan` is a legitimate assignment for the ADOPTION
 campaign, and it is not the assignment for the product. Decide which you are
 doing before you run it, and say which in your report.
 
-**The gap worth closing is (4).** There is no instrument for "someone wrote
-ordinary Terraform, added a `live` block, applied, and it kept working." Until
-there is, every claim about the primary goal rests on a handful of shell
-scripts.
+**(1) is closed. `just onboarding-gap` measures the onboarded form** -
+`refusal-probe -schemas -onboarded` analyzes each entry twice, once as
+published and once after `internal/live/onboard`'s computed edit (a live
+sidecar declaring `record_store "local"`, backend or cloud block removed),
+in memory so nothing is written into `.corpus`. It reports both forms per
+population and which refusal classes the edit empties.
+
+What it found is worth carrying: at `56a568ec5f`, onboarding removes a whole
+refusal class from **93** estates and frees **3** of them - 2 of the 71
+blocked module examples and 1 of the 117 blocked published deployments.
+`logical-resource` falls 512 sites to 102 and `markerless-type` 364 to 28;
+every other class is unchanged to the site, on every entry. That is
+point 2's arithmetic again from the other side: an estate onboards when its
+LAST class clears, so emptying one class across ninety estates that each
+carry two others moves ninety estates nowhere.
+
+**(4) is still open**, and it is the gap that remains. `just onboarding-gap`
+is `check.Analyze` over edited text: it says nothing about whether the estate
+then applies, whether the markers land on the right objects, or whether a
+second plan is empty. "Cleared by onboarding" is step 5 of the loop below,
+not step 6.
 
 ## Where the work is: one estate at a time
 

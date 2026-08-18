@@ -89,21 +89,27 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 	// and the two front ends' own homes. Adding to this list is the way to
 	// say "not a stage"; the point is that it has to be said.
 	notAStage := map[string]bool{
-		"acceptance":      true, // issue #108's cohort acceptance tier: a gated test harness, not a pass
-		"check":           true, // this package: the instrument itself
-		"cloudcontrol":    true, // a client for one AWS API
-		"docsref":         true, // parses the doc references refusals carry
-		"flocitest":       true, // test harness
-		"foreign":         true, // classification of unclaimed resources, inside discovery's stage
-		"harness":         true, // the burndown and assumptions registries; measures the instrument, is not part of it
-		"lifecycle":       true,
-		"listclient":      true, // a client
-		"liveimport":      true, // the bulk migration command's engine
-		"markerkey":       true,
-		"markers":         true, // the marker vocabulary itself
-		"marksafe":        true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
-		"mdspan":          true, // rewrites generated regions of a markdown doc
-		"mv":              true, // the rename command's engine
+		"acceptance":   true, // issue #108's cohort acceptance tier: a gated test harness, not a pass
+		"check":        true, // this package: the instrument itself
+		"cloudcontrol": true, // a client for one AWS API
+		"docsref":      true, // parses the doc references refusals carry
+		"flocitest":    true, // test harness
+		"foreign":      true, // classification of unclaimed resources, inside discovery's stage
+		"harness":      true, // the burndown and assumptions registries; measures the instrument, is not part of it
+		"lifecycle":    true,
+		"listclient":   true, // a client
+		"liveimport":   true, // the bulk migration command's engine
+		"markerkey":    true,
+		"markers":      true, // the marker vocabulary itself
+		"marksafe":     true, // issue #240's lockstep scanner over mark-unsafe cty accessors, plus its mark-injection sweep
+		"mdspan":       true, // rewrites generated regions of a markdown doc
+		"mv":           true, // the rename command's engine
+		// Computes the source edit that turns a state-backed module into a
+		// live one, so the ONBOARDED form of a configuration can be
+		// measured (tools/refusal-probe -onboarded). It rewrites text and
+		// refuses nothing: everything it produces is fed back through this
+		// package's own passes, which is where the verdict comes from.
+		"onboard":         true,
 		"moved":           true, // the moved-block relation lint and discovery share; a pure function over addresses
 		"passthrough":     true, // a registry of upstream diagnostics, not a pass
 		"pins":            true, // the shared provider-version pin (#117), one constant

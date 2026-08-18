@@ -135,6 +135,26 @@
 //
 // A schema-less run and a schema-backed one measure different things, so
 // -diff refuses to compare them.
+//
+// # -onboarded, for the question none of the above asks
+//
+// Everything above measures the ADOPTION question: can a stranger's
+// published configuration be taken over exactly as it stands. That is not
+// the product's primary goal, which is a fully migrated estate - ordinary
+// Terraform, plus a live block, applied, and managed from then on with no
+// state file. Nothing measured that, because every corpus entry is somebody
+// else's published configuration and (verified over all 250) not one
+// declares a live block, a record_store or the sidecar file. So the classes
+// a record_store answers were counted as language wall in every figure this
+// project has produced.
+//
+//	refusal-probe -schemas -onboarded -out both.json    # ~3 min warm
+//
+// analyzes each entry TWICE: once as published, and once after
+// internal/live/onboard's computed edit. See onboarded.go for the design and
+// for what it still does not claim. The published-form fields are produced
+// by the identical call in both modes and do not move; -diff compares the
+// published form and refuses a mixed pair.
 package main
 
 import (
@@ -213,6 +233,17 @@ type run struct {
 	// measurement.
 	Schemas bool `json:"schemas"`
 
+	// OnboardedForm records whether each entry was ALSO analyzed in its
+	// onboarded form - see onboarded.go. Written in both directions for the
+	// same reason as Schemas: an entry object carrying no onboarded result
+	// because the mode was off and one carrying none because the edit was
+	// unmeasurable are different facts, and only this field separates them.
+	//
+	// It never changes the published-form fields. Those are produced by the
+	// identical call in both modes, which is what lets every existing
+	// consumer read an -onboarded sweep unchanged.
+	OnboardedForm bool `json:"onboarded_form"`
+
 	// InitBin is the binary used to install providers, in -schemas mode.
 	// Empty otherwise.
 	InitBin string `json:"init_bin,omitempty"`
@@ -272,6 +303,12 @@ type totals struct {
 	// the failure this pair exists to make visible.
 	EntriesPartialSchemas int `json:"entries_partial_schemas"`
 	EntriesNoSchemas      int `json:"entries_no_schemas"`
+
+	// Onboarding is the second form's aggregate, in -onboarded mode only.
+	// It is a nested object rather than a set of onboarded_* siblings so
+	// that no reader can pick "blocked" out of this struct and get the
+	// wrong form's number.
+	Onboarding *onboardingTotals `json:"onboarding,omitempty"`
 }
 
 type entry struct {
@@ -330,6 +367,16 @@ type entry struct {
 	// files are discovered from disk, so two trees can disagree about them
 	// while agreeing about everything else.
 	VarFiles []string `json:"var_files,omitempty"`
+
+	// Onboarding is what internal/live/onboard concluded about this entry,
+	// and Onboarded the analysis of the edited form. Both are nil outside
+	// -onboarded mode; Onboarded alone is nil when the edit was
+	// unmeasurable, which is why Onboarding records the reason.
+	//
+	// Everything above this point describes the PUBLISHED form in both
+	// modes. Nothing here feeds it.
+	Onboarding *onboardingRecord `json:"onboarding,omitempty"`
+	Onboarded  *formResult       `json:"onboarded,omitempty"`
 }
 
 // providerResult is one (provider, constraint) pair's outcome for the whole
@@ -377,6 +424,8 @@ func main() {
 		pinVersion  = flag.String("provider-version", pins.AWSProviderVersion, "exact version for -provider-source")
 		quiet       = flag.Bool("quiet", false, "suppress the per-entry progress log")
 
+		onboarded = flag.Bool("onboarded", false, "also analyze each entry in its ONBOARDED form - internal/live/onboard's computed edit: a live sidecar declaring record_store \"local\", with the backend or cloud block removed. The published-form numbers are unaffected; this adds a second column. See onboarded.go")
+
 		allowPartial = flag.Bool("allow-partial-corpus", false, "measure anyway when a manifest source expands to no configurations on this disk, or a fetched source sits at a commit the manifest does not pin; the sweep records what was wrong and -diff then refuses to compare it against a full sweep")
 	)
 	flag.Parse()
@@ -400,6 +449,7 @@ func main() {
 		pinSrc:       *pinSource,
 		pinVer:       *pinVersion,
 		allowPartial: *allowPartial,
+		onboarded:    *onboarded,
 	}
 	if !*quiet {
 		opts.log = os.Stderr
@@ -445,6 +495,9 @@ type sweepOptions struct {
 	// refusing. The run still records them.
 	allowPartial bool
 
+	// onboarded adds the second form. See onboarded.go.
+	onboarded bool
+
 	log io.Writer
 }
 
@@ -474,6 +527,10 @@ func sweep(opts sweepOptions) (*run, error) {
 		Sources:        sources,
 		CorpusProblems: problems,
 		Schemas:        opts.schemas,
+		OnboardedForm:  opts.onboarded,
+	}
+	if opts.onboarded {
+		r.Totals.Onboarding = &onboardingTotals{}
 	}
 	ctx := context.Background()
 
@@ -520,6 +577,7 @@ func sweep(opts sweepOptions) (*run, error) {
 
 		var rep check.Report
 		var provRows []entryProvider
+		var schemas map[string]providers.Schema
 		switch {
 		case acq == nil:
 			// No Schemas: that is the whole bound the default mode carries.
@@ -530,7 +588,6 @@ func sweep(opts sweepOptions) (*run, error) {
 			// the loaded configuration is what says which providers this
 			// entry needs, and check.Dir hides it between the two calls.
 			load := check.Load(ctx, ref.Dir, varFiles...)
-			var schemas map[string]providers.Schema
 			if load.Config != nil {
 				schemas, provRows = acq.schemasFor(providerNeeds(load.Config))
 			}
@@ -581,6 +638,11 @@ func sweep(opts sweepOptions) (*run, error) {
 			e.Warnings[f.ID] += len(f.Sites)
 			r.Totals.Warnings += len(f.Sites)
 		}
+
+		if opts.onboarded {
+			measureOnboarded(ctx, &e, ref.Dir, varFiles, schemas, rep, causes, r, opts)
+		}
+
 		r.Entries = append(r.Entries, e)
 
 		r.Totals.Entries++
@@ -688,6 +750,7 @@ func summarize(r *run, wrote string) {
 		fmt.Printf("%5d sites %4d cfg  %-10s %s\n", byID[id], cfgs[id], r.Layers[id], id)
 	}
 	summarizeCauses(r)
+	summarizeOnboarding(r)
 	if wrote != "" {
 		fmt.Printf("\nwrote %s\n", wrote)
 	}
@@ -997,6 +1060,19 @@ func diffPreconditions(beforeName string, before *run, afterName string, after *
 		return fmt.Errorf("one run has schemas and the other does not (%s: %v, %s: %v); "+
 			"they measure different things and a mixed comparison is worse than none - re-run so both agree",
 			beforeName, before.Schemas, afterName, after.Schemas)
+	}
+	// The onboarded axis, for the same reason as the schema axis. The
+	// published-form fields an -onboarded sweep writes are identical to a
+	// default sweep's, so this guard is not about them: it is about a
+	// reader picking the onboarded totals out of one file and the published
+	// totals out of the other. -diff compares the PUBLISHED form on both
+	// sides and says so, and refusing the mixed pair keeps that sentence
+	// true of every file it will ever print.
+	if before.OnboardedForm != after.OnboardedForm {
+		return fmt.Errorf("one run measured the onboarded form and the other did not (%s: %v, %s: %v).\n"+
+			"-diff compares the published form on both sides, so the pair would compare fine and answer a question neither file was asked. "+
+			"Re-run so both agree, or read the onboarded columns out of one -onboarded sweep, which measures both forms itself",
+			beforeName, before.OnboardedForm, afterName, after.OnboardedForm)
 	}
 	if before.Schemas && before.PinVersion != after.PinVersion {
 		return fmt.Errorf("the two schema-backed runs pinned %s at different versions (%q vs %q).\n"+
