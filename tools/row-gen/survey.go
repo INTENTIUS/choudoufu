@@ -24,10 +24,13 @@ type surveyEntry struct {
 }
 
 // surveySignals is the per-type signal block tools/survey-gen derives from
-// the provider's own schema. Only taggable is read here, and it is the same
-// predicate internal/live/markers.Taggable applies at run time: a tags
-// attribute that is settable and is a map of string. See markerless.go for
-// the one rule that consults it.
+// the provider's own schema. Only taggable is read here, and it is
+// [internal/live/markers.Taggable] itself - survey-gen calls that function
+// rather than reimplementing it, which it did until issue #285. The copy
+// had four of the five clauses, missing the one #243 added: a tags map
+// whose keys the provider documents as naming objects that must already
+// exist is schema-identical to a free-form one and is not a marker surface.
+// See markerless.go for the one rule that consults this.
 type surveySignals struct {
 	Taggable bool `json:"taggable"`
 }
