@@ -67,6 +67,21 @@ import (
 //
 // then read the "# shape:" block at the top of the regenerated file.
 var identityGoldenPin = map[string]int{
+	// 734, up from 726 (issue #286, three more ratified rows missing an
+	// optional component the provider's own import syntax includes):
+	// eight ADDED rows across three fresh fixtures,
+	// internal/live/identity/testdata/route53-record-set-identifier,
+	// internal/live/identity/testdata/route53-zone-association-vpc-region and
+	// internal/live/identity/testdata/target-group-attachment-optional,
+	// exercising [identity.Component.OmitIfAbsent] on
+	// aws_route53_record's set_identifier, aws_route53_zone_association's
+	// vpc_region, and aws_lb_target_group_attachment /
+	// aws_alb_target_group_attachment's availability_zone and
+	// quic_server_id, against the provider's own documented import forms.
+	// Not a moved row - no in-repo fixture used any of these four optional
+	// arguments before this, so every pre-existing CONCRETE row in the
+	// golden is byte-identical; see the digest below.
+	//
 	// 726, up from 723 (aws_lambda_permission's qualifier defect):
 	// three ADDED rows in a fresh fixture,
 	// internal/live/identity/testdata/omit-if-absent - unqualified,
@@ -77,7 +92,7 @@ var identityGoldenPin = map[string]int{
 	// a moved row - the fix corrects the RATIFIED row's own components, and
 	// every other CONCRETE row in the golden is byte-identical; see the
 	// digest below.
-	"CONCRETE": 726,
+	"CONCRETE": 734,
 	// 570, up from 562 (issue #271): eight ADDED rows, one per new fixture
 	// directory, each of them that fixture's own aws_acm_certificate.cert.
 	// A certificate's identity is its ARN, minted at create, so
@@ -129,7 +144,15 @@ var identityGoldenPin = map[string]int{
 // removed". That zero is the load-bearing half: the sibling-apply
 // classification #271 added is gated on a run holding managed results, this
 // sweep supplies none, and so not one pre-existing marker moved.
-const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86042ab3a56149513bf9175"
+// 2026-08-17 (issue #286): eight ADDED rows across three new fixture
+// directories, and zero MODIFIED ones. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 8 added, 0
+// removed". That zero is the load-bearing half: no committed fixture under
+// internal/live or live/ used set_identifier, vpc_region, availability_zone
+// or quic_server_id before this fix, so no pre-existing marker's rendered
+// string moved - only the three fresh fixtures exercising the newly
+// admitted optional components contributed rows.
+const identityGoldenPinBodyDigest = "7475ab76bbf688f9a88001539b28a757bd21a2ef899bcbb41173f126136ee874"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -146,9 +169,14 @@ const identityGoldenPinBodyDigest = "bcc2bb360a58842ca0f72f4cfcfb03481e4fc8d3e86
 // new fixture directories for the sibling-apply discriminator, contributing
 // eight certificates and one log group. Both numbers rise by exactly what the
 // eight directories hold.
+// 2026-08-17 (issue #286): dirs 435 -> 438 and instances 1419 -> 1427. Three
+// new fixture directories - route53-record-set-identifier,
+// route53-zone-association-vpc-region and target-group-attachment-optional -
+// contributing two, two and four instances respectively. Both numbers rise
+// by exactly what the three directories hold.
 const (
-	identityGoldenPinInstances = 1419
-	identityGoldenPinDirs      = 435
+	identityGoldenPinInstances = 1427
+	identityGoldenPinDirs      = 438
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

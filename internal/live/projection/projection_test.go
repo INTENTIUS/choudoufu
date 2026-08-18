@@ -825,7 +825,7 @@ var fakeAttrs = map[string][]string{
 	"aws_route53_zone":    {"id", "zone_id", "arn", "name"},
 	"aws_iam_role_policy": {"id", "role", "name", "policy"},
 	"aws_kms_alias":       {"id", "name", "target_key_id"},
-	"aws_route53_record":  {"id", "zone_id", "name", "type", "ttl", "records"},
+	"aws_route53_record":  {"id", "zone_id", "name", "type", "ttl", "records", "set_identifier"},
 	"aws_cloudwatch_metric_alarm": {"id", "alarm_name", "comparison_operator", "evaluation_periods",
 		"metric_name", "namespace", "period", "statistic", "threshold"},
 	// The ELBv2 chain: every one of these identifies by an ARN, and the
@@ -833,7 +833,7 @@ var fakeAttrs = map[string][]string{
 	"aws_lb":                         {"id", "arn", "name", "internal", "load_balancer_type"},
 	"aws_lb_target_group":            {"id", "arn", "name", "port", "protocol", "vpc_id", "target_type"},
 	"aws_lb_listener":                {"id", "arn", "load_balancer_arn", "port", "protocol"},
-	"aws_lb_target_group_attachment": {"id", "target_group_arn", "target_id", "port"},
+	"aws_lb_target_group_attachment": {"id", "target_group_arn", "target_id", "port", "availability_zone", "quic_server_id"},
 	// Account-derived: a topic's identity attribute is its arn, and id
 	// carries the same string.
 	"aws_sns_topic": {"id", "arn", "name"},

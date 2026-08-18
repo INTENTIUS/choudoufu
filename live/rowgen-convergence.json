@@ -4,10 +4,10 @@
     "admitted_total": 907,
     "compared": 893,
     "not_in_mapped_set": 14,
-    "adopted_unchanged": 796,
-    "adopted_unchanged_pct": 89.14,
-    "genuine_mismatches": 97,
-    "annotated": 97,
+    "adopted_unchanged": 795,
+    "adopted_unchanged_pct": 89.03,
+    "genuine_mismatches": 98,
+    "annotated": 98,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 26
   },
@@ -739,8 +739,8 @@
     },
     "Route53": {
       "compared": 8,
-      "adopted_unchanged": 6,
-      "adopted_unchanged_pct": 75
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 62.5
     },
     "Route53Profiles": {
       "compared": 2,
@@ -1072,7 +1072,7 @@
       ],
       "matched": false,
       "annotated": true,
-      "annotation_reason": "aws_alb_target_group_attachment is the provider's documented alias of aws_lb_target_group_attachment (\"is known as ... The functionality is identical.\"), so its import-grammar row is importdocs-gen's own alias clone of that type's row - and the alias inherits the same fold-child gap the canonical type's own ruling already names: a fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row mirrors aws_lb_target_group_attachment's own Components verbatim, the same alias relationship the doc note states."
+      "annotation_reason": "aws_alb_target_group_attachment is the provider's documented alias of aws_lb_target_group_attachment (\"is known as ... The functionality is identical.\"), so its import-grammar row is importdocs-gen's own alias clone of that type's row - and the alias inherits the same fold-child gap the canonical type's own ruling already names: a fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row mirrors aws_lb_target_group_attachment's own Components verbatim, the same alias relationship the doc note states, including the two OmitIfAbsent trailing segments (availability_zone, quic_server_id) that fix a real defect: a target registered under two availability zones, or re-registered with a different QUIC server id, previously rendered the identical import ID and collided under the duplicate-identity guard."
     },
     {
       "tf_type": "aws_amplify_app",
@@ -6369,7 +6369,7 @@
       ],
       "matched": false,
       "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row is the ratifiers' reading of the same page."
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example joins a target-group ARN, an instance id and a port; the ARN segment and the numeric port both defeat name-token attribution. The ratified row is the ratifiers' reading of the same page, and now also carries the two OmitIfAbsent trailing segments (availability_zone, quic_server_id) the doc's Import section and Identity Schema both document as optional: a target registered under two availability zones, or re-registered with a different QUIC server id, previously rendered the identical import ID and collided under the duplicate-identity guard."
     },
     {
       "tf_type": "aws_lb_trust_store",
@@ -8207,11 +8207,15 @@
       "service": "Route53",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "mismatch_classes": [
+        "components"
+      ],
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
-      "matched": true,
-      "annotated": false
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "The ratified row now carries the set_identifier the provider's own Import section documents as a second, optional form ('If the record also contains a set identifier, append it: ... Z4KAPRWWNC7JR_dev.example.com_NS_dev'), fixing a real defect: two aws_route53_record declarations sharing a zone, name and type but differing only in set_identifier - the exact shape a weighted, latency or failover routing policy requires - previously rendered the identical import ID and collided under the duplicate-identity guard. classify.go's import-grammar row still pins only the first documented example (import_id_example 'Z4KAPRWWNC7JR_dev_NS', arguments [name, type, zone_id]) and has no vocabulary for a component that is present in one documented form and absent in another with its own separator, so the fresh proposal still derives the three-component row and cannot reproduce the ratified four-component one."
     },
     {
       "tf_type": "aws_route53_resolver_endpoint",
@@ -8321,7 +8325,7 @@
       ],
       "matched": false,
       "annotated": true,
-      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments (Z123456ABCDEFG:vpc-12345678) are opaque identifiers; vpc-'s prefix rule deliberately refuses near-miss tokens. The ratified row is the ratifiers' reading of the same page."
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example's segments (Z123456ABCDEFG:vpc-12345678) are opaque identifiers; vpc-'s prefix rule deliberately refuses near-miss tokens. The ratified row is the ratifiers' reading of the same page, and now also carries the OmitIfAbsent trailing vpc_region segment the doc's Import section documents as a third, region-qualified form ('The VPC is _not_ in the same region ... Z123456ABCDEFG:vpc-12345678:us-east-2'): a cross-region association previously rendered the same import ID as a same-region one carrying the identical VPC id, and collided under the duplicate-identity guard."
     },
     {
       "tf_type": "aws_route53profiles_association",
