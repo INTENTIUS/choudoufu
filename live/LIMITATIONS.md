@@ -3381,6 +3381,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_vpc_endpoint_security_group_association`,
 `aws_vpc_endpoint_subnet_association`, `aws_vpc_ipam_pool_cidr`,
 `aws_vpc_route_server_propagation`, `aws_vpc_route_server_vpc_association`,
+`aws_vpc_security_group_rules_exclusive`,
 `aws_vpc_security_group_vpc_association`, `aws_vpclattice_auth_policy`,
 `aws_vpclattice_resource_policy`, `aws_wafregional_web_acl_association`,
 `aws_wafv2_web_acl_association`, `aws_wafv2_web_acl_logging_configuration`,
@@ -3720,7 +3721,8 @@ per-type reasoning as it stands.
 `aws_ssm_service_setting`,
 `aws_ssoadmin_instance_access_control_attributes`, `aws_ssoadmin_region`,
 `aws_synthetics_group_association`, `aws_vpc_block_public_access_options`,
-`aws_vpc_dhcp_options_association`, `aws_vpclattice_auth_policy`,
+`aws_vpc_dhcp_options_association`,
+`aws_vpc_security_group_rules_exclusive`, `aws_vpclattice_auth_policy`,
 `aws_vpclattice_resource_policy`, `aws_wafv2_web_acl_logging_configuration`,
 `aws_workmail_domain`, `aws_xray_encryption_config`,
 `aws_xray_resource_policy` and `aws_xray_trace_segment_destination`<!-- survey-gen:end untaggable-residue --> are neither taggable nor

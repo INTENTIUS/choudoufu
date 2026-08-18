@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1035 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1036 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 314 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1035<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1036<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -567,6 +567,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_vpc_route_server_endpoint`, `aws_vpc_route_server_peer`,
   `aws_vpc_route_server_propagation`, `aws_vpc_route_server_vpc_association`,
   `aws_vpc_security_group_egress_rule`, `aws_vpc_security_group_ingress_rule`,
+  `aws_vpc_security_group_rules_exclusive`,
   `aws_vpc_security_group_vpc_association`,
   `aws_vpclattice_access_log_subscription`, `aws_vpclattice_auth_policy`,
   `aws_vpclattice_domain_verification`, `aws_vpclattice_listener`,

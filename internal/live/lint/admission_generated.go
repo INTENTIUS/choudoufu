@@ -978,6 +978,7 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_vpc_route_server_vpc_association":                         {},
 	"aws_vpc_security_group_egress_rule":                           {},
 	"aws_vpc_security_group_ingress_rule":                          {},
+	"aws_vpc_security_group_rules_exclusive":                       {},
 	"aws_vpc_security_group_vpc_association":                       {},
 	"aws_vpclattice_access_log_subscription":                       {},
 	"aws_vpclattice_auth_policy":                                   {},
