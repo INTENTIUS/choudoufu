@@ -46,8 +46,8 @@ in production.
 
 The policy conditions the create call, not the tool, so it applies to the
 console, the CLI, another pipeline, and anything else with credentials. That is
-the point. A resource created by hand at three in the morning either carries an
-estate tag or does not get created.
+the point. A resource created by hand either carries an estate tag or does not
+get created.
 
 It also means the tag is worth something as evidence. A resource carrying
 `tofu-estate` under this policy was claimed at birth rather than labelled

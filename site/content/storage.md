@@ -95,7 +95,7 @@ receipts namespace.
 
 Visibility is why. A receipt is AWS-native so its value stays readable with a
 plain `aws ssm get-parameter`, by someone with read-only IAM and no `choudoufu`
-binary, at three in the morning. A record-store payload is tool-internal by
+binary. A record-store payload is tool-internal by
 design. Moving a receipt onto it would trade `aws ssm get-parameter` for
 choudoufu's internal JSON envelope, strictly worse for the one artifact whose
 job is being legible to someone not running the tool.
