@@ -3741,29 +3741,40 @@ or delete it out of band. Every plan still names this narrower list under
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
 
-**An import-derived prior state cannot hold config-only attributes.** A
-provider attribute that the cloud does not store and the configuration
-does not set has no value in a projection, since no read can return it.
-When the resource changes for any other reason, the provider's default
-arrives in the diff as a null-to-default line beside the real change.
-`aws_security_group`'s `revoke_rules_on_delete` is the case in the v0
-subset. This is not specific to marker runs. A stock `choudoufu import` of
-the same resource followed by the same drift prints the identical line. It
-is cosmetic (the attribute is only consulted on delete) and not
-recoverable at OpenTofu's layer, because provider defaults live in the SDK
-and not in the schema OpenTofu is served.
+**An import-derived prior state cannot hold config-only attributes, unless
+an estate declares a `record_store`.** A provider attribute that the cloud
+does not store and the configuration does not set has no value in a
+projection, since no read can return it. When the resource changes for any
+other reason, the provider's default arrives in the diff as a
+null-to-default line beside the real change. `aws_security_group`'s
+`revoke_rules_on_delete` is the case in the v0 subset. This is not specific
+to marker runs. A stock `choudoufu import` of the same resource followed by
+the same drift prints the identical line. It is cosmetic (the attribute is
+only consulted on delete).
 
-The same gap stops being cosmetic when the configuration *does* set such
-an argument. Then the projection holds the null the read returned, the
+The same gap stops being cosmetic when the configuration *does* set such an
+argument. Then the projection holds the null the read returned, the
 configuration holds the written value, and every plan proposes the same
-in-place update forever, a standing non-empty plan rather than a stray
-line beside a real change. `aws_kms_key`'s `deletion_window_in_days` and
-`aws_route53_zone`'s `force_destroy` are the two in the v0 subset: KMS and
-Route 53 never return either one, and both are consulted only on destroy.
-The estate fixture leaves both at their defaults for exactly this reason
-(`live/e2e/estate/keys.tf`, `dns.tf`). If you need a non-default
-value for one of these, a marker run will re-propose it on every plan,
-that is the cost, and it is visible rather than silent.
+in-place update forever, a standing non-empty plan rather than a stray line
+beside a real change - with no `record_store` declared. Where one is
+declared, this is exactly the class "Attribute-level residue" above
+(issue #275) exists for: nothing has classified the argument until an
+estate's first choudoufu-driven apply, so the FIRST plan after adoption, or
+after the argument's value first changes, still shows it, but the very next
+plan is empty once that one apply has run. Verified directly against floci
+for `revoke_rules_on_delete` on `aws_default_security_group` (issue #328):
+the apply records `tofu-residue/<estate>/aws_default_security_group/...`
+holding `revoke_rules_on_delete: true`, and the following cold replan
+reports "No changes." `aws_kms_key`'s `deletion_window_in_days` and
+`aws_route53_zone`'s `force_destroy` are the two other v0-subset arguments
+in the same class: KMS and Route 53 never return either one, and both are
+consulted only on destroy. The estate fixture leaves both at their defaults
+and declares no `record_store` (`live/e2e/estate/keys.tf`, `dns.tf`), so for
+it the standing-diff behavior above still applies in full - not because the
+class is unrecoverable, but because that fixture has nowhere to record it.
+If you need a non-default value for one of these with no `record_store`
+declared, a marker run will re-propose it on every plan, that is the cost,
+and it is visible rather than silent.
 
 ## Exclusion cohorts
 
