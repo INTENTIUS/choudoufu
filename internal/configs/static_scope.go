@@ -722,8 +722,42 @@ func (s staticScopeData) GetInputVariable(_ context.Context, ident addrs.InputVa
 	if valDiags.HasErrors() {
 		// If the variable value was too invalid to pass the initial request
 		// then we'll bail out immediately here since our other checks below
-		// are likely to produce redundant errors that would be confusing.
-		return cty.DynamicVal, s.enhanceDiagnostics(id, diags)
+		// - convert.Convert against the variable's own declared type
+		// constraint chief among them - are likely to produce redundant
+		// errors that would be confusing, AND (found empirically, not just
+		// in theory: reverting this bail regressed GitHub issue #304's own
+		// target case) are not reliably safe to run on a value that is only
+		// PARTIALLY unknown. convert.Convert's own unification across a
+		// tuple's heterogeneous element types has to settle on one
+		// definite result type, and an element carrying a genuinely unknown
+		// (cty.DynamicVal-typed) leaf can make that unification itself
+		// come back fully unknown - silently destroying more of the value
+		// than the one reference that actually failed did. So this keeps
+		// bailing, but keeps val's own TYPE rather than collapsing to
+		// cty.DynamicVal's type-erased unknown, matching the convention
+		// [normalizeRefValue] (internal/lang/eval.go) already uses for
+		// every other reference kind: a tuple literal's ELEMENT COUNT is a
+		// property of its type, not of any one element's contents, and
+		// survives this way where cty.DynamicVal (type-erased too) would
+		// have erased it. length(var.x) for a var.x whose declared value is
+		// [{a=1,b=SOMETHING_DYNAMIC}] still has a real answer purely from
+		// that preserved shape, which is what GitHub issue #304's actual
+		// site needed: a single-element ingress_with_cidr_blocks list whose
+		// one dynamic field never affects the resource's OWN count
+		// expression at all. Every ordinary caller is unaffected: it
+		// already stops at diags.HasErrors() before looking at the value at
+		// all (the standard pattern this whole package uses - see, for
+		// one, checkCountIndex's own [countIndexDomain.verdict]), so the
+		// value only ever reaches a caller built to look past that gate
+		// ([StaticEvaluator.EvaluateStructural]).
+		// val is never cty.NilVal here: s.eval.call.vars always returns
+		// through [StaticEvaluator.Evaluate]'s own cty.UnknownVal(wantType)
+		// fallback on error, never the zero value, but the guard costs
+		// nothing and keeps this total.
+		if val == cty.NilVal {
+			return cty.DynamicVal, s.enhanceDiagnostics(id, diags)
+		}
+		return cty.UnknownVal(val.Type()), s.enhanceDiagnostics(id, diags)
 	}
 
 	// "val" now contains the raw value passed by the caller. We need to prepare it
