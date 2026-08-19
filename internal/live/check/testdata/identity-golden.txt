@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=475 instances=1513
-# shape: class CONCRETE=761
-# shape: class NEEDS_DISCOVERY=630
-# shape: class PARENT_DERIVED=105
+# shape: dirs=480 instances=1522
+# shape: class CONCRETE=762
+# shape: class NEEDS_DISCOVERY=636
+# shape: class PARENT_DERIVED=107
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=c2f7935157b3f178b39f9f27a1a90d73c2e03db31e92ca89f368923ba21ff357
+# shape: body-sha256=d284359100fbeeb1a84bdba02ae6865b56f8c33c3912fc3455d074df9641546a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -115,6 +115,15 @@ internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_a
 internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	estate-app	name=estate-app
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-literal-fallback	aws_security_group_rule.ingress	CONCRETE	sg-fallback_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=sg-fallback,to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-out-of-range	aws_security_group.a[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.a[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.b[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.b[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group_rule.ingress	PARENT_DERIVED	${aws_security_group.b[1].id}_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=${aws_security_group.b[1].id},to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-security-group	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-security-group	aws_security_group_rule.ingress	PARENT_DERIVED	${aws_security_group.this[0].id}_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=${aws_security_group.this[0].id},to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-unrecognized-arg	aws_security_group.a[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_ecs_cluster.main	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/identity/testdata/concrete-parent-attr	aws_ecs_service.web	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_eks_access_entry.assumed	NEEDS_DISCOVERY		

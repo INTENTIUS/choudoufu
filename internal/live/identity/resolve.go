@@ -1856,6 +1856,34 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveFallbackChain(e, scope, ident); applicable {
 			return parts, ok
 		}
+	case *hclsyntax.IndexExpr:
+		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N is not a
+		// literal (count.index, a local) - see splat.go's
+		// resolveConcatIndex, whose own doc comment explains why this
+		// shape needs both this case and the next one. Not applicable to
+		// anything but an index into a concat() call, which falls through
+		// to the generic refusal below exactly as it always has.
+		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
+			return parts, ok
+		}
+	case *hclsyntax.RelativeTraversalExpr:
+		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N IS a
+		// literal, e.g. concat(...)[0] - #324's own local.this_sg_id shape.
+		// HCL folds a constant index into a traversal step rather than
+		// building an IndexExpr, so this arrives as a RelativeTraversalExpr
+		// wrapping the concat() call, not as the case above - see
+		// resolveConcatIndex's doc comment. Trying it here, before
+		// resolveIndexedTraversal runs below, changes nothing for the
+		// shape resolveIndexedTraversal itself owns (R[idx].attr, a
+		// RelativeTraversalExpr wrapping an *IndexExpr with a trailing
+		// TraverseAttr): resolveConcatIndex requires its Source to be a
+		// concat() FunctionCallExpr and its Traversal to be a single
+		// TraverseIndex, which that shape never is, so it reports
+		// applicable=false and falls through to resolveIndexedTraversal
+		// unchanged.
+		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
+			return parts, ok
+		}
 	}
 
 	trav, diags := hcl.AbsTraversalForExpr(expr)

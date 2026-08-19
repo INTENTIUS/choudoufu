@@ -148,7 +148,20 @@ var identityGoldenPin = map[string]int{
 	// records an entry for that shape). Not a moved row - no pre-existing
 	// fixture used this shape before, so every other CONCRETE row in the
 	// golden is byte-identical; see the digest below.
-	"CONCRETE": 761,
+	//
+	// 762, up from 761 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// one ADDED row, internal/live/identity/testdata/concat-splat-index-
+	// literal-fallback's aws_security_group_rule.ingress, rendering
+	// "sg-fallback_ingress_tcp_80_80_0.0.0.0/0". Both of the fixture's own
+	// splats (aws_security_group.a, .b) provably expand to zero instances,
+	// so concat(a.*.id, b.*.id, ["sg-fallback"])[0] provably lands on the
+	// trailing literal rather than any resource's attribute - the case the
+	// fix's own doc comment says is NOT identity-bearing via a marker, and
+	// resolves through resolveExpr on that one literal element the same
+	// way any other plain string does. Not a moved row - no pre-existing
+	// fixture used this shape before, so every other CONCRETE row in the
+	// golden is byte-identical; see the digest below.
+	"CONCRETE": 762,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -228,7 +241,15 @@ var identityGoldenPin = map[string]int{
 	// x2) - eight rows total, all NEEDS_DISCOVERY like every other bare
 	// aws_route_table/aws_subnet in this golden. See
 	// identityGoldenPinInstances' own comment for the fixtures.
-	"NEEDS_DISCOVERY": 630,
+	// 636, up from 630 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// six new server-assigned aws_security_group instances across three
+	// fixtures - concat-splat-index-out-of-range's a[0], concat-splat-
+	// index-second-arg's a[0]/b[0]/b[1], concat-splat-index-security-
+	// group's this[0], and concat-splat-index-unrecognized-arg's a[0] -
+	// all NEEDS_DISCOVERY like every other bare aws_security_group in this
+	// golden. See identityGoldenPinInstances' own comment for the fixtures
+	// and the PARENT_DERIVED rows the same fix adds.
+	"NEEDS_DISCOVERY": 636,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -253,7 +274,19 @@ var identityGoldenPin = map[string]int{
 	// (element()'s own modulo wraparound over a 5-instance block and a
 	// 2-instance source). See identityGoldenPinInstances' own comment for
 	// the fixtures.
-	"PARENT_DERIVED": 105,
+	// 107, up from 105 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// two new rows, concat-splat-index-second-arg's and concat-splat-
+	// index-security-group's aws_security_group_rule.ingress, resolving
+	// concat(A[*].id, B[*].id, [literal])[N] reached through a local value
+	// - security-group's formula reads
+	// ${aws_security_group.this[0].id}_ingress_tcp_80_80_0.0.0.0/0 (index
+	// 0 lands on the first splat's own single instance, the second splat
+	// contributing zero elements); second-arg's reads
+	// ${aws_security_group.b[1].id}_ingress_tcp_80_80_0.0.0.0/0 (index 2
+	// lands on the SECOND splat's second element, proving the cumulative-
+	// length offset arithmetic across two non-empty splats). See
+	// identityGoldenPinInstances' own comment for the fixtures.
+	"PARENT_DERIVED": 107,
 	"RECORD_BACKED":  17,
 }
 
@@ -371,7 +404,14 @@ var identityGoldenPin = map[string]int{
 // three fixtures and the class breakdown); no pre-existing row's rendered
 // value changed - TestIdentityGolden's own diff read "0 identities
 // changed, 16 added, 0 removed" before this line was edited.
-const identityGoldenPinBodyDigest = "c2f7935157b3f178b39f9f27a1a90d73c2e03db31e92ca89f368923ba21ff357"
+// 2026-08-19 (issue #324 item 2, splat.go's resolveConcatIndex): body
+// digest moved because nine rows were ADDED (see the CONCRETE,
+// NEEDS_DISCOVERY and PARENT_DERIVED class comments above and
+// identityGoldenPinInstances' own comment below for the five fixtures);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 9 added, 0 removed" before this line
+// was edited.
+const identityGoldenPinBodyDigest = "d284359100fbeeb1a84bdba02ae6865b56f8c33c3912fc3455d074df9641546a"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -567,9 +607,39 @@ const identityGoldenPinBodyDigest = "c2f7935157b3f178b39f9f27a1a90d73c2e03db31e9
 // into every hcl.EvalContext it builds, which is as central as this fork
 // gets. It moving no rendered identity anywhere in the tree is the evidence
 // that it changed only the crashing path.
+//
+// 2026-08-19 (issue #324 item 2, splat.go's resolveConcatIndex): instances
+// 1513 -> 1522, dirs 475 -> 480. Five new fixture roots -
+// internal/live/identity/testdata/concat-splat-index-security-group,
+// concat-splat-index-second-arg, concat-splat-index-literal-fallback,
+// concat-splat-index-out-of-range and concat-splat-index-unrecognized-arg
+// - pinning concat(A[*].attr, B[*].attr, ..., [literal])[N] reached
+// through a local value, the shape terraform-aws-modules/security-
+// group's own this_sg_id accessor uses (#324's motivating site,
+// aws_security_group_rule.ingress_with_cidr_blocks[0].security_group_id
+// in corpus-rds-complete-postgres). security-group contributes one
+// aws_security_group.this[0] (NEEDS_DISCOVERY) plus one
+// aws_security_group_rule.ingress (PARENT_DERIVED, index 0 landing on
+// the first splat's own single instance while the second splat's zero
+// instances contribute nothing); second-arg contributes three
+// aws_security_group instances across two splats (NEEDS_DISCOVERY) plus
+// one aws_security_group_rule.ingress (PARENT_DERIVED, index 2 landing
+// on the SECOND splat's second element - the cumulative-length offset
+// arithmetic across two non-empty splats); literal-fallback contributes
+// zero aws_security_group rows (both splats expand to zero instances)
+// plus one aws_security_group_rule.ingress (CONCRETE, the provable index
+// landing on the trailing literal rather than any resource); out-of-
+// range and unrecognized-arg each contribute one aws_security_group.a[0]
+// (NEEDS_DISCOVERY) and refuse identity resolution for their own rule
+// resource (an out-of-range index and an unsizeable argument
+// respectively), so neither contributes a rule-resource row. Totals: +9
+// instances (+1 CONCRETE, +6 NEEDS_DISCOVERY, +2 PARENT_DERIVED), +5
+// dirs. Every pre-existing row is byte-identical; this is a pure
+// addition, matching TestIdentityGolden's own "0 identities changed, 9
+// added, 0 removed".
 const (
-	identityGoldenPinInstances = 1513
-	identityGoldenPinDirs      = 475
+	identityGoldenPinInstances = 1522
+	identityGoldenPinDirs      = 480
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
