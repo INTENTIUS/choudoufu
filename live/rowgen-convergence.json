@@ -1,13 +1,13 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1036,
-    "compared": 1022,
+    "admitted_total": 1037,
+    "compared": 1023,
     "not_in_mapped_set": 14,
     "adopted_unchanged": 876,
-    "adopted_unchanged_pct": 85.71,
-    "genuine_mismatches": 146,
-    "annotated": 146,
+    "adopted_unchanged_pct": 85.63,
+    "genuine_mismatches": 147,
+    "annotated": 147,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 29
   },
@@ -108,9 +108,9 @@
       "adopted_unchanged_pct": 100
     },
     "AutoScaling": {
-      "compared": 5,
+      "compared": 6,
       "adopted_unchanged": 5,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 83.33
     },
     "BCMDataExports": {
       "compared": 1,
@@ -1848,6 +1848,21 @@
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_traffic_source_attachment",
+      "service": "AutoScaling",
+      "proposed_bucket": "fold-child",
+      "proposed_rule": "via==fold: property-child of AWS::AutoScaling::AutoScalingGroup",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and neither of the two grammar rules that resolve fold rows from the child's own Import section reaches this one: the doc's own segment names ('traffic_source_type', 'traffic_source_identifier') are flattened prose shorthand for the `type` and `identifier` attributes of a required, max_items:1 `traffic_source` nested block, not literal argument names, so the scrape's own argument match resolves only the first segment and the other two land in id_parts sourced 'unknown'. GitHub issue #310's own hypothesis - that the provider identity schema's own schema-fallback walk stops at top-level attributes - turned out not to explain this type: it has no identity schema at all in v6.59.0 (signals.identity_schema=false), so identity.Derivable never reaches it regardless of nesting. The ratified row is the ratifiers' own reading of the Import section plus the resource schema, using a new Component.Block field (issue #310) to read the second and third components out of the nested block rather than the top level - the same shape aws_iam_group_policy_attachment's ruling already sets for a fold-child composite, extended to a component that lives inside a block."
     },
     {
       "tf_type": "aws_backup_framework",

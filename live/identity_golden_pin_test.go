@@ -195,7 +195,15 @@ var identityGoldenPin = map[string]int{
 	// same fixture's five adversarial siblings (rules b..f) contribute no
 	// row at all, which is the half that has to hold. No pre-existing row
 	// moved.
-	"CONCRETE": 766,
+	//
+	// 767, up from 766 (issue #310, identity.Component gaining a Block
+	// field): one ADDED row,
+	// internal/live/identity/testdata/nested-block-component's
+	// aws_autoscaling_traffic_source_attachment.present, rendering the
+	// provider's own documented import example verbatim. The fixture's two
+	// adversarial siblings (absent, impure) contribute no row. No
+	// pre-existing row moved.
+	"CONCRETE": 767,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -529,7 +537,17 @@ var identityGoldenPin = map[string]int{
 // the one fixture); no pre-existing row's rendered value changed -
 // TestIdentityGolden's own diff read "0 identities changed, 2 added, 0
 // removed" before this line was edited.
-const identityGoldenPinBodyDigest = "a3dfe1247921b48014a9e89a92b81679927194c3c6b4952da9c4866a1d4cc1d5"
+//
+// 2026-08-19 (issue #310, identity.Component gaining a Block field, merged
+// on top of #302 above): body digest moved again because one more row was
+// ADDED (see the CONCRETE class comment above and identityGoldenPinInstances'
+// own comment below for the one fixture); no pre-existing row's rendered
+// value changed. Both branches independently regenerated the golden from a
+// common ancestor, producing a real merge conflict in the data file itself;
+// resolved per this repository's standing rule by regenerating fresh against
+// the fully merged code (-update) rather than hand-merging the two diffs,
+// then copying the regenerated body-sha256 here.
+const identityGoldenPinBodyDigest = "7902ff3645f51fc9ca7717488592bd1d10c5bdaa5e80e7c981837df0a4251795"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -844,9 +862,26 @@ const identityGoldenPinBodyDigest = "a3dfe1247921b48014a9e89a92b81679927194c3c6b
 // exactly two rows, aws_iam_role.other and aws_iam_service_linked_role.app,
 // both NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a
 // pure addition.
+//
+// 2026-08-19 (issue #310, identity.Component gaining a Block field, merged
+// on top of #302 above): instances 1556 -> 1557, dirs 492 -> 493. One new
+// fixture, internal/live/identity/testdata/nested-block-component - one
+// ADDED row, aws_autoscaling_traffic_source_attachment.present, rendering
+// "example,elbv2,arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456"
+// (the provider's own documented import example, verbatim), with identity
+// attributes autoscaling_group_name/identifier/type - the second and third
+// read out of the fixture's own traffic_source nested block rather than the
+// top level. The fixture's other two instances (absent: no traffic_source
+// block at all; impure: identifier built from uuid()) contribute no row,
+// which is the half that has to hold - both are refused, not fabricated or
+// defaulted. Every pre-existing row is byte-identical; this is a pure
+// addition. Both branches independently regenerated the golden from a
+// common ancestor (see the body-digest comment above for the merge
+// resolution); the arithmetic checks: 1554 (pre-#302, pre-#310) + 2 (#302's
+// own delta) + 1 (#310's own delta) = 1557, exactly the regenerated total.
 const (
-	identityGoldenPinInstances = 1556
-	identityGoldenPinDirs      = 492
+	identityGoldenPinInstances = 1557
+	identityGoldenPinDirs      = 493
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

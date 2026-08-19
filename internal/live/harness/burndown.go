@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      146,
+		Bound:      147,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -537,6 +537,26 @@ func rowgenAnnotationRulings() Entry {
 				"for a cfn-unmodeled type from import-grammar evidence (sole_id_part.source==own-id, or " +
 				"an import_id_example sharing a same-service sibling's id-prefix convention) at all. " +
 				"143 + 3 = 146.",
+			"147 on 2026-08-19 (issue #310): the same reviewed upward bump, one newly admitted type. " +
+				"aws_autoscaling_traffic_source_attachment's documented import ID " +
+				"(autoscaling_group_name,traffic_source_type,traffic_source_identifier) is fully " +
+				"client-specified, but its second and third components are the `type` and `identifier` " +
+				"attributes of a required, max_items:1 `traffic_source` nested block, not top-level " +
+				"arguments - the doc's own flattened segment names ('traffic_source_type', " +
+				"'traffic_source_identifier') are prose shorthand the scrape's argument match cannot " +
+				"resolve, so only the first segment lands in import-grammar.json's arguments list and " +
+				"the fresh proposal stays fold-child with no components. The filed issue's own " +
+				"hypothesis - that the provider identity schema's schema-fallback walk stops at " +
+				"top-level attributes - turned out not to be why: this type carries no identity schema " +
+				"at all in v6.59.0, so identity.Derivable never reaches it regardless of nesting. The " +
+				"real gap was narrower and new: identity.Component gained a Block field so a ratified " +
+				"row can read an identity component out of a named singular nested block, additive over " +
+				"every row before it (no existing row sets it, so no existing resolution changes), and " +
+				"this type's row is ratified using it. The ruling's exit names the same missing " +
+				"generator capability the field's own resolver-side counterpart does not close: " +
+				"resolveArgName matching a flattened prose segment against a nested block's own leaf " +
+				"attribute name, plus a fold-child composite rule proposing a Block-bearing Component. " +
+				"146 + 1 = 147.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

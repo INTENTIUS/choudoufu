@@ -1360,6 +1360,38 @@
     ],
     "import_syntax": "AUTOSCALING_GROUP_NAME/SCHEDULED_ACTION_NAME"
   },
+  "aws_autoscaling_traffic_source_attachment": {
+    "type": "aws_autoscaling_traffic_source_attachment",
+    "components": [
+      {
+        "attrs": [
+          "autoscaling_group_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "type"
+        ],
+        "block": "traffic_source",
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "identifier"
+        ],
+        "block": "traffic_source",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "AUTOSCALING_GROUP_NAME,TRAFFIC_SOURCE_TYPE,TRAFFIC_SOURCE_IDENTIFIER"
+  },
   "aws_backup_framework": {
     "type": "aws_backup_framework",
     "components": [

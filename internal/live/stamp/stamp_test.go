@@ -722,6 +722,18 @@ var (
 		// argument in the pinned v6.59.0 Argument Reference; confirmed
 		// against live/survey-full.json's signals.taggable (false).
 		"aws_vpc_security_group_rules_exclusive",
+
+		// Issue #310: aws_autoscaling_traffic_source_attachment, ratified
+		// off its documented composite import ID
+		// (autoscaling_group_name,traffic_source_type,traffic_source_identifier)
+		// - the second and third components read out of a required,
+		// max_items:1 traffic_source nested block via the new
+		// identity.Component.Block field rather than as top-level
+		// arguments. The provider ships no resource Identity Schema for
+		// this type. No tags argument in the pinned v6.59.0 Argument
+		// Reference; confirmed against live/survey-full.json's
+		// signals.taggable (false).
+		"aws_autoscaling_traffic_source_attachment",
 	}
 )
 
@@ -1236,6 +1248,7 @@ func testSchemas() Schemas {
 		"aws_vpc_security_group_ingress_rule":                taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"),
 		"aws_vpc_security_group_egress_rule":                 taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"),
 		"aws_vpc_security_group_rules_exclusive":             untaggedSchema("security_group_id", "ingress_rule_ids", "egress_rule_ids"),
+		"aws_autoscaling_traffic_source_attachment":          untaggedSchema("autoscaling_group_name", "traffic_source"),
 		"aws_launch_template":                                taggedSchema("id", "arn", "name", "image_id", "instance_type"),
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),
