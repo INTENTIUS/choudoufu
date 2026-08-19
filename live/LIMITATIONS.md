@@ -366,10 +366,15 @@ is one cloud object and two wrong beliefs:
   apart. Stock refuses this too, as "Moved object still exists".
 - The two endpoints name different resource types. A marker names the type of
   the resource it is written on, so an alias across types could never match.
-- An endpoint passes through a `count`-expanded module instance. `count`
-  renumbers every address beneath it, so an alias into one would name addresses
-  that move under their own markers - the same step `choudoufu live-mv` refuses,
-  and the reason "child-module" refuses `count` modules outright.
+- An endpoint passes through a `count`-expanded module instance. This is
+  `internal/live/moved`'s own refusal, not shared with `choudoufu live-mv`:
+  issue #317 found that `live-mv`'s copy of this reasoning was citing a
+  premise issue #195 had already retired for a plain scalar module `count`
+  (see "child-module" below) and admitted the rename once lint's own
+  `RuleChildModule` has already proven the step static, so `live-mv` no
+  longer refuses this shape. Whether `moved`'s structural-matching mechanism
+  carries the same guarantee is a separate question the fix deliberately did
+  not answer; it is still refused here pending that follow-up.
 
 **Forwarding address.** `choudoufu live-mv <old-address> <new-address>`, the
 marker rewrite that plays the same role by editing the live resource's
