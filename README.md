@@ -2,25 +2,32 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**IAM-governed state for OpenTofu.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
+**OpenTofu with one permission model.** <img src="docs/images/choudoufu-inline-64.png" width="32" height="32" alt="">
 
 Each resource carries its own ownership record as ordinary cloud tags. AWS
-can tell you what an estate contains. Your IAM already decides who may read
-or change it. Experimental, AWS only.
+can tell you what an estate contains, and your IAM already decides who may
+read or change it. Nothing else to permission, and no lock to manage.
+Experimental, AWS only.
 
-**An estate is inherited by being granted access to it.** Handover is
-granting a role. Splitting an estate in two is rewriting tags. Whoever
-inherits one can list what they got with any cloud tool before running
-anything.
-
-The three jobs a state file does are each done here by a feature the platform
+Three things have to survive between runs, and each lives somewhere AWS
 already has. Which real resource an address refers to is a tag on the
 resource. Values AWS has nowhere to put go in a `record_store`, backed by
-Parameter Store, S3, or a local directory. Who may read or change either is
-your IAM, per resource, with no second permission model to keep in sync.
-Effects that leave nothing behind to read back get a receipt, which tracks
-their staleness.
+Parameter Store, S3, or a local directory. Effects that leave nothing behind
+to read back get a receipt, which tracks their staleness.
 
+**Tag-based IAM scoping is a feature AWS already has.** What it needs is tags
+that are reliably present and correct. A marker is derived from the
+configuration address and written as part of the create call, so a resource
+that exists carries one. Not a convention someone has to remember, and not a
+`default_tags` block that drifts.
+
+Three things follow. Your IAM is the whole permission model, with no bucket
+policy or lock table to keep in step with it. There is no lock to manage or
+force open, because concurrent runs settle at the API. And an estate is
+legible without the binary, so whoever inherits one can list what they got
+with any cloud tool before running anything.
+
+Handover is granting a role. Splitting an estate in two is rewriting tags.
 Adoption is a tag you write. A rename is a tag you rewrite.
 
 The name is stinky tofu, fermented and famously an acquired taste, a fit for
