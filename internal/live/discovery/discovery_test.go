@@ -896,8 +896,12 @@ type fakeObject struct {
 	id          string
 	displayName string
 	tags        map[string]string
-	noIdentity  bool
-	noObject    bool
+	// arn is set only for a type registered via [fakeCloud.withARNAttr] -
+	// issue #302's repro needs a listed object whose full resource carries a
+	// real arn attribute the way aws_iam_role's schema always does.
+	arn        string
+	noIdentity bool
+	noObject   bool
 }
 
 // fakeCloud is a listclient.Lister backed by canned objects. It serves the
@@ -912,6 +916,7 @@ type fakeCloud struct {
 	unfilter  map[string]bool
 	missing   map[string]bool
 	untagged  map[string]bool
+	arnAttr   map[string]bool
 	accountID string
 
 	requests []providers.ListResourceRequest
@@ -919,6 +924,7 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
+		arnAttr: make(map[string]bool),
 		objects: make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
@@ -981,6 +987,21 @@ func (c *fakeCloud) obj(typeName, id string, tags map[string]string) {
 		displayName: id,
 		tags:        tags,
 	})
+}
+
+// withARNAttr makes a type's resource schema carry a plain "arn" attribute,
+// the way aws_iam_role's real schema always does ("Amazon Resource Name
+// (ARN) specifying the role.", per the AWS provider's iam_role.html.markdown
+// doc page) - issue #302's importIdentityFromResource reads it off the
+// listed object regardless of which declared type's list call surfaced it.
+func (c *fakeCloud) withARNAttr(typeName string) { c.arnAttr[typeName] = true }
+
+// ownWithARN is [fakeCloud.own] plus an arn value on the resource object, for
+// a type registered via [fakeCloud.withARNAttr].
+func (c *fakeCloud) ownWithARN(typeName, id, arn, address string) {
+	c.own(typeName, id, address)
+	objs := c.objects[typeName]
+	objs[len(objs)-1].arn = arn
 }
 
 // noFilter makes a type's list schema offer no filter argument, the way the
@@ -1047,6 +1068,9 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 			"id":   {Type: cty.String, Computed: true},
 			"tags": {Type: cty.Map(cty.String), Optional: true},
 		}
+		if c.arnAttr[name] {
+			attrs["arn"] = &configschema.Attribute{Type: cty.String, Computed: true}
+		}
 		if c.untagged[name] {
 			delete(attrs, "tags")
 		}
@@ -1105,6 +1129,13 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 		}
 		if req.IncludeResourceObject && !o.noObject {
 			attrs := map[string]cty.Value{"id": cty.StringVal(o.id)}
+			if c.arnAttr[req.TypeName] {
+				if o.arn != "" {
+					attrs["arn"] = cty.StringVal(o.arn)
+				} else {
+					attrs["arn"] = cty.NullVal(cty.String)
+				}
+			}
 			if !c.untagged[req.TypeName] {
 				// c.untagged only trimmed the schema's "tags" attribute
 				// (GetProviderSchema, above) - the object this stream
