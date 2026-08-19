@@ -308,6 +308,160 @@ func (r *resolver) resolveElementCall(call *hclsyntax.FunctionCallExpr, scope in
 	return got, gotOK, true
 }
 
+// resolveConcatIndex recognizes concat(A[*].attr, B[*].attr, ...,
+// [literal, ...])[N] - a list built by concatenating zero or more splats
+// over managed resources with zero or more literal-list arguments, then
+// picked apart by a single index - and resolves it the way
+// [resolver.resolveElementCall] resolves element(R[*].attr, idx): N is
+// evaluated once against the current instance's own scope, and each
+// argument's own contribution to the flattened list is exactly as many
+// elements as that argument's own length. For a splat, that length is the
+// source resource's own instance count ([resolver.expansionFor], through
+// [resolver.splatTargets] - the same machinery every other rule in this file
+// uses); for a literal list ([hclsyntax.TupleConsExpr], the `[...]` syntax)
+// it is simply the number of elements written. Summing those lengths in
+// argument order locates which argument N falls into and at what position
+// within it, and that argument's own element at that position - a resource
+// instance's attribute, or whatever that literal-list element turns out to
+// be - is the answer: a splat position resolves through
+// [resolver.parentPart], exactly as resolveElementCall's does, and a
+// literal-list position resolves through [resolver.resolveExpr] on that one
+// element, which already knows how to turn a plain literal into a Part and
+// would equally resolve a resource reference sitting in that slot, without
+// this function needing its own copy of that logic.
+//
+// This is the same claim resolveElementCall's own doc comment makes for
+// element(): concat(...)[N] and a direct reference to whichever source
+// argument's element N provably lands on name the same value, for every N
+// that is provably in range, by concat()'s own definition - it does nothing
+// but flatten its arguments into one list, so this is not a claim that needs
+// an injectivity proof, unlike a value written into a tag.
+//
+// applicable is false whenever the shape is not this at all: not an index
+// into a concat() call. Once applicable, an argument this package cannot
+// size without reading the cloud (anything but a recognized splat or a
+// literal list), an index that is not a known non-negative whole number, or
+// an index this package can prove is out of range given every argument's
+// provable length, is a resolution failure (ok=false) with its own specific
+// diagnostic recorded - the same contract every other rule in this file
+// follows.
+//
+// expr arrives as one of two different node shapes for the same surface
+// syntax, and both are handled here rather than only the more obvious one.
+// HCL's parser folds a constant index directly into a traversal step - the
+// same folding that makes R[0].attr and R.attr both parse as plain
+// traversals - so concat(...)[0] (the shape this package actually needs;
+// #324's own local.this_sg_id uses a literal 0) parses as a
+// *hclsyntax.RelativeTraversalExpr whose Source is the concat() call and
+// whose one-element Traversal is a single hcl.TraverseIndex, NOT as a
+// *hclsyntax.IndexExpr. A non-constant index such as concat(...)[count.index]
+// cannot be folded that way and does produce a genuine *hclsyntax.IndexExpr.
+// Both are accepted so a caller reaching either shape gets the same
+// resolution; a RelativeTraversalExpr carrying anything beyond that one
+// index step (a trailing .attr, selecting into a sub-object of whatever
+// element concat() picked) is left to applicable=false, unhandled.
+func (r *resolver) resolveConcatIndex(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	var collExpr hclsyntax.Expression
+	var keyExpr hcl.Expression
+	switch e := expr.(type) {
+	case *hclsyntax.IndexExpr:
+		collExpr, keyExpr = e.Collection, e.Key
+	case *hclsyntax.RelativeTraversalExpr:
+		if len(e.Traversal) != 1 {
+			return nil, false, false
+		}
+		idxStep, isIdx := e.Traversal[0].(hcl.TraverseIndex)
+		if !isIdx {
+			return nil, false, false
+		}
+		src, isExpr := e.Source.(hclsyntax.Expression)
+		if !isExpr {
+			return nil, false, false
+		}
+		collExpr = src
+		keyExpr = &hclsyntax.LiteralValueExpr{Val: idxStep.Key, SrcRange: idxStep.SrcRange}
+	default:
+		return nil, false, false
+	}
+
+	call, isCall := collExpr.(*hclsyntax.FunctionCallExpr)
+	if !isCall || call.Name != "concat" || len(call.Args) == 0 {
+		return nil, false, false
+	}
+
+	idxVal, idxOK := r.evalStatic(keyExpr, scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	// elementIndexValue is reused rather than indexKeyValue: both accept a
+	// number, but a list index (unlike a resource instance key) is never a
+	// string, and this function needs the plain int to walk arguments below
+	// - indexKeyValue hands back an addrs.InstanceKey instead. Negative is
+	// rejected explicitly next, unlike element()'s own caller: a plain [N]
+	// index does not wrap around the way element()'s does.
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+			"%s indexes concat() with a value that is not a whole number, so it cannot select one of its elements.",
+			ident.Subject)
+		return nil, false, true
+	}
+	if idx < 0 {
+		r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+			"%s indexes concat() with a negative index (%d). Unlike element(), a plain [N] index does not wrap around and errors at apply time.",
+			ident.Subject, idx)
+		return nil, false, true
+	}
+
+	remaining := idx
+	total := 0
+	for _, argExpr := range call.Args {
+		if splat, isSplat := argExpr.(*hclsyntax.SplatExpr); isSplat {
+			insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+			if instApplicable {
+				if !instOK {
+					// The resource's own expansion already failed and
+					// already carries a diagnostic - see
+					// [resolver.expansionFor].
+					return nil, false, true
+				}
+				if remaining < len(insts) {
+					got, gotOK := r.parentPart(insts[remaining], attrName, argExpr.Range(), ident)
+					return got, gotOK, true
+				}
+				remaining -= len(insts)
+				total += len(insts)
+				continue
+			}
+			// A splat splatTargets cannot decompose (a multi-step per-item
+			// traversal, a splat over something other than a bare managed
+			// resource) falls through to the generic "unrecognized argument"
+			// refusal below, exactly as any other unclassifiable argument
+			// does: this package does not know how many elements it
+			// contributes, so it cannot locate N through it either.
+		} else if tuple, isTuple := argExpr.(*hclsyntax.TupleConsExpr); isTuple {
+			if remaining < len(tuple.Exprs) {
+				got, gotOK := r.resolveExpr(tuple.Exprs[remaining], scope, ident)
+				return got, gotOK, true
+			}
+			remaining -= len(tuple.Exprs)
+			total += len(tuple.Exprs)
+			continue
+		}
+
+		r.errorf(argExpr.Range(), "Identity not resolvable from configuration",
+			"%s builds an identity from concat(), but one of its arguments is neither a splat over a managed resource nor a literal list, so how many elements it contributes to the combined list is not known without reading the cloud.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+		"%s indexes concat() at position %d, but its arguments provably contribute only %d element(s) in total, so this index is out of range and would error at apply time.",
+		ident.Subject, idx, total)
+	return nil, false, true
+}
+
 // refuseSplatArity is the arity refusal, and it is the only thing standing
 // between this rule and an identity built from several live objects' values
 // concatenated together. n is never 1 here.
