@@ -161,7 +161,21 @@ var identityGoldenPin = map[string]int{
 	// way any other plain string does. Not a moved row - no pre-existing
 	// fixture used this shape before, so every other CONCRETE row in the
 	// golden is byte-identical; see the digest below.
-	"CONCRETE": 762,
+	//
+	// 763, up from 762 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): one ADDED row,
+	// internal/live/identity/testdata/coalescelist-element-literal-fallback's
+	// aws_route_table_association.database, rendering
+	// "subnet-fake/rtb-fallback". Both of coalescelist()'s splat arguments
+	// (aws_route_table.database, .private) provably expand to zero
+	// instances, so coalescelist() provably falls through to its trailing
+	// literal-list argument, and element()'s index [0] lands on that one
+	// literal element rather than any resource's attribute - not
+	// identity-bearing via a marker at all, resolved through resolveExpr
+	// on that literal the same way resolveConcatIndex's own literal
+	// fallback does. Not a moved row - no pre-existing fixture used this
+	// shape before; see the digest below.
+	"CONCRETE": 763,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -249,7 +263,17 @@ var identityGoldenPin = map[string]int{
 	// all NEEDS_DISCOVERY like every other bare aws_security_group in this
 	// golden. See identityGoldenPinInstances' own comment for the fixtures
 	// and the PARENT_DERIVED rows the same fix adds.
-	"NEEDS_DISCOVERY": 636,
+	// 652, up from 636 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): sixteen new server-assigned instances
+	// across three fixtures - coalescelist-element-first-arg-wins'
+	// aws_route_table.database[0..2], aws_route_table.private[0..2] and
+	// aws_subnet.database[0..2] (9), and coalescelist-element-second-arg-
+	// wraparound's aws_route_table.private[0..1] and
+	// aws_subnet.database[0..4] (7) - all NEEDS_DISCOVERY like every other
+	// bare aws_route_table/aws_subnet in this golden. See
+	// identityGoldenPinInstances' own comment for the fixtures and the
+	// PARENT_DERIVED rows the same fix adds.
+	"NEEDS_DISCOVERY": 652,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -286,7 +310,19 @@ var identityGoldenPin = map[string]int{
 	// lands on the SECOND splat's second element, proving the cumulative-
 	// length offset arithmetic across two non-empty splats). See
 	// identityGoldenPinInstances' own comment for the fixtures.
-	"PARENT_DERIVED": 107,
+	// 115, up from 107 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): eight new rows resolving
+	// element(coalescelist(A[*].attr, B[*].attr), idx) - three in
+	// coalescelist-element-first-arg-wins (database provably non-empty,
+	// so coalescelist() selects it over private; formula reads
+	// ${aws_subnet.database[i].id}/${aws_route_table.database[i].id})
+	// and five in coalescelist-element-second-arg-wraparound (database
+	// provably expands to zero instances, so coalescelist() selects
+	// private instead, and element()'s own wraparound then applies to
+	// PRIVATE's own 2-instance length against a 5-instance block; formula
+	// reads ${aws_subnet.database[i].id}/${aws_route_table.private[i%2].id}).
+	// See identityGoldenPinInstances' own comment for the fixtures.
+	"PARENT_DERIVED": 115,
 	"RECORD_BACKED":  17,
 }
 
@@ -411,7 +447,14 @@ var identityGoldenPin = map[string]int{
 // no pre-existing row's rendered value changed - TestIdentityGolden's own
 // diff read "0 identities changed, 9 added, 0 removed" before this line
 // was edited.
-const identityGoldenPinBodyDigest = "d284359100fbeeb1a84bdba02ae6865b56f8c33c3912fc3455d074df9641546a"
+// 2026-08-19 (issue #324 item 1, splat.go's resolveElementCoalescelist):
+// body digest moved because twenty-five rows were ADDED (see the CONCRETE,
+// NEEDS_DISCOVERY and PARENT_DERIVED class comments above and
+// identityGoldenPinInstances' own comment below for the three fixtures);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 25 added, 0 removed" before this line
+// was edited.
+const identityGoldenPinBodyDigest = "b4d1586c7217dffb794084e483bdb91d4d16c316906a16d184ce606a22a44149"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -637,9 +680,42 @@ const identityGoldenPinBodyDigest = "d284359100fbeeb1a84bdba02ae6865b56f8c33c391
 // dirs. Every pre-existing row is byte-identical; this is a pure
 // addition, matching TestIdentityGolden's own "0 identities changed, 9
 // added, 0 removed".
+// 2026-08-19 (issue #324 item 1, splat.go's resolveElementCoalescelist):
+// instances 1522 -> 1547, dirs 480 -> 485. Three new fixture roots -
+// internal/live/identity/testdata/coalescelist-element-first-arg-wins,
+// coalescelist-element-second-arg-wraparound and
+// coalescelist-element-literal-fallback - pinning
+// element(coalescelist(A[*].attr, B[*].attr), idx), the shape
+// terraform-aws-modules/vpc's own route_table_id accessor for
+// aws_route_table_association.database uses (#324's own motivating site
+// in corpus-rds-complete-postgres). first-arg-wins contributes three
+// aws_route_table.database, three aws_route_table.private and three
+// aws_subnet.database (all NEEDS_DISCOVERY, coalescelist() selecting the
+// first, provably non-empty argument) plus three
+// aws_route_table_association.database (PARENT_DERIVED, resolving
+// through database - not private); second-arg-wraparound contributes two
+// aws_route_table.private and five aws_subnet.database (NEEDS_DISCOVERY;
+// aws_route_table.database itself contributes zero rows, provably
+// expanding to no instances) plus five
+// aws_route_table_association.database (PARENT_DERIVED, resolving through
+// private with element()'s own wraparound applied to private's 2-instance
+// length against a 5-instance block); literal-fallback contributes zero
+// aws_route_table rows (both splats provably expand to zero instances)
+// plus one aws_route_table_association.database (CONCRETE, the provable
+// index landing on a trailing literal rather than any resource). Two more
+// fixtures, coalescelist-element-all-empty and
+// coalescelist-element-unrecognized-arg, contribute two more directories
+// to the dirs total but zero rows - both refuse identity resolution for
+// their own association resource (every branch provably empty with no
+// literal fallback, and an unsizeable second argument respectively), and
+// their own route_table resources have zero instances by construction.
+// Totals: +25 instances (+1 CONCRETE, +16 NEEDS_DISCOVERY,
+// +8 PARENT_DERIVED), +5 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0
+// identities changed, 25 added, 0 removed".
 const (
-	identityGoldenPinInstances = 1522
-	identityGoldenPinDirs      = 480
+	identityGoldenPinInstances = 1547
+	identityGoldenPinDirs      = 485
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

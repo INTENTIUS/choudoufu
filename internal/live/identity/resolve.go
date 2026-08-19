@@ -1850,6 +1850,16 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveElementCall(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// element(coalescelist(A[*].attr, B[*].attr, ...), idx) resolved to
+		// the winning coalescelist() argument's own idx-th instance, wrapped
+		// modulo THAT argument's own length - see splat.go's
+		// resolveElementCoalescelist. Not applicable unless the first
+		// argument is itself a coalescelist() call, which
+		// resolveElementCall's own bare-splat requirement above already
+		// excludes, so trying both here is safe and order-independent.
+		if parts, ok, applicable := r.resolveElementCoalescelist(e, scope, ident); applicable {
+			return parts, ok
+		}
 		// try(A, B, ...) resolved to whichever argument the language selects,
 		// when resource expansion settles which arguments raise an error -
 		// see fallback.go. Same not-applicable contract as above.
