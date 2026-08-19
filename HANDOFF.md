@@ -692,6 +692,39 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### 0. URGENT, read before anything else: `just ci` is red on main right now
+
+`TestNoUnregisteredRefusalsInTheTree` (`internal/live/check`) genuinely fails
+on current `main` - confirmed with a fully cleared Go test cache, real
+324s execution, not a cached stale pass. A real stack trace (captured by
+temporarily removing the test's own `recover()` wrapper, not from the
+test's own summary line) traces it to a regression in **today's #304 fix**:
+`StaticEvaluator`'s `EvaluateStructural` (`static_evaluator.go`) and
+`Scope`'s `EvalContextTolerant` (`eval.go`, `internal/lang`) panics
+evaluating a binary-operator expression whose failed type conversion
+calls `cty`'s `convert.MismatchMessage` with one operand a zero/nil type -
+`MismatchMessage` calls the type's own `FriendlyName` method on it and
+crashes.
+Hits at least 33 real sites across `.corpus/{autoscaling,ecs,lambda,rds}`
+via `internal/live/lint`'s `checkCountIndex` calling `countIndexDomainFor`.
+
+**Why this was not caught earlier tonight**: this specific test takes
+~325s and scans every `.terraform/modules/**` subdirectory materialized
+into the shared, gitignored `.corpus` - directories that accumulate as
+crossings run `terraform init` for new estates. It is plausible #304's own
+verification genuinely ran clean in its own worktree (a different
+`.corpus` population at that moment) before later crossings' `terraform
+init` calls added the specific vendored template directories that trigger
+it. Do not assume every "`just ci`: exit 0" claimed earlier tonight was
+dishonest - assume this is a real, freshly-manifesting regression, verify
+going forward, and do not treat a single package's cached "ok" as proof
+nothing changed underneath it when `.corpus` itself is not a tracked
+build input Go's own test cache can see.
+
+**Fix this before trusting any other `just ci` claim**, including ones
+already reported as green in this file. Once fixed, get one full,
+cache-cleared `just ci` pass on current `main` as the honest baseline.
+
 ### 1. Resolved: #313 does not repeat, and it isn't a quick fix anyway
 
 Checked 2026-08-18: #313's `data.aws_availability_zones`/static-context wall
