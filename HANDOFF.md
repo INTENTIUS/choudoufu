@@ -692,30 +692,33 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
-### -1. FIRST: check `../wt/security-group-formula-carrying` before anything else
+### -1. Resolved: `../wt/security-group-formula-carrying` was a real fix, now merged
 
-An orchestrator session ran out of budget 2026-08-19 mid-dispatch on exactly
-the item ranked "2. The core set" below - the formula-carrying
-`tolerantVariables` fix `## 2` calls for. A subagent was mid-flight in
-`../wt/security-group-formula-carrying` (branch `live/security-group-
-formula-carrying`, off a main whose tip was `6668485bef`) when the session
-ended. **Uncommitted, unverified, unmerged** - `git status` there shows real
-changes (`internal/live/identity/partialargs.go`,
-`internal/live/identity/partialargs_test.go`,
-`live/e2e/corpus-security-group-complete/run.sh`, two new fixture
-directories, the golden files) but no commit exists on the branch yet, and
-the agent's own final report was never read.
+An orchestrator session ran out of budget 2026-08-19 mid-dispatch on the
+formula-carrying `tolerantVariables` fix item 2 below calls for, leaving a
+subagent's work uncommitted, unverified and unmerged in
+`../wt/security-group-formula-carrying`. It was read, held to the same bar
+every other fix this session passed, and merged 2026-08-19
+(`312acbbb61`/`75ef0a6a78`) - see item 2, whose first "what the next slot
+needs" bullet it closes.
 
-Before doing anything else: read what's actually in that worktree
-(`git -C ../wt/security-group-formula-carrying diff`, `git status`), decide
-whether it's a real, complete, correctly mutation-tested fix or a partial
-attempt, and hold it to the exact same bar every other fix this session
-passed - a real e2e run against real floci reading the script's own printed
-STAGE line, refusal-boundary mutation tests proving it does NOT fabricate a
-value for a genuinely Computed leaf, and the fast CI tier green - before
-merging. If the worktree is empty or the branch has diverged from something
-usable, this is still the right next task; begin it fresh per item 2
-below rather than trusting a half-built attempt.
+The evidence that decided it, all measured rather than read off the diff:
+the eleven `partialargs` unit tests pass, three of them adversarial
+refusals (the dynamic leaf still refusing two calls down, a dynamic key SET
+refusing the whole expansion, `composedArgument` declining to reconstruct a
+call); `TestIdentityGolden` is 0 changed, 6 added, 0 removed, the zero
+being the load-bearing half for a change that makes an earlier evaluation
+succeed; and `corpus-security-group-complete/run.sh` was run for real
+against floci on the branch, printing `STAGE 1 (cold deploy): PASS`,
+`STAGE 2 (migrate): PASS` and `STAGE 3 (test_plan): BLOCKED for real, at 4
+sites`, with `BREAK=1` exiting 1 at stage 3.
+
+One honest caveat for whoever touches that script next: `BREAK=1` fails
+fast on the FIRST corrupted assertion (unadmitted-type), so the new
+`#332` projection-import and empty-result counts are asserted at exact
+values but are not themselves reached by the negative control. Their
+values are real - the `BREAK=1` run's own diagnostic dump prints the
+plan's entire `^Error:` surface and it is exactly those four lines.
 
 ### 0. Fixed: the #304 crash that had `just ci` red on main
 
@@ -1007,13 +1010,33 @@ for what it doesn't yet reach.
 **What the next slot actually needs, per the implementation pass's own
 closing analysis, is two different design changes, not two more scoped
 fixes:**
-1. `corpus-security-group-complete` needs `tolerantVariables` to carry a
+1. **LANDED 2026-08-19** (`312acbbb61`/`75ef0a6a78`).
+   `corpus-security-group-complete` needed `tolerantVariables` to carry a
    **formula**, not a `cty.Value`, across a module-call argument boundary
-   - #191's own closing recommendation. A block whose config only
-   partly decodes drops out of `internal/live/projection/plan.go`'s
-   `PlanInstances` entirely; nothing downstream has anything to answer
-   with. This is a real design change to how that rebuild works, not a
-   guard to add.
+   - #191's own closing recommendation. `internal/live/identity/
+   partialargs.go` now builds the tolerant evaluator with a tolerant
+   `var.*` closure for the PARENT module instance, recursively, so a
+   substitution survives more than one module call; and
+   `composedArgument` evaluates a whole argument through that evaluator
+   when the caller wrote `merge()` rather than a constructor, taking the
+   function's own answer about an unknown instead of reconstructing the
+   call. No provider type name anywhere in it. Eleven unit tests, three
+   of them adversarial refusals. `TestIdentityGolden` 0 changed, 6 added,
+   0 removed; over `.corpus`, 22398 -> 22424 instances, 0 removed, 0
+   modified, all 26 added rows `NEEDS_DISCOVERY` with an empty value.
+   The estate's own crossing, run for real against floci, printed
+   `STAGE 3 (test_plan): BLOCKED for real, at 4 sites` (was 239, then 19,
+   then 7): **every analysis-layer refusal is now zero and each zero is
+   asserted by absence** - #305/#307's unadmitted-type, #313 root causes
+   A and B, and #321. The 4 remaining are the plan's entire `^Error:`
+   surface and all of them are `#332` (2 `Cannot import for projection` +
+   2 `empty result`, both `aws_default_route_table`, one per nested vpc
+   call), so **#332 alone is what now blocks the estate**, newly reached
+   rather than caused - the plan only gets as far as importing all 67
+   resources because the analysis walls are gone. Nothing here decided
+   the managed-attribute question in (2) below: `aws_security_group.app.
+   id` is still not resolved from configuration, and the estate turned
+   out never to need its VALUE, only the key set it travels with.
 2. `corpus-rds-complete-postgres` needs (1) plus an actual, currently
    unmade ruling: **may this fork ever resolve a managed resource's own
    Computed attribute off configuration alone** (not read the cloud,
