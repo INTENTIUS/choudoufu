@@ -1667,6 +1667,16 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // the case where it fails - two orphans and two unclaimed instances, say - is
 // the case where guessing is least defensible.
 //
+// [blockKey] is what "the same resource block" means for that first check,
+// and issue #316 is what happens when the two sides of it disagree: the
+// declared side dropped the module path while the read side cut the escaped
+// marker at its first ":", which in a module-qualified marker is the module
+// step's own key rather than the resource's. The two strings could only ever
+// be equal for a root-module address, so the guard fired for a re-keyed root
+// resource and for nothing inside any module at all - and a for_each key
+// renamed inside an ordinary static module was destroyed and recreated,
+// which is the exact outcome the paragraph above says must not happen.
+//
 // What survives that check reaches the projection as a concrete resolution
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
@@ -1682,7 +1692,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 	// claimed. Membership here is what makes an orphan a possible rename.
 	pending := make(map[string]bool, len(res.Unbound))
 	for _, addr := range res.Unbound {
-		pending[EscapeAddress(addr.Resource.Resource.String())] = true
+		pending[blockKey(addr)] = true
 	}
 
 	// Two live resources whose markers unescape to one address would
@@ -1699,7 +1709,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
-		block, _, _ := strings.Cut(o.Normalized, ":")
+		block := orphanBlockKey(o)
 
 		switch {
 		case pending[block]:
@@ -1762,10 +1772,11 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		if !o.Removal {
 			continue
 		}
-		declared := false
-		if modCfg, ok := identity.ConfigForModule(req.Config, o.Addr.Module); ok && modCfg.Module != nil {
-			_, declared = modCfg.Module.ManagedResources[o.Addr.Resource.Resource.String()]
-		}
+		// The same predicate internal/live/foreign's removal section reports
+		// as BlockGone, through the one function, so that the plan's own
+		// Undeclared flag and the sentence an operator reads beside it cannot
+		// answer differently (issue #316).
+		declared := identity.DeclaresBlock(req.Config, o.Addr)
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
@@ -1779,6 +1790,60 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 	}
 
 	return diags
+}
+
+// blockKey is the resource block one instance address belongs to, as
+// [classifyOrphans]'s rename guard compares blocks: the type and name, with
+// the instance key and the module path both taken off.
+//
+// Both sides of that comparison go through this, which is the point of it
+// existing at all. Before issue #316 the declared side computed
+// EscapeAddress(addr.Resource.Resource.String()) and the read side computed
+// strings.Cut(marker, ":") - two readings of one grammar, agreeing by
+// coincidence on a root-module address and on nothing else.
+//
+// The module path is deliberately not part of the key, and that is the one
+// judgement in this function rather than a mechanical consequence of the fix.
+// A module-qualified key is the narrower reading, and it is what the issue
+// proposed; it is also strictly less safe than what the guard did before,
+// because it stops withholding an orphan whose block was moved from the root
+// into a module (or between two modules) while an instance of the moved block
+// sits unclaimed. That refactor is ordinary, the marker for it has to be
+// rewritten by hand either way, and destroying the live resource is the one
+// outcome the guard exists to prevent. Keyed on type and name the guard is a
+// strict superset of what it withheld before this fix: it can only ever
+// withhold more, never less, so no configuration that planned no destroy
+// before this change plans one after it.
+//
+// The cost of the wider key is an orphan of a genuinely deleted block
+// lingering because an unrelated module happens to declare an unclaimed
+// instance of the same type and name. That is the direction this function's
+// caller says out loud it is willing to be wrong in: one command for an
+// operator, rather than a resource nobody asked to touch being destroyed and
+// recreated.
+func blockKey(addr addrs.AbsResourceInstance) string {
+	return addr.Resource.Resource.String()
+}
+
+// orphanBlockKey is [blockKey] for the other side of the comparison: the
+// block an orphan's marker names.
+//
+// It reads the block off the decoded address, so the two sides are the same
+// expression over the same type and cannot drift apart again.
+//
+// A marker that will not decode at all falls back to the text-level cut the
+// guard used before, which is right for exactly the markers that cut was ever
+// right for - root-module ones - and is kept because withholding runs BEFORE
+// the malformed-marker report. A corrupt value like "aws_subnet.this:" sitting
+// in a block that still has an unclaimed instance is withheld silently today;
+// dropping the fallback would turn that silence into a hard error on an
+// estate that plans cleanly now.
+func orphanBlockKey(o *OwnedResource) string {
+	if o.Addressable {
+		return blockKey(o.Addr)
+	}
+	legacy, _, _ := strings.Cut(o.Normalized, ":")
+	return legacy
 }
 
 // collisionOrphanProblem is the ownership collision of the undeclared: two

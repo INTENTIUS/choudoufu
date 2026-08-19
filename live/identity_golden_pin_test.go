@@ -194,7 +194,19 @@ var identityGoldenPin = map[string]int{
 	// The module.counted[0] spelling in the first row is worth reading: it
 	// is identity resolution's own rendering of the count'd call, and it is
 	// the address the fix makes UnescapeAddress recover from that marker.
-	"NEEDS_DISCOVERY": 618,
+	//
+	// 622, up from 618 (issue #316, the rename-withholding guard): one new
+	// fixture, internal/live/discovery/testdata/module-rename-withhold,
+	// which declares the same for_each'd aws_subnet.this three times over -
+	// at the root, inside a static module call, and inside a count = 1
+	// module call - so that the guard can be driven down all three module
+	// paths and asserted to answer identically. Four rows, because the
+	// child/ directory is also swept as a root of its own: the root's own
+	// aws_subnet.this["b"], module.net's, module.counted[0]'s, and the
+	// child taken alone. aws_subnet is server-assigned with no
+	// client-supplied identity, so all four render NEEDS_DISCOVERY, the
+	// same class every other bare aws_subnet in this golden carries.
+	"NEEDS_DISCOVERY": 622,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -308,7 +320,20 @@ var identityGoldenPin = map[string]int{
 // the fixture the reachability test needed,
 // internal/live/discovery/testdata/counted-module-orphan and its child/, both
 // rendering NEEDS_DISCOVERY for the same aws_vpc.kept.
-const identityGoldenPinBodyDigest = "6bd63ba0e0bd7a26525d130ac537198b2298afae930109b93101e8f65cff94ed"
+//
+// 2026-08-18 (issue #316, the rename-withholding guard): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities changed,
+// 4 added, 0 removed". The zero is the load-bearing half, and it is a real
+// result rather than a tautology: the fix changes which orphans discovery
+// withholds from removal and which module a "is this block still declared"
+// lookup descends into, and this sweep renders identities from configuration
+// without classifying an orphan or reading a marker at all, so a changed row
+// would have meant the fix reached somewhere it has no business being. The
+// four ADDED rows are the fixture the reproduction needed,
+// internal/live/discovery/testdata/module-rename-withhold and its child/ -
+// one for_each'd aws_subnet.this declared at three module paths, plus the
+// child directory swept as a root of its own.
+const identityGoldenPinBodyDigest = "3daa64b613ea7826f98430d8631185d4b45aa4ab4ea8437a72c4d550acba1f3e"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -442,9 +467,17 @@ const identityGoldenPinBodyDigest = "6bd63ba0e0bd7a26525d130ac537198b2298afae930
 // module directory - two directories, and two instances because the child's
 // single aws_vpc is swept once under the root's count = 1 module call and
 // once with child/ taken as a root of its own.
+// 2026-08-18 (issue #316, the rename-withholding guard): instances
+// 1491 -> 1495, dirs 463 -> 465. One new fixture root,
+// internal/live/discovery/testdata/module-rename-withhold, plus its child/
+// module directory - two directories, and four instances because the root
+// sweep sees the same for_each'd aws_subnet.this three times (the root's own
+// block, the static module call's, and the count = 1 module call's, the last
+// two being the child's one block seen through two calls), with a fourth
+// coming from child/ swept as a root of its own.
 const (
-	identityGoldenPinInstances = 1491
-	identityGoldenPinDirs      = 463
+	identityGoldenPinInstances = 1495
+	identityGoldenPinDirs      = 465
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

@@ -477,6 +477,33 @@ func ConfigForModule(root *configs.Config, modInst addrs.ModuleInstance) (*confi
 	return cur, true
 }
 
+// DeclaresBlock reports whether a configuration still declares the managed
+// resource block one instance address belongs to.
+//
+// The lookup descends to the address's OWN module first. That is the whole
+// content of the function, and it is a function rather than four lines
+// written twice because it had been written twice: internal/live/discovery
+// descended (as [identity.Resolution.Undeclared]) and internal/live/foreign
+// did not (as foreign.Removal.BlockGone, which read the root module's
+// ManagedResources with the module path stripped off the address it looked
+// up). The two then disagreed about the same orphan in both directions - a
+// block still declared inside a module read as deleted, and a block that
+// exists only at the root read as still declared for an orphan inside a
+// module - and the sentence an operator reads about a destroy was built from
+// the wrong one of the two. See GitHub issue #316.
+//
+// A nil configuration, a module the tree does not have, and a module whose
+// config carries no module body all answer false: nothing declares the
+// block, which is what "the block is gone" means.
+func DeclaresBlock(root *configs.Config, addr addrs.AbsResourceInstance) bool {
+	modCfg, ok := ConfigForModule(root, addr.Module)
+	if !ok || modCfg == nil || modCfg.Module == nil {
+		return false
+	}
+	_, declared := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	return declared
+}
+
 // SortedChildNames returns a config's child module call names, sorted, so
 // that a recursive walk visits them in a deterministic order.
 func SortedChildNames(children map[string]*configs.Config) []string {
