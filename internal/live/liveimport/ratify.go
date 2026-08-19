@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -116,6 +117,15 @@ type Request struct {
 	// Providers supplies a configured provider per provider configuration
 	// address, keyed exactly as [states.Resource.ProviderConfig] names it.
 	Providers Providers
+
+	// ResidueStore is GitHub issue #275's argument-level residue store,
+	// opened for this estate exactly the way live-plan and a stateless apply
+	// open theirs - nil when the configuration declares no record_store.
+	// See [projection.RecordResidueForInstance]'s doc comment (issue #327)
+	// for why Approve, not Ratify, is where this gets used: recording
+	// residue is a write, and this package's whole contract is that Ratify
+	// never writes anything.
+	ResidueStore *projection.ResidueStore
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -126,7 +136,8 @@ type Ratification struct {
 	Estate  string
 	Entries []Entry
 
-	eligible map[string]*eligible
+	eligible     map[string]*eligible
+	residueStore *projection.ResidueStore
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -159,8 +170,9 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	}
 
 	rat := &Ratification{
-		Estate:   req.Estate,
-		eligible: make(map[string]*eligible),
+		Estate:       req.Estate,
+		eligible:     make(map[string]*eligible),
+		residueStore: req.ResidueStore,
 	}
 
 	for _, mod := range sortedModules(req.State) {
