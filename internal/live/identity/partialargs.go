@@ -107,12 +107,13 @@ import (
 // version of this change turned it into nothing.
 //
 // So the wrapper is reached only through [resolver.tolerantRetry], from the
-// three places that have already exhausted every other route:
+// four places that have already exhausted every other route:
 // [resolver.countExpansion] and [resolver.forEachExpansion], each after its
 // own strict evaluation and after the structural key-set chase have both
-// failed, and [resolver.tolerantPart] for one identity ARGUMENT's value
-// after both [resolver.evalStatic] and [resolver.namedLeaf] have. Last,
-// never first, at each of the three.
+// failed; [resolver.tolerantPart] for one identity ARGUMENT's value after
+// both [resolver.evalStatic] and [resolver.namedLeaf] have; and
+// [resolver.soleElementFromValue] for a collection-typed argument after its
+// own strict evaluation has. Last, never first, at each of the four.
 //
 // Order is also why an unset required root variable is untouched. Under
 // internal/live/check that arrives as cty.UnknownVal (load.go), not as an
@@ -196,7 +197,7 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 			Subject:   "var." + variable.Name,
 			DeclRange: attr.Range,
 		}
-		rebuilt, ok := rebuildConstructor(r.ctx, eval, attr.Expr, ident)
+		rebuilt, ok := rebuildConstructor(r.ctx, eval, attr.Expr, ident, r.moduleOutputValues(parentCfg, parentInst))
 		if !ok {
 			return val, diags
 		}
@@ -332,10 +333,17 @@ func (r *resolver) tolerantPart(expr hcl.Expression, scope instScope, ident conf
 // caller keeps the diagnostic it already had. "I could not evaluate this" and
 // "this evaluates to something not yet known" are different claims, and only
 // the second one licenses a consumer to carry on.
-func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier) (cty.Value, bool) {
+//
+// moduleOutput, when non-nil, is the one thing that can answer a refused leaf
+// with a real value rather than an unknown: a reference into a child module's
+// output whose own expression the child's own evaluator settles
+// ([resolver.moduleOutputValues]). Nil - as in this file's own unit tests -
+// restores exactly the behaviour that existed before it, where every refused
+// leaf became cty.DynamicVal.
+func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, moduleOutput func(hcl.Traversal) (cty.Value, bool)) (cty.Value, bool) {
 	switch e := expr.(type) {
 	case *hclsyntax.ParenthesesExpr:
-		return rebuildConstructor(ctx, eval, e.Expression, ident)
+		return rebuildConstructor(ctx, eval, e.Expression, ident, moduleOutput)
 
 	case *hclsyntax.ObjectConsExpr:
 		attrs := make(map[string]cty.Value, len(e.Items))
@@ -347,7 +355,7 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 			if _, dup := attrs[name]; dup {
 				return cty.NilVal, false
 			}
-			attrs[name] = elementOrUnknown(ctx, eval, item.ValueExpr, ident)
+			attrs[name] = elementOrUnknown(ctx, eval, item.ValueExpr, ident, moduleOutput)
 		}
 		if len(attrs) == 0 {
 			return cty.EmptyObjectVal, true
@@ -360,7 +368,7 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 		}
 		elems := make([]cty.Value, 0, len(e.Exprs))
 		for _, sub := range e.Exprs {
-			elems = append(elems, elementOrUnknown(ctx, eval, sub, ident))
+			elems = append(elems, elementOrUnknown(ctx, eval, sub, ident, moduleOutput))
 		}
 		return cty.TupleVal(elems), true
 	}
@@ -368,18 +376,32 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 }
 
 // elementOrUnknown evaluates one element of a constructor: strictly first,
-// then as a nested constructor, and as an unknown when neither works.
+// then as a child module's output, then as a nested constructor, and as an
+// unknown when none of the three works.
 //
 // The unknown is cty.DynamicVal - unknown of an unknown type - because the
 // element's type is exactly what the refusing reference would have told us.
 // A caller's type constraint converts it to whatever the child declared
 // ([staticScopeData.GetInputVariable] runs convert.Convert on this value),
 // and every consumer that needs a real value still sees an unknown.
-func elementOrUnknown(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier) cty.Value {
+//
+// The module-output attempt runs only after the strict evaluation has already
+// failed, so it can never change an element that had a value; and it answers
+// only with a wholly-known, non-null, unmarked one
+// ([resolver.moduleOutputValue]), so declining leaves cty.DynamicVal - the
+// same substitution a refused leaf has always had.
+func elementOrUnknown(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, moduleOutput func(hcl.Traversal) (cty.Value, bool)) cty.Value {
 	if val, diags := eval.Evaluate(ctx, expr, ident); !diags.HasErrors() && val != cty.NilVal {
 		return val
 	}
-	if val, ok := rebuildConstructor(ctx, eval, expr, ident); ok {
+	if moduleOutput != nil {
+		if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() {
+			if val, ok := moduleOutput(trav); ok {
+				return val
+			}
+		}
+	}
+	if val, ok := rebuildConstructor(ctx, eval, expr, ident, moduleOutput); ok {
 		return val
 	}
 	return cty.DynamicVal

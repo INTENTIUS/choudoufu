@@ -1701,6 +1701,18 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, scope instScope, attr *h
 // expression. When applicable is true, ok carries the same "exactly one
 // element" verdict the syntactic case enforces, and the diagnostic (if any)
 // is already recorded.
+//
+// The strict evaluation is backed by [resolver.tolerantRetry], the fourth and
+// last caller of it, for the reason [resolver.tolerantPart] is the third: a
+// collection-typed identity argument reached through a module CALL argument
+// whose skeleton is literal and one of whose leaves is not
+// ([resolver.tolerantVariables]) refuses whole, so the one-element rule never
+// gets a collection to apply itself to and the argument falls through to a
+// vaguer refusal about the whole variable. The retry is reached only after
+// the strict evaluation has failed and only for an expression isSymbolic has
+// already cleared, so it cannot pre-empt the element-expression chase; and
+// its value still has to be a known, unmarked, one-element collection below,
+// which is the same bar the strict path meets.
 func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool, bool) {
 	if r.isSymbolic(expr, scope) {
 		return nil, false, false
@@ -1709,7 +1721,11 @@ func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, at
 	val, ok := r.evalStatic(expr, scope, ident)
 	if !ok {
 		r.diags = r.diags[:mark]
-		return nil, false, false
+		retried, retryOK := r.tolerantRetry(expr, scope, ident)
+		if !retryOK {
+			return nil, false, false
+		}
+		val = retried
 	}
 	ty := val.Type()
 	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {

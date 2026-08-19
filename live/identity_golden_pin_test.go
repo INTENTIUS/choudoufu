@@ -183,7 +183,19 @@ var identityGoldenPin = map[string]int{
 	// module.u.aws_iam_user.literal[0] (platform-alpha, two literal leaves
 	// of a module argument whose third leaf names a resource). No
 	// pre-existing row moved.
-	"CONCRETE": 765,
+	// 766, up from 765 (module output read inside a module-CALL argument,
+	// moduleoutputvalue.go): one ADDED row, in the one new fixture root
+	// internal/live/identity/testdata/module-output-in-call-arg -
+	// module.sg.aws_security_group_rule.a[0], rendering
+	// sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16. The CIDR is written once
+	// in that fixture's root locals and reaches the rule only by evaluating
+	// module.vpc's own output expression, so a fabricated or defaulted value
+	// could not spell it; it is asserted by value in
+	// internal/live/identity's TestModuleOutputInsideModuleCallArgument. The
+	// same fixture's five adversarial siblings (rules b..f) contribute no
+	// row at all, which is the half that has to hold. No pre-existing row
+	// moved.
+	"CONCRETE": 766,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -281,7 +293,15 @@ var identityGoldenPin = map[string]int{
 	// bare aws_route_table/aws_subnet in this golden. See
 	// identityGoldenPinInstances' own comment for the fixtures and the
 	// PARENT_DERIVED rows the same fix adds.
-	"NEEDS_DISCOVERY": 652,
+	// 654, up from 652 (module output read inside a module-CALL argument):
+	// two ADDED rows, both aws_vpc.this[0] in the new
+	// internal/live/identity/testdata/module-output-in-call-arg fixture -
+	// once as module.vpc.aws_vpc.this[0] from the fixture root, once as
+	// aws_vpc.this[0] with the child directory swept as a root of its own.
+	// Server-assigned like every other bare aws_vpc in this golden, and
+	// unrelated to the change: the fixture needed a real managed resource
+	// for its adversarial outputs to read.
+	"NEEDS_DISCOVERY": 654,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -472,7 +492,21 @@ var identityGoldenPin = map[string]int{
 // new instance, so the two rows here are the ONLY new rendered identities
 // it produces anywhere, and both are asserted by value in
 // internal/live/identity's TestPartialModuleArgumentResolvesALiteralLeaf.
-const identityGoldenPinBodyDigest = "95cbd2417e7cb79ecde881c02549207f98e98efeb03452a31c0a17da0d078d9c"
+// 2026-08-19 (module output read inside a module-CALL argument,
+// identity/moduleoutputvalue.go): body digest moved because three rows were
+// ADDED (see the CONCRETE and NEEDS_DISCOVERY class comments above and
+// identityGoldenPinInstances' own comment below for the one fixture); no
+// pre-existing row's rendered value changed - TestIdentityGolden's own diff
+// read "0 identities changed, 3 added, 0 removed" before this line was
+// edited. Read together with the corpus measurement the change was landed
+// on: across all 250 offline-corpus entries it moved nothing at all -
+// sites 16165 -> 16165, instances 4394 -> 4394, blocked 194 -> 194, with
+// the "Module output not supported in static context" class unchanged at
+// 58 - because every one of those 58 sites reads an output defined as
+// try(<managed resource attribute>, fallback), which this deliberately
+// does not answer. The three rows here are therefore the ONLY new rendered
+// identities it produces anywhere.
+const identityGoldenPinBodyDigest = "44c319898764e9ca1a04241eb113486f2f89478f87829cd0ff612775597c875d"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -749,9 +783,28 @@ const identityGoldenPinBodyDigest = "95cbd2417e7cb79ecde881c02549207f98e98efeb03
 // lookup()'s default. Totals: +2 instances (+2 CONCRETE), +2 dirs. Every
 // pre-existing row is byte-identical; this is a pure addition, matching
 // TestIdentityGolden's own "0 identities changed, 2 added, 0 removed".
+// 2026-08-19 (module output read inside a module-CALL argument,
+// identity/moduleoutputvalue.go): instances 1549 -> 1552, dirs 487 -> 490.
+// One new fixture root, internal/live/identity/testdata/
+// module-output-in-call-arg (three directories - the root and its ./vpc and
+// ./sg children), pinning the shape terraform-aws-modules/terraform-aws-rds's
+// complete-postgres example writes at its own main.tf:224: a module call
+// argument that is a literal list of objects, one of whose leaves reads
+// another module call's output. It contributes
+// module.sg.aws_security_group_rule.a[0] (CONCRETE,
+// sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16) and two rows for the
+// fixture's aws_vpc.this[0] (NEEDS_DISCOVERY, unrelated to the change).
+// Its five adversarial siblings contribute NO row, which is the half that
+// has to hold: an output reading a managed resource's attribute (whether
+// Optional+Computed or plain Optional), one calling uuid(), one declared
+// sensitive, and one carrying two CIDRs are each turned away rather than
+// standing in for the value. Totals: +3 instances (+1 CONCRETE,
+// +2 NEEDS_DISCOVERY), +3 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0 identities
+// changed, 3 added, 0 removed".
 const (
-	identityGoldenPinInstances = 1549
-	identityGoldenPinDirs      = 487
+	identityGoldenPinInstances = 1552
+	identityGoldenPinDirs      = 490
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
