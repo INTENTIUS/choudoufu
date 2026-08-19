@@ -52,8 +52,9 @@ import (
 // checkOverlongAddresses runs once per module in the tree (checkConfig calls
 // it at every node), and modInst is that node's own worst-case module
 // instance - unkeyed at every step reached through a static module call,
-// and carrying the longest key of any for_each'd module call in between
-// (59c, issue #59 phase 3; see [worstCaseChildKey]). A static module
+// and carrying the longest-escaping key of any expanded module call in
+// between, whether for_each'd (59c, issue #59 phase 3) or count'd (issue
+// #195); see [worstCaseChildKey]. A static module
 // block's resources measure module-qualified: an instance three levels deep
 // is prefixed with "module.a.module.b.module.c." before the budget is
 // checked, and one reached through a keyed module call is prefixed with
@@ -65,9 +66,11 @@ import (
 // for_each or count key does, which is why this rule has to measure the
 // expanded instance rather than the bare module path: a module with a long
 // for_each key wrapping a resource with a long for_each key of its own
-// compounds both into one escaped address. count-expanded module blocks
-// never reach here at all: RuleChildModule refuses them outright, before
-// any module they call is walked for its own resources.
+// compounds both into one escaped address. A count-expanded module block
+// compounds the same way, through its highest index: this comment used to
+// say such a block never reached here at all, because RuleChildModule
+// refused it outright, and that stopped being true when issue #195 admitted
+// a statically-evaluable module count with no count.index leak.
 func checkOverlongAddresses(ctx context.Context, mod *configs.Module, modInst addrs.ModuleInstance, issues *[]Issue) {
 	path := modInst.Module()
 	for _, resource := range mod.ManagedResources {

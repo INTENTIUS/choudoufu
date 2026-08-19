@@ -9,12 +9,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"unicode/utf8"
 
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/providers"
 	residue "github.com/intentius/choudoufu/live"
@@ -121,16 +123,17 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 // recurses into its children.
 //
 // modInst is the worst-case module instance leading to this node: unkeyed at
-// every step reached through a static module call, and - through a
-// for_each'd one (59c, issue #59 phase 3) - carrying the longest of that
-// call's own keys, chosen the same way [checkOverlongAddresses] already
-// picks a count block's highest index over enumerating every instance. It
-// is what lets that rule measure an escaped address's worst case at a node
-// nested under a keyed module without this pass enumerating every
-// combination of every ancestor's keys, which multiplies combinatorially
-// with tree depth for no more information than the longest one already
-// gives (a marker's length grows with a key's own length, not with which
-// key was chosen).
+// every step reached through a static module call, and - through an
+// expanded one, whether for_each'd (59c, issue #59 phase 3) or count'd
+// (issue #195) - carrying whichever of that call's own keys contributes
+// most to an escaped address, chosen the same way [checkOverlongAddresses]
+// already picks a count block's highest index over enumerating every
+// instance. It is what lets that rule measure an escaped address's worst
+// case at a node nested under a keyed module without this pass enumerating
+// every combination of every ancestor's keys, which multiplies
+// combinatorially with tree depth for no more information than the longest
+// one already gives (a marker's length grows with a key's own length, not
+// with which key was chosen).
 //
 // recordStoreConfigured is GitHub issue #73's admission gate, read once
 // from the root module (see [recordStoreConfiguredIn]) and threaded
@@ -182,42 +185,74 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 		if r := moduleCallBlocksLocalProviders(call); r != nil {
 			childNoProviderConfigRange = r
 		}
-		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, call))
+		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, name))
 		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, childNoProviderConfigRange, issues)
 	}
 }
 
 // worstCaseChildKey is the instance key [checkConfig] descends a child
-// module call with for the overlong-address budget: [addrs.NoKey] for a
-// static call, and the longest of a for_each call's own keys otherwise -
-// ties broken lexicographically, purely for determinism, since two keys of
-// equal length produce equally long addresses either way. A for_each whose
-// keys this pass cannot enumerate (refused by RuleChildModule; see
-// checkChildModules) descends unkeyed: there is no better answer available,
-// and RuleChildModule is what stops the run over it, not this rule.
-func worstCaseChildKey(ctx context.Context, cfg *configs.Config, call *configs.ModuleCall) addrs.InstanceKey {
-	if call == nil || call.ForEach == nil {
-		return addrs.NoKey
-	}
-	keys, diag := identity.ChildModuleKeys(ctx, cfg, fmt.Sprintf("module %q", call.Name), call.ForEach)
+// module call with for the overlong-address budget: whichever of that
+// call's own instance keys adds the most characters to an escaped
+// tofu-address, and [addrs.NoKey] when the call contributes no key at all.
+//
+// The keys come from [identity.ChildCallKeys], which is the one place the
+// count / for_each / static three-way dispatch is written, and calling it
+// is the whole point rather than an implementation detail. This function
+// used to read call.ForEach itself and treat everything else as a static
+// call, so a count'd call - admitted since issue #195, when its count is
+// statically evaluable and its own arguments do not read count.index -
+// measured every address beneath it as if the module step carried no key,
+// under-reporting the budget by the "[N]" the marker actually carries. That
+// is the fourth instance of exactly the omission ChildCallKeys' own doc
+// comment records in three other walks, and routing through it is what
+// stops a fifth.
+//
+// "Worst case" is measured rather than assumed: each candidate is escaped
+// the way the marker escapes it - markers.EscapeAddress over the rendered
+// "[key]", which is precisely the ":" plus escaped key text the module step
+// contributes to reportOverlongAddress's own measurement - and the longest
+// wins, ties broken lexicographically purely for determinism, since two
+// equally long keys produce equally long addresses either way. Escaping is
+// what makes this the right comparison and raw key length the wrong one:
+// markers.EscapeKey expands "." and ":" to two characters each, so a
+// shorter raw key can contribute a longer address than a longer one.
+//
+// For a count'd call every key is an [addrs.IntKey] over 0..n-1, so the
+// highest index wins: the escaped step is ":" plus the index's decimal
+// digits, and decimal digit count never decreases with magnitude over
+// non-negative integers. That is the same choice [checkOverlongAddresses]
+// already makes for a resource's own count block, for the same reason.
+//
+// A call whose keys this pass cannot enumerate (refused by RuleChildModule;
+// see checkChildModules) descends unkeyed, and so does one with no
+// instances at all - count = 0, or an empty for_each. For the first there is
+// no better answer available, and RuleChildModule is what stops the run over
+// it, not this rule; for the second there is no instance for a longer
+// address to belong to.
+//
+// cfg is the *configs.Config node the call is written in, needed - since
+// issue #308 - by [identity.ChildCallKeys]'s own for_each fallback to chase
+// a bare var.X/local.X source across a module-call boundary; see
+// [identity.ChildModuleKeys]'s doc.
+func worstCaseChildKey(ctx context.Context, cfg *configs.Config, name string) addrs.InstanceKey {
+	keys, diag := identity.ChildCallKeys(ctx, cfg, name)
 	if diag != nil {
 		return addrs.NoKey
 	}
-	var longest string
+	worst := addrs.NoKey
+	worstLen := 0
+	worstRendered := ""
 	for _, k := range keys {
-		sk, ok := k.(addrs.StringKey)
-		if !ok {
+		if k == addrs.NoKey {
 			continue
 		}
-		s := string(sk)
-		if len(s) > len(longest) || (len(s) == len(longest) && s > longest) {
-			longest = s
+		rendered := k.String()
+		n := utf8.RuneCountInString(markers.EscapeAddress(rendered))
+		if n > worstLen || (n == worstLen && rendered > worstRendered) {
+			worst, worstLen, worstRendered = k, n, rendered
 		}
 	}
-	if longest == "" {
-		return addrs.NoKey
-	}
-	return addrs.StringKey(longest)
+	return worst
 }
 
 // checkStateBackends warns about backend and cloud blocks (GitHub issue

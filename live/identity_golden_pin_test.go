@@ -104,7 +104,19 @@ var identityGoldenPin = map[string]int{
 	// pre-existing CONCRETE row used this type before; see the digest
 	// below.
 	//
-	// 746, up from 742 (issue #308's fix): four ADDED rows across two
+	// 755, up from 742 (worstCaseChildKey's count'd module call): thirteen
+	// ADDED rows, all one fixture's aws_s3_bucket with a fixed literal
+	// bucket argument. internal/live/lint/testdata/overlong-address gained
+	// a count = 12 module call whose child holds a single bucket, so the
+	// call's twelve instances contribute
+	// module.counted[0..11].aws_s3_bucket.q...  to that directory and the
+	// child directory contributes the bare aws_s3_bucket.q... when the
+	// sweep reaches it on its own. All thirteen render the same literal,
+	// "counted-child", which is the whole reason they are CONCRETE and not
+	// a class this rule could have got wrong. Not a moved row: the fixture
+	// is new and no pre-existing row's rendered value changed.
+	//
+	// 759, up from 755 (issue #308's fix): four ADDED rows across two
 	// fresh fixtures exercising the same shape -
 	// internal/live/identity/testdata/module-foreach-comprehension-chase
 	// and internal/live/lint/testdata/child-module-foreach-comprehension -
@@ -120,7 +132,7 @@ var identityGoldenPin = map[string]int{
 	// own literal. Not a moved row - no pre-existing fixture used this
 	// shape before, so every other CONCRETE row in the golden is
 	// byte-identical; see the digest below.
-	"CONCRETE": 746,
+	"CONCRETE": 759,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -258,11 +270,22 @@ var identityGoldenPin = map[string]int{
 // live/e2e/estates/apigateway directory) - aws_subnet.apigateway and
 // aws_vpc.apigateway, both NEEDS_DISCOVERY. See identityGoldenPin's own
 // comment above.
+// 2026-08-18 (worstCaseChildKey's count'd module call): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities
+// changed, 13 added, 0 removed". The zero is the load-bearing half, and here
+// it is close to a tautology worth stating anyway: the fix is confined to
+// internal/live/lint's address-BUDGET measurement, which renders no
+// identity and is not on any path this sweep runs. Every one of the 13
+// ADDED rows comes from the fixture the fix needed - one count = 12 module
+// call in internal/live/lint/testdata/overlong-address and its child - and
+// all 13 render the same literal bucket name, "counted-child". Read them in
+// the diff: a fabricated identity would have shown up as a rendered value
+// that is not that literal.
 //
-// 2026-08-18 (issue #308's fix): four ADDED rows, dirs 454 -> 460 (two new
+// 2026-08-18 (issue #308's fix): four ADDED rows, dirs 455 -> 461 (two new
 // fixture roots, each with two child-module subdirectories of its own -
 // see identityGoldenPin's own comment above for the four rows themselves).
-const identityGoldenPinBodyDigest = "d6f822d13b89c6fac7f968d9149d3f7ba3aa3c66f864b6710000751d6174128c"
+const identityGoldenPinBodyDigest = "62b6a800beec16d720c7fde531e15a9f2b8dfecba148fc9ba1eb309d5545d42a"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -376,15 +399,23 @@ const identityGoldenPinBodyDigest = "d6f822d13b89c6fac7f968d9149d3f7ba3aa3c66f86
 // it). See identityGoldenPin's own comment above for the class breakdown.
 // 2026-08-18: instances 1470 -> 1472, dirs unchanged at 454 (both new rows
 // land in the existing live/e2e/estates/apigateway directory).
-// 2026-08-18 (issue #308's fix): instances 1472 -> 1476, dirs 454 -> 460.
+// 2026-08-18 (worstCaseChildKey's count'd module call): dirs 454 -> 455,
+// instances 1472 -> 1485. One new directory,
+// internal/live/lint/testdata/overlong-address/counted, holding one
+// resource; the +13 is that one row plus the twelve instances the parent
+// directory's new count = 12 module call expands it into. dirs rises by one
+// and instances by thirteen because a count'd module call multiplies rows
+// without adding directories - the same arithmetic a for_each'd call has
+// always produced here.
+// 2026-08-18 (issue #308's fix): instances 1485 -> 1489, dirs 455 -> 461.
 // Two new fixture roots (module-foreach-comprehension-chase,
 // child-module-foreach-comprehension), each with a wrapper/ and a
 // wrapper/task/ child module directory - six new directories, four new
 // CONCRETE instances (two per fixture; see identityGoldenPin's own comment
 // above).
 const (
-	identityGoldenPinInstances = 1476
-	identityGoldenPinDirs      = 460
+	identityGoldenPinInstances = 1489
+	identityGoldenPinDirs      = 461
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
