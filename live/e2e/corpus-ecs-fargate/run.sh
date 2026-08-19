@@ -41,9 +41,13 @@ set -uo pipefail
 #                     VERIFIED + 1 DRIFTED, see below), 0 failed. Two
 #                     markers - the ECS cluster's and the ECS service's own
 #                     - confirmed independently through the AWS CLI.
-#   3. TEST PLAN     delete the state file, `choudoufu live-plan`. BLOCKED
-#                     for real by one tracked, itemized gap: #308 (1 site).
-#                     See below.
+#   3. TEST PLAN     delete the state file, `choudoufu live-plan`. #308 is
+#                     FIXED (0 sites, was 1 - see below) and #305 still
+#                     contributes 0. BLOCKED for real by #313's
+#                     config-language-subset family (49 root sites across
+#                     two distinct values) plus a 4-site DERIVE-shaped gap
+#                     #308's own fix exposed (236 diagnostics total). See
+#                     below.
 #   4. TEST APPLY    NOT RUN - depends on stage 3.
 #   5. DRIFT/RECONVERGE  NOT RUN - depends on stages 3-4.
 #
@@ -59,23 +63,74 @@ set -uo pipefail
 # unadmitted-type refusals from them, asserted directly below rather than
 # merely dropped from the old assertion.
 #
-# #313 DOES NOT REACH THIS ESTATE - CHECKED, NOT ASSUMED. #313 (a
-# `data.aws_availability_zones` for-comprehension feeding per-AZ for_each
-# in a nested module call, "Unable to use data.aws_availability_zones.
-# available in static context") was filed crossing corpus-security-group-
-# complete, whose vpc submodule reads the same data source the same way
-# this estate's main.tf line 5-18 does (`local.azs = slice(data.aws_
-# availability_zones.available.names, 0, 3)`, fed to `module "vpc"` as
-# `azs = local.azs`). The difference is what the vpc submodule does with
-# it downstream: this pinned vpc module version (v6.x, .terraform/modules/
-# vpc/main.tf) expands every subnet resource with `count`, not `for_each`,
-# and every count expression is a statically-computable LENGTH
-# (`local.len_private_subnets`, `length(var.azs)`, ...) - never the AZ
-# VALUES themselves as map keys. A live-plan run below shows no `Unable to
-# use data.aws_availability_zones` diagnostic anywhere in this estate's
-# output; asserted directly, not by omission, so a regression that makes
-# #313 reach here too - e.g. a vpc module bump that switches subnets to
-# for_each - is caught rather than passing silently.
+# #308 IS FIXED (internal/live/identity/foreach_keyset.go's *hclsyntax.ForExpr
+# case, a9ac6d06e7/b2bb59585d) - confirmed by direct assertion below (0
+# "This module call cannot be expanded under live resource markers" sites,
+# was 1). Fixing it did NOT unblock this estate; it let live-plan walk
+# further into the configuration and reach #313's own wall (below) instead
+# of stopping at #308's site first.
+#
+# #313 DOES REACH THIS ESTATE. The claim in an earlier version of this
+# section that it did not was checked while #308 still blocked live-plan
+# before the walk ever got this far, and turned out to be wrong once #308
+# was fixed. Re-verified against a real live-plan run below, not by
+# omission. Three distinct root causes fire, two of them genuinely #313's
+# architectural family (a value live-plan can never prove statically because
+# live-plan never calls a provider during plan - statelessness, #73) and one
+# that is NOT that family:
+#
+#   A. `data.aws_availability_zones.available` feeding `local.azs`
+#      (main.tf:18, `slice(data.aws_availability_zones.available.names, 0,
+#      3)`), fed to `module "vpc"` as `azs = local.azs` - the same shape
+#      filed as #313 crossing corpus-security-group-complete. 48 root sites
+#      ("Dynamic value in static context", "Unable to use
+#      data.aws_availability_zones.available in static context, which is
+#      required by local.azs"). An earlier version of this section claimed
+#      this pinned vpc module version's subnet `count` expressions are
+#      always a statically-computable LENGTH and never reach the AZ names
+#      themselves; that claim turned out not to hold end to end once #308
+#      stopped masking it - each of the 48 sites is a real, distinct
+#      downstream consumer of `local.azs`, never actually exercised by this
+#      script before now.
+#   B. `module.ecs_cluster.arn` passed into `module "ecs_service"` as
+#      `cluster_arn = module.ecs_cluster.arn` (main.tf:68) - a module output
+#      that is itself another resource's attribute (the ECS cluster's ARN,
+#      known only after AWS assigns it at apply time), the "another
+#      resource's own attribute" half of #313's own framing, reached
+#      through a module boundary. 1 site ("Module output not supported in
+#      static context").
+#   C. `each.value.enable_cloudwatch_logging` and
+#      `each.value.create_cloudwatch_log_group` (modules/service/main.tf:
+#      923-924, inside `module "container_definition"`, the same module
+#      call #308 fixed the keyset resolution for) - NOT #313's family. Both
+#      fields are literal booleans in the caller's own object literal
+#      (main.tf's container_definitions map sets `enable_cloudwatch_logging
+#      = false` directly on both the fluent-bit and app-container entries;
+#      neither ever touches the one genuinely dynamic field in that map,
+#      fluent-bit's SSM-sourced `image`) - fully knowable statically, the
+#      same way #308's own fix already proved the map's KEYS and FILTER are.
+#      What refuses here is that these var assignments reference the whole
+#      `each.value`, and the walker treats it as one opaque dynamic blob
+#      rather than projecting to the one field each reference actually
+#      reads, the way #308's fix now does for the for_each expression
+#      itself. 4 sites (2 vars x 2 container_definitions keys), only
+#      reachable at all because #308's fix let live-plan expand this module
+#      call in the first place. This reads as a DERIVE-class follow-up to
+#      #308 - reported here, not filed as its own issue and not fixed (out
+#      of scope for this pass).
+#
+# A, B and C's 53 root sites cascade to 177 further "Unable to compute
+# static value" sites (every downstream count/for_each/argument that itself
+# needs one of the three) and 6 "Unresolvable identity" sites
+# (aws_appautoscaling_policy.this's own arguments read
+# aws_appautoscaling_target.this[0]'s attributes, and that resource's own
+# identity failed to resolve because its `resource_id` argument is itself
+# one of C's each.value-derived static-value failures) - 236 diagnostics
+# total, all under already-registered refusal classes
+# (internal/live/passthrough/refusals.go,
+# internal/live/identity/refusals.go), not new choudoufu behavior. Not
+# fixed here; stage 3's assertions below hold the exact counts so a change
+# to any of them is visible.
 #
 # WHY THE DRIFTED (18) BUCKET IS LARGE, AND WHY IT DOES NOT BLOCK STAGE 2:
 # live-import tolerates drift by design (it stamps DRIFTED resources same
@@ -96,32 +151,19 @@ set -uo pipefail
 # Neither blocks this script: DRIFTED still stamps, and stage 3 refuses
 # before ever reaching a diff that would show them.
 #
-# STAGE 3'S ONE REMAINING BLOCKER, real, itemized, asserted below by exact
-# rule and exact site:
+# STAGE 3'S REAL BLOCKER is #313's family (root causes A and B above) plus
+# C, the DERIVE-shaped gap #308's own fix exposed - see the section above
+# for the full breakdown by exact rule and exact site. #308's own diagnostic
+# (child-module for_each on module.ecs_service's container_definition call)
+# is fixed and confirmed absent below, not merely omitted.
 #
-#   #308 (child-module for_each: a for-comprehension over a var-chased map
-#   value refuses even when only its keys and filter are static - filed by
-#   this crossing, still open). modules/service/main.tf:872:
-#
-#     for_each = { for k, v in var.container_definitions : k => v if local.create_task_definition && v.create }
-#
-#   var.container_definitions is supplied by the caller as an object
-#   literal whose KEYS are fully static ("fluent-bit", local.container_name)
-#   and whose filter (v.create) never touches the one dynamic VALUE in the
-#   set (fluent-bit's image, sourced from the SSM parameter data source) -
-#   but the walker evaluates the whole expression as a unit and refuses on
-#   that unrelated value. Two compounding gaps, both detailed in the issue:
-#   the child-module keyset prover has no for-comprehension case at all
-#   (unlike resolve.go's resource-level prover, which already has one), and
-#   it does not chase a bare var.X reference across a module-call boundary
-#   to the literal object constructor that actually has the provable keys.
-#   1 site: module.ecs_service, module "container_definition".
-#
-# BREAK=1 corrupts the expected stage-3 site counts (one unadmitted-type
-# site that should not exist, plus a second, wrong child-module for_each
-# site), proving those assertions are load-bearing rather than a grep that
-# always matches - same discipline as the RDS and security-group crossings
-# before this one. Stages 1 and 2 are unaffected.
+# BREAK=1 corrupts every stage-3 expected count (one unadmitted-type site
+# and one child-module for_each site that should not exist - #305 and #308
+# are both fixed - plus one extra site each for the Dynamic-value,
+# Module-output, static-value-cascade and Unresolvable-identity counts),
+# proving those assertions are load-bearing rather than a grep that always
+# matches - same discipline as the RDS and security-group crossings before
+# this one. Stages 1 and 2 are unaffected.
 #
 #   bash live/e2e/corpus-ecs-fargate/run.sh
 #
@@ -349,25 +391,40 @@ log "  only)"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #308 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #313 may be fixed; update this script"; }
 # Flatten choudoufu's wrapped "In module.X, ... RESOURCE.NAME:" context
 # lines to one line per diagnostic clause, same discipline as the RDS and
 # security-group crossings, so a substring match is not at the mercy of
 # where the wrap happened to land.
 PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< "$PLAN_OUT")"
 
-# #305 is fixed: the vpc submodule's default_* trio stamped cleanly back in
-# stage 2 and contributes no unadmitted-type refusal here. Assert that
-# directly rather than merely omitting the old check, so a regression back
-# to #305's shape still fails this script.
+# #305 and #308 are BOTH fixed: no diagnostic may read "Resource type is
+# outside the live-markers subset" (#305) or "This module call cannot be
+# expanded under live resource markers" (#308) any more, for any type or
+# module call.
 WANT_UNADMITTED_N=0
-WANT_CHILDMOD_N=1
+WANT_CHILDMOD_N=0
+# #313's family (root causes A and B, see header) plus C, the DERIVE-shaped
+# gap #308's own fix exposed by letting live-plan walk into
+# module.container_definition at all - see header for the full breakdown.
+WANT_DYNAMIC_N=52
+WANT_MODULE_OUTPUT_N=1
+WANT_STATIC_CASCADE_N=177
+WANT_UNRESOLVED_IDENTITY_N=6
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
-  WANT_CHILDMOD_N=2
-  log "  BREAK=1: expecting 1 unadmitted-type site (#305 is fixed; real is 0)"
-  log "           and 2 child-module for_each sites (#308 is still open;"
-  log "           real is 1). Both wrong. This step must fail."
+  WANT_CHILDMOD_N=1
+  WANT_DYNAMIC_N=53
+  WANT_MODULE_OUTPUT_N=2
+  WANT_STATIC_CASCADE_N=178
+  WANT_UNRESOLVED_IDENTITY_N=7
+  log "  BREAK=1: expecting 1 unadmitted-type site and 1 child-module"
+  log "           for_each site (#305 and #308 are both fixed; real is 0 for"
+  log "           both), plus one extra site each for the Dynamic-value (53"
+  log "           vs real 52), Module-output (2 vs real 1), static-value-"
+  log "           cascade (178 vs real 177) and Unresolvable-identity (7 vs"
+  log "           real 6) counts. All of these are wrong. This step must"
+  log "           fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
@@ -376,33 +433,48 @@ log "  #305 confirmed fixed: 0 unadmitted-type sites - the default-object"
 log "  adopters resolved and stamped back in stage 2 contribute no refusal"
 log "  here."
 
-# No 'Unable to use data.aws_availability_zones.available in static context'
-# diagnostic (#313's shape, found crossing corpus-security-group-complete)
-# appears anywhere in this estate's plan output either, even though this
-# estate's own vpc submodule reads that same data source the same way
-# security-group's vpc submodule does. Assert its absence directly so a
-# regression that reintroduces it here is caught rather than silently
-# matched by a looser grep elsewhere.
-grep -qF 'Unable to use data.aws_availability_zones' <<< "$PLAN_OUT" \
-  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module|availability_zones'; fail "unexpected #313-shaped 'data.aws_availability_zones ... static context' diagnostic - re-check whether #313 now reaches this estate too"; }
-log "  #313's shape ('Unable to use data.aws_availability_zones... in static"
-log "  context', found crossing corpus-security-group-complete) does NOT"
-log "  appear here - confirmed absent, not merely unasserted."
-
 CHILDMOD_N="$(grep -c '^Error: This module call cannot be expanded under live resource markers$' <<< "$PLAN_OUT")"
-[ "$CHILDMOD_N" = "$WANT_CHILDMOD_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_CHILDMOD_N child-module for_each site (#308), got $CHILDMOD_N"; }
+[ "$CHILDMOD_N" = "$WANT_CHILDMOD_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_CHILDMOD_N child-module for_each sites (#308 is fixed), got $CHILDMOD_N"; }
 grep -qF 'In module.ecs_service, module "container_definition": for_each on a module' <<< "$PLAN_FLAT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected module.ecs_service's container_definition module call among the child-module refusals (#308)"; }
-log "  #308 confirmed: exactly $CHILDMOD_N child-module for_each site -"
-log "  module.ecs_service's container_definition submodule, whose for_each"
-log "  reads a var-chased map whose keys and filter are fully static but"
-log "  whose expression as a whole is not, because one unrelated value in"
-log "  the same map (the fluent-bit sidecar's image) is dynamic."
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#308's own diagnostic (module.ecs_service's container_definition for_each) still appears - it should be fixed"; }
+log "  #308 confirmed fixed: 0 child-module for_each sites (was 1) -"
+log "  module.ecs_service's container_definition module call now expands."
+log "  Fixing it did not unblock this estate: it let live-plan walk further"
+log "  in and reach #313's own wall instead (below)."
+
+# #313 reaches this estate (an earlier version of this script's header
+# claimed it did not; that was checked while #308 still blocked the walk
+# before it got this far, and was wrong once #308 was fixed - see header
+# for the full A/B/C breakdown).
+DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
+MODULE_OUTPUT_N="$(grep -c '^Error: Module output not supported in static context$' <<< "$PLAN_OUT")"
+STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
+UNRESOLVED_IDENTITY_N="$(grep -c '^Error: Unresolvable identity$' <<< "$PLAN_OUT")"
+[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313's family + the each.value gap), got $DYNAMIC_N"; }
+[ "$MODULE_OUTPUT_N" = "$WANT_MODULE_OUTPUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODULE_OUTPUT_N 'Module output not supported in static context' site (#313's family), got $MODULE_OUTPUT_N"; }
+[ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' cascade sites, got $STATIC_CASCADE_N"; }
+[ "$UNRESOLVED_IDENTITY_N" = "$WANT_UNRESOLVED_IDENTITY_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVED_IDENTITY_N 'Unresolvable identity' cascade sites, got $UNRESOLVED_IDENTITY_N"; }
+grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
+  || fail "expected the data.aws_availability_zones root cause (A) among the diagnostics - the corpus pin may have moved"
+grep -qF 'Unable to use module.ecs_cluster.arn in static context' <<< "$PLAN_OUT" \
+  || fail "expected the module.ecs_cluster.arn root cause (B) among the diagnostics - the corpus pin may have moved"
+grep -qF 'Unable to use each.value in static context, which is required by' <<< "$PLAN_OUT" \
+  || fail "expected the each.value root cause (C, the each.value gap exposed by #308's fix) among the diagnostics - the corpus pin may have moved, or #308's fix may have been extended to cover it"
+
+log "  #313 confirmed present: $DYNAMIC_N Dynamic-value-in-static-context +"
+log "  $MODULE_OUTPUT_N Module-output-not-supported sites (root causes A and"
+log "  B, both genuinely unknowable at plan time - see header), 4 of the"
+log "  $DYNAMIC_N Dynamic-value sites being root cause C instead (each.value"
+log "  not narrowed to the one static field each reference reads - a"
+log "  DERIVE-shaped gap #308's own fix exposed, NOT #313's family, reported"
+log "  not fixed here), cascading to $STATIC_CASCADE_N Unable-to-compute-"
+log "  static-value sites and $UNRESOLVED_IDENTITY_N Unresolvable-identity"
+log "  sites."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #308 ($WANT_CHILDMOD_N site) alone;"
-log "#305 no longer contributes and #313's shape does not reach this estate,"
-log "both confirmed above by direct assertion, not by omission"
+log "STAGE 3 (test_plan): BLOCKED for real - #313's family (A+B) plus a"
+log "DERIVE-shaped gap #308's fix exposed (C); #305 and #308 both fixed and"
+log "confirmed absent above by direct assertion, not by omission"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -412,7 +484,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #308 alone (choudoufu, see header)"
+log "  stage 3  test_plan          BLOCKED - #313's family + a DERIVE gap #308's fix exposed (choudoufu, see header); #305 and #308 both fixed"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
@@ -423,5 +495,5 @@ log "own self-report. Two real floci gaps found and filed along the way"
 log "(lex00/floci#59, #60) do not block this script: live-import tolerates"
 log "drift by design, and stage 3 refuses on choudoufu-side gaps before ever"
 log "reaching a diff that would show them. Run again with BREAK=1: stages 1"
-log "and 2 still pass and stage 3's unadmitted-type-absence and #308"
-log "site-count assertions are the ones that fail."
+log "and 2 still pass and stage 3's site-count assertions are the ones that"
+log "fail."
