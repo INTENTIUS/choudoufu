@@ -115,7 +115,24 @@ var identityGoldenPin = map[string]int{
 	// "counted-child", which is the whole reason they are CONCRETE and not
 	// a class this rule could have got wrong. Not a moved row: the fixture
 	// is new and no pre-existing row's rendered value changed.
-	"CONCRETE": 755,
+	//
+	// 759, up from 755 (issue #308's fix): four ADDED rows across two
+	// fresh fixtures exercising the same shape -
+	// internal/live/identity/testdata/module-foreach-comprehension-chase
+	// and internal/live/lint/testdata/child-module-foreach-comprehension -
+	// each contributing
+	// module.wrapper.module.task["app"].aws_iam_user.this and
+	// module.wrapper.module.task["fluent-bit"].aws_iam_user.this. Both
+	// mirror the corpus shape: a child module's own module call for_each
+	// ranges over a for-comprehension whose SOURCE is a bare var.X
+	// reference chased across a module-call boundary, filtering on one
+	// attribute (v.create) while an unrelated sibling attribute (image)
+	// reaches a data source; fluent-bit's own "create" comes from the
+	// variable's declared `optional(bool, true)` default, never from its
+	// own literal. Not a moved row - no pre-existing fixture used this
+	// shape before, so every other CONCRETE row in the golden is
+	// byte-identical; see the digest below.
+	"CONCRETE": 759,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -264,7 +281,11 @@ var identityGoldenPin = map[string]int{
 // all 13 render the same literal bucket name, "counted-child". Read them in
 // the diff: a fabricated identity would have shown up as a rendered value
 // that is not that literal.
-const identityGoldenPinBodyDigest = "f4647c0b6357559a87cfd2fc142ae4baee89127cb6b01101ce31a4d6a17b9ff2"
+//
+// 2026-08-18 (issue #308's fix): four ADDED rows, dirs 455 -> 461 (two new
+// fixture roots, each with two child-module subdirectories of its own -
+// see identityGoldenPin's own comment above for the four rows themselves).
+const identityGoldenPinBodyDigest = "62b6a800beec16d720c7fde531e15a9f2b8dfecba148fc9ba1eb309d5545d42a"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -386,9 +407,15 @@ const identityGoldenPinBodyDigest = "f4647c0b6357559a87cfd2fc142ae4baee89127cb6b
 // and instances by thirteen because a count'd module call multiplies rows
 // without adding directories - the same arithmetic a for_each'd call has
 // always produced here.
+// 2026-08-18 (issue #308's fix): instances 1485 -> 1489, dirs 455 -> 461.
+// Two new fixture roots (module-foreach-comprehension-chase,
+// child-module-foreach-comprehension), each with a wrapper/ and a
+// wrapper/task/ child module directory - six new directories, four new
+// CONCRETE instances (two per fixture; see identityGoldenPin's own comment
+// above).
 const (
-	identityGoldenPinInstances = 1485
-	identityGoldenPinDirs      = 455
+	identityGoldenPinInstances = 1489
+	identityGoldenPinDirs      = 461
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

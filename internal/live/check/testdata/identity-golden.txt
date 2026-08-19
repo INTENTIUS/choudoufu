@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=455 instances=1485
-# shape: class CONCRETE=755
+# shape: dirs=461 instances=1489
+# shape: class CONCRETE=759
 # shape: class NEEDS_DISCOVERY=616
 # shape: class PARENT_DERIVED=97
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=f4647c0b6357559a87cfd2fc142ae4baee89127cb6b01101ce31a4d6a17b9ff2
+# shape: body-sha256=62b6a800beec16d720c7fde531e15a9f2b8dfecba148fc9ba1eb309d5545d42a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -276,6 +276,8 @@ internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_detecti
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_lambda_function_event_invoke_config.main	CONCRETE	example:production	function_name=example,qualifier=production
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
+internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
+internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit	name=fluent-bit
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["alice"]	CONCRETE	primary-alice	name=primary-alice
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["bob"]	CONCRETE	primary-bob	name=primary-bob
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.secondary["alice"]	CONCRETE	secondary-alice	name=secondary-alice
@@ -457,6 +459,8 @@ internal/live/identity/testdata/typedvar-untyped	module.child.aws_sqs_queue.q["b
 internal/live/lint/testdata/child-live-config	module.vendored.aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-live-config/mod	aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-module	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/child-module-foreach-comprehension	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
+internal/live/lint/testdata/child-module-foreach-comprehension	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit	name=fluent-bit
 internal/live/lint/testdata/clean	aws_cloudwatch_log_group.optional[0]	CONCRETE	/stateless-lint/optional	name=/stateless-lint/optional
 internal/live/lint/testdata/clean	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/clean	aws_eip.pool[1]	NEEDS_DISCOVERY		

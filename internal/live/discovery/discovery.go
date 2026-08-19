@@ -1106,7 +1106,7 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 		// which is this modInst - carried the unkeyed path into
 		// [countBlock.instanceAddr], so a binding that did land named an
 		// address no instance has.
-		keys, diag := identity.ChildCallKeys(ctx, cfg.Module, name)
+		keys, diag := identity.ChildCallKeys(ctx, cfg, name)
 		if diag != nil {
 			// RuleChildModule already refused this call before discovery
 			// ever ran; nothing to index under it.

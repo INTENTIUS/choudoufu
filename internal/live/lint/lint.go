@@ -160,7 +160,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	path := cfg.Path
 
 	checkStateBackends(mod, path, issues)
-	checkChildModules(ctx, mod, path, issues)
+	checkChildModules(ctx, cfg, path, issues)
 	checkModuleProviderMapping(mod, path, issues)
 	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
@@ -168,7 +168,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
-	checkForEachKeys(ctx, mod, path, issues)
+	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReceiptLeafRule(mod, path, issues)
 	checkReceiptValueRule(mod, path, issues)
@@ -185,7 +185,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 		if r := moduleCallBlocksLocalProviders(call); r != nil {
 			childNoProviderConfigRange = r
 		}
-		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, name))
+		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, name))
 		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, childNoProviderConfigRange, issues)
 	}
 }
@@ -229,8 +229,13 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 // no better answer available, and RuleChildModule is what stops the run over
 // it, not this rule; for the second there is no instance for a longer
 // address to belong to.
-func worstCaseChildKey(ctx context.Context, mod *configs.Module, name string) addrs.InstanceKey {
-	keys, diag := identity.ChildCallKeys(ctx, mod, name)
+//
+// cfg is the *configs.Config node the call is written in, needed - since
+// issue #308 - by [identity.ChildCallKeys]'s own for_each fallback to chase
+// a bare var.X/local.X source across a module-call boundary; see
+// [identity.ChildModuleKeys]'s doc.
+func worstCaseChildKey(ctx context.Context, cfg *configs.Config, name string) addrs.InstanceKey {
+	keys, diag := identity.ChildCallKeys(ctx, cfg, name)
 	if diag != nil {
 		return addrs.NoKey
 	}
