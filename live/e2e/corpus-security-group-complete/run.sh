@@ -112,8 +112,25 @@ set -uo pipefail
 # 57 of the 204 .corpus directories with an eligible demanded source
 # improved on the same change.
 #
-# #313 root cause B (resource attribute), NOT FIXED and out of scope by
-# the maintainer's own scoping of the ruling above: module.consul's
+# #313 root cause B (resource attribute), NOW FIXED - and the paragraph
+# below, kept verbatim, is what this file said about it right up until it
+# was. Read both: the framing was half right, and the half that was wrong is
+# the interesting half. module.consul's map does read
+# `aws_security_group.app.id` directly, that value genuinely cannot be
+# resolved from configuration, and it still is not - nothing here decided
+# the managed-attribute question. What was wrong is the assumption that the
+# estate needed the value at all. The consul submodule crosses eleven preset
+# names in its own default against one caller key to build 22 ingress rules;
+# every key is written down, and the rules are tagged, server-assigned
+# resources that resolve through their own markers. The unknowable leaf was
+# refusing a key set the configuration states outright, two module calls
+# further down, because internal/live/identity/partialargs.go's tolerant
+# rebuild could not compose across more than ONE module call and could not
+# answer an argument written as merge() rather than as a constructor. 2
+# "Dynamic value in static context" + 5 cascaded sites -> 0. See #191 and
+# the fixtures modulearg-nested-partial / modulearg-nested-dynkey.
+#
+# What that framing said, before the measurement: module.consul's
 # ingress_referenced_security_group_id map uses `aws_security_group.app.id`
 # directly. A data source is safe to read unconditionally - that is what a
 # data block IS - while a managed resource's attribute may not exist yet
@@ -155,10 +172,39 @@ set -uo pipefail
 # argument that maps several siblings onto the same parent is still safe
 # once the OTHER identity component that varies is considered).
 #
-# So stage 3 goes 239 diagnostics -> 19 -> 7 (#321 fixed), and stays
-# BLOCKED on #313 root cause B alone - the one deliberately-out-of-scope
-# same-plan resource attribute. Assertions below hold the exact counts so a
-# change to either remaining site is visible.
+# NEWLY REACHED by fixing #313 root cause B, filed as #332, NOT FIXED here.
+# With every analysis-layer refusal gone, live-plan gets all the way to
+# PROJECTION and actually imports all 67 resources through the provider. Two
+# fail, both aws_default_route_table, one per nested vpc call: 2 "empty
+# result" + 2 "Cannot import for projection". Same shape as #321 one layer
+# further out - the wall was always there, nothing had ever reached it.
+#
+# It is neither a choudoufu analysis gap nor a floci gap. The provider
+# imports aws_default_route_table by the VPC's id (its Import section:
+# "import Default VPC route tables using the vpc_id", example vpc-33cc44dd),
+# and tools/row-gen/ratified.json overrode that text on the reasoning that
+# the resource's schema has no vpc_id ARGUMENT. It has none - but vpc_id is
+# a computed ATTRIBUTE, and the importer looks the VPC's main route table up
+# by it. Proved with stock terraform 1.15.8 and the real AWS provider 6.59.0
+# against this same floci, no choudoufu in the loop:
+#
+#   terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad
+#     -> Error: empty result                                      (exit 1)
+#   terraform import aws_default_route_table.x vpc-dc10ae31
+#     -> Import successful!                                       (exit 0)
+#
+# A route table's ARN carries no VPC id, so the ARN-composition path
+# (internal/live/discovery's importIDFromARN / arnCompositeImportID) cannot
+# reach it; discovery has to carry a second attribute off the object it
+# already found by marker. The rest of the default_* family
+# (network_acl, security_group, vpc, subnet, vpc_dhcp_options) all document
+# import by their own id and are unaffected - this is a singleton, checked
+# against the doc cache rather than assumed.
+#
+# So stage 3 goes 239 diagnostics -> 19 -> 7 -> 4, every analysis-layer
+# refusal is at zero and asserted by absence, and what blocks the estate is
+# one wrong ratified import identity. Assertions below hold the exact counts
+# so a change to any of them is visible.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
@@ -179,14 +225,19 @@ set -uo pipefail
 #                          default_* trio is admitted and stamped above),
 #                          asserted against live-import's own report AND
 #                          confirmed independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at 7 sites (was 239, then 19
-#                          once #313's data-source root cause A was fixed) -
-#                          #305, #307, #313 root cause A and #321's
-#                          splat-through-element() class no longer
-#                          contribute any refusal. What remains is #313's
-#                          root cause B alone: a same-plan resource
-#                          attribute (2 + 5 cascade), deliberately out of
-#                          scope by the maintainer's own ruling on #313.
+#   stage 3  test plan     BLOCKED, for real, at 4 sites (was 239, then 19,
+#                          then 7). Every analysis-layer wall - #305, #307,
+#                          #313 root causes A and B, #321 - contributes zero
+#                          refusals and each zero is asserted by absence.
+#                          What remains is #332: aws_default_route_table's
+#                          ratified import identity is the route table's own
+#                          id where the provider wants the VPC's, so the
+#                          projection's own import of it fails, 2 + 2 sites.
+#                          The reading this line used to carry, kept because
+#                          it was wrong in an instructive way: "#313's root
+#                          cause B alone: a same-plan resource attribute
+#                          (2 + 5 cascade), deliberately out of scope by the
+#                          maintainer's own ruling on #313."
 #                          Specific counts and resource addresses asserted
 #                          against a real live-plan run, state file deleted
 #                          first, BREAK=1 negative control.
@@ -438,56 +489,113 @@ PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
 [ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the remaining stage-3 walls may be fixed; update this script"; }
 
-# #305 and #307 are BOTH fixed: no diagnostic may read "Resource type is
-# outside the live-markers subset" any more, for any type.
+# EVERY analysis-layer refusal is now gone from this estate, and each of
+# these four zeros is a separate, once-real wall asserted by absence.
+#
+#   #305/#307   "Resource type is outside the live-markers subset"
+#   #313 A + B  "Dynamic value in static context" and its
+#               "Unable to compute static value" cascade
+#   #321        "Identity not resolvable from configuration"
+#
+# #313 root cause B was the last of them and was recorded here, and in
+# HANDOFF.md, as a maintainer scope decision rather than a bug: module.consul's
+# ingress_referenced_security_group_id map reads aws_security_group.app.id,
+# a same-plan managed-resource attribute. That framing was half right. The
+# VALUE genuinely is not resolvable and still is not resolved - nothing here
+# reads a managed resource's own attribute out of configuration. What was
+# wrong is that the value was never needed: the map's KEYS are eleven preset
+# names in the consul submodule's own default crossed with one caller key,
+# every one of them written down, and the rules they name are tagged,
+# server-assigned resources that resolve through their own markers. One
+# unknowable leaf was refusing a key set the configuration states outright,
+# two module calls further down. internal/live/identity/partialargs.go's
+# tolerant rebuild already substituted an unknown for exactly that leaf; it
+# could not compose across more than ONE module call, and could not answer an
+# argument the caller wrote as merge() rather than as a constructor. Both are
+# fixed, and the leaf itself still refuses - see the fixtures
+# modulearg-nested-partial and modulearg-nested-dynkey.
 WANT_UNADMITTED_N=0
-# #313 root cause B only - a same-plan resource attribute
-# (aws_security_group.app.id in module.consul's
-# ingress_referenced_security_group_id map), which the maintainer's ruling
-# on #313 deliberately leaves refused - plus its cascade. Root cause A, the
-# data.aws_availability_zones one, is FIXED and must contribute nothing;
-# that is asserted separately below, by absence.
-WANT_DYNAMIC_N=2
-WANT_STATIC_CASCADE_N=5
-# #321, FIXED: the class fixing root cause A newly REACHED rather than
-# caused - the vpc module's aws_route_table_association.private expands
-# (its count no longer cascades off local.azs) and each instance used to
-# refuse on its own two identity arguments, both
-# element(<resource>[*].id, count.index) - is now resolved structurally
-# (internal/live/identity/splat.go's resolveElementCall). 12 -> 0.
+WANT_DYNAMIC_N=0
+WANT_STATIC_CASCADE_N=0
 WANT_UNRESOLVABLE_N=0
+# What that newly REACHED, in the same "a refusal that fired at the block
+# level starts firing per argument" shape #321 arrived in - except one layer
+# further out, because the plan now gets all the way to PROJECTION and
+# actually imports every one of the 67 resources. Two of them fail, both
+# aws_default_route_table, one per nested VPC call.
+#
+# This is not a choudoufu analysis gap and not a floci gap. The provider
+# imports aws_default_route_table by the VPC's id, not by the route table's
+# own - its Import section says so ("import Default VPC route tables using
+# the vpc_id", vpc-33cc44dd in the example) - and the ratified row in
+# tools/row-gen/ratified.json overrode that text on the reasoning that the
+# resource's schema has no vpc_id ARGUMENT. It does not, but vpc_id is a
+# computed ATTRIBUTE and the provider's importer looks up the VPC's main
+# route table by it. Proved with stock terraform 1.15.8 and the real AWS
+# provider 6.59.0 against this same floci, no choudoufu involved:
+#
+#   terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad
+#     -> Error: empty result                                (exit 1)
+#   terraform import aws_default_route_table.x vpc-dc10ae31
+#     -> Import successful!                                 (exit 0)
+#
+# "empty result" is byte-identical to what live-plan reports here. Filed as
+# #332; not fixable from the ARN alone (a route table's ARN carries no VPC
+# id), so it needs discovery to carry a second attribute off the object it
+# already found by marker. aws_default_network_acl, aws_default_security_group,
+# aws_default_vpc, aws_default_subnet and aws_default_vpc_dhcp_options all
+# document import by their own id and are unaffected - this is a singleton.
+WANT_PROJECTION_IMPORT_N=2
+WANT_EMPTY_RESULT_N=2
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
-  WANT_DYNAMIC_N=3
-  WANT_STATIC_CASCADE_N=6
+  WANT_DYNAMIC_N=1
+  WANT_STATIC_CASCADE_N=1
   WANT_UNRESOLVABLE_N=1
-  log "  BREAK=1: expecting 1 unadmitted-type site (there should be 0 now -"
-  log "           #305 and #307 are both fixed), 3 Dynamic-value-in-"
-  log "           static-context sites (one more than the real 2), 6"
-  log "           cascaded Unable-to-compute-static-value sites (one more"
-  log "           than the real 5) and 1 Identity-not-resolvable site (there"
-  log "           should be 0 now - #321 is fixed). None of these are real."
-  log "           This step must fail."
+  WANT_PROJECTION_IMPORT_N=3
+  WANT_EMPTY_RESULT_N=3
+  log "  BREAK=1: expecting one site of each analysis-layer refusal (there"
+  log "           should be 0 of all four now - #305, #307, #313 A and B,"
+  log "           and #321 are all fixed and asserted by absence), and 3"
+  log "           each of the projection-import and empty-result sites (one"
+  log "           more than the real 2). None of these are real. This step"
+  log "           must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
 [ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305 and #307 both fixed), got $UNADMITTED_N"; }
 # Belt-and-suspenders: neither #305's default_* trio nor #307's
 # rules_exclusive may appear in any diagnostic's declaring-line code frame.
+# A PROJECTION diagnostic carries no code frame, so this stays exactly as
+# tight as it was even though aws_default_route_table does now appear in the
+# output by name - see WANT_PROJECTION_IMPORT_N above and the assertion
+# below, which is what covers that.
 for t in aws_default_network_acl aws_default_route_table aws_default_security_group aws_vpc_security_group_rules_exclusive; do
   N="$(grep -cF "resource \"$t\"" <<< "$PLAN_OUT")"
-  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t to be fully resolved (both #305 and #307 fixed), but it still appears among live-plan's diagnostics"; }
+  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t to raise no ANALYSIS refusal (both #305 and #307 fixed), but it still appears in a diagnostic's declaring-line code frame"; }
 done
 
-# What live-plan hits now that #305, #307 and #313's data-source root cause
-# are all fixed. Not this script's job to fix; asserted here at the precise
-# counts so a change to any of them is visible.
+# Every analysis-layer refusal, at zero. These four are the walls this estate
+# has been blocked on since it was first crossed, and each is asserted at an
+# exact count rather than by a floor, so one coming back is visible.
 DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
 STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
-[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313), got $DYNAMIC_N"; }
+[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313 A and B both cleared), got $DYNAMIC_N"; }
 [ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' sites (#313's cascade), got $STATIC_CASCADE_N"; }
 UNRESOLVABLE_N="$(grep -c '^Error: Identity not resolvable from configuration$' <<< "$PLAN_OUT")"
 [ "$UNRESOLVABLE_N" = "$WANT_UNRESOLVABLE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVABLE_N 'Identity not resolvable from configuration' sites (the splat-through-element class #313's fix newly reached), got $UNRESOLVABLE_N"; }
+
+# #332, the wall clearing the four above newly REACHED. Asserted at an exact
+# count and by the type it names, so this cannot be satisfied by some other
+# import failing instead.
+PROJECTION_IMPORT_N="$(grep -c '^Error: Cannot import for projection$' <<< "$PLAN_OUT")"
+EMPTY_RESULT_N="$(grep -c '^Error: empty result$' <<< "$PLAN_OUT")"
+[ "$PROJECTION_IMPORT_N" = "$WANT_PROJECTION_IMPORT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_PROJECTION_IMPORT_N 'Cannot import for projection' sites (#332, aws_default_route_table imports by vpc_id), got $PROJECTION_IMPORT_N"; }
+[ "$EMPTY_RESULT_N" = "$WANT_EMPTY_RESULT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_EMPTY_RESULT_N 'empty result' sites (#332, the provider's own error for a route-table id it cannot look a VPC up by), got $EMPTY_RESULT_N"; }
+if [ "${BREAK:-}" != "1" ]; then
+  N="$(grep -c 'aws_default_route_table' <<< "$PLAN_OUT")"
+  [ "$N" -eq "$WANT_PROJECTION_IMPORT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by exactly $WANT_PROJECTION_IMPORT_N diagnostics (#332) and nothing else, got $N"; }
+fi
 
 # #313 root cause A, asserted by ABSENCE. This is the load-bearing half of
 # the fix: the data source's value now crosses the module call, so not one
@@ -505,8 +613,15 @@ for t in aws_subnet aws_route_table; do
   [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:'; fail "$t still appears among live-plan's diagnostics; #313's data-source fix should have resolved every per-AZ instance"; }
 done
 
-grep -qF 'Unable to use aws_security_group.app in static context' <<< "$PLAN_OUT" \
-  || fail "expected the aws_security_group.app root cause (#313's root cause B, deliberately unfixed) among the diagnostics - the corpus pin may have moved"
+# #313 root cause B, asserted by ABSENCE. This assertion used to demand the
+# opposite - that the diagnostic BE present, because the file recorded it as
+# a maintainer scope decision. It is gone, and nothing about a managed
+# resource's own attribute was decided to make it go: the estate never needed
+# aws_security_group.app.id's VALUE, only the key set it travels with. If
+# this comes back, partialargs.go's composition across two module calls has
+# regressed and 22 consul ingress rules are unnameable again.
+! grep -qF 'Unable to use aws_security_group.app in static context' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_security_group.app'; fail "#313's root cause B is back on aws_security_group.app - it must contribute no diagnostic at all"; }
 
 # #321, asserted by ABSENCE - the load-bearing half of this fix: neither
 # element() index position on aws_route_table_association.private may
@@ -532,17 +647,25 @@ log "  #321 confirmed FIXED: element(<resource>[*].id, count.index) on both"
 log "  of aws_route_table_association.private's identity arguments now"
 log "  resolves structurally to the same-indexed sibling instance - zero"
 log "  diagnostics (was 12), confirmed absent above."
-log "  Remaining, at $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N)) sites (was 239):"
-log "    $DYNAMIC_N + $STATIC_CASCADE_N  #313 root cause B - aws_security_group.app.id in"
-log "           module.consul's ingress_referenced_security_group_id map, a"
-log "           same-plan resource attribute the ruling on #313 deliberately"
-log "           leaves refused, plus its cascade."
+log "  #313 root cause B confirmed FIXED, and not by deciding the question it"
+log "  was scoped out on: aws_security_group.app.id is STILL not resolved"
+log "  from configuration. module.consul's 22 ingress rules are keyed by"
+log "  eleven preset names and one caller key, all written down, and the"
+log "  unknowable leaf now travels beside that key set instead of poisoning"
+log "  it across two module calls - zero diagnostics (was 2 + 5)."
+log "  Analysis-layer refusals, total: $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N + UNADMITTED_N)) (was 239, then 19, then 7)."
+log "  Remaining, at $((PROJECTION_IMPORT_N + EMPTY_RESULT_N)) sites, newly REACHED rather than caused:"
+log "    $PROJECTION_IMPORT_N + $EMPTY_RESULT_N  #332 - aws_default_route_table imports by the VPC's"
+log "           id, not the route table's own, and the ratified row says"
+log "           otherwise. One per nested vpc call. Proved against stock"
+log "           terraform and the real provider, no choudoufu involved."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, at 7 sites (was 239, then 19) -"
-log "#305, #307, #313's data-source root cause and #321 are all fixed and"
-log "confirmed absent above; #313's resource-attribute root cause (deliberately"
-log "out of scope) is the sole remaining wall"
+log "STAGE 3 (test_plan): BLOCKED for real, at 4 sites (was 239, then 19,"
+log "then 7) - every analysis-layer wall this estate has ever hit (#305,"
+log "#307, #313 A and B, #321) is fixed and confirmed absent above. What is"
+log "left is one wrong ratified import identity, #332, reachable only now"
+log "that the plan gets as far as importing all 67 resources"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -552,7 +675,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 7 sites (was 239, then 19) - #313's data-source half and #321 both fixed; see header"
+log "  stage 3  test_plan          BLOCKED at 4 sites (was 239, then 19, then 7) - every analysis-layer wall is gone; #332 alone remains; see header"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

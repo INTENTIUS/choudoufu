@@ -70,13 +70,63 @@ import (
 // [forEachKeysKnown] draws one layer in, where stock asks IsKnown of a map
 // and IsWhollyKnown of a set because a map's values never enter an address.
 //
+// # Composition, and why one module call is not the unit
+//
+// The substitution has to survive being passed on. A module that receives a
+// partial argument routinely builds something out of it and hands THAT to a
+// module of its own - terraform-aws-modules/security-group's preset
+// submodules are the shape, and `corpus-security-group-complete` the estate
+// that found it:
+//
+//	# the estate
+//	module "consul" {
+//	  ingress_referenced_security_group_id = { app = aws_security_group.app.id }
+//	}
+//
+//	# modules/consul, one call further down
+//	locals {
+//	  combined = { for pair in setproduct(keys(var.preset_ingress_rules),
+//	                                      keys(var.ingress_referenced_security_group_id)) : ... }
+//	}
+//	module "security_group" {
+//	  ingress_rules = merge(local.combined, var.ingress_rules)
+//	}
+//
+// The instance keys of the `aws_vpc_security_group_ingress_rule` that
+// module eventually declares are a setproduct of two key sets both written
+// down - eleven preset names in the module's own default and `app` in the
+// estate - and only the VALUE under `app` is unknowable. Two things had to
+// change for that to be reachable.
+//
+// The evaluator this rebuild reads leaves through is now itself wrapped,
+// recursively, for the parent module instance. Without that the
+// substitution stops at the first module call: `local.combined` refuses
+// because the consul module's own frozen closure still refuses
+// `var.ingress_referenced_security_group_id`, and everything derived from
+// it refuses with it, one call short of the resource whose expansion was
+// the question. Recursion terminates at the root module, which has no
+// caller and therefore nothing to be tolerant about.
+//
+// And an argument the caller did not write as a bare constructor is now
+// EVALUATED through that wrapped evaluator before the rebuild is attempted.
+// `merge(local.combined, var.ingress_rules)` is not an object constructor,
+// so there is nothing for [rebuildConstructor] to rewrite; what there is,
+// is a function that already knows what it does to an unknown argument.
+// Letting merge() answer is not the thing the paragraph below rules out -
+// rebuilding a call would mean this package deciding what merge() means,
+// and it never does. It runs the function on the value the substitution
+// produced and takes the function's own answer, exactly as stock's
+// plan-time evaluator does with an unknown, and only when the evaluation
+// raises no diagnostic at all. A refused reference anywhere in it still
+// falls through to the rebuild, and then to the caller's own refusal.
+//
 // # What it deliberately does not do
 //
-// Only an object or tuple CONSTRUCTOR is rebuilt. A call the caller wrote
-// around one - merge(), concat(), a conditional, a for-comprehension - is
-// left to fail exactly as before, because rebuilding it would mean deciding
-// what the function does to an unknown argument, and that decision belongs
-// to the function rather than here.
+// A call is never RECONSTRUCTED. Only an object or tuple constructor is
+// rebuilt element by element, because rebuilding merge() or concat() would
+// mean deciding what the function does to an unknown argument, and that
+// decision belongs to the function. Evaluating the call, above, is how the
+// function gets to make it.
 //
 // A refusing KEY refuses the whole object. A key that cannot be evaluated is
 // an instance address that cannot be named, and substituting an unknown for
@@ -156,6 +206,11 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 	// data source the read phase happened to cover cannot answer here and
 	// change which references resolve. Built lazily: the great majority of
 	// arguments evaluate strictly and never need it.
+	//
+	// Its own var.* closure is this same wrapper, one module up, so a
+	// substitution the grandparent made is visible to the leaf being read
+	// here. Nil at the root, where WithVariables is a no-op and the
+	// recursion ends.
 	var fallback *configs.StaticEvaluator
 	fallbackReady := false
 	evalFor := func() *configs.StaticEvaluator {
@@ -174,6 +229,9 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 			}
 			eval = eval.WithRepetitionData(rd)
 		}
+		// nil for the root module, and WithVariables ignores a nil, so
+		// the root's evaluator is left exactly as it is.
+		eval = eval.WithVariables(r.tolerantVariables(parentInst, nil))
 		fallback = eval
 		return fallback
 	}
@@ -197,12 +255,55 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 			Subject:   "var." + variable.Name,
 			DeclRange: attr.Range,
 		}
+		if composed, ok := composedArgument(r.ctx, eval, attr.Expr, ident); ok {
+			return composed, nil
+		}
 		rebuilt, ok := rebuildConstructor(r.ctx, eval, attr.Expr, ident, r.moduleOutputValues(parentCfg, parentInst))
 		if !ok {
 			return val, diags
 		}
 		return rebuilt, nil
 	}
+}
+
+// composedArgument evaluates a whole module-call argument through an
+// evaluator whose own var.* closure is already tolerant, and is what lets a
+// substitution cross more than one module call.
+//
+// It exists because the second, third and fourth calls down a real module
+// composition are rarely a bare constructor. A module that receives a map
+// passes on `merge(local.combined, var.extra)`; one that receives a list
+// passes on `concat(...)` or a for-comprehension over it. There is no
+// constructor there for [rebuildConstructor] to rewrite element by element,
+// and rewriting the CALL is exactly what this package refuses to do -
+// so instead the call is run, on a value whose unknown leaves the wrapper
+// one module up already substituted, and whatever the function makes of an
+// unknown is the answer. That is the same thing stock OpenTofu's plan-time
+// evaluator does with an apply-time value, and it keeps the decision inside
+// the function where it belongs.
+//
+// Evaluate, not [configs.StaticEvaluator.EvaluateStructural]: Structural's
+// contract is to look PAST a refused reference when the value it renders is
+// wholly known anyway, and the value here is by construction not wholly
+// known - its whole point is the unknown leaf. What is demanded instead is
+// that no diagnostic was raised at all, which is the stronger claim: every
+// reference this expression reaches was inside static scope and answered, so
+// nothing was skipped, ignored or guessed. An expression naming a managed
+// resource directly still raises, still falls through to the rebuild, and
+// still ends at the caller's own refusal if that declines too.
+//
+// The value it returns therefore contains exactly one kind of invention: the
+// cty.DynamicVal an ancestor's [elementOrUnknown] put in place of a leaf the
+// static scope refused. Everything else is the caller's own configuration,
+// run through the caller's own functions. Every gate that turns a value into
+// a marker still demands a known one, so a substituted leaf that reaches one
+// is refused there exactly as it was before.
+func composedArgument(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier) (cty.Value, bool) {
+	val, diags := eval.Evaluate(ctx, expr, ident)
+	if diags.HasErrors() || val == cty.NilVal {
+		return cty.NilVal, false
+	}
+	return val, true
 }
 
 // tolerantRetry re-evaluates one expression with [resolver.tolerantVariables]

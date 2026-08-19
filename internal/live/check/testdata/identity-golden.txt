@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=493 instances=1559
-# shape: class CONCRETE=767
+# shape: dirs=499 instances=1565
+# shape: class CONCRETE=773
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=e525717c445e1709a3c8a6abc259436321b89d0625dd7b87fd8944adb51d2eed
+# shape: body-sha256=01cb4e1b935f0c2d82c2ed3137584d0ef786f3d3b1782124872679c4f956b542
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -392,6 +392,12 @@ internal/live/identity/testdata/module-sibling-count	module.a_with_children.modu
 internal/live/identity/testdata/module-sibling-count/child-leaf	aws_cloudwatch_log_group.b	CONCRETE	/b-leaf-count/should-not-exist	name=/b-leaf-count/should-not-exist
 internal/live/identity/testdata/module-sibling-count/child-with-children	module.nested.aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
 internal/live/identity/testdata/module-sibling-count/child-with-children/nested	aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
+internal/live/identity/testdata/modulearg-nested-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-nested-partial	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_group.sibling["http/app"]	CONCRETE	group-80	name=group-80
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_group.sibling["https/app"]	CONCRETE	group-443	name=group-443
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_user.keyed["http/app"]	CONCRETE	user-http-app	name=user-http-app
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_user.keyed["https/app"]	CONCRETE	user-https-app	name=user-https-app
 internal/live/identity/testdata/modulearg-partial	aws_iam_role.r	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_group.g[0]	CONCRETE	the-group	name=the-group
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["alice"]	CONCRETE	user-alice	name=user-alice

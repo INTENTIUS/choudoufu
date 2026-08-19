@@ -203,7 +203,27 @@ var identityGoldenPin = map[string]int{
 	// provider's own documented import example verbatim. The fixture's two
 	// adversarial siblings (absent, impure) contribute no row. No
 	// pre-existing row moved.
-	"CONCRETE": 767,
+	//
+	// 773, up from 767 (issue #191, a partial module argument composing
+	// across two module calls): six ADDED rows across two new fixture
+	// roots. internal/live/identity/testdata/modulearg-nested-partial
+	// contributes five - aws_iam_role.r (the-role, the caller's own
+	// literal) and four instances two calls down, keyed http/app and
+	// https/app on each of two resources, rendering user-http-app,
+	// user-https-app, group-80 and group-443. The two group rows are the
+	// ones worth reading: 80 and 443 are written in the MIDDLE module's own
+	// default and reach the identity through a setproduct, a merge into the
+	// object carrying the unknowable leaf, a second merge and a type
+	// constraint, so no fabricated or defaulted value could spell them.
+	// internal/live/identity/testdata/modulearg-nested-dynkey contributes
+	// one, its own aws_iam_role.r; that fixture is the mutation - the same
+	// leaf moved into a map key and into a set's elements - and everything
+	// below the module call contributes no row at all, which is the half
+	// that has to hold. The resource reading the refused leaf itself
+	// (modulearg-nested-partial's aws_iam_role.dynamic) contributes no row
+	// either: a managed resource's own attribute is a separate, unmade
+	// ruling and nothing here pre-empts it. No pre-existing row moved.
+	"CONCRETE": 773,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -569,7 +589,23 @@ var identityGoldenPin = map[string]int{
 // itself at every step; resolved per this repository's standing rule by
 // regenerating fresh against the fully merged code (-update) rather than
 // hand-merging the diffs, then copying the regenerated body-sha256 here.
-const identityGoldenPinBodyDigest = "e525717c445e1709a3c8a6abc259436321b89d0625dd7b87fd8944adb51d2eed"
+//
+// 2026-08-19 (issue #191, a partial module argument composing across two
+// module calls, merged on top of #330 above): body digest moved because six
+// more rows were ADDED, all six in two new fixture roots (see the CONCRETE
+// class comment above and identityGoldenPinInstances' own comment below).
+// TestIdentityGolden's own diff, read before this line was edited, reported
+// "0 identities changed, 6 added, 0 removed". That zero is the load-bearing
+// half twice over here, because this change makes an EARLIER evaluation
+// succeed where it used to fail, which is the exact shape that broke
+// testdata/shapeb-tryref the first time this wrapper was written: a
+// resolution that was concrete becoming a refusal, or a formula becoming an
+// unknown, would show as a REMOVED or MODIFIED row and there are none of
+// either. The same comparison was run over .corpus as well, which this
+// sweep deliberately does not cover - 6154 directories, 22398 -> 22424
+// instances, 0 rows removed, 0 rows modified, and all 26 added rows
+// NEEDS_DISCOVERY with an empty rendered value.
+const identityGoldenPinBodyDigest = "01cb4e1b935f0c2d82c2ed3137584d0ef786f3d3b1782124872679c4f956b542"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -911,9 +947,17 @@ const identityGoldenPinBodyDigest = "e525717c445e1709a3c8a6abc259436321b89d0625d
 // the merge resolution); the arithmetic checks: 1554 (pre-#302) + 2 (#302's
 // own delta) + 1 (#310's own delta) + 2 (#330's own delta) = 1559, exactly
 // the regenerated total.
+// 2026-08-19 (issue #191, a partial module argument composing across two
+// module calls, merged on top of #330 above): instances 1559 -> 1565 and
+// dirs 493 -> 499. Two new fixture roots, each three directories deep
+// (root, the middle module, the module it calls), because the shape this
+// fixes only exists across TWO module calls and one call cannot exercise
+// it: modulearg-nested-partial contributes five instances and
+// modulearg-nested-dynkey, the mutation, contributes one. 6 = 5 + 1 and
+// 6 = 3 + 3, both exact.
 const (
-	identityGoldenPinInstances = 1559
-	identityGoldenPinDirs      = 493
+	identityGoldenPinInstances = 1565
+	identityGoldenPinDirs      = 499
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
