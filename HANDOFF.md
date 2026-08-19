@@ -907,29 +907,74 @@ worth driving all the way to a genuine five-of-five pass before this project
 is shown to anyone outside it. Four of five clear all five stages as of
 2026-08-18 (`reference-ec2-vpc`, `corpus-s3-bucket-complete`,
 `corpus-iam-policy`, `corpus-iam-read-only-policy`); the security-group one
-is the remaining gap. #313 itself is resolved (above) and #321 is fixed
-too (`test_plan` diagnostics 239 -> 19 -> 7) - what's left is not a
-derivable gap any more. All 7 remaining sites trace to #313's own
-resource-attribute root cause (root cause B), which the maintainer's
-ruling deliberately scoped OUT of #313's fix (a `for_each`/`count` keyed
-on another managed resource's own live attribute is a different, harder
-problem than a `data` source read - see #313's entry above for why).
-**The core set cannot reach five-of-five without a further scope decision
-on that boundary** - there is no more derivable work standing between it
-and 4-of-5. Either revisit whether resource-attribute resolution should
-also be in scope, or accept 4-of-5 as this estate's real ceiling under
-the current ruling.
+is the remaining gap. `corpus-rds-complete-postgres` (outside the core set,
+same `security-group`/`vpc` module family) reached the equivalent state
+2026-08-19 after #321/#324/#323 cleared every other derivable wall it had.
 
-**This is no longer a one-estate question.** `corpus-rds-complete-postgres`
-(outside the core set, but the same high-dependency `security-group`/`vpc`
-module family) reached its own equivalent state 2026-08-19, after #321,
-#324 and #323 cleared every derivable wall it had: its last two
-diagnostics both trace to the identical root-cause-B shape (a resource
-attribute crossing a module boundary - `cidr_blocks = module.vpc.
-vpc_cidr_block`). Two independent estates now hit the exact same
-maintainer-scoped boundary as their sole remaining blocker, which is
-real evidence this decision reaches further than the one estate that
-first raised it - worth weighing when revisiting it.
+**"Root cause B" was the wrong name for this, and re-read this before
+touching the area again.** It was recorded as "a `for_each`/`count` keyed
+on another managed resource's own LIVE attribute" - the same family as
+reading a not-yet-created resource's future value, judged too risky for a
+quick follow-on to #313's data-source ruling. A scouting pass 2026-08-19
+(no code changed, evidence only) found that framing wrong on both estates:
+**neither actually needs a live cloud read.** Every value in both chains -
+`corpus-rds-complete-postgres`'s `cidr_blocks = module.vpc.vpc_cidr_block`,
+`corpus-security-group-complete`'s `aws_security_group.app.id` reference -
+traces back to a **configuration literal**, confirmed by substituting the
+literal directly and watching the refusal disappear on a real, migrated
+estate. The actual wall is a **static-evaluation gap**: a module output
+isn't evaluated even when every value flowing into it is already
+statically known, because the identity-argument evaluator
+(`internal/configs/static_scope.go`'s `StaticValidateReferences`) refuses a
+module-call-output reference outright rather than walking into it the way
+`internal/live/identity/localvalue.go`'s `resolveModuleOutput` already does
+for a *different* call site. The RDS estate is one hop through a module
+output; the security-group estate is a different, smaller gap where a
+block whose config only partly decodes drops out of
+`internal/live/projection/plan.go`'s `PlanInstances` entirely, denying a
+later resolution pass anything to answer with - not the same mechanism,
+despite looking like siblings.
+
+**There is substantial prior art, and it was closed on process, not
+merit: issue #191**, "wall: Module output not supported in static context
+- blocks 12 of 79 estates." It independently found the same parity defect
+by running stock OpenTofu rather than reading refusal text (stock plans
+this shape cleanly), bucketed the residue (203 sites at the module-call
+boundary, 4 at a direct resource argument - both tonight's estates are the
+203 bucket), and built and measured the naive fix: making the evaluator
+permissive cost **16 resolved instances** with **zero configs unblocked**,
+traced to a specific loss mode. #191 was closed 2026-08-17 for retiring a
+class-first framing, explicitly reversible - "If the research in this
+issue's body is load-bearing for something, say so and it comes back." **It
+is load-bearing now, and the loss mode #191 measured against has since
+been fixed** by `36757b988e` (2026-08-17, the exact "right fix" #191's own
+follow-up work named) and `0c04a768ee`'s regression guard. Re-measuring
+#191's own naive-fix experiment against current main - cheap,
+`refusal-probe -diff`, on the order of twenty minutes - should be the
+first move before implementing either estate's fix, since it may already
+tell you the simple fix works now.
+
+**A second, real defect sits immediately behind this wall on both
+estates, filed as `#325`**: `internal/live/discovery/discovery.go`'s
+marker type-equality check treats `aws_default_route_table`/
+`aws_route_table` and `aws_default_security_group`/`aws_security_group` as
+mismatched types, when each pair names one AWS object under two provider
+type names - a correct marker gets called malformed. This became
+reachable once #305 admitted the `default_*` trio and will hit every
+`terraform-aws-modules/vpc`-based estate as soon as its own preceding
+walls clear. Neither estate reaches five-of-five without this fix too,
+regardless of what happens with the module-output wall above it.
+
+**Net: this is not currently blocked on a scope decision.** The original
+"is this safe" question is answered - neither estate needs a live read,
+so the risk the maintainer was weighing doesn't apply here. What's left
+is real implementation work, split into (1) re-measure #191's naive fix
+against current main, (2) the RDS estate's module-output-in-static-context
+hop, (3) the security-group estate's `PlanInstances`-partial-decode gap -
+different code paths, different guards, deliberately not the same slot -
+and (4) `#325`'s marker type-alias fix. Full trace evidence, exact file
+line numbers and the recommended guard for each is in the scouting
+agent's own report; ask for it before re-deriving from scratch.
 `live/corpus-crossing-manifest.json` says which ones currently clear which
 stage and why the rest do not; do not trust a stale count copied here
 instead.
