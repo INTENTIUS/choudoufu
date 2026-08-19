@@ -175,7 +175,15 @@ var identityGoldenPin = map[string]int{
 	// on that literal the same way resolveConcatIndex's own literal
 	// fallback does. Not a moved row - no pre-existing fixture used this
 	// shape before; see the digest below.
-	"CONCRETE": 763,
+	// 765, up from 763 (issue #323, the identity-argument half of
+	// partialargs.go's tolerant retry): two ADDED rows, both in the one
+	// new fixture root
+	// internal/live/identity/testdata/modulearg-partial-value -
+	// aws_iam_role.r (the-role, the caller's own literal) and
+	// module.u.aws_iam_user.literal[0] (platform-alpha, two literal leaves
+	// of a module argument whose third leaf names a resource). No
+	// pre-existing row moved.
+	"CONCRETE": 765,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -454,7 +462,17 @@ var identityGoldenPin = map[string]int{
 // no pre-existing row's rendered value changed - TestIdentityGolden's own
 // diff read "0 identities changed, 25 added, 0 removed" before this line
 // was edited.
-const identityGoldenPinBodyDigest = "b4d1586c7217dffb794084e483bdb91d4d16c316906a16d184ce606a22a44149"
+// 2026-08-19 (issue #323, partialargs.go's tolerantPart): body digest
+// moved because two rows were ADDED (see the CONCRETE class comment above
+// and identityGoldenPinInstances' own comment below for the one fixture);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 2 added, 0 removed" before this line
+// was edited. Read together with the corpus measurement that change was
+// landed on: across all 250 offline-corpus entries it resolved not one
+// new instance, so the two rows here are the ONLY new rendered identities
+// it produces anywhere, and both are asserted by value in
+// internal/live/identity's TestPartialModuleArgumentResolvesALiteralLeaf.
+const identityGoldenPinBodyDigest = "95cbd2417e7cb79ecde881c02549207f98e98efeb03452a31c0a17da0d078d9c"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -713,9 +731,27 @@ const identityGoldenPinBodyDigest = "b4d1586c7217dffb794084e483bdb91d4d16c316906
 // +8 PARENT_DERIVED), +5 dirs. Every pre-existing row is byte-identical;
 // this is a pure addition, matching TestIdentityGolden's own "0
 // identities changed, 25 added, 0 removed".
+// 2026-08-19 (issue #323, resolve.go's tolerantPart): instances 1547 ->
+// 1549, dirs 485 -> 487. One new fixture root,
+// internal/live/identity/testdata/modulearg-partial-value (two
+// directories - the root and its ./mod child), pinning the identity-
+// ARGUMENT half of the shape modulearg-partial already pins the key-set
+// half of: a caller writes a composite module argument whose skeleton is
+// literal and one of whose leaves names a resource, and the child builds
+// an identity out of it. It contributes aws_iam_role.r (CONCRETE,
+// the-role - the caller's own literal, unrelated to the change) and
+// module.u.aws_iam_user.literal[0] (CONCRETE, platform-alpha - the two
+// literal leaves the caller wrote, joined by a template, read through a
+// list(map(string)) type constraint). Its sibling
+// module.u.aws_iam_user.dynamic reads the ONE leaf that is not in the
+// configuration and contributes NO row, which is the half that has to
+// hold: an unknown leaf is turned away rather than standing in for
+// lookup()'s default. Totals: +2 instances (+2 CONCRETE), +2 dirs. Every
+// pre-existing row is byte-identical; this is a pure addition, matching
+// TestIdentityGolden's own "0 identities changed, 2 added, 0 removed".
 const (
-	identityGoldenPinInstances = 1547
-	identityGoldenPinDirs      = 485
+	identityGoldenPinInstances = 1549
+	identityGoldenPinDirs      = 487
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
