@@ -708,29 +708,45 @@ references are in each estate's own entry in
 and fixed stale crossing-script assertions left over from #305 landing
 (`corpus-ecs-fargate`, `corpus-alb-complete`), now on main.
 
-**#313 itself is not a bug to derive a rule for - re-read the issue before
-assigning it again.** Its own body traces the refusal to `internal/live/
-passthrough/refusals.go`'s already-registered "Dynamic value in static
-context" class: `live-plan` never calls a provider during plan (statelessness,
-#73), so a `for_each`/`count` keyed on a data source's live values, or on
-another resource's own attribute, can never be proven statically - the same
-family as the CIDR-keyed `for_each` wall CLAUDE.md already documents.
-Closing it for real would mean deciding whether `live-plan` may call
-read-only provider APIs during plan at all, a real architecture question for
-the maintainer, not a derivable rule a background agent should freelance.
+**#313 was first read as an architecture question - it wasn't one, and that
+premise was wrong. Re-read this before assigning the area again.** The
+maintainer ruled 2026-08-18/19 that `live-plan` may call a provider's own
+read-only data-source APIs during plan to prove a `for_each`/`count` key
+set, on the belief that `live-plan` never calls a provider at all today
+(statelessness, #73). Scoping the actual implementation found that belief
+false: `live-plan` has made real `ReadDataSource` provider calls since
+#179 - `internal/live/dataread` (`Analyze` offline, `Read` against
+`statelessProviders.ConfiguredProvider`), wired into `live_plan.go`'s
+`statelessDataReads` between the subset check and resolution. Nothing
+needed building. `live-check`'s fully-offline, credential-optional
+guarantee was never at risk, because that capability was never touched.
 
-**Maintainer ruling, 2026-08-18/19: yes, scoped narrowly.** `live-plan` may
-call a provider's own read-only data-source APIs (never resource CRUD, never
-anything state-shaped) when a `for_each`/`count` genuinely needs one to prove
-its instance key set. This is now the actual fix for #313 and reaches the
-whole family CLAUDE.md already names (the CIDR-keyed `for_each` wall,
-any other data-source-dependent `for_each`/`count`), reaching well beyond
-the one estate that surfaced it. Read this ruling before touching this area - it settles the
-question issue #73 ("no state ops") left open for exactly this case;
-`live-check`'s fully-offline, credential-optional guarantee is untouched,
-since this capability is additive to `live-plan` only and must degrade to
-today's refusal when no cloud access is available. Do not re-litigate this
-without new evidence the scoping itself is wrong.
+**The real defect was one gate in the resolver, fixed 2026-08-19
+(`c636ab20f7`/`0284d8c408`).** A read value could not cross a plain
+(non-repeated) module call: `internal/live/identity/modulevars.go`'s
+`resolver.callerVariables` only rebuilt a module instance's `var.*` closure
+when a call on the path carried its own `count`/`for_each` (`pathRepeats`,
+scoped for #252, whose doc claimed a non-repeating tree "cannot need" a
+data read - false). `frozenClosureIsStale` now also rebuilds when a
+strictly-ancestral module instance carries read coverage
+(`ancestorCarriesResults`). One predicate, no type or data-source names.
+Measured over 204 `.corpus` directories with an eligible demanded source:
+configurations the read phase changes 22→71, instances +1→+80, error
+diagnostics cleared 1225→10712, 57 entries improved, 0 worse.
+`corpus-security-group-complete` itself: `test_plan` diagnostics 239→19 -
+#313's canonical cause (50 sites) fully gone, its resource-attribute
+variant (2 sites) still correctly refuses (genuinely out of the ruling's
+own scope), the 187-site cascade collapsed to 5, and 12 sites are a
+NEWLY-REACHED class (previously masked behind #313's hard refusal) filed
+as `#321` - `element(<resource>[*].id, count.index)` over a splat of
+tagged resources, a derivable gap with no design call needed. `#321` is
+now the estate's, and the core set's, real remaining blocker - see below.
+
+Read this as the general lesson beyond this one issue's own story: the standing
+bar's "scout before you fix" applies to architecture questions as much as
+to bugs. An assumption about what the codebase does NOT do is exactly the
+kind of claim scouting the actual code disproves before a design
+conversation is even needed.
 
 Separately, lex00/floci#70 (`CreateCacheSubnetGroup`/`ModifyCacheSubnetGroup`
 wrong `SubnetIds` wire param name, found re-verifying `corpus-vpc-complete`
@@ -827,9 +843,15 @@ worth driving all the way to a genuine five-of-five pass before this project
 is shown to anyone outside it. Four of five clear all five stages as of
 2026-08-18 (`reference-ec2-vpc`, `corpus-s3-bucket-complete`,
 `corpus-iam-policy`, `corpus-iam-read-only-policy`); the security-group one
-is the remaining gap, currently on #313 above. `live/corpus-crossing-manifest.json`
-says which ones currently clear which stage and why the rest do not; do not
-trust a stale count copied here instead.
+is the remaining gap. #313 itself is resolved (above) - `test_plan` went
+from 239 diagnostics to 19, and the real remaining blocker is `#321`
+(`element(<resource>[*].id, count.index)` over a splat of tagged
+resources, 12 sites, a derivable gap with no design call needed) plus 2
+genuinely-out-of-scope resource-attribute sites. `#321` is the clear next
+step for this estate and the core set's last gap.
+`live/corpus-crossing-manifest.json` says which ones currently clear which
+stage and why the rest do not; do not trust a stale count copied here
+instead.
 
 Not every remaining blocker in that set is a bug. A `local_file` resource
 correctly refused (no cloud counterpart to reconcile against; already ruled
