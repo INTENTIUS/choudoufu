@@ -92,16 +92,30 @@ set -uo pipefail
 # ONE REAL CHOUDOUFU ADMISSION GAP BLOCKS STAGE 3, NOT FIXED HERE:
 #
 #   #309 (open). aws_cognito_user_pool_client is unadmitted: untaggable, no
-#   resource identity schema in the pinned provider release, and
-#   live/survey-full.json's own evidence says why - Cloud Control's generic
-#   list handler needs UserPoolId as scoping input, which no enumeration leg
-#   supplies today. What the survey did not consider: the Cognito-native
-#   ListUserPoolClients API takes exactly that as its one required
-#   parameter, and this configuration's own declaration always supplies it
-#   (a reference to the already-admitted, taggable, ServerAssigned
-#   aws_cognito_user_pool parent) - the same parent-derived shape as other
-#   admitted composite-identity rows, just not yet wired to a discovery leg.
-#   See the issue for the full technical lead. 1 site.
+#   resource identity schema in the pinned provider release. 1 site.
+#
+#   THE ENUMERATION LEAD THIS HEADER USED TO CARRY IS WITHDRAWN (2026-08-19).
+#   It said the fix was to reach Cognito's own ListUserPoolClients from a new
+#   discovery leg. Enumeration is not the missing piece and never was: this
+#   estate is MIGRATED by the time stage 3 runs, so the question is not "what
+#   objects exist" but "which one does this block own", and for an object with
+#   nowhere to carry a marker the fork's answer is the estate's record store -
+#   identity.ClassRecordLocated, issue #270, wired through lint, resolve,
+#   projection, mv and onboard and admitting 124 types at aws 6.59.0. A
+#   listing cannot supply that answer anyway: Cognito does not document
+#   ClientName as unique within a pool, so a scoped listing of two clients
+#   cannot say which is which.
+#
+#   What actually blocks it is three predicates, all measured in code on
+#   2026-08-19 and recorded with their evidence in tools/row-gen/rejected.json:
+#   the type's CFN primary_identifier is only PARTLY read-only ([UserPoolId,
+#   ClientId], ClientId alone read-only), so row-gen's markerless veto never
+#   fires and identity.LocatedType's first condition - membership in
+#   MarkerlessTypes - is never met; identity.credentialMaterial then fires on
+#   client_secret; and LocatedType's third condition assumes the "id"
+#   attribute IS the import identity, which is false here - the provider's own
+#   Attribute Reference calls id "ID of the user pool client" while the Import
+#   section wants <user_pool_id>/<client_id>.
 #
 #   #305 (aws_default_network_acl/aws_default_route_table/
 #   aws_default_security_group, the VPC module's default-object adopters)
