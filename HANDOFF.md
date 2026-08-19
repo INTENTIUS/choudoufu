@@ -762,6 +762,35 @@ similarly-shaped untaggable types (one CFN list-scoping property, every
 non-scope identifier part read-only) once someone builds the mechanism.
 Full scouting detail on the issue itself. Left open, not attempted further.
 
+### 1b. `#316`: a real silent destroy-recreate hazard, module-qualified renames - read this before picking anything else
+
+Found scouting a different, smaller loose end (`markers.UnescapeAddress`
+decoding a count'd module step's key as a string instead of an int, now
+fixed - `f6c6541748`/`11a8178c52` - a real, reachable bug through
+`internal/live/discovery`'s orphan classification, confirmed by three new
+tests each checked to fail on pre-fix code, `TestIdentityGolden` correctly
+unmoved since decoding a marker isn't identity rendering). While tracing
+that fix's reach, the same session found something worse and did not touch
+it: **`classifyOrphans`'s rename-withholding guard - the property its own
+doc comment calls the whole safety mechanism - never fires for a
+module-qualified address at all.** `pending` is keyed on
+`EscapeAddress(addr.Resource.Resource.String())`, which drops the module
+path entirely, while the marker side cuts at the module step's own key.
+Re-key a `for_each` inside a static module and the live object is destroyed
+and recreated where the root-module equivalent would correctly be withheld
+- silently, exactly the direction "a wrong marker outranks a missing one"
+warns against. `internal/live/foreign/classify.go:507` has the mirror-image
+bug. Filed as `#316`, not fixed - this needs the same rigor the marker fix
+got (mutation-checked tests proving each half fails pre-fix), not a quick
+patch on a path this sensitive.
+
+Separately, `#317` (design, not a bug): `live-mv`'s `checkAddresses` refuses
+a rename through a count-keyed module step on the exact retired premise
+`markers.UnescapeAddress` carried before today's fix - `live/LIMITATIONS.md` now
+documents the idiom as admitted, so an estate using it can never `live-mv`
+into the root the way `mv.go`'s own package doc advertises. Left alone on
+purpose: whether to admit the rename is a maintainer call, not a comment fix.
+
 ### 2. The core set
 
 A small, deliberately chosen set of estates - the plainest reference shape,
@@ -812,10 +841,7 @@ fresh sourcing search, if a future session wants a quick win here.
   `module.container_definition`'s `enable_cloudwatch_logging`/
   `create_cloudwatch_log_group`). Scoping needs a slot; not attempted.
 - `internal/live/mv`'s `checkAddresses` still cites the same retired premise
-  `markers.UnescapeAddress` did before 2026-08-18's fix (`count`-expanded
-  module blocks are refused permanently) to refuse a rename through a
-  count-keyed module step. Left alone deliberately - it's a behavior
-  decision (should `mv` allow this rename now?), not a comment fix.
+  `markers.UnescapeAddress` did before 2026-08-18's fix - see `#317`, above.
 
 ---
 
