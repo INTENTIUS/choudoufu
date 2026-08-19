@@ -144,7 +144,31 @@ var surveyExpectations = []surveyExpectation{
 			// classifier change the survey.json block above records:
 			// aws_acm_certificate_validation off opsExcluded and onto
 			// parent-derived from its own schema.
-			"moves to Ops":   579,
+			//
+			// 579 -> 561 on 2026-08-18, with no classifier change: the same
+			// at-pin staleness aws_ecs_capacity_provider records below, this
+			// time from three row-gen ratification commits that each gave
+			// the identity table a Component naming a cloud value before
+			// this artifact was next regenerated - a09e033a78
+			// (aws_s3_account_public_access_block), 5d00709589/#245
+			// (aws_lakeformation_lf_tag_expression here, plus three more
+			// counted under enumerable, unbindable below) and
+			// 028fca304d/#245, ratifying 16 more region- or
+			// account-id-only singletons: aws_apprunner_default_auto_scaling_configuration_version,
+			// aws_auditmanager_account_registration,
+			// aws_devopsguru_event_sources_config,
+			// aws_devopsguru_service_integration,
+			// aws_ec2_allowed_images_settings, aws_glue_resource_policy,
+			// aws_iot_event_configurations, aws_kinesis_account_settings,
+			// aws_macie2_classification_export_configuration,
+			// aws_observabilityadmin_telemetry_evaluation,
+			// aws_observabilityadmin_telemetry_evaluation_for_organization,
+			// aws_sagemaker_servicecatalog_portfolio_status,
+			// aws_servicequotas_auto_management, aws_xray_encryption_config
+			// and aws_xray_trace_segment_destination. All 18 rows landed on
+			// account-derived directly; none passed through any other path
+			// first.
+			"moves to Ops":   561,
 			"client-named":   117,
 			"parent-derived": 48,
 			// 143 -> 142: aws_cloudwatch_otel_enrichment, the fifth mover.
@@ -160,7 +184,15 @@ var surveyExpectations = []surveyExpectation{
 			// aws_cloudfront_origin_access_control has no UniqueName entry
 			// (no source documents its name as account-and-region unique)
 			// and stays here.
-			"enumerable, unbindable": 138,
+			//
+			// 138 -> 135 on 2026-08-18, part of the same 579 -> 561
+			// regeneration above: 5d00709589/#245 gave three more types a
+			// Component naming a cloud value, which classify.go's
+			// account-derived branch (read before the discovery fallback
+			// that produced this token) now wins for -
+			// aws_lakeformation_lf_tag, aws_observabilityadmin_telemetry_enrichment
+			// and aws_s3control_object_lambda_access_point.
+			"enumerable, unbindable": 135,
 			// The four movers above, the whole membership of the new token.
 			"unique-name": 4,
 			// aws_ecs_capacity_provider moved marker -> account-derived
@@ -175,7 +207,12 @@ var surveyExpectations = []surveyExpectation{
 			// derived from a fresh run, so nothing caught it until a live
 			// regeneration was actually run and diffed against it.
 			// 22 -> 27 on 2026-08-17, the five movers named above.
-			"account-derived": 27,
+			//
+			// 27 -> 48 on 2026-08-18: the 21 rows named in the moves to Ops
+			// and enumerable, unbindable comments above (18 + 3), all
+			// already-ratified account/region singletons the identity table
+			// carried before this artifact was next regenerated.
+			"account-derived": 48,
 		},
 	},
 }
