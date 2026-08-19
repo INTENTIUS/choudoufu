@@ -222,7 +222,13 @@ var identityGoldenPin = map[string]int{
 	// child taken alone. aws_subnet is server-assigned with no
 	// client-supplied identity, so all four render NEEDS_DISCOVERY, the
 	// same class every other bare aws_subnet in this golden carries.
-	"NEEDS_DISCOVERY": 622,
+	// 630, up from 622 (issue #321): six new server-assigned resources
+	// across element-splat-count-index (aws_route_table.private x3,
+	// aws_subnet.private x3) and element-splat-wraparound (aws_subnet.small
+	// x2) - eight rows total, all NEEDS_DISCOVERY like every other bare
+	// aws_route_table/aws_subnet in this golden. See
+	// identityGoldenPinInstances' own comment for the fixtures.
+	"NEEDS_DISCOVERY": 630,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -239,7 +245,15 @@ var identityGoldenPin = map[string]int{
 	// "gh-image-builder/${aws_iam_policy.imagebuilder.arn}" through the
 	// same [resolver.parentPart] machinery issue #284 built for a direct
 	// reference. See internal/live/identity/typedvar.go's preservedExpr.
-	"PARENT_DERIVED": 97,
+	// 105, up from 97 (issue #321): eight new aws_route_table_association
+	// rows resolving element(<resource>[*].attr, idx) through
+	// resolveElementCall - three in element-splat-count-index (subnet_id
+	// AND route_table_id both through element(), formula reading both
+	// parents at the matching index) and five in element-splat-wraparound
+	// (element()'s own modulo wraparound over a 5-instance block and a
+	// 2-instance source). See identityGoldenPinInstances' own comment for
+	// the fixtures.
+	"PARENT_DERIVED": 105,
 	"RECORD_BACKED":  17,
 }
 
@@ -352,7 +366,12 @@ var identityGoldenPin = map[string]int{
 // 2026-08-18 (issue #315's fix): body digest moved because two rows were
 // ADDED (see the CONCRETE class comment above for the fixture and shape);
 // no pre-existing row's rendered value changed.
-const identityGoldenPinBodyDigest = "74866e22abdc0a5097e0e3387a4154a48750a92702d001fbcdccea82f7f6eada"
+// 2026-08-19 (issue #321's fix): body digest moved because sixteen rows
+// were ADDED (see identityGoldenPinInstances' own comment above for the
+// three fixtures and the class breakdown); no pre-existing row's rendered
+// value changed - TestIdentityGolden's own diff read "0 identities
+// changed, 16 added, 0 removed" before this line was edited.
+const identityGoldenPinBodyDigest = "c2f7935157b3f178b39f9f27a1a90d73c2e03db31e92ca89f368923ba21ff357"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -511,9 +530,29 @@ const identityGoldenPinBodyDigest = "74866e22abdc0a5097e0e3387a4154a48750a92702d
 // comprehension-each-value, plus its wrapper/ and wrapper/task/ module
 // directories - three directories, two new CONCRETE instances (see the
 // CONCRETE class comment above).
+// 2026-08-19 (issue #321's fix, splat.go's resolveElementCall): instances
+// 1497 -> 1513, dirs 470 -> 473, NEEDS_DISCOVERY 622 -> 630, PARENT_DERIVED
+// 97 -> 105. Three new fixture roots -
+// internal/live/identity/testdata/element-splat-count-index,
+// element-splat-wraparound and element-splat-empty-source - pinning
+// element(<resource>[*].attr, idx) resolving structurally to the
+// same-indexed sibling instance. element-splat-count-index contributes
+// three aws_route_table.private and three aws_subnet.private
+// (NEEDS_DISCOVERY, both server-assigned) plus three
+// aws_route_table_association.private (PARENT_DERIVED, formula reading
+// both parents at the matching index); element-splat-wraparound
+// contributes two aws_subnet.small (NEEDS_DISCOVERY) plus five
+// aws_route_table_association.wrap (PARENT_DERIVED), the fifth exercising
+// element()'s own modulo wraparound (a 5-instance block over a 2-instance
+// source); element-splat-empty-source contributes zero rows - its one
+// resource refuses (the source resource expands to no instances), which
+// is the point of that fixture. Totals: +16 instances (8 NEEDS_DISCOVERY +
+// 8 PARENT_DERIVED), +3 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0 changed,
+// 16 added, 0 removed".
 const (
-	identityGoldenPinInstances = 1497
-	identityGoldenPinDirs      = 470
+	identityGoldenPinInstances = 1513
+	identityGoldenPinDirs      = 473
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
