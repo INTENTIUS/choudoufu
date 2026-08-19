@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=480 instances=1522
-# shape: class CONCRETE=762
-# shape: class NEEDS_DISCOVERY=636
-# shape: class PARENT_DERIVED=107
+# shape: dirs=485 instances=1547
+# shape: class CONCRETE=763
+# shape: class NEEDS_DISCOVERY=652
+# shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=d284359100fbeeb1a84bdba02ae6865b56f8c33c3912fc3455d074df9641546a
+# shape: body-sha256=b4d1586c7217dffb794084e483bdb91d4d16c316906a16d184ce606a22a44149
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -112,6 +112,31 @@ internal/live/identity/testdata/cloud-singleton	aws_cloudwatch_otel_enrichment.o
 internal/live/identity/testdata/cloud-singleton	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.spelled	CONCRETE	eu-west-1	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[0]	PARENT_DERIVED	${aws_subnet.database[0].id}/${aws_route_table.database[0].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[1]	PARENT_DERIVED	${aws_subnet.database[1].id}/${aws_route_table.database[1].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[2]	PARENT_DERIVED	${aws_subnet.database[2].id}/${aws_route_table.database[2].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-literal-fallback	aws_route_table_association.database	CONCRETE	subnet-fake/rtb-fallback	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[0]	PARENT_DERIVED	${aws_subnet.database[0].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[1]	PARENT_DERIVED	${aws_subnet.database[1].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[2]	PARENT_DERIVED	${aws_subnet.database[2].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[3]	PARENT_DERIVED	${aws_subnet.database[3].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[4]	PARENT_DERIVED	${aws_subnet.database[4].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[3]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[4]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	estate-app	name=estate-app
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		

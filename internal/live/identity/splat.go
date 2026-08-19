@@ -308,6 +308,129 @@ func (r *resolver) resolveElementCall(call *hclsyntax.FunctionCallExpr, scope in
 	return got, gotOK, true
 }
 
+// resolveElementCoalescelist recognizes element(coalescelist(A[*].attr,
+// B[*].attr, ...), idx) - GitHub issue #324 item 1, terraform-aws-modules/vpc's
+// own accessor for whichever of two conditionally-created sets of route
+// tables actually exists:
+//
+//	element(
+//	  coalescelist(aws_route_table.database[*].id, aws_route_table.private[*].id),
+//	  idx,
+//	)
+//
+// coalescelist()'s own runtime semantics (github.com/zclconf/go-cty/cty/
+// function/stdlib's CoalesceListFunc) are "return the first argument that is
+// a non-empty list; error if every argument is empty" - and, exactly as
+// [resolver.resolveConcatIndex]'s doc comment establishes for concat(), each
+// argument's own length here is provable from configuration alone before any
+// live value is read: a splat's length is its source resource's own instance
+// count ([resolver.expansionFor], through [resolver.splatTargets]), and a
+// literal list's ([hclsyntax.TupleConsExpr]) is simply the number of elements
+// written. So which argument coalescelist() would select - the first with a
+// provably nonzero length - is itself provable, without needing to know any
+// argument's actual element VALUES, only their counts. Once that argument is
+// found, element()'s own wraparound indexing into it is exactly
+// [resolver.resolveElementCall]'s own resolution, applied to that one
+// argument's instances or literal elements instead of call.Args[0]'s.
+//
+// This is deliberately narrower than resolveConcatIndex in one respect:
+// concat() flattens every argument into one list and locates a single
+// position within the concatenation, so an argument this package cannot size
+// is only fatal if the sought index could fall inside it. coalescelist()
+// instead selects one WHOLE argument and discards the rest, so an argument
+// this package cannot size is fatal the moment it is reached, regardless of
+// idx: whether that argument's own (unknown) length is zero determines
+// whether coalescelist() would have skipped it, and this package has no way
+// to answer that without reading the cloud. Scope, deliberately: only a bare
+// splat over a managed resource or a literal list are recognized as
+// coalescelist() arguments here, the same restriction resolveConcatIndex
+// places on concat()'s own arguments - not, for instance, a nested
+// coalescelist() or a local value, which would need their own recursive
+// sizing this package does not attempt yet.
+//
+// applicable is false whenever the shape is not this at all: not element(),
+// the wrong argument count, or the first argument not a coalescelist() call.
+// Once applicable, an argument whose length cannot be proven before it is
+// reached in evaluation order, or every argument provably empty (the case
+// coalescelist() itself errors on at apply time), is a resolution failure
+// (ok=false) with its own specific diagnostic - the same contract every
+// other rule in this file follows.
+func (r *resolver) resolveElementCoalescelist(call *hclsyntax.FunctionCallExpr, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	if call.Name != "element" || len(call.Args) != 2 {
+		return nil, false, false
+	}
+	inner, isCall := call.Args[0].(*hclsyntax.FunctionCallExpr)
+	if !isCall || inner.Name != "coalescelist" || len(inner.Args) == 0 {
+		return nil, false, false
+	}
+
+	idxVal, idxOK := r.evalStatic(call.Args[1], scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(call.Args[1].Range(), "Identity not resolvable from configuration",
+			"%s calls element() with an index that is not a whole number, so it cannot select one of the source resource's instances.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	for _, argExpr := range inner.Args {
+		if splat, isSplat := argExpr.(*hclsyntax.SplatExpr); isSplat {
+			insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+			if instApplicable {
+				if !instOK {
+					// The resource's own expansion already failed and
+					// already carries a diagnostic - see
+					// [resolver.expansionFor].
+					return nil, false, true
+				}
+				if len(insts) == 0 {
+					// coalescelist() skips an empty argument - see this
+					// function's doc comment.
+					continue
+				}
+				// element()'s own wraparound, applied to the winning
+				// argument's own instances - see this function's doc
+				// comment.
+				n := len(insts)
+				wrapped := idx % n
+				if wrapped < 0 {
+					wrapped += n
+				}
+				got, gotOK := r.parentPart(insts[wrapped], attrName, argExpr.Range(), ident)
+				return got, gotOK, true
+			}
+			// A splat splatTargets cannot decompose falls through to the
+			// generic "unrecognized argument" refusal below, exactly as
+			// resolveConcatIndex's own does.
+		} else if tuple, isTuple := argExpr.(*hclsyntax.TupleConsExpr); isTuple {
+			if len(tuple.Exprs) == 0 {
+				continue
+			}
+			n := len(tuple.Exprs)
+			wrapped := idx % n
+			if wrapped < 0 {
+				wrapped += n
+			}
+			got, gotOK := r.resolveExpr(tuple.Exprs[wrapped], scope, ident)
+			return got, gotOK, true
+		}
+
+		r.errorf(argExpr.Range(), "Identity not resolvable from configuration",
+			"%s selects from coalescelist(), but one of its arguments is neither a splat over a managed resource nor a literal list, so whether it is empty (and so whether coalescelist() would skip it in favor of a later argument) is not known without reading the cloud.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	r.errorf(call.Args[0].Range(), "Identity not resolvable from configuration",
+		"%s selects from coalescelist(), but every argument provably expands to no elements at all, so there is nothing to pick: coalescelist() itself errors when every argument is empty at apply time.",
+		ident.Subject)
+	return nil, false, true
+}
+
 // resolveConcatIndex recognizes concat(A[*].attr, B[*].attr, ...,
 // [literal, ...])[N] - a list built by concatenating zero or more splats
 // over managed resources with zero or more literal-list arguments, then
