@@ -275,7 +275,16 @@ func ChildCallKeys(ctx context.Context, cfg *configs.Config, name string) ([]add
 // must actually be a member of what it produces. There is no path here that
 // returns data for a key it has not itself just verified - a caller must
 // never substitute a guess for a false ok.
-func ChildModuleRepetitionData(ctx context.Context, cfg *configs.Config, subject string, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+//
+// consumers is issue #315: the expressions that will actually read the
+// RepetitionData this returns, so that when the for_each expression's own
+// whole value cannot be proven (below), each.value can still be answered
+// for the one or few attribute names those consumers actually reference
+// ([referencedEachValueAttrs], [eachValueAttrs]) rather than left wholesale
+// unset the way it always was before. Optional and additive: a caller that
+// passes none gets exactly today's behavior, key proven and EachValue left
+// at cty.NilVal on this path, unchanged.
+func ChildModuleRepetitionData(ctx context.Context, cfg *configs.Config, subject string, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey, consumers ...hcl.Expression) (instances.RepetitionData, bool) {
 	var mod *configs.Module
 	if cfg != nil {
 		mod = cfg.Module
@@ -312,19 +321,29 @@ func ChildModuleRepetitionData(ctx context.Context, cfg *configs.Config, subject
 			// The whole expression did not evaluate, but its KEY set
 			// may still be proven - the same widening [ChildModuleKeys]
 			// applies, so the two cannot disagree about which instances
-			// exist. EachValue stays cty.NilVal, and
-			// [configs.StaticEvaluator.repetitionAttr] answers
-			// each.value only for a non-nil one, so a reference to the
-			// value this pass could not read refuses where it is
-			// written instead of being guessed at here.
+			// exist. EachValue is left at cty.NilVal UNLESS consumers
+			// names specific each.value.<attr> reads this pass can
+			// still answer without the whole value - issue #315; see
+			// [referencedEachValueAttrs] and [eachValueAttrs]. Where
+			// neither applies, [configs.StaticEvaluator.repetitionAttr]
+			// answers each.value only for a non-nil one, so a reference
+			// to the value this pass could not project refuses where it
+			// is written instead of being guessed at here.
 			names, keysOK := staticForEachKeyNames(ctx, cfg, subject, forEachExpr)
 			if !keysOK {
 				return instances.RepetitionData{}, false
 			}
 			for _, name := range names {
-				if name == string(strKey) {
-					return instances.RepetitionData{EachKey: cty.StringVal(name)}, true
+				if name != string(strKey) {
+					continue
 				}
+				rd := instances.RepetitionData{EachKey: cty.StringVal(name)}
+				if neededAttrs, ok := referencedEachValueAttrs(consumers); ok && len(neededAttrs) > 0 {
+					if val, ok := eachValueAttrs(ctx, cfg, subject, forEachExpr, name, neededAttrs); ok {
+						rd.EachValue = val
+					}
+				}
+				return rd, true
 			}
 			return instances.RepetitionData{}, false
 		}

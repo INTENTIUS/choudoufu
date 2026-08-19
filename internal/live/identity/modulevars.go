@@ -6,6 +6,8 @@
 package identity
 
 import (
+	"github.com/hashicorp/hcl/v2"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 )
@@ -42,6 +44,19 @@ import (
 // [ChildModuleRepetitionData] proves each.key and leaves each.value at
 // cty.NilVal, and the reference refuses because the value genuinely is not
 // known, not because of anything this file does.
+//
+// Issue #315 widens the SAME key-set-only fallback one step further: when
+// the call's for_each is a `{ for k, v in SRC : k => v if ... }`
+// passthrough whose SOURCE has one genuinely unprovable attribute
+// (#308's own shape), every one of this call's OWN argument expressions
+// that reads each.value.<attr> - not merely var.name/local.name - used to
+// refuse wholesale, because EachValue stayed cty.NilVal even though most
+// individual attributes were themselves plain literals sitting beside the
+// one unprovable one. mc.Config's own attribute expressions are passed as
+// consumers below so [ChildModuleRepetitionData] can answer each.value
+// projected down to only the fields those arguments actually read
+// ([referencedEachValueAttrs], [eachValueAttrs]) - never the whole entry,
+// never a guess at an attribute nothing here asked for.
 //
 // So rebuild the closure per instance instead, through
 // [configs.ModuleCall.VariablesUsing] against a parent evaluator that has
@@ -80,7 +95,23 @@ func (r *resolver) callerVariables(modInst addrs.ModuleInstance) configs.StaticM
 		// instances of one call never reach each other's data - and
 		// ChildModuleRepetitionData verifies it against the call's own
 		// expression rather than taking it on trust.
-		rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
+		//
+		// consumers - issue #315 - is every one of this call's OWN
+		// argument expressions, the full set var.* lookups against the
+		// closure below could reach. The rebuilt eval it produces is
+		// installed once and reused for whichever variable a later
+		// lookup asks for, so the each.value projection has to cover
+		// every argument that might read it, not just one.
+		var consumers []hcl.Expression
+		if mc.ForEach != nil {
+			if attrs, diags := mc.Config.JustAttributes(); !diags.HasErrors() {
+				consumers = make([]hcl.Expression, 0, len(attrs))
+				for _, attr := range attrs {
+					consumers = append(consumers, attr.Expr)
+				}
+			}
+		}
+		rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key, consumers...)
 		if !ok {
 			return nil
 		}

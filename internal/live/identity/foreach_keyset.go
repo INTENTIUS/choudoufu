@@ -716,6 +716,265 @@ func collectForExprKeys(ctx context.Context, cfg *configs.Config, subject string
 	return names, true
 }
 
+// referencedEachValueAttrs collects every single-level attribute name a set
+// of expressions reads off each.value - `each.value.name` contributes
+// "name" - the each.value counterpart of [referencedAttrs], reached from a
+// different place: [referencedAttrs] projects a for-comprehension's own
+// clauses onto the loop variable a `{ for k, v in ... }` binds freely; this
+// one projects a module CALL's own argument expressions
+// ([ModuleCall.VariablesUsing]) onto "each.value", the call's own iterator,
+// referenced from inside those arguments rather than from inside the
+// comprehension that built the call's for_each.
+//
+// ok is false the moment any traversal rooted at "each" is anything other
+// than exactly each.key or each.value.<attr> - a bare each.value, an index,
+// a splat, or a deeper path whose second step is not itself a plain
+// attribute - none of which this file can safely read a fragment of
+// without the entry's whole value. each.key needs nothing projected: a
+// caller only ever asks this question once the instance's own key is
+// already proven, so a reference to it is unconditionally safe and simply
+// skipped rather than collected.
+func referencedEachValueAttrs(exprs []hcl.Expression) (map[string]bool, bool) {
+	attrs := map[string]bool{}
+	for _, expr := range exprs {
+		if expr == nil {
+			continue
+		}
+		for _, trav := range expr.Variables() {
+			if trav.RootName() != "each" {
+				continue
+			}
+			if len(trav) < 2 {
+				return nil, false
+			}
+			step, ok := trav[1].(hcl.TraverseAttr)
+			if !ok {
+				return nil, false
+			}
+			switch step.Name {
+			case "key":
+				if len(trav) != 2 {
+					return nil, false
+				}
+			case "value":
+				if len(trav) < 3 {
+					return nil, false
+				}
+				attrStep, ok := trav[2].(hcl.TraverseAttr)
+				if !ok {
+					return nil, false
+				}
+				attrs[attrStep.Name] = true
+			default:
+				return nil, false
+			}
+		}
+	}
+	return attrs, true
+}
+
+// eachValueAttrs resolves one already-proven module-call instance's own
+// each.value, projected down to only neededAttrs - never the entry's value
+// as a whole - for a for_each comprehension expression. It is
+// [collectForExprKeys]'s per-instance, per-attribute counterpart: that
+// function proves which instances exist by reading only the key clause's
+// and the filter's own attributes off the loop variable; this one answers,
+// for one instance that already exists, what its own each.value has at the
+// attribute names a reference inside the CALL's own arguments actually
+// reads ([referencedEachValueAttrs]) - never more, and never a guess at
+// anything else. This is issue #315: #308's own fix (above) proves the key
+// set of exactly this shape; this is the same for-comprehension read a
+// second way, once per already-proven key, for the value half #308
+// deliberately left unanswered (see [collectForExprKeys]'s own doc on why
+// fe.ValExpr is never read there).
+//
+// Only the `{ for k, v in SRC : k => v ... }` passthrough shape is proven:
+// key and value clauses unchanged from the loop variables, the same
+// [isBareVar] check a resource's own for_each binding already applies to
+// the identical idiom ([resolver.forExprElems]). A transformed value clause
+// (`k => merge(v, {...})`) would need re-deriving what this function's own
+// entries map already holds unevaluated, which nothing in the corpus this
+// fix was written for needs; it declines rather than guess at the
+// transform.
+//
+// Each needed attribute resolves INDEPENDENTLY - the same non-poisoning
+// discipline this file's whole design already applies at the entry level
+// (one entry's unprovable attribute does not block a sibling entry's proof)
+// applied a second time, at the ATTRIBUTE level within one entry. A large
+// object type - an ECS container definition declares on the order of forty
+// optional attributes - makes an all-or-nothing read the wrong shape: one
+// attribute genuinely reaching a data source (fluent-bit's own "image")
+// must not block the thirty-nine siblings beside it that are plain
+// literals or declared defaults. An attribute that neither
+// [resolveEntryAttr] nor its null-tolerant counterpart
+// [resolveEntryAttrOrNull] can answer is simply left OUT of the returned
+// object rather than failing the whole call: a later each.value.<that
+// attr> reference for this one instance gets HCL's own "this object does
+// not have an attribute named..." refusal instead of today's "Dynamic
+// value in static context" - still a clean refusal, never a fabricated
+// value - while every attribute that DID resolve stays usable.
+//
+// ok is false only when the SHAPE itself does not hold or the key names no
+// entry - never because some subset of neededAttrs failed to resolve.
+func eachValueAttrs(ctx context.Context, cfg *configs.Config, subject string, forEachExpr hcl.Expression, key string, neededAttrs map[string]bool) (cty.Value, bool) {
+	expr := forEachExpr
+	for {
+		paren, ok := expr.(*hclsyntax.ParenthesesExpr)
+		if !ok {
+			break
+		}
+		expr = paren.Expression
+	}
+	fe, ok := expr.(*hclsyntax.ForExpr)
+	if !ok || fe.KeyExpr == nil || fe.Group {
+		return cty.NilVal, false
+	}
+	if !isBareVar(fe.KeyExpr, fe.KeyVar) || !isBareVar(fe.ValExpr, fe.ValVar) {
+		return cty.NilVal, false
+	}
+	if len(neededAttrs) == 0 {
+		return cty.EmptyObjectVal, true
+	}
+
+	entries, ok := collectForEachEntries(ctx, cfg, subject, fe.CollExpr)
+	if !ok {
+		return cty.NilVal, false
+	}
+	entry, ok := entries[key]
+	if !ok {
+		return cty.NilVal, false
+	}
+
+	attrs := make(map[string]cty.Value, len(neededAttrs))
+	for name := range neededAttrs {
+		if val, ok := resolveEntryAttr(ctx, entry, subject, name); ok {
+			attrs[name] = val
+			continue
+		}
+		if val, ok := resolveEntryAttrOrNull(ctx, entry, subject, name); ok {
+			attrs[name] = val
+		}
+	}
+	if len(attrs) == 0 {
+		return cty.EmptyObjectVal, true
+	}
+	return cty.ObjectVal(attrs), true
+}
+
+// resolveEntryAttrOrNull is [resolveEntryAttr]'s counterpart for this
+// file's each.value projection: a genuinely-null declared default is the
+// correct answer here, not a reason to refuse. An object type shaped like
+// an ECS container definition declares dozens of `optional(TYPE)`
+// attributes with no override at all, and an entry that never mentions one
+// of them is not "unprovable" for that attribute - each.value.<attr> for
+// that instance really is null, exactly what OpenTofu's own
+// optional-attribute expansion (prepareFinalInputVariableValue) would have
+// produced.
+//
+// [resolveEntryAttr] refuses on IsNull() deliberately, because ITS OWN
+// callers (a for-comprehension's key or filter clause, #308's shape) feed
+// the result into an operation - a boolean AND, a string key - where a
+// silently substituted null could pick the wrong branch or fail to
+// convert; this function's caller only ever assembles an OBJECT ATTRIBUTE,
+// where null is exactly what the entry's own value already is.
+//
+// The substitution applies ONLY when attrName is not written in the
+// entry's own literal at all - checked structurally, the same
+// [staticKeyString] scan [resolveEntryAttr]'s own second source uses, so
+// this can tell "omitted" from "written but unprovable" without evaluating
+// whatever makes it unprovable. An entry that DOES write attrName -
+// fluent-bit's own "image", reaching a data source - already got
+// [resolveEntryAttr]'s own honest refusal, and this must never paper over
+// that with a fabricated null: an attribute the author actually wrote is
+// not the same claim as one they never mentioned, and confusing the two
+// would substitute a value the entry never had.
+func resolveEntryAttrOrNull(ctx context.Context, entry forEachSourceEntry, subject, attrName string) (cty.Value, bool) {
+	if entry.decl == nil {
+		return cty.NilVal, false
+	}
+	if !entryLiteralOmits(ctx, entry, subject, attrName) {
+		return cty.NilVal, false
+	}
+
+	// An EXPLICIT declared default (`optional(TYPE, someValue)`) wins when
+	// one exists - it is the value prepareFinalInputVariableValue would
+	// actually substitute, and may differ from a bare null (#308's own
+	// "create = optional(bool, true)").
+	if entry.decl.TypeDefaults != nil {
+		if elemDefaults := elementDefaults(entry.decl.TypeDefaults); elemDefaults != nil {
+			if def, ok := elemDefaults.DefaultValues[attrName]; ok {
+				if def.ContainsMarked() || !def.IsKnown() {
+					return cty.NilVal, false
+				}
+				return def, true
+			}
+		}
+	}
+
+	// No explicit default: get_type.go's own optional(TYPE) handling
+	// (hcl/ext/typeexpr) records the attribute name as optional but never
+	// writes an entry into DefaultValues at all when only one argument is
+	// given - that map holds EXPLICIT overrides only, never "this
+	// attribute exists and is optional." An omitted attribute with no
+	// override is still a perfectly good null of the DECLARED type, the
+	// same answer prepareFinalInputVariableValue's own type conversion
+	// would give; entry.decl.ConstraintType (not TypeDefaults) is what
+	// still knows that attribute's type at this point.
+	elemType := elementConstraintType(entry.decl.ConstraintType)
+	if elemType == cty.NilType || !elemType.IsObjectType() || !elemType.HasAttribute(attrName) {
+		return cty.NilVal, false
+	}
+	return cty.NullVal(elemType.AttributeType(attrName)), true
+}
+
+// elementConstraintType is [elementDefaults]'s counterpart for a declared
+// variable's own [configs.Variable.ConstraintType] rather than its
+// [typeexpr.Defaults] tree - the map/list/set element hop is the same, but
+// a cty.Type has no equivalent of [typeexpr.Defaults]'s Children[""]
+// convention, so this reads it structurally instead.
+func elementConstraintType(t cty.Type) cty.Type {
+	switch {
+	case t == cty.NilType:
+		return cty.NilType
+	case t.IsMapType(), t.IsListType(), t.IsSetType():
+		return t.ElementType()
+	case t.IsObjectType():
+		return t
+	}
+	return cty.NilType
+}
+
+// entryLiteralOmits reports whether attrName is absent from entry's own
+// object-constructor literal - checked structurally via [staticKeyString],
+// the same scan [resolveEntryAttr]'s own second source uses, so this can
+// answer without evaluating whatever makes some OTHER attribute
+// unprovable. false whenever entry's own expression is not an object
+// constructor this file can read structurally at all (declines rather than
+// guesses) or whenever attrName IS one of its keys - written explicitly,
+// even if [resolveEntryAttr] already tried and failed to read it, which
+// must never be papered over with a substituted default: an attribute the
+// author actually wrote is not the same claim as one they never mentioned.
+func entryLiteralOmits(ctx context.Context, entry forEachSourceEntry, subject, attrName string) bool {
+	entryExpr := entry.expr
+	for {
+		paren, ok := entryExpr.(*hclsyntax.ParenthesesExpr)
+		if !ok {
+			break
+		}
+		entryExpr = paren.Expression
+	}
+	obj, ok := entryExpr.(*hclsyntax.ObjectConsExpr)
+	if !ok {
+		return false
+	}
+	for _, item := range obj.Items {
+		if name, ok := staticKeyString(ctx, entry.cfg.Module, subject, item.KeyExpr); ok && name == attrName {
+			return false
+		}
+	}
+	return true
+}
+
 // forEachKeysKnown reports whether an already-evaluated for_each value
 // determines its own instance KEYS, which is the question stock OpenTofu asks
 // and is strictly weaker than "is this value wholly known".
