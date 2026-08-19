@@ -34,22 +34,52 @@ set -uo pipefail
 #                     choudoufu), no live block. PASS: a single, clean
 #                     apply, 62 added, 0 changed, 0 destroyed.
 #   2. MIGRATE       `choudoufu live-import -state=<plain's state>
-#                     -estate=... -approve`. PASS: 43 of 62 instances
-#                     eligible (26 VERIFIED + 17 DRIFTED), 19 correctly
-#                     skipped (16 UNTAGGABLE by provider schema + 3
-#                     UNADMITTED_TYPE, #305), all stamped cleanly, 0 failed.
-#                     Two markers - the ECS cluster's and the ECS service's
-#                     own - confirmed independently through the AWS CLI.
+#                     -estate=... -approve`. PASS: 46 of 62 instances
+#                     eligible (28 VERIFIED + 18 DRIFTED), 16 correctly
+#                     skipped (all 16 UNTAGGABLE by provider schema; #305's
+#                     default_* trio is admitted now and stamps cleanly - 2
+#                     VERIFIED + 1 DRIFTED, see below), 0 failed. Two
+#                     markers - the ECS cluster's and the ECS service's own
+#                     - confirmed independently through the AWS CLI.
 #   3. TEST PLAN     delete the state file, `choudoufu live-plan`. BLOCKED
-#                     for real by two tracked, itemized gaps: #305 (3
-#                     sites, already OPEN) and #308 (1 site, newly filed by
-#                     this crossing). See below.
+#                     for real by one tracked, itemized gap: #308 (1 site).
+#                     See below.
 #   4. TEST APPLY    NOT RUN - depends on stage 3.
 #   5. DRIFT/RECONVERGE  NOT RUN - depends on stages 3-4.
 #
-# WHY THE DRIFTED (17) BUCKET IS LARGE, AND WHY IT DOES NOT BLOCK STAGE 2:
+# #305 (admission: aws_default_network_acl/aws_default_route_table/
+# aws_default_security_group were unadmitted) is FIXED. This module's VPC
+# submodule adopts the account's default objects
+# (manage_default_network_acl/route_table/security_group, all true by
+# default), exactly as it does for most of its users. Re-verified against
+# this estate below: all three now resolve through their own tofu-address
+# marker and stamp in stage 2 (2 VERIFIED, 1 DRIFTED on genuine default-ACL
+# drift - subnet_ids/egress/ingress, the same shape found in corpus-
+# security-group-complete), and stage 3's live-plan contributes zero
+# unadmitted-type refusals from them, asserted directly below rather than
+# merely dropped from the old assertion.
+#
+# #313 DOES NOT REACH THIS ESTATE - CHECKED, NOT ASSUMED. #313 (a
+# `data.aws_availability_zones` for-comprehension feeding per-AZ for_each
+# in a nested module call, "Unable to use data.aws_availability_zones.
+# available in static context") was filed crossing corpus-security-group-
+# complete, whose vpc submodule reads the same data source the same way
+# this estate's main.tf line 5-18 does (`local.azs = slice(data.aws_
+# availability_zones.available.names, 0, 3)`, fed to `module "vpc"` as
+# `azs = local.azs`). The difference is what the vpc submodule does with
+# it downstream: this pinned vpc module version (v6.x, .terraform/modules/
+# vpc/main.tf) expands every subnet resource with `count`, not `for_each`,
+# and every count expression is a statically-computable LENGTH
+# (`local.len_private_subnets`, `length(var.azs)`, ...) - never the AZ
+# VALUES themselves as map keys. A live-plan run below shows no `Unable to
+# use data.aws_availability_zones` diagnostic anywhere in this estate's
+# output; asserted directly, not by omission, so a regression that makes
+# #313 reach here too - e.g. a vpc module bump that switches subnets to
+# for_each - is caught rather than passing silently.
+#
+# WHY THE DRIFTED (18) BUCKET IS LARGE, AND WHY IT DOES NOT BLOCK STAGE 2:
 # live-import tolerates drift by design (it stamps DRIFTED resources same
-# as VERIFIED ones - drift is reported, not refused). Several of these 17
+# as VERIFIED ones - drift is reported, not refused). Several of these 18
 # are real floci round-trip gaps, found by this crossing and filed against
 # the emulator, not against choudoufu: floci-io/floci (lex00 fork) #59
 # (ECS CreateCluster silently drops `settings` - Container Insights never
@@ -66,20 +96,12 @@ set -uo pipefail
 # Neither blocks this script: DRIFTED still stamps, and stage 3 refuses
 # before ever reaching a diff that would show them.
 #
-# STAGE 3'S TWO BLOCKERS, both real, both itemized, both asserted below by
-# exact rule and exact site:
-#
-#   #305 (admission: aws_default_network_acl/aws_default_route_table/
-#   aws_default_security_group are unadmitted, already OPEN, first surfaced
-#   crossing terraform-aws-rds's complete-postgres example). This module's
-#   VPC submodule adopts the account's default objects
-#   (manage_default_network_acl/route_table/security_group, all true by
-#   default), exactly as it does for most of its users. 3 sites, unadmitted-
-#   type, module.vpc.aws_default_{network_acl,route_table,security_group}.
+# STAGE 3'S ONE REMAINING BLOCKER, real, itemized, asserted below by exact
+# rule and exact site:
 #
 #   #308 (child-module for_each: a for-comprehension over a var-chased map
-#   value refuses even when only its keys and filter are static - NEW,
-#   filed by this crossing). modules/service/main.tf:872:
+#   value refuses even when only its keys and filter are static - filed by
+#   this crossing, still open). modules/service/main.tf:872:
 #
 #     for_each = { for k, v in var.container_definitions : k => v if local.create_task_definition && v.create }
 #
@@ -95,10 +117,11 @@ set -uo pipefail
 #   to the literal object constructor that actually has the provable keys.
 #   1 site: module.ecs_service, module "container_definition".
 #
-# BREAK=1 corrupts the expected stage-3 site counts and one expected
-# unadmitted-type name, proving those assertions are load-bearing rather
-# than a grep that always matches - same discipline as the RDS and
-# security-group crossings before this one. Stages 1 and 2 are unaffected.
+# BREAK=1 corrupts the expected stage-3 site counts (one unadmitted-type
+# site that should not exist, plus a second, wrong child-module for_each
+# site), proving those assertions are load-bearing rather than a grep that
+# always matches - same discipline as the RDS and security-group crossings
+# before this one. Stages 1 and 2 are unaffected.
 #
 #   bash live/e2e/corpus-ecs-fargate/run.sh
 #
@@ -130,12 +153,12 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 ESTATE="ecs-fargate-crossing"
 REGION="eu-west-1"
 INSTANCES=62
-ELIGIBLE=43
-SKIPPED=19
-VERIFIED_WANT=26
-DRIFTED_WANT=17
+ELIGIBLE=46
+SKIPPED=16
+VERIFIED_WANT=28
+DRIFTED_WANT=18
 UNTAGGABLE_WANT=16
-UNADMITTED_WANT=3
+UNADMITTED_WANT=0
 FLUENTBIT_PARAM="/aws/service/aws-for-fluent-bit/stable"
 
 cleanup() {
@@ -280,13 +303,16 @@ UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep 
 [ "${VERIFIED_N:-0}" = "$VERIFIED_WANT" ] || fail "expected $VERIFIED_WANT VERIFIED, got ${VERIFIED_N:-0}"
 [ "${DRIFTED_N:-0}" = "$DRIFTED_WANT" ] || fail "expected $DRIFTED_WANT DRIFTED, got ${DRIFTED_N:-0}"
 [ "${UNTAGGABLE_N:-0}" = "$UNTAGGABLE_WANT" ] || fail "expected $UNTAGGABLE_WANT UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
-[ "${UNADMITTED_N:-0}" = "$UNADMITTED_WANT" ] || fail "expected $UNADMITTED_WANT UNADMITTED_TYPE (#305), got ${UNADMITTED_N:-0}"
-grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among UNADMITTED_TYPE"
-grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among UNADMITTED_TYPE"
+[ "${UNADMITTED_N:-0}" = "$UNADMITTED_WANT" ] || fail "expected $UNADMITTED_WANT UNADMITTED_TYPE (#305 is fixed - none expected), got ${UNADMITTED_N:-0}"
+# #305 fixed: the vpc submodule's three default-object adopters now resolve
+# and stamp like any other server-assigned type (2 VERIFIED, 1 DRIFTED on
+# genuine default-ACL drift), not skipped as UNADMITTED_TYPE.
+grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among VERIFIED (#305 fixed)"
+grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among VERIFIED (#305 fixed)"
+grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among DRIFTED (#305 fixed)"
 log "  $ELIGIBLE of $INSTANCES eligible ($VERIFIED_WANT VERIFIED + $DRIFTED_WANT DRIFTED); $SKIPPED skipped"
-log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema + $UNADMITTED_WANT UNADMITTED_TYPE, #305); nothing"
-log "  written yet"
+log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema; #305's default_* trio is"
+log "  admitted now and stamped above); nothing written yet"
 
 log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
@@ -323,36 +349,45 @@ log "  only)"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #305 and/or #308 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #308 may be fixed; update this script"; }
 # Flatten choudoufu's wrapped "In module.X, ... RESOURCE.NAME:" context
 # lines to one line per diagnostic clause, same discipline as the RDS and
 # security-group crossings, so a substring match is not at the mercy of
 # where the wrap happened to land.
 PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< "$PLAN_OUT")"
 
-WANT_UNADMITTED_N=3
+# #305 is fixed: the vpc submodule's default_* trio stamped cleanly back in
+# stage 2 and contributes no unadmitted-type refusal here. Assert that
+# directly rather than merely omitting the old check, so a regression back
+# to #305's shape still fails this script.
+WANT_UNADMITTED_N=0
 WANT_CHILDMOD_N=1
-WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security_group)
 if [ "${BREAK:-}" = "1" ]; then
-  WANT_UNADMITTED_N=4
-  WANT_TYPES[1]="aws_default_dhcp_options"
-  log "  BREAK=1: expecting 4 unadmitted-type sites (one more than the real"
-  log "           3, #305) and aws_default_dhcp_options among them - a real"
-  log "           AWS default-object type, same shape as the other three,"
-  log "           just not one this estate's own vpc submodule actually"
-  log "           creates. Both wrong. This step must fail."
+  WANT_UNADMITTED_N=1
+  WANT_CHILDMOD_N=2
+  log "  BREAK=1: expecting 1 unadmitted-type site (#305 is fixed; real is 0)"
+  log "           and 2 child-module for_each sites (#308 is still open;"
+  log "           real is 1). Both wrong. This step must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-[ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305), got $UNADMITTED_N"; }
-for t in "${WANT_TYPES[@]}"; do
-  grep -qE "In module\.[a-z_]+, ${t}\." <<< "$PLAN_FLAT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t among the unadmitted-type refusals (#305)"; }
-done
-log "  #305 confirmed: exactly $UNADMITTED_N unadmitted-type sites, all"
-log "  three default-object adopters this estate's vpc submodule actually"
-log "  creates (aws_default_network_acl, aws_default_route_table,"
-log "  aws_default_security_group)."
+[ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305 is fixed), got $UNADMITTED_N"; }
+log "  #305 confirmed fixed: 0 unadmitted-type sites - the default-object"
+log "  adopters resolved and stamped back in stage 2 contribute no refusal"
+log "  here."
+
+# No 'Unable to use data.aws_availability_zones.available in static context'
+# diagnostic (#313's shape, found crossing corpus-security-group-complete)
+# appears anywhere in this estate's plan output either, even though this
+# estate's own vpc submodule reads that same data source the same way
+# security-group's vpc submodule does. Assert its absence directly so a
+# regression that reintroduces it here is caught rather than silently
+# matched by a looser grep elsewhere.
+grep -qF 'Unable to use data.aws_availability_zones' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module|availability_zones'; fail "unexpected #313-shaped 'data.aws_availability_zones ... static context' diagnostic - re-check whether #313 now reaches this estate too"; }
+log "  #313's shape ('Unable to use data.aws_availability_zones... in static"
+log "  context', found crossing corpus-security-group-complete) does NOT"
+log "  appear here - confirmed absent, not merely unasserted."
 
 CHILDMOD_N="$(grep -c '^Error: This module call cannot be expanded under live resource markers$' <<< "$PLAN_OUT")"
 [ "$CHILDMOD_N" = "$WANT_CHILDMOD_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_CHILDMOD_N child-module for_each site (#308), got $CHILDMOD_N"; }
@@ -365,9 +400,9 @@ log "  whose expression as a whole is not, because one unrelated value in"
 log "  the same map (the fluent-bit sidecar's image) is dynamic."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #305 ($WANT_UNADMITTED_N sites) and #308"
-log "($WANT_CHILDMOD_N site), the specific counts and resource addresses asserted"
-log "above, nothing new"
+log "STAGE 3 (test_plan): BLOCKED for real - #308 ($WANT_CHILDMOD_N site) alone;"
+log "#305 no longer contributes and #313's shape does not reach this estate,"
+log "both confirmed above by direct assertion, not by omission"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -377,7 +412,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #305 and #308 (choudoufu, see header)"
+log "  stage 3  test_plan          BLOCKED - #308 alone (choudoufu, see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
@@ -388,5 +423,5 @@ log "own self-report. Two real floci gaps found and filed along the way"
 log "(lex00/floci#59, #60) do not block this script: live-import tolerates"
 log "drift by design, and stage 3 refuses on choudoufu-side gaps before ever"
 log "reaching a diff that would show them. Run again with BREAK=1: stages 1"
-log "and 2 still pass and stage 3's #305/#308 site-count assertions are the"
-log "ones that fail."
+log "and 2 still pass and stage 3's unadmitted-type-absence and #308"
+log "site-count assertions are the ones that fail."
