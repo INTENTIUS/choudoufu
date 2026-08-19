@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 17,
-    "cold_deploy": { "pass": 15, "fail": 2, "not_run": 0 },
-    "migrate": { "pass": 14, "fail": 1, "not_run": 2 },
-    "test_plan": { "pass": 6, "fail": 9, "not_run": 2 },
-    "test_apply": { "pass": 6, "fail": 0, "not_run": 11 },
-    "drift_reconverge": { "pass": 6, "fail": 0, "not_run": 11 }
+    "estates": 18,
+    "cold_deploy": { "pass": 16, "fail": 2, "not_run": 0 },
+    "migrate": { "pass": 15, "fail": 1, "not_run": 2 },
+    "test_plan": { "pass": 7, "fail": 9, "not_run": 2 },
+    "test_apply": { "pass": 7, "fail": 0, "not_run": 11 },
+    "drift_reconverge": { "pass": 7, "fail": 0, "not_run": 11 }
   },
   "estates": [
     {
@@ -204,6 +204,19 @@
         "drift_reconverge": "pass"
       },
       "notes": "Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns \"UnknownOperationException: Operation CreateNotebookInstance is not supported by floci\", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, \"4 added, 0 changed, 0 destroyed\", confirmed 0 objects pre-tagged), migrate (live-import: \"3 of 4 resource instance(s) are eligible for stamping\", 1 UNTAGGABLE - the KMS alias; -approve: \"3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped\"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan \"No changes\", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, \"0 added, 0 changed, 0 destroyed\", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
+    },
+    {
+      "dir": "live/e2e/corpus-hongbomiao-harbor",
+      "source": "hongbo-miao/hongbomiao.com, a third disjoint slice: environments/production/aws/kubernetes/main.tofu's self-contained Harbor section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox and corpus-hongbomiao-storage)",
+      "lane": "opentofu-native",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "pass",
+        "test_apply": "pass",
+        "drift_reconverge": "pass"
+      },
+      "notes": "Landed 2026-08-19, the sixth estate in the OpenTofu-native lane and the fourth to clear all five stages. Sourced per HANDOFF's own suggestion to scope a second (here, third) disjoint slice of the already-crossed hongbomiao monorepo before a fresh search. Surveyed every remaining AWS environment: network/main.tofu is pure data sources (nothing to migrate); kubernetes/main.tofu builds a full terraform-aws-modules/eks cluster and every IAM module in it but one (velero_iam_role, mimir_iam_role, loki_iam_role, tempo_iam_role, label_studio_iam_role, etc., 15 total) takes amazon_eks_cluster_oidc_provider(_arn) from that same cluster - the same scope/risk class as the terraform-popular lane's already-blocked terraform-aws-eks examples/basic crossing. The one exception, the \"Harbor\" section (S3 bucket + IAM user + inline user policy), needs no EKS cluster, no OIDC provider, no remote state at all - self-contained like storage's own scoped slice. Nebius/Cloudflare/Snowflake environments confirmed to still exist and be real, actively-maintained infrastructure, but target non-AWS clouds floci cannot emulate. Crosses aws_iam_user/aws_iam_user_policy, a genuinely different resource pair from Labelbox's aws_iam_role/aws_iam_role_policy - both already-ratified DefaultTable rows, no schema-fallback warning. All five stages verified for real against a live floci container: cold_deploy (tofu apply, 3 resources created, confirmed 0 pre-existing tofu-estate tags), migrate (live-import verified 2 of 3 eligible - bucket + user - 1 correctly UNTAGGABLE - the inline policy; markers re-read via AWS CLI matched: module.s3_bucket_hm_harbor.aws_s3_bucket.main, module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user), test_plan (state deleted, live-plan empty, identities re-verified against the AWS CLI including the inline policy's resource ARN read directly off the live object), test_apply (genuine no-op, 2 tagged objects before and after), drift_reconverge (bucket tag tampered out of band, plan proposed fixing exactly that one object, reconverge apply restored it). BREAK=1 verified load-bearing, failing exactly at the stage-2 identity assertion. No floci or choudoufu gaps found - this crossing is clean. Merged to local main as ad2cf81cf3 (crossing itself: 0c4e16af6a); justfile gained recipe demo-corpus-hongbomiao-harbor (port 4728); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
     },
     {
       "dir": "live/e2e/corpus-overture-tiles",

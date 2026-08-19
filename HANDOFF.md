@@ -1026,21 +1026,31 @@ script's own header says which resource and why.
 
 ### 3. Broaden the OpenTofu-native lane
 
-Two estates crossed now, `corpus-sumaform-aws` and, landed 2026-08-18,
-`corpus-hongbomiao-labelbox` (`hongbo-miao/hongbomiao.com`'s Labelbox
-integration) - the first OpenTofu-native estate to clear all five stages,
-and stronger OpenTofu-native evidence than sumaform (genuine `.tofu` files
-throughout, not a `.tf` template that merely describes itself as
-OpenTofu-built). Against a Terraform-popular lane that started with ten
-modules already pinned by tag and commit before crossing began, this lane
-still has no equivalent ready-made list - there is no download-count proxy
-at OpenTofu's current scale - so sourcing has to stay active: GitHub search
+Six estates crossed now: `corpus-sumaform-aws`; three disjoint slices of
+`hongbo-miao/hongbomiao.com` (`corpus-hongbomiao-labelbox`, landed
+2026-08-18, the first OpenTofu-native estate to clear all five stages and
+stronger evidence than sumaform - genuine `.tofu` files throughout, not a
+`.tf` template that merely describes itself as OpenTofu-built;
+`corpus-hongbomiao-storage`, landed 2026-08-18, reusing the same pin;
+`corpus-hongbomiao-harbor`, landed 2026-08-19, also reusing the same pin -
+the Harbor S3-bucket/IAM-user section, the one part of `kubernetes/main.tofu`
+that needs no EKS cluster or remote state, everything else in that file
+being 15 IAM modules all reading a real cluster's OIDC provider, the same
+scope/risk class as the terraform-popular lane's already-blocked
+terraform-aws-eks crossing); and `corpus-overture-tiles`,
+`corpus-xancloud-iac` from fresh sourcing searches. Four of the six clear
+all five stages for real. The monorepo hongbomiao was sourced from has now
+been surveyed in full at the pinned commit - `network/main.tofu` is pure
+data sources (nothing to migrate), `kubernetes/main.tofu`'s IAM modules all
+need a live EKS cluster's OIDC provider (out of scope, same reason as
+above), and Nebius/Cloudflare/Snowflake target clouds floci cannot emulate
+at all - so this repo has nothing further to offer without a new sourcing
+search. Against a Terraform-popular lane that started with ten modules
+already pinned by tag and commit before crossing began, this lane still has
+no equivalent ready-made list - there is no download-count proxy at
+OpenTofu's current scale - so sourcing has to stay active: GitHub search
 for real, maintained projects that describe themselves as built for
-OpenTofu, plus the Powered-by-OpenTofu and awesome-opentofu lists. The
-monorepo hongbomiao was sourced from is far larger than the one section
-crossed (AWS+Nebius+Cloudflare+Snowflake+EKS) - scoping a second, disjoint
-slice of the same repo is a legitimate way to get more coverage without a
-fresh sourcing search, if a future session wants a quick win here.
+OpenTofu, plus the Powered-by-OpenTofu and awesome-opentofu lists.
 
 ### Loose ends worth an hour, not a slot
 
