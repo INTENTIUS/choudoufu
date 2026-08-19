@@ -41,13 +41,15 @@ set -uo pipefail
 #                     VERIFIED + 1 DRIFTED, see below), 0 failed. Two
 #                     markers - the ECS cluster's and the ECS service's own
 #                     - confirmed independently through the AWS CLI.
-#   3. TEST PLAN     delete the state file, `choudoufu live-plan`. #308 is
-#                     FIXED (0 sites, was 1 - see below) and #305 still
-#                     contributes 0. BLOCKED for real by #313's
-#                     config-language-subset family (49 root sites across
-#                     two distinct values) plus a 4-site DERIVE-shaped gap
-#                     #308's own fix exposed (236 diagnostics total). See
-#                     below.
+#   3. TEST PLAN     delete the state file, `choudoufu live-plan`. #305 and
+#                     #308 stay FIXED (0 sites each). #313's data-source
+#                     root cause (A, 48 sites) and #315's each.value gap
+#                     (C, 4 sites) are BOTH now fixed too - re-verified
+#                     below by direct assertion, not by omission. BLOCKED
+#                     for real by one remaining site: #313's own
+#                     acknowledged resource-attribute-via-module-output
+#                     scope (root cause B) and its 7-site cascade (8
+#                     diagnostics total, was 236). See below.
 #   4. TEST APPLY    NOT RUN - depends on stage 3.
 #   5. DRIFT/RECONVERGE  NOT RUN - depends on stages 3-4.
 #
@@ -70,63 +72,63 @@ set -uo pipefail
 # further into the configuration and reach #313's own wall (below) instead
 # of stopping at #308's site first.
 #
-# #313 DOES REACH THIS ESTATE. The claim in an earlier version of this
-# section that it did not was checked while #308 still blocked live-plan
-# before the walk ever got this far, and turned out to be wrong once #308
-# was fixed. Re-verified against a real live-plan run below, not by
-# omission. Three distinct root causes fire, two of them genuinely #313's
-# architectural family (a value live-plan can never prove statically because
-# live-plan never calls a provider during plan - statelessness, #73) and one
-# that is NOT that family:
+# #313 DOES REACH THIS ESTATE, but two of its three original root causes
+# here are now FIXED. Re-verified against a real live-plan run below, not
+# by omission:
 #
-#   A. `data.aws_availability_zones.available` feeding `local.azs`
-#      (main.tf:18, `slice(data.aws_availability_zones.available.names, 0,
-#      3)`), fed to `module "vpc"` as `azs = local.azs` - the same shape
-#      filed as #313 crossing corpus-security-group-complete. 48 root sites
-#      ("Dynamic value in static context", "Unable to use
-#      data.aws_availability_zones.available in static context, which is
-#      required by local.azs"). An earlier version of this section claimed
-#      this pinned vpc module version's subnet `count` expressions are
-#      always a statically-computable LENGTH and never reach the AZ names
-#      themselves; that claim turned out not to hold end to end once #308
-#      stopped masking it - each of the 48 sites is a real, distinct
-#      downstream consumer of `local.azs`, never actually exercised by this
-#      script before now.
-#   B. `module.ecs_cluster.arn` passed into `module "ecs_service"` as
-#      `cluster_arn = module.ecs_cluster.arn` (main.tf:68) - a module output
-#      that is itself another resource's attribute (the ECS cluster's ARN,
-#      known only after AWS assigns it at apply time), the "another
-#      resource's own attribute" half of #313's own framing, reached
-#      through a module boundary. 1 site ("Module output not supported in
-#      static context").
-#   C. `each.value.enable_cloudwatch_logging` and
-#      `each.value.create_cloudwatch_log_group` (modules/service/main.tf:
-#      923-924, inside `module "container_definition"`, the same module
-#      call #308 fixed the keyset resolution for) - NOT #313's family. Both
-#      fields are literal booleans in the caller's own object literal
-#      (main.tf's container_definitions map sets `enable_cloudwatch_logging
-#      = false` directly on both the fluent-bit and app-container entries;
-#      neither ever touches the one genuinely dynamic field in that map,
-#      fluent-bit's SSM-sourced `image`) - fully knowable statically, the
-#      same way #308's own fix already proved the map's KEYS and FILTER are.
-#      What refuses here is that these var assignments reference the whole
-#      `each.value`, and the walker treats it as one opaque dynamic blob
-#      rather than projecting to the one field each reference actually
-#      reads, the way #308's fix now does for the for_each expression
-#      itself. 4 sites (2 vars x 2 container_definitions keys), only
-#      reachable at all because #308's fix let live-plan expand this module
-#      call in the first place. This reads as a DERIVE-class follow-up to
-#      #308 - reported here, not filed as its own issue and not fixed (out
-#      of scope for this pass).
+#   A. FIXED (c636ab20f7, merged 0284d8c408). `data.aws_availability_zones.
+#      available` feeding `local.azs` (main.tf:18, `slice(data.aws_
+#      availability_zones.available.names, 0, 3)`), fed to `module "vpc"`
+#      as `azs = local.azs` - the same shape filed as #313 crossing
+#      corpus-security-group-complete. Was 48 root sites ("Dynamic value in
+#      static context", "Unable to use data.aws_availability_zones.
+#      available in static context, which is required by local.azs"), now
+#      0: `resolver.frozenClosureIsStale` rebuilds a module instance's
+#      `var.*` closure when a strictly-ancestral module instance carries
+#      read-phase coverage, not only when a call on the path repeats. No
+#      type or data-source names; the fix reaches every module-call
+#      `data`-source chase in the shared resolver, not just this estate's
+#      shape - see #313's own generalization measurement (57 of 204
+#      `.corpus` entries with an eligible demanded source improved, this
+#      estate's own offline diagnostic count among them, 0 worse).
+#   B. STILL OPEN, and correctly so - this is #313's own acknowledged
+#      remaining scope, not a fresh gap. `module.ecs_cluster.arn` passed
+#      into `module "ecs_service"` as `cluster_arn = module.ecs_cluster.arn`
+#      (main.tf:68) - a module output that is itself another resource's
+#      attribute (the ECS cluster's ARN, Computed in the AWS provider's own
+#      schema even though this example's cluster name is client-named and
+#      the ARN is in principle a deterministic function of account, region
+#      and name). The maintainer's ruling on #313 scoped the read phase to
+#      `data` blocks deliberately - a data source is safe to read
+#      unconditionally, a managed resource's attribute may not exist yet
+#      within the same plan - and #313's own thread found the RDS crossing's
+#      parallel case (`aws_vpc.cidr_block` reached through a module output)
+#      lands on the identity resolver's own deliberate Computed boundary
+#      (`siblingLiteralExpr`, resolve.go) even for a value a human reader
+#      can see is knowable; nobody has made the ruling this would need.
+#      Still exactly 1 site ("Module output not supported in static
+#      context").
+#   C. FIXED (#315, 772bde04d8, merged 1a3d46b767). `each.value.
+#      enable_cloudwatch_logging` and `each.value.create_cloudwatch_log_group`
+#      (modules/service/main.tf:923-924, inside `module
+#      "container_definition"`, the same module call #308 fixed the keyset
+#      resolution for) used to refuse because the walker treated the whole
+#      `each.value` as one opaque dynamic blob. Was 4 sites (2 vars x 2
+#      container_definitions keys); now 0 - `each.value` is projected down
+#      to the one field each reference actually reads, the same way #308's
+#      fix already did for the for_each expression itself.
 #
-# A, B and C's 53 root sites cascade to 177 further "Unable to compute
-# static value" sites (every downstream count/for_each/argument that itself
-# needs one of the three) and 6 "Unresolvable identity" sites
-# (aws_appautoscaling_policy.this's own arguments read
-# aws_appautoscaling_target.this[0]'s attributes, and that resource's own
-# identity failed to resolve because its `resource_id` argument is itself
-# one of C's each.value-derived static-value failures) - 236 diagnostics
-# total, all under already-registered refusal classes
+# With A and C both gone, B's cascade collapsed from 177+6=183 sites to 7:
+# `aws_appautoscaling_target.this[0]`'s own `resource_id` argument
+# (modules/service/main.tf:1565) interpolates `local.cluster_name`, itself
+# derived from `var.cluster_arn` (B) via `element(split("/", var.
+# cluster_arn), 1)` - 1 "Unable to compute static value" site. That failure
+# then blocks the target resource's own identity, which
+# `aws_appautoscaling_policy.this["cpu"]` and `["memory"]` each reference
+# through three arguments (`resource_id`, `scalable_dimension`,
+# `service_namespace`, main.tf:1589-1591) - 6 "Unresolvable identity"
+# cascade sites (2 policy instances x 3 arguments each). 8 diagnostics
+# total (was 236), all under already-registered refusal classes
 # (internal/live/passthrough/refusals.go,
 # internal/live/identity/refusals.go), not new choudoufu behavior. Not
 # fixed here; stage 3's assertions below hold the exact counts so a change
@@ -151,19 +153,20 @@ set -uo pipefail
 # Neither blocks this script: DRIFTED still stamps, and stage 3 refuses
 # before ever reaching a diff that would show them.
 #
-# STAGE 3'S REAL BLOCKER is #313's family (root causes A and B above) plus
-# C, the DERIVE-shaped gap #308's own fix exposed - see the section above
-# for the full breakdown by exact rule and exact site. #308's own diagnostic
-# (child-module for_each on module.ecs_service's container_definition call)
-# is fixed and confirmed absent below, not merely omitted.
+# STAGE 3'S REAL BLOCKER is #313's own remaining scope alone (root cause B
+# above) plus its 7-site cascade - see the section above for the full
+# breakdown by exact rule and exact site. #305, #308, #313's root cause A
+# and #315 are all fixed and confirmed absent below, not merely omitted.
 #
 # BREAK=1 corrupts every stage-3 expected count (one unadmitted-type site
 # and one child-module for_each site that should not exist - #305 and #308
-# are both fixed - plus one extra site each for the Dynamic-value,
-# Module-output, static-value-cascade and Unresolvable-identity counts),
-# proving those assertions are load-bearing rather than a grep that always
-# matches - same discipline as the RDS and security-group crossings before
-# this one. Stages 1 and 2 are unaffected.
+# are both fixed - plus one Dynamic-value-in-static-context site that
+# should not exist - #313's root cause A and #315's root cause C are both
+# fixed - plus one extra site each for the Module-output, static-value-
+# cascade and Unresolvable-identity counts), proving those assertions are
+# load-bearing rather than a grep that always matches - same discipline as
+# the RDS and security-group crossings before this one. Stages 1 and 2 are
+# unaffected.
 #
 #   bash live/e2e/corpus-ecs-fargate/run.sh
 #
@@ -404,27 +407,29 @@ PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< 
 # module call.
 WANT_UNADMITTED_N=0
 WANT_CHILDMOD_N=0
-# #313's family (root causes A and B, see header) plus C, the DERIVE-shaped
-# gap #308's own fix exposed by letting live-plan walk into
-# module.container_definition at all - see header for the full breakdown.
-WANT_DYNAMIC_N=52
+# #313's root cause A and #315's root cause C are BOTH fixed now too, so
+# "Dynamic value in static context" contributes nothing - see header. Only
+# #313's own remaining scope (root cause B, a module output wrapping a
+# Computed managed-resource attribute) and its cascade remain.
+WANT_DYNAMIC_N=0
 WANT_MODULE_OUTPUT_N=1
-WANT_STATIC_CASCADE_N=177
+WANT_STATIC_CASCADE_N=1
 WANT_UNRESOLVED_IDENTITY_N=6
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
   WANT_CHILDMOD_N=1
-  WANT_DYNAMIC_N=53
+  WANT_DYNAMIC_N=1
   WANT_MODULE_OUTPUT_N=2
-  WANT_STATIC_CASCADE_N=178
+  WANT_STATIC_CASCADE_N=2
   WANT_UNRESOLVED_IDENTITY_N=7
   log "  BREAK=1: expecting 1 unadmitted-type site and 1 child-module"
   log "           for_each site (#305 and #308 are both fixed; real is 0 for"
-  log "           both), plus one extra site each for the Dynamic-value (53"
-  log "           vs real 52), Module-output (2 vs real 1), static-value-"
-  log "           cascade (178 vs real 177) and Unresolvable-identity (7 vs"
-  log "           real 6) counts. All of these are wrong. This step must"
-  log "           fail."
+  log "           both), plus 1 Dynamic-value-in-static-context site (#313's"
+  log "           root cause A and #315's root cause C are both fixed; real"
+  log "           is 0), plus one extra site each for the Module-output (2"
+  log "           vs real 1), static-value-cascade (2 vs real 1) and"
+  log "           Unresolvable-identity (7 vs real 6) counts. All of these"
+  log "           are wrong. This step must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
@@ -442,39 +447,46 @@ log "  module.ecs_service's container_definition module call now expands."
 log "  Fixing it did not unblock this estate: it let live-plan walk further"
 log "  in and reach #313's own wall instead (below)."
 
-# #313 reaches this estate (an earlier version of this script's header
-# claimed it did not; that was checked while #308 still blocked the walk
-# before it got this far, and was wrong once #308 was fixed - see header
-# for the full A/B/C breakdown).
+# #313's root cause A (data.aws_availability_zones) and #315's root cause C
+# (each.value) are both fixed - asserted by ABSENCE, the load-bearing half:
+# not one diagnostic may name either any more. #313's root cause B (the
+# module output wrapping a Computed resource attribute) is #313's own
+# acknowledged remaining scope and still correctly refuses.
 DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
 MODULE_OUTPUT_N="$(grep -c '^Error: Module output not supported in static context$' <<< "$PLAN_OUT")"
 STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
 UNRESOLVED_IDENTITY_N="$(grep -c '^Error: Unresolvable identity$' <<< "$PLAN_OUT")"
-[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313's family + the each.value gap), got $DYNAMIC_N"; }
-[ "$MODULE_OUTPUT_N" = "$WANT_MODULE_OUTPUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODULE_OUTPUT_N 'Module output not supported in static context' site (#313's family), got $MODULE_OUTPUT_N"; }
-[ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' cascade sites, got $STATIC_CASCADE_N"; }
-[ "$UNRESOLVED_IDENTITY_N" = "$WANT_UNRESOLVED_IDENTITY_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVED_IDENTITY_N 'Unresolvable identity' cascade sites, got $UNRESOLVED_IDENTITY_N"; }
+[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313's root cause A and #315's root cause C are both fixed), got $DYNAMIC_N"; }
+[ "$MODULE_OUTPUT_N" = "$WANT_MODULE_OUTPUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODULE_OUTPUT_N 'Module output not supported in static context' site (#313's own remaining scope, root cause B), got $MODULE_OUTPUT_N"; }
+[ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' cascade sites (B's cascade into aws_appautoscaling_target.this[0].resource_id), got $STATIC_CASCADE_N"; }
+[ "$UNRESOLVED_IDENTITY_N" = "$WANT_UNRESOLVED_IDENTITY_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVED_IDENTITY_N 'Unresolvable identity' cascade sites (B's cascade into both aws_appautoscaling_policy instances), got $UNRESOLVED_IDENTITY_N"; }
 grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
-  || fail "expected the data.aws_availability_zones root cause (A) among the diagnostics - the corpus pin may have moved"
-grep -qF 'Unable to use module.ecs_cluster.arn in static context' <<< "$PLAN_OUT" \
-  || fail "expected the module.ecs_cluster.arn root cause (B) among the diagnostics - the corpus pin may have moved"
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#313's root cause A (data.aws_availability_zones) still appears - it should be fixed"; }
 grep -qF 'Unable to use each.value in static context, which is required by' <<< "$PLAN_OUT" \
-  || fail "expected the each.value root cause (C, the each.value gap exposed by #308's fix) among the diagnostics - the corpus pin may have moved, or #308's fix may have been extended to cover it"
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#315's root cause C (each.value) still appears - it should be fixed"; }
+grep -qF 'Unable to use module.ecs_cluster.arn in static context' <<< "$PLAN_OUT" \
+  || fail "expected the module.ecs_cluster.arn root cause (B, #313's own acknowledged remaining scope) among the diagnostics - the corpus pin may have moved, or B may have been fixed too"
+grep -qF 'module.ecs_service.aws_appautoscaling_target.this[0].resource_id' <<< "$PLAN_OUT" \
+  || fail "expected B's cascade into aws_appautoscaling_target.this[0].resource_id - the corpus pin may have moved"
 
-log "  #313 confirmed present: $DYNAMIC_N Dynamic-value-in-static-context +"
-log "  $MODULE_OUTPUT_N Module-output-not-supported sites (root causes A and"
-log "  B, both genuinely unknowable at plan time - see header), 4 of the"
-log "  $DYNAMIC_N Dynamic-value sites being root cause C instead (each.value"
-log "  not narrowed to the one static field each reference reads - a"
-log "  DERIVE-shaped gap #308's own fix exposed, NOT #313's family, reported"
-log "  not fixed here), cascading to $STATIC_CASCADE_N Unable-to-compute-"
-log "  static-value sites and $UNRESOLVED_IDENTITY_N Unresolvable-identity"
-log "  sites."
+log "  #313's root cause A (data.aws_availability_zones) and #315's root"
+log "  cause C (each.value) both confirmed fixed: 0 Dynamic-value-in-"
+log "  static-context sites (was 52)."
+log "  #313's own remaining scope (root cause B, module.ecs_cluster.arn -"
+log "  a Computed resource attribute reached through a module output)"
+log "  still correctly refuses: $MODULE_OUTPUT_N Module-output site,"
+log "  cascading to $STATIC_CASCADE_N Unable-to-compute-static-value site"
+log "  (aws_appautoscaling_target.this[0]'s own resource_id) and"
+log "  $UNRESOLVED_IDENTITY_N Unresolvable-identity sites (both"
+log "  aws_appautoscaling_policy instances' resource_id/scalable_dimension/"
+log "  service_namespace arguments, which depend on the target's own"
+log "  unresolved identity)."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #313's family (A+B) plus a"
-log "DERIVE-shaped gap #308's fix exposed (C); #305 and #308 both fixed and"
-log "confirmed absent above by direct assertion, not by omission"
+log "STAGE 3 (test_plan): BLOCKED for real - #313's own remaining scope"
+log "(root cause B) plus its 7-site cascade, 8 diagnostics total (was 236)."
+log "#305, #308, #313's root cause A and #315 are all fixed and confirmed"
+log "absent above by direct assertion, not by omission."
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -484,7 +496,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #313's family + a DERIVE gap #308's fix exposed (choudoufu, see header); #305 and #308 both fixed"
+log "  stage 3  test_plan          BLOCKED - #313's own remaining scope alone (root cause B, see header), 8 diagnostics (was 236); #305, #308, #313's root cause A and #315 all fixed"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
