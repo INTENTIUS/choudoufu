@@ -132,6 +132,52 @@ func TestClassifyOrphans_renameIsWithheldAtEveryModulePath(t *testing.T) {
 	}
 }
 
+// TestClassifyOrphans_anUndecodableMarkerStillReachesTheGuard pins
+// [orphanBlockKey]'s fallback, which exists for compatibility rather than for
+// correctness and would otherwise be the kind of branch a later reader
+// deletes as dead.
+//
+// Withholding runs BEFORE the malformed-marker report on purpose, so a
+// corrupt tag value sitting in a block that still has an unclaimed instance
+// is withheld silently and no error is raised for it. "aws_subnet.this:" - a
+// truncated marker, an instance key introduced and then not written - is
+// exactly that: [UnescapeAddress] refuses it, and the text-level cut still
+// finds the block it belongs to. Reading the block off the decoded address
+// alone would turn that silence into a hard error on an estate that plans
+// cleanly today.
+func TestClassifyOrphans_anUndecodableMarkerStillReachesTheGuard(t *testing.T) {
+	root, _, _, _ := moduleRenameCases(t)
+
+	const corrupt = "aws_subnet.this:"
+	if _, ok := UnescapeAddress(corrupt); ok {
+		t.Fatalf("%q decodes to an address, so this test is not exercising the fallback at all", corrupt)
+	}
+
+	result := &Result{
+		Unbound: []addrs.AbsResourceInstance{root.declared},
+		Orphans: []OwnedResource{{
+			TypeName:   "aws_subnet",
+			ImportID:   "subnet-0deadbeef",
+			Marker:     corrupt,
+			Normalized: corrupt,
+			Swept:      true,
+		}},
+	}
+
+	diags := classifyOrphans(Request{Estate: "rename-withhold"}, result)
+
+	if diags.HasErrors() {
+		t.Errorf("a corrupt marker in a block with an unclaimed declared instance raised an error: %s", diags.Err())
+	}
+	o := result.Orphans[0]
+	if o.Removal {
+		t.Errorf("the live resource marked %q was proposed for destruction", corrupt)
+	}
+	if o.Withheld == "" {
+		t.Errorf("no withholding reason was recorded for %q", corrupt)
+	}
+}
+
 // TestClassifyOrphans_aBlockMovedAcrossModulesStaysWithheld pins the one
 // judgement in [blockKey]: the key is the block's type and name with the
 // module path taken off, so a live resource whose block moved between module
