@@ -48,6 +48,28 @@
     "which is why this entry exists for reproducibility and the pinned",
     "fetch rather than for a corpus-gen number.",
     "",
+    "hongbomiao.com (added 2026-08-18, license checked same day: MIT) is",
+    "pinned the same way - no tag, commit alone - and is the second",
+    "OpenTofu-native crossing, but unlike sumaform every file under its own",
+    "infrastructure/opentofu tree, root and leaf modules alike, genuinely",
+    "carries the .tofu extension (not merely a self-description), and its",
+    "own justfile there drives tofu exclusively - init/plan/apply/refresh/",
+    "destroy/state/output/console - never terraform. This glob matches only",
+    "the repository root corpus-fetch clones, which has no .tf/.tofu files",
+    "directly in it and so - like sumaform - contributes nothing to a",
+    "corpus-gen number; the repository itself is a large personal",
+    "infrastructure monorepo spanning Kubernetes/EKS, Nebius, Snowflake and",
+    "Cloudflare alongside AWS, cross-wired between its own environments",
+    "through terraform_remote_state, too large and too coupled to stand up",
+    "against floci in one sitting. live/e2e/corpus-hongbomiao-labelbox/",
+    "run.sh copies out three small, self-contained, unmodified leaf modules",
+    "under infrastructure/opentofu/modules/aws (an S3 bucket, its CORS",
+    "configuration, an IAM role with an inline policy - hongbomiao.com's own",
+    "\"Labelbox\" integration) and supplies its own root wiring in place of",
+    "the real project's remote-state-coupled environment root - see that",
+    "script's header for the full scoping rationale and the byte-identical",
+    "diff it runs against the pinned commit before every crossing.",
+    "",
     "var_files and var_file_layout (#183, reworked to the parity ruling on",
     "2026-08-15) run each estate the way its own operator does: with the",
     "tfvars files the estate's own repository ships, discovered from its",
@@ -292,6 +314,15 @@
         "dir": ".corpus/sumaform",
         "repo": "https://github.com/uyuni-project/sumaform.git",
         "commit": "c8a590801d0c7f60d9667f03391455a897900078"
+      }
+    },
+    {
+      "glob": ".corpus/hongbomiao",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/hongbomiao",
+        "repo": "https://github.com/hongbo-miao/hongbomiao.com.git",
+        "commit": "3f69ab9c37211e163bbd4434bad39780b6d4b92b"
       }
     }
   ],
