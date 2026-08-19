@@ -762,27 +762,42 @@ similarly-shaped untaggable types (one CFN list-scoping property, every
 non-scope identifier part read-only) once someone builds the mechanism.
 Full scouting detail on the issue itself. Left open, not attempted further.
 
-### 1b. `#316`: a real silent destroy-recreate hazard, module-qualified renames - read this before picking anything else
+### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 
-Found scouting a different, smaller loose end (`markers.UnescapeAddress`
-decoding a count'd module step's key as a string instead of an int, now
-fixed - `f6c6541748`/`11a8178c52` - a real, reachable bug through
-`internal/live/discovery`'s orphan classification, confirmed by three new
-tests each checked to fail on pre-fix code, `TestIdentityGolden` correctly
-unmoved since decoding a marker isn't identity rendering). While tracing
-that fix's reach, the same session found something worse and did not touch
-it: **`classifyOrphans`'s rename-withholding guard - the property its own
-doc comment calls the whole safety mechanism - never fires for a
-module-qualified address at all.** `pending` is keyed on
-`EscapeAddress(addr.Resource.Resource.String())`, which drops the module
-path entirely, while the marker side cuts at the module step's own key.
-Re-key a `for_each` inside a static module and the live object is destroyed
-and recreated where the root-module equivalent would correctly be withheld
-- silently, exactly the direction "a wrong marker outranks a missing one"
-warns against. `internal/live/foreign/classify.go:507` has the mirror-image
-bug. Filed as `#316`, not fixed - this needs the same rigor the marker fix
-got (mutation-checked tests proving each half fails pre-fix), not a quick
-patch on a path this sensitive.
+Was a real silent destroy-recreate hazard, found scouting a smaller loose
+end (`markers.UnescapeAddress` decoding a count'd module step's key as a
+string instead of an int, fixed - `f6c6541748`/`11a8178c52`). While tracing
+that fix's reach, the same session found `classifyOrphans`'s
+rename-withholding guard - the property its own doc comment calls the whole
+safety mechanism - never fired for a module-qualified address at all, and
+`internal/live/foreign/classify.go`'s `removals()` had the mirror-image bug.
+Fixed 2026-08-18 (`a30cb152f8`/`4d02f05d30`, merged `f1567a63b8`), with the
+same rigor the marker fix got: both root causes reproduced with real values
+before any code changed, both fixes mutation-checked (revert in place,
+confirm the new tests fail exactly as expected, re-apply, confirm green).
+
+One deliberate departure from the filed issue, worth knowing before touching
+this area again: the issue said "module-qualify both sides," but the
+declared side keys on type-and-name only (`blockKey`, not the full
+instance) - **a strict superset of the guard's prior safety**, so no
+configuration that planned no destroy before plans one now. The reasoning
+is a resource block moved *out* of a module and into the root is exactly as
+safe to withhold as the reverse, and the old code accidentally already
+withheld that direction; module-qualifying the declared side naively would
+have started destroying it. `TestClassifyOrphans_aBlockMovedAcrossModulesStaysWithheld`
+pins both directions.
+
+`TestIdentityGolden`: 0 changed, 4 added (the new fixture), 0 removed - the
+zero is the load-bearing half, since this sweep renders identities without
+ever classifying an orphan.
+
+New, smaller follow-up this fix exposed rather than caused: a
+module-qualified withhold is now correctly computed but invisible in the
+plan output - `internal/live/foreign/rename.go`'s pairing logic is
+root-only (`// v0 declares no modules`), so the "Renamed keys?" section a
+user would read to understand *why* nothing was destroyed never mentions a
+module-qualified withhold. Pre-existing, newly reachable, connects to
+`#317`'s same root-only assumption. Worth a scouting slot, not attempted.
 
 Separately, `#317` (design, not a bug): `live-mv`'s `checkAddresses` refuses
 a rename through a count-keyed module step on the exact retired premise
