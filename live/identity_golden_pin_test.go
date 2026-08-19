@@ -301,7 +301,14 @@ var identityGoldenPin = map[string]int{
 	// Server-assigned like every other bare aws_vpc in this golden, and
 	// unrelated to the change: the fixture needed a real managed resource
 	// for its adversarial outputs to read.
-	"NEEDS_DISCOVERY": 654,
+	// 656, up from 654 (issue #325's discovery double-claim fix): two ADDED
+	// rows, aws_default_security_group.default and aws_security_group.other
+	// in the new internal/live/discovery/testdata/default-adopter-dup
+	// fixture - a config declaring both sides of a default-adopter pair,
+	// the regression case claimantAlreadyPresent guards. Both bare-marker
+	// NEEDS_DISCOVERY like every other resource of these types in this
+	// golden.
+	"NEEDS_DISCOVERY": 656,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -506,7 +513,7 @@ var identityGoldenPin = map[string]int{
 // try(<managed resource attribute>, fallback), which this deliberately
 // does not answer. The three rows here are therefore the ONLY new rendered
 // identities it produces anywhere.
-const identityGoldenPinBodyDigest = "44c319898764e9ca1a04241eb113486f2f89478f87829cd0ff612775597c875d"
+const identityGoldenPinBodyDigest = "65f12ab66ef9da204fa681595c8ae12e8750d17d0fe18f2c45084a92aa0f6782"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -802,9 +809,18 @@ const identityGoldenPinBodyDigest = "44c319898764e9ca1a04241eb113486f2f89478f878
 // +2 NEEDS_DISCOVERY), +3 dirs. Every pre-existing row is byte-identical;
 // this is a pure addition, matching TestIdentityGolden's own "0 identities
 // changed, 3 added, 0 removed".
+// 2026-08-19 (issue #325's discovery double-claim fix, claimantAlreadyPresent
+// in internal/live/discovery/discovery.go): instances 1552 -> 1554, dirs
+// 490 -> 491. One new fixture, internal/live/discovery/testdata/
+// default-adopter-dup - a config declaring both aws_default_security_group
+// and an unrelated aws_security_group, the shape that produced a false
+// ProblemCollision before the fix. Contributes exactly two rows,
+// aws_default_security_group.default and aws_security_group.other, both
+// NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a pure
+// addition.
 const (
-	identityGoldenPinInstances = 1552
-	identityGoldenPinDirs      = 490
+	identityGoldenPinInstances = 1554
+	identityGoldenPinDirs      = 491
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
