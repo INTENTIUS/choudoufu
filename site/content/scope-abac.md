@@ -1,8 +1,12 @@
 # One policy for every team
 
+This is attribute-based access control, ABAC, applied to the resources your
+configuration manages.
+
 A policy per team is a policy set that grows with the org chart and drifts
-between its members. Attribute-based access control exists to avoid that, and
-it needs an attribute on the resource to match against. Markers are one.
+between its members. ABAC exists to avoid that, and it needs an attribute on
+the resource to match against. Markers are one, written on every resource the
+estate manages rather than applied by a convention someone has to remember.
 
 ## The policy
 

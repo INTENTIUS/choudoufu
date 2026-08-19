@@ -130,7 +130,7 @@ var docPages = []docPage{
 	},
 	{
 		Slug:        "scope-abac",
-		NavLabel:    "One policy per team",
+		NavLabel:    "ABAC by estate",
 		Title:       "One policy for every team",
 		Section:     "Governance",
 		ContentFile: "scope-abac.md",
