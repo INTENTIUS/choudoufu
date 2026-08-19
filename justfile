@@ -921,6 +921,24 @@ demo-corpus-xancloud-iac:
 demo-corpus-hongbomiao-harbor:
     bash live/e2e/corpus-hongbomiao-harbor/run.sh
 
+# The sixth OpenTofu-native crossing, from a fresh sourcing search:
+# giantswarm/giantswarm-aws-account-prerequisites (live/corpus-manifest.json,
+# pinned by tag v8.2.2 and commit), the crossplane/ module - Giant Swarm's
+# own customer-facing AWS account prerequisites, genuine .tofu files, and
+# the first estate in this lane from a commercial vendor's production
+# repository rather than a module registry, a personal monorepo or a
+# single-maintainer accelerator. cold_deploy (6 instances) and migrate (2
+# stamped, 2 correctly UNTAGGABLE, 2 UNADMITTED_TYPE) pass for real;
+# test_plan is BLOCKED at exactly 2 sites, both #334's two unadmitted
+# *_exclusive enforcer types, and the script proves that is the WHOLE block
+# with its own control stage: cut those two blocks and nothing else, and
+# test_plan / test_apply / drift_reconverge all clear. Stages 4-5 are
+# deliberately NOT counted as passes in the crossing manifest, because they
+# need an empty first plan from the unmodified module. Needs Docker, the
+# AWS CLI, and the real `tofu` binary; runs on its own port (4729).
+demo-corpus-giantswarm-crossplane:
+    bash live/e2e/corpus-giantswarm-crossplane/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #

@@ -181,7 +181,40 @@
     "    a different axis from var_files, not this change's to make.",
     "  - govuk-aws ships zero tfvars files anywhere in the repository; its",
     "    estates stay language-blocked on unset_var_only refusals, honestly,",
-    "    with no entry here."
+    "    with no entry here.",
+    "",
+    "giantswarm-aws-prereqs (added 2026-08-19, license checked same day:",
+    "Apache-2.0) is pinned by tag AND commit (v8.2.2,",
+    "f1a7d8d51086824a97749b1a8a13327c6f081f72) - the fifth OpenTofu-native",
+    "sourcing search, and the first from a commercial vendor's own production",
+    "customer-onboarding repository rather than a module registry, a personal",
+    "monorepo or a single-maintainer accelerator. Giant Swarm GmbH ship it for",
+    "their managed-Kubernetes customers to prepare an AWS account for CAPA",
+    "clusters; repository created 2019-10-30, semantic-release tags through",
+    "v8.2.2 (2026-07-16), named human contributors landing functional changes",
+    "as recently as 2026-07-16 (#231) and 2026-06-02 (#227). Its",
+    "OpenTofu-native evidence is the strongest in this lane after hongbomiao,",
+    "and it is evidence of three independent kinds: the README's own opening",
+    "sentence (\"This repository contains OpenTofu configuration to prepare AWS",
+    "accounts...\") and its \"## OpenTofu modules in this repository\" index, with",
+    "no compatibility claim anywhere; .github/workflows/tofu-checks.yaml, which",
+    "installs OpenTofu through opentofu/setup-opentofu and runs tofu",
+    "init/validate/fmt with the string \"terraform\" appearing nowhere in it; and",
+    "genuinely .tofu-suffixed files in the crossplane/ directory this crossing",
+    "runs (providers.tofu, role.tofu, variables.tofu), the same file-level",
+    "standard corpus-hongbomiao-* meets and corpus-overture-tiles/",
+    "corpus-xancloud-iac (both plain .tf) do not. Like sumaform and hongbomiao,",
+    "this glob matches only the repository root corpus-fetch clones, which has",
+    "no .tf/.tofu files directly in it, so it contributes nothing to a",
+    "corpus-gen number and exists for the pinned fetch's reproducibility.",
+    "live/e2e/corpus-giantswarm-crossplane/run.sh copies crossplane/",
+    "byte-identical out of the pin and calls it as a child module with its own",
+    "root wiring - the same convention the three corpus-hongbomiao-* crossings",
+    "use, and the one the repository's own README implies by calling these",
+    "directories \"OpenTofu modules\". The other five directories are excluded",
+    "for reasons that script's own header states in full (three are plain .tf",
+    "and the same resource shape as crossplane/; service-quotas/ is an",
+    "account-singleton quota table; onboarding/ only runs the others)."
   ],
   "sources": [
     {
@@ -409,9 +442,18 @@
         "tag": "v0.2.0",
         "commit": "7bc78ff79df4f914921cf04fd9728d09526c93bd"
       }
+    },
+    {
+      "glob": ".corpus/giantswarm-aws-prereqs",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/giantswarm-aws-prereqs",
+        "repo": "https://github.com/giantswarm/giantswarm-aws-account-prerequisites.git",
+        "tag": "v8.2.2",
+        "commit": "f1a7d8d51086824a97749b1a8a13327c6f081f72"
+      }
     }
   ],
-
   "_module_sources_comment": [
     "Every git repository a corpus module call reaches through go-getter,",
     "pinned to a commit. corpus-fetch mirrors each one under",
