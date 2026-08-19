@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=470 instances=1497
+# shape: dirs=473 instances=1513
 # shape: class CONCRETE=761
-# shape: class NEEDS_DISCOVERY=622
-# shape: class PARENT_DERIVED=97
+# shape: class NEEDS_DISCOVERY=630
+# shape: class PARENT_DERIVED=105
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=74866e22abdc0a5097e0e3387a4154a48750a92702d001fbcdccea82f7f6eada
+# shape: body-sha256=c2f7935157b3f178b39f9f27a1a90d73c2e03db31e92ca89f368923ba21ff357
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -165,6 +165,22 @@ internal/live/identity/testdata/docdb-family-collision	aws_docdb_cluster.first	C
 internal/live/identity/testdata/docdb-family-collision	aws_docdb_cluster.second	CONCRETE	docdb-prod	cluster_identifier=docdb-prod
 internal/live/identity/testdata/duplicate-identity	aws_s3_bucket.one	CONCRETE	estate-shared	bucket=estate-shared
 internal/live/identity/testdata/duplicate-identity	aws_s3_bucket.two	CONCRETE	estate-shared	bucket=estate-shared
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[0]	PARENT_DERIVED	${aws_subnet.private[0].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[1]	PARENT_DERIVED	${aws_subnet.private[1].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[2]	PARENT_DERIVED	${aws_subnet.private[2].id}/${aws_route_table.private[2].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[0]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-0	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[1]	PARENT_DERIVED	${aws_subnet.small[1].id}/rtb-1	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[2]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-2	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[3]	PARENT_DERIVED	${aws_subnet.small[1].id}/rtb-3	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[4]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-4	
+internal/live/identity/testdata/element-splat-wraparound	aws_subnet.small[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-wraparound	aws_subnet.small[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/foreach-comprehension	aws_route_table_association.selected["a"]	CONCRETE	subnet-a/rtb-fixed	
 internal/live/identity/testdata/foreach-comprehension	aws_route_table_association.selected["c"]	CONCRETE	subnet-c/rtb-fixed	
 internal/live/identity/testdata/foreach-comprehension	aws_subnet.this["a"]	NEEDS_DISCOVERY		
