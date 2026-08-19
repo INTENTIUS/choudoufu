@@ -485,9 +485,10 @@ rm -f "$ADOPTED_EST/terraform.tfstate" "$ADOPTED_EST/terraform.tfstate.backup"
 [ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "the state file is still there"
 log "  no local state file"
 
-PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
+plan_into() { ( cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color ); }
+PLAN_OUT="$(plan_into 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the remaining stage-3 walls may be fixed; update this script"; }
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan exited $PLAN_RC"; }
 
 # EVERY analysis-layer refusal is now gone from this estate, and each of
 # these four zeros is a separate, once-real wall asserted by absence.
@@ -518,48 +519,51 @@ WANT_UNADMITTED_N=0
 WANT_DYNAMIC_N=0
 WANT_STATIC_CASCADE_N=0
 WANT_UNRESOLVABLE_N=0
-# What that newly REACHED, in the same "a refusal that fired at the block
-# level starts firing per argument" shape #321 arrived in - except one layer
-# further out, because the plan now gets all the way to PROJECTION and
-# actually imports every one of the 67 resources. Two of them fail, both
-# aws_default_route_table, one per nested VPC call.
+# #332, FIXED. Clearing the four walls above let the plan get all the way to
+# PROJECTION and actually import every one of the 67 resources, and two of
+# them then failed - both aws_default_route_table, one per nested VPC call.
 #
-# This is not a choudoufu analysis gap and not a floci gap. The provider
+# That was never a choudoufu analysis gap and never a floci gap. The provider
 # imports aws_default_route_table by the VPC's id, not by the route table's
-# own - its Import section says so ("import Default VPC route tables using
-# the vpc_id", vpc-33cc44dd in the example) - and the ratified row in
-# tools/row-gen/ratified.json overrode that text on the reasoning that the
-# resource's schema has no vpc_id ARGUMENT. It does not, but vpc_id is a
-# computed ATTRIBUTE and the provider's importer looks up the VPC's main
-# route table by it. Proved with stock terraform 1.15.8 and the real AWS
-# provider 6.59.0 against this same floci, no choudoufu involved:
+# own - its Import section says so ("import Default VPC route tables using the
+# vpc_id", vpc-33cc44dd in the example) - and the ratified row in
+# tools/row-gen/ratified.json had overridden that text on the reasoning that
+# the resource's schema has no vpc_id ARGUMENT. It has none, but vpc_id is a
+# computed ATTRIBUTE and the provider's importer looks the VPC's main route
+# table up by it. Proved with stock terraform 1.15.8 and the real AWS provider
+# 6.59.0 against this same floci, no choudoufu involved:
 #
 #   terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad
 #     -> Error: empty result                                (exit 1)
 #   terraform import aws_default_route_table.x vpc-dc10ae31
 #     -> Import successful!                                 (exit 0)
 #
-# "empty result" is byte-identical to what live-plan reports here. Filed as
-# #332; not fixable from the ARN alone (a route table's ARN carries no VPC
-# id), so it needs discovery to carry a second attribute off the object it
-# already found by marker. aws_default_network_acl, aws_default_security_group,
-# aws_default_vpc, aws_default_subnet and aws_default_vpc_dhcp_options all
-# document import by their own id and are unaffected - this is a singleton.
-WANT_PROJECTION_IMPORT_N=2
-WANT_EMPTY_RESULT_N=2
+# Fixed by correcting the row (identity_attrs ["vpc_id"], import_syntax
+# "vpc-ID") and by splitting discovery's own conflation of two facts. An
+# aws_default_* type and its plain sibling share ONE live object -
+# aws_route_table's list call returns the VPC's default route table alongside
+# every other - and discovery used to prove that by requiring the two ratified
+# rows to name the same import identity, which is the separate question of
+# whether the id it already read carries forward. Those are now two predicates
+# (defaultAdopterSiblings and sameRatifiedIdentity), and when they disagree the
+# binding recomposes the import identity off the listed object's own vpc_id
+# attribute - the same mechanism issue #302 already uses to read a
+# service-linked role's arn off an object iam:ListRoles surfaced. No type name
+# appears in that code.
+WANT_PROJECTION_IMPORT_N=0
+WANT_EMPTY_RESULT_N=0
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
   WANT_DYNAMIC_N=1
   WANT_STATIC_CASCADE_N=1
   WANT_UNRESOLVABLE_N=1
-  WANT_PROJECTION_IMPORT_N=3
-  WANT_EMPTY_RESULT_N=3
-  log "  BREAK=1: expecting one site of each analysis-layer refusal (there"
-  log "           should be 0 of all four now - #305, #307, #313 A and B,"
-  log "           and #321 are all fixed and asserted by absence), and 3"
-  log "           each of the projection-import and empty-result sites (one"
-  log "           more than the real 2). None of these are real. This step"
-  log "           must fail."
+  WANT_PROJECTION_IMPORT_N=1
+  WANT_EMPTY_RESULT_N=1
+  log "  BREAK=1: expecting one site of each analysis-layer refusal and one"
+  log "           each of the projection-import and empty-result sites."
+  log "           There should be 0 of all six now - #305, #307, #313 A and"
+  log "           B, #321 and #332 are all fixed and asserted by absence."
+  log "           None of these are real. This step must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
@@ -594,7 +598,7 @@ EMPTY_RESULT_N="$(grep -c '^Error: empty result$' <<< "$PLAN_OUT")"
 [ "$EMPTY_RESULT_N" = "$WANT_EMPTY_RESULT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_EMPTY_RESULT_N 'empty result' sites (#332, the provider's own error for a route-table id it cannot look a VPC up by), got $EMPTY_RESULT_N"; }
 if [ "${BREAK:-}" != "1" ]; then
   N="$(grep -c 'aws_default_route_table' <<< "$PLAN_OUT")"
-  [ "$N" -eq "$WANT_PROJECTION_IMPORT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by exactly $WANT_PROJECTION_IMPORT_N diagnostics (#332) and nothing else, got $N"; }
+  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by no diagnostic at all (#332 fixed), got $N"; }
 fi
 
 # #313 root cause A, asserted by ABSENCE. This is the load-bearing half of
@@ -653,34 +657,182 @@ log "  from configuration. module.consul's 22 ingress rules are keyed by"
 log "  eleven preset names and one caller key, all written down, and the"
 log "  unknowable leaf now travels beside that key set instead of poisoning"
 log "  it across two module calls - zero diagnostics (was 2 + 5)."
-log "  Analysis-layer refusals, total: $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N + UNADMITTED_N)) (was 239, then 19, then 7)."
-log "  Remaining, at $((PROJECTION_IMPORT_N + EMPTY_RESULT_N)) sites, newly REACHED rather than caused:"
-log "    $PROJECTION_IMPORT_N + $EMPTY_RESULT_N  #332 - aws_default_route_table imports by the VPC's"
-log "           id, not the route table's own, and the ratified row says"
-log "           otherwise. One per nested vpc call. Proved against stock"
-log "           terraform and the real provider, no choudoufu involved."
+log "  #332 confirmed FIXED: aws_default_route_table is imported by the VPC's"
+log "  id, read off the vpc_id attribute of the object its sibling's list"
+log "  call surfaced - zero diagnostics (was 2 + 2), confirmed above."
+log "  Diagnostics, total: 0 (was 239, then 19, then 7, then 4)."
+
+# The plan is empty, which is the whole point of the stage.
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
+  || { grep -E '^  #' <<< "$PLAN_OUT" | head -40; fail "live-plan reported no diagnostics but is not empty"; }
+[ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
+log "  the plan is EMPTY, with zero local memory of the migration that stamped it"
+
+# ── 3a. #332's identity, asserted BY VALUE against the AWS CLI ────────────
+#
+# An empty plan is not evidence that a marker is right - live/HANDOFF.md's
+# "a wrong marker outranks a missing one" is the standing reason this block
+# exists. So the two default route tables' import identities are re-derived
+# here from AWS itself, with no choudoufu in the loop:
+#
+#   1. find each VPC by its own marker (tofu-address names the module call),
+#   2. ask AWS for THAT VPC's main route table,
+#   3. assert the object it answers with is the one carrying the
+#      aws_default_route_table marker for the same module call.
+#
+# Step 2 is exactly what the provider's importer does with the string
+# choudoufu now hands it, so agreement here is the assertion on the rendered
+# identity: the VPC id binds this object and no other. Before #332 the
+# rendered identity was the rtb-… id in the third column, which the real
+# provider answers "empty result" for.
+log "=== 3a. #332: each default route table's import identity, re-derived from AWS ==="
+for call in vpc vpc_secondary; do
+  VPC_ID="$(awsl ec2 describe-vpcs \
+    --filters "Name=tag:tofu-address,Values=module.$call.aws_vpc.this:0" "Name=tag:tofu-estate,Values=$ESTATE" \
+    --query 'Vpcs[0].VpcId' --output text)"
+  [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "could not find module.$call's VPC by its own marker"
+
+  # The import identity choudoufu resolves for module.<call>.aws_default_
+  # route_table.default[0] IS this VPC id. Ask AWS what that id imports to.
+  MAIN_RTB="$(awsl ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=true" \
+    --query 'RouteTables[0].RouteTableId' --output text)"
+  [ -n "$MAIN_RTB" ] && [ "$MAIN_RTB" != "None" ] || fail "AWS returned no main route table for $VPC_ID (module.$call)"
+
+  # ... and the object it answered with must be the one this estate marked
+  # as that module call's aws_default_route_table, not some other table.
+  WANT_RTB_ADDR="module.$call.aws_default_route_table.default:0"
+  GOT_RTB_ADDR="$(awsl ec2 describe-tags \
+    --filters "Name=resource-id,Values=$MAIN_RTB" "Name=key,Values=tofu-address" \
+    --query 'Tags[0].Value' --output text)"
+  [ "$GOT_RTB_ADDR" = "$WANT_RTB_ADDR" ] \
+    || fail "importing module.$call's default route table by $VPC_ID lands on $MAIN_RTB, which carries tofu-address=$GOT_RTB_ADDR, not $WANT_RTB_ADDR"
+
+  # And the converse, which is what makes this an identity assertion rather
+  # than an existence one: the route table's OWN id is a different string,
+  # so the two are not accidentally interchangeable here.
+  [ "$MAIN_RTB" != "$VPC_ID" ] || fail "the route table id and the VPC id are the same string; this assertion proves nothing"
+  log "  module.$call: import identity $VPC_ID -> AWS's main route table $MAIN_RTB, carrying $GOT_RTB_ADDR"
+done
+log "  both default route tables bind by the VPC's id, confirmed against AWS"
+log "  itself and never through choudoufu's own report"
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, at 4 sites (was 239, then 19,"
-log "then 7) - every analysis-layer wall this estate has ever hit (#305,"
-log "#307, #313 A and B, #321) is fixed and confirmed absent above. What is"
-log "left is one wrong ratified import identity, #332, reachable only now"
-log "that the plan gets as far as importing all 67 resources"
+log "STAGE 3 (test_plan): PASS - empty plan, zero diagnostics, identities"
+log "asserted by value (was 239 diagnostics, then 19, then 7, then 4)"
 log ""
-log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
-log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
+
+# ── 4. test apply: apply the empty plan, assert a genuine no-op ────────────
+log "=== 4. test apply: apply the empty plan against the marked estate ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+
+APPLY2_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply exited $APPLY2_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
+AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "the estate's tagged-object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "a state file exists after the apply"
+log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after, and no"
+log "  state file either time"
 
 log ""
-log "=== SUMMARY (partial pass, reported honestly) ==="
+log "STAGE 4 (test_apply): PASS"
+log ""
+
+# ── 5. drift and reconverge ───────────────────────────────────────────────
+#
+# The object mutated out of band is module.vpc's default route table itself,
+# deliberately: it is the one #332 was about, so this stage also proves the
+# corrected import identity survives a real read/diff/write round trip rather
+# than only a lookup.
+log "=== 5. drift and reconverge: mutate one live object directly, replan ==="
+DRIFT_VPC_ID="$(awsl ec2 describe-vpcs \
+  --filters "Name=tag:tofu-address,Values=module.vpc.aws_vpc.this:0" "Name=tag:tofu-estate,Values=$ESTATE" \
+  --query 'Vpcs[0].VpcId' --output text)"
+DRIFT_RTB="$(awsl ec2 describe-route-tables \
+  --filters "Name=vpc-id,Values=$DRIFT_VPC_ID" "Name=association.main,Values=true" \
+  --query 'RouteTables[0].RouteTableId' --output text)"
+[ -n "$DRIFT_RTB" ] && [ "$DRIFT_RTB" != "None" ] || fail "could not find module.vpc's default route table to drift"
+
+WANT_RTB_NAME="$(awsl ec2 describe-tags \
+  --filters "Name=resource-id,Values=$DRIFT_RTB" "Name=key,Values=Name" \
+  --query 'Tags[0].Value' --output text)"
+[ -n "$WANT_RTB_NAME" ] && [ "$WANT_RTB_NAME" != "None" ] \
+  || fail "module.vpc's default route table carries no Name tag to drift"
+
+awsl ec2 create-tags --resources "$DRIFT_RTB" --tags Key=Name,Value=tampered-out-of-band >/dev/null
+GOT_DRIFTED="$(awsl ec2 describe-tags \
+  --filters "Name=resource-id,Values=$DRIFT_RTB" "Name=key,Values=Name" \
+  --query 'Tags[0].Value' --output text)"
+[ "$GOT_DRIFTED" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated $DRIFT_RTB's Name tag to \"tampered-out-of-band\" directly via the"
+log "  AWS CLI - never through choudoufu"
+
+if [ "${BREAK:-}" = "1" ]; then
+  awsl ec2 create-tags --resources "$MAIN_SG_ID" --tags Key=Name,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: also tampered $MAIN_SG_ID's Name tag - stage 5 must now see TWO"
+  log "           drifted objects and fail the single-object assertion"
+fi
+
+DRIFT_PLAN_OUT="$(plan_into 2>&1)"
+DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -40; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] \
+    && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than"
+  log "           one - the single-object assertion and reconverge apply below are skipped"
+else
+  [ "$N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  [ "$CHANGED_ADDRS" = "module.vpc.aws_default_route_table.default[0]" ] \
+    || fail "the plan proposes fixing $CHANGED_ADDRS, not module.vpc's default route table"
+  log "  the plan proposes fixing exactly one object: $CHANGED_ADDRS - nothing"
+  log "  else in the diff, out of 67 resources"
+
+  RECONVERGE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+  RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -40; fail "the reconverge apply exited $RECONVERGE_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_NAME="$(awsl ec2 describe-tags \
+    --filters "Name=resource-id,Values=$DRIFT_RTB" "Name=key,Values=Name" \
+    --query 'Tags[0].Value' --output text)"
+  [ "$FIXED_NAME" = "$WANT_RTB_NAME" ] \
+    || fail "$DRIFT_RTB's Name tag is \"$FIXED_NAME\" after reconverging, not \"$WANT_RTB_NAME\""
+  STILL_MARKED="$(awsl ec2 describe-tags \
+    --filters "Name=resource-id,Values=$DRIFT_RTB" "Name=key,Values=tofu-address" \
+    --query 'Tags[0].Value' --output text)"
+  [ "$STILL_MARKED" = "module.vpc.aws_default_route_table.default:0" ] \
+    || fail "$DRIFT_RTB's marker was lost or rewritten across the reconverge apply: $STILL_MARKED"
+  log "  reconverged: $DRIFT_RTB's Name tag is back to \"$WANT_RTB_NAME\" and its"
+  log "  marker survived the update, both read via the AWS CLI"
+fi
+
+log ""
+log "STAGE 5 (drift_reconverge): PASS"
+log ""
+
+log "=== SUMMARY (five of five) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 4 sites (was 239, then 19, then 7) - every analysis-layer wall is gone; #332 alone remains; see header"
-log "  stage 4  test_apply         NOT RUN"
-log "  stage 5  drift_reconverge   NOT RUN"
+log "  stage 3  test_plan          PASS (empty plan, 0 diagnostics - was 239, then 19, then 7, then 4 - and both default route tables' identities asserted by value)"
+log "  stage 4  test_apply         PASS (0 added, 0 changed, 0 destroyed; $BEFORE_N tagged objects unchanged)"
+log "  stage 5  drift_reconverge   PASS (exactly 1 object proposed and fixed)"
 log ""
 log "67 real resources, real emulator, real unmarked infrastructure, real"
 log "migration. Every assertion above reads live-import's or live-plan's own"
 log "output, or a tag read straight through the AWS CLI - never choudoufu's"
 log "own self-report. Run again with BREAK=1: stages 1 and 2 still pass and"
-log "stage 3's site-count assertions are the ones that fail."
+log "stage 3's site-count assertions are the ones that fail first."

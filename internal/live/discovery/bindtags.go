@@ -473,6 +473,76 @@ func scanTypeMarkerFallback(ctx context.Context, req Request, decl *declared, ty
 		return diags, false
 	}
 
+	// An ARN carries the object's own identifier, and for most types that IS
+	// the import identity - which is the whole basis of [importIDFromARN] and
+	// of this fallback. It is not true for a type whose import identity is
+	// another object's id, and the one such type today is
+	// aws_default_route_table: it imports by the VPC's id (issue #332), and a
+	// route table's ARN is arn:aws:ec2:…:route-table/rtb-…, carrying no VPC id
+	// anywhere in it. Composing from the ARN there does not fail, it succeeds
+	// with the WRONG string, which is the failure mode this repository ranks
+	// above a refusal.
+	//
+	// The shape is derived rather than named: an adopt-don't-create pair
+	// ([defaultAdopterSiblings]) whose two rows disagree about the identity
+	// ([sameRatifiedIdentity]). Both halves are one live object, so the sibling
+	// type's own list call is what surfaces it and [scanType]'s marker branch
+	// recomposes the identity off that listed object - a route this fallback
+	// cannot take, because it holds an ARN and a tag and no object at all.
+	//
+	// So there are two honest answers and this picks between them by asking
+	// whether that other route exists in this estate at all.
+	//
+	// This check sits here rather than inside [importIDFromARN] deliberately.
+	// The other caller, [sweepViaTagging], cannot reach an aws_default_* type
+	// twice over: it skips types the config-driven scan already covers
+	// (inUniverse) and requires a CFN type the ARN join table recognizes, and
+	// live/mapping.json carries every aws_default_* adopter as via="tf-only"
+	// with cfn_type null. Widening the gate to importIDFromARN itself would
+	// need a general test for "this identity attribute names another object",
+	// and the obvious spelling of that - strip _id/_arn and look the base up
+	// as a type - is wrong: aws_vpc_security_group_ingress_rule's identity
+	// attribute is security_group_rule_id, which reads as a foreign key by
+	// that test and is in fact the object's own id, straight out of its own
+	// ARN. A rule that refuses working configurations is worse than a narrow
+	// one that does not.
+	if plain, isAdopter := defaultAdopterPlainSibling(typeName); isAdopter && !sameRatifiedIdentity(typeName, plain) {
+		if len(decl.types[plain]) > 0 {
+			// The sibling is declared, so its scan lists these same objects
+			// and binds them under this type's own marker with the identity
+			// recomposed correctly. This route stays silent rather than
+			// filing a second claimant carrying a different string for the
+			// same live object, which reads as ProblemCollision ("Two live
+			// resources claiming one address") over one resource.
+			log.Printf("[DEBUG] stateless/discovery: %s has no list route of its own and its import identity is not composable from its own ARN; %s's list call covers it", typeName, plain)
+			res.Scans = append(res.Scans, TypeScan{
+				TypeName:  typeName,
+				Declared:  len(decl.types[typeName]),
+				Source:    SourceTagging,
+				Filtering: FilterServerSide,
+				Scope:     ScopeEstate,
+				Listed:    0,
+			})
+			return diags, true
+		}
+		// Nothing else can find these objects. Refusing is the answer; the
+		// ARN's rtb-… id would import nothing but "empty result".
+		for _, obj := range req.markers.objs {
+			if obj.markerType != typeName || obj.tags[TagEstate] != req.Estate {
+				continue
+			}
+			diags = diags.Append(problemDiag(res, Problem{
+				Kind:     ProblemUncomposableIdentifier,
+				TypeName: typeName,
+				LiveIDs:  liveIDs(obj.arn),
+				Detail: fmt.Sprintf(
+					"The estate's tag index found a %s (%s) carrying estate %q's ownership marker, but %s imports by %s - another object's identifier, not its own - and a %s ARN carries no such value. The type that does surface this object, %s, is not declared in this configuration, so there is no list call to read it off. Declare it, or import this resource by hand.",
+					typeName, obj.arn, req.Estate, typeName, identityAttrNames(typeName), typeName, plain),
+			}))
+		}
+		return diags, true
+	}
+
 	ti, tableOK := identity.LookupType(typeName)
 
 	var candidates []taggedCandidate

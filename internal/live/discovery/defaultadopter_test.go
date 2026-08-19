@@ -13,13 +13,16 @@ import (
 
 // TestDefaultAdopterSiblings is issue #325's own coverage for the generic
 // derivation [defaultAdopterSiblings] uses in place of a hand list of three
-// string pairs: the "aws_default_" prefix on the type name, cross-checked
-// against the two facts #305's ratified Reason text already states in prose
-// for each of the three pairs it admitted - that the default type carries
-// "the same import identity [its plain sibling] already carries in this
-// table". A pair that merely starts with "aws_default_" but whose ratified
-// row actually diverges (none exist among the admitted set today) must still
-// fail this and fall through to the genuine cross-type refusal.
+// string pairs: the exact "aws_default_X pairs with aws_X" name relationship,
+// cross-checked against both names being admitted and both being ratified
+// server-assigned, which is what makes the object AWS itself minted the one
+// either name manages.
+//
+// It used to require the two rows to agree about the import identity as well.
+// That extra condition is gone (issue #332 - aws_default_route_table imports
+// by the VPC's id and aws_route_table by the route table's own, and the pair
+// is still one live object), and [TestSameRatifiedIdentity] below covers the
+// separate predicate that fact moved into.
 func TestDefaultAdopterSiblings(t *testing.T) {
 	cases := []struct {
 		name string
@@ -55,6 +58,37 @@ func TestDefaultAdopterSiblings(t *testing.T) {
 	}
 }
 
+// TestSameRatifiedIdentity pins the predicate #332 split out of
+// [defaultAdopterSiblings]: whether two admitted rows describe the SAME import
+// identity, which is what decides between carrying the listing type's importID
+// forward and recomposing under the marker type's own row.
+//
+// The route-table and service-linked-role rows are read from the shipped
+// table, not restated here, so a future ratification that quietly re-equalized
+// aws_default_route_table with aws_route_table fails this rather than silently
+// restoring the "Error: empty result" import #332 fixed.
+func TestSameRatifiedIdentity(t *testing.T) {
+	cases := []struct {
+		name string
+		a, b string
+		want bool
+	}{
+		{"security group pair agrees", "aws_default_security_group", "aws_security_group", true},
+		{"network acl pair agrees", "aws_default_network_acl", "aws_network_acl", true},
+		{"route table pair does NOT agree (#332)", "aws_default_route_table", "aws_route_table", false},
+		{"role / service-linked role does NOT agree (#302)", "aws_iam_service_linked_role", "aws_iam_role", false},
+		{"a type agrees with itself", "aws_route_table", "aws_route_table", true},
+		{"an unadmitted type never agrees", "aws_default_vpc", "aws_vpc", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sameRatifiedIdentity(c.a, c.b); got != c.want {
+				t.Errorf("sameRatifiedIdentity(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+			}
+		})
+	}
+}
+
 // TestDiscoverDefaultRouteTableAliasIsNotMalformed is issue #325's direct
 // repro and fix confirmation. terraform-aws-modules/vpc declares both
 // aws_route_table (for the VPC's non-default tables) and
@@ -78,7 +112,16 @@ func TestDiscoverDefaultRouteTableAliasIsNotMalformed(t *testing.T) {
 	// The object is returned by aws_route_table's own list call - exactly
 	// how the real bug reproduces - carrying a marker for the sibling type
 	// aws_default_route_table.
-	cloud.own("aws_route_table", "rtb-default-1", `aws_default_route_table.default`)
+	//
+	// vpc_id is on the object because the real aws_route_table schema always
+	// exports it, and because aws_default_route_table's import identity IS
+	// that value (issue #332): the two names of this one object do not share
+	// an import identity, so the binding recomposes rather than carrying the
+	// rtb-… id forward. TestDiscoverDefaultRouteTableWithNoVPCIDRefuses is
+	// the same fixture with the attribute withheld.
+	cloud.withAttr("aws_route_table", "vpc_id")
+	cloud.ownWithAttrs("aws_route_table", "rtb-default-1", `aws_default_route_table.default`,
+		map[string]string{"vpc_id": "vpc-default-1"})
 
 	res, diags := discoverFixture(t, cloud, Request{})
 	if diags.HasErrors() {
@@ -94,14 +137,78 @@ func TestDiscoverDefaultRouteTableAliasIsNotMalformed(t *testing.T) {
 	// aws_route_table, which is the type whose list call happened to find
 	// it. classifyOrphans' own o.Addr.Resource.Resource.Type != o.TypeName
 	// guard depends on this.
+	//
+	// Asserted on the rendered import identity, not on a predicate: the
+	// #325 fix and the #332 one are indistinguishable at the level of "did
+	// this refuse", and the whole of #332 is that the value carried forward
+	// was the wrong string.
 	var found bool
 	for _, o := range res.Orphans {
-		if o.ImportID != "rtb-default-1" {
+		if o.TypeName != "aws_default_route_table" {
 			continue
 		}
 		found = true
-		if o.TypeName != "aws_default_route_table" {
-			t.Errorf("orphan's TypeName is %q, want aws_default_route_table (the marker's own type)", o.TypeName)
+		if o.ImportID != "vpc-default-1" {
+			t.Errorf("orphan's ImportID is %q, want vpc-default-1 - aws_default_route_table imports by the VPC's id, not the route table's own rtb-… id (issue #332)", o.ImportID)
+		}
+	}
+	if !found {
+		t.Fatalf("the aliased object did not appear as an orphan at all:\n%s", res)
+	}
+}
+
+// TestDiscoverDefaultRouteTableWithNoVPCIDRefuses is the mutation control for
+// the test above: withhold the one attribute the recomposition reads and the
+// binding must refuse as a malformed marker rather than fall back to the
+// route table's own id, which is the string the real provider answers
+// "Error: empty result" for.
+//
+// This is the half that makes the fix load-bearing. Before #332, discovery
+// carried aws_route_table's own importID forward for this pair unconditionally
+// and every verdict-level check was green while the value was wrong.
+func TestDiscoverDefaultRouteTableWithNoVPCIDRefuses(t *testing.T) {
+	cloud := newFakeCloud()
+	// Deliberately no cloud.withAttr("aws_route_table", "vpc_id"), so the
+	// listed object carries no vpc_id at all.
+	cloud.own("aws_route_table", "rtb-default-1", `aws_default_route_table.default`)
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if !diags.HasErrors() {
+		t.Fatalf("a default route table whose vpc_id could not be read was accepted:\n%s", res)
+	}
+	probs := res.ProblemsOfKind(ProblemMalformedMarker)
+	if len(probs) != 1 {
+		t.Fatalf("want exactly 1 malformed-marker problem, got %d:\n%s", len(probs), res)
+	}
+	for _, o := range res.Orphans {
+		if o.ImportID == "rtb-default-1" {
+			t.Errorf("the route table's own id was carried forward as an aws_default_route_table import identity anyway: %+v", o)
+		}
+	}
+}
+
+// TestDiscoverDefaultSecurityGroupCarriesItsOwnIDForward is the other side of
+// [sameRatifiedIdentity]: aws_default_security_group and aws_security_group
+// DO agree about the identity (both import by the object's own sg-… id), so
+// nothing is recomposed and the listed object needs no extra attribute at all.
+// Widening #332's recomposition to every default-adopter pair unconditionally
+// would break this one, since the fake serves no second attribute for it.
+func TestDiscoverDefaultSecurityGroupCarriesItsOwnIDForward(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_security_group", "sg-default-1", `aws_default_security_group.default`)
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if diags.HasErrors() {
+		t.Fatalf("the security-group pair refused:\n%s\n%s", res, renderDiags(diags))
+	}
+	var found bool
+	for _, o := range res.Orphans {
+		if o.TypeName != "aws_default_security_group" {
+			continue
+		}
+		found = true
+		if o.ImportID != "sg-default-1" {
+			t.Errorf("orphan's ImportID is %q, want sg-default-1 unchanged", o.ImportID)
 		}
 	}
 	if !found {
