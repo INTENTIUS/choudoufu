@@ -85,7 +85,7 @@ func TestChildModuleRepetitionDataKeyOnly(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "keyset-scope"), nil)
 	expr := parseTestExpr(t, `{ alice = data.aws_caller_identity.current.arn, bob = data.aws_caller_identity.current.arn }`)
 
-	rd, ok := ChildModuleRepetitionData(context.Background(), cfg.Module, `module "user"`, nil, expr, addrs.StringKey("alice"))
+	rd, ok := ChildModuleRepetitionData(context.Background(), cfg, `module "user"`, nil, expr, addrs.StringKey("alice"))
 	if !ok {
 		t.Fatal("ChildModuleRepetitionData refused a key it can prove")
 	}
@@ -96,7 +96,7 @@ func TestChildModuleRepetitionDataKeyOnly(t *testing.T) {
 		t.Errorf("EachValue = %#v, want cty.NilVal: no value was proven", rd.EachValue)
 	}
 
-	if _, ok := ChildModuleRepetitionData(context.Background(), cfg.Module, `module "user"`, nil, expr, addrs.StringKey("mallory")); ok {
+	if _, ok := ChildModuleRepetitionData(context.Background(), cfg, `module "user"`, nil, expr, addrs.StringKey("mallory")); ok {
 		t.Error("ChildModuleRepetitionData accepted a key its own expression does not produce")
 	}
 }
@@ -160,9 +160,36 @@ func TestStaticForEachKeyNamesShapes(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "for-comprehension with an if clause",
+			name: "for-comprehension with an if clause reading only the key",
 			expr: `{ for k, v in local.base : k => data.d.x.arn if k != "alice" }`,
-			want: nil, // the if clause decides membership; nothing here evaluates it
+			// local.base has exactly one entry, "alice", and the filter
+			// excludes it - the proven key set is genuinely empty, which
+			// [staticForEachKeyNames] reports the same way as "not proven"
+			// (see its own doc). Gap A (issue #308) does evaluate this
+			// clause now, structurally, per entry; it happens to answer
+			// "no keys survive" for this particular source rather than
+			// "cannot be evaluated at all" - the next two cases pin the
+			// distinction on a source where the filter keeps something.
+			want: nil,
+		},
+		{
+			name: "for-comprehension filter reads one static attribute beside an unprovable one",
+			expr: `{ for k, v in local.filtered_entries : k => v if v.active }`,
+			// v.secret never evaluates (data.d.x.arn), but neither clause
+			// reads it - only v.active, which is a plain literal on every
+			// entry. Issue #308's Gap A: bob is excluded by the filter,
+			// alice survives, and secret is never touched.
+			want: []string{"alice"},
+		},
+		{
+			name: "for-comprehension filter reads the unprovable attribute itself",
+			expr: `{ for k, v in local.filtered_entries : k => v if v.secret != "" }`,
+			want: nil, // the one attribute the filter needs is exactly the unprovable one
+		},
+		{
+			name: "for-comprehension key clause reads a static value attribute",
+			expr: `{ for k, v in local.filtered_entries : "${k}-${v.active}" => v.secret }`,
+			want: []string{"alice-true", "bob-false"},
 		},
 		{
 			name: "bare dynamic traversal",
@@ -178,7 +205,7 @@ func TestStaticForEachKeyNamesShapes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := staticForEachKeyNames(context.Background(), cfg.Module, `module "user"`, parseTestExpr(t, tc.expr))
+			got, ok := staticForEachKeyNames(context.Background(), cfg, `module "user"`, parseTestExpr(t, tc.expr))
 			if tc.want == nil {
 				if ok {
 					t.Fatalf("proved key set %v for a shape that must be refused", got)
@@ -207,7 +234,7 @@ func TestStaticForEachKeyNamesNoEvaluator(t *testing.T) {
 	if _, ok := staticForEachKeyNames(context.Background(), nil, "subject", parseTestExpr(t, `{ a = 1 }`)); ok {
 		t.Error("proved a key set with no module")
 	}
-	if _, ok := staticForEachKeyNames(context.Background(), &configs.Module{}, "subject", parseTestExpr(t, `{ a = 1 }`)); ok {
+	if _, ok := staticForEachKeyNames(context.Background(), &configs.Config{Module: &configs.Module{}}, "subject", parseTestExpr(t, `{ a = 1 }`)); ok {
 		t.Error("proved a key set with no static evaluator")
 	}
 }

@@ -165,7 +165,7 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 		}
 		eval := parentCfg.Module.StaticEvaluator.Pure()
 		if mc.Count != nil || mc.ForEach != nil {
-			rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg.Module, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
+			rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
 			if !ok {
 				return nil
 			}

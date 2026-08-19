@@ -273,7 +273,7 @@ func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance,
 		// [ChildCallKeys] makes the count / for_each / static dispatch, in
 		// that order, and is shared with the three other walks that have to
 		// build the same addresses this one does.
-		keys, diag := ChildCallKeys(r.ctx, r.mod, name)
+		keys, diag := ChildCallKeys(r.ctx, r.curCfg, name)
 		if diag != nil {
 			r.diags = r.diags.Append(diag)
 			continue

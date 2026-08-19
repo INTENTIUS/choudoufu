@@ -519,7 +519,7 @@ func (an *analyzer) moduleInstancesOf(module addrs.Module) []addrs.ModuleInstanc
 		if !ok || child == nil || child.Module == nil {
 			return nil
 		}
-		keys, diag := identity.ChildCallKeys(an.ctx, node.Module, name)
+		keys, diag := identity.ChildCallKeys(an.ctx, node, name)
 		if diag != nil {
 			return nil
 		}

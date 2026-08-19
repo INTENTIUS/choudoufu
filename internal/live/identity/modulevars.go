@@ -80,7 +80,7 @@ func (r *resolver) callerVariables(modInst addrs.ModuleInstance) configs.StaticM
 		// instances of one call never reach each other's data - and
 		// ChildModuleRepetitionData verifies it against the call's own
 		// expression rather than taking it on trust.
-		rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg.Module, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
+		rd, ok := ChildModuleRepetitionData(r.ctx, parentCfg, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
 		if !ok {
 			return nil
 		}

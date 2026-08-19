@@ -103,7 +103,24 @@ var identityGoldenPin = map[string]int{
 	// provider's own documented Import section. Not a moved row - no
 	// pre-existing CONCRETE row used this type before; see the digest
 	// below.
-	"CONCRETE": 742,
+	//
+	// 746, up from 742 (issue #308's fix): four ADDED rows across two
+	// fresh fixtures exercising the same shape -
+	// internal/live/identity/testdata/module-foreach-comprehension-chase
+	// and internal/live/lint/testdata/child-module-foreach-comprehension -
+	// each contributing
+	// module.wrapper.module.task["app"].aws_iam_user.this and
+	// module.wrapper.module.task["fluent-bit"].aws_iam_user.this. Both
+	// mirror the corpus shape: a child module's own module call for_each
+	// ranges over a for-comprehension whose SOURCE is a bare var.X
+	// reference chased across a module-call boundary, filtering on one
+	// attribute (v.create) while an unrelated sibling attribute (image)
+	// reaches a data source; fluent-bit's own "create" comes from the
+	// variable's declared `optional(bool, true)` default, never from its
+	// own literal. Not a moved row - no pre-existing fixture used this
+	// shape before, so every other CONCRETE row in the golden is
+	// byte-identical; see the digest below.
+	"CONCRETE": 746,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -241,7 +258,11 @@ var identityGoldenPin = map[string]int{
 // live/e2e/estates/apigateway directory) - aws_subnet.apigateway and
 // aws_vpc.apigateway, both NEEDS_DISCOVERY. See identityGoldenPin's own
 // comment above.
-const identityGoldenPinBodyDigest = "f98c87622e773b616a8b9b73ac0c3dca7232adb39398d164c38d21401546d17f"
+//
+// 2026-08-18 (issue #308's fix): four ADDED rows, dirs 454 -> 460 (two new
+// fixture roots, each with two child-module subdirectories of its own -
+// see identityGoldenPin's own comment above for the four rows themselves).
+const identityGoldenPinBodyDigest = "d6f822d13b89c6fac7f968d9149d3f7ba3aa3c66f864b6710000751d6174128c"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -355,9 +376,15 @@ const identityGoldenPinBodyDigest = "f98c87622e773b616a8b9b73ac0c3dca7232adb3939
 // it). See identityGoldenPin's own comment above for the class breakdown.
 // 2026-08-18: instances 1470 -> 1472, dirs unchanged at 454 (both new rows
 // land in the existing live/e2e/estates/apigateway directory).
+// 2026-08-18 (issue #308's fix): instances 1472 -> 1476, dirs 454 -> 460.
+// Two new fixture roots (module-foreach-comprehension-chase,
+// child-module-foreach-comprehension), each with a wrapper/ and a
+// wrapper/task/ child module directory - six new directories, four new
+// CONCRETE instances (two per fixture; see identityGoldenPin's own comment
+// above).
 const (
-	identityGoldenPinInstances = 1472
-	identityGoldenPinDirs      = 454
+	identityGoldenPinInstances = 1476
+	identityGoldenPinDirs      = 460
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

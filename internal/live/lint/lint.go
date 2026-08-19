@@ -157,7 +157,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	path := cfg.Path
 
 	checkStateBackends(mod, path, issues)
-	checkChildModules(ctx, mod, path, issues)
+	checkChildModules(ctx, cfg, path, issues)
 	checkModuleProviderMapping(mod, path, issues)
 	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
@@ -165,7 +165,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
-	checkForEachKeys(ctx, mod, path, issues)
+	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReceiptLeafRule(mod, path, issues)
 	checkReceiptValueRule(mod, path, issues)
@@ -182,7 +182,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 		if r := moduleCallBlocksLocalProviders(call); r != nil {
 			childNoProviderConfigRange = r
 		}
-		childInst := modInst.Child(name, worstCaseChildKey(ctx, mod, call))
+		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, call))
 		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, childNoProviderConfigRange, issues)
 	}
 }
@@ -195,11 +195,11 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 // keys this pass cannot enumerate (refused by RuleChildModule; see
 // checkChildModules) descends unkeyed: there is no better answer available,
 // and RuleChildModule is what stops the run over it, not this rule.
-func worstCaseChildKey(ctx context.Context, mod *configs.Module, call *configs.ModuleCall) addrs.InstanceKey {
+func worstCaseChildKey(ctx context.Context, cfg *configs.Config, call *configs.ModuleCall) addrs.InstanceKey {
 	if call == nil || call.ForEach == nil {
 		return addrs.NoKey
 	}
-	keys, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", call.Name), call.ForEach)
+	keys, diag := identity.ChildModuleKeys(ctx, cfg, fmt.Sprintf("module %q", call.Name), call.ForEach)
 	if diag != nil {
 		return addrs.NoKey
 	}

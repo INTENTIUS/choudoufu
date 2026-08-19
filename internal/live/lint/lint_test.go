@@ -639,6 +639,24 @@ func TestCheck(t *testing.T) {
 			dir:  "testdata/module-provider-empty-proxy",
 			want: nil,
 		},
+		{
+			// GitHub issue #308: a child module's own module call for_each
+			// ranges over a for-comprehension, `{ for k, v in
+			// var.container_definitions : k => v if v.create }`, whose
+			// SOURCE collection is a bare var.X reference. The actual
+			// object literal - with provably static keys - lives one
+			// module-call boundary up, at this fixture's own module
+			// "wrapper" call. One entry's "image" attribute reaches a data
+			// source and must never be evaluated; the filter reads only
+			// "create", which one entry leaves to the variable's declared
+			// `optional(bool, true)` default. RuleChildModule must not
+			// fire here - see internal/live/identity's
+			// TestModuleForEachComprehensionVarChase for the identity-level
+			// pin of the same fixture.
+			name: "child module for_each over a comprehension chased across a module-call boundary",
+			dir:  "testdata/child-module-foreach-comprehension",
+			want: nil,
+		},
 	}
 
 	for _, test := range tests {

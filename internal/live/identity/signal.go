@@ -312,7 +312,7 @@ func (r *resolver) collectSignalInto(cfg *configs.Config, modInst addrs.ModuleIn
 	for _, name := range SortedChildNames(cfg.Children) {
 		r.enterModuleAt(cfg, modInst)
 		child := cfg.Children[name]
-		keys, diag := ChildCallKeys(r.ctx, r.mod, name)
+		keys, diag := ChildCallKeys(r.ctx, r.curCfg, name)
 		if diag != nil {
 			// Advisory, like every other diagnostic this collection produces
 			// (see the doc on [ScanConfig]): a module whose count or for_each
