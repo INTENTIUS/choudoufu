@@ -929,7 +929,7 @@ type fakeCloud struct {
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
 		extraAttr: make(map[string]map[string]bool),
-		objects: make(map[string][]*fakeObject),
+		objects:   make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
