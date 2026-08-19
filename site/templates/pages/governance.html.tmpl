@@ -106,14 +106,12 @@ overlap.</p>
 the policy with the new estate name. The split is a tag write and a policy
 copy. Neither half moves.</p>
 
-<h2>Three things a file cannot do</h2>
+<p>The grants above have rough equivalents in splitting a configuration. The
+three that follow do not. They work because the permission unit is a cloud
+resource, so every IAM feature that applies to resources now applies to your
+infrastructure, and IAM has features a file has never had.</p>
 
-<p>The grants above have equivalents, roughly, in splitting a configuration.
-These do not. They work because the permission unit is a cloud resource, so
-every IAM feature that applies to resources now applies to your infrastructure,
-and IAM has features a file has never had.</p>
-
-<h3>The wrong config cannot reach production</h3>
+<h2>The wrong config cannot reach production</h2>
 
 <p>Pointing a staging configuration at a production account is a familiar
 outage, and nothing structurally prevents it today. The same principal makes
@@ -144,7 +142,7 @@ compare, which makes <code>StringNotEquals</code> true and extends the Deny to
 untagged resources. That is the safe direction, and it is worth confirming
 before you rely on it.</p>
 
-<h3>One policy for every team</h3>
+<h2>One policy for every team</h2>
 
 <p>Match the principal's own tag against the resource's.</p>
 
@@ -170,7 +168,7 @@ estate names and team tags to agree, so pick that convention deliberately.</p>
 <code>aws:MultiFactorAuthPresent</code> requires MFA to touch production. A
 session that expires expires the access with it.</p>
 
-<h3>Nothing is created unowned</h3>
+<h2>Nothing is created unowned</h2>
 
 <p>Tag compliance is normally retroactive, chased with a scanner and never
 finished. Conditioning creation inverts it.</p>

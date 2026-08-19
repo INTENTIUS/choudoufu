@@ -59,21 +59,23 @@
   <p class="pieces-more"><a href="model.html">Why they are separate, and what
   it changes</a></p>
 
-  {{/* Both claims are about what is no longer there to run. Per-resource
-       tag scoping is AWS's, not ours, so the claim is not that we provide
-       governance. It is that nothing sits outside it any more. */}}
+  {{/* The concrete cases beat the abstract properties as a hook. A reader
+       does not have to derive the consequence from "your IAM is the whole
+       permission model" if the page just states it. Each links to the policy
+       that does it. */}}
   <ul class="claims">
-    <li><strong>Your IAM is the whole permission model.</strong> No bucket
-    policy or lock table to keep in step with it.</li>
-    <li><strong>Nothing to lock.</strong> Concurrent runs settle at the API,
-    so there is no stuck lock to force open.</li>
-    <li><strong>Legible without the tool.</strong> One CLI call lists what an
-    estate holds, for anyone with read access and no binary.</li>
+    <li><strong>The wrong config cannot reach production.</strong> The mistake
+    fails at the cloud, not at review.</li>
+    <li><strong>One policy for every team.</strong> A new team costs a session
+    tag, not a policy.</li>
+    <li><strong>Nothing is created unowned.</strong> Ownership becomes a
+    precondition of existing.</li>
+    <li><strong>Nothing to lock.</strong> Concurrent runs settle at the
+    API.</li>
   </ul>
 
-  <p class="pieces-limit">Per-resource scoping is AWS's own feature, and its
-  reach varies by service.
-  <a href="governance.html">Where it is confirmed</a></p>
+  <p class="pieces-limit"><a href="governance.html">The policies that do
+  these</a>, and where AWS honours the condition they rest on.</p>
 </section>
 
 {{/* Fold 2. How far it goes, before any install link. Three charts, three
