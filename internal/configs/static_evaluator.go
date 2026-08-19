@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
@@ -466,6 +467,84 @@ func (s *StaticEvaluator) scope(ident StaticIdentifier) *lang.Scope {
 func (s StaticEvaluator) Evaluate(ctx context.Context, expr hcl.Expression, ident StaticIdentifier) (cty.Value, hcl.Diagnostics) {
 	val, diags := s.scope(ident).EvalExpr(ctx, expr, cty.DynamicPseudoType)
 	return val, diags.ToHCL()
+}
+
+// EvaluateStructural evaluates expr the same way [StaticEvaluator.Evaluate]
+// does, except a reference this evaluator refuses (a managed resource, a
+// data source, a module output - see [staticScopeData.StaticValidateReferences])
+// does not automatically veto expr's own rendered VALUE the way Evaluate's
+// EvalExpr does. Ordinary evaluation treats "some reference this expression
+// transitively depends on was refused" and "the value this expression
+// renders is unusable" as the same fact; they are not. A tuple literal's
+// LENGTH is a property of its type, independent of any one element's
+// contents, so length(var.x) for a var.x whose declared value is
+// [{a=1,b=SOMETHING_DYNAMIC}] still has a real answer even though b does
+// not - GetInputVariable (static_scope.go) already keeps that shape's TYPE
+// on a refused reference rather than collapsing it to cty.DynamicVal's
+// type-erased unknown, so this method's only job is to stop discarding the
+// value the instant ANY refusal fired anywhere in the reference graph, and
+// ask instead whether THIS expression's own rendered result came back
+// usable regardless.
+//
+// The gate is deliberately narrower than "ignore every error": every
+// diagnostic has to carry a [RefusedReference] extra (attached only by
+// StaticValidateReferences, meaning exactly "a reference named here is
+// outside static scope" - never a parse error, a type mismatch, or a wrong
+// argument count, none of which carry that extra), AND the rendered value
+// has to come back non-null, wholly known and unmarked. Either condition
+// failing returns the value and diagnostics exactly as computed, unfiltered
+// - the same conservative default every refusal in this codebase falls
+// back to.
+//
+// Nothing else calls this yet: it is additive, so every existing caller of
+// Evaluate/EvalExpr keeps its current behavior unchanged.
+func (s StaticEvaluator) EvaluateStructural(ctx context.Context, expr hcl.Expression, ident StaticIdentifier) (cty.Value, hcl.Diagnostics) {
+	scope := s.scope(ident)
+	refs, refDiags := lang.ReferencesInExpr(addrs.ParseRef, expr)
+	diags := refDiags
+
+	// EvalContextTolerant, not EvalContext: the whole point of this method
+	// is that ONE refused reference inside expr must not also blank out
+	// every other, perfectly static one - see EvalContextTolerant's own
+	// doc for why EvalContext itself cannot be used for that (it returns an
+	// EMPTY context, not merely one missing the refused entry, the instant
+	// any single reference fails validation).
+	hclCtx, ctxDiags := scope.EvalContextTolerant(ctx, refs)
+	diags = diags.Append(ctxDiags)
+
+	val, evalDiags := expr.Value(hclCtx)
+	diags = diags.Append(evalDiags)
+
+	if diags.HasErrors() && onlyRefusedReferenceErrors(diags) &&
+		val != cty.NilVal && !val.IsNull() && val.IsWhollyKnown() && !val.ContainsMarked() {
+		return val, nil
+	}
+
+	return val, diags.ToHCL()
+}
+
+// onlyRefusedReferenceErrors reports whether every ERROR-severity
+// diagnostic in diags carries a [RefusedReference] extra - attached only by
+// [staticScopeData.StaticValidateReferences] - and that there is at least
+// one such error. A diagnostic with no RefusedReference extra (a genuine
+// parse failure, a type conversion error, an undefined variable) makes this
+// false, which is the conservative direction: [StaticEvaluator.
+// EvaluateStructural] only looks past a refusal it can identify as
+// specifically "a reference was out of static scope", never past an error
+// it cannot classify.
+func onlyRefusedReferenceErrors(diags tfdiags.Diagnostics) bool {
+	found := false
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		ref := tfdiags.ExtraInfo[RefusedReference](d)
+		if ref.Subject == nil {
+			return false
+		}
+		found = true
+	}
+	return found
 }
 
 func (s StaticEvaluator) DecodeExpression(ctx context.Context, expr hcl.Expression, ident StaticIdentifier, val any) hcl.Diagnostics {
