@@ -734,13 +734,27 @@ build input Go's test cache can see, so a cached `ok` for
 has not, moments earlier, materialized a directory that breaks it. Second, the
 reason this survived #304's own verification: **`filepath.WalkDir` does not
 descend a symlink**, and `sweepRoots` includes `.corpus`, which most
-worktrees symlink in. The sweep then walks `live` and `internal` only,
-finishes in 1.4 seconds instead of 325, reports a perfectly plausible
-"analyzed 1667 loadable configurations", and passes. If you are verifying
-anything that sweeps `.corpus` from a worktree, either check the elapsed
-time and the analyzed count against a real run or materialize a real
-directory (`cp -Rl` the shared corpus - hard links, 15 seconds, no data
-copied).
+worktrees symlink in. The sweep then walked `live` and `internal` only,
+finished in 1.4 seconds instead of 325, reported a perfectly plausible
+"analyzed 1667 loadable configurations", and passed.
+
+**Fixed 2026-08-19** (`internal/live/check/sweep_test.go`'s `configDirs`):
+every sweep root is now resolved with `filepath.EvalSymlinks` before the
+walk, so a symlinked `.corpus` is walked exactly like a real directory - no
+manual workaround needed any more. `TestNoUnregisteredRefusalsInTheTree`
+also gained a second, tighter floor (`>= 3000` directories, not just
+`>= 500`) that only applies when `.corpus` exists on disk, so this exact
+blind spot fails loudly rather than passing quietly if it ever recurs.
+Verified against a real symlinked `.corpus` in a fresh worktree: the sweep
+now runs 319.21s and reports "analyzed 7649 loadable configurations of 7748
+directories" - a real run, not the symlink-blind 1667/1.4s one.
+`tools/refusal-probe` never had this bug: it reads explicit entries from
+`live/corpus-manifest.json` via `check.ReadManifest` rather than walking
+`.corpus` with `filepath.WalkDir`, so it never depended on the root's own
+directory-ness. If you are verifying anything that sweeps `.corpus` from a
+worktree on a tree older than this fix, either check the elapsed time and
+the analyzed count against a real run or materialize a real directory
+(`cp -Rl` the shared corpus - hard links, 15 seconds, no data copied).
 
 ### 1. Resolved: #313 does not repeat, and it isn't a quick fix anyway
 
