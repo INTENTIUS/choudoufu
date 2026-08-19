@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1036 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1037 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 314 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1036<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1037<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -84,13 +84,14 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_auditmanager_assessment`, `aws_auditmanager_framework`,
   `aws_autoscaling_group`, `aws_autoscaling_lifecycle_hook`,
   `aws_autoscaling_policy`, `aws_autoscaling_schedule`,
-  `aws_backup_framework`, `aws_backup_logically_air_gapped_vault`,
-  `aws_backup_plan`, `aws_backup_report_plan`,
-  `aws_backup_restore_testing_plan`, `aws_backup_restore_testing_selection`,
-  `aws_backup_vault`, `aws_batch_compute_environment`,
-  `aws_batch_job_definition`, `aws_batch_job_queue`,
-  `aws_batch_scheduling_policy`, `aws_bcmdataexports_export`,
-  `aws_bedrock_guardrail`, `aws_bedrock_inference_profile`,
+  `aws_autoscaling_traffic_source_attachment`, `aws_backup_framework`,
+  `aws_backup_logically_air_gapped_vault`, `aws_backup_plan`,
+  `aws_backup_report_plan`, `aws_backup_restore_testing_plan`,
+  `aws_backup_restore_testing_selection`, `aws_backup_vault`,
+  `aws_batch_compute_environment`, `aws_batch_job_definition`,
+  `aws_batch_job_queue`, `aws_batch_scheduling_policy`,
+  `aws_bcmdataexports_export`, `aws_bedrock_guardrail`,
+  `aws_bedrock_inference_profile`,
   `aws_bedrock_model_invocation_logging_configuration`,
   `aws_bedrockagent_agent`, `aws_bedrockagent_agent_alias`,
   `aws_bedrockagent_flow`, `aws_bedrockagent_knowledge_base`,

@@ -195,7 +195,15 @@ var identityGoldenPin = map[string]int{
 	// same fixture's five adversarial siblings (rules b..f) contribute no
 	// row at all, which is the half that has to hold. No pre-existing row
 	// moved.
-	"CONCRETE": 766,
+	//
+	// 767, up from 766 (issue #310, identity.Component gaining a Block
+	// field): one ADDED row,
+	// internal/live/identity/testdata/nested-block-component's
+	// aws_autoscaling_traffic_source_attachment.present, rendering the
+	// provider's own documented import example verbatim. The fixture's two
+	// adversarial siblings (absent, impure) contribute no row. No
+	// pre-existing row moved.
+	"CONCRETE": 767,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -513,7 +521,13 @@ var identityGoldenPin = map[string]int{
 // try(<managed resource attribute>, fallback), which this deliberately
 // does not answer. The three rows here are therefore the ONLY new rendered
 // identities it produces anywhere.
-const identityGoldenPinBodyDigest = "65f12ab66ef9da204fa681595c8ae12e8750d17d0fe18f2c45084a92aa0f6782"
+// 2026-08-19 (issue #310, identity.Component gaining a Block field): body
+// digest moved because one row was ADDED (see the CONCRETE class comment
+// above and identityGoldenPinInstances' own comment below for the one
+// fixture); no pre-existing row's rendered value changed -
+// TestIdentityGolden's own diff read "0 identities changed, 1 added, 0
+// removed" before this line was edited.
+const identityGoldenPinBodyDigest = "e90f50b9b8843217ccb730343e4a66044afad4441535a390596db79a3be6225d"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -818,9 +832,22 @@ const identityGoldenPinBodyDigest = "65f12ab66ef9da204fa681595c8ae12e8750d17d0fe
 // aws_default_security_group.default and aws_security_group.other, both
 // NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a pure
 // addition.
+// 2026-08-19 (issue #310, identity.Component gaining a Block field): instances
+// 1554 -> 1555, dirs 491 -> 492. One new fixture,
+// internal/live/identity/testdata/nested-block-component - one ADDED row,
+// aws_autoscaling_traffic_source_attachment.present, rendering
+// "example,elbv2,arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456"
+// (the provider's own documented import example, verbatim), with identity
+// attributes autoscaling_group_name/identifier/type - the second and third
+// read out of the fixture's own traffic_source nested block rather than the
+// top level. The fixture's other two instances (absent: no traffic_source
+// block at all; impure: identifier built from uuid()) contribute no row,
+// which is the half that has to hold - both are refused, not fabricated or
+// defaulted. Every pre-existing row is byte-identical; this is a pure
+// addition.
 const (
-	identityGoldenPinInstances = 1554
-	identityGoldenPinDirs      = 491
+	identityGoldenPinInstances = 1555
+	identityGoldenPinDirs      = 492
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

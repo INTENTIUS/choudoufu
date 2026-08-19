@@ -1602,9 +1602,11 @@ func cloudReason(entry TypeIdentity, missing CloudValue) string {
 }
 
 // identityArgs pulls just the arguments the type's identity needs out of
-// the resource body. Everything else in the body, including nested blocks,
-// is ignored: identity resolution has no business decoding a whole
-// resource.
+// the resource body. Everything else in the body is ignored: identity
+// resolution has no business decoding a whole resource. A nested block is
+// ignored too, UNLESS some component names it through [Component.Block], in
+// which case exactly that block's own named leaf attributes join the result,
+// under their own (unqualified) names.
 func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.Attributes, bool) {
 	var names []string
 	seen := make(map[string]bool)
@@ -1614,8 +1616,31 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 			names = append(names, n)
 		}
 	}
+
+	// blockLeaves collects, per [Component.Block] name, the leaf attribute
+	// names some component reads from inside it. A block-scoped leaf never
+	// joins the flat `names` set above - it is read from its own block's
+	// body, not the resource's top-level body - and it gets none of the
+	// "<name>_prefix" treatment below, which is a top-level-argument
+	// convention with no bearing on a nested block's own attributes.
+	var blockNames []string
+	blockLeaves := map[string]map[string]bool{}
+	addBlockLeaf := func(block, leaf string) {
+		leaves, ok := blockLeaves[block]
+		if !ok {
+			leaves = map[string]bool{}
+			blockLeaves[block] = leaves
+			blockNames = append(blockNames, block)
+		}
+		leaves[leaf] = true
+	}
+
 	for _, comp := range entry.Components {
 		for _, n := range comp.Attrs {
+			if comp.Block != "" {
+				addBlockLeaf(comp.Block, n)
+				continue
+			}
 			add(n)
 			// Every provider that names an object through one of these
 			// arguments also offers the "<name>_prefix" sibling documented
@@ -1634,10 +1659,14 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 		}
 	}
 	sort.Strings(names)
+	sort.Strings(blockNames)
 
 	schema := &hcl.BodySchema{}
 	for _, n := range names {
 		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
+	}
+	for _, b := range blockNames {
+		schema.Blocks = append(schema.Blocks, hcl.BlockHeaderSchema{Type: b})
 	}
 
 	content, _, diags := rc.Config.PartialContent(schema)
@@ -1645,7 +1674,44 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 		r.appendDiags(diags)
 		return nil, false
 	}
-	return content.Attributes, true
+	if len(blockNames) == 0 {
+		return content.Attributes, true
+	}
+
+	// Merge in each named block's own leaves. The provider's own schema
+	// caps every block [Component.Block] names at one instance
+	// (max_items: 1, checked at ratification time - see that field's doc
+	// comment), so only the FIRST occurrence of a repeated block name is
+	// read; a config that syntactically repeats it anyway is one the
+	// provider would refuse at validate time regardless of what this reads,
+	// the same "safe direction, not a wrong one" this package takes
+	// elsewhere rather than specially diagnosing an already-invalid shape.
+	merged := make(hcl.Attributes, len(content.Attributes))
+	for k, v := range content.Attributes {
+		merged[k] = v
+	}
+	for _, block := range content.Blocks {
+		leaves, ok := blockLeaves[block.Type]
+		if !ok {
+			continue
+		}
+		delete(blockLeaves, block.Type) // first occurrence only
+		leafSchema := &hcl.BodySchema{}
+		for leaf := range leaves {
+			leafSchema.Attributes = append(leafSchema.Attributes, hcl.AttributeSchema{Name: leaf})
+		}
+		leafContent, _, leafDiags := block.Body.PartialContent(leafSchema)
+		if leafDiags.HasErrors() {
+			r.appendDiags(leafDiags)
+			return nil, false
+		}
+		for k, v := range leafContent.Attributes {
+			if _, exists := merged[k]; !exists {
+				merged[k] = v
+			}
+		}
+	}
+	return merged, true
 }
 
 // resolveExpr turns one argument expression into import-ID parts.
