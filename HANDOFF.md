@@ -838,22 +838,37 @@ script's stage-3 assertions/header are now stale about this and need a
 follow-up pass, not attempted here.
 
 `#309` (`corpus-alb-complete`, `aws_cognito_user_pool_client`) looked like
-the same shape as #308 - scoped, generalizing, no design call - and was not.
-Scouted 2026-08-18: admission alone can't work (Cloud Control has no handler
-for this type in floci at all, and the type has no `unique_name_property`
-for markerless binding even if it did); the parent-scoped mechanism the
-issue pointed at (`internal/live/discovery/cloudcontrol_scoped.go`) exists
-but is dead code, wired to nothing in the real pipeline, and even wired in
-only produces a `Withheld` finding, never a bound `ImportID`. The real fix
-needs new vocabulary on `internal/live/identity`'s `TypeIdentity` struct
-plus a new discovery transport (a third client alongside
-`Provider`/`CloudControl`, mirroring `cloudcontrol.NewTagging`'s shape)
-with binding logic that has no existing precedent to copy - a multi-slot
-feature spanning `internal/live/identity`, `internal/live/discovery`,
-`internal/live/cloudcontrol`, and `tools/row-gen`, not a follow-up fix. Generalizes to roughly 40
-similarly-shaped untaggable types (one CFN list-scoping property, every
-non-scope identifier part read-only) once someone builds the mechanism.
-Full scouting detail on the issue itself. Left open, not attempted further.
+the same shape as #308 - scoped, generalizing, no design call - and wasn't,
+on first scouting 2026-08-18. **Re-scoped 2026-08-19 with fresh evidence,
+and the first scouting's own central conclusion was wrong: this does not
+need a new discovery transport.** The re-scope refuted a specific claim
+too - that `unique_name_property`/`declared_unique` is "for client-named
+binding, a different problem." It is precisely the mechanism admitting
+every untaggable `ServerAssigned` type that already works (four of them,
+`stamp.go:940`'s `mustStamp` exempts exactly those). It also corrected the
+generalization estimate: not "roughly 40" - a tighter count is **18**
+similarly-shaped types (the prior filter swept in already-admitted ones).
+
+**The real missing piece is #270's existing `ClassRecordLocated`
+mechanism** (already shipped, admitting 124 types at aws 6.59.0) - by
+`test_plan` the estate is already migrated, so this was never an
+enumeration problem, it's an ownership one, and a scoped Cloud Control
+listing couldn't answer it anyway (Cognito doesn't document `ClientName`
+as unique within a pool). Three concrete, code-verified predicates
+currently block it: (1) the type's primary identifier is only partly
+read-only (`ClientId` alone, not the composite), so `markerless()`'s
+wholly-read-only requirement excludes it from `MarkerlessTypes`; (2)
+`credentialMaterial` correctly fires on `client_secret` (Sensitive); (3)
+`locatedImportIDAttr`'s assumption that `id` is the import identity is
+wrong for this type (the provider's own docs distinguish the two). Of the
+18-type class, only 2 would work today if the veto widened blindly - the
+other 16 would move from an honest refusal to a deferred import failure,
+so sequencing matters: a composite located payload (filed as `#329`) has
+to land before the veto widens, and `credentialMaterial`'s own breadth is
+a separate maintainer call. Real, staged, well-precedented work now - not
+"a third transport with no precedent to copy." Full evidence on the issue
+and `#329`. `corpus-alb-complete`'s stage 3 is unchanged - nothing
+implemented yet, this was scoping only.
 
 ### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 
