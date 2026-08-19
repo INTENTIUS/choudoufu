@@ -37,10 +37,16 @@ func TestUnescapeAddress(t *testing.T) {
 		// Round-tripping is what the whole thing is for.
 		{`aws_cloudwatch_log_group.app`, `aws_cloudwatch_log_group.app`, true},
 		// A keyed module step (59c, issue #59 phase 3): decoded, not
-		// refused, and always as a string key - a module block's for_each
-		// is the only way this fork ever writes one, count on a module
-		// block being refused permanently (RuleChildModule).
+		// refused. A module step's key reads exactly as a resource
+		// instance's does, digits included, because issue #195 admitted a
+		// statically-evaluable module count and internal/live/stamp writes
+		// "module.counted[0]..." for a count of 1 - so a digit-keyed module
+		// step is an index, and the older "always a string key" reading
+		// turned a stamped address into one the configuration never had.
 		{`module.subnets:a.aws_subnet.this`, `module.subnets["a"].aws_subnet.this`, true},
+		{`module.counted:0.aws_vpc.main`, `module.counted[0].aws_vpc.main`, true},
+		{`module.counted:0.aws_subnet.this:1`, `module.counted[0].aws_subnet.this[1]`, true},
+		{`module.keyed:us-east-1a.aws_subnet.this:0`, `module.keyed["us-east-1a"].aws_subnet.this[0]`, true},
 
 		// Refused, each for its own reason.
 		{``, ``, false},
