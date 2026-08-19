@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=493 instances=1557
+# shape: dirs=493 instances=1559
 # shape: class CONCRETE=767
-# shape: class NEEDS_DISCOVERY=658
+# shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=7902ff3645f51fc9ca7717488592bd1d10c5bdaa5e80e7c981837df0a4251795
+# shape: body-sha256=e525717c445e1709a3c8a6abc259436321b89d0625dd7b87fd8944adb51d2eed
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -709,6 +709,8 @@ internal/live/marksafe/testdata/foreach-tuple-comprehension-sensitive-if	aws_ecr
 internal/live/moved/testdata/chain	aws_s3_bucket.c	CONCRETE	chain	bucket=chain
 internal/live/moved/testdata/estate	aws_s3_bucket.new	CONCRETE	estate-data	bucket=estate-data
 internal/live/moved/testdata/estate	aws_s3_bucket_versioning.this[0]	CONCRETE	estate-data	bucket=estate-data
+internal/live/moved/testdata/estate	module.counted[0].aws_sqs_queue.doi	NEEDS_DISCOVERY		
+internal/live/moved/testdata/estate	module.counted[0].aws_sqs_queue.stray	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.queues.aws_sqs_queue.doi	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.queues.aws_sqs_queue.stray	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.renamed.aws_sqs_queue.doi	NEEDS_DISCOVERY		

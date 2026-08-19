@@ -349,12 +349,13 @@ module cannot delete upstream source. Once the tag has been rewritten the block
 is simply a no-op on every later run, because the old address matches nothing.
 
 Resource renames, root-to-module refactors, cross-module moves, module renames,
-chains of two or more statements, and destinations expanded with `count` all
-carry. The last matters more than it sounds: `count = var.create ? 1 : 0` is how
-every `terraform-aws-modules` resource is written, so it is what most shipped
-`moved` blocks land on.
+chains of two or more statements, and destinations expanded with `count` - a
+resource's own, or (issue #330) a module call's - all carry. The resource case
+matters more than it sounds: `count = var.create ? 1 : 0` is how every
+`terraform-aws-modules` resource is written, so it is what most shipped `moved`
+blocks land on.
 
-**Why the rest are banned.** Three shapes cannot be aliased safely, and the
+**Why the rest are banned.** Two shapes cannot be aliased safely, and the
 danger is one-directional - a block admitted but not aliased leaves the live
 resource reading as an orphan at the old address (the plan proposes destroying
 it) while the new address reads as absent (the plan proposes creating it), which
@@ -366,15 +367,24 @@ is one cloud object and two wrong beliefs:
   apart. Stock refuses this too, as "Moved object still exists".
 - The two endpoints name different resource types. A marker names the type of
   the resource it is written on, so an alias across types could never match.
-- An endpoint passes through a `count`-expanded module instance. This is
-  `internal/live/moved`'s own refusal, not shared with `choudoufu live-mv`:
-  issue #317 found that `live-mv`'s copy of this reasoning was citing a
-  premise issue #195 had already retired for a plain scalar module `count`
-  (see "child-module" below) and admitted the rename once lint's own
-  `RuleChildModule` has already proven the step static, so `live-mv` no
-  longer refuses this shape. Whether `moved`'s structural-matching mechanism
-  carries the same guarantee is a separate question the fix deliberately did
-  not answer; it is still refused here pending that follow-up.
+
+An endpoint passing through a `count`-expanded *module* instance used to be a
+third banned shape, `internal/live/moved`'s own refusal and not shared with
+`choudoufu live-mv`. Issue #317 found that `live-mv`'s copy of this reasoning
+was citing a premise issue #195 had already retired for a plain scalar module
+`count` (see "child-module" below), and admitted the rename once lint's own
+`RuleChildModule` has already proven the step static - but left `moved`'s
+copy for a separate read, since its mechanism (structural statement matching)
+differs from a two-address rename. Issue #330 did that read: `Honourable` is
+not downstream of a separate command step the way `live-mv`'s check is, it
+*is* one of lint's own rules (`RuleMovedBlock`, `checkMovedBlocks`), invoked
+from the same `checkConfig` walk that runs `RuleChildModule`
+(`checkChildModules`) over the same module immediately before it. Both are
+fatal and both feed the one `[]Issue` slice every gated caller inspects
+together, so a module call unsafe enough to matter - non-static count, or a
+count.index leak into its own arguments - never produces a clean lint result
+regardless of what `Honourable` decides, and a moved block through a module
+that *is* safe was refused for nothing. Admitted since #330.
 
 **Forwarding address.** `choudoufu live-mv <old-address> <new-address>`, the
 marker rewrite that plays the same role by editing the live resource's

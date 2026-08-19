@@ -1,7 +1,10 @@
-# The four moved-block shapes the corpus actually contains, in one estate:
-# a plain rename, a root-to-module refactor, a cross-module move, and a
-# module rename. The count-expanded destination is the terraform-aws-modules
-# idiom every shipped moved block lands on.
+# The five moved-block shapes the corpus actually contains, in one estate:
+# a plain rename, a root-to-module refactor, a cross-module move, a module
+# rename, and a count-expanded destination - both a resource's own count
+# (the terraform-aws-modules idiom every shipped moved block lands on) and a
+# module call's (issue #330: admitted on the same premise issue #195 already
+# retired for a module's plain scalar count - see moved.go's Honourable doc
+# comment).
 
 module "queues" {
   source = "./modules/queues"
@@ -9,6 +12,11 @@ module "queues" {
 
 module "renamed" {
   source = "./modules/queues"
+}
+
+module "counted" {
+  source = "./modules/queues"
+  count  = 1
 }
 
 resource "aws_s3_bucket" "new" {
@@ -44,4 +52,9 @@ moved {
 moved {
   from = module.gone.aws_sqs_queue.stray
   to   = module.renamed.aws_sqs_queue.stray
+}
+
+moved {
+  from = aws_sqs_queue.solo
+  to   = module.counted[0].aws_sqs_queue.doi
 }

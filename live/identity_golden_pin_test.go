@@ -325,7 +325,22 @@ var identityGoldenPin = map[string]int{
 	// like every other resource of these types in this golden; the fix's
 	// ARN-based import ID is a discovery-time correction, not a static
 	// identity change, so neither row's rendered class or identity moves.
-	"NEEDS_DISCOVERY": 658,
+	//
+	// 660, up from 658 (issue #330, the count-keyed-module moved-block fix):
+	// two ADDED rows, module.counted[0].aws_sqs_queue.doi and
+	// module.counted[0].aws_sqs_queue.stray, in
+	// internal/live/moved/testdata/estate/main.tf - a new module "counted"
+	// (source ./modules/queues, count = 1) added so
+	// TestOriginsCoversEveryCorpusShape could exercise a moved block whose
+	// destination passes through a count-keyed MODULE instance, the shape
+	// Honourable's own hasCountKeyedModuleStep case used to refuse on a
+	// premise issue #195 already retired. Both bare-marker NEEDS_DISCOVERY,
+	// aws_sqs_queue being server-assigned with no client-supplied identity,
+	// the same class every other bare aws_sqs_queue in this golden already
+	// carries (module.queues.aws_sqs_queue.doi/.stray, two rows above). Not
+	// a moved row - no pre-existing CONCRETE/NEEDS_DISCOVERY row's rendered
+	// value changed; see the digest below.
+	"NEEDS_DISCOVERY": 660,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -542,12 +557,19 @@ var identityGoldenPin = map[string]int{
 // on top of #302 above): body digest moved again because one more row was
 // ADDED (see the CONCRETE class comment above and identityGoldenPinInstances'
 // own comment below for the one fixture); no pre-existing row's rendered
-// value changed. Both branches independently regenerated the golden from a
-// common ancestor, producing a real merge conflict in the data file itself;
-// resolved per this repository's standing rule by regenerating fresh against
-// the fully merged code (-update) rather than hand-merging the two diffs,
-// then copying the regenerated body-sha256 here.
-const identityGoldenPinBodyDigest = "7902ff3645f51fc9ca7717488592bd1d10c5bdaa5e80e7c981837df0a4251795"
+// value changed.
+//
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix,
+// internal/live/moved's Honourable, merged on top of #310 above): body
+// digest moved again because two more rows were ADDED (see the
+// NEEDS_DISCOVERY class comment above and identityGoldenPinInstances' own
+// comment below for the one fixture); no pre-existing row's rendered value
+// changed. Each of #302/#310/#330 independently regenerated the golden from
+// a different ancestor, producing a real merge conflict in the data file
+// itself at every step; resolved per this repository's standing rule by
+// regenerating fresh against the fully merged code (-update) rather than
+// hand-merging the diffs, then copying the regenerated body-sha256 here.
+const identityGoldenPinBodyDigest = "e525717c445e1709a3c8a6abc259436321b89d0625dd7b87fd8944adb51d2eed"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -875,12 +897,22 @@ const identityGoldenPinBodyDigest = "7902ff3645f51fc9ca7717488592bd1d10c5bdaa5e8
 // block at all; impure: identifier built from uuid()) contribute no row,
 // which is the half that has to hold - both are refused, not fabricated or
 // defaulted. Every pre-existing row is byte-identical; this is a pure
-// addition. Both branches independently regenerated the golden from a
-// common ancestor (see the body-digest comment above for the merge
-// resolution); the arithmetic checks: 1554 (pre-#302, pre-#310) + 2 (#302's
-// own delta) + 1 (#310's own delta) = 1557, exactly the regenerated total.
+// addition.
+//
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix, merged on
+// top of #310 above): instances 1557 -> 1559, dirs unchanged at 493 (both
+// new rows land in the existing internal/live/moved/testdata/estate
+// directory, which gained a module "counted" call rather than a new fixture
+// root). Two new rows, module.counted[0].aws_sqs_queue.doi and
+// module.counted[0].aws_sqs_queue.stray, both NEEDS_DISCOVERY. See
+// identityGoldenPin's own comment above for the fixture and the shape it
+// proves. Three independent branches (#302/#310/#330) each regenerated the
+// golden from a different ancestor (see the body-digest comment above for
+// the merge resolution); the arithmetic checks: 1554 (pre-#302) + 2 (#302's
+// own delta) + 1 (#310's own delta) + 2 (#330's own delta) = 1559, exactly
+// the regenerated total.
 const (
-	identityGoldenPinInstances = 1557
+	identityGoldenPinInstances = 1559
 	identityGoldenPinDirs      = 493
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
