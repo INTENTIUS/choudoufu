@@ -1425,6 +1425,33 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				}
 				continue
 			}
+			if !markerCapable(ts) {
+				// Issue #322: the type's own schema has no tags attribute at
+				// all - [markerCapable] read the same way [typeTaggable]
+				// reads it, off the provider schema rather than off this one
+				// listed object - so no object of this type could EVER carry
+				// a marker. That is not a provider bug; it is the same
+				// expected shape [markerCapable] already routes gracefully
+				// a few lines up for the sweep leg (SweepGapNotTaggable /
+				// SweepGapObjectUntagged) and that [uniqueNameIndexFor] /
+				// [scanUniqueName] already route around entirely for a
+				// statically-named untaggable type. Escalating here to
+				// [ProblemNoTags] - an ERROR that aborts the whole plan, see
+				// [Severity] - would fail every OTHER resource in the estate
+				// over one address this run already reports gracefully: the
+				// decl.unreadable increment above feeds
+				// [unreadableMarkerProblem]'s per-address WARNING at bind
+				// time, which is the correct and sufficient diagnostic for a
+				// resource that structurally cannot carry a marker.
+				//
+				// This does not weaken the genuine anomaly one branch up:
+				// when the schema DOES declare tags (markerCapable true) but
+				// this object came back without them anyway, taggable is
+				// still false and the ProblemNoTags error below still fires,
+				// unchanged - that shape is still a real provider or emulator
+				// bug worth aborting over, not this one.
+				continue
+			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,
 				TypeName: typeName,
