@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=467 instances=1495
-# shape: class CONCRETE=759
+# shape: dirs=470 instances=1497
+# shape: class CONCRETE=761
 # shape: class NEEDS_DISCOVERY=622
 # shape: class PARENT_DERIVED=97
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=3daa64b613ea7826f98430d8631185d4b45aa4ab4ea8437a72c4d550acba1f3e
+# shape: body-sha256=74866e22abdc0a5097e0e3387a4154a48750a92702d001fbcdccea82f7f6eada
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -284,6 +284,8 @@ internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.thi
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
 internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
 internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit	name=fluent-bit
+internal/live/identity/testdata/module-foreach-comprehension-each-value	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app-core-unset	name=app-core-unset
+internal/live/identity/testdata/module-foreach-comprehension-each-value	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit-default-team-unset	name=fluent-bit-default-team-unset
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["alice"]	CONCRETE	primary-alice	name=primary-alice
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["bob"]	CONCRETE	primary-bob	name=primary-bob
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.secondary["alice"]	CONCRETE	secondary-alice	name=secondary-alice

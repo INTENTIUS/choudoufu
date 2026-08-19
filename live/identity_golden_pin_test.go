@@ -132,7 +132,23 @@ var identityGoldenPin = map[string]int{
 	// own literal. Not a moved row - no pre-existing fixture used this
 	// shape before, so every other CONCRETE row in the golden is
 	// byte-identical; see the digest below.
-	"CONCRETE": 759,
+	//
+	// 761, up from 759 (issue #315's fix): two ADDED rows in a fresh
+	// fixture, internal/live/identity/testdata/module-foreach-comprehension-each-value -
+	// module.wrapper.module.task["app"].aws_iam_user.this and
+	// ["fluent-bit"].aws_iam_user.this, rendering app-core-unset and
+	// fluent-bit-default-team-unset. #308 proved a child module's for_each
+	// KEY set even when one entry's value has an unprovable sibling
+	// attribute (fluent-bit's own "image", an SSM-sourced data source);
+	// this fixture goes one step further, into the module call's OWN
+	// argument list, which reads each.value.<attr> off the same entries -
+	// label (an explicit typeexpr default) and owner (a bare
+	// optional(string) with none at all, needing the declared
+	// ConstraintType directly rather than typeexpr.Defaults, which never
+	// records an entry for that shape). Not a moved row - no pre-existing
+	// fixture used this shape before, so every other CONCRETE row in the
+	// golden is byte-identical; see the digest below.
+	"CONCRETE": 761,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -333,7 +349,10 @@ var identityGoldenPin = map[string]int{
 // internal/live/discovery/testdata/module-rename-withhold and its child/ -
 // one for_each'd aws_subnet.this declared at three module paths, plus the
 // child directory swept as a root of its own.
-const identityGoldenPinBodyDigest = "3daa64b613ea7826f98430d8631185d4b45aa4ab4ea8437a72c4d550acba1f3e"
+// 2026-08-18 (issue #315's fix): body digest moved because two rows were
+// ADDED (see the CONCRETE class comment above for the fixture and shape);
+// no pre-existing row's rendered value changed.
+const identityGoldenPinBodyDigest = "74866e22abdc0a5097e0e3387a4154a48750a92702d001fbcdccea82f7f6eada"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -487,9 +506,14 @@ const identityGoldenPinBodyDigest = "3daa64b613ea7826f98430d8631185d4b45aa4ab4ea
 // when read results exist, so live-check, which never reads, cannot see it.
 // An instance appearing here later would mean the widening had escaped that
 // condition.
+// 2026-08-18 (issue #315's fix): instances 1495 -> 1497, dirs 467 -> 470.
+// One new fixture root, internal/live/identity/testdata/module-foreach-
+// comprehension-each-value, plus its wrapper/ and wrapper/task/ module
+// directories - three directories, two new CONCRETE instances (see the
+// CONCRETE class comment above).
 const (
-	identityGoldenPinInstances = 1495
-	identityGoldenPinDirs      = 467
+	identityGoldenPinInstances = 1497
+	identityGoldenPinDirs      = 470
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
