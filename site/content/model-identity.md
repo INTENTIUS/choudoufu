@@ -16,14 +16,17 @@ That pair is the entire ownership contract. Any tool that can write two tags
 can adopt a resource. Any tool that can read them can tell you what an estate
 contains.
 
-## Why the tag rides the create call
+## Where the marker comes from
 
-The marker is written as part of the same API call that creates the resource,
-not afterwards. A create that succeeds carries its marker already, so a crash
-between the two cannot happen.
+The stamp pass writes `tofu-estate` and `tofu-address` into the resource's own
+`tags` argument, so the plan renders them and the apply sends them like any
+other tag you declared.
 
-A resource that exists is therefore a resource you can find. There is no window
-in which one has been created but not yet claimed.
+For most types the AWS provider carries tags on the create call itself, which
+means a create that succeeds carries its marker already. Where a service cannot
+tag on create, the provider tags immediately after, and a crash in that window
+leaves a resource nothing can bind to. That case is what
+[adoption](migrate.html) exists for.
 
 ## Recovering an address
 

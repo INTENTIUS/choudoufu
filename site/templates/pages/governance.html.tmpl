@@ -106,6 +106,112 @@ overlap.</p>
 the policy with the new estate name. The split is a tag write and a policy
 copy. Neither half moves.</p>
 
+<h2>Three things a file cannot do</h2>
+
+<p>The grants above have equivalents, roughly, in splitting a configuration.
+These do not. They work because the permission unit is a cloud resource, so
+every IAM feature that applies to resources now applies to your infrastructure,
+and IAM has features a file has never had.</p>
+
+<h3>The wrong config cannot reach production</h3>
+
+<p>Pointing a staging configuration at a production account is a familiar
+outage, and nothing structurally prevents it today. The same principal makes
+the same API calls either way, so IAM has nothing to distinguish.</p>
+
+<p>Attach this to the role your staging runs use.</p>
+
+<pre><code>{
+  "Sid": "NeverMutateAnotherEstate",
+  "Effect": "Deny",
+  "Action": [
+    "ec2:TerminateInstances",
+    "ec2:DeleteSubnet",
+    "ec2:DeleteVpc",
+    "rds:DeleteDBInstance"
+  ],
+  "Resource": "*",
+  "Condition": {
+    "StringNotEquals": {"aws:ResourceTag/tofu-estate": "staging"}
+  }
+}</code></pre>
+
+<p>A mistake now fails at the cloud rather than at review. Two details worth
+knowing. Keep read actions out of the Deny, because discovery lists across the
+account and a plan that cannot read is a plan that proposes duplicates. And a
+resource with no <code>tofu-estate</code> tag has no value for the condition to
+compare, which makes <code>StringNotEquals</code> true and extends the Deny to
+untagged resources. That is the safe direction, and it is worth confirming
+before you rely on it.</p>
+
+<h3>One policy for every team</h3>
+
+<p>Match the principal's own tag against the resource's.</p>
+
+<pre><code>{
+  "Sid": "MutateYourOwnTeamsEstates",
+  "Effect": "Allow",
+  "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
+  "Resource": "*",
+  "Condition": {
+    "StringEquals": {
+      "aws:ResourceTag/tofu-estate": "${aws:PrincipalTag/team}"
+    }
+  }
+}</code></pre>
+
+<p>One policy covers every team, and a new team needs a session tag rather than
+a new policy. This is what attribute-based access control was designed for, and
+it has nowhere to attach when the permission unit is a file. It does require
+estate names and team tags to agree, so pick that convention deliberately.</p>
+
+<p>The same shape takes any condition key IAM offers.
+<code>aws:CurrentTime</code> gives an estate a change window.
+<code>aws:MultiFactorAuthPresent</code> requires MFA to touch production. A
+session that expires expires the access with it.</p>
+
+<h3>Nothing is created unowned</h3>
+
+<p>Tag compliance is normally retroactive, chased with a scanner and never
+finished. Conditioning creation inverts it.</p>
+
+<pre><code>{
+  "Sid": "NothingIsCreatedUnowned",
+  "Effect": "Deny",
+  "Action": ["ec2:RunInstances", "ec2:CreateVolume"],
+  "Resource": "*",
+  "Condition": {
+    "Null": {"aws:RequestTag/tofu-estate": "true"}
+  }
+}</code></pre>
+
+<p>As a service control policy this makes ownership a precondition of existing,
+so an account cannot accumulate resources nobody can account for. Every
+resource is born into an estate or is not born.</p>
+
+<p>The bound to check first is which of your types can be tagged on the create
+call at all. Where a service cannot, the provider tags immediately afterwards,
+<code>aws:RequestTag</code> is absent on the create, and this Deny stops a
+legitimate one. Scope the action list to types you have confirmed, rather than
+reaching for a wildcard.</p>
+
+<h2>One configuration, many owners</h2>
+
+<p>This one has an equivalent today, and the equivalent is the problem. Two
+teams sharing a state file both need write on it, so the usual answer is two
+root modules with <code>remote_state</code> wired between them. Your repository
+layout ends up determined by your blast radius decisions and stays that way.</p>
+
+<p>Here the configuration stays one thing and the boundary is a policy. Each
+team's role is scoped to its own addresses, so an apply touches only what that
+team changed. Moving the boundary is an edit to a condition rather than a
+restructuring.</p>
+
+<p>Two things to hold. Reads stay open across the estate, because discovery has
+to see everything or a plan proposes duplicates. And if a team plans a change
+to something it does not own, the apply fails at that resource, which is the
+right answer but is worth knowing before it happens in front of someone.</p>
+
 <h2>Where the key is confirmed</h2>
 
 <p>{{len .Gov.Named}} of {{.Gov.Services}} services in AWS's Service
