@@ -719,6 +719,19 @@ Closing it for real would mean deciding whether `live-plan` may call
 read-only provider APIs during plan at all, a real architecture question for
 the maintainer, not a derivable rule a background agent should freelance.
 
+**Maintainer ruling, 2026-08-18/19: yes, scoped narrowly.** `live-plan` may
+call a provider's own read-only data-source APIs (never resource CRUD, never
+anything state-shaped) when a `for_each`/`count` genuinely needs one to prove
+its instance key set. This is now the actual fix for #313 and reaches the
+whole family CLAUDE.md already names (the CIDR-keyed `for_each` wall,
+any other data-source-dependent `for_each`/`count`), reaching well beyond
+the one estate that surfaced it. Read this ruling before touching this area - it settles the
+question issue #73 ("no state ops") left open for exactly this case;
+`live-check`'s fully-offline, credential-optional guarantee is untouched,
+since this capability is additive to `live-plan` only and must degrade to
+today's refusal when no cloud access is available. Do not re-litigate this
+without new evidence the scoping itself is wrong.
+
 Separately, lex00/floci#70 (`CreateCacheSubnetGroup`/`ModifyCacheSubnetGroup`
 wrong `SubnetIds` wire param name, found re-verifying `corpus-vpc-complete`
 against a freshly published image) is now fixed, independently verified
