@@ -132,6 +132,16 @@ func TestEveryFlociImageRefIsAccountedFor(t *testing.T) {
 		if e.Name() == "floci-capabilities.json" {
 			continue // a manifest keyed by digest; many refs is its shape
 		}
+		if e.Name() == "corpus-crossing-manifest.json" {
+			// Per-estate historical narrative, not a "measured against"
+			// declaration: each estate's notes field is orchestrator-
+			// written prose accumulated over many crossings, and legitimately
+			// quotes whatever digest was pinned the day that note was
+			// written - several different ones across the file's history,
+			// on purpose, the same shape floci-capabilities.json is
+			// exempted for above.
+			continue
+		}
 		raw, err := os.ReadFile(e.Name())
 		if err != nil {
 			t.Errorf("reading %s: %v", e.Name(), err)
