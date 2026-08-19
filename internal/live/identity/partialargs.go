@@ -107,10 +107,12 @@ import (
 // version of this change turned it into nothing.
 //
 // So the wrapper is reached only through [resolver.tolerantRetry], from the
-// two places that need a key SET and have already exhausted every other
-// route: [resolver.countExpansion] and [resolver.forEachExpansion], each
-// after its own strict evaluation and after the structural key-set chase
-// have both failed. Last, never first.
+// three places that have already exhausted every other route:
+// [resolver.countExpansion] and [resolver.forEachExpansion], each after its
+// own strict evaluation and after the structural key-set chase have both
+// failed, and [resolver.tolerantPart] for one identity ARGUMENT's value
+// after both [resolver.evalStatic] and [resolver.namedLeaf] have. Last,
+// never first, at each of the three.
 //
 // Order is also why an unset required root variable is untouched. Under
 // internal/live/check that arrives as cty.UnknownVal (load.go), not as an
@@ -236,6 +238,89 @@ func (r *resolver) tolerantRetry(expr hcl.Expression, scope instScope, ident con
 		return cty.NilVal, false
 	}
 	return val, true
+}
+
+// tolerantPart is [resolver.resolveExpr]'s last attempt at ONE identity
+// argument's value, and the third and only other caller of
+// [resolver.tolerantRetry].
+//
+// The two key-set callers prove which instances exist. This proves what one
+// instance's argument says, which is the other half of the same fact and
+// fails for the identical reason: a caller writes a composite module
+// argument whose skeleton is literal and one of whose leaves is not, and
+// [configs.ModuleCall.VariablesUsing] evaluates it as ONE expression, so the
+// child's whole var.X is unavailable. terraform-aws-modules/security-group's
+// own ingress_with_cidr_blocks is the shape - the caller writes
+//
+//	ingress_with_cidr_blocks = [{
+//	  from_port   = 5432
+//	  to_port     = 5432
+//	  protocol    = "tcp"
+//	  cidr_blocks = module.vpc.vpc_cidr_block
+//	}]
+//
+// and the module builds aws_security_group_rule's identity out of
+// `lookup(var.ingress_with_cidr_blocks[count.index], "from_port", ...)` and
+// three siblings like it. One leaf reads a module output; the other three
+// are integers and a string written in the caller's own file. Before this,
+// all four refused together.
+//
+// # What keeps a substituted leaf out of a marker
+//
+// The retry's value is accepted only when it comes back WHOLLY KNOWN,
+// non-null and carrying no mark anywhere. That is not a courtesy check, it
+// is the whole safety argument: [rebuildConstructor] substitutes
+// cty.DynamicVal for exactly the leaves the static scope refuses and keeps
+// every other element's strict value untouched, so an expression that reads
+// a substituted leaf evaluates to an unknown and is turned away here, while
+// one that reads only leaves the caller wrote out evaluates to those leaves
+// and nothing else. `lookup(elem, "cidr_blocks", ...)` stays refused on the
+// very same rebuilt value that answers `lookup(elem, "from_port", ...)` with
+// 5432. Nothing is guessed for the refusing leaf and no sibling's value ever
+// stands in for it.
+//
+// ContainsMarked, not IsMarked: a mark on a leaf leaves the container
+// unmarked (see internal/live/marksafe's TestOnlySetsHoistElementMarks), and
+// a sensitive leaf reached through a rebuilt constructor must not become an
+// identity any more than a sensitive whole value may.
+//
+// # Why this cannot repeat the regression the wrapper's own doc records
+//
+// It runs at a point resolveExpr today always returns false from: after the
+// strict [resolver.evalStatic] and after [resolver.namedLeaf] reported the
+// shape is not one it handles. It is inside resolveExpr's NON-symbolic
+// branch, which an expression naming a managed resource never enters
+// ([resolver.isSymbolic]), so the element-expression chase that
+// testdata/shapeb-tryref pins is upstream of here and untouched: nothing
+// this function does can make an earlier evaluation succeed, because every
+// earlier evaluation has already run and failed by the time it is called.
+// It adds a resolution where there was a refusal, or it changes nothing.
+//
+// On failure it restores r.diags itself, so the refusal evalStatic already
+// recorded is the one the caller keeps - never a vaguer second one stapled
+// on top of it.
+func (r *resolver) tolerantPart(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier, diagMark, sibMark int) ([]Part, bool) {
+	retried, ok := r.tolerantRetry(expr, scope, ident)
+	if !ok || retried.ContainsMarked() || retried.IsNull() || !retried.IsWhollyKnown() {
+		return nil, false
+	}
+	probe, probeSib := len(r.diags), len(r.pendingSiblingApply)
+	s, ok := r.stringValueIn(retried, expr, scope, ident)
+	if !ok {
+		// Both, not only the diagnostics: a [siblingApplyRefusal] carries
+		// the INDEX of the diagnostic it may later withdraw, so leaving one
+		// behind while truncating r.diags out from under it would point it
+		// at whatever diagnostic lands there next. Unreachable today - the
+		// only append is stringValueIn's !IsWhollyKnown branch, which the
+		// gate above has already excluded - and written out so that stays a
+		// property of this function rather than of that one.
+		r.diags = r.diags[:probe]
+		r.pendingSiblingApply = r.pendingSiblingApply[:probeSib]
+		return nil, false
+	}
+	r.diags = r.diags[:diagMark]
+	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+	return []Part{{Literal: s}}, true
 }
 
 // rebuildConstructor rebuilds an object or tuple constructor element by

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=485 instances=1547
-# shape: class CONCRETE=763
+# shape: dirs=487 instances=1549
+# shape: class CONCRETE=765
 # shape: class NEEDS_DISCOVERY=652
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=b4d1586c7217dffb794084e483bdb91d4d16c316906a16d184ce606a22a44149
+# shape: body-sha256=95cbd2417e7cb79ecde881c02549207f98e98efeb03452a31c0a17da0d078d9c
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -390,6 +390,8 @@ internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_group.g[0]	CO
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["alice"]	CONCRETE	user-alice	name=user-alice
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["bob"]	CONCRETE	user-bob	name=user-bob
 internal/live/identity/testdata/modulearg-partial-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-partial-value	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-partial-value	module.u.aws_iam_user.literal[0]	CONCRETE	platform-alpha	name=platform-alpha
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.broken_no_prefix	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.named_conditional	CONCRETE	explicit-name-2	name=explicit-name-2
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.prefixed	NEEDS_DISCOVERY		

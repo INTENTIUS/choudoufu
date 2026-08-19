@@ -1813,6 +1813,21 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
 			return parts, leafOK
 		}
+
+		// Last of all, and only where every route above has already
+		// returned false: the value is in the caller's configuration, but
+		// a module argument this module's caller built out of a literal
+		// skeleton and one unresolvable leaf stands between this argument
+		// and it. `lookup(var.ingress_with_cidr_blocks[count.index],
+		// "from_port", ...)` over `ingress_with_cidr_blocks = [{ from_port
+		// = 5432, ..., cidr_blocks = module.vpc.vpc_cidr_block }]` is 5432
+		// whatever the one dynamic leaf turns out to be, and the sibling
+		// that DOES read that leaf keeps refusing on the same rebuilt
+		// value. See [resolver.tolerantPart], which restores r.diags
+		// itself when it declines.
+		if parts, ok := r.tolerantPart(expr, scope, ident, mark, sibMark); ok {
+			return parts, true
+		}
 		return nil, false
 	}
 
