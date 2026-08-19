@@ -317,7 +317,22 @@ var identityGoldenPin = map[string]int{
 	// like every other resource of these types in this golden; the fix's
 	// ARN-based import ID is a discovery-time correction, not a static
 	// identity change, so neither row's rendered class or identity moves.
-	"NEEDS_DISCOVERY": 658,
+	//
+	// 660, up from 658 (issue #330, the count-keyed-module moved-block fix):
+	// two ADDED rows, module.counted[0].aws_sqs_queue.doi and
+	// module.counted[0].aws_sqs_queue.stray, in
+	// internal/live/moved/testdata/estate/main.tf - a new module "counted"
+	// (source ./modules/queues, count = 1) added so
+	// TestOriginsCoversEveryCorpusShape could exercise a moved block whose
+	// destination passes through a count-keyed MODULE instance, the shape
+	// Honourable's own hasCountKeyedModuleStep case used to refuse on a
+	// premise issue #195 already retired. Both bare-marker NEEDS_DISCOVERY,
+	// aws_sqs_queue being server-assigned with no client-supplied identity,
+	// the same class every other bare aws_sqs_queue in this golden already
+	// carries (module.queues.aws_sqs_queue.doi/.stray, two rows above). Not
+	// a moved row - no pre-existing CONCRETE/NEEDS_DISCOVERY row's rendered
+	// value changed; see the digest below.
+	"NEEDS_DISCOVERY": 660,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -529,7 +544,14 @@ var identityGoldenPin = map[string]int{
 // the one fixture); no pre-existing row's rendered value changed -
 // TestIdentityGolden's own diff read "0 identities changed, 2 added, 0
 // removed" before this line was edited.
-const identityGoldenPinBodyDigest = "a3dfe1247921b48014a9e89a92b81679927194c3c6b4952da9c4866a1d4cc1d5"
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix,
+// internal/live/moved's Honourable): body digest moved because two rows
+// were ADDED (see the NEEDS_DISCOVERY class comment above and
+// identityGoldenPinInstances' own comment below for the one fixture); no
+// pre-existing row's rendered value changed - TestIdentityGolden's own diff
+// read "0 identities changed, 2 added, 0 removed" before this line was
+// edited.
+const identityGoldenPinBodyDigest = "2ef9b7da6b035dec9eca729d48a635cf4b6779aa0ac546c11ca0c209b1f5a828"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -844,8 +866,16 @@ const identityGoldenPinBodyDigest = "a3dfe1247921b48014a9e89a92b81679927194c3c6b
 // exactly two rows, aws_iam_role.other and aws_iam_service_linked_role.app,
 // both NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a
 // pure addition.
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix): instances
+// 1556 -> 1558, dirs unchanged at 492 (both new rows land in the existing
+// internal/live/moved/testdata/estate directory, which gained a module
+// "counted" call rather than a new fixture root). Two new rows,
+// module.counted[0].aws_sqs_queue.doi and
+// module.counted[0].aws_sqs_queue.stray, both NEEDS_DISCOVERY. See
+// identityGoldenPin's own comment above for the fixture and the shape it
+// proves.
 const (
-	identityGoldenPinInstances = 1556
+	identityGoldenPinInstances = 1558
 	identityGoldenPinDirs      = 492
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
