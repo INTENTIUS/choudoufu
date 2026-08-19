@@ -728,25 +728,39 @@ main). The fix that was sitting uncommitted in the shared floci checkout as
 another session's in-progress work turned out to be correct and complete;
 nothing needs re-implementing.
 
-### 1a. Next up: two generalizing fixes with no design call needed
+### 1a. #308 fixed; #309 turned out to need a design call after all
 
-`#309` (`corpus-alb-complete`): `aws_cognito_user_pool_client` is untaggable
-with no native list resource, but the issue's own body already names the
-fix shape - a parent-scoped `{user_pool_id}/{client_id}` composite identity,
-same pattern as other admitted composite-identity rows, discoverable via
-`ListUserPoolClients(UserPoolId=<parent's live id>)`. Needs a generated
-admission row plus, probably, a new `internal/live/discovery` leg - scoping
-that is explicitly the next slot's work per the issue.
+`#308` (`corpus-ecs-fargate`) is fixed and merged (`a9ac6d06e7`/`b2bb59585d`,
+2026-08-18): `internal/live/identity/foreach_keyset.go` gained the
+`*hclsyntax.ForExpr` case and the cross-module-call `var`/`local` chase the
+issue laid out, generically - no type names, reaches every module-call
+`for_each` proof in the shared `identity` package, reaching more than the
+one estate that found it.
+Verified against the real crossing (0 occurrences of #308's diagnostic, was
+1) and mutation-checked. One side effect worth knowing: #308 had been firing
+*first* in `corpus-ecs-fargate`'s `live-plan` output, masking #313
+underneath it - fixing #308 didn't unblock the estate, it revealed that
+this estate hits #313 too (see 1, above: not a quick fix). The crossing
+script's stage-3 assertions/header are now stale about this and need a
+follow-up pass, not attempted here.
 
-`#308` (`corpus-ecs-fargate`): a child-module `for_each` over a
-for-comprehension whose keys are static but whose source collection is a
-bare `var.X` chased across a module-call boundary. The issue lays out both
-gaps precisely (`internal/live/identity/foreach_keyset.go`'s
-`collectStaticForEachKeys` needs a `*hclsyntax.ForExpr` case mirroring
-`resolve.go`'s `forEachOverComprehension`, plus a cross-module-call chase
-reusing #212/#251's existing machinery) and explains why it generalizes
-beyond ECS: any module wrapping a `for_each`'d child on a map-of-configs
-variable with one data-sourced value hits this.
+`#309` (`corpus-alb-complete`, `aws_cognito_user_pool_client`) looked like
+the same shape as #308 - scoped, generalizing, no design call - and was not.
+Scouted 2026-08-18: admission alone can't work (Cloud Control has no handler
+for this type in floci at all, and the type has no `unique_name_property`
+for markerless binding even if it did); the parent-scoped mechanism the
+issue pointed at (`internal/live/discovery/cloudcontrol_scoped.go`) exists
+but is dead code, wired to nothing in the real pipeline, and even wired in
+only produces a `Withheld` finding, never a bound `ImportID`. The real fix
+needs new vocabulary on `internal/live/identity`'s `TypeIdentity` struct
+plus a new discovery transport (a third client alongside
+`Provider`/`CloudControl`, mirroring `cloudcontrol.NewTagging`'s shape)
+with binding logic that has no existing precedent to copy - a multi-slot
+feature spanning `internal/live/identity`, `internal/live/discovery`,
+`internal/live/cloudcontrol`, and `tools/row-gen`, not a follow-up fix. Generalizes to roughly 40
+similarly-shaped untaggable types (one CFN list-scoping property, every
+non-scope identifier part read-only) once someone builds the mechanism.
+Full scouting detail on the issue itself. Left open, not attempted further.
 
 ### 2. The core set
 
@@ -772,29 +786,34 @@ script's own header says which resource and why.
 
 ### 3. Broaden the OpenTofu-native lane
 
-One estate crossed so far, against a Terraform-popular lane that started with
-ten modules already pinned by tag and commit before crossing began. The
-OpenTofu-native lane has no equivalent ready-made list - there is no
-download-count proxy at OpenTofu's current scale - so sourcing has to stay
-active rather than exhaust a prepared queue: GitHub search for real,
-maintained projects that describe themselves as built for OpenTofu, plus the
-Powered-by-OpenTofu and awesome-opentofu lists.
+Two estates crossed now, `corpus-sumaform-aws` and, landed 2026-08-18,
+`corpus-hongbomiao-labelbox` (`hongbo-miao/hongbomiao.com`'s Labelbox
+integration) - the first OpenTofu-native estate to clear all five stages,
+and stronger OpenTofu-native evidence than sumaform (genuine `.tofu` files
+throughout, not a `.tf` template that merely describes itself as
+OpenTofu-built). Against a Terraform-popular lane that started with ten
+modules already pinned by tag and commit before crossing began, this lane
+still has no equivalent ready-made list - there is no download-count proxy
+at OpenTofu's current scale - so sourcing has to stay active: GitHub search
+for real, maintained projects that describe themselves as built for
+OpenTofu, plus the Powered-by-OpenTofu and awesome-opentofu lists. The
+monorepo hongbomiao was sourced from is far larger than the one section
+crossed (AWS+Nebius+Cloudflare+Snowflake+EKS) - scoping a second, disjoint
+slice of the same repo is a legitimate way to get more coverage without a
+fresh sourcing search, if a future session wants a quick win here.
 
 ### Loose ends worth an hour, not a slot
 
-- `lint.worstCaseChildKey` (`internal/live/lint/lint.go:198`) returns
-  `addrs.NoKey` for a count'd call, so `checkOverlongAddresses` under-measures
-  the address budget inside every count'd module.
-- `live/survey-full.json` carries a stale `path` for
-  `aws_s3_account_public_access_block` that regeneration moves. It feeds
-  row-gen, so it is not a no-op edit.
-- `row-gen`'s report still names paste targets that no longer exist
-  (`table_cohort_<cohort>.go`, `admission_cohort_<cohort>.go`). The target is
-  `tools/row-gen/ratified.json`.
-- #263's cure is half done. `ratified.json` holds the rows with a
-  byte-identical round-trip proof, and `-emit` still reads `DefaultTable`. The
-  flip is three reads - `emittedRows`, `buildConvergence`, `markerlessRoster` -
-  and the convergence one is load-bearing.
+- `markers.UnescapeAddress` (`internal/live/markers/markers.go:589`) decodes
+  every module-step key as `addrs.StringKey`, on a doc-comment premise
+  (`count` on a module block is refused permanently) that #195 already
+  falsified - the same premise `overlong_address.go`'s stale claim rested on
+  before this round's `worstCaseChildKey` fix corrected it. A stamped
+  `module.counted[0].aws_x.y` escapes to `module.counted:0.aws_x.y` and
+  unescapes back to `module.counted["0"].aws_x.y` - a different address.
+  The resource-instance key eight lines below already round-trips through
+  `strconv.Atoi`; the module step doesn't. Needs a scouting slot to confirm
+  a real path reaches this before fixing it, not a fix on say-so.
 
 ---
 
