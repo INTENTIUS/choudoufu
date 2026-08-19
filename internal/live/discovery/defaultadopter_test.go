@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -134,6 +135,52 @@ func TestDiscoverDefaultSecurityGroupAliasIsNotMalformed(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("the aliased object did not appear as an orphan at all:\n%s", res)
+	}
+}
+
+// TestDiscoverDefaultAdopterDeclaredBothSidesNoFalseCollision is the shape
+// found crossing a real estate (choudoufu's corpus-xancloud-iac,
+// XanCloud/xancloud-iac's landing-zone-basic blueprint) the day #325 landed,
+// which neither TestDiscoverDefaultRouteTableAliasIsNotMalformed nor
+// TestDiscoverDefaultSecurityGroupAliasIsNotMalformed exercises: an estate
+// that declares BOTH sides of a default-adopter pair, the ordinary shape
+// terraform-aws-modules/vpc and this real module both use (an unrelated
+// aws_security_group next to an aws_default_security_group adopting the
+// VPC's own default one). AWS has one DescribeSecurityGroups list call, not
+// two, so scanning BOTH declared types visits the shared default object
+// TWICE - once under aws_security_group's own typeName (rebound to
+// aws_default_security_group by defaultAdopterSiblings) and once under
+// aws_default_security_group's own typeName (already matching) - and before
+// claimantAlreadyPresent that produced ProblemCollision ("Two live resources
+// claiming one address") printing the same live ID twice, not the one
+// object it actually is.
+func TestDiscoverDefaultAdopterDeclaredBothSidesNoFalseCollision(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.listable("aws_default_security_group")
+	// The same live object, registered under BOTH declared types - exactly
+	// how two independent scanType passes over one DescribeSecurityGroups
+	// population both surface it.
+	cloud.own("aws_security_group", "sg-shared-1", `aws_default_security_group.default`)
+	cloud.own("aws_default_security_group", "sg-shared-1", `aws_default_security_group.default`)
+
+	cfg := loadConfig(t, "testdata/default-adopter-dup")
+	res, diags := Discover(context.Background(), Request{
+		Estate:      estateName,
+		Config:      cfg,
+		Resolutions: resolveOrFail(t, cfg).All(),
+		Provider:    cloud,
+	})
+	assertNoErrors(t, diags)
+	if len(res.ProblemsOfKind(ProblemCollision)) != 0 {
+		t.Fatalf("a live object discovered twice via two scan passes was reported as a genuine collision:\n%s", res)
+	}
+
+	b, ok := res.BindingFor(mustAddr(t, "aws_default_security_group.default"))
+	if !ok {
+		t.Fatalf("aws_default_security_group.default did not bind at all:\n%s", res)
+	}
+	if b.ImportID != "sg-shared-1" {
+		t.Errorf("bound to %q, want sg-shared-1", b.ImportID)
 	}
 }
 

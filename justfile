@@ -885,6 +885,19 @@ demo-corpus-hongbomiao-storage:
 demo-corpus-overture-tiles:
     bash live/e2e/corpus-overture-tiles/run.sh
 
+# The fourth OpenTofu-native crossing: XanCloud/xancloud-iac's own
+# landing-zone-basic blueprint (VPC + CloudTrail + account-level IAM
+# baseline, 42 resource instances), pinned by tag v0.2.0 and commit. A
+# young, single-maintainer, actively-developed AWS landing-zone
+# accelerator whose README and docs describe it as "OpenTofu-first"
+# throughout, run with its own examples/dev.tfvars unmodified. See the
+# script's own header for the full evidence and exactly which two files
+# (providers.tf, versions.tf) this crossing patches for emulator wiring
+# and why. Needs Docker, the AWS CLI, and the real `tofu` binary; runs on
+# its own port (4727).
+demo-corpus-xancloud-iac:
+    bash live/e2e/corpus-xancloud-iac/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #

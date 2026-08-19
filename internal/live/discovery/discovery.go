@@ -1585,7 +1585,9 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		}
 
 		if entry, ok := decl.entryFor(bindType, escaped); ok {
-			entry.claimants = append(entry.claimants, c)
+			if !claimantAlreadyPresent(entry.claimants, c) {
+				entry.claimants = append(entry.claimants, c)
+			}
 			continue
 		}
 		if decl.declares(bindType, escaped) {
@@ -1724,6 +1726,35 @@ func defaultAdopterSiblings(a, b string) bool {
 	return plainTI.ServerAssigned && defTI.ServerAssigned &&
 		plainTI.ImportSyntax == defTI.ImportSyntax &&
 		slices.Equal(plainTI.IdentityAttrs, defTI.IdentityAttrs)
+}
+
+// claimantAlreadyPresent reports whether cs already holds a claimant for the
+// same live object as c, by import ID. An estate that declares BOTH sides of
+// a [defaultAdopterSiblings] pair - a real, ordinary shape: a VPC module's
+// aws_default_security_group.this sitting next to an unrelated
+// aws_security_group.other block - has decl.typeNames() include both types,
+// so [scanType] runs once per type and each run's own list call
+// (DescribeSecurityGroups, DescribeRouteTables, DescribeNetworkAcls) returns
+// every security group / route table / network ACL in the account,
+// including the shared default object. That object's marker settles its
+// bindType correctly every time (see the defaultAdopterSiblings branch
+// above), so both scans append an otherwise-identical claimant - same
+// importID, because it is the same live resource - for the very entry this
+// function guards. Without this check that reads as
+// [ProblemCollision] ("Two live resources claiming one address") printing
+// the same ID twice, rather than the single object it actually is. A
+// claimant with no importID (noIdentity) is never deduplicated against
+// anything: "no identity" is not an identity two claimants could share.
+func claimantAlreadyPresent(cs []claimant, c claimant) bool {
+	if c.importID == "" {
+		return false
+	}
+	for _, existing := range cs {
+		if existing.importID == c.importID {
+			return true
+		}
+	}
+	return false
 }
 
 // typeTaggable reports whether typeName's own managed resource schema has a
