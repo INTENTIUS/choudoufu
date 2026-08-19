@@ -187,6 +187,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"experiment; deriving them would make the check circular.",
 		Data: 0, Code: 2,
 	},
+	"tools/importer-probe/main.go": {
+		Reason: "controlTypes: four types with a documented Import section (issue #331), probed alongside the " +
+			"identity_schema_wire_only bucket - itself read at runtime from live/identity-sources.json, not hand-listed " +
+			"here - to prove the discriminator reports HAS_IMPORTER for something known to have one. Same shape as " +
+			"tools/wo-sweep's own positive control, immediately above: naming the control is the experiment, deriving it " +
+			"would make the check circular.",
+		Data: 4, Code: 0,
+	},
 
 	// ---- estate-gen shared machinery ----------------------------------
 	"tools/estate-gen/gen.go": {
@@ -271,7 +279,17 @@ const (
 	// const, because that pair's ratified identity does not match the way
 	// defaultAdopterSiblings' three prefix-derived pairs do and so cannot
 	// be derived the same way. Two Code literals, no Data, nothing moved.
-	typeLiteralDataTotal = 426
+	// 426 -> 430 data, 2026-08-19 (issue #331 follow-up): new
+	// tools/importer-probe/main.go's controlTypes, four fixed positive
+	// controls (aws_iam_role, aws_s3_bucket, aws_iam_role_policy_attachment,
+	// aws_security_group) proving the tool's Importer discriminator reports
+	// HAS_IMPORTER for something known to have one. The tool's actual
+	// subject - the identity_schema_wire_only bucket - is read from
+	// live/identity-sources.json at runtime rather than hand-listed, so
+	// this file gains only the control set, same shape as tools/wo-sweep's
+	// own two-literal control immediately above it in the registry. Four
+	// Data literals added, no Code, nothing moved.
+	typeLiteralDataTotal = 430
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

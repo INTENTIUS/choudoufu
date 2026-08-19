@@ -21,11 +21,13 @@
 //
 // Usage: -exe names the provider binary (a plugin cache entry will do),
 // -all sweeps every type the provider serves into -out. Without -all it
-// prints the wire-only bucket and four controls.
+// prints the wire-only bucket (read from -sources, tools/row-gen's own
+// live/identity-sources.json artifact by default) and four fixed controls.
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -44,15 +46,12 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-var types = []string{
-	// the identity_schema_wire_only bucket
-	"aws_acm_certificate_validation",
-	"aws_acmpca_certificate_authority_certificate",
-	"aws_codegurureviewer_repository_association",
-	"aws_iam_policy_attachment",
-	"aws_inspector_resource_group",
-	"aws_shield_application_layer_automatic_response",
-	// positive controls: types with a documented Import section
+// controlTypes are four types with a documented Import section, asked
+// alongside the wire-only bucket as a sanity check that the discriminator
+// (see the package doc comment) reports HAS_IMPORTER for something known to
+// have one. Four is deliberately small and fixed - a control set proves the
+// method works, it does not need to grow with the bucket it is checking.
+var controlTypes = []string{
 	"aws_iam_role",
 	"aws_s3_bucket",
 	"aws_iam_role_policy_attachment",
@@ -60,10 +59,30 @@ var types = []string{
 }
 
 var (
-	exeFlag = flag.String("exe", "", "path to the terraform-provider-aws binary")
-	all     = flag.Bool("all", false, "sweep every resource type the provider serves")
-	outFlag = flag.String("out", "", "sweep result file")
+	exeFlag     = flag.String("exe", "", "path to the terraform-provider-aws binary")
+	all         = flag.Bool("all", false, "sweep every resource type the provider serves")
+	outFlag     = flag.String("out", "", "sweep result file")
+	sourcesFlag = flag.String("sources", "live/identity-sources.json", "path to row-gen's sourcesArtifact, read for the identity_schema_wire_only bucket")
 )
+
+// wireOnlyTypes reads the identity_schema_wire_only bucket back out of
+// tools/row-gen/sources.go's own generated artifact, so the default probe
+// target list tracks that bucket automatically rather than naming its
+// members in Go - the bucket is data this repository already generates, not
+// a fact this tool should hand-curate a second time.
+func wireOnlyTypes(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	var artifact struct {
+		WireOnly []string `json:"identity_schema_wire_only"`
+	}
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return artifact.WireOnly, nil
+}
 
 // sweep asks every resource type the same question and records the answer.
 // The discriminator is helper/schema Provider.ImportState's own message for
@@ -176,6 +195,12 @@ func run(exe string) error {
 	if *all {
 		return sweep(ctx, p, schema)
 	}
+
+	wireOnly, err := wireOnlyTypes(*sourcesFlag)
+	if err != nil {
+		return fmt.Errorf("loading the wire-only bucket: %w", err)
+	}
+	types := append(append([]string{}, wireOnly...), controlTypes...)
 
 	for _, t := range types {
 		sch, hasSchema := schema.ResourceTypes[t]
