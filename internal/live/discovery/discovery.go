@@ -1527,11 +1527,17 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// bindType is the type every declared-set lookup and reported record
 		// below uses to find where this object belongs. It starts as
 		// typeName - which list call found the object - and is corrected to
-		// the marker's own type only for the one case where that is known
-		// safe: see defaultAdopterSiblings.
+		// the marker's own type only for the cases known safe: see
+		// defaultAdopterSiblings and iamServiceLinkedRoleSibling.
 		bindType := typeName
+		// claimIdentity is the identity object the claimant carries;
+		// ordinarily r.Identity unchanged, and only ever overridden inside
+		// the iamServiceLinkedRoleSibling branch below, where r.Identity's
+		// schema no longer matches bindType.
+		claimIdentity := r.Identity
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			if defaultAdopterSiblings(markerType, typeName) {
+			switch {
+			case defaultAdopterSiblings(markerType, typeName):
 				// #305 admitted aws_default_route_table /
 				// aws_default_security_group / aws_default_network_acl as
 				// their own types, each "adopting" the one default object
@@ -1547,7 +1553,46 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				// type - not the list call that happened to surface it -
 				// says which declared instance it is (issue #325).
 				bindType = markerType
-			} else {
+			case iamServiceLinkedRoleSibling(markerType, typeName):
+				// Issue #302: the same "AWS has no separate list call for
+				// the special case" shape defaultAdopterSiblings names above
+				// - IAM has no ListServiceLinkedRoles operation, so
+				// iam:ListRoles (aws_iam_role's own native list call)
+				// returns every service-linked role right alongside the
+				// ordinary ones. But unlike the #305 pairs, this pair's
+				// ratified identity does NOT match (aws_iam_role imports by
+				// bare role name; aws_iam_service_linked_role's documented
+				// import ID is the role's ARN - see tagging.go's
+				// iamRoleEntry doc comment), so a bindType flip alone would
+				// carry the wrong importID forward. importIdentityFromResource
+				// recomposes it from this same listed object's own arn
+				// attribute, which aws_iam_role's schema exports regardless
+				// of which declared type's list call happened to surface it.
+				if fixedID, fixedAttr, composedOK := importIdentityFromResource(markerType, r.Resource); composedOK {
+					bindType = markerType
+					importID, idAttr, hasID = fixedID, fixedAttr, true
+					// r.Identity is typed by typeName's (aws_iam_role's)
+					// identity schema, not bindType's - carrying it forward
+					// under the corrected type would hand a wrongly-shaped
+					// object to whatever reads Binding.Identity downstream.
+					// Every other claimant construction that composes an
+					// identity by hand rather than trusting the list call's
+					// own schema-matched identity (tagging.go, cloudcontrol.go)
+					// already uses cty.NilVal for the same reason.
+					claimIdentity = cty.NilVal
+				} else {
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemMalformedMarker,
+						TypeName: typeName,
+						Marker:   raw,
+						LiveIDs:  liveIDs(importID),
+						Detail: fmt.Sprintf(
+							"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). This looks like the role/service-linked-role listing overlap issue #302 describes, but %s's own ARN could not be read off the listed object, so it was not corrected automatically. Retag the resource with its own address, or remove the marker to disown it.",
+							typeName, req.Estate, raw, markerType, typeName, markerType),
+					}))
+					continue
+				}
+			default:
 				// The estate owns this resource and its marker names an
 				// address of another, unrelated type. Nothing can be done
 				// with it: binding it to the address it names would attach a
@@ -1574,7 +1619,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		c := claimant{
 			importID:     importID,
 			identityAttr: idAttr,
-			identity:     r.Identity,
+			identity:     claimIdentity,
 			displayName:  r.DisplayName,
 			marker:       raw,
 			escaped:      escaped,
@@ -1726,6 +1771,76 @@ func defaultAdopterSiblings(a, b string) bool {
 	return plainTI.ServerAssigned && defTI.ServerAssigned &&
 		plainTI.ImportSyntax == defTI.ImportSyntax &&
 		slices.Equal(plainTI.IdentityAttrs, defTI.IdentityAttrs)
+}
+
+// iamServiceLinkedRoleSibling reports whether a and b are aws_iam_role and
+// aws_iam_service_linked_role, in either order - GitHub issue #302.
+//
+// It is the same "AWS itself has no separate list call for the special
+// case" shape [defaultAdopterSiblings] names above: IAM has no
+// ListServiceLinkedRoles operation, so iam:ListRoles - aws_iam_role's own
+// native list call - returns every service-linked role right alongside the
+// ordinary ones, no PathPrefix filter applied. That is what #302 pointed at
+// [defaultAdopterSiblings] as precedent for.
+//
+// It is deliberately not folded into [defaultAdopterSiblings] itself: that
+// function's safety proof is "same ImportSyntax, same IdentityAttrs", and
+// this pair fails it for real - aws_iam_role imports by bare role name,
+// while aws_iam_service_linked_role's documented import ID is the role's
+// ARN (tagging.go's iamRoleEntry doc comment carries the same fact,
+// confirmed against a live floci-created role while crossing issue #293's
+// corpus). A bindType flip using typeName's own importID unchanged would
+// carry the wrong value forward, silently. [scanType]'s caller pairs a
+// match here with [importIdentityFromResource] to recompose the identity
+// under bindType's own scheme instead of reusing typeName's.
+func iamServiceLinkedRoleSibling(a, b string) bool {
+	const role, serviceLinked = "aws_iam_role", "aws_iam_service_linked_role"
+	return (a == role && b == serviceLinked) || (a == serviceLinked && b == role)
+}
+
+// importIdentityFromResource composes bindType's own import identity from a
+// listed object's full resource attributes, for the one case
+// [iamServiceLinkedRoleSibling] names where typeName's own importID (already
+// composed by [importIdentity] before this is ever called) is not bindType's
+// importID and cannot simply be carried forward.
+//
+// aws_iam_role's resource schema exports arn ("Amazon Resource Name (ARN)
+// specifying the role.", per the AWS provider's iam_role.html.markdown doc
+// page) as a plain top-level attribute regardless of which declared type's
+// list call happened to surface the object, and aws_iam_service_linked_role's
+// own ratified identity (ImportSyntax "ARN", IdentityAttrs leading with
+// "arn") is exactly what [importIDFromARN] composes an import ID from given
+// that string - the same function tagging.go's ARN-join path already
+// trusts for the identical fact. A resource object with no readable arn
+// attribute - should not happen for either of this pair's two schemas, but
+// never assumed - returns false rather than guessing, and the caller's
+// existing malformed-marker refusal stands.
+func importIdentityFromResource(bindType string, resource cty.Value) (importID, identityAttr string, ok bool) {
+	ti, tableOK := identity.LookupType(bindType)
+	if !tableOK {
+		return "", "", false
+	}
+	if resource == cty.NilVal || resource.IsNull() {
+		return "", "", false
+	}
+	ty := resource.Type()
+	if !ty.IsObjectType() || !ty.HasAttribute("arn") {
+		return "", "", false
+	}
+	v := resource.GetAttr("arn")
+	// IsMarked checked first, and nothing below reads v.AsString() until
+	// this guard has already returned on a marked value - cty panics rather
+	// than errors on a marked receiver, and a resource's arn attribute
+	// flowing from a sensitive input variable is the ordinary way to
+	// produce one, however unlikely for this specific attribute in
+	// practice. See internal/live/marksafe.
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+		return "", "", false
+	}
+	if v.AsString() == "" {
+		return "", "", false
+	}
+	return importIDFromARN(ti, v.AsString())
 }
 
 // claimantAlreadyPresent reports whether cs already holds a claimant for the

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=491 instances=1554
+# shape: dirs=492 instances=1556
 # shape: class CONCRETE=766
-# shape: class NEEDS_DISCOVERY=656
+# shape: class NEEDS_DISCOVERY=658
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=17
-# shape: body-sha256=65f12ab66ef9da204fa681595c8ae12e8750d17d0fe18f2c45084a92aa0f6782
+# shape: body-sha256=a3dfe1247921b48014a9e89a92b81679927194c3c6b4952da9c4866a1d4cc1d5
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -83,6 +83,8 @@ internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVER
 internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_role.other	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	module.counted[0].aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/module-rename-withhold	module.net.aws_subnet.this["b"]	NEEDS_DISCOVERY		
