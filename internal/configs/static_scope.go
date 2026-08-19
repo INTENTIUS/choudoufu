@@ -750,11 +750,20 @@ func (s staticScopeData) GetInputVariable(_ context.Context, ident addrs.InputVa
 		// one, checkCountIndex's own [countIndexDomain.verdict]), so the
 		// value only ever reaches a caller built to look past that gate
 		// ([StaticEvaluator.EvaluateStructural]).
-		// val is never cty.NilVal here: s.eval.call.vars always returns
-		// through [StaticEvaluator.Evaluate]'s own cty.UnknownVal(wantType)
-		// fallback on error, never the zero value, but the guard costs
-		// nothing and keeps this total.
-		if val == cty.NilVal {
+		// The guard below tests val's TYPE rather than val itself, because
+		// the type is the property cty.UnknownVal actually requires: its
+		// argument must be a real type, and cty.NilType - the zero
+		// cty.Type, with a nil typeImpl - is not one.
+		// cty.UnknownVal(cty.NilType) produces a value that compares
+		// UNEQUAL to cty.NilVal (its interior is the unknown sentinel
+		// rather than nil) and then panics inside cty as soon as anything
+		// asks its type a question. An earlier `val == cty.NilVal` spelling
+		// of this guard therefore did not cover the case it was written
+		// for; see normalizeRefValue (internal/lang/eval.go) for the same
+		// hazard at the place a Data method's own cty.NilVal is turned into
+		// an unknown, which is where the crash this replaced actually
+		// originated.
+		if val.Type() == cty.NilType {
 			return cty.DynamicVal, s.enhanceDiagnostics(id, diags)
 		}
 		return cty.UnknownVal(val.Type()), s.enhanceDiagnostics(id, diags)

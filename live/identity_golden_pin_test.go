@@ -550,9 +550,26 @@ const identityGoldenPinBodyDigest = "c2f7935157b3f178b39f9f27a1a90d73c2e03db31e9
 // 8 PARENT_DERIVED), +3 dirs. Every pre-existing row is byte-identical;
 // this is a pure addition, matching TestIdentityGolden's own "0 changed,
 // 16 added, 0 removed".
+// 2026-08-19 (the #304 crash fix, normalizeRefValue's nil cty.Type): dirs
+// 473 -> 475, instances unchanged at 1513, every class count unchanged and
+// the body digest unchanged. One new fixture root,
+// internal/live/lint/testdata/count-index-undeclared-var, plus its child/
+// module directory - two directories and NOT ONE instance, which is this
+// entry's whole point. The fixture exists to reproduce a crash, so its one
+// resource sits under a count nobody can compute (the caller's module
+// argument is a binary operation over an undeclared variable), and a block
+// whose expansion is unknown resolves no instance by construction. A row
+// appearing here later would mean the count had become computable, which
+// would mean the fixture had stopped reproducing what it was built for.
+//
+// The zero on the instances line is the load-bearing half of this entry for
+// a second reason: the fix changes a value that the static evaluator hands
+// into every hcl.EvalContext it builds, which is as central as this fork
+// gets. It moving no rendered identity anywhere in the tree is the evidence
+// that it changed only the crashing path.
 const (
 	identityGoldenPinInstances = 1513
-	identityGoldenPinDirs      = 473
+	identityGoldenPinDirs      = 475
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

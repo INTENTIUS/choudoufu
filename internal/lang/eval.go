@@ -772,6 +772,39 @@ func normalizeRefValue(val cty.Value, diags tfdiags.Diagnostics) (cty.Value, tfd
 		// we can still evaluate and catch type errors but we'll avoid
 		// producing redundant re-statements of the same errors we've already
 		// dealt with here.
+		//
+		// A [Data] method is free to report an error and return NO value at
+		// all - cty.NilVal - and several do: staticScopeData's
+		// GetInputVariable answers an undeclared variable that way
+		// (internal/configs/static_scope.go), and upstream's own
+		// evaluationStateData.GetCheckBlock answers a check reference
+		// outside `tofu test` that way (internal/tofu/evaluate.go). Such a
+		// value has no type to preserve, and cty.UnknownVal's argument must
+		// be a REAL type: cty.NilType is the zero cty.Type, whose typeImpl
+		// interface is nil, so cty.UnknownVal(cty.NilType) yields a value
+		// that is NOT equal to cty.NilVal (its interior is the unknown
+		// sentinel, not nil) yet panics inside cty the moment anything asks
+		// its type a question - convert.Convert on it reaches
+		// convert.MismatchMessage, which calls Type.FriendlyName on the nil
+		// typeImpl and segfaults.
+		//
+		// So an absent type becomes cty.DynamicVal, cty's own "unknown
+		// value of unknown type", which is exactly what this branch means
+		// to produce and is what every attribute, index and conversion
+		// operation already accepts unconditionally.
+		//
+		// This was latent for as long as [Scope.EvalExpr] was the only
+		// consumer of a context built while diagnostics were accumulating:
+		// EvalExpr returns at its own diags.HasErrors() gate before ever
+		// calling expr.Value, so the ill-formed entry sat in the context
+		// unread. [configs.StaticEvaluator.EvaluateStructural] (GitHub
+		// issue #304) evaluates against such a context on purpose - that is
+		// the whole point of it - and reached the value on the first real
+		// configuration that referenced an undeclared variable from inside
+		// a module-call argument.
+		if val.Type() == cty.NilType {
+			return cty.DynamicVal, diags
+		}
 		return cty.UnknownVal(val.Type()), diags
 	}
 	return val, diags
