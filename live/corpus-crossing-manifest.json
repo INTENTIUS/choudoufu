@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 16,
-    "cold_deploy": { "pass": 14, "fail": 2, "not_run": 0 },
-    "migrate": { "pass": 13, "fail": 1, "not_run": 2 },
-    "test_plan": { "pass": 6, "fail": 8, "not_run": 2 },
-    "test_apply": { "pass": 6, "fail": 0, "not_run": 10 },
-    "drift_reconverge": { "pass": 6, "fail": 0, "not_run": 10 }
+    "estates": 17,
+    "cold_deploy": { "pass": 15, "fail": 2, "not_run": 0 },
+    "migrate": { "pass": 14, "fail": 1, "not_run": 2 },
+    "test_plan": { "pass": 6, "fail": 9, "not_run": 2 },
+    "test_apply": { "pass": 6, "fail": 0, "not_run": 11 },
+    "drift_reconverge": { "pass": 6, "fail": 0, "not_run": 11 }
   },
   "estates": [
     {
@@ -217,6 +217,19 @@
         "drift_reconverge": "not_run"
       },
       "notes": "Landed 2026-08-19. Sourced via GitHub code search rather than the awesome-opentofu/Powered-by-OpenTofu lists, which turned out to be pure tooling/adopter lists with no deployable estates. OpenTofu-native evidence is in its CI rather than a genuine .tofu extension (weaker self-description than corpus-hongbomiao, which ships real .tofu files): .github/workflows/ci.yml runs tofu fmt/validate/test/tflint exclusively through opentofu/setup-opentofu - terraform never appears - and its tests use OpenTofu's own mock_provider framework. A real, tagged-release module (v1.0.0->v1.2.0) from a Linux-Foundation-adjacent geospatial project backed by AWS/Meta/Microsoft/TomTom, contributor fixes as recent as 2026-05-21. cold_deploy genuinely passes (26 resources, plain tofu apply, unmodified module). migrate is BLOCKED, not clean: live-import stamps 13 of 26 cleanly, 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE (#249), and 3 AWS Batch resources fail to stamp on a real floci bug - TagResource/UntagResource/ListTagsForResource (POST /v1/tags/{resourceArn}) misroutes to AppSyncController's greedy catch-all since BatchController never registers that path. Filed as lex00/floci#72 with full evidence (checked ~/checkouts/floci first, confirmed same bug on current main, no in-progress fix) - not fixed, per this session's standing instruction. test_plan is BLOCKED, deterministically asserted (Plan: 4 to add, 7 to change, 0 to destroy, every line traced) rather than reached cleanly. Also filed INTENTIUS/choudoufu#322: aws_iam_role_policy (untaggable, ServerAssignedIfAbsent name via name_prefix) escalates a single-address unbound warning into a hard Error: Listed resource with no tags that aborts the ENTIRE live-plan, not just its own address - a real blast-radius concern (one bad site takes down the whole plan) worth prioritizing. Not fixed; worked around in this crossing via the module's own name_overrides input so the script could still assert what it could reach. Stages 4-5 not attempted - both need a genuinely empty first plan, which this estate doesn't reach yet. Confirmed informationally that applying the current non-empty plan fails safely (AWS Batch's own name-uniqueness check refuses the duplicate) rather than silently corrupting anything. Merged to local main as a233497312 (fix itself: 3c183a305a); justfile gained recipe demo-corpus-overture-tiles; live/corpus-manifest.json gained the pin."
+    },
+    {
+      "dir": "live/e2e/corpus-xancloud-iac",
+      "source": "XanCloud/xancloud-iac, blueprints/landing-zone-basic (an AWS landing-zone accelerator: VPC + CloudTrail + account-level IAM baseline), pinned by tag v0.2.0 and commit 7bc78ff79df4f914921cf04fd9728d09526c93bd",
+      "lane": "opentofu-native",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "pass",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 2026-08-19, the fifth OpenTofu-native estate. Genuinely different from every prior crossing in this lane. OpenTofu-native evidence: README/badges state \"OpenTofu-first ... native state encryption, S3 locking without DynamoDB, no vendor lock-in\", required_version >= 1.11.0, and docs/TROUBLESHOOTING.md carries a dedicated real-usage \"OpenTofu general\" section (tofu init -upgrade) rather than just a badge - weaker than corpus-hongbomiao's genuine .tofu files (this ships plain .tf), comparable to sumaform/overture-tiles. Several other candidates evaluated and rejected first (an account-singleton-heavy 0-star repo, a devtool's test fixture masquerading as an estate, multiple 0-1-star scaffolds). cold_deploy genuinely passes (28 resources, plain tofu apply, unmodified). migrate genuinely passes: live-import 22 of 28 eligible (21 VERIFIED, 1 DRIFTED), -approve 22 newly stamped, 6 correctly UNTAGGABLE, 0 failed. test_plan BLOCKED, deterministically asserted (Plan: 2 to add, 3 to change, 1 to destroy, all 5 addresses traced to three independent, filed, evidence-backed gaps, not routed around); the VPC's own marker re-verified directly against the AWS CLI after state deletion, BREAK=1 confirmed load-bearing. Six real floci gaps filed with full evidence: lex00/floci#73 (S3Control PutPublicAccessBlock unimplemented), #74 (IAM UpdateAccountPasswordPolicy unsupported), #75 (IAM Access Analyzer - whole missing service), #76 (EC2 ModifyInstanceMetadataDefaults unsupported), #77 (CloudTrail tagging trio missing, blocks any tagged aws_cloudtrail), #78 (EC2 CreateFlowLogs ignores TagSpecifications) - none fixed, per this session's standing instruction. Two choudoufu gaps filed: INTENTIUS/choudoufu#327 (aws_nat_gateway's ForceNew args read null from a stateless prior, forcing a spurious replace), #328 (aws_default_security_group.revoke_rules_on_delete, write-only with no live representation, always diffs) - not fixed. A REAL BUG found and fixed along the way, outside this task's own estate work: #325's marker-alias fix (merged just before this crossing started) double-counted a live object when an estate declares BOTH sides of a default-adopter pair (this module does, aws_default_security_group next to an unrelated aws_security_group) - both scanType passes appended an identical claimant, producing a false \"Two live resources claiming one address\" collision on a single real object (confirmed via direct AWS CLI query). Fixed with claimantAlreadyPresent (dedupe by import ID), covered by a new regression test reproducing the exact real-world error text before the fix and passing after. Stages 4-5 not attempted - both need a genuinely empty first plan. Merged to local main as 62e63a3eb5 (crossing: 427977009a, the discovery double-count fix: 3bdceb43e3); rebased onto a concurrent sibling's internal/live/identity work mid-session, one conflict (the generated identity-golden.txt) resolved by regenerating, not hand-merging; justfile gained recipe demo-corpus-xancloud-iac; live/corpus-manifest.json gained the pin."
     }
   ]
 }
