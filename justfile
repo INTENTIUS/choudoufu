@@ -864,6 +864,27 @@ demo-corpus-hongbomiao-labelbox:
 demo-corpus-hongbomiao-storage:
     bash live/e2e/corpus-hongbomiao-storage/run.sh
 
+# OvertureMaps/terraform-aws-overture-tiles (live/corpus-manifest.json,
+# pinned by TAG v1.2.0 AND commit - the third OpenTofu-native crossing, and
+# the first with a real tagged release): a real, actively-maintained AWS
+# Batch/S3/CloudFront tile-generation module from the Overture Maps
+# Foundation, CI-verified against OpenTofu exclusively (tofu fmt/validate/
+# test/tflint, mock_provider tests - terraform never appears in its own
+# CI) though its own HCL is plain .tf and Terraform-compatible too, so the
+# evidence here is in tooling rather than syntax. Stage 1 (cold deploy, 26
+# real resources) passes clean. Stages 2-3 are genuinely BLOCKED, and
+# asserted as such rather than skipped or routed around: a real floci bug
+# (lex00/floci#72 - AWS Batch's TagResource path misroutes to AppSync's
+# catch-all handler) blocks 3 of 26 resources from stamping, and a real
+# choudoufu gap (INTENTIUS/choudoufu#322 - an untaggable admitted type with
+# a server-assigned name component hard-aborts the whole live-plan) was
+# found and worked around via the module's own name_overrides input rather
+# than fixed. See the script's own header for the full evidence, the exact
+# scoping, and both issues. Needs Docker, the AWS CLI, and the real `tofu`
+# binary; runs on its own port (4726).
+demo-corpus-overture-tiles:
+    bash live/e2e/corpus-overture-tiles/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
