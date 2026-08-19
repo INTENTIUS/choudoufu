@@ -157,7 +157,7 @@ var logicalLimitsClasses = map[string]LogicalClass{
 	"time-sleep":           ClassRecordAdmitted,
 	"random-password":      ClassSecretRefused,
 	"local-sensitive-file": ClassSecretRefused,
-	"local-file":           ClassOtherRefused,
+	"local-file":           ClassExternalAdmitted,
 }
 
 // TestLogicalLimitsDetailsRender checks that every logical-resource limits

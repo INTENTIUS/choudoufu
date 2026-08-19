@@ -876,18 +876,27 @@ func TestClassifyLogicalType(t *testing.T) {
 		// uniform enough to extend to a type nobody has reviewed yet.
 		{"tls_hypothetical_new_type", true, ClassSecretRefused, "tls_"},
 
-		// local_sensitive_file: an exact-match verdict alongside the tls_
-		// prefix's, settled by its own provider docs even though
-		// hashicorp/local contributes no logicalTypes row (see
-		// ClassifyLogicalType).
+		// local_sensitive_file: a derived row like every other, since issue
+		// #314 stopped hashicorp/local's store_only=false suppressing rows
+		// for its types. It used to be a hand-written exact-match verdict in
+		// ClassifyLogicalType, argued from the provider's docs; the row is
+		// now argued from the schema (content and content_base64, Sensitive,
+		// neither deprecated), which is the same conclusion from a source
+		// that re-measures.
 		{"local_sensitive_file", true, ClassSecretRefused, "local_"},
 
-		// OTHER_REFUSED: local_file, whose provider is not store-only and
-		// whose identity is argument-derived rather than record-backed (see
-		// ClassifyLogicalType), and any other family member the table has
-		// no row for.
-		{"local_file", true, ClassOtherRefused, "local_"},
+		// EXTERNAL_ADMITTED: exactly one type today, local_file. Its
+		// provider is the one measured input whose store_only is false, and
+		// that is the whole content of the class - a record_store admits it,
+		// and the count.index walk still runs over its arguments because its
+		// filename names a file two records can collide on. See
+		// ClassExternalAdmitted and TestLocalFileKeepsItsCountIndexCheck.
+		{"local_file", true, ClassExternalAdmitted, "local_"},
+
+		// OTHER_REFUSED: what is left is a family member released since the
+		// last -logical-schemas run, which the derivation has not measured.
 		{"random_hypothetical_new_type", true, ClassOtherRefused, "random_"},
+		{"local_hypothetical_new_type", true, ClassOtherRefused, "local_"},
 
 		// Not logical at all.
 		{"aws_vpc", false, "", ""},
@@ -919,8 +928,12 @@ func TestClassifyLogicalType(t *testing.T) {
 
 // TestLogicalTypesTableWellFormed checks the per-type table's internal
 // consistency: every row's map key matches its own Type field, every
-// RECORD_ADMITTED and SECRET_REFUSED row carries non-empty Evidence (the
-// provider-docs citation the classification rests on), no ClassOtherRefused
+// RECORD_ADMITTED, EXTERNAL_ADMITTED and SECRET_REFUSED row carries non-empty
+// Evidence (the provider-docs citation the classification rests on), an
+// EXTERNAL_ADMITTED row additionally carries External (the provider-level
+// measurement that puts it in that class rather than RECORD_ADMITTED, and the
+// half of its operator message Evidence cannot supply) while no other class
+// does, no ClassOtherRefused
 // row exists in the hand-written table (that class is only ever the
 // no-row-found default; a hand-written row always has more to say than
 // that), and every row's Prefix - when set - is one resourceType actually
@@ -940,6 +953,20 @@ func TestLogicalTypesTableWellFormed(t *testing.T) {
 		case ClassRecordAdmitted, ClassSecretRefused:
 			if lt.Evidence == "" {
 				t.Errorf("logicalTypes[%q] (%s) has no Evidence", key, lt.Class)
+			}
+			if lt.External != "" {
+				t.Errorf("logicalTypes[%q] is %s but carries External %q; that field is the reason a "+
+					"type is EXTERNAL_ADMITTED rather than RECORD_ADMITTED, and says nothing true "+
+					"about any other class", key, lt.Class, lt.External)
+			}
+		case ClassExternalAdmitted:
+			if lt.Evidence == "" {
+				t.Errorf("logicalTypes[%q] (%s) has no Evidence", key, lt.Class)
+			}
+			if lt.External == "" {
+				t.Errorf("logicalTypes[%q] is EXTERNAL_ADMITTED with no External; the class's whole "+
+					"claim is that the record does not bound what this type affects, and its "+
+					"operator message states that reason out loud", key)
 			}
 		case ClassOtherRefused:
 			t.Errorf("logicalTypes[%q] is ClassOtherRefused; that class should never need a hand-written row, only the ClassifyLogicalType default", key)
@@ -1029,13 +1056,43 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		}
 	})
 
-	t.Run("OTHER_REFUSED wording is byte-identical to the pre-table template", func(t *testing.T) {
+	t.Run("EXTERNAL_ADMITTED names the class, the remedy and the count.index carve-out", func(t *testing.T) {
 		lt, ok := ClassifyLogicalType("local_file")
-		if !ok || lt.Class != ClassOtherRefused {
-			t.Fatalf("local_file classified %+v, ok=%v; want ClassOtherRefused", lt, ok)
+		if !ok || lt.Class != ClassExternalAdmitted {
+			t.Fatalf("local_file classified %+v, ok=%v; want ClassExternalAdmitted", lt, ok)
 		}
-		got := logicalResourceDetail("local_file", lt)
-		want := `"local_file" is a logical resource (local_*): it has no existence outside the record ` +
+		detail := logicalResourceDetail("local_file", lt)
+		for _, want := range []string{
+			"EXTERNAL_ADMITTED", "#73", lt.Evidence, lt.External,
+			"record_store", `record_store "ssm" {}`, recordStoreSupportExists,
+			// The sentence that is this class's and no other's. An operator
+			// who reads this message is about to declare a store and
+			// re-plan; count.index is the next thing they can hit, and
+			// saying so here is cheaper than a second round trip.
+			"count.index",
+		} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("EXTERNAL_ADMITTED Detail = %q, want it to contain %q", detail, want)
+			}
+		}
+		// The one claim OTHER_REFUSED made about local_file that was simply
+		// false - the local filesystem IS holding it - must not come back.
+		if strings.Contains(detail, "there is no live system holding it") {
+			t.Errorf("EXTERNAL_ADMITTED Detail repeats OTHER_REFUSED's false claim; got %q", detail)
+		}
+	})
+
+	t.Run("OTHER_REFUSED wording is byte-identical to the pre-table template", func(t *testing.T) {
+		// No measured type carries this class any more (issue #314 gave
+		// local_file, its last holder, a row of its own), so the subject is
+		// the case the class now exists for: a family member released since
+		// the last -logical-schemas run.
+		lt, ok := ClassifyLogicalType("local_hypothetical_new_type")
+		if !ok || lt.Class != ClassOtherRefused {
+			t.Fatalf("local_hypothetical_new_type classified %+v, ok=%v; want ClassOtherRefused", lt, ok)
+		}
+		got := logicalResourceDetail("local_hypothetical_new_type", lt)
+		want := `"local_hypothetical_new_type" is a logical resource (local_*): it has no existence outside the record ` +
 			"that OpenTofu keeps of it, so that record is the store live resource " +
 			"markers remove. Nothing can recover its value from the live system, because " +
 			"there is no live system holding it. Pass the value in as a variable or " +

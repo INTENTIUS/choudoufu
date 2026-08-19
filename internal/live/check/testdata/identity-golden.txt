@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=499 instances=1565
+# shape: dirs=499 instances=1567
 # shape: class CONCRETE=773
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
-# shape: class RECORD_BACKED=17
-# shape: body-sha256=01cb4e1b935f0c2d82c2ed3137584d0ef786f3d3b1782124872679c4f956b542
+# shape: class RECORD_BACKED=19
+# shape: body-sha256=49a313fc47f2ca04794a0ba20c983fcf541e5629efc8577449122cde3856a315
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -638,6 +638,7 @@ internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["sub.example.com (
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["team_one"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["with space"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["été"]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/logical	local_file.rendered	RECORD_BACKED		
 internal/live/lint/testdata/logical	null_resource.trigger	RECORD_BACKED		
 internal/live/lint/testdata/logical	random_pet.name	RECORD_BACKED		
 internal/live/lint/testdata/logical	time_sleep.wait	RECORD_BACKED		
@@ -1549,6 +1550,7 @@ live/e2e/limits/ignore-changes	aws_s3_bucket.marker_key	CONCRETE	estate-marker-k
 live/e2e/limits/ignore-changes	aws_s3_bucket.one_foreign_key	CONCRETE	estate-one-foreign-key	bucket=estate-one-foreign-key
 live/e2e/limits/ignore-changes	aws_s3_bucket.whole_tags	CONCRETE	estate-whole-tags	bucket=estate-whole-tags
 live/e2e/limits/local-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-local-exec	bucket=tofu-stateless-limits-local-exec
+live/e2e/limits/local-file	local_file.rendered	RECORD_BACKED		
 live/e2e/limits/module-provider-block	module.compute.aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-provider-block/child	aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-providers	module.aliased.aws_s3_bucket.data	CONCRETE	estate-module-providers-aliased	bucket=estate-module-providers-aliased

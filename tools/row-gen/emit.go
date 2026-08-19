@@ -732,8 +732,16 @@ func renderLogicalTypeFile(rows []logicalClassRow, prefixes []string) ([]byte, e
 	b.WriteString(logicalTypesDoc)
 	b.WriteString("var logicalTypes = map[string]LogicalType{\n")
 	for _, r := range rows {
-		fmt.Fprintf(&b, "%q: {Type: %q, Class: %s, Prefix: %q, Evidence: %q},\n",
-			r.Type, r.Type, r.Class, r.Prefix, r.Evidence)
+		// External is rendered only when set, the same way renderStruct
+		// omits a zero field: it is populated for EXTERNAL_ADMITTED alone,
+		// and spelling `External: ""` onto the other twenty rows would put
+		// a field on every one of them to say nothing.
+		external := ""
+		if r.External != "" {
+			external = fmt.Sprintf(", External: %q", r.External)
+		}
+		fmt.Fprintf(&b, "%q: {Type: %q, Class: %s, Prefix: %q, Evidence: %q%s},\n",
+			r.Type, r.Type, r.Class, r.Prefix, r.Evidence, external)
 	}
 	b.WriteString("}\n")
 	return format.Source([]byte(b.String()))
@@ -753,27 +761,36 @@ const logicalFamilyPrefixesDoc = `// logicalFamilyPrefixes are the provider-loca
 // message.
 //
 // One entry per provider in tools/row-gen's logicalProviderSources, taken
-// from the last segment of its source address. hashicorp/local is here and
-// contributes no [logicalTypes] row: its resources are not store-only, so its
-// types keep the no-row-found default. OpenTofu's built-in provider
+// from the last segment of its source address. OpenTofu's built-in provider
 // contributes no prefix at all - terraform_data is admitted by exact type
 // name, because a "terraform_" prefix would claim a whole family this fork
 // has never surveyed.
+//
+// The variable's name predates [ClassExternalAdmitted] and is now slightly
+// wider than it reads: hashicorp/local's resources do NOT exist only inside
+// OpenTofu's record - they write a file - and local_ is a member here all the
+// same, because what this list decides is which families lint explains at all.
 `
 
 const logicalTypesDoc = `// logicalTypes is the per-type classification table, derived from
-// live/logical-schemas.json: every managed resource type served by a
-// store-only provider, classified by the rule that a live (non-deprecated)
-// sensitive attribute anywhere in the type's schema means it handles material
+// live/logical-schemas.json: every managed resource type of every measured
+// provider, classified by the rule that a live (non-deprecated) sensitive
+// attribute anywhere in the type's schema means it handles material
 // live/RECEIPTS.md's no-secrets rule forbids a record from carrying, and none
-// means the record can hold the type's whole value.
+// means the record can hold the type's whole prior state.
 //
 // It is the same rule, over the same artifact, that derives
-// [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's
-// RECORD_ADMITTED and identity's RecordBacked cannot name different sets.
-// They did once: the four types the hand-written table predated resolved
-// under identity and were refused outright by lint, so a configuration with a
-// record_store declared got told its type was out of the subset.
+// [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's admitted
+// classes and identity's RecordBacked cannot name different sets. They did
+// once: the four types the hand-written table predated resolved under identity
+// and were refused outright by lint, so a configuration with a record_store
+// declared got told its type was out of the subset.
+//
+// The provider's own store_only measurement then splits the admitted rows in
+// two. RECORD_ADMITTED means the record is the whole of the resource;
+// EXTERNAL_ADMITTED means the record holds its prior state while one of its
+// own arguments names something outside it, which is why that class does not
+// get countIndexScopeForType's skip.
 //
 // A type in a [logicalFamilyPrefixes] family with no row here classifies
 // [ClassOtherRefused] by default (see [ClassifyLogicalType]).
