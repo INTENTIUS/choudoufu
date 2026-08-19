@@ -2,12 +2,12 @@
   "_comment": "Tracks real, popularity-weighted OSS Terraform/OpenTofu estates run through the five-stage crossing pipeline (cold deploy -> migrate -> test plan -> test apply -> drift and reconverge), same spirit as cohort-acceptance.json but for real-world estates rather than estate-gen's synthetic cohorts. A stage is 'pass', 'fail', or 'not_run' - not_run means the estate's script does not yet exercise that stage, which is itself a gap worth closing, not a silent pass. Updated by the orchestrator from each crossing's own verified run, not by an agent editing this file directly - the same discipline live/cohort-acceptance.json uses, so N concurrent crossings never fight over one JSON file's sort order.",
   "stage_order": ["cold_deploy", "migrate", "test_plan", "test_apply", "drift_reconverge"],
   "totals": {
-    "estates": 15,
-    "cold_deploy": { "pass": 13, "fail": 2, "not_run": 0 },
-    "migrate": { "pass": 12, "fail": 1, "not_run": 2 },
-    "test_plan": { "pass": 6, "fail": 7, "not_run": 2 },
-    "test_apply": { "pass": 6, "fail": 0, "not_run": 9 },
-    "drift_reconverge": { "pass": 6, "fail": 0, "not_run": 9 }
+    "estates": 16,
+    "cold_deploy": { "pass": 14, "fail": 2, "not_run": 0 },
+    "migrate": { "pass": 12, "fail": 2, "not_run": 2 },
+    "test_plan": { "pass": 6, "fail": 8, "not_run": 2 },
+    "test_apply": { "pass": 6, "fail": 0, "not_run": 10 },
+    "drift_reconverge": { "pass": 6, "fail": 0, "not_run": 10 }
   },
   "estates": [
     {
@@ -204,6 +204,19 @@
         "drift_reconverge": "pass"
       },
       "notes": "Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns \"UnknownOperationException: Operation CreateNotebookInstance is not supported by floci\", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, \"4 added, 0 changed, 0 destroyed\", confirmed 0 objects pre-tagged), migrate (live-import: \"3 of 4 resource instance(s) are eligible for stamping\", 1 UNTAGGABLE - the KMS alias; -approve: \"3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped\"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan \"No changes\", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, \"0 added, 0 changed, 0 destroyed\", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
+    },
+    {
+      "dir": "live/e2e/corpus-overture-tiles",
+      "source": "OvertureMaps/terraform-aws-overture-tiles (Overture Maps Foundation), pinned by tag AND commit (v1.2.0, 3f44cebc297db8626705e99784f412b4a2c4eda1) - the first OpenTofu-native lane entry with a real tagged release to pin against",
+      "lane": "opentofu-native",
+      "stages": {
+        "cold_deploy": "pass",
+        "migrate": "fail",
+        "test_plan": "fail",
+        "test_apply": "not_run",
+        "drift_reconverge": "not_run"
+      },
+      "notes": "Landed 2026-08-19. Sourced via GitHub code search rather than the awesome-opentofu/Powered-by-OpenTofu lists, which turned out to be pure tooling/adopter lists with no deployable estates. OpenTofu-native evidence is in its CI rather than a genuine .tofu extension (weaker self-description than corpus-hongbomiao, which ships real .tofu files): .github/workflows/ci.yml runs tofu fmt/validate/test/tflint exclusively through opentofu/setup-opentofu - terraform never appears - and its tests use OpenTofu's own mock_provider framework. A real, tagged-release module (v1.0.0->v1.2.0) from a Linux-Foundation-adjacent geospatial project backed by AWS/Meta/Microsoft/TomTom, contributor fixes as recent as 2026-05-21. cold_deploy genuinely passes (26 resources, plain tofu apply, unmodified module). migrate is BLOCKED, not clean: live-import stamps 13 of 26 cleanly, 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE (#249), and 3 AWS Batch resources fail to stamp on a real floci bug - TagResource/UntagResource/ListTagsForResource (POST /v1/tags/{resourceArn}) misroutes to AppSyncController's greedy catch-all since BatchController never registers that path. Filed as lex00/floci#72 with full evidence (checked ~/checkouts/floci first, confirmed same bug on current main, no in-progress fix) - not fixed, per this session's standing instruction. test_plan is BLOCKED, deterministically asserted (Plan: 4 to add, 7 to change, 0 to destroy, every line traced) rather than reached cleanly. Also filed INTENTIUS/choudoufu#322: aws_iam_role_policy (untaggable, ServerAssignedIfAbsent name via name_prefix) escalates a single-address unbound warning into a hard Error: Listed resource with no tags that aborts the ENTIRE live-plan, not just its own address - a real blast-radius concern (one bad site takes down the whole plan) worth prioritizing. Not fixed; worked around in this crossing via the module's own name_overrides input so the script could still assert what it could reach. Stages 4-5 not attempted - both need a genuinely empty first plan, which this estate doesn't reach yet. Confirmed informationally that applying the current non-empty plan fails safely (AWS Batch's own name-uniqueness check refuses the duplicate) rather than silently corrupting anything. Merged to local main as a233497312 (fix itself: 3c183a305a); justfile gained recipe demo-corpus-overture-tiles; live/corpus-manifest.json gained the pin."
     }
   ]
 }
