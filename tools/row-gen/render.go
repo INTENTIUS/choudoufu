@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // reportHeader is printed once, before any service batch. It states the
@@ -18,11 +20,18 @@ import (
 const reportHeader = `row-gen: registry-evidence admission proposals (issue #44)
 
 Turns live/registry.json's per-type evidence, joined against live/mapping.json,
-into proposed rows for internal/live/lint/admission.go (admittedTypesV0) and
-internal/live/identity/table.go (DefaultTable). Nothing is written to either
+into proposed rows for tools/row-gen/ratified.json, the hand-owned corpus
+-emit copies every non-RecordBacked row out of. Nothing is written to that
 file by this tool: every block below is printed for a human to paste, edit
-and ratify. A wrong row touches live infrastructure, so the generator
-proposes and humans decide - see issue #37.
+and ratify, and -emit then renders the generated tables from it. A wrong row
+touches live infrastructure, so the generator proposes and humans decide -
+see issue #37.
+
+Paste a block into tools/row-gen/ratified.json and re-run
+"go run ./tools/row-gen -emit". There is no second paste: admittedTypesV0 in
+internal/live/lint/admission_generated.go is DERIVED from the emitted table's
+own key set, so admitting a type is exactly the act of giving it a row here
+(issue #263).
 
 Non-goals (also true of every block below, not just this header):
   - no IdentityAttrs id-alias inference: whether a type's own "id" attribute
@@ -142,26 +151,21 @@ func renderProposal(p proposal) string {
 	}
 
 	switch p.Bucket {
-	case bucketServerAssigned:
-		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderServerAssignedEntry(p))
-	case bucketClientNamed:
-		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderClientNamedEntry(p))
-	case bucketComposite:
-		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderCompositeEntry(p))
-	case bucketAssembled:
-		b.WriteString("\n--- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderAdmissionLine(p.TFType))
-		b.WriteString("\n--- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---\n")
-		b.WriteString(renderAssembledEntry(p))
+	case bucketServerAssigned, bucketClientNamed, bucketComposite, bucketAssembled:
+		for _, n := range ratifierChecks(p) {
+			fmt.Fprintf(&b, "before ratifying: %s\n", n)
+		}
+		fmt.Fprintf(&b, "\n--- paste into %s (see contributing/LIVE-TABLES.md), then re-run -emit ---\n", ratifiedJSONRel)
+		entry, err := renderRatifiedEntry(p)
+		if err != nil {
+			// Unreachable for any proposal classifyAll produces: the row is
+			// built from proposal fields that are already strings and bools.
+			// Reported rather than dropped, because a block silently missing
+			// its paste is the one failure a reader cannot see.
+			fmt.Fprintf(&b, "no pastable row: rendering it as JSON failed: %v\n", err)
+			break
+		}
+		b.WriteString(entry)
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
 	case bucketFoldChild:
@@ -194,175 +198,105 @@ func quoteArgs(names []string) string {
 	return strings.Join(quoted, ", ")
 }
 
-// renderAdmissionLine is the ready-to-paste admittedTypesV0 map entry.
-func renderAdmissionLine(tfType string) string {
-	return fmt.Sprintf("%q: {},\n", tfType)
-}
-
-// renderServerAssignedEntry is the ready-to-paste serverAssigned(...) call
-// for DefaultTable. importSyntax is, by default, a documentation-only
-// best-effort string built off the registry's own primaryIdentifier names,
-// flagged the same as the reason since neither is provider-documentation-
-// verified - unless applyImportGrammarPrecedence set DerivedImportSyntax,
-// in which case pinned import-grammar evidence already disagreed with the
-// registry and won (see importprecedence.go's tryArnVsIDOverride,
-// tryOpaqueOverride, tryCompoundArnImportSyntax and
-// applyIdentitySchemaAttrsCorrection), and
-// DerivedIdentityAttrs is pasted too - the one case row-gen does propose an
-// IdentityAttrs value despite issue #44's general non-goal, because this
-// specific correction (which exported attribute, not whether one exists) is
-// exactly what the pinned evidence settles.
-func renderServerAssignedEntry(p proposal) string {
-	service := p.Service
-	reason := fmt.Sprintf("the %s service assigns this identity at create time; no argument reconstructs it.", service)
-
-	importSyntax := strings.ToUpper(strings.Join(p.PrimaryIdentifier, "-"))
-	importSyntaxComment := "TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify"
-	if p.DerivedImportSyntax != "" {
-		importSyntax = p.DerivedImportSyntax
-		importSyntaxComment = "import-grammar precedence: registry primaryIdentifier disagreed with the documented import example; this is the documented shape - still verify"
-	}
-
-	if len(p.DerivedIdentityAttrs) > 0 {
-		return fmt.Sprintf(`serverAssigned(%q,
-	%q, // TEMPLATED: rewrite or accept this reason during ratification
-	%q, // %s
-	%s, // import-grammar precedence: identity attribute recovered from the documented example - still verify
-),
-`, p.TFType, reason, importSyntax, importSyntaxComment, quoteArgs(p.DerivedIdentityAttrs))
-	}
-
-	return fmt.Sprintf(`serverAssigned(%q,
-	%q, // TEMPLATED: rewrite or accept this reason during ratification
-	%q, // %s
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
-`, p.TFType, reason, importSyntax, importSyntaxComment)
-}
-
-// renderCompositeEntry is the ready-to-paste multi-component TypeIdentity{}
-// literal for DefaultTable: applyImportGrammarPrecedence's bucketComposite
-// result, an attr()/sep() chain built from CompositeArgs and CompositeSep -
-// the composite shape bucketNeedsHandSeparator could never propose because
-// the separator was, until this pass, never registry evidence.
-// IdentityAttrs is left nil: whether the composite's own concatenation also
-// equals an exported attribute is the id-alias inference issue #44 keeps as
-// a human call (see aws_networkmanager_customer_gateway_association's
-// ratified entry, whose comment states the type exports no single attribute
-// equal to its comma-joined id, "hand out nothing rather than something
-// that happens to look right" - exactly the standard this leaves to the
-// ratifier).
-func renderCompositeEntry(p proposal) string {
-	var comps strings.Builder
-	var syn []string
-	for i, arg := range p.CompositeArgs {
-		if i > 0 {
-			fmt.Fprintf(&comps, "\n\t\tsep(%q),", p.CompositeSep)
-		}
-		def, hasDef := p.ArgDefaults[arg]
-		cloud, hasCloud := p.ArgCloud[arg]
-		switch {
-		case hasDef || hasCloud:
-			// attr() cannot carry a fallback of either kind; the component
-			// is spelled in full so the paste stays unedited (see
-			// Component.Default and Component.Cloud).
-			fmt.Fprintf(&comps, "\n\t\tComponent{Attrs: []string{%q}", arg)
-			if hasDef {
-				fmt.Fprintf(&comps, ", Default: %q", def)
-			}
-			if hasCloud {
-				fmt.Fprintf(&comps, ", Cloud: %q", cloud)
-			}
-			comps.WriteString(", IdentityAttr: SameNameIdentity},")
-		default:
-			fmt.Fprintf(&comps, "\n\t\tattr(%q),", arg)
-		}
-		syn = append(syn, strings.ToUpper(arg))
-	}
-	importSyntax := strings.Join(syn, strings.ToUpper(p.CompositeSep))
-	return fmt.Sprintf(`TypeIdentity{
-	Type: %q,
-	Components: []Component{%s
-	},
-	ImportSyntax:  %q,
-	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
-},
-`, p.TFType, comps.String(), importSyntax)
-}
-
-// renderAssembledEntry is bucketAssembled's ready-to-paste TypeIdentity{}
-// literal (issue #172): the template's segments spelled as the explicit
-// Component list the ratified table uses for this shape - {Literal: ...},
-// {Cloud: "region"}, {Attrs: []string{...}} - with the per-component
-// IdentityAttr derived from the leading scheme literal (identityattr.go's
-// rule). IdentityAttrs is left nil for the same issue #44 id-alias reason
-// renderCompositeEntry states.
-func renderAssembledEntry(p proposal) string {
-	serverAssigned, components, importSyntax, _, _ := proposedFields(p)
-	_ = serverAssigned
-	var comps strings.Builder
-	for i, c := range components {
-		if i > 0 {
-			comps.WriteString(", ")
-		}
-		switch {
-		case c.Cloud != "":
-			fmt.Fprintf(&comps, "{Cloud: %q, IdentityAttr: %q}", string(c.Cloud), c.IdentityAttr)
-		case len(c.Attrs) > 0:
-			fmt.Fprintf(&comps, "{Attrs: []string{%s}, IdentityAttr: %q}", quoteArgs(c.Attrs), c.IdentityAttr)
-		default:
-			fmt.Fprintf(&comps, "{Literal: %q, IdentityAttr: %q}", c.Literal, c.IdentityAttr)
-		}
-	}
-	return fmt.Sprintf(`TypeIdentity{
-	Type:          %q,
-	Components:    []Component{%s},
-	ImportSyntax:  %q,
-	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
-},
-`, p.TFType, comps.String(), importSyntax)
-}
-
-// renderClientNamedEntry is the ready-to-paste TypeIdentity{...} literal for
-// DefaultTable. IdentityAttrs names only the resolved argument itself, for
-// the same id-alias reason renderServerAssignedEntry's comment states.
+// proposedRatifiedRow is one proposal as the ratified row it proposes: the
+// exact [identity.TypeIdentity] a ratifier who accepts the printed block
+// unedited would be adding to tools/row-gen/ratified.json.
 //
-// attr() carries neither kind of documented fallback, so a proposal whose
-// argument has one is spelled in full - the same choice renderCompositeEntry
-// makes per segment, and for the same reason: the paste has to stay
-// unedited. Eight proposals need it, every one a per-account or per-region
-// singleton whose configuration ordinarily omits the argument entirely; see
-// setClientNamedEvidence for the list and the measurement.
-func renderClientNamedEntry(p proposal) string {
-	importSyntax := strings.ToUpper(p.ArgName)
-	def, hasDef := p.ArgDefaults[p.ArgName]
-	cloud, hasCloud := p.ArgCloud[p.ArgName]
-	component := fmt.Sprintf("attr(%q)", p.ArgName)
-	if hasDef || hasCloud {
-		// Elided element type, matching renderAssembledEntry and the
-		// ratified table's own single-line spelling; an explicit
-		// Component{...} inside []Component{...} is what gofmt -s removes.
-		var b strings.Builder
-		fmt.Fprintf(&b, "{Attrs: []string{%q}", p.ArgName)
-		if hasDef {
-			fmt.Fprintf(&b, ", Default: %q", def)
-		}
-		if hasCloud {
-			fmt.Fprintf(&b, ", Cloud: %q", cloud)
-		}
-		b.WriteString(", IdentityAttr: SameNameIdentity}")
-		component = b.String()
+// It is [proposedFields] plus the two fields that function deliberately does
+// not return, because convergence.go does not compare them:
+//
+//   - Reason, on a server-assigned row. All 445 server-assigned rows in the
+//     committed corpus carry one, and the fresh classifier must never
+//     regenerate it (see emit.go's doc comment on why templated Reason prose
+//     is copied rather than rebuilt), so the ratifier gets a templated
+//     sentence to rewrite or accept.
+//   - IdentityAttrs, on a client-named row, naming the resolved argument
+//     itself. 274 of the corpus's 325 single-component rows carry one. The
+//     "id" alias stays out: that pairing is the inference issue #44 keeps as
+//     a human call.
+//
+// Composite and assembled rows get no IdentityAttrs for that same id-alias
+// reason, which is also the corpus's own shape - 217 of its 248
+// multi-component rows carry none.
+//
+// Building the block out of [proposedFields] rather than from a second
+// reading of the proposal is what keeps the paste and the convergence
+// measurement in agreement by construction: a row pasted unedited is a row
+// compareOne reports as matched, because both sides are the same function.
+func proposedRatifiedRow(p proposal) identity.TypeIdentity {
+	serverAssigned, components, importSyntax, identityAttrs, _ := proposedFields(p)
+	row := identity.TypeIdentity{
+		Type:           p.TFType,
+		ServerAssigned: serverAssigned,
+		Components:     components,
+		ImportSyntax:   importSyntax,
+		IdentityAttrs:  identityAttrs,
 	}
-	return fmt.Sprintf(`TypeIdentity{
-	Type:          %q,
-	Components:    []Component{%s},
-	ImportSyntax:  %q,
-	IdentityAttrs: []string{%q}, // "id" intentionally omitted; see issue #44 non-goals
-},
-`, p.TFType, component, importSyntax, p.ArgName)
+	switch p.Bucket {
+	case bucketServerAssigned:
+		row.Reason = fmt.Sprintf("the %s service assigns this identity at create time; no argument reconstructs it.", p.Service)
+	case bucketClientNamed:
+		row.IdentityAttrs = []string{p.ArgName}
+	}
+	return row
+}
+
+// renderRatifiedEntry is the pastable block: one type's member of
+// tools/row-gen/ratified.json, in that file's own canonical spelling.
+//
+// It renders through [renderRatified] - the same function
+// TestRatifiedJSONIsCanonical holds the committed file equal to - so a
+// pasted block lands in the one spelling loadRatified round-trips rather
+// than in a second one that merely parses. The outer object braces are
+// stripped, leaving the `"type": { ... },` member at the indentation the
+// file's other members already sit at.
+//
+// The trailing comma is deliberate: ratified.json has never been empty, so
+// every real paste lands beside an existing member and needs one. It is what
+// stops the block being standalone JSON, which is why
+// TestPastableSnippetsLoadAsRatifiedRows re-wraps before parsing.
+func renderRatifiedEntry(p proposal) (string, error) {
+	out, err := renderRatified(map[string]identity.TypeIdentity{p.TFType: proposedRatifiedRow(p)})
+	if err != nil {
+		return "", err
+	}
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	if len(lines) < 3 || lines[0] != "{" || lines[len(lines)-1] != "}" {
+		return "", fmt.Errorf("renderRatified produced an unexpected envelope for %s: %q", p.TFType, out)
+	}
+	return strings.Join(lines[1:len(lines)-1], "\n") + ",\n", nil
+}
+
+// ratifierChecks is the guidance that used to ride along as Go comments
+// inside the pasted literal, back when the paste target was a Go file.
+//
+// JSON carries no comments, so it prints above the block instead. None of it
+// is optional reading - each line names a field the generator filled in
+// without the evidence to settle it - and dropping it during the move off Go
+// source would have made the paste look more settled than it is.
+func ratifierChecks(p proposal) []string {
+	const idAlias = `"identity_attrs" is intentionally absent: whether this type's own "id" attribute equals the identity above is the id-alias inference row-gen does not make (issue #44 non-goals). Add "id" and any other alias only after confirming it against the provider schema or docs.`
+
+	var out []string
+	switch p.Bucket {
+	case bucketServerAssigned:
+		out = append(out, `"reason" is TEMPLATED - it names the CFN service and asserts server assignment, nothing more specific. Rewrite it, or accept it deliberately.`)
+		if p.DerivedImportSyntax != "" {
+			out = append(out, `"import_syntax" comes from import-grammar precedence: the registry's primaryIdentifier disagreed with the documented import example, and the documented shape won. Still verify it.`)
+		} else {
+			out = append(out, `"import_syntax" is TEMPLATED from the registry's primaryIdentifier name(s), not from the provider's documented import syntax. Verify it.`)
+		}
+		if len(p.DerivedIdentityAttrs) > 0 {
+			out = append(out, `"identity_attrs" was recovered from the documented import example by import-grammar precedence. Still verify it.`)
+		} else {
+			out = append(out, idAlias)
+		}
+	case bucketClientNamed:
+		out = append(out, `"identity_attrs" names the resolved argument only; "id" is intentionally omitted (issue #44 non-goals).`)
+	case bucketComposite, bucketAssembled:
+		out = append(out, `"identity_attrs" is intentionally absent: whether the composed value also equals an exported attribute is the id-alias inference issue #44 keeps as a human call - hand out nothing rather than something that happens to look right.`)
+	}
+	return out
 }
 
 // summaryCounts is the acceptance criterion's headline: the bucket totals

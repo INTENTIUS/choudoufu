@@ -40,30 +40,60 @@ goes into the generator's rules, or into one of the ledgers below.
 
 ### `DefaultTable` is generated, but it is not derived
 
-Written in full by `-emit` and still the only copy of its own contents. Every
-non-`RecordBacked` row is copied verbatim out of the `DefaultTable` compiled
-into the generator, which is the file `-emit` wrote on the previous run. The
-fresh classifier contributes no row, and `annotations.json` records the
-*rulings* that justify a row diverging from the classifier, not the rows.
+Written in full by `-emit`, and it is a fixed point over already-ratified
+rows rather than a fresh derivation. Every non-`RecordBacked` row is copied
+verbatim out of a corpus. The fresh classifier contributes no row, and
+`annotations.json` records the *rulings* that justify a row diverging from
+the classifier, not the rows.
 
-Two things follow, and issue #263 was opened because both were being got
-wrong:
+**That corpus is `tools/row-gen/ratified.json`, an input no generator
+writes.** It used to be the `DefaultTable` compiled into the generator — the
+file `-emit` itself wrote on the previous run — and that self-reference is
+the whole of issue #263. Emptying `DefaultTable`'s literal and running
+`-emit` twice yielded a 14-row table (the `RecordBacked` rows and nothing
+else), byte-identical across both runs, exit 0, 878 AWS rows gone, measured
+at `5502e8a3de`. Every fixed-point and convergence check in this repository
+accepted it.
 
-- **Re-running the generator does not restore a lost row.** Revert whatever
-  caused a row to disappear, re-run `-emit`, and it re-emits the smaller
-  table, because the smaller table is now its input. The restore is
-  `git checkout --` on the four generated files. `-emit` refuses to write a
-  smaller table at all unless you pass `-allow-retraction`; see
+Three reads moved onto `ratified.json` together, because leaving any one
+behind would have kept a path back to the generator's own output:
+`emittedRows` for the rows, `markerlessRoster` for the server-assignment
+verdict that decides its veto, and `buildConvergence` for the population it
+measures. `TestEmitDoesNotReadTheTableItWrites` pins it: it empties
+`identity.DefaultTable` outright and still requires all four generated files
+byte-identical.
+
+So, today:
+
+- **Re-running the generator DOES restore a lost row**, once you have fixed
+  whatever caused it to disappear. The rows are ratified in
+  `ratified.json`, which `-emit` never writes. `-emit` still refuses to write
+  a smaller table unless you pass `-allow-retraction`, but that gate is now
+  about intent — a retracted type stops resolving for every configuration
+  that names it — and not about unrecoverability. See
   `tools/row-gen/retraction.go`.
-- **"Run `-emit` twice and diff" is not evidence the artifact is correct.**
-  It shows the tree sits at *a* fixed point. Emptying `DefaultTable`'s literal
-  and running `-emit` twice yields a 14-row table — the `RecordBacked` rows
-  and nothing else — byte-identical across both runs, exit 0, 878 AWS rows
-  gone. Measured at 5502e8a3de.
+- **"Run `-emit` twice and diff" is still not evidence the artifact is
+  correct.** It shows the tree sits at *a* fixed point, which is a weaker
+  claim than "this is the artifact the inputs imply". The test above is the
+  stronger claim, and it is the one to cite.
 
-`admission_generated.go` and `markerless_generated.go` both read
-`DefaultTable`, so they inherit this. `logical_type_generated.go` does not —
-it comes from `live/logical-schemas.json` alone.
+`admission_generated.go` and `markerless_generated.go` are both derived from
+the emitted table's own key set, so admitting a type is exactly the act of
+giving it a row in `ratified.json` — there is no second file to paste into.
+`logical_type_generated.go` is derived from `live/logical-schemas.json`
+alone.
+
+### Adding a row
+
+`go run ./tools/row-gen` prints a block per proposable type, and for the four
+pastable buckets the block is that type's `ratified.json` member in the
+file's own canonical spelling. Paste it in, read the `before ratifying:`
+lines above it — they name the fields the generator filled in without the
+evidence to settle them — and re-run `go run ./tools/row-gen -emit`.
+
+`go run ./tools/row-gen -propose` is the narrower door: only the rule classes
+with a 100% historical adoption record, and their not-yet-admitted
+candidates.
 
 ## Where a hand ruling goes
 
