@@ -122,6 +122,27 @@ var docPages = []docPage{
 		Template: "governance",
 	},
 	{
+		Slug:        "scope-blast-radius",
+		NavLabel:    "Blast radius",
+		Title:       "The wrong config cannot reach production",
+		Section:     "Governance",
+		ContentFile: "scope-blast-radius.md",
+	},
+	{
+		Slug:        "scope-abac",
+		NavLabel:    "One policy per team",
+		Title:       "One policy for every team",
+		Section:     "Governance",
+		ContentFile: "scope-abac.md",
+	},
+	{
+		Slug:        "scope-unowned",
+		NavLabel:    "Nothing unowned",
+		Title:       "Nothing is created unowned",
+		Section:     "Governance",
+		ContentFile: "scope-unowned.md",
+	},
+	{
 		Slug:     "progress",
 		NavLabel: "How far it goes",
 		Title:    "How far it goes",
