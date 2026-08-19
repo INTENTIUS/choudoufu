@@ -692,6 +692,31 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### -1. FIRST: check `../wt/security-group-formula-carrying` before anything else
+
+An orchestrator session ran out of budget 2026-08-19 mid-dispatch on exactly
+the item ranked "2. The core set" below - the formula-carrying
+`tolerantVariables` fix `## 2` calls for. A subagent was mid-flight in
+`../wt/security-group-formula-carrying` (branch `live/security-group-
+formula-carrying`, off a main whose tip was `6668485bef`) when the session
+ended. **Uncommitted, unverified, unmerged** - `git status` there shows real
+changes (`internal/live/identity/partialargs.go`,
+`internal/live/identity/partialargs_test.go`,
+`live/e2e/corpus-security-group-complete/run.sh`, two new fixture
+directories, the golden files) but no commit exists on the branch yet, and
+the agent's own final report was never read.
+
+Before doing anything else: read what's actually in that worktree
+(`git -C ../wt/security-group-formula-carrying diff`, `git status`), decide
+whether it's a real, complete, correctly mutation-tested fix or a partial
+attempt, and hold it to the exact same bar every other fix this session
+passed - a real e2e run against real floci reading the script's own printed
+STAGE line, refusal-boundary mutation tests proving it does NOT fabricate a
+value for a genuinely Computed leaf, and the fast CI tier green - before
+merging. If the worktree is empty or the branch has diverged from something
+usable, this is still the right next task; begin it fresh per item 2
+below rather than trusting a half-built attempt.
+
 ### 0. Fixed: the #304 crash that had `just ci` red on main
 
 `TestNoUnregisteredRefusalsInTheTree` (`internal/live/check`) was genuinely
