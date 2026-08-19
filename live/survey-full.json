@@ -1210,13 +1210,13 @@
     },
     {
       "type": "aws_apprunner_default_auto_scaling_configuration_version",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_apprunner_deployment",
@@ -1588,7 +1588,7 @@
     },
     {
       "type": "aws_auditmanager_account_registration",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -1601,7 +1601,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_auditmanager_assessment",
@@ -5995,7 +5995,7 @@
     },
     {
       "type": "aws_devopsguru_event_sources_config",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -6008,7 +6008,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_devopsguru_notification_channel",
@@ -6032,7 +6032,7 @@
     },
     {
       "type": "aws_devopsguru_service_integration",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -6045,7 +6045,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_directory_service_conditional_forwarder",
@@ -6797,13 +6797,13 @@
     },
     {
       "type": "aws_ec2_allowed_images_settings",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_ec2_availability_zone_group",
@@ -9000,7 +9000,7 @@
     },
     {
       "type": "aws_glue_resource_policy",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -9013,7 +9013,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_glue_schema",
@@ -10115,7 +10115,7 @@
     },
     {
       "type": "aws_iot_event_configurations",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -10128,7 +10128,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_iot_indexing_configuration",
@@ -10441,7 +10441,7 @@
     },
     {
       "type": "aws_kinesis_account_settings",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -10454,7 +10454,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_kinesis_analytics_application",
@@ -10715,23 +10715,23 @@
     },
     {
       "type": "aws_lakeformation_lf_tag",
-      "path": "enumerable, unbindable",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::LakeFormation::Tag with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_lakeformation_lf_tag_expression",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_lakeformation_opt_in",
@@ -11676,7 +11676,7 @@
     },
     {
       "type": "aws_macie2_classification_export_configuration",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -11689,7 +11689,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_macie2_classification_job",
@@ -12925,7 +12925,7 @@
     },
     {
       "type": "aws_observabilityadmin_telemetry_enrichment",
-      "path": "enumerable, unbindable",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -12938,11 +12938,11 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, so Cloud Control listing AWS::ObservabilityAdmin::TelemetryEnrichment with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_observabilityadmin_telemetry_evaluation",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -12955,11 +12955,11 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_observabilityadmin_telemetry_evaluation_for_organization",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -12972,7 +12972,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_observabilityadmin_telemetry_pipeline",
@@ -15596,7 +15596,7 @@
     },
     {
       "type": "aws_s3_account_public_access_block",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -15608,7 +15608,7 @@
           "account_id"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_s3_bucket",
@@ -16178,23 +16178,23 @@
     },
     {
       "type": "aws_s3control_object_lambda_access_point",
-      "path": "enumerable, unbindable",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::S3ObjectLambda::AccessPoint with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_s3control_object_lambda_access_point_policy",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
         "identity_schema": false
       },
-      "evidence": "no identity schema in v6.59.0; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's account-id"
     },
     {
       "type": "aws_s3control_storage_lens_configuration",
@@ -16810,7 +16810,7 @@
     },
     {
       "type": "aws_sagemaker_servicecatalog_portfolio_status",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -16823,7 +16823,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_sagemaker_space",
@@ -17676,7 +17676,7 @@
     },
     {
       "type": "aws_servicequotas_auto_management",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -17689,7 +17689,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_servicequotas_service_quota",
@@ -20774,7 +20774,7 @@
     },
     {
       "type": "aws_xray_encryption_config",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -20787,7 +20787,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     },
     {
       "type": "aws_xray_group",
@@ -20866,7 +20866,7 @@
     },
     {
       "type": "aws_xray_trace_segment_destination",
-      "path": "moves to Ops",
+      "path": "account-derived",
       "signals": {
         "taggable": false,
         "list_resource": false,
@@ -20879,7 +20879,7 @@
           "region"
         ]
       },
-      "evidence": "identity schema requires nothing for import; untaggable, no native list resource and no Cloud Control list handler, so no admission path recovers it"
+      "evidence": "the identity table builds this type's import identity from configuration plus the run's region"
     }
   ]
 }
