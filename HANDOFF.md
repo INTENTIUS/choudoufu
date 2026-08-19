@@ -804,16 +804,18 @@ fresh sourcing search, if a future session wants a quick win here.
 
 ### Loose ends worth an hour, not a slot
 
-- `markers.UnescapeAddress` (`internal/live/markers/markers.go:589`) decodes
-  every module-step key as `addrs.StringKey`, on a doc-comment premise
-  (`count` on a module block is refused permanently) that #195 already
-  falsified - the same premise `overlong_address.go`'s stale claim rested on
-  before this round's `worstCaseChildKey` fix corrected it. A stamped
-  `module.counted[0].aws_x.y` escapes to `module.counted:0.aws_x.y` and
-  unescapes back to `module.counted["0"].aws_x.y` - a different address.
-  The resource-instance key eight lines below already round-trips through
-  `strconv.Atoi`; the module step doesn't. Needs a scouting slot to confirm
-  a real path reaches this before fixing it, not a fix on say-so.
+- `#315`: an admitted `for_each` comprehension's own body still refuses on
+  an untouched `each.value.<field>` reference inside the child module -
+  #308 proves the key set but doesn't project `each.value` down to the one
+  field actually read, so it refuses wholesale as an opaque blob. Found
+  2026-08-18 re-running `corpus-ecs-fargate` after #308 landed (4 sites,
+  `module.container_definition`'s `enable_cloudwatch_logging`/
+  `create_cloudwatch_log_group`). Scoping needs a slot; not attempted.
+- `internal/live/mv`'s `checkAddresses` still cites the same retired premise
+  `markers.UnescapeAddress` did before 2026-08-18's fix (`count`-expanded
+  module blocks are refused permanently) to refuse a rename through a
+  count-keyed module step. Left alone deliberately - it's a behavior
+  decision (should `mv` allow this rename now?), not a comment fix.
 
 ---
 
