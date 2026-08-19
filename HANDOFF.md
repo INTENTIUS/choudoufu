@@ -876,12 +876,18 @@ worth driving all the way to a genuine five-of-five pass before this project
 is shown to anyone outside it. Four of five clear all five stages as of
 2026-08-18 (`reference-ec2-vpc`, `corpus-s3-bucket-complete`,
 `corpus-iam-policy`, `corpus-iam-read-only-policy`); the security-group one
-is the remaining gap. #313 itself is resolved (above) - `test_plan` went
-from 239 diagnostics to 19, and the real remaining blocker is `#321`
-(`element(<resource>[*].id, count.index)` over a splat of tagged
-resources, 12 sites, a derivable gap with no design call needed) plus 2
-genuinely-out-of-scope resource-attribute sites. `#321` is the clear next
-step for this estate and the core set's last gap.
+is the remaining gap. #313 itself is resolved (above) and #321 is fixed
+too (`test_plan` diagnostics 239 -> 19 -> 7) - what's left is not a
+derivable gap any more. All 7 remaining sites trace to #313's own
+resource-attribute root cause (root cause B), which the maintainer's
+ruling deliberately scoped OUT of #313's fix (a `for_each`/`count` keyed
+on another managed resource's own live attribute is a different, harder
+problem than a `data` source read - see #313's entry above for why).
+**The core set cannot reach five-of-five without a further scope decision
+on that boundary** - there is no more derivable work standing between it
+and 4-of-5. Either revisit whether resource-attribute resolution should
+also be in scope, or accept 4-of-5 as this estate's real ceiling under
+the current ruling.
 `live/corpus-crossing-manifest.json` says which ones currently clear which
 stage and why the rest do not; do not trust a stale count copied here
 instead.
