@@ -90,21 +90,50 @@ set -uo pipefail
 # #313 (choudoufu, config-language-subset wall, NOT an admission gap -
 # filed #313). With #305 and #307 both fixed, live-plan no longer refuses
 # on "Resource type is outside the live-markers subset" for ANY type here -
-# but stage 3 still does not produce a clean plan. This estate's own
-# main.tf line 22 computes `local.azs = slice(data.aws_availability_zones.
-# available.names, 0, 3)`, which both nested terraform-aws-vpc calls use in
-# per-AZ for_each/count expressions throughout their own subnet/route-table
-# resources, and module.consul's ingress_referenced_security_group_id map
-# uses `aws_security_group.app.id` directly - both a data source and a
-# same-plan resource attribute, genuinely outside var/local/path/terraform,
-# the config-language-subset ceiling CLAUDE.md's own framing names ("a
-# CIDR-keyed for_each" is the same family). 239 diagnostics total: 52
-# "Dynamic value in static context" (the two root causes) + 187 "Unable to
-# compute static value" (the cascade to every downstream for_each/count
-# instance) - both already-registered refusal classes
-# (internal/live/passthrough/refusals.go), not new choudoufu behavior. Not
-# fixed here; stage 3's assertions below hold the exact counts so a change
-# to either is visible.
+# but stage 3 still does not produce a clean plan. #313 was filed for the
+# 239 diagnostics it hit at that point, and had TWO independent root causes.
+#
+# #313 root cause A (data source), FIXED. This estate's main.tf line 22
+# computes `local.azs = slice(data.aws_availability_zones.available.names,
+# 0, 3)`, which both nested terraform-aws-vpc calls use in per-AZ
+# for_each/count expressions throughout their own subnet/route-table
+# resources. That was never an architecture question: live-plan has read
+# data sources through a real ReadDataSource RPC since #179
+# (internal/live/dataread, wired at internal/command/live_plan.go's
+# statelessDataReads). The value simply could not CROSS a module call.
+# internal/live/identity's resolver.callerVariables rebuilt a module
+# instance's var.* closure only when some call on the path carried its own
+# count or for_each; module "vpc" carries neither, so var.azs was answered
+# by the closure internal/configs froze at load time, which by construction
+# has never seen a data lookup. dataread classified the source readable and
+# read it for real; resolution then refused the child's count anyway.
+# Fixed by resolver.frozenClosureIsStale, which now also rebuilds when an
+# ancestor module instance carries read coverage. 50 sites -> 0 here, and
+# 57 of the 204 .corpus directories with an eligible demanded source
+# improved on the same change.
+#
+# #313 root cause B (resource attribute), NOT FIXED and out of scope by
+# the maintainer's own scoping of the ruling above: module.consul's
+# ingress_referenced_security_group_id map uses `aws_security_group.app.id`
+# directly. A data source is safe to read unconditionally - that is what a
+# data block IS - while a managed resource's attribute may not exist yet
+# within the same plan, so it stays refused. 2 "Dynamic value in static
+# context" sites + 5 cascaded "Unable to compute static value" sites.
+#
+# NEWLY REVEALED by fixing A, and tracked separately: 12 "Identity not
+# resolvable from configuration" sites, all
+# `element(aws_subnet.private[*].id, count.index)` and
+# `element(aws_route_table.private[*].id, ...)` in the vpc module's
+# aws_route_table_association.private (6 instances x 2 identity
+# arguments). These are not new behavior and not a regression - before A
+# was fixed the block's own count refused, so it never expanded and its
+# arguments were never reached. This is HANDOFF.md's documented "a refusal
+# that fired once at the block level starts firing per argument" shape: a
+# splat through element(), which identity resolution cannot follow.
+#
+# So stage 3 goes 239 diagnostics -> 19, and stays BLOCKED on B plus the
+# newly-reached splat class. Assertions below hold the exact counts so a
+# change to any of the three is visible.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL THREE:
 #
@@ -125,11 +154,16 @@ set -uo pipefail
 #                          default_* trio is admitted and stamped above),
 #                          asserted against live-import's own report AND
 #                          confirmed independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by #313 alone (239 sites) -
-#                          #305 and #307 no longer contribute any refusal -
-#                          specific counts and resource addresses asserted
-#                          against a real live-plan run, state file deleted
-#                          first, BREAK=1 negative control.
+#   stage 3  test plan     BLOCKED, for real, at 19 sites (was 239) -
+#                          #305, #307 and #313's data-source root cause A
+#                          no longer contribute any refusal. What remains
+#                          is #313's root cause B (a same-plan resource
+#                          attribute, 2 + 5 cascade, deliberately out of
+#                          scope) and the splat-through-element() class A's
+#                          fix newly reached (12). Specific counts and
+#                          resource addresses asserted against a real
+#                          live-plan run, state file deleted first, BREAK=1
+#                          negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
@@ -376,26 +410,36 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #313 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the remaining stage-3 walls may be fixed; update this script"; }
 
 # #305 and #307 are BOTH fixed: no diagnostic may read "Resource type is
 # outside the live-markers subset" any more, for any type.
 WANT_UNADMITTED_N=0
-# #313, the wall #307's own fix exposed: two static-context refusals this
-# example's own config hits (a data source and a same-plan resource
-# attribute, both outside var/local/path/terraform - see this script's own
-# header) and their cascade.
-WANT_DYNAMIC_N=52
-WANT_STATIC_CASCADE_N=187
+# #313 root cause B only - a same-plan resource attribute
+# (aws_security_group.app.id in module.consul's
+# ingress_referenced_security_group_id map), which the maintainer's ruling
+# on #313 deliberately leaves refused - plus its cascade. Root cause A, the
+# data.aws_availability_zones one, is FIXED and must contribute nothing;
+# that is asserted separately below, by absence.
+WANT_DYNAMIC_N=2
+WANT_STATIC_CASCADE_N=5
+# The class fixing A newly REACHED rather than caused: the vpc module's
+# aws_route_table_association.private now expands (its count no longer
+# cascades off local.azs) and each instance refuses on its own two identity
+# arguments instead, both element(<resource>[*].id, count.index).
+# 6 instances x 2 arguments, across module.vpc and module.vpc_secondary.
+WANT_UNRESOLVABLE_N=12
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
-  WANT_DYNAMIC_N=53
-  WANT_STATIC_CASCADE_N=188
+  WANT_DYNAMIC_N=3
+  WANT_STATIC_CASCADE_N=6
+  WANT_UNRESOLVABLE_N=13
   log "  BREAK=1: expecting 1 unadmitted-type site (there should be 0 now -"
-  log "           #305 and #307 are both fixed), 53 Dynamic-value-in-"
-  log "           static-context sites (one more than the real 52) and 188"
+  log "           #305 and #307 are both fixed), 3 Dynamic-value-in-"
+  log "           static-context sites (one more than the real 2), 6"
   log "           cascaded Unable-to-compute-static-value sites (one more"
-  log "           than the real 187). None of these are real. This step"
+  log "           than the real 5) and 13 Identity-not-resolvable sites (one"
+  log "           more than the real 12). None of these are real. This step"
   log "           must fail."
 fi
 
@@ -408,19 +452,36 @@ for t in aws_default_network_acl aws_default_route_table aws_default_security_gr
   [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t to be fully resolved (both #305 and #307 fixed), but it still appears among live-plan's diagnostics"; }
 done
 
-# #313: what live-plan hits now that #305 and #307 are both fixed - two
-# static-context refusals genuinely in this example's own config (a data
-# source feeding a for_each-relevant local, and a same-plan resource
-# attribute), plus their cascade. Not this script's job to fix; asserted
-# here at the precise counts so a change to either number is visible.
+# What live-plan hits now that #305, #307 and #313's data-source root cause
+# are all fixed. Not this script's job to fix; asserted here at the precise
+# counts so a change to any of them is visible.
 DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
 STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
 [ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313), got $DYNAMIC_N"; }
 [ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' sites (#313's cascade), got $STATIC_CASCADE_N"; }
-grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
-  || fail "expected the data.aws_availability_zones root cause among the #313 diagnostics - the corpus pin may have moved"
+UNRESOLVABLE_N="$(grep -c '^Error: Identity not resolvable from configuration$' <<< "$PLAN_OUT")"
+[ "$UNRESOLVABLE_N" = "$WANT_UNRESOLVABLE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVABLE_N 'Identity not resolvable from configuration' sites (the splat-through-element class #313's fix newly reached), got $UNRESOLVABLE_N"; }
+
+# #313 root cause A, asserted by ABSENCE. This is the load-bearing half of
+# the fix: the data source's value now crosses the module call, so not one
+# diagnostic may name it. If this ever comes back, the ancestor-coverage
+# rebuild in internal/live/identity's resolver.frozenClosureIsStale has
+# regressed, and every per-AZ subnet, route table and association in both
+# nested vpc calls is unresolvable again.
+! grep -qF 'aws_availability_zones' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_availability_zones'; fail "#313's data.aws_availability_zones root cause is back - it must contribute no diagnostic at all"; }
+# ... and by presence of what it unblocked: the per-AZ resources whose
+# count/for_each reads local.azs through module.vpc's own var.azs are gone
+# from the diagnostics entirely.
+for t in aws_subnet aws_route_table; do
+  N="$(grep -cE "^ *[0-9]+: *resource \"$t\"" <<< "$PLAN_OUT")"
+  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:'; fail "$t still appears among live-plan's diagnostics; #313's data-source fix should have resolved every per-AZ instance"; }
+done
+
 grep -qF 'Unable to use aws_security_group.app in static context' <<< "$PLAN_OUT" \
-  || fail "expected the aws_security_group.app root cause among the #313 diagnostics - the corpus pin may have moved"
+  || fail "expected the aws_security_group.app root cause (#313's root cause B, deliberately unfixed) among the diagnostics - the corpus pin may have moved"
+grep -qF 'element(aws_subnet.private[*].id, count.index)' <<< "$PLAN_OUT" \
+  || fail "expected the splat-through-element root cause among the diagnostics - the corpus pin may have moved"
 
 log "  #305 and #307 confirmed BOTH fixed: zero unadmitted-type sites -"
 log "  aws_default_network_acl/route_table/security_group and"
@@ -428,20 +489,27 @@ log "  aws_vpc_security_group_rules_exclusive all resolve (through their"
 log "  own tofu-address marker, or - rules_exclusive - through"
 log "  identity.Report reading security_group_id directly, since it has no"
 log "  marker to read)."
-log "  New wall confirmed (#313, NOT this script's job): $DYNAMIC_N Dynamic-"
-log "  value-in-static-context sites (data.aws_availability_zones feeding"
-log "  local.azs, which module.vpc/module.vpc_secondary use in per-AZ"
-log "  for_each/count expressions; aws_security_group.app.id used directly"
-log "  in module.consul's ingress_referenced_security_group_id map) +"
-log "  $STATIC_CASCADE_N cascaded Unable-to-compute-static-value sites -"
-log "  a data source and a same-plan resource attribute, both genuinely"
-log "  outside var/local/path/terraform, the config-language-subset ceiling"
-log "  CLAUDE.md's own framing names, not an admission gap."
+log "  #313 root cause A confirmed FIXED: data.aws_availability_zones is"
+log "  read by the pre-resolution data-read phase and its value now crosses"
+log "  module.vpc's and module.vpc_secondary's own call boundary, so it"
+log "  contributes zero diagnostics (was 50) and every per-AZ aws_subnet"
+log "  and aws_route_table instance resolves."
+log "  Remaining, at $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N)) sites (was 239):"
+log "    $DYNAMIC_N + $STATIC_CASCADE_N  #313 root cause B - aws_security_group.app.id in"
+log "           module.consul's ingress_referenced_security_group_id map, a"
+log "           same-plan resource attribute the ruling on #313 deliberately"
+log "           leaves refused, plus its cascade."
+log "    $UNRESOLVABLE_N  element(<resource>[*].id, count.index) in the vpc module's"
+log "           aws_route_table_association.private - newly REACHED by root"
+log "           cause A's fix, not caused by it: the block's count no longer"
+log "           cascades off local.azs, so it expands and refuses per"
+log "           identity argument instead of wholesale."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #305 and #307 both fixed and"
-log "confirmed absent above; #313 (config-language subset, not an admission"
-log "gap) is the real remaining wall"
+log "STAGE 3 (test_plan): BLOCKED for real, at 19 sites (was 239) - #305,"
+log "#307 and #313's data-source root cause all fixed and confirmed absent"
+log "above; #313's resource-attribute root cause and the splat-through-"
+log "element() class it newly reached are the remaining walls"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -451,7 +519,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #313 (config-language subset); #305 and #307 both fixed (see header)"
+log "  stage 3  test_plan          BLOCKED at 19 sites (was 239) - #313's data-source half fixed; see header"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

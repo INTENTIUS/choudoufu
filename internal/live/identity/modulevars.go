@@ -56,7 +56,7 @@ import (
 // instance key it was handed, so a call this cannot account for keeps the
 // frozen closure and refuses exactly where it always did.
 func (r *resolver) callerVariables(modInst addrs.ModuleInstance) configs.StaticModuleVariables {
-	if len(modInst) == 0 || !r.pathRepeats(modInst) {
+	if len(modInst) == 0 || !r.frozenClosureIsStale(modInst) {
 		return nil
 	}
 	parentInst, callInst := modInst.CallInstance()
@@ -90,19 +90,78 @@ func (r *resolver) callerVariables(modInst addrs.ModuleInstance) configs.StaticM
 	return mc.VariablesUsing(r.ctx, parentEval)
 }
 
-// pathRepeats reports whether any module call on the way down to modInst
-// carries its own count or for_each.
+// frozenClosureIsStale reports whether rebuilding modInst's var.* closure
+// against its caller's live evaluator can answer differently from the
+// load-time frozen one - which is exactly the condition for rebuilding it,
+// and the reason this is a predicate rather than an unconditional rebuild.
 //
-// It is what confines this whole mechanism to the shape #252 is about.
-// When no call on the path repeats, the module tree's frozen closure
-// already answers every var.* exactly as a rebuilt one would - there is no
-// repetition data to be missing - so rebuilding could only change the
-// answer along axes that are not this issue's (the rebuilt parent
-// evaluator is pure and carries the parent instance's data-read coverage,
-// where the frozen one is neither). Declining here keeps those axes
-// untouched for the module trees that cannot need them, and skips the work
-// as well: the great majority of module instances in the corpus sit under
-// no repeating call at all.
+// [resolver.moduleEvaluator] puts two things on a parent evaluator that
+// [ModuleCall.decodeStaticVariables] could not have captured, because
+// neither existed when the module tree was built, and this asks after both:
+//
+//   - repetition data, when a call on the path carries its own count or
+//     for_each ([resolver.pathRepeats]). That is #252's axis.
+//   - the pre-resolution read phase's coverage, when an ancestor module
+//     instance has any ([resolver.ancestorCarriesResults]). That is #179's,
+//     and #313's.
+//
+// The second used to be missing, and its absence is what #313 turned out to
+// be. The claim [resolver.pathRepeats]'s own doc made - that a module tree
+// with no repeating call "cannot need" the other axes - is false for the
+// read-coverage one: a root-module data source feeding a plain, unrepeated
+// module call's argument is the single commonest way an estate reaches a
+// child module's count or for_each, and the frozen closure evaluates that
+// argument through an evaluator that has never seen a data lookup. The
+// read phase would then classify the source readable
+// ([dataread.Analyze], whose own [dataread.liveModuleEvaluator] rebuilds
+// this same chain with no gate at all), read it for real, hand the value in
+// through [Context.DataResults] - and resolution would refuse the child's
+// count anyway, because the value could not travel across the module call.
+// The two halves promised different things about one configuration.
+//
+// Purity rides along on a rebuild, deliberately: the rebuilt parent
+// evaluator is pure where the frozen one is not, so a module argument
+// calling uuid() or timestamp() now yields an unknown and refuses instead
+// of minting a fresh identity every run. That is the direction this
+// repository's standing rule points - a wrong marker outranks a missing one
+// - and [StaticEvaluator.Pure]'s own doc is the argument for it. It reaches
+// only configurations that already carry read results, since a
+// configuration with none takes neither branch below.
+func (r *resolver) frozenClosureIsStale(modInst addrs.ModuleInstance) bool {
+	return r.pathRepeats(modInst) || r.ancestorCarriesResults(modInst)
+}
+
+// ancestorCarriesResults reports whether the pre-resolution read phase
+// covered anything in a module instance STRICTLY above modInst - the
+// instances whose evaluators [resolver.callerVariables] would rebuild, and
+// the only ones whose coverage a rebuild could carry down to modInst.
+//
+// It reads [resolver.dataIndex] directly rather than through
+// [resolver.dataLookupFor] because the question is whether coverage EXISTS,
+// not what it answers; no cty value is touched here, so there is nothing
+// for a mark to ride on.
+//
+// modInst itself is deliberately excluded. Its own coverage is attached by
+// [resolver.enterModuleAt] and [resolver.moduleEvaluator] directly, and
+// answers its own expressions whether or not the closure is rebuilt;
+// counting it would rebuild closures that carry nothing new.
+func (r *resolver) ancestorCarriesResults(modInst addrs.ModuleInstance) bool {
+	if r.dataIndex == nil {
+		return false
+	}
+	for i := len(modInst) - 1; i >= 0; i-- {
+		if len(r.dataIndex[modInst[:i].String()]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// pathRepeats reports whether any module call on the way down to modInst
+// carries its own count or for_each. It is #252's half of
+// [resolver.frozenClosureIsStale]; see that function for the other half and
+// for why "no repeating call" is not on its own a reason to keep the frozen
+// closure.
 func (r *resolver) pathRepeats(modInst addrs.ModuleInstance) bool {
 	cur := r.rootCfg
 	for _, step := range modInst {

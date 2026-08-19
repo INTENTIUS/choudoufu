@@ -475,9 +475,21 @@ const identityGoldenPinBodyDigest = "3daa64b613ea7826f98430d8631185d4b45aa4ab4ea
 // block, the static module call's, and the count = 1 module call's, the last
 // two being the child's one block seen through two calls), with a fourth
 // coming from child/ swept as a root of its own.
+// 2026-08-18 (issue #313, the data-read value crossing a plain module call):
+// instances 1495 -> 1495, dirs 465 -> 467. One new fixture root,
+// internal/live/identity/testdata/data-read-across-module-call, plus its
+// child/ module directory - two directories, and NO new instances, which is
+// the whole point of this entry. The fixture is a root-module data source
+// feeding an unrepeated module call's argument, and the golden renders every
+// fixture without DataResults, so it resolves nothing here by construction.
+// That is #313's offline guarantee written down as a number: the widening in
+// internal/live/identity's resolver.frozenClosureIsStale is reachable only
+// when read results exist, so live-check, which never reads, cannot see it.
+// An instance appearing here later would mean the widening had escaped that
+// condition.
 const (
 	identityGoldenPinInstances = 1495
-	identityGoldenPinDirs      = 465
+	identityGoldenPinDirs      = 467
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
