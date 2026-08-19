@@ -17,36 +17,64 @@ set -uo pipefail
 #                     awareness. PASSES, but not for free - see "Deltas"
 #                     below. 54 resources, genuinely unmarked.
 #   2. MIGRATE        choudoufu live-import -approve against that state.
-#                     PARTIAL: only 4 of the 54 resources are declared in
-#                     the ROOT module (3 security groups + a random_string);
-#                     the other 50 live inside module.vpc and module.eks.
-#                     live-import v1 is root-module-only (issue #59) and
-#                     says so in its own output - this is not a bug in this
-#                     script, it is the real, current boundary of adoption
-#                     for any module-shaped estate, and terraform-aws-eks is
-#                     about as module-shaped as OpenTofu configuration gets.
+#                     PASSES (re-verified 2026-08-19 against current main;
+#                     originally recorded PARTIAL/fail by an agent whose
+#                     worktree predated cec3c4b9b1's live-import
+#                     child-module fix - issue #59's root-module-only scope
+#                     is CLOSED). All 54 resource instances across the root
+#                     module, module.vpc and module.eks are now considered:
+#                     25 are eligible (VERIFIED/DRIFTED) and get stamped, 27
+#                     are untaggable by design (no `tags` argument in the
+#                     provider schema - ASGs, launch configurations, IAM
+#                     role policy attachments, security group rules,
+#                     routes, route table associations, random_pet/
+#                     random_string), and 2 are a genuine unadmitted-type
+#                     gap (kubernetes_config_map, local_file - see stage 3).
 #   3. TEST PLAN      choudoufu live-plan against the full 54-resource
-#                     config. REFUSES OUTRIGHT. Not "empty" and not "50 to
+#                     config. REFUSES OUTRIGHT. Not "empty" and not "N to
 #                     add" - admission itself stops the run before any plan
-#                     is rendered. The refusal wall is real, itemized, and
-#                     asserted below by rule and by resource: 4 unadmitted
-#                     "default_*" adopter types the VPC module manages
-#                     (aws_default_vpc/_security_group/_route_table/_
-#                     network_acl), 3 unadmitted VPN-gateway types this
-#                     estate's VPC module declares even with no VPN gateway
-#                     configured, 6 logical-resource types with no
-#                     record_store declared (random_pet x3, null_resource,
-#                     local_file, plus kubernetes_config_map which is a
-#                     different, structural gap - a non-AWS provider
-#                     resource has no AWS tag to carry a marker on at all),
-#                     and 7 correctly-conservative count-index refusals
-#                     (aws_route/aws_route_table_association arguments built
-#                     from `element(some_resource[*].id, count.index)` -
-#                     the checker cannot statically prove two instances get
-#                     different route_table_ids without evaluating live
-#                     resources, which is exactly the class of defect
-#                     HANDOFF.md's own count.index history warns about
-#                     getting wrong in the OTHER direction).
+#                     is rendered. Re-verified 2026-08-19: the refusal wall
+#                     is far smaller than originally recorded, now that
+#                     migrate covers the whole module tree - the 4
+#                     "default_*" adopter types and 3 VPN-gateway types
+#                     that used to read as unadmitted are gone entirely
+#                     (they are admitted and stamp cleanly in stage 2; this
+#                     example's VPC either doesn't declare
+#                     aws_default_vpc/VPN-gateway resources or they
+#                     provably resolve to zero instances). What's real and
+#                     current, asserted below by rule and by resource:
+#                       - unadmitted-type (1 site): kubernetes_config_map.
+#                         aws_auth - the kubernetes provider (not AWS), no
+#                         marker carrier or discovery mechanism exists for
+#                         it at all yet, even though its identity
+#                         (metadata.name/namespace) is fully client-named
+#                         and statically knowable from configuration. Real
+#                         gap, needing new provider-transport plumbing this
+#                         codebase has no precedent for - filed as #326
+#                         rather than fixed here.
+#                       - logical-resource (4 sites): random_string.suffix,
+#                         null_resource.wait_for_cluster, random_pet.workers
+#                         are RECORD_ADMITTED and correctly refused only
+#                         because this configuration declares no
+#                         record_store, exactly as designed (#73) - declaring
+#                         one would admit them. local_file.kubeconfig is a
+#                         different, narrower case in the SAME rule's output:
+#                         its own diagnostic text does not offer the
+#                         record_store escape hatch at all ("nothing can
+#                         recover its value from the live system, because
+#                         there is no live system holding it") - this is
+#                         #314's already-tracked gap (local_file needs a
+#                         fourth LogicalClass, argument-derived identity),
+#                         not something a record_store declaration fixes.
+#                       - count-index (4 sites): aws_route_table_association.
+#                         public/private built from `element(some_resource
+#                         [*].id, count.index)` - the checker cannot
+#                         statically prove two instances get different
+#                         route_table_ids/subnet_ids without evaluating
+#                         live resources, which is exactly the class of
+#                         defect HANDOFF.md's own count.index history warns
+#                         about getting wrong in the OTHER direction. Down
+#                         from 7 to 4 sites since #321/#324 landed.
 #   4. TEST APPLY     UNREACHABLE. Stage 3 produced no plan to apply.
 #   5. DRIFT/RECONVERGE UNREACHABLE for the same reason.
 #
@@ -116,7 +144,7 @@ set -uo pipefail
 #      hidden: a floci-side fix would need the k3s cert's SAN list to
 #      include its own advertised network-mode hostname.
 #
-# ── Two real floci gaps found and fixed this session ────────────────────
+# ── Two real floci gaps found this session, now merged and published ───
 #
 #   - `aws_ami` discovery for the real AWS-owned EKS worker AMIs
 #     (owner 602401143452 "amazon-eks-node-<version>-v*", owner
@@ -124,19 +152,18 @@ set -uo pipefail
 #     terraform-aws-eks discovers its worker AMI exactly this way, and the
 #     module evaluates it unconditionally even when every worker group
 #     overrides ami_id (a lookup() default argument is always evaluated).
-#     Fixed: lex00/floci#55, branch fix/eks-worker-ami-catalog (PR #56).
+#     lex00/floci#55, branch fix/eks-worker-ami-catalog (PR #56).
 #   - `SuspendProcesses` / `ResumeProcesses` were unimplemented, and the aws
 #     provider calls SuspendProcesses unconditionally around ASG creation
 #     whenever wait_for_capacity_timeout is non-zero - the default - so ANY
 #     aws_autoscaling_group apply with default settings failed outright.
 #     Fixed on the same branch, same PR.
 #
-#   Both fixes are pushed to lex00/floci but NOT YET merged or published to
-#   the pinned ghcr.io/lex00/floci image this script defaults to using. Set
-#   FLOCI_IMAGE to an image built from that branch to reproduce stage 1's
-#   PASS below; against the current pin, stage 1 fails earlier, at AMI
-#   discovery and then at SuspendProcesses, with the exact errors these
-#   fixes were written against.
+#   Both were merged locally into floci's main (94812193, combined with two
+#   other same-night fixes since main had diverged), published to GHCR, and
+#   choudoufu's live/floci-image was re-pinned past that point. Re-verified
+#   2026-08-19: stage 1 below passes cleanly against the CURRENT pin with no
+#   FLOCI_IMAGE override needed - neither error reproduces any more.
 #
 #   bash live/e2e/corpus-eks-basic/run.sh
 #
@@ -151,8 +178,8 @@ set -uo pipefail
 #                --platform linux/amd64 container regardless of host arch.
 #   FLOCI_PORT   host port for the emulator (default 4718).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
-#                live/floci-image. See "Two real floci gaps" above - the
-#                pinned image does not yet carry either fix.
+#                live/floci-image, which now carries both fixes described
+#                above under "Two real floci gaps".
 #   BREAK        set to 1 to corrupt an expected count/rule before the
 #                stage-2 and stage-3 assertions, proving each is
 #                load-bearing rather than a check that always passes.
@@ -532,27 +559,37 @@ tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-tofu-init.l
 IMPORT_OUT="$(tofu_run "$ADOPTED_REL" live-import -state="/work/$PLAIN_REL/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)" || {
   printf '%s\n' "$IMPORT_OUT" | tail -60; fail "live-import -approve failed"; }
 
-EXPECT_NOT_CONSIDERED="50 resource instance(s) in a non-root module were not considered"
-EXPECT_STAMPED="3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped."
+# Issue #59's root-module-only scope is GONE as of cec3c4b9b1 (landed
+# 2026-08-18, re-verified against this estate 2026-08-19): live-import now
+# walks module.vpc and module.eks too, and considers all 54 resource
+# instances rather than stopping at the root module's 4. Of those 54: 25
+# are eligible (VERIFIED/DRIFTED) and get stamped, 27 are untaggable by
+# design (no `tags` argument in the provider schema - autoscaling groups,
+# launch configurations, IAM role policy attachments, security group
+# rules, routes, route table associations, random_pet/random_string), and
+# 2 are a genuine unadmitted-type gap (kubernetes_config_map, local_file -
+# see stage 3 below).
+EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
+EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 failed, 29 skipped."
 if [ "${BREAK:-}" = "1" ]; then
-  EXPECT_NOT_CONSIDERED="49 resource instance(s) in a non-root module were not considered"
-  log "  BREAK=1: expecting \"$EXPECT_NOT_CONSIDERED\" (off by one from the real"
+  EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
+  log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"
   log "           count). This step must fail."
 fi
-grep -qF "$EXPECT_NOT_CONSIDERED" <<< "$IMPORT_OUT" || {
-  grep -E 'resource instance\(s\) in a non-root module' <<< "$IMPORT_OUT"
-  fail "did not find \"$EXPECT_NOT_CONSIDERED\" in live-import's own output (see the real line above) - issue #59's root-module-only scope, or the count it reports, has changed"
+grep -qF "$EXPECT_ELIGIBLE" <<< "$IMPORT_OUT" || {
+  grep -E 'resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT"
+  fail "did not find \"$EXPECT_ELIGIBLE\" in live-import's own output (see the real line above) - the eligible count has changed"
 }
 grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
   grep -E 'resource\(s\) newly stamped' <<< "$IMPORT_OUT"
   fail "did not find \"$EXPECT_STAMPED\" in live-import's own output"
 }
-log "  live-import's own accounting matches: 3 of 4 root-module resources stamped, 50 non-root instances (issue #59) not considered"
+log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed)"
 
 MARKED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
-[ "$MARKED_AFTER" = "3" ] || fail "expected 3 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
-log "  3 of 3 stamped objects confirmed via the AWS CLI directly (the 3 root-module security groups; random_string.suffix is untaggable, the module's other 50 resources are out of live-import v1's scope)"
+[ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
+log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
 log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ==="
@@ -563,9 +600,17 @@ PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLA
 # No associative arrays: /bin/bash on macOS is still 3.2 (no `declare -A`
 # support at all), and every other corpus-* script in this repo already
 # avoids them for exactly that reason.
-UNADMITTED_SITES='aws_default_vpc\.this|aws_default_security_group\.this|aws_default_route_table\.default|aws_default_network_acl\.this|aws_vpn_gateway_attachment\.this|aws_vpn_gateway_route_propagation\.(public|private|intra)|kubernetes_config_map\.aws_auth|aws_vpc_ipv4_cidr_block_association\.this'
-LOGICAL_SITES='random_pet\.(workers|workers_launch_template|node_groups)|null_resource\.wait_for_cluster|local_file\.kubeconfig'
-COUNTINDEX_SITES='aws_route\.(private_nat_gateway|private_dns64_nat_gateway|private_ipv6_egress)|aws_route_table_association\.(public|private)'
+# The 4 "default_*" adopter types and 3 VPN-gateway types that used to
+# refuse here (issue #59-era output, root module only in scope) are GONE:
+# module.vpc's aws_default_route_table/aws_default_security_group/
+# aws_default_network_acl are all admitted and stamp cleanly in stage 2 now
+# that module.vpc is in scope, and this example declares no
+# aws_default_vpc/VPN-gateway resources with any live instance.
+# kubernetes_config_map is the one real remaining unadmitted-type site -
+# see the header comment and the filed issue.
+UNADMITTED_SITES='kubernetes_config_map\.aws_auth'
+LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
+COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
 if [ "${BREAK:-}" = "1" ]; then
   UNADMITTED_SITES='this-resource-type-does-not-exist-anywhere'
   log "  BREAK=1: expecting the unadmitted-type rule to fire on a resource"
@@ -587,25 +632,30 @@ assert_rule_fires "logical-resource" "$LOGICAL_SITES"
 assert_rule_fires "count-index" "$COUNTINDEX_SITES"
 
 log ""
-log "=== PARTIAL: stages 1-2 pass in full; stage 3 refuses outright ==="
+log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 refuses outright ==="
 log ""
 log "This is the real, current shape of crossing terraform-aws-eks's own"
 log "\"basic\" example - the module virtually everyone reaches for first -"
 log "against choudoufu/floci:"
 log ""
 log "  STAGE 1  PASS  54/54 resources, genuinely cold, genuinely unmarked."
-log "  STAGE 2  PARTIAL  3/4 root-module resources stamped; 50 resources"
-log "           inside module.vpc and module.eks are out of live-import"
-log "           v1's scope (issue #59) - not a bug this script works around."
-log "  STAGE 3  REFUSES  4 unadmitted default_* adopter types, 3 unadmitted"
-log "           VPN-gateway types, 6 logical-resource types with no"
-log "           record_store declared, 7 correctly-conservative"
-log "           count-index refusals. Asserted by rule and by resource"
-log "           above, with BREAK=1 proving neither check is vacuous."
+log "  STAGE 2  PASS  25 of 54 resource instances stamped across the root"
+log "           module, module.vpc and module.eks (issue #59's"
+log "           root-module-only scope is closed); the other 29 are 27"
+log "           legitimately untaggable-by-design plus 2 unadmitted-type"
+log "           (kubernetes_config_map #326, local_file #314 - see stage 3)."
+log "  STAGE 3  REFUSES  1 unadmitted-type site (kubernetes_config_map.aws_auth,"
+log "           a non-AWS provider with no marker carrier yet - filed as #326),"
+log "           4 logical-resource sites (3 correctly refused pending a"
+log "           record_store declaration, #73 as designed; 1 - local_file -"
+log "           is #314's already-tracked, narrower gap), and 4"
+log "           correctly-conservative count-index refusals. Asserted by"
+log "           rule and by resource above, with BREAK=1 proving neither"
+log "           check is vacuous."
 log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"
-log "script's setup) were found and fixed along the way: EKS worker AMI"
-log "discovery (lex00/floci#55/#56) and SuspendProcesses/ResumeProcesses"
-log "(same PR) - every terraform-aws-eks estate with self-managed node"
-log "groups hits both on default settings."
+log "script's setup) were found, fixed, merged and published along the way:"
+log "EKS worker AMI discovery (lex00/floci#55/#56) and"
+log "SuspendProcesses/ResumeProcesses (same PR) - every terraform-aws-eks"
+log "estate with self-managed node groups hits both on default settings."
