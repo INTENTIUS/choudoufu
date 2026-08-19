@@ -18,6 +18,25 @@ OpenTofu commit it forked from. The marker machinery wakes only when asked.
 Everything that is not live markers is stock OpenTofu, documented at
 [opentofu.org](https://opentofu.org/docs/).
 
+## Can I not just tag resources and scope IAM myself?
+
+You can, and you should not have to.
+
+A tag you apply is a convention. `default_tags` gets it onto most things, until
+a module overrides `tags`, or a type takes none, or someone edits one by hand.
+Nothing checks it, so the policy you wrote against it is only as good as the
+last person to touch a resource.
+
+A marker is derived from the configuration address and written as part of the
+create call. A resource that exists carries it. There is no window where one
+was created but not yet tagged, and no drift to audit.
+
+The bigger half is that stock OpenTofu does not read tags back. They are
+decoration to it. It still needs the state file, so tagging your resources
+leaves you with the bucket policy, the lock table, and a file holding every
+attribute value, all still outside the IAM you just scoped. The markers here
+are load-bearing, which is why the file goes away.
+
 ## Is it production ready?
 
 No. Experimental, AWS only, and the command surface can still change.

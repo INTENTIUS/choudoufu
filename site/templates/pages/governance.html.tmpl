@@ -1,12 +1,17 @@
 {{define "governance"}}
 <h1>Scoping a role</h1>
 
-<p>With a state file the permission unit is the file. Scoping who may change
-one resource and not another means splitting the state. Under markers the
-permission unit is the resource, and IAM already scopes per resource.</p>
+<p>Tag-based IAM scoping is a feature AWS already has. What it needs is tags
+that are reliably there, on everything, correct. That is what markers are.</p>
 
-<p>This page is the mechanism, the grants you can write with it, and the two
-limits that decide whether it works for your estate.</p>
+<p>Every resource this fork creates carries <code>tofu-estate</code> and
+<code>tofu-address</code>, derived from its configuration address and written
+as part of the create call. Not a convention someone has to remember, not a
+<code>default_tags</code> block that drifts, and not something a resource can
+be created without.</p>
+
+<p>So the policies below are ordinary tag conditions. They work because the
+tags underneath them are guaranteed rather than hoped for.</p>
 
 <h2>The whole estate</h2>
 
@@ -101,19 +106,13 @@ overlap.</p>
 the policy with the new estate name. The split is a tag write and a policy
 copy. Neither half moves.</p>
 
-<h2>Limit one, whether AWS evaluates the key</h2>
+<h2>Where the key is confirmed</h2>
 
-<p>Support is not uniform, and this bound is AWS's rather than this project's.
-Of {{.Gov.Services}} services in AWS's Service Authorization Reference,
-{{len .Gov.Named}} name <code>aws:ResourceTag</code> as a condition key.
-{{len .Gov.Unnamed}} do not name it at all.</p>
-
-<p>Where a service does not name the key, a condition on it has nothing to
-evaluate, and per-resource scoping by ownership tag does not work there. Check
-this against the services your own estate is made of before relying on any
-grant above.</p>
-
-<h3>Services that name the key</h3>
+<p>{{len .Gov.Named}} of {{.Gov.Services}} services in AWS's Service
+Authorization Reference name <code>aws:ResourceTag</code> on their tagging
+action. That is a lower bound. The reference is authoritative about what it
+names and silent about what it omits, and AWS documents tag-based
+authorization for services it says nothing about, Lambda among them.</p>
 
 <table>
   <thead><tr><th>Service</th><th>IAM prefix</th><th>Actions naming it</th><th>Of total</th></tr></thead>
@@ -124,11 +123,11 @@ grant above.</p>
   </tbody>
 </table>
 
-<h3>Services that do not</h3>
+<h3>Services with no verdict</h3>
 
-<p>No count is published for these, which is not the same as a count of zero.
-AWS's reference does not name the key for the service, so nothing was
-measured.</p>
+<p>The reference states nothing either way for these. Check them against AWS's
+own IAM documentation and test the policy. This is not a list of services where
+scoping fails.</p>
 
 <table>
   <thead><tr><th>Service</th><th>IAM prefix</th><th>Actions</th></tr></thead>
@@ -139,27 +138,16 @@ measured.</p>
   </tbody>
 </table>
 
-<h2>Limit two, whether the resource carries a tag</h2>
+<h2>Types that carry no tags</h2>
 
-<p>The roster above answers whether AWS evaluates the key. The other half is
-whether there is a tag for the key to read, and a large minority of admitted
-types carry no <code>tags</code> argument at all.</p>
-
-<p>A resource of one of those types carries <code>tofu-estate</code> no more
-than it carries <code>tofu-address</code>, so both conditions are unmatched on
-it and both statements convey nothing about it. <strong>If a principal can act
-on such a resource, the grant is wider than its condition.</strong> That is a
-second permission model, and this page's opening claim says there is not one.
-For those types, there is.</p>
+<p>A marker needs somewhere to live, and a minority of admitted types take no
+<code>tags</code> argument at all. A condition on either marker key is
+unmatched on those, so a grant covering them is wider than its condition.</p>
 
 <p>Being identifiable without a tag and being governable by one are different
-properties, and only the second is what an IAM condition needs. This site
-publishes no count for it, because
+properties, and an IAM condition needs the second.
 <a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md">live/MARKERS.md</a>
-already carries a generated one against the shipped admission table, and a
-second figure computed from a different population would disagree with it. Read
-the count there, along with the per-service breakdown of which types they
-are.</p>
+carries the generated count and the per-service breakdown.</p>
 
 <h2>Protecting the markers</h2>
 

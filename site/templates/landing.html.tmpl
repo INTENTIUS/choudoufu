@@ -57,6 +57,22 @@
 
   <p class="pieces-more"><a href="model.html">Why they are separate, and what
   it changes</a></p>
+
+  {{/* Both claims are about what is no longer there to run. Per-resource
+       tag scoping is AWS's, not ours, so the claim is not that we provide
+       governance. It is that nothing sits outside it any more. */}}
+  <ul class="claims">
+    <li><strong>Your IAM is the whole permission model.</strong> No bucket
+    policy or lock table to keep in step with it.</li>
+    <li><strong>Nothing to lock.</strong> Concurrent runs settle at the API,
+    so there is no stuck lock to force open.</li>
+    <li><strong>Setup is one file.</strong> No bucket, no table, no backend
+    block.</li>
+  </ul>
+
+  <p class="pieces-limit">Per-resource scoping is AWS's own feature, and its
+  reach varies by service.
+  <a href="governance.html">Where it is confirmed</a></p>
 </section>
 
 {{/* Fold 2. How far it goes, before any install link. Three charts, three
