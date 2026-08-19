@@ -258,20 +258,27 @@ type mover struct {
 // ---------------------------------------------------------------------------
 
 // checkAddresses rejects the pairs of addresses that describe no move: the
-// same address twice, two different resource types, anything that is not a
-// managed resource, and either address passing through a count-keyed module
-// instance.
+// same address twice, two different resource types, and anything that is
+// not a managed resource.
 //
-// A root address, a static-module address, and a for_each-keyed module
-// address (59c, issue #59 phase 3) are all fine, and so is any mix of them:
-// crossing a module boundary at all - flattening an estate into its root,
-// moving a resource into a module another config tree declares, or renaming
-// across two module instances - is an ordinary rename once both ends are
-// legal addresses, because a marker records an address, not which side of a
-// module call wrote it (see mv.go's package doc, "the migration path for
-// estates that flattened to try v0"). Only a count-keyed step stays
-// refused, because count modules stay refused outright (RuleChildModule;
-// live/LIMITATIONS.md, "child-module").
+// A root address, a static-module address, a for_each-keyed module address
+// (59c, issue #59 phase 3), and a count-keyed module address (issue #317)
+// are all fine, and so is any mix of them: crossing a module boundary at
+// all - flattening an estate into its root, moving a resource into a module
+// another config tree declares, or renaming across two module instances -
+// is an ordinary rename once both ends are legal addresses, because a
+// marker records an address, not which side of a module call wrote it (see
+// mv.go's package doc, "the migration path for estates that flattened to
+// try v0"). A count-keyed module step used to stay refused here on the
+// premise that count renumbers every address beneath it on scale-down;
+// issue #195 retired that premise for a scalar module count (it never
+// renumbers on scale-down; live/LIMITATIONS.md, "child-module"), and this
+// function's own refusal was the one copy of it #195 left standing. Nothing
+// here re-derives that a count-keyed step is safe on its own: by the time an
+// address reaches this function, internal/command/live_mv.go has already
+// run lint.CheckWith (RuleChildModule) against the configuration, which is
+// the static/no-count.index-leak proof that admits the step in the first
+// place.
 func checkAddresses(req Request) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -299,39 +306,8 @@ func checkAddresses(req Request) tfdiags.Diagnostics {
 				"%s is a %s and %s is a %s. A rename rewrites the marker on one live resource; it does not turn one kind of cloud object into another. See live/MARKERS.md, \"The rename rule\".",
 				req.Old, oldRes.Type, req.New, newRes.Type),
 		))
-	case hasCountKeyedModuleStep(req.Old.Module) || hasCountKeyedModuleStep(req.New.Module):
-		// Unlike the guard at the top of Move, this one is about the two
-		// addresses on the command line rather than about the configuration,
-		// so lint cannot have caught it and it stays a full explanation.
-		return diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Count-keyed module instances are not available under live resource markers",
-			fmt.Sprintf("%s or %s passes through a module instance carrying a count key, and count-expanded module blocks are refused permanently. See live/LIMITATIONS.md, \"child-module\".", req.Old, req.New),
-		))
 	}
 	return diags
-}
-
-// hasCountKeyedModuleStep reports whether a module instance path carries a
-// count-style (integer) instance key anywhere in it: a module expanded with
-// count, which live resource markers refuse permanently (RuleChildModule;
-// live/LIMITATIONS.md, "child-module") because count renumbers every
-// address beneath it on every insertion or removal above the changed
-// index, moving addresses out from under their markers. A string-keyed step
-// - a for_each-expanded module, issue #59's 59c - is fine at any depth,
-// exactly like an unkeyed one: its key does not shift under insertion or
-// removal, so a marker naming it stays valid the same way a root or
-// static-module address does. See mv.go's package doc, "the migration path
-// for estates that flattened to try v0", for why crossing a module
-// boundary at all - static, keyed, or a mix - is an ordinary rename once
-// both ends are legal addresses.
-func hasCountKeyedModuleStep(modInst addrs.ModuleInstance) bool {
-	for _, step := range modInst {
-		if _, isCount := step.InstanceKey.(addrs.IntKey); isCount {
-			return true
-		}
-	}
-	return false
 }
 
 // checkMarkers rejects addresses that cannot be carried as a tag value at
