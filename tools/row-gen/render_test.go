@@ -6,12 +6,13 @@
 package main
 
 import (
-	"fmt"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // loadAllForTest reads the four committed artifacts the same way run() does,
@@ -72,44 +73,68 @@ func TestLambdaGoldenFile(t *testing.T) {
 	}
 }
 
-// TestPastableSnippetsParseAsGo is the round-trip test the issue asks for on
-// the "every pastable row" side: every admittedTypesV0 line and every
-// DefaultTable entry this tool renders, over the whole mapped set, has to be
-// syntactically valid Go once pasted into the wrapping literal a reviewer
-// would paste it into. A snippet that does not parse is not "ready to
-// paste" no matter how the evidence reads.
-func TestPastableSnippetsParseAsGo(t *testing.T) {
+// TestPastableSnippetsLoadAsRatifiedRows is the round-trip test on the
+// "every pastable row" side, restated for the paste target that actually
+// exists. It replaces a test that only asked whether the rendered snippet
+// parsed as Go, which stopped meaning anything once issue #263 moved the
+// corpus to tools/row-gen/ratified.json: a block can be perfectly good Go
+// and still be unpastable, because the file it goes into is JSON.
+//
+// The assertion is deliberately stronger than the one it replaces. Every
+// pastable proposal over the whole mapped set is rendered, the blocks are
+// assembled into one object exactly as a ratifier pasting them all in would
+// leave the file, and the result goes through loadRatified itself - the
+// production loader, with DisallowUnknownFields and the key/Type agreement
+// check - rather than through a parser standing in for it. Then each loaded
+// row is required to equal the row renderRatifiedEntry claimed to be
+// writing, so a field that does not survive the JSON round trip fails here
+// instead of silently landing a weaker row than the block displayed.
+//
+// What it deliberately does NOT prove, because both sides of its comparison
+// come from proposedRatifiedRow: that the row is the RIGHT row. Mutating
+// that function to emit a wrong value passes here and is caught elsewhere -
+// by TestLambdaGoldenFile against a committed golden, and by
+// clientnamedcloud_test.go against live/import-grammar.json. This test's
+// external referent is loadRatified, so its subject is the serialization,
+// not the content. Both mutations were run.
+func TestPastableSnippetsLoadAsRatifiedRows(t *testing.T) {
 	proposals := loadAllForTest(t)
 
-	var admissionLines, tableEntries string
-	n := 0
+	want := map[string]identity.TypeIdentity{}
+	var members []string
 	for _, p := range proposals {
-		switch p.Bucket {
-		case bucketServerAssigned:
-			admissionLines += renderAdmissionLine(p.TFType)
-			tableEntries += renderServerAssignedEntry(p)
-			n++
-		case bucketClientNamed:
-			admissionLines += renderAdmissionLine(p.TFType)
-			tableEntries += renderClientNamedEntry(p)
-			n++
-		case bucketComposite:
-			admissionLines += renderAdmissionLine(p.TFType)
-			tableEntries += renderCompositeEntry(p)
-			n++
+		if !pastableBucket(p.Bucket) {
+			continue
 		}
+		entry, err := renderRatifiedEntry(p)
+		if err != nil {
+			t.Fatalf("renderRatifiedEntry(%s): %v", p.TFType, err)
+		}
+		// renderRatifiedEntry ends every block with the comma a paste
+		// beside an existing member needs; the last member of the object
+		// assembled here must not have one.
+		members = append(members, strings.TrimSuffix(strings.TrimRight(entry, "\n"), ","))
+		want[p.TFType] = proposedRatifiedRow(p)
 	}
-	if n == 0 {
-		t.Fatal("no proposed rows found in the mapped set; nothing to round-trip")
+	if len(members) == 0 {
+		t.Fatal("no pastable rows found in the mapped set; nothing to round-trip")
 	}
 
-	admissionSrc := fmt.Sprintf("package p\n\nvar _ = map[string]struct{}{\n%s\n}\n", admissionLines)
-	if _, err := parser.ParseFile(token.NewFileSet(), "admission.go", admissionSrc, parser.AllErrors); err != nil {
-		t.Errorf("rendered admittedTypesV0 lines do not parse as Go: %v\n\n%s", err, admissionSrc)
+	path := filepath.Join(t.TempDir(), "ratified.json")
+	if err := os.WriteFile(path, []byte("{\n"+strings.Join(members, ",\n")+"\n}\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 
-	tableSrc := fmt.Sprintf("package p\n\nvar _ = []any{\n%s\n}\n", tableEntries)
-	if _, err := parser.ParseFile(token.NewFileSet(), "table.go", tableSrc, parser.AllErrors); err != nil {
-		t.Errorf("rendered DefaultTable entries do not parse as Go: %v\n\n%s", err, tableSrc)
+	got, err := loadRatified(path)
+	if err != nil {
+		t.Fatalf("the %d rendered blocks do not load as %s: %v", len(members), ratifiedJSONRel, err)
+	}
+	if len(got) != len(want) {
+		t.Fatalf("loaded %d rows from %d rendered blocks", len(got), len(members))
+	}
+	for tf, w := range want {
+		if !reflect.DeepEqual(got[tf], w) {
+			t.Errorf("%s does not survive the paste round trip:\n rendered from: %#v\n loaded back as: %#v", tf, w, got[tf])
+		}
 	}
 }

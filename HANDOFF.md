@@ -1044,15 +1044,13 @@ fresh sourcing search, if a future session wants a quick win here.
 
 ### Loose ends worth an hour, not a slot
 
-- `#315`: an admitted `for_each` comprehension's own body still refuses on
-  an untouched `each.value.<field>` reference inside the child module -
-  #308 proves the key set but doesn't project `each.value` down to the one
-  field actually read, so it refuses wholesale as an opaque blob. Found
-  2026-08-18 re-running `corpus-ecs-fargate` after #308 landed (4 sites,
-  `module.container_definition`'s `enable_cloudwatch_logging`/
-  `create_cloudwatch_log_group`). Scoping needs a slot; not attempted.
 - `internal/live/mv`'s `checkAddresses` still cites the same retired premise
   `markers.UnescapeAddress` did before 2026-08-18's fix - see `#317`, above.
+- `#324` item 1 (`coalescelist()`) and #325's own follow-ups are done; #315,
+  `lint.worstCaseChildKey`, and `live/survey-full.json`'s stale `path` are
+  all fixed too and recorded in "Rulings worth not relitigating" rather
+  than left here, since more than one has already been re-opened from this
+  list after landing.
 
 ---
 
@@ -1061,6 +1059,29 @@ fresh sourcing search, if a future session wants a quick win here.
 Kept because each was reached by measurement and each has been re-opened at
 least once from prose alone.
 
+- **#263's cure is COMPLETE, not half done.** This list carried "the flip is
+  three reads" as an open item for a day after it had landed at `52596938c8`,
+  and a slot was briefed from it. `-emit` reads `tools/row-gen/ratified.json`;
+  `emittedRows`, `markerlessRoster` and `buildConvergence` all moved, and
+  `TestEmitDoesNotReadTheTableItWrites` empties `identity.DefaultTable` and
+  still requires byte-identical output. `retraction.go` deliberately did not
+  move. The residual is in `importprecedence.go`, which reads `DefaultTable`
+  inside the fresh classifier - classifier self-agreement, a different debt,
+  and it cannot lose a row. #263's closing comment locates that at `:699` and
+  as a single site; both are off as of `1e06f2d485`. `:699` is where
+  `tryCloudSingletonID` is declared, not where it reads, and there are TWO
+  reads, not one: `tryCloudSingletonID` at `:715` and `tryLiteralSingletonID`
+  at `:849`, each refusing to let fresh evidence defeat a standing
+  `ServerAssigned` claim. Verify against the code before re-opening.
+- **row-gen's report names `tools/row-gen/ratified.json`, and prints JSON.**
+  The dead `table_cohort_<cohort>.go` / `admission_cohort_<cohort>.go` targets
+  are gone from `render.go`. Note the shape of the fix, because "retarget the
+  string" was the obvious wrong move: the blocks used to render Go literals,
+  so pointing them at a JSON file would have told an operator to paste Go into
+  JSON. They now render the type's `ratified.json` member through
+  `renderRatified`, the same function `TestRatifiedJSONIsCanonical` holds the
+  committed file equal to. There is no admission line to paste any more -
+  `admittedTypesV0` is derived from the emitted table's key set.
 - **The parent-derived widening of the markerless veto: REFUTED, population
   zero.** Three independent checks, on 2026-08-17. Do not re-open without new
   evidence.

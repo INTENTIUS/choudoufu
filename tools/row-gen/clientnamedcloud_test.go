@@ -6,6 +6,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -90,23 +91,40 @@ func TestClientNamedCarriesItsDocumentedCloudFallback(t *testing.T) {
 
 // TestClientNamedPastableRowSpellsTheCloudFallback is the half that decides
 // whether an operator is affected: the RENDERED row, which is what a
-// ratifier pastes unedited. attr() cannot carry a Cloud value at all, so a
-// row still spelled attr(...) has dropped the evidence however well the
-// proposal carries it - which is exactly how the eight shipped.
+// ratifier pastes unedited. The evidence has to survive as far as the block
+// on screen, not merely as far as the proposal - which is exactly how the
+// eight shipped.
+//
+// The original form of this test watched for the Go spelling attr(...),
+// which could not carry a Cloud value at all. Since issue #263 the paste
+// target is tools/row-gen/ratified.json and that lossy spelling no longer
+// exists - every Component renders whatever it holds - so the check is made
+// on the row's own value and on the rendered text, rather than on which of
+// two Go helpers was chosen.
 func TestClientNamedPastableRowSpellsTheCloudFallback(t *testing.T) {
 	hits := cloudDefaultClientNamed(t)
 	if len(hits) == 0 {
 		t.Fatal("empty population; see TestClientNamedCarriesItsDocumentedCloudFallback")
 	}
 	for _, p := range hits {
-		row := renderClientNamedEntry(p)
-		if strings.Contains(row, "attr(") {
-			t.Errorf("%s: pastable row still uses attr(), which cannot carry a Cloud fallback:\n%s", p.TFType, row)
+		want := p.ArgCloud[p.ArgName]
+		comps := proposedRatifiedRow(p).Components
+		if len(comps) != 1 {
+			t.Errorf("%s: client-named row has %d components, want 1", p.TFType, len(comps))
 			continue
 		}
-		want := `Cloud: "` + p.ArgCloud[p.ArgName] + `"`
-		if !strings.Contains(row, want) {
-			t.Errorf("%s: pastable row does not spell %s:\n%s", p.TFType, want, row)
+		if got := string(comps[0].Cloud); got != want {
+			t.Errorf("%s: argument %q documents cloud fallback %q; the pastable row carries %q",
+				p.TFType, p.ArgName, want, got)
+			continue
+		}
+		row, err := renderRatifiedEntry(p)
+		if err != nil {
+			t.Errorf("%s: renderRatifiedEntry: %v", p.TFType, err)
+			continue
+		}
+		if spelled := `"cloud": ` + strconv.Quote(want); !strings.Contains(row, spelled) {
+			t.Errorf("%s: pastable block does not spell %s:\n%s", p.TFType, spelled, row)
 		}
 	}
 }
@@ -114,9 +132,8 @@ func TestClientNamedPastableRowSpellsTheCloudFallback(t *testing.T) {
 // TestClientNamedWithoutACloudDefaultIsUnchanged is the other direction, and
 // it is the one that keeps this from being a licence to decorate every row:
 // a client-named proposal whose argument has NO documented fallback must
-// still render the plain attr() form, byte for byte as before. Without this,
-// a rule that fired on every client-named type would pass the two tests
-// above.
+// render a bare component, carrying neither fallback kind. Without this, a
+// rule that fired on every client-named type would pass the two tests above.
 func TestClientNamedWithoutACloudDefaultIsUnchanged(t *testing.T) {
 	proposals, grammar := loadAllForTest(t), loadImportGrammarForTest(t)
 	checked := 0
@@ -140,12 +157,27 @@ func TestClientNamedWithoutACloudDefaultIsUnchanged(t *testing.T) {
 			}
 		}
 		checked++
-		if row := renderClientNamedEntry(p); !strings.Contains(row, "attr(") {
-			t.Errorf("%s: no documented fallback, but the row was spelled in full:\n%s", p.TFType, row)
+		comps := proposedRatifiedRow(p).Components
+		if len(comps) != 1 {
+			t.Errorf("%s: client-named row has %d components, want 1", p.TFType, len(comps))
+			continue
+		}
+		if comps[0].Cloud != "" || comps[0].Default != "" {
+			t.Errorf("%s: no documented fallback, but the row carries Cloud=%q Default=%q",
+				p.TFType, string(comps[0].Cloud), comps[0].Default)
+			continue
+		}
+		row, err := renderRatifiedEntry(p)
+		if err != nil {
+			t.Errorf("%s: renderRatifiedEntry: %v", p.TFType, err)
+			continue
+		}
+		if strings.Contains(row, `"cloud":`) || strings.Contains(row, `"default":`) {
+			t.Errorf("%s: no documented fallback, but the block spells one:\n%s", p.TFType, row)
 		}
 	}
 	if checked < 100 {
 		t.Fatalf("only %d fallback-free client-named proposals checked; expected the great majority of the bucket", checked)
 	}
-	t.Logf("fallback-free client-named proposals still rendering attr(): %d", checked)
+	t.Logf("fallback-free client-named proposals rendering a bare component: %d", checked)
 }
