@@ -1,0 +1,239 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package liveimport
+
+import (
+	"context"
+	"testing"
+
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/tofu"
+)
+
+// GitHub issue #327: aws_nat_gateway's ForceNew arguments (allocation_id,
+// subnet_id) came back null on the FIRST live-plan after a clean migrate,
+// because nothing had ever classified them as GitHub issue #275's residue -
+// the apply-time write-back that does the classifying never runs during a
+// migrate. This file tests Approve's new second write path directly, with a
+// provider double standing in for the SDKv2 "preserve whatever the prior
+// held" behavior [carriesNoInformation]'s doc comment names as the actual
+// mechanism, rather than reaching for a real aws_nat_gateway schema.
+
+// residueSchema is a minimal taggable schema with one Optional argument
+// (subnet_id) shaped like a ForceNew argument, and one attribute
+// (computed_only) that is neither Required nor Optional - [residueCandidates]
+// excludes it by construction, so it stands in for the class this fix
+// deliberately leaves alone.
+func residueSchema() providers.Schema {
+	return providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"id":            {Type: cty.String, Computed: true},
+		"tags":          {Type: cty.Map(cty.String), Optional: true},
+		"subnet_id":     {Type: cty.String, Optional: true},
+		"computed_only": {Type: cty.String, Computed: true},
+	}}}
+}
+
+// preserveFromPriorProvider is a [tofu.MockProvider] whose ReadResource
+// reproduces exactly the shape this issue is about: it never reads
+// subnet_id from anywhere - it returns whatever PriorState already held,
+// null included. tags is always answered fresh (the ordinary case every
+// taggable AWS type follows), and computed_only is always answered fresh
+// too, so a test can tell "recorded because residue-shaped" apart from
+// "recorded because everything gets recorded".
+func preserveFromPriorProvider() *tofu.MockProvider {
+	p := &tofu.MockProvider{}
+	p.ConfigureProviderCalled = true
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		out := map[string]cty.Value{
+			"id":            cty.StringVal("ngw-x"),
+			"tags":          cty.MapValEmpty(cty.String),
+			"subnet_id":     cty.NullVal(cty.String),
+			"computed_only": cty.StringVal("fresh-from-remote"),
+		}
+		prior := r.PriorState
+		if prior != cty.NilVal && !prior.IsNull() && prior.Type().HasAttribute("subnet_id") {
+			out["subnet_id"] = prior.GetAttr("subnet_id")
+		}
+		return providers.ReadResourceResponse{NewState: cty.ObjectVal(out)}
+	}
+	// approveOne's own tag write, accepted as proposed with nothing else
+	// changed - the same shape stamp_test.go's capturingProvider uses, so
+	// Approve's stamp outcome is OutcomeStamped and a test can assert on it
+	// alongside the residue write this file is actually about.
+	p.PlanResourceChangeFn = func(r providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{PlannedState: r.ProposedNewState}
+	}
+	p.ApplyResourceChangeFn = func(r providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
+		return providers.ApplyResourceChangeResponse{NewState: r.PlannedState}
+	}
+	return p
+}
+
+func residueStore(t *testing.T) *projection.ResidueStore {
+	t.Helper()
+	store, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	return projection.NewResidueStore(store, "residue-test-estate")
+}
+
+// TestApprove_RecordsResidueForForceNewLikeAttribute is the positive case:
+// an Optional argument the provider only ever preserves from whatever prior
+// it is given (never truly reads from the remote) gets recorded as residue
+// during Approve, from the real applied value Ratify already read - not
+// from a null stub.
+func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
+	addr := mustAddr(t, "aws_nat_gateway.this")
+	store := residueStore(t)
+	p := preserveFromPriorProvider()
+
+	rat := &Ratification{
+		Estate: "residue-test-estate",
+		Entries: []Entry{
+			{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified},
+		},
+		eligible: map[string]*eligible{
+			addr.String(): {
+				provider: p,
+				schema:   residueSchema(),
+				typeName: "aws_nat_gateway",
+				liveVal: cty.ObjectVal(map[string]cty.Value{
+					"id":            cty.StringVal("ngw-x"),
+					"tags":          cty.MapValEmpty(cty.String),
+					"subnet_id":     cty.StringVal("subnet-real"),
+					"computed_only": cty.StringVal("fresh-from-remote"),
+				}),
+				identity: cty.NilVal,
+			},
+		},
+		residueStore: store,
+	}
+
+	rep, diags := rat.Approve(context.Background())
+	if diags.HasErrors() {
+		t.Fatalf("Approve returned errors: %s", diags.Err())
+	}
+	if len(rep.Outcomes) != 1 || rep.Outcomes[0].Outcome != OutcomeStamped {
+		t.Fatalf("Outcomes = %+v, want one OutcomeStamped", rep.Outcomes)
+	}
+
+	attrs, _, exists, err := store.Get(context.Background(), addr)
+	if err != nil {
+		t.Fatalf("store.Get: %s", err)
+	}
+	if !exists {
+		t.Fatalf("no residue was recorded for %s; the FIRST live-plan after this migrate would see subnet_id null and propose a phantom replace, exactly issue #327's bug", addr)
+	}
+	got, ok := attrs["subnet_id"]
+	if !ok {
+		t.Fatalf("residue attrs = %v, want subnet_id present", attrs)
+	}
+	if !got.RawEquals(cty.StringVal("subnet-real")) {
+		t.Errorf("residue subnet_id = %#v, want %#v", got, cty.StringVal("subnet-real"))
+	}
+	if _, ok := attrs["computed_only"]; ok {
+		t.Errorf("computed_only was recorded as residue; it is neither Required nor Optional and [residueCandidates] must never let it through - a Computed-only attribute can genuinely drift out of band, and residue would mask that")
+	}
+	if _, ok := attrs["tags"]; ok {
+		t.Errorf("tags was recorded as residue; the provider always answers it fresh in this fixture, so classifyResidue must not have judged it residue-shaped")
+	}
+}
+
+// TestApprove_SecondRunIsIdempotent is issue #327's other real-world
+// requirement: live-import -approve is documented as idempotent over a
+// second run against the same state (OutcomeAlreadyStamped). Approve's new
+// residue write has to survive that too - a naive Put asserting
+// expectedVersion="" would fail every run after the first.
+func TestApprove_SecondRunIsIdempotent(t *testing.T) {
+	addr := mustAddr(t, "aws_nat_gateway.this")
+	store := residueStore(t)
+
+	buildRat := func() *Ratification {
+		p := preserveFromPriorProvider()
+		return &Ratification{
+			Estate:  "residue-test-estate",
+			Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
+			eligible: map[string]*eligible{
+				addr.String(): {
+					provider: p,
+					schema:   residueSchema(),
+					typeName: "aws_nat_gateway",
+					liveVal: cty.ObjectVal(map[string]cty.Value{
+						"id":            cty.StringVal("ngw-x"),
+						"tags":          cty.MapValEmpty(cty.String),
+						"subnet_id":     cty.StringVal("subnet-real"),
+						"computed_only": cty.StringVal("fresh-from-remote"),
+					}),
+					identity: cty.NilVal,
+				},
+			},
+			residueStore: store,
+		}
+	}
+
+	ctx := context.Background()
+	if _, diags := buildRat().Approve(ctx); diags.HasErrors() {
+		t.Fatalf("first Approve returned errors: %s", diags.Err())
+	}
+	_, v1, exists, err := store.Get(ctx, addr)
+	if err != nil || !exists {
+		t.Fatalf("first Approve did not record residue: exists=%v err=%v", exists, err)
+	}
+
+	if _, diags := buildRat().Approve(ctx); diags.HasErrors() {
+		t.Fatalf("second Approve returned errors: %s", diags.Err())
+	}
+	_, v2, exists, err := store.Get(ctx, addr)
+	if err != nil || !exists {
+		t.Fatalf("second Approve did not record residue: exists=%v err=%v", exists, err)
+	}
+	if v1 == "" || v2 == "" {
+		t.Fatalf("expected non-empty versions from both runs, got %q and %q", v1, v2)
+	}
+}
+
+// TestApprove_NilResidueStoreIsANoOp confirms the same "a run with no
+// record_store declared pays nothing and changes nothing" contract every
+// other GitHub issue #275 consumer already holds to.
+func TestApprove_NilResidueStoreIsANoOp(t *testing.T) {
+	addr := mustAddr(t, "aws_nat_gateway.this")
+	p := preserveFromPriorProvider()
+
+	rat := &Ratification{
+		Estate:  "residue-test-estate",
+		Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
+		eligible: map[string]*eligible{
+			addr.String(): {
+				provider: p,
+				schema:   residueSchema(),
+				typeName: "aws_nat_gateway",
+				liveVal: cty.ObjectVal(map[string]cty.Value{
+					"id":            cty.StringVal("ngw-x"),
+					"tags":          cty.MapValEmpty(cty.String),
+					"subnet_id":     cty.StringVal("subnet-real"),
+					"computed_only": cty.StringVal("fresh-from-remote"),
+				}),
+				identity: cty.NilVal,
+			},
+		},
+		// residueStore left nil, matching a configuration with no
+		// record_store block.
+	}
+
+	rep, diags := rat.Approve(context.Background())
+	if diags.HasErrors() {
+		t.Fatalf("Approve returned errors: %s", diags.Err())
+	}
+	if len(rep.Outcomes) != 1 || rep.Outcomes[0].Outcome != OutcomeStamped {
+		t.Fatalf("Outcomes = %+v, want one OutcomeStamped", rep.Outcomes)
+	}
+}

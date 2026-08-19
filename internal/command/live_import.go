@@ -7,13 +7,16 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/mitchellh/cli"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -150,10 +153,36 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	provs := newStatelessProviders(config, coreOpts.Plugins)
 	closer := func() tfdiags.Diagnostics { return provs.close(ctx) }
 
+	// GitHub issue #327: the same record_store a stateless plan or apply
+	// would open, opened here too, so Approve can classify and record
+	// residue (issue #275) from the real object this run reads - see
+	// [projection.RecordResidueForInstance]'s doc comment for why a migrate
+	// is the one other place besides an apply that has a real, non-null
+	// prior to classify with. A configuration with no live block, or a live
+	// block with no record_store, yields a nil store, which every consumer
+	// below already treats as "nothing to record" rather than an error -
+	// the same as a plan or apply run with no record_store declared.
+	var recordStoreCfg *configs.LiveRecordStore
+	if config.Module != nil && config.Module.Live != nil {
+		recordStoreCfg = config.Module.Live.RecordStore
+	}
+	var residueStore *projection.ResidueStore
+	if recordStoreCfg != nil {
+		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, args.Estate, ".")
+		if storeErr != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot open the record store", fmt.Sprintf(
+				"The live block's record_store %q could not be opened: %s.", recordStoreCfg.Type, storeErr,
+			)))
+			return nil, closer, diags
+		}
+		residueStore = projection.NewResidueStore(store, args.Estate)
+	}
+
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
-		Estate:    args.Estate,
-		State:     stateFile.State,
-		Providers: provs,
+		Estate:       args.Estate,
+		State:        stateFile.State,
+		Providers:    provs,
+		ResidueStore: residueStore,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags

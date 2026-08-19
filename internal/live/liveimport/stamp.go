@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -84,6 +85,18 @@ type StampReport struct {
 // from: everything it needs (the live object, its private data, its
 // identity, the provider connection) was already carried forward by
 // [Ratify]. See the package doc, "What Ratify never does".
+//
+// GitHub issue #327: for every VERIFIED or DRIFTED entry, Approve also tries
+// to record [projection.RecordResidueForInstance]'s residue classification,
+// independent of whether the tag write itself succeeds - it is its own
+// provider conversation, using the object Ratify already read rather than
+// the (possibly still-unmarked) object the tag write produces. This is what
+// closes the gap a migrate would otherwise leave open forever: without it, a
+// residue-shaped attribute (one an SDKv2 resource's Read only ever preserves
+// from its prior, never reads from the remote) has no residue record until
+// a choudoufu apply first classifies it, so the FIRST live-plan after a
+// clean migrate sees it null - a phantom update for an ordinary argument, a
+// phantom REPLACE for a ForceNew one.
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -100,8 +113,54 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig))
+		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, elig))
 	}
 	return rep, diags
+}
+
+// recordResidueFor is Approve's GitHub issue #327 half: it wraps elig's
+// already-configured provider connection into the read
+// [projection.RecordResidueForInstance] needs, called twice per its own doc
+// comment, and turns a non-nil error into the same warning
+// [writeBackResidue] already raises for the apply-time write path - reusing
+// its Summary rather than minting a new one, since it is the identical
+// situation ("an apply could not classify or store residue") reached from a
+// second call site.
+//
+// A nil residueStore (no record_store block, or a nil Ratification built
+// without one) makes this an immediate no-op, and so does elig itself being
+// nil - callers that already skip a resource for OutcomeSkipped never reach
+// here in the first place.
+func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr addrs.AbsResourceInstance, e *eligible) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if store == nil || e == nil {
+		return diags
+	}
+	read := func(prior cty.Value) (cty.Value, error) {
+		resp := e.provider.ReadResource(ctx, providers.ReadResourceRequest{
+			TypeName:   e.typeName,
+			PriorState: prior,
+			Private:    e.private,
+			// The same null-of-dynamic every other read in this package and
+			// projection's own residue path pass, and for the same reason:
+			// the plugin client marshals ProviderMeta whenever the provider
+			// declares a provider_meta schema, and a value with no type at
+			// all panics the conformance check.
+			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			PriorIdentity: e.identity,
+		})
+		if resp.Diagnostics.HasErrors() {
+			return cty.NilVal, resp.Diagnostics.Err()
+		}
+		return resp.NewState, nil
+	}
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.liveVal, read); err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
+			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
+			addr, err,
+		)))
+	}
+	return diags
 }
 
 // approveOne is the tags-only write for one resource, from the object
