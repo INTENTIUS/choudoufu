@@ -919,6 +919,17 @@ on that boundary** - there is no more derivable work standing between it
 and 4-of-5. Either revisit whether resource-attribute resolution should
 also be in scope, or accept 4-of-5 as this estate's real ceiling under
 the current ruling.
+
+**This is no longer a one-estate question.** `corpus-rds-complete-postgres`
+(outside the core set, but the same high-dependency `security-group`/`vpc`
+module family) reached its own equivalent state 2026-08-19, after #321,
+#324 and #323 cleared every derivable wall it had: its last two
+diagnostics both trace to the identical root-cause-B shape (a resource
+attribute crossing a module boundary - `cidr_blocks = module.vpc.
+vpc_cidr_block`). Two independent estates now hit the exact same
+maintainer-scoped boundary as their sole remaining blocker, which is
+real evidence this decision reaches further than the one estate that
+first raised it - worth weighing when revisiting it.
 `live/corpus-crossing-manifest.json` says which ones currently clear which
 stage and why the rest do not; do not trust a stale count copied here
 instead.
