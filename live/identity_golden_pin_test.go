@@ -182,7 +182,19 @@ var identityGoldenPin = map[string]int{
 	// supporting aws_subnet/aws_vpc pair in this golden already carries
 	// (e.g. live/e2e/estates/ec2-networking's aws_subnet.ec2-networking,
 	// aws_vpc.ec2-networking).
-	"NEEDS_DISCOVERY": 616,
+	//
+	// 618, up from 616 (markers.UnescapeAddress's module-step key): one new
+	// fixture, internal/live/discovery/testdata/counted-module-orphan, whose
+	// root holds a count = 1 module call and whose child/ holds the one
+	// aws_vpc it wraps. The two rows are that one resource seen twice - once
+	// as module.counted[0].aws_vpc.kept from the root, once as
+	// aws_vpc.kept with the child directory swept as a root of its own - and
+	// aws_vpc is server-assigned with no client-supplied identity, so both
+	// render NEEDS_DISCOVERY like every other bare aws_vpc in this golden.
+	// The module.counted[0] spelling in the first row is worth reading: it
+	// is identity resolution's own rendering of the count'd call, and it is
+	// the address the fix makes UnescapeAddress recover from that marker.
+	"NEEDS_DISCOVERY": 618,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -285,7 +297,18 @@ var identityGoldenPin = map[string]int{
 // 2026-08-18 (issue #308's fix): four ADDED rows, dirs 455 -> 461 (two new
 // fixture roots, each with two child-module subdirectories of its own -
 // see identityGoldenPin's own comment above for the four rows themselves).
-const identityGoldenPinBodyDigest = "62b6a800beec16d720c7fde531e15a9f2b8dfecba148fc9ba1eb309d5545d42a"
+//
+// 2026-08-18 (markers.UnescapeAddress's module-step key): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities changed,
+// 2 added, 0 removed". The zero is again the load-bearing half, and here it
+// is a real result rather than a tautology: the fix changes how an escaped
+// marker DECODES, and this sweep renders identities from configuration
+// without ever decoding a marker, so a change visible here would have meant
+// the fix reached somewhere it has no business being. The two ADDED rows are
+// the fixture the reachability test needed,
+// internal/live/discovery/testdata/counted-module-orphan and its child/, both
+// rendering NEEDS_DISCOVERY for the same aws_vpc.kept.
+const identityGoldenPinBodyDigest = "6bd63ba0e0bd7a26525d130ac537198b2298afae930109b93101e8f65cff94ed"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -413,9 +436,15 @@ const identityGoldenPinBodyDigest = "62b6a800beec16d720c7fde531e15a9f2b8dfecba14
 // wrapper/task/ child module directory - six new directories, four new
 // CONCRETE instances (two per fixture; see identityGoldenPin's own comment
 // above).
+// 2026-08-18 (markers.UnescapeAddress's module-step key): instances
+// 1489 -> 1491, dirs 461 -> 463. One new fixture root,
+// internal/live/discovery/testdata/counted-module-orphan, plus its child/
+// module directory - two directories, and two instances because the child's
+// single aws_vpc is swept once under the root's count = 1 module call and
+// once with child/ taken as a root of its own.
 const (
-	identityGoldenPinInstances = 1489
-	identityGoldenPinDirs      = 461
+	identityGoldenPinInstances = 1491
+	identityGoldenPinDirs      = 463
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

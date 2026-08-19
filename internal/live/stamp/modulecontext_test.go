@@ -129,6 +129,67 @@ resource "aws_vpc" "main" {
 		}
 	})
 
+	// The read side of the same marker, which is a different property from
+	// the two above and was wrong while both of them passed.
+	//
+	// AddressMatches compares two ESCAPED strings, so it is blind to what the
+	// marker decodes back to: escaping is lossy about an instance key's type,
+	// and module.counted[0] and module.counted["0"] escape to the same
+	// "module.counted:0". discovery.UnescapeAddress is the other direction,
+	// and it is not decoration - internal/live/discovery's classifyOrphans
+	// runs it on the marker of every owned-but-undeclared resource and puts
+	// the result in the identity.Resolution a destroy is planned and printed
+	// at. It used to decode every module step as a string key, on the premise
+	// that count on a module block was refused permanently; issue #195
+	// retired the premise, and the subtests above are exactly the pass that
+	// made it false. So the marker this fixture stamps came back as
+	// module.counted["0"].aws_vpc.main - an address this configuration never
+	// had.
+	t.Run("the stamped marker decodes back to the address it was stamped for", func(t *testing.T) {
+		cfg := loadTree(t, map[string]string{
+			"main.tf": `
+module "counted" {
+  source = "./impl"
+  count  = 1
+}
+`,
+			"impl/main.tf": `
+resource "aws_vpc" "main" {
+  cidr_block = "10.44.0.0/16"
+}
+`,
+		})
+
+		_, diags := Stamp(t.Context(), Request{Estate: "mod-unit", Config: cfg, Schemas: testSchemas()})
+		assertNoErrors(t, diags)
+		stamped := evalTags(t, cfg.Children["counted"], "aws_vpc.main", nil)["tofu-address"]
+		if stamped == "" {
+			t.Fatal("nothing was stamped onto the count'd module's resource")
+		}
+
+		keys, diag := identity.ChildModuleCountKeys(t.Context(), cfg.Module, `module "counted"`, cfg.Module.ModuleCalls["counted"].Count)
+		if diag != nil {
+			t.Fatalf("the fixture's own count is not statically evaluable: %s", diag.Detail)
+		}
+		rc := cfg.Children["counted"].Module.ManagedResources["aws_vpc.main"]
+		want := rc.Addr().Absolute(addrs.RootModuleInstance.Child("counted", keys[0]))
+
+		back, ok := discovery.UnescapeAddress(stamped)
+		if !ok {
+			t.Fatalf("the stamped marker %q does not unescape at all", stamped)
+		}
+		if back.String() != want.String() {
+			t.Errorf("the marker %q decodes to %s, but it was stamped for %s; removal planning prints that address and enters the prior state at it",
+				stamped, back, want)
+		}
+		if len(back.Module) != 1 {
+			t.Fatalf("the marker decodes to module path %s, want one step", back.Module)
+		}
+		if _, isInt := back.Module[0].InstanceKey.(addrs.IntKey); !isInt {
+			t.Errorf("the decoded module step is keyed %T, want the addrs.IntKey the count expansion uses", back.Module[0].InstanceKey)
+		}
+	})
+
 	t.Run("count > 1 is refused, not stamped with one literal", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
