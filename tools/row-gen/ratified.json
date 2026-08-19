@@ -3904,10 +3904,10 @@
   "aws_default_route_table": {
     "type": "aws_default_route_table",
     "server_assigned": true,
-    "reason": "aws_default_route_table adopts the VPC's default route table rather than creating one, the same \"adopt, don't create\" idiom as aws_default_network_acl and aws_default_security_group. AWS mints exactly one default route table per VPC, and its own id (rtb-…) is what identifies it; the required default_route_table_id argument states that id back to the provider (typically as a reference to the owning aws_vpc's own default_route_table_id attribute) but is not itself a fresh identity this table derives. The provider's own Import section is internally inconsistent here — it says \"using the vpc_id\" and shows a vpc-… example, but the resource's schema has no vpc_id argument at all (only default_route_table_id, region, propagating_vgws, route and tags), so that text cannot be followed literally; the route table's own id, the same import identity aws_route_table already carries in this table, is authoritative.",
-    "import_syntax": "rtb-ID",
+    "reason": "aws_default_route_table adopts the VPC's default route table rather than creating one, the same \"adopt, don't create\" idiom as aws_default_network_acl and aws_default_security_group. Unlike those two, it is NOT imported by the object's own id: the provider's Import section says \"import Default VPC route tables using the vpc_id\" and shows a vpc-33cc44dd example, and it means that literally — the importer looks the VPC's main route table up by the VPC id. An earlier ratification here overrode that text on the reasoning that the resource's schema has no vpc_id argument. It has none, but vpc_id is a computed ATTRIBUTE of the resource, which is all the importer needs. Settled by running it (issue #332): with stock terraform 1.15.8 and hashicorp/aws 6.59.0 against a real default route table, `terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad` fails with \"Error: empty result\" and `terraform import aws_default_route_table.x vpc-dc10ae31` succeeds. So the identity is the parent VPC's id, read off the vpc_id attribute of the object discovery already found by marker; the route table's own rtb-… id is what aws_route_table imports by, and is not this type's import identity. This is a singleton within the aws_default_* family, checked rather than assumed against the same doc cache: network_acl, security_group, vpc, subnet and vpc_dhcp_options all document import by their own id.",
+    "import_syntax": "vpc-ID",
     "identity_attrs": [
-      "id"
+      "vpc_id"
     ]
   },
   "aws_default_security_group": {

@@ -3912,7 +3912,7 @@
       "scrape_gap": true,
       "matched": false,
       "annotated": true,
-      "annotation_reason": "not_in_mapped_set in spirit though technically compared: live/mapping.json carries this type via=\"tf-only\" (cfn_type null, no CloudFormation model of the \"adopt\" idiom), so classifyUnmapped always proposes bucketEvidenceOnly for it. The ratified row is server-assigned: the type is taggable, and AWS mints exactly one default route table per VPC, assigning its own id (rtb-…) when the VPC was created — the same shape as its sibling aws_route_table, already ratified server-assigned. The provider's own Import section text is additionally unreliable here (see evidence), which independently rules out deriving an identity from it mechanically."
+      "annotation_reason": "not_in_mapped_set in spirit though technically compared: live/mapping.json carries this type via=\"tf-only\" (cfn_type null, no CloudFormation model of the \"adopt\" idiom), so classifyUnmapped always proposes bucketEvidenceOnly for it. The ratified row is server-assigned: the type is taggable, and AWS mints exactly one default route table per VPC before this resource block ever applies — the same shape as its sibling aws_route_table, already ratified server-assigned. Its identity is NOT the same as that sibling's, though, and an earlier version of this annotation said the provider's Import section was \"unreliable\" here. It is not: it says the import id is the vpc_id and it means it, which is what live/import-grammar.json's sole_id_part already extracted correctly. Corrected 2026-08-19 (issue #332) after running the real provider both ways."
     },
     {
       "tf_type": "aws_default_security_group",

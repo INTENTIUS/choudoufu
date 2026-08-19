@@ -172,20 +172,20 @@ set -uo pipefail
 # argument that maps several siblings onto the same parent is still safe
 # once the OTHER identity component that varies is considered).
 #
-# NEWLY REACHED by fixing #313 root cause B, filed as #332, NOT FIXED here.
-# With every analysis-layer refusal gone, live-plan gets all the way to
-# PROJECTION and actually imports all 67 resources through the provider. Two
-# fail, both aws_default_route_table, one per nested vpc call: 2 "empty
-# result" + 2 "Cannot import for projection". Same shape as #321 one layer
-# further out - the wall was always there, nothing had ever reached it.
+# #332 (choudoufu, real defect in a ratified row) is FIXED. Fixing #313 root
+# cause B let live-plan reach PROJECTION and actually import all 67 resources
+# through the provider, and two then failed - both aws_default_route_table,
+# one per nested vpc call: 2 "empty result" + 2 "Cannot import for
+# projection". Same shape as #321 one layer further out; the wall was always
+# there and nothing had ever reached it.
 #
-# It is neither a choudoufu analysis gap nor a floci gap. The provider
-# imports aws_default_route_table by the VPC's id (its Import section:
-# "import Default VPC route tables using the vpc_id", example vpc-33cc44dd),
-# and tools/row-gen/ratified.json overrode that text on the reasoning that
-# the resource's schema has no vpc_id ARGUMENT. It has none - but vpc_id is
-# a computed ATTRIBUTE, and the importer looks the VPC's main route table up
-# by it. Proved with stock terraform 1.15.8 and the real AWS provider 6.59.0
+# It was neither an analysis gap nor a floci gap. The provider imports
+# aws_default_route_table by the VPC's id (its Import section: "import
+# Default VPC route tables using the vpc_id", example vpc-33cc44dd), and
+# tools/row-gen/ratified.json overrode that text on the reasoning that the
+# resource's schema has no vpc_id ARGUMENT. It has none - but vpc_id is a
+# computed ATTRIBUTE, and the importer looks the VPC's main route table up by
+# it. Proved with stock terraform 1.15.8 and the real AWS provider 6.59.0
 # against this same floci, no choudoufu in the loop:
 #
 #   terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad
@@ -193,18 +193,38 @@ set -uo pipefail
 #   terraform import aws_default_route_table.x vpc-dc10ae31
 #     -> Import successful!                                       (exit 0)
 #
-# A route table's ARN carries no VPC id, so the ARN-composition path
-# (internal/live/discovery's importIDFromARN / arnCompositeImportID) cannot
-# reach it; discovery has to carry a second attribute off the object it
-# already found by marker. The rest of the default_* family
-# (network_acl, security_group, vpc, subnet, vpc_dhcp_options) all document
-# import by their own id and are unaffected - this is a singleton, checked
-# against the doc cache rather than assumed.
+# The row is corrected (identity_attrs ["vpc_id"], import_syntax "vpc-ID")
+# and discovery now recomposes the import identity off the vpc_id attribute
+# of the object aws_route_table's own list call surfaced, rather than reusing
+# the rtb-… id that list call was identified by. A route table's ARN carries
+# no VPC id, so the ARN-composition path (importIDFromARN) genuinely cannot
+# reach it and now declines rather than composing the wrong string. The rest
+# of the default_* family (network_acl, security_group, vpc, subnet,
+# vpc_dhcp_options) all document import by their own id and are unaffected -
+# a singleton, checked against the doc cache rather than assumed.
 #
-# So stage 3 goes 239 diagnostics -> 19 -> 7 -> 4, every analysis-layer
-# refusal is at zero and asserted by absence, and what blocks the estate is
-# one wrong ratified import identity. Assertions below hold the exact counts
-# so a change to any of them is visible.
+# WHAT #332 NEWLY REACHED, one layer further out again, NOT FIXED here: with
+# every choudoufu refusal at zero the plan imports all 67 resources AND diffs
+# them, and the AWS provider itself fails on exactly one:
+#
+#   Error: Provider produced invalid plan
+#   Provider "…/hashicorp/aws" has indicated "requires replacement" on
+#   module.security_group.aws_vpc_security_group_ingress_rule
+#     .this["dns-from-prefix-list"]
+#   for a non-existent attribute path cty.Path{cty.GetAttrStep{Name:""}}.
+#   This is a bug in the provider, which should be reported in the provider's
+#   own issue tracker.
+#
+# That is the provider's own words, and it names no choudoufu code. It is the
+# one rule in this estate sourced from a prefix list rather than a CIDR or a
+# referenced security group. Not investigated here.
+#
+# So stage 3 goes 239 diagnostics -> 19 -> 7 -> 4 -> 1, every choudoufu
+# refusal of every layer is at zero and asserted by absence, both default
+# route tables' import identities are additionally asserted BY VALUE against
+# the AWS CLI, and what blocks the estate is a defect in the provider.
+# Assertions below hold the exact counts so a change to any of them is
+# visible.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
@@ -225,14 +245,17 @@ set -uo pipefail
 #                          default_* trio is admitted and stamped above),
 #                          asserted against live-import's own report AND
 #                          confirmed independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at 4 sites (was 239, then 19,
-#                          then 7). Every analysis-layer wall - #305, #307,
-#                          #313 root causes A and B, #321 - contributes zero
-#                          refusals and each zero is asserted by absence.
-#                          What remains is #332: aws_default_route_table's
-#                          ratified import identity is the route table's own
-#                          id where the provider wants the VPC's, so the
-#                          projection's own import of it fails, 2 + 2 sites.
+#   stage 3  test plan     BLOCKED, for real, at 1 site (was 239, then 19,
+#                          then 7, then 4). Every choudoufu wall - #305,
+#                          #307, #313 root causes A and B, #321, #332 -
+#                          contributes zero refusals and each zero is
+#                          asserted by absence, and aws_default_route_table
+#                          is named by no diagnostic at all. The two default
+#                          route tables' import identities are additionally
+#                          re-derived from AWS itself and asserted by value
+#                          (step 3a), because an absent diagnostic is not
+#                          evidence that a marker is right. What remains is
+#                          a bug in the AWS provider, not in this fork.
 #                          The reading this line used to carry, kept because
 #                          it was wrong in an instructive way: "#313's root
 #                          cause B alone: a same-plan resource attribute
@@ -485,9 +508,10 @@ rm -f "$ADOPTED_EST/terraform.tfstate" "$ADOPTED_EST/terraform.tfstate.backup"
 [ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "the state file is still there"
 log "  no local state file"
 
-PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
+plan_into() { ( cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color ); }
+PLAN_OUT="$(plan_into 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the remaining stage-3 walls may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the one remaining wall (a provider bug, see below) may be fixed; update this script"; }
 
 # EVERY analysis-layer refusal is now gone from this estate, and each of
 # these four zeros is a separate, once-real wall asserted by absence.
@@ -518,48 +542,51 @@ WANT_UNADMITTED_N=0
 WANT_DYNAMIC_N=0
 WANT_STATIC_CASCADE_N=0
 WANT_UNRESOLVABLE_N=0
-# What that newly REACHED, in the same "a refusal that fired at the block
-# level starts firing per argument" shape #321 arrived in - except one layer
-# further out, because the plan now gets all the way to PROJECTION and
-# actually imports every one of the 67 resources. Two of them fail, both
-# aws_default_route_table, one per nested VPC call.
+# #332, FIXED. Clearing the four walls above let the plan get all the way to
+# PROJECTION and actually import every one of the 67 resources, and two of
+# them then failed - both aws_default_route_table, one per nested VPC call.
 #
-# This is not a choudoufu analysis gap and not a floci gap. The provider
+# That was never a choudoufu analysis gap and never a floci gap. The provider
 # imports aws_default_route_table by the VPC's id, not by the route table's
-# own - its Import section says so ("import Default VPC route tables using
-# the vpc_id", vpc-33cc44dd in the example) - and the ratified row in
-# tools/row-gen/ratified.json overrode that text on the reasoning that the
-# resource's schema has no vpc_id ARGUMENT. It does not, but vpc_id is a
-# computed ATTRIBUTE and the provider's importer looks up the VPC's main
-# route table by it. Proved with stock terraform 1.15.8 and the real AWS
-# provider 6.59.0 against this same floci, no choudoufu involved:
+# own - its Import section says so ("import Default VPC route tables using the
+# vpc_id", vpc-33cc44dd in the example) - and the ratified row in
+# tools/row-gen/ratified.json had overridden that text on the reasoning that
+# the resource's schema has no vpc_id ARGUMENT. It has none, but vpc_id is a
+# computed ATTRIBUTE and the provider's importer looks the VPC's main route
+# table up by it. Proved with stock terraform 1.15.8 and the real AWS provider
+# 6.59.0 against this same floci, no choudoufu involved:
 #
 #   terraform import aws_default_route_table.x rtb-d70fbe5fd3315bbad
 #     -> Error: empty result                                (exit 1)
 #   terraform import aws_default_route_table.x vpc-dc10ae31
 #     -> Import successful!                                 (exit 0)
 #
-# "empty result" is byte-identical to what live-plan reports here. Filed as
-# #332; not fixable from the ARN alone (a route table's ARN carries no VPC
-# id), so it needs discovery to carry a second attribute off the object it
-# already found by marker. aws_default_network_acl, aws_default_security_group,
-# aws_default_vpc, aws_default_subnet and aws_default_vpc_dhcp_options all
-# document import by their own id and are unaffected - this is a singleton.
-WANT_PROJECTION_IMPORT_N=2
-WANT_EMPTY_RESULT_N=2
+# Fixed by correcting the row (identity_attrs ["vpc_id"], import_syntax
+# "vpc-ID") and by splitting discovery's own conflation of two facts. An
+# aws_default_* type and its plain sibling share ONE live object -
+# aws_route_table's list call returns the VPC's default route table alongside
+# every other - and discovery used to prove that by requiring the two ratified
+# rows to name the same import identity, which is the separate question of
+# whether the id it already read carries forward. Those are now two predicates
+# (defaultAdopterSiblings and sameRatifiedIdentity), and when they disagree the
+# binding recomposes the import identity off the listed object's own vpc_id
+# attribute - the same mechanism issue #302 already uses to read a
+# service-linked role's arn off an object iam:ListRoles surfaced. No type name
+# appears in that code.
+WANT_PROJECTION_IMPORT_N=0
+WANT_EMPTY_RESULT_N=0
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
   WANT_DYNAMIC_N=1
   WANT_STATIC_CASCADE_N=1
   WANT_UNRESOLVABLE_N=1
-  WANT_PROJECTION_IMPORT_N=3
-  WANT_EMPTY_RESULT_N=3
-  log "  BREAK=1: expecting one site of each analysis-layer refusal (there"
-  log "           should be 0 of all four now - #305, #307, #313 A and B,"
-  log "           and #321 are all fixed and asserted by absence), and 3"
-  log "           each of the projection-import and empty-result sites (one"
-  log "           more than the real 2). None of these are real. This step"
-  log "           must fail."
+  WANT_PROJECTION_IMPORT_N=1
+  WANT_EMPTY_RESULT_N=1
+  log "  BREAK=1: expecting one site of each analysis-layer refusal and one"
+  log "           each of the projection-import and empty-result sites."
+  log "           There should be 0 of all six now - #305, #307, #313 A and"
+  log "           B, #321 and #332 are all fixed and asserted by absence."
+  log "           None of these are real. This step must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
@@ -594,7 +621,7 @@ EMPTY_RESULT_N="$(grep -c '^Error: empty result$' <<< "$PLAN_OUT")"
 [ "$EMPTY_RESULT_N" = "$WANT_EMPTY_RESULT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_EMPTY_RESULT_N 'empty result' sites (#332, the provider's own error for a route-table id it cannot look a VPC up by), got $EMPTY_RESULT_N"; }
 if [ "${BREAK:-}" != "1" ]; then
   N="$(grep -c 'aws_default_route_table' <<< "$PLAN_OUT")"
-  [ "$N" -eq "$WANT_PROJECTION_IMPORT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by exactly $WANT_PROJECTION_IMPORT_N diagnostics (#332) and nothing else, got $N"; }
+  [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by no diagnostic at all (#332 fixed), got $N"; }
 fi
 
 # #313 root cause A, asserted by ABSENCE. This is the load-bearing half of
@@ -632,6 +659,41 @@ done
 ! grep -qF 'element(aws_route_table.private[*].id' <<< "$PLAN_OUT" \
   || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|element\('; fail "#321's splat-through-element root cause is back on route_table_id - it must contribute no diagnostic at all"; }
 
+
+# What clearing #332 newly REACHED, one layer further out again: the plan now
+# imports all 67 resources AND diffs them, and the AWS provider itself fails
+# on one of them. This is a provider defect, not a choudoufu refusal - the
+# message says so in its own words and names no choudoufu code:
+#
+#   Provider "provider[\"registry.opentofu.org/hashicorp/aws\"]" has indicated
+#   "requires replacement" on
+#   module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"]
+#   for a non-existent attribute path cty.Path{cty.GetAttrStep{Name:""}}.
+#
+#   This is a bug in the provider, which should be reported in the provider's
+#   own issue tracker.
+#
+# It is the ONE rule in this estate whose source is a prefix list rather than
+# a CIDR or a referenced security group, and the empty attribute-path step is
+# the provider handing back a RequiresReplace path with no attribute name in
+# it. Asserted at an exact count and by the address it names, so it cannot be
+# satisfied by some other resource failing instead.
+WANT_INVALID_PLAN_N=1
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_INVALID_PLAN_N=2
+  log "  BREAK=1: also expecting 2 'Provider produced invalid plan' sites (one"
+  log "           more than the real 1). Not real either. This step must fail."
+fi
+INVALID_PLAN_N="$(grep -c '^Error: Provider produced invalid plan$' <<< "$PLAN_OUT")"
+[ "$INVALID_PLAN_N" = "$WANT_INVALID_PLAN_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_INVALID_PLAN_N 'Provider produced invalid plan' sites, got $INVALID_PLAN_N"; }
+if [ "${BREAK:-}" != "1" ]; then
+  grep -qF 'module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"]' <<< "$PLAN_OUT" \
+    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' -A 6; fail "the remaining provider-invalid-plan error does not name the dns-from-prefix-list rule; the wall has moved and this script's header is stale"; }
+  # And it really is the whole remaining surface: one Error, no more.
+  TOTAL_ERR_N="$(grep -c '^Error: ' <<< "$PLAN_OUT")"
+  [ "$TOTAL_ERR_N" = "1" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected the plan's entire Error surface to be the 1 provider bug, got $TOTAL_ERR_N"; }
+fi
+
 log "  #305 and #307 confirmed BOTH fixed: zero unadmitted-type sites -"
 log "  aws_default_network_acl/route_table/security_group and"
 log "  aws_vpc_security_group_rules_exclusive all resolve (through their"
@@ -653,19 +715,79 @@ log "  from configuration. module.consul's 22 ingress rules are keyed by"
 log "  eleven preset names and one caller key, all written down, and the"
 log "  unknowable leaf now travels beside that key set instead of poisoning"
 log "  it across two module calls - zero diagnostics (was 2 + 5)."
+log "  #332 confirmed FIXED: aws_default_route_table is imported by the VPC's"
+log "  id, read off the vpc_id attribute of the object its sibling's list"
+log "  call surfaced - zero diagnostics (was 2 + 2), and the type is named by"
+log "  no diagnostic at all, asserted above."
+
+# ── 3a. #332's identity, asserted BY VALUE against the AWS CLI ────────────
+#
+# An absent diagnostic is not evidence that a marker is right - HANDOFF.md's
+# "a wrong marker outranks a missing one" is the standing reason this block
+# exists, and it is the half that a verdict-level check cannot see. So the two
+# default route tables' import identities are re-derived here from AWS itself,
+# with no choudoufu in the loop:
+#
+#   1. find each VPC by its own marker (tofu-address names the module call),
+#   2. ask AWS for THAT VPC's main route table,
+#   3. assert the object it answers with is the one carrying the
+#      aws_default_route_table marker for the same module call.
+#
+# Step 2 is exactly what the provider's importer does with the string
+# choudoufu now hands it, so agreement here is the assertion on the rendered
+# identity: the VPC id binds this object and no other. Before #332 the
+# rendered identity was the rtb-… id, which the real provider answers "empty
+# result" for. This runs regardless of the plan's exit code - it reads AWS,
+# not the plan.
+log "=== 3a. #332: each default route table's import identity, re-derived from AWS ==="
+for call in vpc vpc_secondary; do
+  VPC_ID="$(awsl ec2 describe-vpcs \
+    --filters "Name=tag:tofu-address,Values=module.$call.aws_vpc.this:0" "Name=tag:tofu-estate,Values=$ESTATE" \
+    --query 'Vpcs[0].VpcId' --output text)"
+  [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "could not find module.$call's VPC by its own marker"
+
+  # The import identity choudoufu resolves for
+  # module.<call>.aws_default_route_table.default[0] IS this VPC id. Ask AWS
+  # what that id imports to.
+  MAIN_RTB="$(awsl ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=true" \
+    --query 'RouteTables[0].RouteTableId' --output text)"
+  [ -n "$MAIN_RTB" ] && [ "$MAIN_RTB" != "None" ] || fail "AWS returned no main route table for $VPC_ID (module.$call)"
+
+  # ... and the object it answered with must be the one this estate marked as
+  # that module call's aws_default_route_table, not some other table.
+  WANT_RTB_ADDR="module.$call.aws_default_route_table.default:0"
+  GOT_RTB_ADDR="$(awsl ec2 describe-tags \
+    --filters "Name=resource-id,Values=$MAIN_RTB" "Name=key,Values=tofu-address" \
+    --query 'Tags[0].Value' --output text)"
+  [ "$GOT_RTB_ADDR" = "$WANT_RTB_ADDR" ] \
+    || fail "importing module.$call's default route table by $VPC_ID lands on $MAIN_RTB, which carries tofu-address=$GOT_RTB_ADDR, not $WANT_RTB_ADDR"
+
+  # And the converse, which is what makes this an identity assertion rather
+  # than an existence one: the route table's OWN id is a different string, so
+  # the two are not accidentally interchangeable here.
+  [ "$MAIN_RTB" != "$VPC_ID" ] || fail "the route table id and the VPC id are the same string; this assertion proves nothing"
+  log "  module.$call: import identity $VPC_ID -> AWS's main route table $MAIN_RTB, carrying $GOT_RTB_ADDR"
+done
+log "  both default route tables bind by the VPC's id, confirmed against AWS"
+log "  itself and never through choudoufu's own report"
+
 log "  Analysis-layer refusals, total: $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N + UNADMITTED_N)) (was 239, then 19, then 7)."
-log "  Remaining, at $((PROJECTION_IMPORT_N + EMPTY_RESULT_N)) sites, newly REACHED rather than caused:"
-log "    $PROJECTION_IMPORT_N + $EMPTY_RESULT_N  #332 - aws_default_route_table imports by the VPC's"
-log "           id, not the route table's own, and the ratified row says"
-log "           otherwise. One per nested vpc call. Proved against stock"
-log "           terraform and the real provider, no choudoufu involved."
+log "  choudoufu refusals of every layer, total: 0 (#332's 4 were the last)."
+log "  Remaining, at $INVALID_PLAN_N site, newly REACHED rather than caused:"
+log "    $INVALID_PLAN_N  a provider bug - hashicorp/aws hands back a"
+log "       RequiresReplace path with an empty attribute step for"
+log "       module.security_group.aws_vpc_security_group_ingress_rule"
+log "       .this[\"dns-from-prefix-list\"]. Not a choudoufu refusal; the"
+log "       message names the provider's own issue tracker."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, at 4 sites (was 239, then 19,"
-log "then 7) - every analysis-layer wall this estate has ever hit (#305,"
-log "#307, #313 A and B, #321) is fixed and confirmed absent above. What is"
-log "left is one wrong ratified import identity, #332, reachable only now"
-log "that the plan gets as far as importing all 67 resources"
+log "STAGE 3 (test_plan): BLOCKED for real, at 1 site (was 239, then 19, then"
+log "7, then 4) - every choudoufu wall this estate has ever hit (#305, #307,"
+log "#313 A and B, #321, #332) is fixed and confirmed absent above, and both"
+log "default route tables' import identities are asserted BY VALUE against"
+log "AWS. What is left is a defect in the AWS provider itself, reachable only"
+log "now that the plan imports all 67 resources and diffs them"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -675,7 +797,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 4 sites (was 239, then 19, then 7) - every analysis-layer wall is gone; #332 alone remains; see header"
+log "  stage 3  test_plan          BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is an AWS-provider bug; see header"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

@@ -896,10 +896,14 @@ type fakeObject struct {
 	id          string
 	displayName string
 	tags        map[string]string
-	// arn is set only for a type registered via [fakeCloud.withARNAttr] -
-	// issue #302's repro needs a listed object whose full resource carries a
-	// real arn attribute the way aws_iam_role's schema always does.
-	arn        string
+	// extra are string attributes on the object's FULL resource value,
+	// beyond the id and tags every object carries. Issue #302's repro needs
+	// a listed object with a real arn attribute the way aws_iam_role's
+	// schema always has one; issue #332's needs an aws_route_table object
+	// with the vpc_id its schema always has. Same mechanism, keyed by
+	// attribute name so a third one needs no new field here - see
+	// [fakeCloud.withAttr].
+	extra      map[string]string
 	noIdentity bool
 	noObject   bool
 }
@@ -916,7 +920,7 @@ type fakeCloud struct {
 	unfilter  map[string]bool
 	missing   map[string]bool
 	untagged  map[string]bool
-	arnAttr   map[string]bool
+	extraAttr map[string]map[string]bool
 	accountID string
 
 	requests []providers.ListResourceRequest
@@ -924,8 +928,8 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		arnAttr: make(map[string]bool),
-		objects: make(map[string][]*fakeObject),
+		extraAttr: make(map[string]map[string]bool),
+		objects:   make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
@@ -989,19 +993,36 @@ func (c *fakeCloud) obj(typeName, id string, tags map[string]string) {
 	})
 }
 
-// withARNAttr makes a type's resource schema carry a plain "arn" attribute,
-// the way aws_iam_role's real schema always does ("Amazon Resource Name
-// (ARN) specifying the role.", per the AWS provider's iam_role.html.markdown
-// doc page) - issue #302's importIdentityFromResource reads it off the
-// listed object regardless of which declared type's list call surfaced it.
-func (c *fakeCloud) withARNAttr(typeName string) { c.arnAttr[typeName] = true }
+// withAttr makes a type's resource schema carry one more plain computed
+// string attribute, beyond the id and tags every type here already has.
+// [importIdentityFromResource] reads a type's own ratified identity attribute
+// off the listed object regardless of which declared type's list call
+// surfaced it, so the two shipped instances of that - aws_iam_role's arn
+// ("Amazon Resource Name (ARN) specifying the role.", per the AWS provider's
+// iam_role.html.markdown doc page, issue #302) and aws_route_table's vpc_id
+// ("The VPC ID.", per route_table.html.markdown, issue #332) - are the same
+// mechanism with a different attribute name, and this is it.
+func (c *fakeCloud) withAttr(typeName, attr string) {
+	if c.extraAttr[typeName] == nil {
+		c.extraAttr[typeName] = make(map[string]bool)
+	}
+	c.extraAttr[typeName][attr] = true
+}
 
-// ownWithARN is [fakeCloud.own] plus an arn value on the resource object, for
-// a type registered via [fakeCloud.withARNAttr].
-func (c *fakeCloud) ownWithARN(typeName, id, arn, address string) {
+// ownWithAttrs is [fakeCloud.own] plus values for attributes registered via
+// [fakeCloud.withAttr]. An attribute in the schema with no value here reads
+// null off the object, which is the "the provider served the attribute but
+// left it empty" case every caller of [importIdentityFromResource] has to
+// survive.
+func (c *fakeCloud) ownWithAttrs(typeName, id, address string, attrs map[string]string) {
 	c.own(typeName, id, address)
 	objs := c.objects[typeName]
-	objs[len(objs)-1].arn = arn
+	objs[len(objs)-1].extra = attrs
+}
+
+// ownWithARN is [fakeCloud.ownWithAttrs] for the arn attribute alone.
+func (c *fakeCloud) ownWithARN(typeName, id, arn, address string) {
+	c.ownWithAttrs(typeName, id, address, map[string]string{"arn": arn})
 }
 
 // noFilter makes a type's list schema offer no filter argument, the way the
@@ -1068,8 +1089,8 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 			"id":   {Type: cty.String, Computed: true},
 			"tags": {Type: cty.Map(cty.String), Optional: true},
 		}
-		if c.arnAttr[name] {
-			attrs["arn"] = &configschema.Attribute{Type: cty.String, Computed: true}
+		for attr := range c.extraAttr[name] {
+			attrs[attr] = &configschema.Attribute{Type: cty.String, Computed: true}
 		}
 		if c.untagged[name] {
 			delete(attrs, "tags")
@@ -1129,11 +1150,11 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 		}
 		if req.IncludeResourceObject && !o.noObject {
 			attrs := map[string]cty.Value{"id": cty.StringVal(o.id)}
-			if c.arnAttr[req.TypeName] {
-				if o.arn != "" {
-					attrs["arn"] = cty.StringVal(o.arn)
+			for attr := range c.extraAttr[req.TypeName] {
+				if v := o.extra[attr]; v != "" {
+					attrs[attr] = cty.StringVal(v)
 				} else {
-					attrs["arn"] = cty.NullVal(cty.String)
+					attrs[attr] = cty.NullVal(cty.String)
 				}
 			}
 			if !c.untagged[req.TypeName] {

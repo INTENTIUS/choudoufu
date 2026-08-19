@@ -70,7 +70,7 @@ func TestDiscoverIAMServiceLinkedRoleSiblingBindsWithARNIdentity(t *testing.T) {
 
 	cloud := newFakeCloud()
 	cloud.listable("aws_iam_role")
-	cloud.withARNAttr("aws_iam_role")
+	cloud.withAttr("aws_iam_role", "arn")
 	// The object is returned by aws_iam_role's own list call - exactly how
 	// the real bug reproduces - carrying a marker for the sibling type
 	// aws_iam_service_linked_role.
@@ -123,7 +123,7 @@ func TestDiscoverIAMServiceLinkedRoleSiblingRefusesWithoutARN(t *testing.T) {
 	cloud := newFakeCloud()
 	cloud.listable("aws_iam_role")
 	cloud.listable("aws_iam_service_linked_role")
-	// Deliberately no cloud.withARNAttr("aws_iam_role") - the listed object
+	// Deliberately no cloud.withAttr("aws_iam_role", "arn") - the listed object
 	// has no arn attribute to recompose an identity from.
 	cloud.own("aws_iam_role", "AWSServiceRoleForElasticBeanstalk", `aws_iam_service_linked_role.app`)
 

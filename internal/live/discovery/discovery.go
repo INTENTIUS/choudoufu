@@ -1531,53 +1531,67 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// defaultAdopterSiblings and iamServiceLinkedRoleSibling.
 		bindType := typeName
 		// claimIdentity is the identity object the claimant carries;
-		// ordinarily r.Identity unchanged, and only ever overridden inside
-		// the iamServiceLinkedRoleSibling branch below, where r.Identity's
-		// schema no longer matches bindType.
+		// ordinarily r.Identity unchanged, and only ever overridden in the
+		// identity-recomposing branch below, where r.Identity's schema no
+		// longer matches bindType.
 		claimIdentity := r.Identity
 		if markerType := markerTypeOf(escaped); markerType != typeName {
+			// Both predicates name the same shape: AWS itself has no
+			// separate list call for the special case, so one type's native
+			// list call returns objects a second registered type manages.
+			// #305/#325's adopt-don't-create family (a route table is a
+			// route table, and DescribeRouteTables returns the VPC's
+			// default one right alongside every other) and #302's
+			// role/service-linked-role overlap (IAM has no
+			// ListServiceLinkedRoles, so iam:ListRoles returns both) are
+			// the two known instances. In neither is this a cross-type
+			// marker: it is the same live object this list call was always
+			// going to return, and the marker's own type - not the list
+			// call that happened to surface it - says which declared
+			// instance it is.
+			overlappingListCall := defaultAdopterSiblings(markerType, typeName) ||
+				iamServiceLinkedRoleSibling(markerType, typeName)
 			switch {
-			case defaultAdopterSiblings(markerType, typeName):
-				// #305 admitted aws_default_route_table /
-				// aws_default_security_group / aws_default_network_acl as
-				// their own types, each "adopting" the one default object
-				// AWS already minted rather than creating a new one - but
-				// AWS itself has no separate object kind for "the default
-				// one": a route table is a route table, and typeName's own
-				// list call (DescribeRouteTables, DescribeSecurityGroups,
-				// DescribeNetworkAcls) returns it right alongside every
-				// non-default one. Discovering the VPC module's
-				// aws_default_route_table.default this way is not a
-				// cross-type marker; it is the same live object this list
-				// call was always going to return, and the marker's own
-				// type - not the list call that happened to surface it -
-				// says which declared instance it is (issue #325).
+			case overlappingListCall && sameRatifiedIdentity(markerType, typeName):
+				// The two names agree about what this type's import
+				// identity IS, so the identity [importIdentity] already
+				// read under typeName's row is bindType's identity too and
+				// carries forward unchanged. aws_default_security_group /
+				// aws_security_group and aws_default_network_acl /
+				// aws_network_acl are this case: both sides of each pair
+				// import by the object's own id.
 				bindType = markerType
-			case iamServiceLinkedRoleSibling(markerType, typeName):
-				// Issue #302: the same "AWS has no separate list call for
-				// the special case" shape defaultAdopterSiblings names above
-				// - IAM has no ListServiceLinkedRoles operation, so
-				// iam:ListRoles (aws_iam_role's own native list call)
-				// returns every service-linked role right alongside the
-				// ordinary ones. But unlike the #305 pairs, this pair's
-				// ratified identity does NOT match (aws_iam_role imports by
-				// bare role name; aws_iam_service_linked_role's documented
-				// import ID is the role's ARN - see tagging.go's
-				// iamRoleEntry doc comment), so a bindType flip alone would
-				// carry the wrong importID forward. importIdentityFromResource
-				// recomposes it from this same listed object's own arn
-				// attribute, which aws_iam_role's schema exports regardless
-				// of which declared type's list call happened to surface it.
+			case overlappingListCall:
+				// The two names do NOT agree, so a bindType flip alone
+				// would carry the wrong importID forward, silently. Two
+				// real instances, one per predicate:
+				//
+				//   - aws_iam_role imports by bare role name, while
+				//     aws_iam_service_linked_role's documented import ID is
+				//     the role's ARN (issue #302; see tagging.go's
+				//     iamRoleEntry doc comment).
+				//   - aws_route_table imports by the route table's own
+				//     rtb-… id, while aws_default_route_table imports by
+				//     the VPC's id - the provider's own Import section says
+				//     so and means it literally, and a route table id gets
+				//     "Error: empty result" from the real provider (issue
+				//     #332).
+				//
+				// [importIdentityFromResource] recomposes it from this same
+				// listed object's own attributes, under bindType's own
+				// ratified identity attribute rather than typeName's: the
+				// listed object is the same live object either way, so it
+				// carries every attribute either schema exports.
 				if fixedID, fixedAttr, composedOK := importIdentityFromResource(markerType, r.Resource); composedOK {
 					bindType = markerType
 					importID, idAttr, hasID = fixedID, fixedAttr, true
-					// r.Identity is typed by typeName's (aws_iam_role's)
-					// identity schema, not bindType's - carrying it forward
-					// under the corrected type would hand a wrongly-shaped
-					// object to whatever reads Binding.Identity downstream.
-					// Every other claimant construction that composes an
-					// identity by hand rather than trusting the list call's
-					// own schema-matched identity (tagging.go, cloudcontrol.go)
+					// r.Identity is typed by typeName's identity schema,
+					// not bindType's - carrying it forward under the
+					// corrected type would hand a wrongly-shaped object to
+					// whatever reads Binding.Identity downstream. Every
+					// other claimant construction that composes an identity
+					// by hand rather than trusting the list call's own
+					// schema-matched identity (tagging.go, cloudcontrol.go)
 					// already uses cty.NilVal for the same reason.
 					claimIdentity = cty.NilVal
 				} else {
@@ -1587,8 +1601,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 						Marker:   raw,
 						LiveIDs:  liveIDs(importID),
 						Detail: fmt.Sprintf(
-							"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). This looks like the role/service-linked-role listing overlap issue #302 describes, but %s's own ARN could not be read off the listed object, so it was not corrected automatically. Retag the resource with its own address, or remove the marker to disown it.",
-							typeName, req.Estate, raw, markerType, typeName, markerType),
+							"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). This looks like the overlapping-list-call case issues #302 and #332 describe - the two types share one live object - but %s imports by a different identity than %s does and %s could not be read off the listed object, so it was not corrected automatically. Retag the resource with its own address, or remove the marker to disown it.",
+							typeName, req.Estate, raw, markerType, typeName, markerType, typeName, identityAttrNames(markerType)),
 					}))
 					continue
 				}
@@ -1734,17 +1748,29 @@ const defaultAdopterPrefix = "aws_default_"
 // defaultAdopterSiblings reports whether a and b are the two admitted names
 // of one adopt-don't-create pair: the plain type AWS mints exactly one of per
 // VPC or account, and the aws_default_* type that manages that same live
-// object under a second registered name. #305's own ratification is what
-// makes this safe rather than a guess by name alone - its ratified Reason for
-// each of the three pairs it admitted states plainly that the default type's
-// identity is "the same import identity aws_route_table already carries in
-// this table" / "the same as aws_network_acl" / "the same as
-// aws_security_group" - so this checks the same two facts that prose
-// establishes, read back off the table both sides already carry: equal
-// ServerAssigned, equal ImportSyntax and equal IdentityAttrs. A type that
-// merely starts with "aws_default_" but whose ratified identity actually
-// diverges from its would-be sibling (none exist among the admitted set
-// today) would fail this and still refuse as a genuine cross-type marker.
+// object under a second registered name.
+//
+// What it proves is that the two names denote ONE live object, which is what
+// [scanType] needs before it will let a marker of one type bind an object the
+// other type's list call surfaced: the name relationship is exact rather than
+// a prefix guess (aws_default_X pairs only with aws_X, and neither side may
+// itself be a default adopter of the other), both names are admitted, and both
+// are ratified server-assigned - which is what makes the object AWS itself
+// minted the one either name manages.
+//
+// It deliberately does NOT require the two rows to agree about what that
+// object's import identity is. It used to, and that equality read as a safety
+// proof while actually concealing a defect: aws_default_route_table's ratified
+// row claimed the route table's own rtb-… id, matching aws_route_table's, and
+// the real provider answers "Error: empty result" for it - the documented and
+// verified import identity is the VPC's id (issue #332). "The same object" and
+// "the same import identity" are two facts, so they are checked separately
+// now: [sameRatifiedIdentity] decides whether the identity already read under
+// the listing type's row carries forward unchanged or has to be recomposed
+// under the marker type's own row by [importIdentityFromResource]. A pair whose
+// identities diverge and whose marker type's identity attribute cannot be read
+// off the listed object still refuses as a malformed marker; nothing is
+// guessed.
 //
 // This is [scanType]'s only caller, which is why the check runs on demand
 // rather than as a table precomputed at package init: the admitted set is
@@ -1768,9 +1794,55 @@ func defaultAdopterSiblings(a, b string) bool {
 	if !ok {
 		return false
 	}
-	return plainTI.ServerAssigned && defTI.ServerAssigned &&
-		plainTI.ImportSyntax == defTI.ImportSyntax &&
-		slices.Equal(plainTI.IdentityAttrs, defTI.IdentityAttrs)
+	return plainTI.ServerAssigned && defTI.ServerAssigned
+}
+
+// defaultAdopterPlainSibling names the plain type an aws_default_* adopter
+// shares its one live object with - aws_route_table for
+// aws_default_route_table - or reports false when typeName is not an admitted
+// adopter with an admitted sibling.
+//
+// It is [defaultAdopterSiblings] asked from one side instead of two, for the
+// callers that hold one type name and need the other rather than a yes/no; the
+// pairing rule and its proof live there.
+func defaultAdopterPlainSibling(typeName string) (string, bool) {
+	if !strings.HasPrefix(typeName, defaultAdopterPrefix) {
+		return "", false
+	}
+	plain := "aws_" + strings.TrimPrefix(typeName, defaultAdopterPrefix)
+	if !defaultAdopterSiblings(typeName, plain) {
+		return "", false
+	}
+	return plain, true
+}
+
+// sameRatifiedIdentity reports whether two admitted types' ratified rows
+// describe the same import identity: the same documented syntax, and the same
+// identity attributes to read it out of.
+//
+// [scanType] uses it to pick which of two treatments an overlapping-list-call
+// sibling pair gets. True means the import identity [importIdentity] already
+// read under the listing type's row IS the marker type's identity too, so it
+// carries forward untouched - aws_default_security_group / aws_security_group
+// and aws_default_network_acl / aws_network_acl, where both sides import by the
+// object's own id. False means it is not, and has to be recomposed from the
+// listed object under the marker type's own row - aws_default_route_table /
+// aws_route_table (issue #332) and aws_iam_service_linked_role / aws_iam_role
+// (issue #302).
+//
+// An unadmitted type answers false: the absence of a row is not agreement, and
+// the caller's recomposition path refuses when it cannot read an identity
+// rather than carrying one forward on faith.
+func sameRatifiedIdentity(a, b string) bool {
+	aTI, ok := identity.LookupType(a)
+	if !ok {
+		return false
+	}
+	bTI, ok := identity.LookupType(b)
+	if !ok {
+		return false
+	}
+	return aTI.ImportSyntax == bTI.ImportSyntax && slices.Equal(aTI.IdentityAttrs, bTI.IdentityAttrs)
 }
 
 // iamServiceLinkedRoleSibling reports whether a and b are aws_iam_role and
@@ -1799,48 +1871,71 @@ func iamServiceLinkedRoleSibling(a, b string) bool {
 }
 
 // importIdentityFromResource composes bindType's own import identity from a
-// listed object's full resource attributes, for the one case
-// [iamServiceLinkedRoleSibling] names where typeName's own importID (already
-// composed by [importIdentity] before this is ever called) is not bindType's
-// importID and cannot simply be carried forward.
+// listed object's full resource attributes, for the overlapping-list-call
+// cases where the importID [importIdentity] already composed under the listing
+// type's row is not bindType's importID and cannot simply be carried forward
+// (see [sameRatifiedIdentity] for which pairs those are).
 //
-// aws_iam_role's resource schema exports arn ("Amazon Resource Name (ARN)
-// specifying the role.", per the AWS provider's iam_role.html.markdown doc
-// page) as a plain top-level attribute regardless of which declared type's
-// list call happened to surface the object, and aws_iam_service_linked_role's
-// own ratified identity (ImportSyntax "ARN", IdentityAttrs leading with
-// "arn") is exactly what [importIDFromARN] composes an import ID from given
-// that string - the same function tagging.go's ARN-join path already
-// trusts for the identical fact. A resource object with no readable arn
-// attribute - should not happen for either of this pair's two schemas, but
-// never assumed - returns false rather than guessing, and the caller's
-// existing malformed-marker refusal stands.
+// Which attribute to read is the ratified table's answer, not this function's:
+// [identity.TypeIdentity.IdentityAttrs] is defined as "the attribute names
+// whose value equals this type's identity", and the leading one is the type's
+// own documented import identity. So aws_iam_service_linked_role (IdentityAttrs
+// leading with "arn", ImportSyntax "ARN") reads arn, and
+// aws_default_route_table (IdentityAttrs ["vpc_id"], ImportSyntax "vpc-ID")
+// reads vpc_id. Neither type name appears here; adding a third such pair needs
+// only its row to be right.
+//
+// Reading it off the LISTED object rather than off bindType's own list call is
+// the whole point: there is no separate list call, the object the sibling's
+// call returned is the same live object, and it carries every attribute either
+// schema exports - aws_iam_role's schema exports arn ("Amazon Resource Name
+// (ARN) specifying the role.", per iam_role.html.markdown) and
+// aws_route_table's exports vpc_id ("The VPC ID.", per
+// route_table.html.markdown) regardless of which declared type asked.
+//
+// Only the LEADING identity attribute is tried. A row listing several
+// (["arn", "id"], say) means each of them equals the identity for the type's
+// OWN reads; it does not license falling back to a second attribute of a
+// sibling's object when the first is missing, which is how a service-linked
+// role would come back identified by its bare name instead of its ARN. An
+// unreadable leading attribute returns false rather than guessing, and the
+// caller's existing malformed-marker refusal stands.
+//
+// An arn-valued identity goes through [importIDFromARN] rather than being used
+// raw, because for some types the documented import ID is the ARN's resource-id
+// segment rather than the whole string - that function owns the distinction
+// (see [importsWholeARNString]), and tagging.go's ARN-join path already trusts
+// it for the identical fact. Every other attribute's value IS the import ID.
 func importIdentityFromResource(bindType string, resource cty.Value) (importID, identityAttr string, ok bool) {
 	ti, tableOK := identity.LookupType(bindType)
-	if !tableOK {
+	if !tableOK || len(ti.IdentityAttrs) == 0 {
 		return "", "", false
 	}
 	if resource == cty.NilVal || resource.IsNull() {
 		return "", "", false
 	}
+	attr := ti.IdentityAttrs[0]
 	ty := resource.Type()
-	if !ty.IsObjectType() || !ty.HasAttribute("arn") {
+	if !ty.IsObjectType() || !ty.HasAttribute(attr) {
 		return "", "", false
 	}
-	v := resource.GetAttr("arn")
+	v := resource.GetAttr(attr)
 	// IsMarked checked first, and nothing below reads v.AsString() until
 	// this guard has already returned on a marked value - cty panics rather
-	// than errors on a marked receiver, and a resource's arn attribute
-	// flowing from a sensitive input variable is the ordinary way to
-	// produce one, however unlikely for this specific attribute in
-	// practice. See internal/live/marksafe.
+	// than errors on a marked receiver, and a resource's attribute flowing
+	// from a sensitive input variable is the ordinary way to produce one,
+	// however unlikely for an identity attribute in practice. See
+	// internal/live/marksafe.
 	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
 		return "", "", false
 	}
 	if v.AsString() == "" {
 		return "", "", false
 	}
-	return importIDFromARN(ti, v.AsString())
+	if attr == "arn" {
+		return importIDFromARN(ti, v.AsString())
+	}
+	return v.AsString(), attr, true
 }
 
 // claimantAlreadyPresent reports whether cs already holds a claimant for the

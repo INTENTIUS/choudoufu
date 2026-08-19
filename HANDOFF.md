@@ -950,7 +950,8 @@ worth driving all the way to a genuine five-of-five pass before this project
 is shown to anyone outside it. Four of five clear all five stages as of
 2026-08-18 (`reference-ec2-vpc`, `corpus-s3-bucket-complete`,
 `corpus-iam-policy`, `corpus-iam-read-only-policy`); the security-group one
-is the remaining gap. `corpus-rds-complete-postgres` (outside the core set,
+is the remaining gap, and as of 2026-08-19 every wall left in it belongs to
+the AWS provider rather than to this fork - see the #332 entry below. `corpus-rds-complete-postgres` (outside the core set,
 same `security-group`/`vpc` module family) reached the equivalent state
 2026-08-19 after #321/#324/#323 cleared every other derivable wall it had.
 
@@ -1037,6 +1038,77 @@ fixes:**
    the managed-attribute question in (2) below: `aws_security_group.app.
    id` is still not resolved from configuration, and the estate turned
    out never to need its VALUE, only the key set it travels with.
+
+   **#332 is now FIXED too, and it moved the estate to 1 diagnostic -
+   which is not a choudoufu one.** Landed 2026-08-19
+   (`859c1ad747`/`ff1f6bcdea`/`c1197befc7`). The ratified row claimed the
+   route table's own `rtb-…` id on the reasoning that the provider's
+   Import section could not be followed literally, since the schema has no
+   `vpc_id` argument. It has none, but `vpc_id` is a computed **attribute**
+   and that is all the importer needs; stock terraform 1.15.8 with
+   hashicorp/aws 6.59.0 answers `Error: empty result` for the `rtb-…` id
+   and `Import successful!` for the VPC's. `live/import-grammar.json` had
+   already extracted this correctly (`sole_id_part {"token": "vpc_id",
+   "source": "attribute"}`) - the scrape was right and the ratification
+   overrode it, so the row and the convergence annotation repeating the
+   claim are both corrected.
+
+   The code half split one predicate that had conflated two facts.
+   `defaultAdopterSiblings` proved "these two names are one live object" by
+   requiring the two rows to name the same import identity, which is the
+   separate question of whether the id already read carries forward. Now
+   `defaultAdopterSiblings` keeps only the object-identity proof and
+   `sameRatifiedIdentity` is its own predicate; when they disagree,
+   `importIdentityFromResource` recomposes off the listed object, driven by
+   the bind type's own `IdentityAttrs` rather than a hard-coded `"arn"`, so
+   one code path now serves #302's `aws_iam_service_linked_role` (`arn`)
+   and this (`vpc_id`) with **no provider type name in it**. A third piece
+   was found only by running the estate: `scanTypeMarkerFallback` composed
+   a second, `rtb-…` claimant from the object's ARN, and post-fix that
+   collided with the correct `vpc-…` one as `ProblemCollision`. It now
+   declines for such a type - a route table's ARN carries no VPC id, so
+   composing there succeeds with the WRONG string - staying silent when the
+   plain sibling is declared and refusing explicitly when it is not.
+
+   **Reach, stated honestly: one type today.** The derivation is generic
+   and picks up any future `aws_default_X`/`aws_X` pair whose rows diverge
+   with no code change, but `aws_default_route_table` is the only member of
+   that set at aws 6.59.0. `#302`'s pair reuses the same recomposition and
+   is unaffected because its identity is its ARN.
+
+   **The crossing, run for real against floci** (stage 3's whole `^Error:`
+   surface, greped from the run's own log): **239 -> 19 -> 7 -> 4 -> 1**.
+   `aws_default_route_table` is named by **no diagnostic at all**, the
+   collision is gone, and every choudoufu wall of every layer is at zero.
+   The 1 remaining is the AWS provider failing on itself:
+   `Provider produced invalid plan` - `"requires replacement"` on
+   `module.security_group.aws_vpc_security_group_ingress_rule.this
+   ["dns-from-prefix-list"]` for the non-existent attribute path
+   `cty.Path{cty.GetAttrStep{Name:""}}`, the provider's own message ending
+   "This is a bug in the provider, which should be reported in the
+   provider's own issue tracker." It is the one rule in the estate sourced
+   from a prefix list rather than a CIDR or a referenced security group.
+   **Not investigated, not filed** - that is the next slot's first job, and
+   it is the last thing between this estate and five-of-five.
+
+   Two honest gaps in this entry, both worth knowing before re-running it.
+   First, `refusal-probe` over 250 corpus configurations (same tree both
+   runs) shows sites 16068 -> 16074 (+6) and **instances 4417 -> 4413
+   (-4)**, blocked 194 -> 194. The -4 is the point rather than a
+   regression: `.corpus/cyhy-amis` and `.corpus/cool-assessment` write
+   `aws_route.route_table_id = aws_default_route_table.X.id`, and `.id` is
+   no longer one of this type's identity attributes, so those children
+   refuse instead of silently taking a VPC id for a route table id.
+   Recovering them needs per-attribute values for a *discovered* parent,
+   which `discovery.Binding` does not carry - a real follow-up, not filed.
+   Second, stage 3's rewritten assertions (including the new step 3a, which
+   re-derives each default route table's import identity from AWS itself
+   and asserts it BY VALUE) were written from a real run's measured output
+   but **have not themselves been executed end to end**: three consecutive
+   attempts were cut off by this agent's 600s per-command cap during the
+   adopted estate's `init`, with other agents' crossings holding the
+   machine at load average 6-9. Stage 1 passed in all three. Re-run it
+   before trusting the script's own PASS/FAIL line.
 2. `corpus-rds-complete-postgres` needs (1) plus an actual, currently
    unmade ruling: **may this fork ever resolve a managed resource's own
    Computed attribute off configuration alone** (not read the cloud,
