@@ -456,7 +456,7 @@ every identity refusal.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1513 rendered identities across 473 configuration directories in under a
+1513 rendered identities across 475 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
@@ -692,38 +692,55 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
-### 0. URGENT, read before anything else: `just ci` is red on main right now
+### 0. Fixed: the #304 crash that had `just ci` red on main
 
-`TestNoUnregisteredRefusalsInTheTree` (`internal/live/check`) genuinely fails
-on current `main` - confirmed with a fully cleared Go test cache, real
-324s execution, not a cached stale pass. A real stack trace (captured by
-temporarily removing the test's own `recover()` wrapper, not from the
-test's own summary line) traces it to a regression in **today's #304 fix**:
-`StaticEvaluator`'s `EvaluateStructural` (`static_evaluator.go`) and
-`Scope`'s `EvalContextTolerant` (`eval.go`, `internal/lang`) panics
-evaluating a binary-operator expression whose failed type conversion
-calls `cty`'s `convert.MismatchMessage` with one operand a zero/nil type -
-`MismatchMessage` calls the type's own `FriendlyName` method on it and
-crashes.
-Hits at least 33 real sites across `.corpus/{autoscaling,ecs,lambda,rds}`
-via `internal/live/lint`'s `checkCountIndex` calling `countIndexDomainFor`.
+`TestNoUnregisteredRefusalsInTheTree` (`internal/live/check`) was genuinely
+failing on `main` from 2026-08-18 until the fix below. It crashed rather
+than refused on 32 directories, all of them
+terraform-aws-modules/security-group's vendored `modules/_templates` and
+`wrappers/_templates`, materialized under `.terraform/modules/` by
+`terraform init` across the `autoscaling`, `ecs`, `lambda` and `rds`
+examples. Those are code-generation TEMPLATES, so they genuinely reference
+`var.auto_*` names no `variable` block declares.
 
-**Why this was not caught earlier tonight**: this specific test takes
-~325s and scans every `.terraform/modules/**` subdirectory materialized
-into the shared, gitignored `.corpus` - directories that accumulate as
-crossings run `terraform init` for new estates. It is plausible #304's own
-verification genuinely ran clean in its own worktree (a different
-`.corpus` population at that moment) before later crossings' `terraform
-init` calls added the specific vendored template directories that trigger
-it. Do not assume every "`just ci`: exit 0" claimed earlier tonight was
-dishonest - assume this is a real, freshly-manifesting regression, verify
-going forward, and do not treat a single package's cached "ok" as proof
-nothing changed underneath it when `.corpus` itself is not a tracked
-build input Go's own test cache can see.
+The cause was older than #304 and was only ever reachable through it.
+`normalizeRefValue` (`internal/lang/eval.go`) is the one funnel every
+`lang.Data` lookup passes through into an `hcl.EvalContext`, and on the
+error path it built `cty.UnknownVal(val.Type())`. A `Data` method may report
+an error and return NO value - `staticScopeData.GetInputVariable` answers an
+undeclared variable with `cty.NilVal`, and upstream's own
+`evaluationStateData.GetCheckBlock` does the same - and `cty.NilVal.Type()`
+is the zero `cty.Type`, whose `typeImpl` is nil. An unknown OF that type is
+not equal to `cty.NilVal`, so every `== cty.NilVal` guard passes it, and it
+panics inside `cty` the moment anything asks its type a question.
+`Scope.EvalExpr` had always returned at its own `diags.HasErrors()` gate
+before calling `expr.Value`, so nothing had ever asked; #304's
+`EvaluateStructural` evaluates against such a context on purpose, and
+`hclsyntax`'s `BinaryOpExpr` asks immediately in `convert.Convert`.
 
-**Fix this before trusting any other `just ci` claim**, including ones
-already reported as green in this file. Once fixed, get one full,
-cache-cleared `just ci` pass on current `main` as the honest baseline.
+Fixed 2026-08-19 at the point the ill-formed value is constructed: an absent
+type becomes `cty.DynamicVal`. Full sweep 7646 loadable configurations of
+7745, 324.71s, 0 panics; the same commit reverted in place gives 7613
+loadable and 33 panics, the 33rd being the fix's own fixture.
+`internal/live/lint/testdata/count-index-undeclared-var` is that fixture and
+`TestCountIndexSurvivesAnUndeclaredVariableInAModuleArgument` the gate.
+#304's own improvement is intact and was checked rather than assumed:
+count-index sites are unmoved at 554 across the corpus with this change, and
+reverting #304's call sites on top of it takes them to 1032.
+
+**Two things worth keeping from the episode.** First, `.corpus` is not a
+build input Go's test cache can see, so a cached `ok` for
+`internal/live/check` is not evidence that a crossing's `terraform init`
+has not, moments earlier, materialized a directory that breaks it. Second, the
+reason this survived #304's own verification: **`filepath.WalkDir` does not
+descend a symlink**, and `sweepRoots` includes `.corpus`, which most
+worktrees symlink in. The sweep then walks `live` and `internal` only,
+finishes in 1.4 seconds instead of 325, reports a perfectly plausible
+"analyzed 1667 loadable configurations", and passes. If you are verifying
+anything that sweeps `.corpus` from a worktree, either check the elapsed
+time and the analyzed count against a real run or materialize a real
+directory (`cp -Rl` the shared corpus - hard links, 15 seconds, no data
+copied).
 
 ### 1. Resolved: #313 does not repeat, and it isn't a quick fix anyway
 
