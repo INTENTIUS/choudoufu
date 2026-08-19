@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -1523,26 +1524,51 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			continue
 		}
 
+		// bindType is the type every declared-set lookup and reported record
+		// below uses to find where this object belongs. It starts as
+		// typeName - which list call found the object - and is corrected to
+		// the marker's own type only for the one case where that is known
+		// safe: see defaultAdopterSiblings.
+		bindType := typeName
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			// The estate owns this resource and its marker names an address
-			// of another type. Nothing can be done with it: binding it to the
-			// address it names would attach a plan for one resource type to a
-			// resource of another, and ignoring it would leave a resource this
-			// estate owns invisible to every section of the output. So it is
-			// the marker spec's third answer - malformed - and a human says
-			// which address it belongs to. (Audit finding C4: this used to
-			// match the declared-address set, which carried no type, and the
-			// resource was silently dropped.)
-			diags = diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemMalformedMarker,
-				TypeName: typeName,
-				Marker:   raw,
-				LiveIDs:  liveIDs(importID),
-				Detail: fmt.Sprintf(
-					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-					typeName, req.Estate, raw, markerType, typeName),
-			}))
-			continue
+			if defaultAdopterSiblings(markerType, typeName) {
+				// #305 admitted aws_default_route_table /
+				// aws_default_security_group / aws_default_network_acl as
+				// their own types, each "adopting" the one default object
+				// AWS already minted rather than creating a new one - but
+				// AWS itself has no separate object kind for "the default
+				// one": a route table is a route table, and typeName's own
+				// list call (DescribeRouteTables, DescribeSecurityGroups,
+				// DescribeNetworkAcls) returns it right alongside every
+				// non-default one. Discovering the VPC module's
+				// aws_default_route_table.default this way is not a
+				// cross-type marker; it is the same live object this list
+				// call was always going to return, and the marker's own
+				// type - not the list call that happened to surface it -
+				// says which declared instance it is (issue #325).
+				bindType = markerType
+			} else {
+				// The estate owns this resource and its marker names an
+				// address of another, unrelated type. Nothing can be done
+				// with it: binding it to the address it names would attach a
+				// plan for one resource type to a resource of another, and
+				// ignoring it would leave a resource this estate owns
+				// invisible to every section of the output. So it is the
+				// marker spec's third answer - malformed - and a human says
+				// which address it belongs to. (Audit finding C4: this used
+				// to match the declared-address set, which carried no type,
+				// and the resource was silently dropped.)
+				diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemMalformedMarker,
+					TypeName: typeName,
+					Marker:   raw,
+					LiveIDs:  liveIDs(importID),
+					Detail: fmt.Sprintf(
+						"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+						typeName, req.Estate, raw, markerType, typeName),
+				}))
+				continue
+			}
 		}
 
 		c := claimant{
@@ -1558,11 +1584,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			noIdentity:   !hasID,
 		}
 
-		if entry, ok := decl.entryFor(typeName, escaped); ok {
+		if entry, ok := decl.entryFor(bindType, escaped); ok {
 			entry.claimants = append(entry.claimants, c)
 			continue
 		}
-		if decl.declares(typeName, escaped) {
+		if decl.declares(bindType, escaped) {
 			// A declared instance whose identity came out of the
 			// configuration rather than out of a marker: nothing was waiting
 			// to be found here, and the projection reads it by the identity
@@ -1571,8 +1597,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// whether this object is the instance that address names, or a
 			// second object left carrying its marker (GitHub issue #244).
 			// Reported, never acted on: see displaced.go.
-			if want, displaced := decl.displacedFrom(typeName, escaped, c); displaced {
-				diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, c)))
+			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
+				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
 			}
 			continue
 		}
@@ -1583,11 +1609,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// question slots answer. Parking it on the block hands it to the set
 		// matcher, which either binds it by slot or - for an estate with no
 		// slots - puts it back where it was.
-		if cb := decl.countBlockFor(typeName, escaped); cb != nil {
+		if cb := decl.countBlockFor(bindType, escaped); cb != nil {
 			cb.extra = append(cb.extra, c)
 			continue
 		}
-		if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+		if blk, ok := decl.blocks[bindType][escaped]; ok && blk.keyed {
 			// The marker names the resource block, not one of its
 			// instances: markers written before instance keys were part of
 			// the address. For a for_each block nothing distinguishes which
@@ -1597,7 +1623,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			continue
 		}
 		res.Orphans = append(res.Orphans, OwnedResource{
-			TypeName:     typeName,
+			TypeName:     bindType,
 			ImportID:     importID,
 			IdentityAttr: idAttr,
 			Identity:     r.Identity,
@@ -1643,6 +1669,61 @@ func markerTypeOf(escaped string) string {
 	}
 	head, _, _ := strings.Cut(escaped, ".")
 	return head
+}
+
+// defaultAdopterPrefix names the AWS provider's "adopt the account or VPC's
+// already-existing default object rather than creating one" family:
+// aws_default_vpc, aws_default_subnet, aws_default_vpc_dhcp_options,
+// aws_default_route_table, aws_default_security_group and
+// aws_default_network_acl are the whole documented set (every one of their
+// doc pages states, verbatim, "Terraform does not _create_ this resource but
+// instead attempts to \"adopt\" it into management"). Only the last three are
+// admitted into [identity.DefaultTable] today (#305); [defaultAdopterSiblings]
+// derives the relationship from this prefix and the ratified table rather
+// than a hand list of three pairs, so admitting aws_default_vpc or
+// aws_default_subnet later needs no change here to be recognized too.
+const defaultAdopterPrefix = "aws_default_"
+
+// defaultAdopterSiblings reports whether a and b are the two admitted names
+// of one adopt-don't-create pair: the plain type AWS mints exactly one of per
+// VPC or account, and the aws_default_* type that manages that same live
+// object under a second registered name. #305's own ratification is what
+// makes this safe rather than a guess by name alone - its ratified Reason for
+// each of the three pairs it admitted states plainly that the default type's
+// identity is "the same import identity aws_route_table already carries in
+// this table" / "the same as aws_network_acl" / "the same as
+// aws_security_group" - so this checks the same two facts that prose
+// establishes, read back off the table both sides already carry: equal
+// ServerAssigned, equal ImportSyntax and equal IdentityAttrs. A type that
+// merely starts with "aws_default_" but whose ratified identity actually
+// diverges from its would-be sibling (none exist among the admitted set
+// today) would fail this and still refuse as a genuine cross-type marker.
+//
+// This is [scanType]'s only caller, which is why the check runs on demand
+// rather than as a table precomputed at package init: the admitted set is
+// small (three pairs today) and the lookups are two map reads.
+func defaultAdopterSiblings(a, b string) bool {
+	plain, def := a, b
+	if strings.HasPrefix(a, defaultAdopterPrefix) {
+		plain, def = b, a
+	}
+	if !strings.HasPrefix(def, defaultAdopterPrefix) || strings.HasPrefix(plain, defaultAdopterPrefix) {
+		return false
+	}
+	if defaultAdopterPrefix+strings.TrimPrefix(plain, "aws_") != def {
+		return false
+	}
+	plainTI, ok := identity.LookupType(plain)
+	if !ok {
+		return false
+	}
+	defTI, ok := identity.LookupType(def)
+	if !ok {
+		return false
+	}
+	return plainTI.ServerAssigned && defTI.ServerAssigned &&
+		plainTI.ImportSyntax == defTI.ImportSyntax &&
+		slices.Equal(plainTI.IdentityAttrs, defTI.IdentityAttrs)
 }
 
 // typeTaggable reports whether typeName's own managed resource schema has a
