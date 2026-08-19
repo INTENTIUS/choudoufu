@@ -692,33 +692,61 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
-### 1. Follow up on what the last round of fixes actually surfaced
+### 1. Resolved: #313 does not repeat, and it isn't a quick fix anyway
 
-The `aws_default_network_acl`/`aws_default_route_table`/
-`aws_default_security_group` wall (#305) and the unratified
-`aws_vpc_security_group_rules_exclusive` row (#307) are both fixed and
-merged. Landing them did more than clear those two - it exposed what was
-underneath. `corpus-security-group-complete`'s `test_plan` now fails on a
-different, genuinely new wall (#313): `data.aws_availability_zones` feeding
-per-AZ `for_each`/`count` in a nested module call, an already-registered
-"outside the config-language subset" refusal class rather than an admission
-gap. Whether #313's shape repeats across the other estates still stuck on
-`test_plan` (`corpus-lambda-simple`, `corpus-rds-complete-postgres`,
-`corpus-ecs-fargate`, `corpus-sumaform-aws`, `corpus-alb-complete` - see the
-tracker for which) has not been checked. That is the same kind of leverage
-question item 1 has always asked: one shared wall behind several failures is
-worth more than five separate ones.
+Checked 2026-08-18: #313's `data.aws_availability_zones`/static-context wall
+does **not** explain any of the other five `test_plan`-stuck estates. Each
+hits its own, distinct, already-tracked cause -
+`corpus-lambda-simple` #314 (a new issue: `local_file` needs a fourth
+`LogicalClass`, argument-derived identity - real multi-package design work,
+not filed as a quick fix), `corpus-rds-complete-postgres` #304
+(`count.index` through a nested `lookup()` default), `corpus-ecs-fargate`
+#308, `corpus-sumaform-aws` two permanent RULE-classified refusals (#199,
+#103, no action needed), `corpus-alb-complete` #309. Evidence and commit
+references are in each estate's own entry in
+`live/corpus-crossing-manifest.json`. Two of those five checks also found
+and fixed stale crossing-script assertions left over from #305 landing
+(`corpus-ecs-fargate`, `corpus-alb-complete`), now on main.
 
-Separately, `corpus-vpc-complete` was re-verified against a freshly
-published floci image (pushed to `origin/main`, built by floci's own CI -
-see the Traps entry on this): lex00/floci#66/#67/#69 (Redshift, DHCP
-options, customer/VPN gateway) are confirmed fixed, `cold_deploy` moved one
-step further, and a fourth, narrower, previously-undetected gap in #68's own
-`CreateCacheSubnetGroup` (wrong `SubnetIds` wire param name) is now filed as
-lex00/floci#70. A fix for exactly that bug was already sitting uncommitted
-in the shared floci checkout as another session's in-progress work when this
-was found - left untouched, not landed here. Check whether it has since been
-committed before re-implementing it.
+**#313 itself is not a bug to derive a rule for - re-read the issue before
+assigning it again.** Its own body traces the refusal to `internal/live/
+passthrough/refusals.go`'s already-registered "Dynamic value in static
+context" class: `live-plan` never calls a provider during plan (statelessness,
+#73), so a `for_each`/`count` keyed on a data source's live values, or on
+another resource's own attribute, can never be proven statically - the same
+family as the CIDR-keyed `for_each` wall CLAUDE.md already documents.
+Closing it for real would mean deciding whether `live-plan` may call
+read-only provider APIs during plan at all, a real architecture question for
+the maintainer, not a derivable rule a background agent should freelance.
+
+Separately, lex00/floci#70 (`CreateCacheSubnetGroup`/`ModifyCacheSubnetGroup`
+wrong `SubnetIds` wire param name, found re-verifying `corpus-vpc-complete`
+against a freshly published image) is now fixed, independently verified
+against AWS's own botocore ElastiCache service model, tested, merged, pushed,
+and its CI/GHCR-publish runs are both green (`83c1aa73` on `lex00/floci`
+main). The fix that was sitting uncommitted in the shared floci checkout as
+another session's in-progress work turned out to be correct and complete;
+nothing needs re-implementing.
+
+### 1a. Next up: two generalizing fixes with no design call needed
+
+`#309` (`corpus-alb-complete`): `aws_cognito_user_pool_client` is untaggable
+with no native list resource, but the issue's own body already names the
+fix shape - a parent-scoped `{user_pool_id}/{client_id}` composite identity,
+same pattern as other admitted composite-identity rows, discoverable via
+`ListUserPoolClients(UserPoolId=<parent's live id>)`. Needs a generated
+admission row plus, probably, a new `internal/live/discovery` leg - scoping
+that is explicitly the next slot's work per the issue.
+
+`#308` (`corpus-ecs-fargate`): a child-module `for_each` over a
+for-comprehension whose keys are static but whose source collection is a
+bare `var.X` chased across a module-call boundary. The issue lays out both
+gaps precisely (`internal/live/identity/foreach_keyset.go`'s
+`collectStaticForEachKeys` needs a `*hclsyntax.ForExpr` case mirroring
+`resolve.go`'s `forEachOverComprehension`, plus a cross-module-call chase
+reusing #212/#251's existing machinery) and explains why it generalizes
+beyond ECS: any module wrapping a `for_each`'d child on a map-of-configs
+variable with one data-sourced value hits this.
 
 ### 2. The core set
 
