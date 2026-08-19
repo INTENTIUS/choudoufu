@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	residue "github.com/intentius/choudoufu/live"
 )
@@ -498,13 +499,19 @@ func (c *classifier) finish() {
 // cannot become a destroy. This pass reads that decision and writes the
 // section an operator reads it in.
 func (c *classifier) removals() {
-	declared := c.req.Config.Module.ManagedResources
-
 	for _, o := range c.req.Discovery.Orphans {
 		if !o.Removal {
 			continue
 		}
-		_, blockExists := declared[o.Addr.Resource.Resource.String()]
+		// Whether the block still exists is asked of the orphan's OWN module,
+		// through the same function discovery answers it with when it sets
+		// identity.Resolution.Undeclared. This used to read the ROOT module's
+		// ManagedResources with the module path stripped off the address it
+		// looked up, so for an orphan inside a module it answered a question
+		// about a different block - and got both directions wrong, reporting
+		// a block still declared in the child as deleted and a block that
+		// exists only at the root as still there. See GitHub issue #316.
+		blockExists := identity.DeclaresBlock(c.req.Config, o.Addr)
 		c.res.Removals = append(c.res.Removals, Removal{
 			Resource: Resource{
 				TypeName:    o.TypeName,

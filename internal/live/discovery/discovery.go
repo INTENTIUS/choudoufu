@@ -1772,10 +1772,11 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		if !o.Removal {
 			continue
 		}
-		declared := false
-		if modCfg, ok := identity.ConfigForModule(req.Config, o.Addr.Module); ok && modCfg.Module != nil {
-			_, declared = modCfg.Module.ManagedResources[o.Addr.Resource.Resource.String()]
-		}
+		// The same predicate internal/live/foreign's removal section reports
+		// as BlockGone, through the one function, so that the plan's own
+		// Undeclared flag and the sentence an operator reads beside it cannot
+		// answer differently (issue #316).
+		declared := identity.DeclaresBlock(req.Config, o.Addr)
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
