@@ -898,6 +898,29 @@ demo-corpus-overture-tiles:
 demo-corpus-xancloud-iac:
     bash live/e2e/corpus-xancloud-iac/run.sh
 
+# The fifth OpenTofu-native crossing, and a THIRD disjoint slice of
+# hongbo-miao/hongbomiao.com (live/corpus-manifest.json, same pin as
+# corpus-hongbomiao-labelbox and corpus-hongbomiao-storage): the "Harbor"
+# section of environments/production/aws/kubernetes/main.tofu (S3 bucket +
+# IAM user + inline user policy) - the ONE module block in that whole
+# environment that needs no EKS cluster, no OIDC provider and no remote
+# state, unlike every other IAM-role module there
+# (velero_iam_role/mimir_iam_role/... all take
+# amazon_eks_cluster_oidc_provider(_arn) from the real EKS cluster this
+# file also builds). Exercises aws_iam_user/aws_iam_user_policy, a
+# genuinely different resource pair from Labelbox's aws_iam_role/
+# aws_iam_role_policy, both already-ratified DefaultTable rows. All five
+# stages pass for real: 3 resources cold-deployed, 2 stamped (the inline
+# user policy is correctly UNTAGGABLE), an empty replan with the state
+# file deleted and identities re-asserted against the AWS CLI's own
+# answer, a genuine no-op apply, and drift on the bucket's tags
+# reconverging without touching the user. See the script's own header for
+# why network/main.tofu (zero resources) and every OIDC-coupled IAM role
+# in kubernetes/main.tofu were ruled out. Needs Docker, the AWS CLI, and
+# the real `tofu` binary; runs on its own port (4728).
+demo-corpus-hongbomiao-harbor:
+    bash live/e2e/corpus-hongbomiao-harbor/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
