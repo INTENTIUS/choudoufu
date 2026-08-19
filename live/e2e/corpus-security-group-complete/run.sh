@@ -120,22 +120,47 @@ set -uo pipefail
 # within the same plan, so it stays refused. 2 "Dynamic value in static
 # context" sites + 5 cascaded "Unable to compute static value" sites.
 #
-# NEWLY REVEALED by fixing A, and tracked separately: 12 "Identity not
-# resolvable from configuration" sites, all
+# NEWLY REVEALED by fixing A, tracked separately as #321, and now FIXED: 12
+# "Identity not resolvable from configuration" sites, all
 # `element(aws_subnet.private[*].id, count.index)` and
 # `element(aws_route_table.private[*].id, ...)` in the vpc module's
 # aws_route_table_association.private (6 instances x 2 identity
-# arguments). These are not new behavior and not a regression - before A
+# arguments). These were not new behavior and not a regression - before A
 # was fixed the block's own count refused, so it never expanded and its
-# arguments were never reached. This is HANDOFF.md's documented "a refusal
+# arguments were never reached. This was HANDOFF.md's documented "a refusal
 # that fired once at the block level starts firing per argument" shape: a
-# splat through element(), which identity resolution cannot follow.
+# splat through element(), which identity resolution could not follow.
+# internal/live/identity/splat.go's resolveElementCall now recognizes
+# element(R[*].attr, idx) structurally as "instance idx (wrapped modulo R's
+# own instance count, exactly as element() itself wraps it) of R, attribute
+# attr" - the same live object a direct R[idx].attr traversal
+# (resolveIndexedTraversal) already resolves, reached through element()'s
+# second spelling. Both aws_subnet.private and aws_route_table.private are
+# server-assigned (tagged) resources with a provably-known expansion, so no
+# injectivity proof is needed: this is not a value written into a tag, it is
+# a reference to a specific tagged sibling instance. 12 -> 0 here.
 #
-# So stage 3 goes 239 diagnostics -> 19, and stays BLOCKED on B plus the
-# newly-reached splat class. Assertions below hold the exact counts so a
-# change to any of the three is visible.
+# What #321 explicitly left open, not attempted there or here: a
+# configuration where the block holding element(<resource-splat>,
+# count.index) has its OWN count knowable without a data read hits
+# internal/live/lint/count_index.go's RuleCountIndex FIRST (it refuses
+# count.index inside any collection-accessor call on sight, and its
+# domain-render fallback never accepts a managed-resource-rooted
+# collection), which gates the whole plan before resolution ever runs -
+# resolveElementCall only fires here because this block's own count is
+# itself gated behind #313's data source, which lint's earlier, data-read-
+# free scan cannot see either, so lint treats the block as having no
+# instances (admission.go's blockHasNoInstances) and skips it. See
+# splat.go's own comment for the details and the open question (whether an
+# argument that maps several siblings onto the same parent is still safe
+# once the OTHER identity component that varies is considered).
 #
-# WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL THREE:
+# So stage 3 goes 239 diagnostics -> 19 -> 7 (#321 fixed), and stays
+# BLOCKED on #313 root cause B alone - the one deliberately-out-of-scope
+# same-plan resource attribute. Assertions below hold the exact counts so a
+# change to either remaining site is visible.
+#
+# WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
 #   stage 1  cold deploy   PASS - real, unmarked infrastructure, 67 of the
 #                          module's 68 resources (DELTA 2, #57).
@@ -154,16 +179,17 @@ set -uo pipefail
 #                          default_* trio is admitted and stamped above),
 #                          asserted against live-import's own report AND
 #                          confirmed independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at 19 sites (was 239) -
-#                          #305, #307 and #313's data-source root cause A
-#                          no longer contribute any refusal. What remains
-#                          is #313's root cause B (a same-plan resource
-#                          attribute, 2 + 5 cascade, deliberately out of
-#                          scope) and the splat-through-element() class A's
-#                          fix newly reached (12). Specific counts and
-#                          resource addresses asserted against a real
-#                          live-plan run, state file deleted first, BREAK=1
-#                          negative control.
+#   stage 3  test plan     BLOCKED, for real, at 7 sites (was 239, then 19
+#                          once #313's data-source root cause A was fixed) -
+#                          #305, #307, #313 root cause A and #321's
+#                          splat-through-element() class no longer
+#                          contribute any refusal. What remains is #313's
+#                          root cause B alone: a same-plan resource
+#                          attribute (2 + 5 cascade), deliberately out of
+#                          scope by the maintainer's own ruling on #313.
+#                          Specific counts and resource addresses asserted
+#                          against a real live-plan run, state file deleted
+#                          first, BREAK=1 negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
@@ -423,24 +449,25 @@ WANT_UNADMITTED_N=0
 # that is asserted separately below, by absence.
 WANT_DYNAMIC_N=2
 WANT_STATIC_CASCADE_N=5
-# The class fixing A newly REACHED rather than caused: the vpc module's
-# aws_route_table_association.private now expands (its count no longer
-# cascades off local.azs) and each instance refuses on its own two identity
-# arguments instead, both element(<resource>[*].id, count.index).
-# 6 instances x 2 arguments, across module.vpc and module.vpc_secondary.
-WANT_UNRESOLVABLE_N=12
+# #321, FIXED: the class fixing root cause A newly REACHED rather than
+# caused - the vpc module's aws_route_table_association.private expands
+# (its count no longer cascades off local.azs) and each instance used to
+# refuse on its own two identity arguments, both
+# element(<resource>[*].id, count.index) - is now resolved structurally
+# (internal/live/identity/splat.go's resolveElementCall). 12 -> 0.
+WANT_UNRESOLVABLE_N=0
 if [ "${BREAK:-}" = "1" ]; then
   WANT_UNADMITTED_N=1
   WANT_DYNAMIC_N=3
   WANT_STATIC_CASCADE_N=6
-  WANT_UNRESOLVABLE_N=13
+  WANT_UNRESOLVABLE_N=1
   log "  BREAK=1: expecting 1 unadmitted-type site (there should be 0 now -"
   log "           #305 and #307 are both fixed), 3 Dynamic-value-in-"
   log "           static-context sites (one more than the real 2), 6"
   log "           cascaded Unable-to-compute-static-value sites (one more"
-  log "           than the real 5) and 13 Identity-not-resolvable sites (one"
-  log "           more than the real 12). None of these are real. This step"
-  log "           must fail."
+  log "           than the real 5) and 1 Identity-not-resolvable site (there"
+  log "           should be 0 now - #321 is fixed). None of these are real."
+  log "           This step must fail."
 fi
 
 UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
@@ -480,8 +507,15 @@ done
 
 grep -qF 'Unable to use aws_security_group.app in static context' <<< "$PLAN_OUT" \
   || fail "expected the aws_security_group.app root cause (#313's root cause B, deliberately unfixed) among the diagnostics - the corpus pin may have moved"
-grep -qF 'element(aws_subnet.private[*].id, count.index)' <<< "$PLAN_OUT" \
-  || fail "expected the splat-through-element root cause among the diagnostics - the corpus pin may have moved"
+
+# #321, asserted by ABSENCE - the load-bearing half of this fix: neither
+# element() index position on aws_route_table_association.private may
+# contribute a diagnostic any more. If this ever comes back,
+# resolveElementCall (internal/live/identity/splat.go) has regressed.
+! grep -qF 'element(aws_subnet.private[*].id, count.index)' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|element\('; fail "#321's splat-through-element root cause is back on subnet_id - it must contribute no diagnostic at all"; }
+! grep -qF 'element(aws_route_table.private[*].id' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|element\('; fail "#321's splat-through-element root cause is back on route_table_id - it must contribute no diagnostic at all"; }
 
 log "  #305 and #307 confirmed BOTH fixed: zero unadmitted-type sites -"
 log "  aws_default_network_acl/route_table/security_group and"
@@ -494,22 +528,21 @@ log "  read by the pre-resolution data-read phase and its value now crosses"
 log "  module.vpc's and module.vpc_secondary's own call boundary, so it"
 log "  contributes zero diagnostics (was 50) and every per-AZ aws_subnet"
 log "  and aws_route_table instance resolves."
+log "  #321 confirmed FIXED: element(<resource>[*].id, count.index) on both"
+log "  of aws_route_table_association.private's identity arguments now"
+log "  resolves structurally to the same-indexed sibling instance - zero"
+log "  diagnostics (was 12), confirmed absent above."
 log "  Remaining, at $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N)) sites (was 239):"
 log "    $DYNAMIC_N + $STATIC_CASCADE_N  #313 root cause B - aws_security_group.app.id in"
 log "           module.consul's ingress_referenced_security_group_id map, a"
 log "           same-plan resource attribute the ruling on #313 deliberately"
 log "           leaves refused, plus its cascade."
-log "    $UNRESOLVABLE_N  element(<resource>[*].id, count.index) in the vpc module's"
-log "           aws_route_table_association.private - newly REACHED by root"
-log "           cause A's fix, not caused by it: the block's count no longer"
-log "           cascades off local.azs, so it expands and refuses per"
-log "           identity argument instead of wholesale."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, at 19 sites (was 239) - #305,"
-log "#307 and #313's data-source root cause all fixed and confirmed absent"
-log "above; #313's resource-attribute root cause and the splat-through-"
-log "element() class it newly reached are the remaining walls"
+log "STAGE 3 (test_plan): BLOCKED for real, at 7 sites (was 239, then 19) -"
+log "#305, #307, #313's data-source root cause and #321 are all fixed and"
+log "confirmed absent above; #313's resource-attribute root cause (deliberately"
+log "out of scope) is the sole remaining wall"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -519,7 +552,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 19 sites (was 239) - #313's data-source half fixed; see header"
+log "  stage 3  test_plan          BLOCKED at 7 sites (was 239, then 19) - #313's data-source half and #321 both fixed; see header"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

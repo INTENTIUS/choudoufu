@@ -1841,6 +1841,15 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveArityCollapse(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// element(R[*].attr, idx) resolved to the one instance idx names,
+		// wrapped modulo R's own instance count exactly as element() itself
+		// wraps it - see splat.go's resolveElementCall. Not applicable to
+		// any other call or any collection that is not a splat over a bare
+		// managed resource, which falls through to the generic refusal
+		// below exactly as it always has.
+		if parts, ok, applicable := r.resolveElementCall(e, scope, ident); applicable {
+			return parts, ok
+		}
 		// try(A, B, ...) resolved to whichever argument the language selects,
 		// when resource expansion settles which arguments raise an error -
 		// see fallback.go. Same not-applicable contract as above.
@@ -2011,6 +2020,29 @@ func (r *resolver) resolveIndexedTraversal(expr hcl.Expression, scope instScope,
 
 	got, gotOK := r.parentPart(resAddr.Instance(key).Absolute(r.modInst), attrStep.Name, expr.Range(), ident)
 	return got, gotOK, true
+}
+
+// elementIndexValue turns an evaluated element() index argument into a plain
+// int, converting through cty.Number first so a value that is already a
+// number in a different cty representation (or, degenerately, a numeric
+// string) still resolves - the same tolerance [resolver.resolveConditional]
+// applies converting its own condition to cty.Bool. Unlike [indexKeyValue],
+// this deliberately allows a negative result: element()'s own wraparound
+// (see [resolver.resolveElementCall]) is defined for one, and refusing it
+// here would refuse a shape the function itself accepts.
+func elementIndexValue(val cty.Value) (int, bool) {
+	if val.IsNull() || !val.IsKnown() || val.IsMarked() {
+		return 0, false
+	}
+	num, err := convert.Convert(val, cty.Number)
+	if err != nil {
+		return 0, false
+	}
+	var n int
+	if err := gocty.FromCtyValue(num, &n); err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // indexKeyValue turns an evaluated index expression into the instance key it

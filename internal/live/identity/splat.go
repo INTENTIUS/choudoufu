@@ -54,19 +54,47 @@ import (
 //
 // The measured shapes it deliberately does NOT move, from the same probe:
 //
-//   - element(<splat>, <index>) - 21 sites, every one of them in
-//     terraform-aws-modules/vpc and every one with count.index somewhere in
-//     the index expression. That is an index SELECTION into a multi-element
-//     list, a different rule, and it has to clear the same injectivity
-//     analysis internal/live/lint/count_index.go performs before it can be
-//     allowed anywhere near an identity. That lint already fires at those
-//     exact lines - vpc/examples/issues carries 177 count-index sites,
-//     including main.tf:348 and main.tf:351, the two element() index
-//     positions on aws_route_table_association.private - so resolving
-//     element() without settling injectivity first would remove 21 identity
-//     sites and unblock nothing. Nothing here opens that door: the arity
-//     check below refuses every splat that is not one element long,
-//     whatever is wrapped around it.
+//   - element(<splat>, <index>) - 21 sites at the time of this note, every
+//     one of them in terraform-aws-modules/vpc and every one with
+//     count.index somewhere in the index expression. That is an index
+//     SELECTION into a multi-element list, a different rule from arity
+//     collapse, and GitHub issue #321 gave it its own resolver
+//     (resolveElementCall, below) once a real crossing
+//     (corpus-security-group-complete) reached it for real: both operands
+//     are tagged, admitted resources, and element(R[*].attr, idx) names the
+//     same live object element() itself would pick at apply time, for
+//     every idx, by element()'s own wraparound definition - not a claim
+//     that needs an injectivity proof at all, unlike a value written into a
+//     tag.
+//
+//     What #321 did NOT settle, and left as a real, separately-scoped gap:
+//     internal/live/lint/count_index.go's RuleCountIndex refuses
+//     count.index inside ANY collection-accessor call (element, lookup,
+//     slice, chunklist) on sight, whatever the collection is, and its
+//     second-chance domain check (count_index_domain.go) only ever renders
+//     a var/local/path/terraform-rooted collection - a splat over a managed
+//     resource never qualifies, so it stays "unprovable" and the hit
+//     stands. That lint pass runs, and gates the whole plan, BEFORE
+//     resolution - so a configuration where the enclosing resource's own
+//     count is knowable without a data read hits RuleCountIndex first and
+//     never reaches resolveElementCall at all. It is what vpc/examples/
+//     issues (177 count-index sites, including the same main.tf:348/351
+//     positions) still hits. resolveElementCall only fires in the config
+//     where a real crossing found it because that block's own count is
+//     itself gated behind a data source's value (#313), which lint's
+//     earlier, data-read-free scan cannot see either - so lint treats the
+//     block as having no instances at all (admission.go's
+//     blockHasNoInstances) and skips it, and resolution runs afterward,
+//     once the data has actually been read. Teaching count_index.go that
+//     "index selects a sibling INSTANCE via marker" is a different
+//     claim than "index selects a VALUE that must differ" is real,
+//     generalizing work, not attempted here - it also has a genuine open
+//     question resolveElementCall does not: whether an argument that maps
+//     several sibling instances onto the SAME parent (var.single_nat_gateway
+//     ? 0 : count.index, when true) is still safe once considered alongside
+//     the OTHER identity component that always does vary, which
+//     count_index.go currently has no way to see, checking one argument at
+//     a time.
 //   - join(".", reverse(split(".", aws_instance.x.private_ip))) - 6 sites in
 //     cisagov/cyhy-amis. The argument is not a splat and the value genuinely
 //     is not known until apply.
@@ -197,6 +225,87 @@ func (r *resolver) splatTargets(e *hclsyntax.SplatExpr) (insts []addrs.AbsResour
 		insts = append(insts, resAddr.Instance(k).Absolute(r.modInst))
 	}
 	return insts, attrStep.Name, true, true
+}
+
+// resolveElementCall recognizes element(R[*].attr, idx) - a splat over a
+// managed resource picked by element()'s own wraparound indexing - and
+// resolves it the way a direct indexed traversal (R[idx].attr,
+// [resolver.resolveIndexedTraversal]) already does: element(R[*].attr, idx)
+// and R[idx % len(R)].attr name the same live object, for every idx, by
+// element()'s own definition (github.com/zclconf/go-cty/cty/function/stdlib's
+// ElementFunc: `index = index % l; if index < 0 { index += l }`), so this is
+// that same resolution reached through the second spelling rather than new
+// machinery. idx is evaluated once, against the current instance's own scope
+// ([resolver.evalStatic] - the same call [resolver.resolveIndexedTraversal]
+// makes for idx.Key, so count.index, a conditional over it
+// (var.single_nat_gateway ? 0 : count.index), and every other shape that
+// scope already answers resolve exactly as they would spelled as a bare
+// index), then wrapped modulo R's own instance count and handed to
+// [resolver.parentPart].
+//
+// This is deliberately NOT the arity-collapse rule above: that rule exists
+// because join/one need the list to be exactly one element long for a
+// separator or a "no duplicates" claim to be moot. element() picks one
+// element out of a list of any length by position, which is a different and
+// unconditional claim - every index, wrapped, names exactly one instance -
+// so no arity restriction applies here at all.
+//
+// applicable is false whenever the shape is not this at all: not element(),
+// the wrong argument count, or the first argument not a splat over a bare
+// managed resource selecting a single attribute - [resolver.splatTargets]'
+// own restriction, the same one the arity-collapse rule above relies on.
+// The caller's own "cannot follow" diagnostic stands unreplaced in those
+// cases. When applicable is true, ok reports whether resolution succeeded,
+// and a diagnostic has already been recorded in its place when it did not -
+// either by this function directly, or by whatever evaluated the index or
+// the source resource's own expansion.
+func (r *resolver) resolveElementCall(call *hclsyntax.FunctionCallExpr, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	if call.Name != "element" || len(call.Args) != 2 {
+		return nil, false, false
+	}
+
+	splat, isSplat := call.Args[0].(*hclsyntax.SplatExpr)
+	if !isSplat {
+		return nil, false, false
+	}
+	insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+	if !instApplicable {
+		return nil, false, false
+	}
+	if !instOK {
+		// The resource's own expansion already failed and already carries a
+		// diagnostic - see [resolver.expansionFor].
+		return nil, false, true
+	}
+	if len(insts) == 0 {
+		r.errorf(call.Range(), "Identity not resolvable from configuration",
+			"%s picks an element from a list built from another resource with element(), but that resource expands to no instances at all, so there is nothing to pick: element() itself errors on an empty list at apply time.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	idxVal, idxOK := r.evalStatic(call.Args[1], scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(call.Args[1].Range(), "Identity not resolvable from configuration",
+			"%s calls element() with an index that is not a whole number, so it cannot select one of the source resource's instances.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	// element()'s own wraparound - see this function's doc comment.
+	n := len(insts)
+	wrapped := idx % n
+	if wrapped < 0 {
+		wrapped += n
+	}
+
+	got, gotOK := r.parentPart(insts[wrapped], attrName, call.Range(), ident)
+	return got, gotOK, true
 }
 
 // refuseSplatArity is the arity refusal, and it is the only thing standing
