@@ -1074,7 +1074,7 @@ script's own header says which resource and why.
 
 ### 3. Broaden the OpenTofu-native lane
 
-Six estates crossed now: `corpus-sumaform-aws`; three disjoint slices of
+Seven estates crossed now. The first six: `corpus-sumaform-aws`; three disjoint slices of
 `hongbo-miao/hongbomiao.com` (`corpus-hongbomiao-labelbox`, landed
 2026-08-18, the first OpenTofu-native estate to clear all five stages and
 stronger evidence than sumaform - genuine `.tofu` files throughout, not a
@@ -1087,7 +1087,34 @@ being 15 IAM modules all reading a real cluster's OIDC provider, the same
 scope/risk class as the terraform-popular lane's already-blocked
 terraform-aws-eks crossing); and `corpus-overture-tiles`,
 `corpus-xancloud-iac` from fresh sourcing searches. Four of the six clear
-all five stages for real. The monorepo hongbomiao was sourced from has now
+all five stages for real.
+
+Seventh, landed 2026-08-19 from a fresh sourcing search:
+`corpus-giantswarm-crossplane`, the `crossplane/` module of
+`giantswarm/giantswarm-aws-account-prerequisites` (pinned by tag v8.2.2 AND
+commit). It is the first estate in this lane from a **commercial vendor's
+own production customer-onboarding repository** rather than a module
+registry, a personal monorepo or a single-maintainer accelerator, and the
+sourcing evidence is worth copying: three independent kinds at once - a
+README whose opening sentence is "This repository contains OpenTofu
+configuration" with no compatibility claim anywhere, a workflow of its own
+named "OpenTofu checks" that runs `tofu` through `opentofu/setup-opentofu`
+with the string "terraform" appearing nowhere in it, and genuinely
+`.tofu`-suffixed files in the crossed directory. That last
+one is the standard only `corpus-hongbomiao-*` had met before;
+`corpus-overture-tiles` and `corpus-xancloud-iac` are both plain `.tf`.
+`cold_deploy` and `migrate` pass for real; `test_plan` is BLOCKED at exactly
+2 sites, both `unadmitted-type` on `aws_iam_role_policies_exclusive` and
+`aws_iam_role_policy_attachments_exclusive` (`#334`), and the script proves
+that is the whole block with its own control stage rather than asserting it:
+cut those two blocks out of the module and nothing else, and test plan, test
+apply and drift/reconverge all clear. Both types are the same shape
+`#307` already admitted for `aws_vpc_security_group_rules_exclusive` through
+row-gen's own `tryGrammarComposite` - one required argument naming the
+tagged parent, whole import ID, no separator - so this is ADMIT work with a
+worked precedent, not a new mechanism.
+
+The monorepo hongbomiao was sourced from has now
 been surveyed in full at the pinned commit - `network/main.tofu` is pure
 data sources (nothing to migrate), `kubernetes/main.tofu`'s IAM modules all
 need a live EKS cluster's OIDC provider (out of scope, same reason as
@@ -1099,6 +1126,32 @@ no equivalent ready-made list - there is no download-count proxy at
 OpenTofu's current scale - so sourcing has to stay active: GitHub search
 for real, maintained projects that describe themselves as built for
 OpenTofu, plus the Powered-by-OpenTofu and awesome-opentofu lists.
+
+What has actually worked, twice now, is **GitHub code search on
+`extension:tofu` crossed with AWS resource type names** - `extension:tofu
+aws_iam_role`, `extension:tofu aws_vpc`, and so on, then ranking the
+repositories that recur by whether they are real and maintained. That is
+what found `corpus-giantswarm-crossplane`. Two things to know before
+repeating it. The code-search rate limit is **10 queries per minute**,
+separate from the 5000/hour core limit, so batch the queries and expect
+403s; and the result set is dominated by course material, homelabs and
+scaffolds - of roughly forty distinct repositories surfaced, three were
+worth reading and one was worth pinning. `awesome-opentofu` and
+Powered-by-OpenTofu were checked again and are still what
+`corpus-overture-tiles`'s own sourcing found them to be: tooling and adopter
+lists with no deployable estates in them.
+
+The other productive axis is **state encryption**, which is genuine
+OpenTofu-only surface: `extension:tofu "encryption {"` returns real,
+maintained projects (osinfra-io's `pt-*` estates, `vehagn/homelab`,
+`brettcurtis/backstage`, `Five-Colleges-Incorporated/library-infrastructure`).
+Almost none of them target AWS - they are GCP, Proxmox, Talos, Hetzner and
+TrueNAS - so none was pinnable here, and one caveat is worth recording
+before someone spends a slot on it: the crossing pipeline strips the backend
+block, so an estate's state-encryption configuration is not exercised by any
+of the five stages anyway. Provider `for_each` and OCI-sourced modules are
+the OpenTofu-only surface that would actually be exercised, and neither has
+turned up in a real AWS-targeting estate yet.
 
 ### Loose ends worth an hour, not a slot
 
