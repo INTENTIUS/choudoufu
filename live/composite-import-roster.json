@@ -1,0 +1,218 @@
+{
+  "generated_by": "tools/row-gen -composite-import",
+  "question": "for a markerless type with a documented composite import and no wire identity schema, is the exported `id` the whole import string (so a located record of it round-trips) or a bare leaf?",
+  "summary": {
+    "markerless_types": 140,
+    "markerless_with_composite_import": 43,
+    "of_those_with_a_wire_identity_schema": 16,
+    "residue_with_no_wire_identity_schema": 27,
+    "of_residue_id_proven_whole": 6,
+    "of_residue_unproven": 21
+  },
+  "types": [
+    {
+      "type": "aws_appconfig_hosted_configuration_version",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": "/",
+      "import_id_example": "71abcde/11xxxxx/2",
+      "id_attribute_stated_separator": "/",
+      "id_attribute_description": "AppConfig application ID, configuration profile ID, and version number separated by a slash (`/`)."
+    },
+    {
+      "type": "aws_appsync_api_key",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": ":",
+      "import_id_example": "xxxxx:yyyyy",
+      "id_attribute_stated_separator": ":",
+      "id_attribute_description": "API Key ID (Formatted as ApiId:Key)"
+    },
+    {
+      "type": "aws_appsync_source_api_association",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "gzos6bteufdunffzzifiowisoe,243685a0-9347-4a1a-89c1-9b57dea01e31",
+      "id_attribute_description": "Combined ID of the Source API Association and Merge API.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_bedrock_guardrail_version",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "arn:aws:bedrock:us-west-2:123456789012:guardrail-id-12345678,1",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_bedrockagent_data_source",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "GWCMFMQF6T,EMDPPAYPZI",
+      "id_attribute_description": "Identifier of the data source which consists of the data source ID and the knowledge base ID.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_bedrockagentcore_gateway_target",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "GATEWAY1234567890,TARGET0987654321",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_cognito_managed_login_branding",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "us-west-2_rSss9Zltr,06c6ae7b-1e66-46d2-87a9-1203ea3307bd",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_connect_instance_storage_config",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": ":",
+      "import_id_example": "f1288a1f-6193-445a-b47e-af739b2:c1d4e5f6-1b3c-1b3c-1b3c-c1d4e5f6c1d4e5:CHAT_TRANSCRIPTS",
+      "id_attribute_stated_separator": ":",
+      "id_attribute_description": "The identifier of the hosting Amazon Connect Instance, `association_id`, and `resource_type` separated by a colon (`:`)."
+    },
+    {
+      "type": "aws_ec2_client_vpn_authorization_rule",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "cvpn-endpoint-0ac3a1abbccddd666,10.1.0.0/24",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_ec2_client_vpn_network_association",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "cvpn-endpoint-0ac3a1abbccddd666,cvpn-assoc-0b8db902465d069ad",
+      "id_attribute_description": "The unique ID of the target network association.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_ec2_traffic_mirror_filter_rule",
+      "verdict": "unproven",
+      "import_separator": ":",
+      "import_id_example": "tmf-0fbb93ddf38198f64:tmfr-05a458f06445d0aee",
+      "id_attribute_description": "Name of the traffic mirror filter rule.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_emr_instance_fleet",
+      "verdict": "unproven",
+      "import_separator": "/",
+      "import_id_example": "j-123456ABCDEF/if-15EK4O09RZLNR",
+      "id_attribute_description": "The unique identifier of the instance fleet.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_emr_instance_group",
+      "verdict": "unproven",
+      "import_separator": "/",
+      "import_id_example": "j-123456ABCDEF/ig-15EK4O09RZLNR",
+      "id_attribute_description": "The EMR Instance ID",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_glue_partition",
+      "verdict": "unproven",
+      "import_separator": ":",
+      "import_id_example": "123456789012:MyDatabase:MyTable:val1#val2",
+      "id_attribute_description": "partition id.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_grafana_workspace_service_account",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "g-abc12345,1",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_iam_service_specific_credential",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": ":",
+      "import_id_example": "`codecommit.amazonaws.com:example:some-id`",
+      "id_attribute_stated_separator": ":",
+      "id_attribute_description": "The combination of `service_name` and `user_name` as such: `service_name:user_name:service_specific_credential_id`."
+    },
+    {
+      "type": "aws_identitystore_group_membership",
+      "verdict": "unproven",
+      "import_separator": "/",
+      "import_id_example": "d-0000000000/00000000-0000-0000-0000-000000000000",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_kms_grant",
+      "verdict": "unproven",
+      "import_separator": ":",
+      "import_id_example": "1234abcd-12ab-34cd-56ef-1234567890ab:abcde1237f76e4ba7987489ac329fbfba6ad343d6f7075dbd1ef191f0120514",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_route53_traffic_policy",
+      "verdict": "unproven",
+      "import_separator": "/",
+      "import_id_example": "01a52019-d16f-422a-ae72-c306d2b6df7e/1",
+      "id_attribute_description": "ID of the traffic policy.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_route53domains_delegation_signer_record",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "example.com,40DE3534F5324DBDAC598ACEDB5B1E26A5368732D9C791D1347E4FBDDF6FC343",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_s3outposts_endpoint",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "arn:aws:s3-outposts:us-east-1:123456789012:outpost/op-12345678/endpoint/0123456789abcdef,sg-12345678,subnet-12345678",
+      "id_attribute_description": "Amazon Resource Name (ARN) of the endpoint.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+    },
+    {
+      "type": "aws_sagemaker_image_version",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "example-name,1",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_servicecatalog_provisioning_artifact",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": ":",
+      "import_id_example": "pa-ij2b6lusy6dec:prod-el3an0rma3",
+      "id_attribute_stated_separator": ":",
+      "id_attribute_description": "Provisioning artifact identifier and product identifier separated by a colon."
+    },
+    {
+      "type": "aws_sesv2_configuration_set_event_destination",
+      "verdict": "id-is-whole-import-string",
+      "import_separator": "|",
+      "import_id_example": "example_configuration_set|example_event_destination",
+      "id_attribute_stated_separator": "|",
+      "id_attribute_description": "A pipe-delimited string combining `configuration_set_name` and `event_destination_name`."
+    },
+    {
+      "type": "aws_verifiedpermissions_policy",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "policy-id-12345678,policy-store-id-12345678",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_verifiedpermissions_policy_template",
+      "verdict": "unproven",
+      "import_separator": ":",
+      "import_id_example": "policyStoreId:policyTemplateId",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    },
+    {
+      "type": "aws_wafv2_api_key",
+      "verdict": "unproven",
+      "import_separator": ",",
+      "import_id_example": "a1b2c3d4-5678-90ab-cdef-EXAMPLE11111,REGIONAL",
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+    }
+  ]
+}

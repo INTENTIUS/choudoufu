@@ -102,6 +102,21 @@ type importGrammarRow struct {
 	// a documented import ID against the value the doc itself configures an
 	// argument with - issue #176's R3 corroboration.
 	ExampleArguments []exampleArgument `json:"example_arguments"`
+
+	// IDAttribute mirrors tools/importdocs-gen/idattribute.go's Row field
+	// of the same name: what the page's Attribute Reference says the
+	// exported `id` itself holds, when it states the id is a composite and
+	// names the character joining it. Every other field here describes the
+	// import STRING; this one describes the ATTRIBUTE, which is a different
+	// fact and the one compositeimport.go needs. Nil on all but 119 rows.
+	IDAttribute *idAttributeDoc `json:"id_attribute"`
+}
+
+// idAttributeDoc mirrors tools/importdocs-gen/idattribute.go's IDAttribute.
+type idAttributeDoc struct {
+	StatedSeparator string `json:"stated_separator"`
+	Reading         string `json:"reading"`
+	Description     string `json:"description"`
 }
 
 // exampleArgument mirrors tools/importdocs-gen/example.go's ExampleArgument:
