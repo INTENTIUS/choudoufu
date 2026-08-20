@@ -733,8 +733,9 @@ worth a slot: **#340's summary-line change broke twenty other crossing
 scripts on main.** `N resource(s) newly stamped, ...` gained two columns and
 only `corpus-lambda-simple` was updated; `corpus-mastino-dns` is fixed here,
 the other nineteen still assert the pre-#340 shape by exact string and will
-fail at stage 2 the moment they are re-run. `grep -n "newly stamped"
-live/e2e/*/run.sh` lists them.
+fail at stage 2 the moment they are re-run. Nothing in `just ci` can see it -
+no crossing script runs there. **Filed as `#342`**, which names all nineteen
+and the one-line fix each needs.
 
 Recomputed while writing it, since it travelled into the issue and a source
 comment: `identity.DefaultTable` holds **1040** rows, not 1025.
