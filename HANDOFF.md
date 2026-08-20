@@ -692,6 +692,58 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### -4. Fixed: `#341`, and `corpus-mastino-dns` is 5 of 5
+
+`ratify.go`'s taggability check returned before the one carrier `Approve`'s
+residue call took, so `recordResidueFor` was structurally unreachable for
+every admitted resource whose provider schema has no `tags` argument.
+`*eligible` was gating two unrelated jobs - "write the marker" and "record
+what we sent" - and untaggability only disqualifies the first. A migrate
+reported success and the first cold `live-plan` proposed a phantom update for
+every argument the provider's own `Read` can never give back, forever.
+
+Fixed 2026-08-20 (`c73a6e4617`/`78c92ad64a`) with a third carrier beside
+`*eligible` and #340's `*recordable`: a `residuable`, which `*eligible` now
+embeds, so a stampable instance and an untaggable one reach the same call
+through the same argument type. It keys on `taggable(schema.Block)` over the
+schema the provider served this run and on nothing else - **342 untaggable
+admitted types**, and any future one the moment a provider grows it.
+
+Two deliberate non-changes, both asserted: **the verdict does not move**
+(`StatusUntaggable`, `OutcomeSkipped` - what was skipped is the marker
+write), and **no `ReadResource` is added at ratify time**. The object handed
+forward is the state's own, which is where a residue value lives by
+definition; reaching a read would let an untaggable instance come back
+MISSING or DRIFTED and move counts eighteen crossing scripts assert.
+
+`live/e2e/corpus-mastino-dns` run for real against floci, 2026-08-20:
+**all five stages pass**, where it landed at 2 of 5 the day before. 14
+residue records written at migrate time, every one read back out of the
+store's own files as `allow_overwrite = true`; the cold replan EMPTY with all
+63 rendered identities asserted by value; a no-op apply; and a TTL drift on
+one of the fourteen - untaggable *and* residue-carrying - reconverging to
+exactly that instance and exactly the `ttl` attribute, which is the check
+that a residue fill has not started masking real live drift.
+`BREAK_STAGE5=1` verified.
+
+**Two things found doing it, neither of them this issue.** First, stages 4
+and 5 had to be **written**: that script's header said they lived in git
+history and they do not - `e74b6e5c01` is the file's only commit. Second, and
+worth a slot: **#340's summary-line change broke twenty other crossing
+scripts on main.** `N resource(s) newly stamped, ...` gained two columns and
+only `corpus-lambda-simple` was updated; `corpus-mastino-dns` is fixed here,
+the other nineteen still assert the pre-#340 shape by exact string and will
+fail at stage 2 the moment they are re-run. `grep -n "newly stamped"
+live/e2e/*/run.sh` lists them.
+
+Recomputed while writing it, since it travelled into the issue and a source
+comment: `identity.DefaultTable` holds **1040** rows, not 1025.
+`live/survey-full.json`'s taggable signal calls 683 taggable and 342
+untaggable and does not cover the remaining 15 at all - so the untaggable
+numerator was right and the denominator had dropped the uncovered rows. The
+runtime gate settles the 15 anyway, which is the point of gating on the
+schema rather than the artifact.
+
 ### -3. Fixed: `#340`, a migration that wrote no record at all, and the sixth wall under it
 
 `live-import -approve` had one write path, the tag, and a record-backed
