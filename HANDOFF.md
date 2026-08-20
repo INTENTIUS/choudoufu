@@ -1044,6 +1044,75 @@ This is classification only. Wiring it into `identity.LocatedType` - which
 would move the 21 from a silent wrong record to an honest refusal - is
 #309's next step and is sequenced after this on purpose.
 
+**That step landed 2026-08-19, and it is BOTH halves rather than the one the
+brief for it named.** `tools/row-gen/markerless.go`'s
+`primaryIdentifierPartlyReadOnly` widens the veto's registry evidence from
+"the primary identifier is WHOLLY read-only" to "some component is minted and
+some is supplied", which is the question the veto actually asks -
+`identity.Resolve` cannot compute an identity with one unknown component any
+more than one with all of them unknown. `classify.go`'s bucket is deliberately
+**untouched**: rule 1 decides whether a pastable `serverAssigned(...)` row
+describes the type, and for a server-minted leaf under a config-known parent
+it does not. Conflating those two questions is what #309 spent three scouting
+passes recovering from, and widening the bucket would have re-made the error
+in the other direction.
+
+`MarkerlessTypes` 140 -> **158**. Every one of the 18 is untaggable with a
+mixed primary identifier, asserted per type against the committed inputs by
+`TestWidenedVetoReachesOnlyUntaggableMixedIdentifiers`, and the leg was
+mutation-checked in place (removed, the test reports the delta is empty).
+
+**The other half is what makes the first half safe, and it had to land in the
+same commit.** #337's verdict is now a fact the runtime can read:
+`internal/live/identity/idnotwhole_generated.go`'s `IDNotProvenWholeTypes`,
+emitted by `tools/row-gen/idnotwhole.go` from the same
+`classifyCompositeImport` rule the roster report uses. It is derived over
+**every** row in `live/import-grammar.json` (317 types) and not over
+`MarkerlessTypes`, on purpose: `-emit` rewrites `MarkerlessTypes` in the same
+run, so a set derived from it would be derived from the previous run's answer
+- #263's failure mode with a different name. `LocatedIdentityComponents` now
+takes the resource type and refuses a member in its bare-`id` fallback; the
+wire-schema composite branch still wins where it applies, pinned by
+`TestLocatedIdentityComponentsPrefersTheWireSchemaOverTheDocs`.
+
+**Measured against real hashicorp/aws 6.59.0 schemas** (`CHOUDOUFU_LIVE_SCHEMAS=1
+go test -run TestLocatedTypePopulation`, 288s): of the 158, **97 located by
+string id, 8 by composite object, 11 credential material, 39 refused as
+unproven `id`, 3 with no string id**. So 105 types are record-located, of
+which **4 are new** - `aws_api_gateway_resource` through #329's composite
+branch, and `aws_elastic_beanstalk_configuration_template`,
+`aws_lexv2models_bot_version`, `aws_vpn_gateway_attachment` through the
+bare-`id` rule their own docs support.
+
+**This is a support change and the direction is deliberate.** 26 types that
+were markerless before now refuse where they previously recorded a bare `id`:
+19 of the 21 #337 named (the other 2, `aws_kms_grant` and `aws_wafv2_api_key`,
+were already refused as credential material), plus 7 with a wire identity
+schema requiring two non-`id` attributes, which fall through to the same bet
+and which #337 left as "a separate, unmeasured question". How many of those 26 were actually
+located-admitted before (rather than already refused for having no string
+`id`) is **not measured** - the before/after run needed a second provider
+install and the machine was carrying 91 concurrent terraform processes; two
+attempts timed out at ten minutes each. 26 is the upper bound, not the figure.
+
+Two things the brief for this was wrong about, both checked rather than
+inherited. First, #329's 8 and #337's 6 are **not** the types the widening
+admits: both figures are over `MarkerlessTypes`, so they describe types
+already in the roster. The widening's own population is #309's 18, and its
+gain is the 4 above. Second, all 18 already carried an entry in
+`tools/row-gen/rejected.json`, so this is not the "third bucket with no ledger
+entry" #309's scoping comment described and `unreached-types` does not move
+(462, unchanged).
+
+Residue worth knowing before touching the area: for the 14 of the 18 that stay
+refused, the refusal ID changes from `unadmitted-type` to `markerless-type`,
+whose standing wording ends "no future batch reaches it". That is true of the
+carrier and not of the evidence - a page that proved its `id` shape would
+reach them. Differentiating it needs `LocatedType` to return a reason rather
+than a bool, which touches every markerless type's refusal text and is its own
+change. `aws_cognito_user_pool_client`, #309's own motivating type, is refused
+twice over: `client_secret` is Sensitive, and its `id` is unproven.
+
 ### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 
 Was a real silent destroy-recreate hazard, found scouting a smaller loose

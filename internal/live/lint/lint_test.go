@@ -217,9 +217,9 @@ func TestCheck(t *testing.T) {
 			want: []wantIssue{
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_api_gateway_deployment.web",
+					construct: "aws_athena_capacity_reservation.web",
 					file:      "testdata/unadmitted/main.tf",
-					line:      10,
+					line:      20,
 				},
 			},
 		},
@@ -418,13 +418,13 @@ func TestCheck(t *testing.T) {
 				},
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_api_gateway_deployment.web",
+					construct: "aws_athena_capacity_reservation.web",
 					file:      "testdata/multiple/main.tf",
 					line:      11,
 				},
 				{
 					rule:      RuleProvisioner,
-					construct: `provisioner "local-exec" on aws_api_gateway_deployment.web`,
+					construct: `provisioner "local-exec" on aws_athena_capacity_reservation.web`,
 					file:      "testdata/multiple/main.tf",
 					line:      14,
 				},
@@ -453,7 +453,7 @@ func TestCheck(t *testing.T) {
 			want: []wantIssue{
 				{
 					rule:      RuleUnadmittedType,
-					construct: "aws_api_gateway_deployment.web",
+					construct: "aws_athena_capacity_reservation.web",
 					module:    "module.compute",
 					file:      "testdata/child-module/child/main.tf",
 					line:      1,

@@ -89,7 +89,10 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 //  3. The type has an identity this mechanism can record IN FULL - which is
 //     the top-level string [locatedImportIDAttr] for a type whose whole
 //     identity is server-minted, and every component of the provider's own
-//     identity schema for a type whose identity is composite. See
+//     identity schema for a type whose identity is composite. Where the
+//     provider serves no identity schema and its own documentation describes
+//     a composite import string it does not corroborate `id` as, the type is
+//     refused instead ([IDNotProvenWholeTypes]). See
 //     [LocatedIdentityComponents]. Admitting a type whose identity could
 //     never be recorded would trade a plan refusal for an apply-time
 //     failure, which is the trade this whole mechanism is forbidden to make,
@@ -125,7 +128,7 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 	if credentialMaterial(schema.Block) {
 		return false
 	}
-	_, recordable := LocatedIdentityComponents(schema)
+	_, recordable := LocatedIdentityComponents(resourceType, schema)
 	return recordable
 }
 
@@ -180,8 +183,28 @@ func hasLocatedImportID(b *configschema.Block) bool {
 // no defect. The population this is about is the one where "id" is present
 // AND insufficient, and that is the population this branch selects.
 //
+// # The second source, for the types the wire schema cannot settle
+//
+// A provider that serves no identity schema for a type leaves the wire with
+// nothing to say, and the fallback below - record the string `id` - is then
+// a bet rather than a reading. Issue #337 measured that bet: of the
+// markerless types whose Import section documents a COMPOSITE string, most
+// carry no wire identity schema at all, so nothing at run time could tell a
+// leaf `id` from a whole one and this function recorded either.
+//
+// [IDNotProvenWholeTypes] is what settles it, from the provider's own
+// documentation rather than from the wire: the Import section's scraped
+// separator and the Attribute Reference's own `id` bullet naming the same
+// join character. A type in that set has a composite documented import and
+// no corroboration that `id` is the whole of it, and this function refuses
+// it - the same refusal, for the same reason, the composite branch below
+// makes when a component cannot be read off the applied object. Refusing an
+// identity that MIGHT be a fragment and recording one that IS are not
+// symmetric errors: the first is visible immediately and the second arrives
+// on the next run as an import of half a string.
+//
 // It names no resource type, here or anywhere it reads.
-func LocatedIdentityComponents(schema providers.Schema) (components []string, recordable bool) {
+func LocatedIdentityComponents(resourceType string, schema providers.Schema) (components []string, recordable bool) {
 	if schema.Block == nil {
 		return nil, false
 	}
@@ -189,7 +212,11 @@ func LocatedIdentityComponents(schema providers.Schema) (components []string, re
 	if !compositeIdentity(required) {
 		// Either the provider serves no identity schema at all, or the one
 		// it serves is answered by the string this mechanism already
-		// records. Today's rule stands, unchanged.
+		// records - so the string is all there is to go on, and the
+		// question becomes whether the documentation says it is enough.
+		if _, unproven := IDNotProvenWholeTypes[resourceType]; unproven {
+			return nil, false
+		}
 		return nil, hasLocatedImportID(schema.Block)
 	}
 	for _, name := range required {

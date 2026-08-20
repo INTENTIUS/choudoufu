@@ -315,6 +315,7 @@ const (
 var generatedTypeLiteralFiles = []string{
 	"internal/live/identity/contentmatch_generated.go",
 	"internal/live/identity/discoverablefallback_generated.go",
+	"internal/live/identity/idnotwhole_generated.go",
 	"internal/live/identity/markerless_generated.go",
 	"internal/live/identity/table_generated.go",
 	"internal/live/lint/admission_generated.go",

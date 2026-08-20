@@ -155,6 +155,78 @@ func markerless(taggable, contentMatch, admitted bool, admittedRow identity.Type
 	return !boundByName
 }
 
+// primaryIdentifierPartlyReadOnly is the veto's second registry question,
+// and it is the mirror image of [registryComposedOfArguments]: CloudFormation
+// says SOME part of this type's identity is a property the service hands back
+// rather than one the caller supplies, and some other part is not.
+//
+// # Why the veto asks a wider question than the classifier's bucket
+//
+// classify.go's rule 1 fires only when the primary identifier is WHOLLY
+// read-only, and that is the right bar for the thing rule 1 decides: whether
+// a pastable `serverAssigned(...)` row describes the type. A type whose
+// identity is a server-minted leaf under a config-known parent is not that
+// row - its identity is composite, and rendering it as a single opaque
+// server-assigned value would be a wrong row.
+//
+// But the VETO asks a different question, and this is the distinction issue
+// #309 spent three scouting passes recovering. The veto asks whether
+// [identity.Resolve] can compute the value that names an instance from
+// configuration. It cannot, for exactly the same reason in both cases: a
+// component of the identity is minted by the service. A partly read-only
+// identifier fails that test as completely as a wholly read-only one does -
+// one unknown component is enough - so every such type goes to
+// NeedsDiscovery, and being untaggable it has nowhere for discovery to read
+// a marker from. That is the veto's whole premise, and it holds.
+//
+// Reading rule 1's bucket as the veto's evidence conflated the two
+// questions, and the cost is measurable: 18 untaggable types with a mixed
+// primary identifier sat outside [identity.MarkerlessTypes], and so could
+// never reach [identity.LocatedType] - whose FIRST condition is membership
+// in that roster - no matter what the estate had recorded about them.
+//
+// One claim worth not repeating: this is NOT the "third bucket, no ledger
+// entry saying why" population #309's scoping comment described. Checked at
+// 986f970c25 rather than inherited: all 18 already carry a hand entry in
+// tools/row-gen/rejected.json, so naming one was always a refusal with a
+// recorded reason, and internal/live/harness's unreached-type burndown does
+// not move by one. What moves is what an estate that has declared a
+// record_store can do with them, which is the only thing this was ever for.
+//
+// # Why widening this was sequenced behind two other changes
+//
+// A type here reaches the located mechanism, which records the applied
+// object's `id` and hands that string back to import on the next run. For a
+// server-minted LEAF under a config-known parent that string is a fragment,
+// and recording a fragment trades an honest refusal for a deferred import
+// failure - the trade "a wrong marker outranks a missing one" forbids.
+// #329 (a located record carrying the provider's own identity OBJECT) and
+// #337 (the roster proving whether an exported `id` is the whole documented
+// import string) are what make the destination safe; identity.LocatedType
+// now refuses every type neither of them settles. Widening here without
+// those in place would have moved 14 of the 18 from a refusal to a wrong
+// record.
+//
+// It reads the same two fields registryComposedOfArguments reads, from the
+// same source, and names no resource type.
+func primaryIdentifierPartlyReadOnly(p proposal) bool {
+	if len(p.PrimaryIdentifier) == 0 {
+		return false
+	}
+	readOnly := toSet(p.ReadOnly)
+	minted, supplied := false, false
+	for _, name := range p.PrimaryIdentifier {
+		if readOnly[name] {
+			minted = true
+		} else {
+			supplied = true
+		}
+	}
+	// Wholly read-only is rule 1's own case and reaches the veto through
+	// the classifier's bucket already; this leg exists for the mixed shape.
+	return minted && supplied
+}
+
 // registryComposedOfArguments is the registry half of sourcesAgreeComposed's
 // two-source check: CloudFormation's own primary identifier, read off this
 // proposal's PrimaryIdentifier/ReadOnly fields exactly as classifyMapped
@@ -236,9 +308,16 @@ func markerlessRoster(ratified map[string]identity.TypeIdentity, survey map[stri
 }
 
 // serverAssignmentVerdicts is the two evidence sources [markerless] consults
-// for a type with no ratified row, indexed by TF type: the classifier's own
-// server-assigned bucket, and the provider documentation's named server
-// segment for a type the classifier reached no verdict on.
+// for a type with no ratified row, indexed by TF type: the registry's own
+// verdict that some part of this type's identity is server-minted, and the
+// provider documentation's named server segment for a type the registry
+// reached no verdict on.
+//
+// The registry leg has two shapes and they are the same finding at two
+// strengths. classify.go's rule 1 is the whole-identifier one, already
+// carried as [bucketServerAssigned]; [primaryIdentifierPartlyReadOnly] is
+// the mixed one - see its doc comment for why the veto asks a wider question
+// than the bucket does, and why widening it had to wait for #329 and #337.
 //
 // It is split out of [markerlessRoster] so uniquename.go can ask the veto's
 // question through [markerless] itself rather than through a paraphrase of
@@ -249,7 +328,7 @@ func serverAssignmentVerdicts(proposals []proposal, importGrammar map[string]imp
 	classified = make(map[string]bool, len(proposals))
 	documented = make(map[string]bool, len(proposals))
 	for _, p := range proposals {
-		if p.Bucket == bucketServerAssigned {
+		if p.Bucket == bucketServerAssigned || primaryIdentifierPartlyReadOnly(p) {
 			classified[p.TFType] = true
 		}
 		// The documentation leg answers only where the classifier

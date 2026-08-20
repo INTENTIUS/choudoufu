@@ -246,7 +246,7 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 			// remembered, for the same reason LocatedType is above: one
 			// function answering one question is what keeps the set that
 			// gets written identical to the set that gets read.
-			components, recordable := identity.LocatedIdentityComponents(*schema)
+			components, recordable := identity.LocatedIdentityComponents(typeName, *schema)
 			rec := LocatedRecord{}
 			if recordable {
 				if len(components) == 0 {

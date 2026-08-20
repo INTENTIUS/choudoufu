@@ -71,7 +71,13 @@ func TestLocatedIdentityComponentsClassifiesByTheProvidersOwnIdentitySchema(t *t
 	}
 
 	cases := []struct {
-		name           string
+		name string
+		// resourceType is what the doc-derived leg reads. Empty means a
+		// type no scraped page describes, which is the shape every case
+		// written before [IDNotProvenWholeTypes] existed was implicitly
+		// testing - so the pre-existing cases keep their meaning and the
+		// two that name a real type say why they do.
+		resourceType   string
 		schema         providers.Schema
 		wantComponents []string
 		wantRecordable bool
@@ -154,7 +160,7 @@ func TestLocatedIdentityComponentsClassifiesByTheProvidersOwnIdentitySchema(t *t
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, recordable := LocatedIdentityComponents(tc.schema)
+			got, recordable := LocatedIdentityComponents(tc.resourceType, tc.schema)
 			if recordable != tc.wantRecordable {
 				t.Errorf("recordable = %v, want %v.\n%s", recordable, tc.wantRecordable, tc.why)
 			}

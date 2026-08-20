@@ -7,6 +7,7 @@ package main
 
 import (
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -303,4 +304,161 @@ func TestMarkerlessRosterTwoSourcesAgreement(t *testing.T) {
 		t.Errorf("%s: the registry and the docs DISAGREE about this type's identity (registry says ResourceId, "+
 			"the doc names the resource's own config ID) - it must stay vetoed, and it no longer is", stillVetoed)
 	}
+}
+
+// TestPrimaryIdentifierPartlyReadOnlyIsTheMixedShapeOnly pins the predicate's
+// own bound, in all four directions, because it is the whole of what issue
+// #309's widening reads.
+//
+// The two false cases matter more than the true one. Wholly read-only is
+// classify.go rule 1's case and already reaches the veto through the
+// classifier's bucket; if this fired there too the veto would be unchanged
+// but the reason for it would have two sources, which is how one rule
+// becomes two that can disagree. Wholly supplied is the population
+// registryComposedOfArguments defends - every component is a caller's value,
+// identity resolves from configuration, nothing needs a marker - and firing
+// there would veto a type that works.
+func TestPrimaryIdentifierPartlyReadOnlyIsTheMixedShapeOnly(t *testing.T) {
+	cases := []struct {
+		name string
+		p    proposal
+		want bool
+		why  string
+	}{
+		{
+			name: "mixed",
+			p:    proposal{PrimaryIdentifier: []string{"ParentId", "ChildId"}, ReadOnly: []string{"ChildId"}},
+			want: true,
+			why:  "a server-minted leaf under a config-known parent: Resolve cannot compute ChildId",
+		},
+		{
+			name: "wholly read-only",
+			p:    proposal{PrimaryIdentifier: []string{"ChildId"}, ReadOnly: []string{"ChildId"}},
+			want: false,
+			why:  "classify.go rule 1's own case; it reaches the veto through bucketServerAssigned",
+		},
+		{
+			name: "wholly supplied",
+			p:    proposal{PrimaryIdentifier: []string{"Name"}, ReadOnly: []string{"Arn"}},
+			want: false,
+			why:  "every component is a caller's value, so the identity resolves from configuration",
+		},
+		{
+			name: "no primary identifier at all",
+			p:    proposal{ReadOnly: []string{"Arn"}},
+			want: false,
+			why:  "no evidence is not evidence; vetoing on silence is what markerlessRoster's survey precondition exists to prevent",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := primaryIdentifierPartlyReadOnly(tc.p); got != tc.want {
+				t.Errorf("primaryIdentifierPartlyReadOnly = %v, want %v.\n%s", got, tc.want, tc.why)
+			}
+		})
+	}
+}
+
+// TestWidenedVetoReachesOnlyUntaggableMixedIdentifiers runs the widening over
+// the real committed inputs and asserts the delta it produces is exactly the
+// population the rule claims, type by type.
+//
+// This is the derivation bar stated as a test rather than as a paragraph: a
+// widened predicate that swept in anything else would be a hand-list wearing
+// a rule's clothes, and the way that shows up is a member of the delta for
+// which one of the two facts below does not hold.
+func TestWidenedVetoReachesOnlyUntaggableMixedIdentifiers(t *testing.T) {
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	survey, err := loadSurvey(filepath.Join(root, surveyJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposals, err := loadProposals(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemaFacts, err := loadSchemaFacts(filepath.Join(root, schemaFactsJSONRel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ratified := loadRatifiedForTest(t)
+	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, schemaFacts))
+	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
+
+	widened := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch))
+
+	// The counterfactual: the same roster with only the bucket leg, which is
+	// what serverAssignmentVerdicts read before #309.
+	byType := indexByType(proposals)
+	_, documented := serverAssignmentVerdicts(proposals, grammar)
+	narrowClassified := map[string]bool{}
+	for _, p := range proposals {
+		if p.Bucket == bucketServerAssigned {
+			narrowClassified[p.TFType] = true
+		}
+	}
+	narrow := map[string]bool{}
+	for typeName, entry := range survey {
+		row, admitted := ratified[typeName]
+		_, named := uniqueName[typeName]
+		if markerless(entry.Signals.Taggable, contentMatch[typeName], admitted, row,
+			narrowClassified[typeName], documented[typeName], sourcesAgree(typeName, byType, grammar), named) {
+			narrow[typeName] = true
+		}
+	}
+
+	var added, removed []string
+	for typeName := range widened {
+		if !narrow[typeName] {
+			added = append(added, typeName)
+		}
+	}
+	for typeName := range narrow {
+		if !widened[typeName] {
+			removed = append(removed, typeName)
+		}
+	}
+	sort.Strings(added)
+	sort.Strings(removed)
+
+	// Removing a type from the veto is the dangerous direction: it means a
+	// type the rule used to say had nowhere to write a marker no longer does,
+	// which this change cannot cause and must not.
+	if len(removed) != 0 {
+		t.Errorf("the widening REMOVED %d type(s) from the veto: %v. It only ever adds an evidence leg, "+
+			"so a removal means something else moved.", len(removed), removed)
+	}
+	if len(added) == 0 {
+		t.Fatal("the widening added nothing, so every assertion below is vacuous. Either the committed " +
+			"inputs no longer contain a mixed-identifier untaggable type, or the leg is not wired in.")
+	}
+
+	for _, typeName := range added {
+		entry, inSurvey := survey[typeName]
+		if !inSurvey {
+			t.Errorf("%s: not in live/survey-full.json, so the veto reached it on the absence of a signal", typeName)
+			continue
+		}
+		if entry.Signals.Taggable {
+			t.Errorf("%s: TAGGABLE. The marker is what finds a taggable type, so the veto's premise does "+
+				"not hold for it and widening must never reach one.", typeName)
+		}
+		p, hasProposal := byType[typeName]
+		if !hasProposal {
+			t.Errorf("%s: no registry proposal, so nothing could have read a primary identifier for it", typeName)
+			continue
+		}
+		if !primaryIdentifierPartlyReadOnly(p) {
+			t.Errorf("%s: primary identifier %v with read-only %v is not the mixed shape this leg is for. "+
+				"Something other than the stated rule put it in the delta.", typeName, p.PrimaryIdentifier, p.ReadOnly)
+		}
+	}
+	t.Logf("the widened leg adds %d types to the veto, every one untaggable with a mixed primary identifier", len(added))
 }
