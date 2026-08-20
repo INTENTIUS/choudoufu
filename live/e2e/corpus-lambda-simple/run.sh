@@ -206,16 +206,44 @@ set -uo pipefail
 #     with OpenTofu's own renderer saying "The value is unchanged" - a
 #     SENSITIVITY-ONLY diff. hashicorp/local marks local_file.content
 #     sensitive; states.ResourceInstanceObjectSrc.Decode re-applies that mark
-#     from the state's AttrSensitivePaths; and projection's recordPayload has
-#     nowhere to put a sensitivity path, so the migrate has to unmark before
-#     ctyjson can encode it (see internal/live/liveimport/ratify.go's
-#     ratifyRecordBacked, which says so at length). The record therefore
-#     carries the value and not the mark. projection.WriteBack shares the
-#     hole and has it worse - with no unmark of its own it would panic.
+#     from the state's AttrSensitivePaths; and projection's recordPayload had
+#     nowhere to put a sensitivity path, so the migrate unmarked before
+#     ctyjson could encode it. The record therefore carried the value and not
+#     the mark, and because live-plan runs with SkipRefresh nothing ever put
+#     the mark back: the plan's "before" side had no marks while its "after"
+#     side was re-marked from the provider schema on every run.
 #
-# Stages 4 and 5 remain unreached and unwritten below. Complete stage 3's
-# identity assertions and write 4 and 5 once the two changes above clear,
-# following live/e2e/reference-ec2-vpc/run.sh's shape.
+# THE SECOND OF THOSE IS FIXED (2026-08-20). projection.recordPayload gained
+# SensitiveAttrs, encoded exactly the way a state file encodes
+# "sensitive_attributes" - the paths travel beside the value, encodeRecordPayload
+# splits them off instead of the caller unmarking, decodeRecordPayload puts them
+# back, and materializeRecord re-marks after the schema conversion so
+# obj.Encode derives AttrSensitivePaths from them. It is derived from the
+# OBJECT's own marks, so it covers any record-backed type with any sensitive
+# attribute, not local_file.content. A mark that is not sensitivity is refused
+# rather than dropped. Step 8 asserts it by ABSENCE.
+#
+# THE FIRST IS NOT OURS, and step 3b now proves that rather than asserting it:
+# stock terraform, its own state file, its own refresh, immediately after its
+# own cold apply, proposes the SAME aws_lambda_function update with no
+# choudoufu anywhere in the run. Filed as lex00/floci#83. Two response-shape
+# gaps in the emulator's GetFunction/GetFunctionConfiguration:
+#
+#   * Environment is emitted unconditionally ("SDK expects it even when
+#     empty", LambdaController.buildFunctionConfiguration). Real AWS omits it
+#     for a function that never had one, which is why terraform-provider-aws
+#     reads it under `if function.Environment != nil`. The module declares
+#     zero environment blocks (main.tf:90, a dynamic block over an empty map),
+#     so a present-but-empty Environment reads back as one block and the plan
+#     says "- environment {}".
+#   * LoggingConfig is never emitted and never stored. Real AWS always
+#     returns one; the module always declares one (main.tf:136, log_format
+#     "Text"), so the plan says "+ logging_config { log_format = "Text" }".
+#
+# Stages 4 and 5 remain unreached and unwritten below: an empty stage-3 plan
+# is their precondition and the emulator gap above is what is left between
+# this estate and one. Write them once lex00/floci#83 lands and the image is
+# re-pinned, following live/e2e/corpus-mastino-dns/run.sh's shape.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -377,6 +405,42 @@ log "  confirmed unmarked: $LAMBDA_ARN carries no tags"
 
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
 
+# ── 3b. the EMULATOR's own drift, measured before choudoufu exists ─────────
+# Stock terraform, its own state file, its own refresh, immediately after its
+# own apply. Whatever it proposes here is the emulator disagreeing with the
+# provider about what it just created, and choudoufu is not in the room.
+#
+# This exists because stage 3 below has to say which half of a non-empty
+# replan is ours. Reasoning about it from the diff alone has been wrong here
+# before; a control run is the only thing that settles it.
+STOCK_REPLAN_OUT="$(cd "$EST" && terraform plan -input=false -no-color -detailed-exitcode 2>&1)"; STOCK_REPLAN_RC=$?
+case "$STOCK_REPLAN_RC" in
+  0) log "  control: stock terraform replans EMPTY against the emulator - no emulator drift" ;;
+  2) log "  control: stock terraform's OWN replan is NOT empty, with no choudoufu involved:" ;;
+  *) printf '%s\n' "$STOCK_REPLAN_OUT" | tail -20; fail "the stock control replan failed to run at all (exit $STOCK_REPLAN_RC)" ;;
+esac
+STOCK_DRIFTED="$(grep -E '^  # ' <<< "$STOCK_REPLAN_OUT" | sed 's/^  # //' | sort)"
+if [ -n "$STOCK_DRIFTED" ]; then
+  printf '%s\n' "$STOCK_DRIFTED" | sed 's/^/    /'
+fi
+# Asserted by VALUE, not by "some drift exists": the emulator's gap is known
+# and bounded, and a new one appearing has to break this rather than hide
+# inside a bucket labelled "expected". lex00/floci#83 is the open item -
+# GetFunction returns an Environment block for a function that never had one
+# (real AWS omits it, which is why terraform-provider-aws guards on
+# `function.Environment != nil`) and returns no LoggingConfig at all (real
+# AWS always returns one, defaulting to Text). Nothing else in this estate
+# drifts under stock.
+WANT_STOCK_DRIFTED="module.lambda_function.aws_lambda_function.this[0] will be updated in-place"
+if [ "$STOCK_DRIFTED" != "$WANT_STOCK_DRIFTED" ]; then
+  fail "stock terraform's own replan drifts on:
+$STOCK_DRIFTED
+and this script expects exactly:
+$WANT_STOCK_DRIFTED
+Either lex00/floci#83 is fixed (delete this control and the stage-3 carve-out with it) or the emulator has grown a NEW gap that stage 3 would otherwise blame on choudoufu."
+fi
+log "  control: the emulator's drift is exactly the known lex00/floci#83 Lambda one, and nothing else"
+
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
@@ -537,10 +601,38 @@ for gone in "random_pet.this will be created" \
 done
 log "  no record-backed resource is proposed for creation: the migrate seeded all four"
 
+# The sixth wall's choudoufu half, asserted by ABSENCE. local_file.content is
+# marked sensitive by hashicorp/local, and a record store had nowhere to put
+# a sensitivity path - so the migrate stored the value and not the mark, and
+# because live-plan runs with SkipRefresh the plan's "before" side had no
+# marks at all while its "after" side was re-marked from the schema every
+# run. The result was a permanent "~ content = (sensitive value)" that
+# OpenTofu's own renderer annotated "The value is unchanged". A grep that
+# finds nothing proves more here than one that finds something.
+grep -qF "local_file.archive_plan" <<< "$PLAN_OUT" \
+  && fail "local_file.archive_plan is back in the plan - projection's record sensitivity (recordPayload.SensitiveAttrs) has regressed"
+log "  no sensitivity-only diff on local_file.archive_plan: the record carries its marks"
+
+# Whatever remains, split against the STOCK control taken at step 3b. Only
+# the difference is choudoufu's; the rest is the emulator disagreeing with
+# the provider about what it created, which stock terraform sees too.
+LIVE_DRIFTED="$(grep -E '^  # ' <<< "$PLAN_OUT" | sed 's/^  # //' | sort)"
+CHOUDOUFU_DRIFTED="$(comm -23 <(printf '%s\n' "$LIVE_DRIFTED" | grep -v '^$' | sort -u) <(printf '%s\n' "$STOCK_DRIFTED" | grep -v '^$' | sort -u))"
+
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" || {
   log ""
   log "STAGE 3 (test plan): BLOCKED for real - live-plan raises NO diagnostics"
   log "  and every identity resolves, but the plan is not empty."
+  log ""
+  if [ -z "$CHOUDOUFU_DRIFTED" ]; then
+    log "  Every resource in this plan is one stock terraform's OWN replan proposes"
+    log "  too (step 3b's control), so nothing here is choudoufu's: the whole"
+    log "  remainder is lex00/floci#83. Fixing the emulator is what takes this"
+    log "  estate to an empty replan; there is no choudoufu-side wall left."
+  else
+    log "  Beyond the emulator's own drift (step 3b), these are choudoufu's:"
+    printf '%s\n' "$CHOUDOUFU_DRIFTED" | sed 's/^/    /'
+  fi
   log ""
   log "  What is CONFIRMED FIXED and asserted by absence just above: #340's"
   log "  migrate-time record seeding. random_pet.this, local_file.archive_plan,"
