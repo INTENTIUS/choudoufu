@@ -172,17 +172,50 @@ set -uo pipefail
 # eligible for stamping" was false on both halves: nothing wrote the record,
 # and being record-backed is precisely what made it INeligible.
 #
-# That is a live-import gap, not an identity one, and it is the next slot's
-# work: a migrate has to seed the record store from the state's own object
-# for every record-backed instance, the same way it seeds residue for every
-# stamped one. Stages 4 and 5 remain unreached and unwritten below.
+# THE FIFTH BLOCKER IS FIXED (issue #340, 2026-08-20). Approve now has a
+# second write path beside the tag write: for every instance whose type
+# identity.TypeIdentity.RecordBacked marks - fifteen types across four
+# providers, read off the generated table, no type name in Go - it seeds the
+# estate's record store from the state's own object
+# (projection.SeedRecordForInstance). Step 6 below asserts the new outcome
+# counts AND greps the store's own files for random_pet.this's generated id,
+# and step 8 asserts by ABSENCE that not one record-backed resource is
+# proposed for creation any more.
 #
-# So this script proves stages 1 and 2 for real and stops at stage 3 on the
-# fourth blocker. Stages 4 and 5 remain unwritten below (present as dead
-# code, never yet executed) because there is nothing running yet for them to
-# exercise. Once the record-backed-attribute wall clears, complete stage 3's
-# identity assertions and confirm 4 and 5 actually run, following
-# live/e2e/reference-ec2-vpc/run.sh's shape.
+# Measured on this estate, 2026-08-20, against floci:
+#   STAGE 1 (cold deploy)  PASS
+#   STAGE 2 (migrate)      PASS - 3 stamped, 4 recorded, 0 failed, 1 skipped
+#   STAGE 3 (test plan)    BLOCKED, but on a SIXTH wall and a different kind:
+#                          live-plan raises ZERO diagnostics, every identity
+#                          resolves, all four record-backed resources come
+#                          back out of the store - and the plan is "0 to add,
+#                          2 to change, 0 to destroy".
+#
+# The two remaining changes, from the run's own dump (step 8 prints it):
+#
+#   module.lambda_function.aws_lambda_function.this[0]
+#       - environment {}
+#       + logging_config { log_format = "Text" }
+#     plus the computed re-derivation those force (version, qualified_arn,
+#     qualified_invoke_arn -> known after apply). A nested-block round-trip
+#     between what floci's Lambda read returns and what the module's config
+#     declares, not an identity or a record question.
+#
+#   module.lambda_function.local_file.archive_plan[0]
+#       ~ content = (sensitive value)
+#     with OpenTofu's own renderer saying "The value is unchanged" - a
+#     SENSITIVITY-ONLY diff. hashicorp/local marks local_file.content
+#     sensitive; states.ResourceInstanceObjectSrc.Decode re-applies that mark
+#     from the state's AttrSensitivePaths; and projection's recordPayload has
+#     nowhere to put a sensitivity path, so the migrate has to unmark before
+#     ctyjson can encode it (see internal/live/liveimport/ratify.go's
+#     ratifyRecordBacked, which says so at length). The record therefore
+#     carries the value and not the mark. projection.WriteBack shares the
+#     hole and has it worse - with no unmark of its own it would panic.
+#
+# Stages 4 and 5 remain unreached and unwritten below. Complete stage 3's
+# identity assertions and write 4 and 5 once the two changes above clear,
+# following live/e2e/reference-ec2-vpc/run.sh's shape.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -308,6 +341,13 @@ log "  healthy"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
 
 log "=== 3. cold init and apply: plain terraform, 8 resources from nothing ==="
+# The shared plugin cache, the same way corpus-alb-complete's crossing uses
+# it. Without it every run re-downloads hashicorp/aws 6.59.0 (several hundred
+# megabytes) from the registry, which on a machine running more than one
+# crossing at a time takes longer than the rest of this script put together
+# and makes the estate look hung. It changes nothing about what is measured.
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "cold terraform init failed"; }
 COLD_APPLY_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)" || {
@@ -366,12 +406,30 @@ grep -qF "module.lambda_function.aws_lambda_function.this[0]" <<< "$IMPORT_OUT" 
   || fail "live-import's report does not name the module-nested Lambda function at all - the module-scope fix regressed"
 log "  3 of 8 verified against the live system (the module-nested IAM role, log group and function); nothing written yet"
 
-log "=== 6. -approve: stamp the three module-nested AWS resources ==="
+log "=== 6. -approve: stamp the three module-nested AWS resources, and seed the"
+log "        record store for the four record-backed ones (#340) ==="
 APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "3 resource(s) newly stamped, 0 already stamped, 0 failed, 5 skipped" <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 3 of 8 resources cleanly"; }
-log "  3 stamped"
+# 3 stamped: the module-nested IAM role, log group and function.
+# 4 recorded: random_pet.this, local_file.archive_plan, null_resource.archive
+#   and terraform_data.package_filename_for_hash - every RECORD_BACKED type in
+#   this estate. Before #340 all four were reported SKIPPED and their values
+#   went nowhere, which is what made stage 3 propose creating them.
+# 1 skipped: aws_iam_role_policy.logs, genuinely untaggable and genuinely
+#   derived from its tagged parent - the one resource here that needs neither
+#   carrier.
+grep -qF "3 resource(s) newly stamped, 0 already stamped, 4 newly recorded, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp 3 and record 4 of 8 resources cleanly"; }
+log "  3 stamped, 4 recorded"
+
+# The record store is asserted by CONTENT, not by "a file exists": the value
+# a migration has to carry for this estate is random_pet.this's generated
+# name, and every identity in the estate is derived from it.
+RECORDS_DIR="$EST/.tofu-records"
+[ -d "$RECORDS_DIR" ] || fail "live-import -approve created no record store at $RECORDS_DIR"
+grep -Rqs -- "$PET" "$RECORDS_DIR" \
+  || { find "$RECORDS_DIR" -type f | head -20; fail "the record store does not contain random_pet.this's generated id ($PET) anywhere - #340 has regressed"; }
+log "  record store carries random_pet.this = $PET"
 
 log "=== 7. the markers, read through the AWS CLI directly - never through choudoufu ==="
 WANT_LAMBDA_ADDR="module.lambda_function.aws_lambda_function.this:0"
@@ -461,12 +519,50 @@ if [ "$PLAN_RC" -ne 0 ]; then
   exit 1
 fi
 
-# The code below runs once the stage-3 blocker above clears. It is real,
-# untested-in-this-run code, not a stub: once live-plan stops erroring, this
-# is what completing the crossing looks like.
 [ ! -f "$EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
-grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
-  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "live-plan is not empty"; }
+
+# Issue #340, asserted by ABSENCE. Before the migrate seeded the record
+# store, live-plan raised no diagnostics at all and then proposed CREATING
+# every record-backed resource in the estate from nothing, led by
+# "# random_pet.this will be created" - which also broke every identity
+# derived from it. A grep that finds nothing proves more here than one that
+# finds something: if the seeding regresses, this says so by name instead of
+# leaving a reader to work out why the plan grew.
+for gone in "random_pet.this will be created" \
+            "local_file.archive_plan[0] will be created" \
+            "null_resource.archive[0] will be created" \
+            "terraform_data.package_filename_for_hash will be created"; do
+  grep -qF "$gone" <<< "$PLAN_OUT" \
+    && fail "the plan proposes creating a record-backed resource ($gone) - issue #340's migrate-time record seeding has regressed"
+done
+log "  no record-backed resource is proposed for creation: the migrate seeded all four"
+
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" || {
+  log ""
+  log "STAGE 3 (test plan): BLOCKED for real - live-plan raises NO diagnostics"
+  log "  and every identity resolves, but the plan is not empty."
+  log ""
+  log "  What is CONFIRMED FIXED and asserted by absence just above: #340's"
+  log "  migrate-time record seeding. random_pet.this, local_file.archive_plan,"
+  log "  null_resource.archive and terraform_data.package_filename_for_hash are"
+  log "  all read back out of the record store this migration wrote, so none of"
+  log "  them is proposed for creation and every identity derived from"
+  log "  random_pet.this renders."
+  log ""
+  log "  What remains is whatever the diff below says, which is a NEWLY REACHED"
+  log "  wall: nothing before this run had ever got a non-erroring plan out of"
+  log "  this estate to look at."
+  log ""
+  # Bounded by sed's own range end rather than piped into head: head closes
+  # the pipe early and printf then reports a broken pipe into the middle of
+  # the evidence this block exists to print.
+  printf '%s\n' "$PLAN_OUT" | sed -n '/^OpenTofu will perform/,/^Plan: /p'
+  log ""
+  log "STAGE 4 (test apply): NOT REACHED"
+  log "STAGE 5 (drift and reconverge): NOT REACHED"
+  log ""
+  fail "live-plan is not empty"
+}
 
 for id in "$FN_NAME" "${FN_NAME}-logs"; do
   grep -qF "$id" <<< "$PLAN_OUT" || true

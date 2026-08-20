@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -34,6 +35,22 @@ const (
 	// second live-import run over the same state is idempotent rather than
 	// re-writing tags that already say the right thing.
 	OutcomeAlreadyStamped Outcome = "ALREADY_STAMPED"
+
+	// OutcomeRecorded means this instance is record-backed - its value is
+	// its identity, and no live object exists to carry a tag - and Approve
+	// seeded the estate's record store with the object the state recorded.
+	// This is the whole migration for such a resource, and it is what GitHub
+	// issue #340 found missing: without it a migrated random_pet,
+	// null_resource, terraform_data or local_file has its generated value
+	// nowhere, and the first live-plan after the migration proposes creating
+	// it from scratch.
+	OutcomeRecorded Outcome = "RECORDED"
+
+	// OutcomeAlreadyRecorded means the record store already held exactly
+	// this object for this address. A no-op, on purpose, and the same
+	// idempotence [OutcomeAlreadyStamped] gives the tag write: a second
+	// live-import run over the same state file writes nothing twice.
+	OutcomeAlreadyRecorded Outcome = "ALREADY_RECORDED"
 
 	// OutcomeSkipped means Ratify never made this resource eligible - its
 	// Status was MISSING, UNADMITTED_TYPE or UNTAGGABLE - so Approve never
@@ -97,11 +114,26 @@ type StampReport struct {
 // a choudoufu apply first classifies it, so the FIRST live-plan after a
 // clean migrate sees it null - a phantom update for an ordinary argument, a
 // phantom REPLACE for a ForceNew one.
+//
+// GitHub issue #340: and for every RECORD-BACKED entry, which by definition
+// has no live object and therefore never reaches a tag write at all, Approve
+// seeds the estate's record store from the state's own object instead - see
+// [recordOne]. That is the whole of what migrating such a resource means,
+// and while it did not happen a migrated estate lost every generated value
+// it had: the run reported success, and the next live-plan proposed creating
+// random_pet, null_resource, terraform_data and local_file from nothing.
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	rep := &StampReport{Estate: r.Estate}
 	for _, entry := range r.Entries {
+		if rec, ok := r.recordable[entry.Addr.String()]; ok {
+			// Issue #340. A record-backed instance is never also eligible
+			// (see [recordable]), so this branch and the one below are
+			// alternatives, not a sequence.
+			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, r.recordKeyPrefix, entry.Addr, rec))
+			continue
+		}
 		elig, ok := r.eligible[entry.Addr.String()]
 		if !ok {
 			rep.Outcomes = append(rep.Outcomes, StampOutcome{
@@ -116,6 +148,44 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, elig))
 	}
 	return rep, diags
+}
+
+// recordOne is Approve's GitHub issue #340 half: the migration of one
+// record-backed instance, which is a single write to the estate's record
+// store and no cloud call at all.
+//
+// It is the exact counterpart of [approveOne] - one carrier per resource,
+// one write per resource, one outcome per resource - and the reason a
+// migration needs both is that "which live object is this" and "what value
+// is this" are answered by different carriers. A tag answers the first. For
+// the fifteen types [recordBackedType] covers today there is no first
+// question to answer, and the record is the only answer to the second.
+//
+// A nil store cannot be reached from Approve (Ratify never builds a
+// *recordable without one), but it is handled anyway rather than trusted:
+// [projection.SeedRecordForInstance] treats it as a no-op, which would
+// report ALREADY_RECORDED, so the guard here says the true thing instead.
+func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, addr addrs.AbsResourceInstance, rec *recordable) StampOutcome {
+	out := StampOutcome{Addr: addr, TypeName: rec.typeName}
+	if store == nil {
+		out.Outcome = OutcomeSkipped
+		out.Detail = fmt.Sprintf("Not recorded: %s is record-backed and this configuration declares no record_store, so there is nowhere to keep its value.", rec.typeName)
+		return out
+	}
+
+	wrote, err := projection.SeedRecordForInstance(ctx, store, keyPrefix, addr, rec.value, rec.private, rec.status)
+	switch {
+	case err != nil:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The record store could not be seeded for this %s: %s. Nothing was written, and the first live-plan after this migration will propose creating it.", rec.typeName, err)
+	case wrote:
+		out.Outcome = OutcomeRecorded
+		out.Detail = "Wrote the state's own object into this estate's record store; there is no live object to tag."
+	default:
+		out.Outcome = OutcomeAlreadyRecorded
+		out.Detail = "The record store already holds exactly this object; nothing written."
+	}
+	return out
 }
 
 // recordResidueFor is Approve's GitHub issue #327 half: it wraps elig's

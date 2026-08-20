@@ -692,6 +692,53 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### -3. Fixed: `#340`, a migration that wrote no record at all, and the sixth wall under it
+
+`live-import -approve` had one write path, the tag, and a record-backed
+instance has nothing to tag. So it was reported `SKIPPED` and its generated
+value went nowhere: the run said success, and the next `live-plan` proposed
+creating `random_pet`, `null_resource`, `terraform_data` and `local_file`
+from scratch, taking every identity derived from one of them down with it.
+
+`Approve` now has a second write path beside the first.
+`projection.SeedRecordForInstance` writes the state's own object into the
+record store, reusing `encodeRecordPayload` and `RecordKey` so a migration's
+write is byte-identical to `WriteBack`'s and readable by
+`materializeRecord`. It reads before it writes: an identical record is an
+idempotent no-op, a **different** one is a refusal - the store's value can
+legitimately be newer than the tfstate a migration was pointed at, and
+clobbering there produces an empty plan built on a stale value, which
+nothing downstream can see.
+
+Derived, not hand-wired: it keys on `identity.TypeIdentity.RecordBacked`,
+the same property `WriteBack` reads after an apply, which row-gen derives
+from `live/logical-schemas.json`'s per-provider `store_only` gate. **Fifteen
+types across four providers today**, and a type row-gen newly classifies
+`store_only` is migrated the moment the table regenerates.
+
+**The sixth wall it reached is worth a slot, and it is two unrelated
+things.** `corpus-lambda-simple` against floci, 2026-08-20: `STAGE 1 PASS`,
+`STAGE 2 PASS` (3 stamped, 4 recorded, 0 failed, 1 skipped, the store's own
+files grepped for the pet name), `STAGE 3` blocked with **zero
+diagnostics**, every identity resolved, and `Plan: 0 to add, 2 to change, 0
+to destroy`:
+
+- `aws_lambda_function.this[0]`: `- environment {}` and
+  `+ logging_config { log_format = "Text" }`, plus the computed
+  re-derivation those force. A nested-block round-trip between floci's
+  Lambda read and the module's config - neither an identity nor a record
+  question.
+- `local_file.archive_plan[0]`: `~ content = (sensitive value)` with
+  OpenTofu's own renderer saying *"The value is unchanged"*. A
+  **sensitivity-only** diff. hashicorp/local marks `content` sensitive,
+  `ResourceInstanceObjectSrc.Decode` re-applies that mark from
+  `AttrSensitivePaths`, and `projection.recordPayload` has nowhere to put a
+  sensitivity path - so the migrate unmarks before `ctyjson` can encode.
+  `WriteBack` shares the hole and has it worse: with no unmark of its own it
+  would panic on the same object.
+  `TestApprove_RecordsAnObjectCarryingASensitiveAttribute` pins the
+  limitation in both directions.
+
 ### -2. Fixed: `#314`, a fourth `LogicalClass`, and the wall it revealed
 
 `local_file` is admitted. `ClassExternalAdmitted` ("EXTERNAL_ADMITTED") is
