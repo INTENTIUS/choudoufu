@@ -35,10 +35,14 @@ set -uo pipefail
 #                     apply, 62 added, 0 changed, 0 destroyed.
 #   2. MIGRATE       `choudoufu live-import -state=<plain's state>
 #                     -estate=... -approve`. PASS: 46 of 62 instances
-#                     eligible (28 VERIFIED + 18 DRIFTED), 16 correctly
-#                     skipped (all 16 UNTAGGABLE by provider schema; #305's
-#                     default_* trio is admitted now and stamps cleanly - 2
-#                     VERIFIED + 1 DRIFTED, see below), 0 failed. Two
+#                     eligible (28 VERIFIED + 18 DRIFTED), the other 16
+#                     UNTAGGABLE by provider schema in the dry run - of
+#                     which -approve records 1 (module.ecs_cluster's
+#                     time_sleep.this[0], record-backed since #340, seeded
+#                     into the record store rather than skipped) and
+#                     correctly skips 15; #305's default_* trio is admitted
+#                     now and stamps cleanly - 2 VERIFIED + 1 DRIFTED, see
+#                     below - and 0 failed. Two
 #                     markers - the ECS cluster's and the ECS service's own
 #                     - confirmed independently through the AWS CLI.
 #   3. TEST PLAN     delete the state file, `choudoufu live-plan`. #305 and
@@ -200,6 +204,14 @@ REGION="eu-west-1"
 INSTANCES=62
 ELIGIBLE=46
 SKIPPED=16
+# SKIPPED is the DRY RUN's untaggable bucket, which -approve then splits in
+# two (issue #340): module.ecs_cluster's time_sleep.this[0] is record-backed,
+# so -approve seeds the record store for it and reports it RECORDED rather
+# than SKIPPED. The dry run's own UNTAGGABLE count does not move -
+# ratifyRecordBacked still answers StatusUntaggable - so only the -approve
+# summary line splits.
+RECORDED=1
+APPROVE_SKIPPED=$((SKIPPED - RECORDED))
 VERIFIED_WANT=28
 DRIFTED_WANT=18
 UNTAGGABLE_WANT=16
@@ -363,9 +375,10 @@ log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
 APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
-grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, 0 failed, $SKIPPED skipped." <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly"; }
-log "  $ELIGIBLE stamped, 0 failed, $SKIPPED skipped - matches the dry run exactly"
+grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, $RECORDED newly recorded, 0 already recorded, 0 failed, $APPROVE_SKIPPED skipped." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly ($RECORDED recorded, $APPROVE_SKIPPED skipped)"; }
+log "  $ELIGIBLE stamped, $RECORDED recorded (time_sleep.this[0]), 0 failed,"
+log "  $APPROVE_SKIPPED skipped - $SKIPPED untaggable in the dry run, one of them record-backed"
 
 log "=== 2c. the cluster's and the service's own markers, read through the AWS CLI directly ==="
 WANT_CLUSTER_ADDR="module.ecs_cluster.aws_ecs_cluster.this:0"

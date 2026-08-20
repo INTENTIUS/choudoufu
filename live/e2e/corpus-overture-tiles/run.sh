@@ -349,7 +349,7 @@ log "  16 of 26 eligible (11 VERIFIED, 5 DRIFTED); 9 UNTAGGABLE; 1 UNADMITTED_TY
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "13 resource(s) newly stamped, 0 already stamped, 3 failed, 10 skipped" <<< "$APPROVE_OUT" \
+grep -qF "13 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 3 failed, 10 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not match the expected 13/0/3/10 breakdown"; }
 grep -qF "GraphQL API not found" <<< "$APPROVE_OUT" \
   || fail "expected the 3 FAILED resources to carry floci's AppSync-misroute error text (lex00/floci#72) - if this no longer appears, the floci bug may be fixed and this script's scoping/assertions need revisiting"

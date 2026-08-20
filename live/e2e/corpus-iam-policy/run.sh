@@ -239,7 +239,7 @@ log "  dry run: 2 of 2 eligible; nothing written yet"
 
 APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "2 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
+grep -qF "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 2 of 2 resources cleanly"; }
 log "  2 stamped"
 

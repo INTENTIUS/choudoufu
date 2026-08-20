@@ -219,9 +219,9 @@ if [ "$APPROVE_RC" -ne 0 ]; then
   printf '%s\n' "$APPROVE_OUT" | tail -80
   fail "live-import -approve failed"
 fi
-grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT" \
+grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve did not stamp cleanly"; }
-log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT")"
+log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT")"
 
 # ── identity assertions, read via the AWS CLI directly, never through choudoufu ──
 # module.complete's ASG uses ignore_desired_capacity_changes=true, so the
