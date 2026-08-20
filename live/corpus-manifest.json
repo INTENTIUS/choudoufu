@@ -214,7 +214,42 @@
     "directories \"OpenTofu modules\". The other five directories are excluded",
     "for reasons that script's own header states in full (three are plain .tf",
     "and the same resource shape as crossplane/; service-quotas/ is an",
-    "account-singleton quota table; onboarding/ only runs the others)."
+    "account-singleton quota table; onboarding/ only runs the others).",
+    "",
+    "evoteum/tofu-modules (added 2026-08-19, license checked same day:",
+    "AGPL-3.0) is pinned by commit alone - the repository publishes no tags,",
+    "and its own README states why: \"As these are only small modules, we have",
+    "chosen not to publish them to the Tofu registry, as this would require",
+    "individual repositories for each module.\" It is the sixth OpenTofu-native",
+    "sourcing search and the second from a commercial vendor, Evoteum Ltd",
+    "(evoteum.com, 45 public repositories, organisation-wide pushes through",
+    "2026-08-20). Its OpenTofu-native evidence is of four independent kinds,",
+    "all checkable at the pinned commit: the repository description is",
+    "\"Modules for OpenTofu\" and the README calls them \"reusable **OpenTofu",
+    "modules**\" and \"designed to be used with OpenTofu\", with no",
+    "Terraform-compatibility claim; every configuration file in the repository",
+    "carries the .tofu extension, not one .tf file anywhere; the",
+    "pre-commit configuration installs tofuutils/pre-commit-opentofu and runs",
+    "its tofu_validate and tofu_fmt hooks against *.tofu, with no",
+    "Terraform hook configured at all; and the one module in the repository",
+    "that ships unit tests at all (aws/app_runner) writes them as",
+    "app_runner.tofutest.hcl and iam.tofutest.hcl, a test-file extension",
+    "OpenTofu recognises and Terraform does not.",
+    "The modules are real production code rather than a",
+    "demonstration: the same organisation's estate-config repository calls",
+    "aws/bucket from this repository over a setproduct()-built for_each map to",
+    "provision its own state buckets. Like sumaform, hongbomiao and",
+    "giantswarm-aws-prereqs, this glob matches only the repository root",
+    "corpus-fetch clones, which has no .tf/.tofu files directly in it, so it",
+    "contributes nothing to a corpus-gen number and exists for the pinned",
+    "fetch's reproducibility. live/e2e/corpus-evoteum-modules/run.sh copies",
+    "aws/networking and aws/dynamodb byte-identical out of the pin and calls",
+    "them as child modules with its own root wiring - the convention the three",
+    "corpus-hongbomiao-* and corpus-giantswarm-crossplane crossings use, and",
+    "the one this repository's own README documents (\"you can import them into",
+    "your Tofu configuration like so: module ... source =",
+    "github.com:evoteum/tofu-modules.git//aws/networking\"). The other nine AWS",
+    "modules are excluded for reasons that script's own header states in full."
   ],
   "sources": [
     {
@@ -451,6 +486,15 @@
         "repo": "https://github.com/giantswarm/giantswarm-aws-account-prerequisites.git",
         "tag": "v8.2.2",
         "commit": "f1a7d8d51086824a97749b1a8a13327c6f081f72"
+      }
+    },
+    {
+      "glob": ".corpus/evoteum-tofu-modules",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/evoteum-tofu-modules",
+        "repo": "https://github.com/evoteum/tofu-modules.git",
+        "commit": "7e8764035c50d1cb2a6ac04636a9f85ba6708d39"
       }
     }
   ],

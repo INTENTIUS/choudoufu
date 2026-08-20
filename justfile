@@ -927,17 +927,36 @@ demo-corpus-hongbomiao-harbor:
 # own customer-facing AWS account prerequisites, genuine .tofu files, and
 # the first estate in this lane from a commercial vendor's production
 # repository rather than a module registry, a personal monorepo or a
-# single-maintainer accelerator. cold_deploy (6 instances) and migrate (2
-# stamped, 2 correctly UNTAGGABLE, 2 UNADMITTED_TYPE) pass for real;
-# test_plan is BLOCKED at exactly 2 sites, both #334's two unadmitted
-# *_exclusive enforcer types, and the script proves that is the WHOLE block
-# with its own control stage: cut those two blocks and nothing else, and
-# test_plan / test_apply / drift_reconverge all clear. Stages 4-5 are
-# deliberately NOT counted as passes in the crossing manifest, because they
-# need an empty first plan from the unmodified module. Needs Docker, the
-# AWS CLI, and the real `tofu` binary; runs on its own port (4729).
+# single-maintainer accelerator. All five stages pass for real against the
+# fully unmodified module as of 2026-08-19: test_plan was BLOCKED at exactly
+# 2 sites, both unadmitted *_exclusive enforcer types, and #334 ratified both
+# rows, so the script's own cut-down control stage retired with the block it
+# controlled for. Needs Docker, the AWS CLI, and the real `tofu` binary; runs
+# on its own port (4729).
 demo-corpus-giantswarm-crossplane:
     bash live/e2e/corpus-giantswarm-crossplane/run.sh
+
+# The eighth OpenTofu-native crossing - counted off
+# live/corpus-crossing-manifest.json's own lane field, which reads 7 before
+# this one; the ordinals in the recipes above were written when the lane was
+# shorter and do not all agree with it. From a fresh sourcing search:
+# evoteum/tofu-modules (live/corpus-manifest.json, pinned by commit -
+# the repository publishes no tags and its README says why), the
+# aws/networking and aws/dynamodb modules - Evoteum Ltd's own reusable
+# module library, the second commercial vendor in this lane. Its
+# OpenTofu-native evidence is of four independent kinds and includes the
+# only one so far that Terraform could not even parse: .tofutest.hcl unit
+# tests. All five stages PASS for real - 10 instances cold-deployed, 7
+# stamped, 3 route table associations correctly UNTAGGABLE and re-derived
+# from their tagged parents, an empty replan with markers re-read via the
+# AWS CLI, a genuine no-op apply, and drift on the VPC's Name tag
+# reconverging without touching anything else. It is the first crossing in
+# either lane whose for_each keys fall outside the AWS tag-value charset,
+# so internal/live/markers' address escaping is load-bearing here and the
+# expected escaped markers are asserted by hand. Needs Docker, the AWS CLI,
+# and the real `tofu` binary; runs on its own port (4730).
+demo-corpus-evoteum-modules:
+    bash live/e2e/corpus-evoteum-modules/run.sh
 
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.

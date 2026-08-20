@@ -1308,7 +1308,7 @@ script's own header says which resource and why.
 
 ### 3. Broaden the OpenTofu-native lane
 
-Seven estates crossed now. The first six: `corpus-sumaform-aws`; three disjoint slices of
+Eight estates crossed now. The first six: `corpus-sumaform-aws`; three disjoint slices of
 `hongbo-miao/hongbomiao.com` (`corpus-hongbomiao-labelbox`, landed
 2026-08-18, the first OpenTofu-native estate to clear all five stages and
 stronger evidence than sumaform - genuine `.tofu` files throughout, not a
@@ -1320,8 +1320,14 @@ that needs no EKS cluster or remote state, everything else in that file
 being 15 IAM modules all reading a real cluster's OIDC provider, the same
 scope/risk class as the terraform-popular lane's already-blocked
 terraform-aws-eks crossing); and `corpus-overture-tiles`,
-`corpus-xancloud-iac` from fresh sourcing searches. Four of the six clear
-all five stages for real; with the seventh below, five of seven do.
+`corpus-xancloud-iac` from fresh sourcing searches. **Three** of the six
+clear all five stages for real, not four - that figure said four here from
+2026-08-18 until 2026-08-19, and `live/corpus-crossing-manifest.json`, which
+is the source, has never agreed with it: of those six, `corpus-hongbomiao-
+labelbox`, `-storage` and `-harbor` are all-pass, while `corpus-sumaform-aws`
+and `corpus-xancloud-iac` are `test_plan: fail` and `corpus-overture-tiles`
+is `migrate: fail`. Count it off the manifest rather than off this
+paragraph. With the seventh and eighth below, **five of eight** do.
 
 Seventh, landed 2026-08-19 from a fresh sourcing search:
 `corpus-giantswarm-crossplane`, the `crossplane/` module of
@@ -1375,6 +1381,55 @@ put three attempts past a ten-minute cap. Seeding the second directory's lock
 file from the first init's takes that init 320s -> 1s and a full five-stage run
 to 250s. Every crossing script that runs more than one `init` has this.
 
+Eighth, landed 2026-08-19 from a fresh sourcing search:
+`corpus-evoteum-modules`, the `aws/networking` and `aws/dynamodb` modules of
+`evoteum/tofu-modules` (pinned by commit alone - the repository publishes no
+tags, and its own README says why: "As these are only small modules, we have
+chosen not to publish them to the Tofu registry"). Evoteum Ltd is the second
+commercial vendor in this lane, and the OpenTofu-native evidence is of four
+independent kinds, all asserted by the script rather than described in its
+header: a self-description as OpenTofu's with no compatibility claim; **not
+one `.tf` file anywhere in the pinned tree** (109 `.tofu`, 0 `.tf`, checked
+over the whole clone rather than the crossed directories);
+`.pre-commit-config.yaml` running `tofuutils/pre-commit-opentofu`'s
+`tofu_validate`/`tofu_fmt` with no Terraform hook configured at all; and
+`.tofutest.hcl` unit tests, **the first piece of evidence in this lane that
+Terraform could not even parse**. It is production code rather than a
+showcase: the same organisation's `estate-config` repository calls
+`aws/bucket` from it over a `setproduct()`-built `for_each` map.
+**All five stages pass** - 10 instances cold-deployed, 7 stamped, 3
+`aws_route_table_association` correctly UNTAGGABLE and re-derived from
+tagged parents, an empty replan, a genuine no-op apply, and drift on the
+VPC's `Name` tag reconverging without touching anything else. Both negative
+controls (`BREAK=1` on stage 2's marker, `BREAK_STAGE5=1` on stage 5's
+one-object assertion) verified in real runs.
+
+**What that crossing found by getting it wrong first is worth carrying.** The
+script's first version asserted the subnet markers as their addresses
+verbatim, `module.networking.aws_subnet.public["10.0.101.0/24"]`, and found
+nothing. An AWS tag value admits only `[A-Za-z0-9 _.:/=+@-]`, so
+`internal/live/markers`' `EscapeAddress` writes
+`module.networking.aws_subnet.public:10@d0@d101@d0/24` instead. This is the
+first estate in **either** lane whose `for_each` keys fall outside that
+charset, so that layer is load-bearing here where every earlier crossing's
+keys were absent or already legal. The three expected strings are now
+written out by hand from the rule at `internal/live/markers/markers.go:196`
+rather than computed by the function under test, and each is asserted to be
+inside the charset - an escaping that emitted an illegal value would fail on
+real AWS while passing against a lenient emulator. Two things follow for
+whoever writes the next crossing script: a marker assertion on any
+`for_each`-expanded resource must expect the escaped form, and the AWS CLI's
+`Name=,Values=` filter shorthand is the wrong tool for a marker lookup - it
+splits on `,` and `=`, both legal tag-value characters - so use the JSON
+`--filters` form.
+
+The scoping was two of the repository's eleven AWS modules; the other nine
+are excluded with a stated reason each in the script's header. One is worth
+repeating because it is a known wall rather than an unknown: `aws/bucket`
+names its bucket from `random_password.bucket_suffix.result`, which is the
+secret-bearing twin of the `random_pet` identity argument item -2 records for
+`corpus-lambda-simple`. Crossing it would re-find that, not measure anything.
+
 The monorepo hongbomiao was sourced from has now
 been surveyed in full at the pinned commit - `network/main.tofu` is pure
 data sources (nothing to migrate), `kubernetes/main.tofu`'s IAM modules all
@@ -1388,16 +1443,30 @@ OpenTofu's current scale - so sourcing has to stay active: GitHub search
 for real, maintained projects that describe themselves as built for
 OpenTofu, plus the Powered-by-OpenTofu and awesome-opentofu lists.
 
-What has actually worked, twice now, is **GitHub code search on
+What has actually worked, three times now, is **GitHub code search on
 `extension:tofu` crossed with AWS resource type names** - `extension:tofu
 aws_iam_role`, `extension:tofu aws_vpc`, and so on, then ranking the
 repositories that recur by whether they are real and maintained. That is
-what found `corpus-giantswarm-crossplane`. Two things to know before
-repeating it. The code-search rate limit is **10 queries per minute**,
-separate from the 5000/hour core limit, so batch the queries and expect
-403s; and the result set is dominated by course material, homelabs and
-scaffolds - of roughly forty distinct repositories surfaced, three were
-worth reading and one was worth pinning. `awesome-opentofu` and
+what found `corpus-giantswarm-crossplane` and `corpus-evoteum-modules`.
+Two things to know before repeating it. The code-search rate limit is
+**10 queries per minute**, separate from the 5000/hour core limit, so batch
+the queries and expect 403s; and the result set is dominated by course
+material, homelabs and scaffolds - of roughly forty distinct repositories
+surfaced, three were worth reading and one was worth pinning. The evoteum
+search reproduced that shape almost exactly: 24 queries in three batches,
+**41** distinct repositories, of which one course repo and one policy-test
+fixture repo accounted for the two largest hit counts, and one organisation
+was worth pinning.
+
+Two search axes were tried on that pass and produced nothing pinnable, which
+is worth recording so the next search does not re-run them. **OCI module
+sources** (`extension:tofu "oci://"`) returned exactly one repository,
+`V3RO/homelab`, and its OCI source is a Flux/Kubernetes chart, not an AWS
+estate. And a **licence filter is doing more work than expected**: three
+otherwise-plausible AWS-targeting `.tofu` estates - `harik8/awsing`,
+`Akatama/website`, `datarockets/infrastructure` - carry no licence at all,
+and every existing pin in `live/corpus-manifest.json` records a checked
+licence. `awesome-opentofu` and
 Powered-by-OpenTofu were checked again and are still what
 `corpus-overture-tiles`'s own sourcing found them to be: tooling and adopter
 lists with no deployable estates in them.
