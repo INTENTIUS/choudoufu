@@ -35,11 +35,23 @@ func locatedSchema(extra map[string]*configschema.Attribute) providers.Schema {
 // row covers, chosen deterministically so a failure names the same type
 // twice running. Fails the test if the population is empty, since every
 // assertion below would then be vacuous.
+//
+// It also skips [IDNotProvenWholeTypes]. Every caller below asserts that
+// SOME condition other than the doc-derived one decides the verdict - the
+// credential rule, the string id, a composite the block cannot carry - and a
+// subject the doc rule already refuses would make all of them pass while
+// measuring the wrong refusal. That is the "test measuring itself" shape,
+// and skipping here is what keeps those assertions about their own
+// conditions. #309's widening made this live rather than theoretical: 52 of
+// the 158 markerless types are now in that set.
 func aMarkerlessType(t *testing.T) string {
 	t.Helper()
 	names := make([]string, 0, len(MarkerlessTypes))
 	for name := range MarkerlessTypes {
 		if _, ratified := LookupType(name); ratified {
+			continue
+		}
+		if _, unproven := IDNotProvenWholeTypes[name]; unproven {
 			continue
 		}
 		names = append(names, name)
@@ -316,6 +328,10 @@ func TestLocatedImportID(t *testing.T) {
 //	refused, credential material               10
 //	refused, no top-level string id            13 (2 of them also credential)
 //	admitted as record-located                124
+//
+// Re-measured after issue #309 widened the markerless veto and wired
+// [IDNotProvenWholeTypes] into the admission - see this run's own log line
+// for the current split, which now has five buckets rather than three.
 func TestLocatedTypePopulation(t *testing.T) {
 	if os.Getenv("CHOUDOUFU_LIVE_SCHEMAS") == "" {
 		t.Skip("set CHOUDOUFU_LIVE_SCHEMAS=1 to install hashicorp/aws and measure the located population against it")
@@ -332,26 +348,42 @@ func TestLocatedTypePopulation(t *testing.T) {
 		t.Fatalf("acquiring hashicorp/aws schemas: %s", err)
 	}
 
-	var located, credential, noID []string
+	var located, composite, credential, noID, unprovenID []string
 	for name := range MarkerlessTypes {
 		schema, ok := schemas[name]
 		if !ok || schema.Block == nil {
 			continue
 		}
+		_, unproven := IDNotProvenWholeTypes[name]
+		components, recordable := LocatedIdentityComponents(name, schema)
 		switch {
 		case credentialMaterial(schema.Block):
 			credential = append(credential, name)
+		case recordable && len(components) > 0:
+			composite = append(composite, name)
+		case unproven:
+			unprovenID = append(unprovenID, name)
 		case !hasLocatedImportID(schema.Block):
 			noID = append(noID, name)
 		default:
 			located = append(located, name)
 		}
-		if LocatedType(name, schemas) != (!credentialMaterial(schema.Block) && hasLocatedImportID(schema.Block)) {
-			t.Errorf("LocatedType(%q) disagrees with its own two schema conditions", name)
+		// The predicate re-derived from its own three conditions, in the
+		// order LocatedType applies them. This is the guard against the
+		// predicate and its stated conditions drifting apart, and it has
+		// to name every condition or it stops being one: it missed the
+		// composite branch between #329 and #309 and passed anyway,
+		// because no markerless type happened to be composite AND without
+		// a top-level string id at the same time.
+		want := !credentialMaterial(schema.Block) && recordable
+		if LocatedType(name, schemas) != want {
+			t.Errorf("LocatedType(%q) disagrees with its own three conditions (credential=%v recordable=%v)",
+				name, credentialMaterial(schema.Block), recordable)
 		}
 	}
 	sort.Strings(credential)
-	t.Logf("markerless=%d located=%d credential=%d noID=%d", len(MarkerlessTypes), len(located), len(credential), len(noID))
+	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d credential=%d unprovenID=%d noID=%d",
+		len(MarkerlessTypes), len(located), len(composite), len(credential), len(unprovenID), len(noID))
 	t.Logf("credential material: %v", credential)
 
 	// The requirement, against the real schema rather than a fixture.

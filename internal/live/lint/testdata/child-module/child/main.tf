@@ -1,3 +1,3 @@
-resource "aws_api_gateway_deployment" "web" {
+resource "aws_athena_capacity_reservation" "web" {
   name = "example-rule"
 }

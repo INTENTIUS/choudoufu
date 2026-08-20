@@ -206,7 +206,7 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel, idNotWholeTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
@@ -310,6 +310,16 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", contentMatchTableRel, err)
 	}
 
+	// GitHub issue #337's verdict, in the form internal/live/identity can
+	// consult at run time. Derived from the scraped grammar alone and NOT
+	// from the roster this same call is about to rewrite - see
+	// idnotwhole.go's own doc comment for why that independence is
+	// load-bearing rather than tidy.
+	idNotWholeSrc, err := renderIDNotWholeFile(idNotProvenWholeRoster(grammar))
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", idNotWholeTableRel, err)
+	}
+
 	// GitHub issue #289's roster. Computed over the ratified rows about to
 	// ship (types, the map buildEmitFiles is already building for
 	// renderIdentityFile) rather than over ratified itself, for the same
@@ -329,6 +339,7 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		markerlessTableRel:           markerlessSrc,
 		discoverableFallbackTableRel: discoverableFallbackSrc,
 		contentMatchTableRel:         contentMatchSrc,
+		idNotWholeTableRel:           idNotWholeSrc,
 	}, identityPart, lintPart, nil
 }
 
