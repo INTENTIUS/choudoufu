@@ -958,6 +958,30 @@ demo-corpus-giantswarm-crossplane:
 demo-corpus-evoteum-modules:
     bash live/e2e/corpus-evoteum-modules/run.sh
 
+# rust-lang/simpleinfra's terraform/dns estate - the Rust project's real
+# production DNS configuration for seven domains it owns, crates.io included.
+# 35 instances, and the split is the point: 7 aws_route53_zone are TAGGABLE
+# and carry markers, 28 aws_route53_record carry no tags at all and must
+# re-derive their identity from their tagged parent zone - the highest
+# derived-from-tagged fraction (80%) of any estate in the manifest.
+#
+# It is not a duplicate of demo-repeated-module, which targets the same
+# .corpus directory for issue #280: that script applies the estate with the
+# live block already declared, so it never cold-deploys, never runs
+# live-import, and has no drift stage. This runs all five. Stage 5 is the one
+# worth reading - it drifts an UNTAGGABLE record set out of band, which no
+# other crossing's drift stage does, so the derived-from-tagged identity has
+# to be right before the drift is even visible.
+#
+# All five stages PASS for real as of 2026-08-19, with three deltas from the
+# published form (backend removed #268, provider pin #269, emulator flags) -
+# the same three .corpus/simpleinfra/terraform/team-members-access needed,
+# minus its fourth: this estate declares no data block anywhere, asserted
+# rather than assumed. Needs Docker, the AWS CLI, and the real `terraform`
+# binary (it is a Terraform-authored estate); runs on its own port (4741).
+demo-corpus-simpleinfra-dns:
+    bash live/e2e/corpus-simpleinfra-dns/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
