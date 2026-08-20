@@ -48,68 +48,93 @@ set -uo pipefail
 #     name tail on an UNTAGGABLE type - a real, load-bearing choudoufu gap,
 #     found and reported below rather than silently routed around.
 #
-# TWO REAL GAPS FOUND CROSSING THIS ESTATE, NEITHER ROUTED AROUND:
+# THE GAPS THIS CROSSING HAS FOUND, IN THE ORDER IT REACHED THEM. The first
+# two are fixed; the third is where it stands today, and it was only
+# reachable once the first was.
 #
-#   1. floci bug (filed lex00/floci#72): AWS Batch's real TagResource path
-#      is `POST /v1/tags/{resourceArn}` - identical in shape to AppSync's.
-#      floci's BatchController never registers that path, so all three
-#      Batch resources' tag-write requests fall through to
-#      AppSyncController's greedy `@Path("/v1/tags/{resourceArn: .+})`
-#      catch-all, which throws "GraphQL API not found: <arn>". Confirmed by
-#      reading floci's own source
-#      (services/appsync/AppSyncController.java:460 vs.
-#      services/batch/BatchController.java, which has no /v1/tags endpoint
-#      at all) before filing. This blocks live-import from stamping any of
-#      the three Batch resources - a floci gap, not a choudoufu one, and
-#      not this script's to route around (HANDOFF.md, "Traps").
-#   2. choudoufu gap (filed INTENTIUS/choudoufu#322): before
-#      the name_overrides scoping above was added, both un-renamed
-#      aws_iam_role_policy instances (untaggable, server-assigned name via
-#      name_prefix) turned a single "unbound instance" warning into a hard
-#      `Error: Listed resource with no tags` that aborted live-plan for the
-#      WHOLE estate, not just those two addresses - internal/live/discovery,
-#      ProblemNoTags path. Worked around here with a legitimate input value
-#      (name_overrides), same category as the AMI workaround above; the
-#      underlying crash for an unscoped estate is real and reported, not
-#      fixed.
+#   1. FIXED - floci bug (lex00/floci#72). AWS Batch's real TagResource path
+#      is `POST /v1/tags/{resourceArn}`, identical in shape to AppSync's.
+#      floci's BatchController never registered it, so all three Batch
+#      resources' tag writes fell through to AppSyncController's greedy
+#      `@Path("/v1/tags/{resourceArn: .+}")` catch-all and came back 404
+#      "GraphQL API not found". Stage 2 stamped 13 of 26 with 3 FAILED.
+#      Fixed at floci 1d469fff: a shared /v1/tags dispatcher over the
+#      TagHandler registry floci already had for /tags, keyed on the ARN's
+#      own service segment and on the path prefix, plus a BatchTagHandler.
+#      Stage 2 now stamps 16 with 0 failed, asserted below.
 #
-# CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean and
-# unaffected by either gap. Stage 2 (migrate) genuinely cannot stamp the
-# three Batch resources because of gap 1 above - not a choudoufu refusal,
-# a live 404 from floci's own tag-write path. That leaves stage 3's "plan
-# is EMPTY" assertion genuinely unreachable for this estate against this
-# floci image: the three unstamped Batch resources correctly show as
-# unbound (choudoufu proposes creating a second one rather than guessing),
-# and floci's own AWS Batch job-queue name uniqueness check independently
-# refuses that second create - confirmed by actually running it, not
-# assumed; see the STAGE 3 section below. Stages 4 and 5 need a genuinely
-# empty first plan to mean anything and are not attempted.
+#   2. FIXED - choudoufu gap (INTENTIUS/choudoufu#322, item 1), at
+#      576990a599/b75e46c24e. `aws_iam_role_policy` - untaggable, with a
+#      server-assigned `name` when `name_prefix` is used - escalated a
+#      single-address unbound warning into a hard "Error: Listed resource
+#      with no tags" that aborted the WHOLE live-plan. ProblemNoTags is now
+#      gated on the same markerCapable signal other paths use, so the blast
+#      radius is the one resource. The `name_overrides` scoping below stays
+#      anyway: it is what keeps those two identities static and client-named,
+#      which is a different question from the abort.
+#
+#   3. OPEN, and newly reached - the provider will not validate a
+#      marker-derived identity ARN under this estate's own provider block.
+#      Now that the three Batch resources carry markers, projection tries to
+#      import one by its ARN identity, and hashicorp/aws refuses:
+#
+#        Error: Invalid Identity Attribute Value
+#        Identity attribute "arn" contains an Account ID "000000000000"
+#        which does not match the provider's ""
+#        Value: "arn:aws:batch:us-west-2:000000000000:job-queue/..."
+#
+#        Error: Cannot import for projection
+#
+#      The provider compares an identity ARN's account segment against the
+#      account it knows about itself, and `skip_requesting_account_id = true`
+#      - which every crossing script here sets, and which is the ordinary
+#      way to point the AWS provider at a local emulator - leaves it knowing
+#      none. live-plan exits 1 and produces no plan at all, so stages 4 and 5
+#      have nothing to start from. The ARN is not wrong: stage 3 re-reads the
+#      job queue's real ARN through the AWS CLI and asserts the refusal names
+#      that exact string.
+#
+# MEASURED, NOT ASSUMED: the obvious fix for gap 3 is worse. Setting
+# `skip_requesting_account_id = false` on the estate copy only (cold deploy
+# untouched) was run for real against floci 2026-08-20. It does clear the
+# Batch identity error - and it breaks stage 2 instead, because once the
+# provider knows its account it routes S3 bucket tag reads through S3
+# Control's account-prefixed virtual host:
+#
+#   Get "http://000000000000.127.0.0.1:4726/v20180820/tags/arn%3Aaws%3As3..."
+#   dial tcp: lookup 000000000000.127.0.0.1: no such host
+#
+# `aws_s3_bucket.tiles[0]` goes from VERIFIED to MISSING and the estate drops
+# to 15 of 26 eligible. An account-prefixed host cannot be made to resolve to
+# a local port without a wildcard DNS domain, which floci does not serve. So
+# the flag is left true and gap 3 is reported rather than routed around; do
+# not re-try that flag without reading this paragraph.
+#
+# CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean. Stage 2
+# (migrate) now passes outright. Stage 3 is BLOCKED on gap 3 above - not a
+# non-empty plan, no plan at all - and stages 4 and 5 need one to mean
+# anything, so they are not attempted.
 #
 # What DOES cross cleanly, and is asserted below: cold deploy (26 real
-# resources, unmodified module), 13 of those 26 stamped correctly
-# (VERIFIED/DRIFTED, tofu-address re-read directly via the AWS CLI - never
-# through choudoufu - after stamping), 10 more correctly classified
-# UNTAGGABLE or (for aws_cloudfront_origin_access_control, an
-# already-ruled, already-tracked "enumerable, unbindable" type per #249)
-# UNADMITTED_TYPE, and the FIRST post-migration plan's exact, deterministic
-# shape: 4 proposed creates (the 3 floci-blocked Batch resources plus the
-# 1 unadmitted CloudFront OAC) and 7 proposed in-place updates (every
-# `count`-indexed resource in the estate picking up its `tofu-slot`
-# disambiguation tag for the first time - internal/live/discovery/count.go,
-# expected, documented behavior, not a defect).
+# resources, unmodified module), then 16 of those 26 stamped correctly, 0
+# failed, with three markers re-read directly via the AWS CLI - never through
+# choudoufu - after stamping: the S3 bucket's tofu-address, and the Batch job
+# queue's tofu-address and tofu-estate, the resource gap 1 blocked entirely.
+# The job queue's own create-time `Project` tag is asserted to have survived
+# the stamp, because a tag write that replaces instead of merging is how a
+# live object silently loses either its own tags or its markers. The
+# remaining 10 are correctly UNTAGGABLE (9) or the already-ruled
+# "enumerable, unbindable" aws_cloudfront_origin_access_control (1, #249).
 #
 # STAGES:
 #   1. COLD DEPLOY   plain `tofu apply` (real OpenTofu core, no choudoufu),
 #                     the unmodified module - PASS.
 #   2. MIGRATE       `choudoufu live-import -approve` against that cold
-#                     state - BLOCKED (partial): 13 of 26 stamp cleanly, 3
-#                     fail on floci's own Batch-tagging bug (gap 1 above).
+#                     state - PASS: 16 stamped, 0 failed, 10 skipped.
 #   3. TEST PLAN     delete the state file, `choudoufu live-plan` - BLOCKED:
-#                     asserted non-empty for exactly the reasons above,
-#                     deterministically, rather than skipped.
-#   4/5.             NOT ATTEMPTED - both need a genuinely empty first plan
-#                     as their starting point, which stage 3 does not reach
-#                     against this floci image.
+#                     refuses at exactly 2 diagnostics (gap 3), asserted
+#                     deterministically rather than skipped.
+#   4/5.             NOT ATTEMPTED - stage 3 produces no plan at all.
 #
 # BREAK=1 corrupts the S3 bucket's expected tofu-address ahead of stage 2's
 # AWS-CLI re-read, proving that assertion is load-bearing.
@@ -410,82 +435,59 @@ log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - genuinely BLOCKED, asserted deterministically rather
-# than skipped: the first post-migration plan is not empty, for exactly
-# three documented reasons, none of them a choudoufu defect on its own.
+# than skipped. The wall moved when stage 2 started succeeding: it is no
+# longer a non-empty plan, it is live-plan REFUSING TO PLAN AT ALL, at
+# exactly two diagnostics with one cause between them.
 # ══════════════════════════════════════════════════════════════════════════
-log "=== STAGE 3: no state file, live-plan (expected non-empty - see header) ==="
+log "=== STAGE 3: no state file, live-plan (expected to refuse - see header) ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
 
 PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC (expected 0 - a non-empty plan is not the same as a plan error)"; }
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
-grep -qF "Plan: 4 to add, 7 to change, 0 to destroy." <<< "$PLAN_OUT" \
-  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 4 to add, 7 to change, 0 to destroy.' - if this moved, one of the three documented causes below may have changed shape"; }
+# Asserted, not tolerated: a nonzero exit is the recorded behaviour, and a
+# ZERO exit here would mean the wall below has been fixed and this whole
+# section needs rewriting rather than silently passing.
+[ "$PLAN_RC" -ne 0 ] \
+  || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited 0 - the identity-ARN wall this stage records may be fixed; re-scope stages 3-5 rather than leaving this assertion inverted"; }
 
-# The 4 proposed creates: the 3 floci-blocked Batch resources (gap 1) plus
-# the 1 already-ruled UNADMITTED_TYPE (aws_cloudfront_origin_access_control,
-# #249) - never a choudoufu resource this estate could have stamped.
-for addr in \
-  'aws_batch_compute_environment.tiles will be created' \
-  'aws_batch_job_definition.tiles\["base"\] will be created' \
-  'aws_batch_job_queue.tiles will be created' \
-  'aws_cloudfront_origin_access_control.tiles\[0\] will be created'
-do
-  grep -qE "$addr" <<< "$PLAN_OUT" || fail "expected '$addr' among the 4 proposed creates"
-done
-log "  4 proposed creates, all traced: 3x floci#72 (Batch TagResource), 1x already-ruled #249 (aws_cloudfront_origin_access_control)"
+# The whole diagnostic surface, counted rather than sampled. Two errors, and
+# the second is the first one's consequence.
+PLAN_ERRORS="$(grep -cE '^Error: ' <<< "$PLAN_OUT")"
+[ "$PLAN_ERRORS" = "2" ] \
+  || { grep -E '^Error: ' <<< "$PLAN_OUT"; fail "expected exactly 2 errors from live-plan, got $PLAN_ERRORS - the wall has changed shape"; }
 
-# The 7 proposed in-place updates: every count-indexed resource in the
-# estate picking up its tofu-slot disambiguation tag for the first time -
-# internal/live/discovery/count.go, expected first-plan-after-migration
-# behavior, not a defect. 6 of the 7 are taggable and show tofu-slot twice
-# each (the diff renders it separately under both `tags` and the computed
-# `tags_all`, 12 lines total) - the 7th, aws_s3_bucket_policy, is itself
-# UNTAGGABLE (no tofu-slot possible) and updates in-place for a different,
-# unrelated reason (its own policy-document content, same DRIFTED shadow-
-# attribute class stage 2 already reported for the sibling S3 bucket).
-for addr in \
-  'aws_cloudfront_distribution.tiles\[0\] will be updated in-place' \
-  'aws_internet_gateway.batch\[0\] will be updated in-place' \
-  'aws_launch_template.batch\[0\] will be updated in-place' \
-  'aws_route_table.public\[0\] will be updated in-place' \
-  'aws_s3_bucket_policy.tiles\[0\] will be updated in-place' \
-  'aws_subnet.public\[0\] will be updated in-place' \
-  'aws_vpc.batch\[0\] will be updated in-place'
-do
-  grep -qE "$addr" <<< "$PLAN_OUT" || fail "expected '$addr' among the 7 proposed updates"
-done
-TOFU_SLOT_ADDS="$(grep -c '+ "tofu-slot"' <<< "$PLAN_OUT")"
-[ "$TOFU_SLOT_ADDS" = "12" ] || fail "expected exactly 12 tofu-slot addition lines (6 taggable count-indexed resources x 2, tags + tags_all), got $TOFU_SLOT_ADDS"
-log "  7 proposed updates, all traced: 6x tofu-slot (count-index disambiguation, internal/live/discovery/count.go, first-plan-only), 1x aws_s3_bucket_policy content drift"
+grep -qF "Invalid Identity Attribute Value" <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "expected the provider's identity-ARN account check to be the first error"; }
+grep -qF 'Identity attribute "arn" contains an Account ID "000000000000" which does not' <<< "$PLAN_OUT" \
+  || fail "expected the account-mismatch text naming 000000000000 against the provider's own empty account"
+grep -qF "Cannot import for projection" <<< "$PLAN_OUT" \
+  || fail "expected the projection import to be the second, consequent error"
+grep -qF "arn:aws:batch:$REGION:000000000000:job-queue/${ESTATE_NAME}-queue" <<< "$PLAN_OUT" \
+  || fail "expected both errors to name the Batch job queue's own marker-derived ARN"
+
+# The marker itself is NOT what is wrong here, and this is the assertion that
+# says so: the value the provider rejected is the same ARN the live object
+# actually carries, read back independently through the AWS CLI at stage 2c.
+# choudoufu resolved the right identity; the provider declined to validate it
+# under this estate's own provider configuration.
+[ "$(awsl batch describe-job-queues --query "jobQueues[?jobQueueName=='${ESTATE_NAME}-queue'].jobQueueArn | [0]" --output text)" \
+    = "arn:aws:batch:$REGION:000000000000:job-queue/${ESTATE_NAME}-queue" ] \
+  || fail "the ARN in the refusal is not the live object's own ARN - that would make this an identity defect rather than a provider-validation one"
+
+log "  live-plan refused at exactly 2 diagnostics, both on the Batch job queue's own real ARN:"
+log "    1. Invalid Identity Attribute Value - the provider compares an identity ARN's account"
+log "       segment against the account it knows, and skip_requesting_account_id = true leaves"
+log "       it knowing none, so a correct \"000000000000\" is rejected against \"\""
+log "    2. Cannot import for projection - the consequence: projection will not build a plan"
+log "       while a provider is erroring, because the result would propose creating objects"
+log "       that already exist"
 
 log ""
-log "STAGE 3 (test plan): BLOCKED - non-empty for exactly the reasons documented above, all traced, none of them silent"
+log "STAGE 3 (test plan): BLOCKED - live-plan refuses, deterministically, at exactly 2 traced diagnostics"
 log ""
 
-# ══════════════════════════════════════════════════════════════════════════
-# Confirmed, not assumed: applying this non-empty plan does not silently
-# duplicate a live object. AWS Batch's own job-queue name uniqueness check
-# refuses the second create outright - choudoufu proposed a second object
-# because it genuinely could not see a marker on the first (floci's own
-# bug, gap 1), and the emulator's own constraint caught what the marker
-# could not. This is run once, informationally, and is not itself a
-# pass/fail gate: a floci image without this same safety net could differ,
-# which is exactly why stage 3 is reported BLOCKED above rather than
-# routed around.
-# ══════════════════════════════════════════════════════════════════════════
-log "=== informational: applying the non-empty plan (expected to fail safely, not silently) ==="
-APPLY_ATTEMPT_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY_ATTEMPT_RC=$?
-if [ "$APPLY_ATTEMPT_RC" -eq 0 ]; then
-  log "  NOTE: the apply succeeded (rc=0) - floci may no longer collide on the duplicate Batch job queue name; this is worth re-checking against gap 1's fix"
-else
-  grep -qF "already exists" <<< "$APPLY_ATTEMPT_OUT" \
-    && log "  confirmed: the apply failed safely on AWS Batch's own name-uniqueness check ($(grep -oE '[A-Za-z]+Exception: [^"]*already exists[^"]*' <<< "$APPLY_ATTEMPT_OUT" | head -1)) - no silent duplicate, no marker corruption" \
-    || log "  the apply failed (rc=$APPLY_ATTEMPT_RC) for a different reason than expected - see full output if investigating further"
-fi
-
 log ""
-log "=== SUMMARY: stage 1 PASS; stage 2 BLOCKED (partial, floci#72); stage 3 BLOCKED (deterministic, all traced) ==="
-log "=== stages 4-5 not attempted - both need stage 3's plan to be genuinely empty as their starting point ==="
+log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 BLOCKED (deterministic, 2 traced diagnostics) ==="
+log "=== stages 4-5 not attempted - both need a plan, and stage 3 does not produce one ==="
