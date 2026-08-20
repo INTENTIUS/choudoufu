@@ -62,21 +62,21 @@ set -uo pipefail
 #                     state. 4 of 63 are taggable; 59 are correctly
 #                     UNTAGGABLE.
 #   3. TEST PLAN      delete the state file, `choudoufu live-plan`, assert
-#                     all 63 rendered identity strings against the AWS
-#                     CLI's own answer - AND PIN THE ONE THING THAT KEEPS
-#                     THE PLAN FROM BEING EMPTY. FAILS (blocked), see below.
-#   4. TEST APPLY     NOT RUN - there is no empty plan to apply.
-#   5. DRIFT AND      NOT RUN - needs a converged estate to drift from.
-#      RECONVERGE
+#                     the plan is EMPTY and assert all 63 rendered identity
+#                     strings against the AWS CLI's own answer.
+#   4. TEST APPLY     apply the empty plan; a genuine no-op, asserted by
+#                     comparing live zone and record-set counts, the four
+#                     markers, and the residue records either side of it.
+#   5. DRIFT AND      mutate one UNTAGGABLE, RESIDUE-CARRYING record set
+#      RECONVERGE     out of band and assert the plan proposes fixing
+#                     exactly that object and exactly one attribute.
 #
-# So this crossing is 2 of 5, with stage 3 producing every identity
-# correctly and one real, general, previously-unrecorded choudoufu defect.
-# The script exits 0 when it reaches EXACTLY that blocker and non-zero on
-# anything else, including the plan coming back empty - which is what
-# happens the day the defect is fixed, and is the signal to promote this
-# script to the full five stages. Same convention as
-# corpus-crossref-orcid-agent and corpus-cncf-k8s-infra-aws-capa-ami:
-# prove the gap, never fabricate the crossing.
+# All five stages pass, as of 2026-08-20 and #341's fix.
+#
+# WHAT IT TOOK TO GET HERE: this crossing landed at 2 of 5 on 2026-08-19,
+# stage 3 blocked, and the section below is why. It is kept in full rather
+# than deleted, because the defect it names covers a third of every type
+# this fork admits and the shape of it is worth not re-learning.
 #
 # THE WALL THIS CROSSING FOUND (stage 1, and it is the estate's own, not
 # choudoufu's and not floci's):
@@ -104,8 +104,9 @@ set -uo pipefail
 #   identity-bearing: allow_overwrite is not a component of
 #   aws_route53_record's identity row.
 #
-# THE SECOND WALL THIS CROSSING FOUND (stage 3, and it IS choudoufu's -
-# already-built machinery that the onboarding edit has to switch on):
+# THE SECOND WALL THIS CROSSING FOUND - #341, FIXED 2026-08-20 (stage 3,
+# and it WAS choudoufu's - already-built machinery a migrate could not
+# reach):
 #
 #   With a `live` block and nothing else, the first cold live-plan came
 #   back with 14 records proposed for an in-place update and the whole
@@ -158,11 +159,14 @@ set -uo pipefail
 #   #327's own doc comment states the intent this misses: "the FIRST
 #   live-plan after a clean migrate sees it null - a phantom update".
 #
-#   HOW GENERAL: 342 of the 1025 types in
-#   internal/live/identity/table_generated.go are untaggable by
-#   live/survey-full.json's own taggable signal (683 taggable), and every
-#   one of them is excluded from migrate-time residue recording the same
-#   way. How many of the 342 actually carry a residue-shaped argument is a
+#   HOW GENERAL: recomputed 2026-08-20 at 7d9bd80f91 -
+#   internal/live/identity/table_generated.go holds 1040 rows, of which
+#   live/survey-full.json's own taggable signal calls 683 taggable and 342
+#   untaggable, and does not cover the remaining 15 at all. (#341's own
+#   figure said "342 of 1025"; 1025 is 683 + 342, so the untaggable count
+#   was right and the denominator dropped the 15 uncovered rows.) Every one
+#   of the 342 was excluded from migrate-time residue recording the same
+#   way. How many of them actually carry a residue-shaped argument is a
 #   behavioural question only classifyResidue's two-read probe can answer,
 #   so that is not claimed here - aws_route53_record is simply the first
 #   one measured to need it. Filed as #341.
@@ -173,6 +177,36 @@ set -uo pipefail
 #   blocks, so this crossing's own delta widened the population from ten to
 #   fourteen but did not create it. The wall would have been hit by this
 #   estate with no deltas at all beyond the live block.
+#
+#   THE FIX (#341, 2026-08-20). ratify.go now has a third carrier beside
+#   *eligible and #340's *recordable: a *residuable, built for any ADMITTED
+#   instance whose provider schema has no tags argument, and Approve calls
+#   recordResidueFor with it. It keys on taggable(schema.Block) - the
+#   provider's own schema, this run, not a list of type names - so it
+#   reaches all 342 untaggable admitted types and any future one the moment
+#   a provider grows it.
+#
+#   Three things the fix deliberately does NOT do, each of which this
+#   script asserts:
+#     * the verdict does not move. An untaggable instance is still
+#       UNTAGGABLE and still SKIPPED, so stage 2's two summary lines read
+#       exactly what they read before (18 crossing scripts assert them).
+#     * no ReadResource is added at ratify time. The object handed forward
+#       is the STATE's own, which is where a residue value lives by
+#       definition - and reaching a read would let an untaggable instance
+#       come back MISSING or DRIFTED and move those counts.
+#     * nothing is recorded for the other 45 record sets. They declare no
+#       residue-shaped argument, classifyResidue proves nothing about them,
+#       and a residue record must never speak where the provider does.
+#
+#   MEASURED HERE, 2026-08-20: 14 residue records written at migrate time,
+#   every one of them allow_overwrite = true read out of the store's own
+#   files; 14 record sets AND the 4 zones filling residue on the cold
+#   replan (four zones and nothing else was the bug's own signature); the
+#   plan EMPTY; a no-op apply that leaves all 14 records intact; and a TTL
+#   drift on one of the fourteen reconverging to exactly that one instance
+#   and exactly the ttl attribute - which is the check that a residue fill
+#   has not started masking real live drift.
 #
 # ONE FLOCI DIVERGENCE, NOTED AND NOT WORKED AROUND (it does not block):
 #   `lovable-verify` sets name = "_lovable.strategy", which is not inside
@@ -195,6 +229,15 @@ set -uo pipefail
 # Needs Docker, the AWS CLI, stock `terraform` on PATH for stage 1, and a
 # populated .corpus (`just corpus-fetch`).
 #
+# RUN TIME. This script runs TWO provider inits and they cannot share a
+# lock file: stage 1 is stock terraform (registry.terraform.io) and stages
+# 2-5 are choudoufu (registry.opentofu.org), so the shared plugin cache
+# below saves the download but not the checksum computation an init in a
+# directory with no .terraform.lock.hcl performs. Measured 2026-08-20: a
+# cold full run does not fit inside ten minutes. Neither init is optional
+# and neither can be seeded from the other; budget accordingly, or run it
+# with no wall-clock cap.
+#
 # Env overrides:
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
 #   FLOCI_PORT   host port for the emulator (default 4731, clear of every
@@ -202,9 +245,13 @@ set -uo pipefail
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
 #   BREAK        set to 1 to corrupt one expected identity string ahead of
-#                stage 3's assertion AND tamper a second live record ahead
-#                of stage 5's, proving both are load-bearing rather than
-#                greps that always match.
+#                stage 3's assertion, proving it is load-bearing rather
+#                than a grep that always matches.
+#   BREAK_STAGE5 set to 1 to drift a SECOND record set in stage 5. The
+#                stage then requires the plan to propose more than one fix,
+#                which is what makes the ordinary run's "exactly one"
+#                assertion load-bearing. Verified 2026-08-20: the plan
+#                reports "Plan: 0 to add, 2 to change, 0 to destroy".
 #   DEBUG_KEEP   set to 1 to skip the exit trap: the floci container and
 #                the WORK directory are left behind for inspection.
 #
@@ -224,10 +271,45 @@ ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
 ESTATE_NAME="datacite-mastino-global-dns"
 REGION="eu-west-1"
+
+# This script runs TWO inits (the plain cold-deploy copy under stock
+# terraform, the estate copy under choudoufu), each of which would otherwise
+# re-download the AWS provider into its own scratch directory. Point both at
+# the conventional shared plugin cache so only the first can ever pay for a
+# download; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
+# The two copies cannot share a .terraform.lock.hcl the way an
+# OpenTofu-native crossing's can - stage 1's registry is
+# registry.terraform.io and the estate's is registry.opentofu.org - so this
+# is the only half of that saving available here.
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
 BLOCKS=54
 INSTANCES=63
 TAGGABLE=4
 UNTAGGABLE=59
+
+# The record sets that carry a residue-shaped argument: the estate's own
+# wp-prod-staging[0..9] (allow_overwrite = true in DataCite's published text)
+# plus DELTA 5's four apex NS blocks. These fourteen are exactly the
+# addresses that proposed "+ allow_overwrite = true" on every cold plan while
+# #341 was open.
+RESIDUE_WANT=14
+
+# Stage 5's drift target, chosen on purpose from the fourteen rather than
+# from the other 45: it is an UNTAGGABLE record set whose identity can only
+# re-derive from its parent zone's marker, AND it is one whose prior state is
+# partly filled from the record store. If the residue fill ever masked a real
+# live change, this is where it would show, and stage 5 would come back empty
+# instead of proposing exactly one fix.
+DRIFT_ADDR='aws_route53_record.wp-prod-staging[0]'
+DRIFT_RECORD_NAME="staging3.datacite.org"
+DRIFT_RECORD_TYPE="A"
+DRIFT_RECORD_VALUE="192.0.2.13"
+WANT_TTL=300
+DRIFT_TTL=77
+# BREAK_STAGE5's second mutation, so the "exactly one instance" assertion has
+# a negative control of its own.
+BREAK_RECORD_NAME="staging4.datacite.org"
 
 cleanup() {
   [ "${DEBUG_KEEP:-}" = "1" ] && { log "DEBUG_KEEP=1: leaving $FLOCI_NAME and $WORK"; return; }
@@ -517,9 +599,37 @@ log "  $TAGGABLE of $INSTANCES verified against the live system, $UNTAGGABLE cor
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
+# The counts, by exact string. #340 widened this line with two record-backed
+# columns; this estate has no record-backed resource, so both read 0, and
+# asserting them is how a future change that starts routing an ordinary AWS
+# type through that path fails here rather than passing quietly.
+grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -20; fail "live-import -approve did not stamp exactly $TAGGABLE of $INSTANCES cleanly"; }
-log "  $TAGGABLE stamped"
+log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"
+
+# ── 2d: what #341 fixed, asserted where it is written rather than inferred ──
+# An untaggable resource is still a real cloud object with real arguments,
+# and allow_overwrite is one no Route 53 read can ever return. Before #341
+# the migrate above wrote NOTHING for any of the 59, because ratify.go
+# returned at the taggability check before building the carrier Approve's
+# residue call took. The store is on disk, one file per key, so this reads
+# the values it actually holds rather than trusting a log line.
+RESIDUE_DIR="$EST/.tofu-records/tofu-residue/$ESTATE_NAME/aws_route53_record"
+[ -d "$RESIDUE_DIR" ] \
+  || fail "no residue records were written for any aws_route53_record - #341's exact symptom, and stage 3 below cannot come back empty without them"
+RESIDUE_N="$(find "$RESIDUE_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+[ "$RESIDUE_N" = "$RESIDUE_WANT" ] \
+  || { find "$RESIDUE_DIR" -type f ! -name '*.lock' | head -20
+       fail "the migrate wrote $RESIDUE_N residue record(s) for aws_route53_record, expected $RESIDUE_WANT (the 4 apex NS blocks plus wp-prod-staging[0..9])"; }
+# And the VALUE, not the count: every one of them says allow_overwrite = true.
+# A record written with the wrong value produces an EMPTY plan that is wrong,
+# which stage 3's own verdict cannot see.
+TRUE_N="$(grep -l '"allow_overwrite"' "$RESIDUE_DIR"/* 2>/dev/null | xargs grep -lF '"attrValue":true' 2>/dev/null | grep -c . || true)"
+[ "$TRUE_N" = "$RESIDUE_WANT" ] \
+  || { cat "$RESIDUE_DIR"/* | head -5
+       fail "$TRUE_N of $RESIDUE_WANT residue records hold allow_overwrite = true"; }
+log "  $RESIDUE_WANT residue records written, every one of them allow_overwrite = true (#341)"
+log "  and none for the other 45 record sets, which declare no residue-shaped argument"
 
 log "--- 2c: the markers, read through the AWS CLI - never through choudoufu ---"
 marker_of() { awsl route53 list-tags-for-resource --resource-type hostedzone --resource-id "$1" \
@@ -641,129 +751,221 @@ if [ "${BREAK:-}" = "1" ]; then
   fail "BREAK=1: mx-datacite's real identity matched the WRONG expected value above without this script noticing - stage 3's assertion is not load-bearing"
 fi
 
-# ── the blocker, pinned exactly ─────────────────────────────────────────────
+
+# ── 3b: the plan itself, and the residue that lets it be empty ──────────────
 #
-# Every identity above is right. The plan is still not empty, and this is
-# the one reason why. See the header's SECOND WALL section: the residue
-# store never learns anything about an UNTAGGABLE resource, because
-# live-import's Approve skips recordResidueFor for exactly the entries
-# Ratify returned no *eligible for - and ratify.go returns early, before
-# the ReadResource that builds one, the moment taggable(schema.Block) is
-# false. So all 59 record sets migrate with no residue record, and
-# allow_overwrite - a Route 53 non-field the provider's Read can never
-# return - reads null on every cold plan.
-#
-# This block asserts the blocker is EXACTLY what it was when measured, and
-# nothing more. It fails if the diff grows, if it names any other
-# attribute, if it touches any other address - and it fails if the plan
-# comes back EMPTY, which is what happens the day the fix lands and is the
-# signal to promote this script to the full five stages.
+# Every identity above is right, and that was true while this crossing was
+# blocked too. What was NOT true is that the plan was empty: fourteen record
+# sets proposed "+ allow_overwrite = true", one line each, on every cold plan
+# forever, because a migrate wrote no residue record for an untaggable
+# resource at all (#341). Stage 2d asserts the fourteen records now exist and
+# hold the right value; this asserts the plan they make empty.
 log ""
-log "--- 3b: the blocker, pinned ---"
+log "--- 3b: the plan, and the residue records it reads ---"
 awk '/OpenTofu will perform the following actions/,/^Plan: /' "$WORK/plan1.log" > "$WORK/plan1.diff"
-CHANGED="$(grep -oE '^  # \S+ will be updated' "$WORK/plan1.diff" | awk '{print $2}' | sort -u)"
+CHANGED="$(grep -oE '^  # \S+ will be ' "$WORK/plan1.diff" | awk '{print $2}' | sort -u)"
 N_CHANGED="$(printf '%s\n' "$CHANGED" | grep -c . || true)"
-ATTRS="$(grep -E '^      [+~-] ' "$WORK/plan1.diff" | sed -E 's/^      [+~-] ([A-Za-z0-9_]+).*/\1/' | sort -u)"
-
-EXPECTED_CHANGED="$(printf '%s\n' \
-  aws_route53_record.com-ns \
-  aws_route53_record.eu-ns \
-  aws_route53_record.internal-ns \
-  aws_route53_record.production-ns \
-  aws_route53_record.wp-prod-staging'[0]' \
-  aws_route53_record.wp-prod-staging'[1]' \
-  aws_route53_record.wp-prod-staging'[2]' \
-  aws_route53_record.wp-prod-staging'[3]' \
-  aws_route53_record.wp-prod-staging'[4]' \
-  aws_route53_record.wp-prod-staging'[5]' \
-  aws_route53_record.wp-prod-staging'[6]' \
-  aws_route53_record.wp-prod-staging'[7]' \
-  aws_route53_record.wp-prod-staging'[8]' \
-  aws_route53_record.wp-prod-staging'[9]' | sort -u)"
-
-[ "$N_CHANGED" != "0" ] || {
-  log "  The plan came back EMPTY."
-  log ""
-  log "  That is not a failure of this estate - it means the residue gap this"
-  log "  script pins has been FIXED. Promote this crossing to the full five"
-  log "  stages: restore stage 3's empty-plan assertion and re-enable stages"
-  log "  4 and 5 below, then re-run and record the real result."
-  fail "the pinned blocker no longer reproduces - see the message above"
+[ "$N_CHANGED" = "0" ] || {
+  printf 'proposed:\n%s\n' "$CHANGED" >&2
+  grep -E '^      [+~-] ' "$WORK/plan1.diff" | sed -E 's/^      [+~-] ([A-Za-z0-9_]+).*/  attribute: \1/' | sort -u >&2
+  fail "the plan proposes $N_CHANGED change(s); with every identity above correct and the residue records written, it must be empty"
 }
-[ "$CHANGED" = "$EXPECTED_CHANGED" ] || {
-  printf 'proposed:\n%s\n\nexpected:\n%s\n' "$CHANGED" "$EXPECTED_CHANGED" >&2
-  fail "the plan proposes a different set of objects than the pinned blocker - something else is wrong now"
-}
-[ "$ATTRS" = "allow_overwrite" ] || {
-  printf 'attributes in the diff:\n%s\n' "$ATTRS" >&2
-  fail "the diff names an attribute other than allow_overwrite - this is no longer only the pinned blocker"
-}
-grep -qE '^Plan: 0 to add, 14 to change, 0 to destroy\.' "$WORK/plan1.diff" \
-  || { grep -E '^Plan: ' "$WORK/plan1.diff"; fail "the plan is not 0/14/0"; }
+grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan1.log" \
+  || { grep -E '^Plan: |^No changes' "$WORK/plan1.log"; fail "live-plan is not empty"; }
+log "  the plan is EMPTY: 63 instances, no state file, nothing proposed"
 
-# Ten of the fourteen carry allow_overwrite in DataCite's own published
-# text. If that stops being true the header's "the estate would have hit
-# this with no deltas at all" claim stops being true with it.
+# The residue was READ BACK, not merely written. The plan's own trace says so,
+# and it must say so for the record sets and not only for the four zones -
+# four fill lines was exactly the shape of the bug (#341's own evidence).
+FILL_ZONES="$(grep -c 'filled .* residue attribute(s) of aws_route53_zone\.' "$WORK/plan1.log" || true)"
+FILL_RECORDS="$(grep -oE 'filled [0-9]+ residue attribute\(s\) of aws_route53_record\.[^ ]+' "$WORK/plan1.log" \
+  | sed -E 's/.* of //' | sort -u | grep -c . || true)"
+[ "$FILL_RECORDS" = "$RESIDUE_WANT" ] || {
+  grep -oE 'filled [0-9]+ residue attribute\(s\) of [^ ]+' "$WORK/plan1.log" | sort -u >&2
+  fail "the plan filled residue for $FILL_RECORDS distinct aws_route53_record instance(s), expected $RESIDUE_WANT - four zones and nothing else is #341's own signature"
+}
+log "  and read back: $FILL_RECORDS record sets and $FILL_ZONES zones filled residue from the store"
+
+# The estate's own text still declares allow_overwrite in exactly one place.
+# If that stops being true, the "this estate would have hit #341 with no
+# deltas at all" claim in the header stops being true with it.
 OWN_N="$(grep -c 'allow_overwrite = true' "$SRC/main.tf")"
 [ "$OWN_N" = "1" ] \
   || fail "the estate's own main.tf declares allow_overwrite in $OWN_N places, expected exactly 1 (wp-prod-staging, count = 10)"
 
-log "  0 to add, 14 to change, 0 to destroy - and the whole diff is one line each:"
-log "    + allow_overwrite = true"
-log "  on exactly the 4 apex NS blocks (DELTA 5's) and wp-prod-staging[0..9]"
-log "  (the estate's own, count = 10). No other address, no other attribute."
-log "  Every one of the 63 rendered identities above is correct; the residue"
-log "  store simply has no record for any of the 59 untaggable record sets,"
-log "  because live-import never builds one for an untaggable resource."
-
 log ""
-log "STAGE 3 (test plan): FAIL - BLOCKED, pinned above"
-
+log "STAGE 3 (test plan): PASS"
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGES 4 AND 5: NOT RUN, and why
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
-#
-# Stage 4 is "apply the empty plan and assert a genuine no-op". There is no
-# empty plan to apply: the pinned blocker makes stage 3's plan 0/14/0.
-# Applying it would write allow_overwrite into fourteen live record sets and
-# still not settle - the next cold plan proposes the identical fourteen,
-# because nothing about the apply teaches the record store anything for an
-# untaggable resource. Stage 5 is drift-and-reconverge, which needs a
-# converged estate to drift FROM.
-#
-# So both are honestly not_run rather than quietly skipped. The code for
-# both is written and reviewed against this estate - a full before/after
-# listing of every zone and record set for stage 4's no-op, and a TTL
-# mutation on support.datacite.org for stage 5 - and lives in this file's
-# git history at the commit that first pinned this blocker. Restore it when
-# the residue gap closes; the message stage 3 prints on an empty plan says
-# so too.
 log ""
-log "STAGE 4 (test apply):        not run - stage 3 has no empty plan to apply"
-log "STAGE 5 (drift/reconverge):  not run - needs a converged estate to drift from"
+log "=== STAGE 4: test apply (apply the empty plan; object counts unchanged) ==="
+
+record_count() {
+  local total=0 z n
+  for z in "$PROD_ZONE" "$INT_ZONE" "$COM_ZONE" "$EU_ZONE"; do
+    n="$(awsl route53 list-resource-record-sets --hosted-zone-id "$z" \
+         --query 'length(ResourceRecordSets)' --output text)"
+    total=$((total + n))
+  done
+  printf '%s\n' "$total"
+}
+live_record_ttl() { # live_record_ttl <zone> <name> <type>
+  awsl route53 list-resource-record-sets --hosted-zone-id "$1" \
+    --query "ResourceRecordSets[?Name=='$2.' && Type=='$3'].TTL | [0]" --output text
+}
+
+BEFORE_Z="$(awsl route53 list-hosted-zones --query 'length(HostedZones)' --output text)"
+BEFORE_R="$(record_count)"
+
+APPLY2_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -40; fail "the post-migration apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete|Plan: ' <<< "$APPLY2_OUT"; fail "the post-migration apply was not a no-op"; }
+
+AFTER_Z="$(awsl route53 list-hosted-zones --query 'length(HostedZones)' --output text)"
+AFTER_R="$(record_count)"
+[ "$AFTER_Z" = "$BEFORE_Z" ] || fail "hosted zone count changed across a no-op apply: $BEFORE_Z -> $AFTER_Z"
+[ "$AFTER_R" = "$BEFORE_R" ] || fail "record set count changed across a no-op apply: $BEFORE_R -> $AFTER_R"
+[ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists after the apply"
+
+# The markers did not move either, and the two same-named datacite.org zones
+# in particular. A second stamping pass writing the wrong address onto one of
+# them would leave both counts above untouched and the estate broken.
+for pair in \
+  "$PROD_ZONE:aws_route53_zone.production" \
+  "$INT_ZONE:aws_route53_zone.internal" \
+  "$COM_ZONE:aws_route53_zone.com" \
+  "$EU_ZONE:aws_route53_zone.eu" ; do
+  Z="${pair%%:*}"; WANT_ADDR="${pair#*:}"
+  GOT_ADDR="$(marker_of "$Z" tofu-address)"
+  [ "$GOT_ADDR" = "$WANT_ADDR" ] \
+    || fail "after the no-op apply, zone $Z carries tofu-address=$GOT_ADDR, expected $WANT_ADDR"
+done
+
+# And the residue survived the apply. WriteBack re-classifies after every
+# apply, so a bug that deleted or emptied these records here would leave the
+# no-op above green and put the estate straight back to #341 on the next
+# plan - which is the shape of failure this whole crossing exists to catch.
+RESIDUE_AFTER="$(find "$RESIDUE_DIR" -type f ! -name '*.lock' | grep -c . || true)"
+[ "$RESIDUE_AFTER" = "$RESIDUE_WANT" ] \
+  || fail "the residue record count went $RESIDUE_WANT -> $RESIDUE_AFTER across a no-op apply"
+log "  genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets before and after, no state file,"
+log "  all 4 markers unmoved, all $RESIDUE_WANT residue records intact"
 
 log ""
-log "=== PASS: the pinned blocker reproduces exactly, and nothing else does ==="
+log "STAGE 4 (test apply): PASS"
+
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE - mutate one UNTAGGABLE, RESIDUE-CARRYING
+#                                 record set out of band
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The drift target is deliberately one of the fourteen rather than one of the
+# other 45, because it is the harder case in two independent ways at once:
+#
+#   * it carries NO TAG, so the only way choudoufu can see the change at all
+#     is by re-deriving ZONEID_NAME_TYPE from its parent zone's marker and
+#     reading the record back; and
+#   * its prior state is PARTLY FILLED FROM THE RECORD STORE (#341's fix). A
+#     fill that overwrote a value the provider actually answered would mask
+#     real drift, and this plan would come back empty. It is the one failure
+#     mode a residue mechanism can introduce, and this is where it shows.
 log ""
-log "DataCite's own global DNS root module - 4 hosted zones, two of them"
-log "both named datacite.org, and 59 Route 53 record sets that can carry no"
-log "tag at all - cold-deployed 63 of 63 under stock Terraform, migrated"
-log "with 4 markers, and replanned from those markers with the state file"
-log "deleted."
+log "=== STAGE 5: drift and reconverge (one untaggable, residue-carrying record) ==="
+
+upsert_ttl() { # upsert_ttl <zone> <name> <ttl>
+  awsl route53 change-resource-record-sets --hosted-zone-id "$1" \
+    --change-batch "$(printf '{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"%s","Type":"%s","TTL":%s,"ResourceRecords":[{"Value":"%s"}]}}]}' \
+        "$2" "$DRIFT_RECORD_TYPE" "$3" "$DRIFT_RECORD_VALUE")" >/dev/null
+}
+
+if [ "${BREAK_STAGE5:-}" = "1" ]; then
+  upsert_ttl "$PROD_ZONE" "$BREAK_RECORD_NAME" "$DRIFT_TTL" \
+    || fail "the BREAK_STAGE5 second mutation did not take"
+  log "  BREAK_STAGE5=1: also drifted $BREAK_RECORD_NAME's TTL - stage 5 must now"
+  log "                  see TWO drifted instances and fail the single-instance check"
+fi
+
+upsert_ttl "$PROD_ZONE" "$DRIFT_RECORD_NAME" "$DRIFT_TTL" \
+  || fail "the out-of-band record mutation did not take"
+GOT_TTL="$(live_record_ttl "$PROD_ZONE" "$DRIFT_RECORD_NAME" "$DRIFT_RECORD_TYPE")"
+[ "$GOT_TTL" = "$DRIFT_TTL" ] \
+  || fail "the out-of-band mutation did not take: $DRIFT_RECORD_NAME's TTL is $GOT_TTL, expected $DRIFT_TTL"
+log "  set $DRIFT_RECORD_NAME ($DRIFT_RECORD_TYPE) TTL to $DRIFT_TTL in zone $PROD_ZONE,"
+log "  directly through the AWS CLI - never through choudoufu"
+
+plan_into "$WORK/plan-drift.log"; DRIFT_RC=$?
+[ "$DRIFT_RC" -eq 0 ] || { grep -E '^Error|^│' "$WORK/plan-drift.log" | head -20; fail "the drift-detection plan exited $DRIFT_RC"; }
+
+CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' "$WORK/plan-drift.log" | awk '{print $2}' | sort -u)"
+N_DRIFTED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+
+# The address list counts UPDATES only, so a destroy or a create alongside
+# the one expected update would leave it reading 1 and this stage would pass
+# while the estate was rebuilt underneath it. The plan's own totals line is
+# the independent check, asserted first.
+PLAN_TOTALS="$(grep -oE '^Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' "$WORK/plan-drift.log" | tail -1)"
+[ -n "$PLAN_TOTALS" ] \
+  || { grep -E '^Plan:|^No changes' "$WORK/plan-drift.log"; fail "the drift plan printed no 'Plan: ...' line at all - this stage's totals assertion is reading nothing"; }
+
+if [ "${BREAK_STAGE5:-}" = "1" ]; then
+  [ "$N_DRIFTED" = "1" ] \
+    && fail "BREAK_STAGE5=1 set (two records drifted), but the plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK_STAGE5=1: the plan proposes fixing $N_DRIFTED instances ($PLAN_TOTALS),"
+  log "                  correctly more than one - the reconverge apply below is skipped"
+else
+  [ "$PLAN_TOTALS" = "Plan: 0 to add, 1 to change, 0 to destroy" ] \
+    || { grep -E '^  # .+ will be' "$WORK/plan-drift.log"; fail "the drift plan's own totals are \"$PLAN_TOTALS\", not \"Plan: 0 to add, 1 to change, 0 to destroy\""; }
+  [ "$CHANGED_ADDRS" = "$DRIFT_ADDR" ] \
+    || fail "the plan proposes fixing $CHANGED_ADDRS, not $DRIFT_ADDR"
+  # And the diff is the TTL, not allow_overwrite. If the residue record had
+  # gone missing the plan would name that attribute here too, and the stage
+  # would otherwise still pass its address assertion.
+  DRIFT_ATTRS="$(awk '/OpenTofu will perform the following actions/,/^Plan: /' "$WORK/plan-drift.log" \
+    | grep -E '^      [+~-] ' | sed -E 's/^      [+~-] ([A-Za-z0-9_]+).*/\1/' | sort -u)"
+  [ "$DRIFT_ATTRS" = "ttl" ] \
+    || { printf 'attributes in the drift diff:\n%s\n' "$DRIFT_ATTRS" >&2
+         fail "the drift diff names something other than ttl - allow_overwrite here would mean the residue record is gone again"; }
+  log "  the plan proposes fixing exactly one instance, $CHANGED_ADDRS, and one attribute, ttl"
+
+  RECONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -40; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_TTL="$(live_record_ttl "$PROD_ZONE" "$DRIFT_RECORD_NAME" "$DRIFT_RECORD_TYPE")"
+  [ "$FIXED_TTL" = "$WANT_TTL" ] \
+    || fail "$DRIFT_RECORD_NAME's TTL is $FIXED_TTL after reconverging, not the configuration's $WANT_TTL"
+  [ "$(record_count)" = "$AFTER_R" ] \
+    || fail "the record set count is no longer $AFTER_R after reconverging"
+  STILL="$(marker_of "$PROD_ZONE" tofu-address)"
+  [ "$STILL" = "aws_route53_zone.production" ] \
+    || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
+  log "  reconverged: TTL back to $WANT_TTL, $AFTER_R record sets still there, the parent"
+  log "  zone's marker intact - all read through the AWS CLI"
+fi
+
 log ""
-log "All 63 rendered identities are correct and distinct, asserted by value"
-log "against Route 53's own answer: the two same-named zones did not swap,"
-log "the ten count.index + 3 instances are staging3..staging12, and the two"
-log "records whose name comes from a sibling zone's own name resolved to"
-log "\"datacite.org\"."
+log "STAGE 5 (drift and reconverge): PASS"
+
 log ""
-log "The plan is still not empty. 14 record sets propose one line each,"
-log "+ allow_overwrite = true, because live-import builds no residue record"
-log "for an untaggable resource - ratify.go returns before the ReadResource"
-log "that would build one, the moment taggable(schema.Block) is false. Ten"
-log "of the fourteen carry that argument in DataCite's own published text."
+log "=== PASS: all five stages, against DataCite's own global DNS estate ==="
 log ""
-log "Run again with BREAK=1: everything through stage 2 still passes, and"
-log "stage 3's identity assertion goes red on the private datacite.org"
-log "zone's id standing in for the public one."
+log "4 hosted zones - two of them BOTH named datacite.org, one public and one"
+log "private - and 59 Route 53 record sets that can carry no tag at all."
+log ""
+log "  1. 63 of 63 cold-deployed by stock Terraform, nothing marked."
+log "  2. 4 stamped, 59 correctly UNTAGGABLE, and $RESIDUE_WANT residue records written"
+log "     for untaggable record sets - which is what #341 fixed."
+log "  3. State file deleted, replanned EMPTY from the markers alone, with all"
+log "     63 rendered identities asserted by value against Route 53's own"
+log "     answer: the two same-named zones did not swap, the ten"
+log "     count.index + 3 instances are staging3..staging12, and the two"
+log "     records whose name comes from a sibling zone's own name resolved."
+log "  4. A genuine no-op apply."
+log "  5. One untaggable, residue-carrying record set drifted out of band and"
+log "     reconverged to exactly that object and nothing else."
+log ""
+log "Run again with BREAK=1 (stage 3's identity assertion) or BREAK_STAGE5=1"
+log "(stage 5's single-instance assertion) to see each go red."
