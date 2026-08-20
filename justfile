@@ -983,6 +983,27 @@ demo-corpus-evoteum-modules:
 demo-corpus-simpleinfra-dns:
     bash live/e2e/corpus-simpleinfra-dns/run.sh
 
+# .corpus/mastino/global/dns - DataCite's own global DNS root module
+# (datacite/mastino), the second-largest of #274's twenty-eight
+# offline-clean estates and the largest that had never touched a cloud.
+# 54 blocks, 63 instances: 4 aws_route53_zone - TWO of them both named
+# datacite.org, one public and one private - and 59 aws_route53_record,
+# none of which can carry a tag at all. So 4 markers carry the identity of
+# 63 instances - 59 of 63, or 94% derived-from-tagged, against
+# corpus-simpleinfra-dns's 28 of 35 - and the two same-named zones make the
+# marker the only thing that can tell a stateless replan which zone a block
+# owns. It is also the first crossing
+# with count.index arithmetic in an identity-bearing argument
+# (name = "staging${count.index + 3}.datacite.org", count = 10, all ten
+# rendered identities asserted individually). One estate-owned wall found
+# and documented in the script's header: the four apex NS blocks cannot be
+# CREATEd from an empty account because Route 53 makes that record set
+# itself, so DELTA 5 adds the allow_overwrite the estate's own author
+# already writes on wp-prod-staging. Needs Docker, the AWS CLI and stock
+# `terraform` for stage 1; runs on its own port (4731).
+demo-corpus-mastino-dns:
+    bash live/e2e/corpus-mastino-dns/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
