@@ -176,6 +176,13 @@ type Row struct {
 	// two registered names, not merely similar ones. Empty for every row
 	// parsed from its own fetched page.
 	AliasOf string `json:"alias_of,omitempty"`
+
+	// IDAttribute is what the page's Attribute Reference says the exported
+	// `id` itself holds, when it says the id is a composite and names the
+	// character joining it. It is the only field here describing the
+	// ATTRIBUTE rather than the import string, and the distinction is the
+	// whole reason it exists - see idattribute.go. Nil on most rows.
+	IDAttribute *IDAttribute `json:"id_attribute,omitempty"`
 }
 
 // Counts are the sweep-wide totals a reviewer reads off the header without
@@ -385,6 +392,7 @@ func buildRow(tfType, doc string) (Row, bool) {
 		SoleIDLiteralValue:     soleIDLiteralValue(section, idExample),
 		ArgumentNamesAnyDepth:  anyDepthArgs,
 		IDTemplate:             idTemplate(section, tfType, argEntries, exampleRootLiterals(doc, tfType)),
+		IDAttribute:            idAttributeComposite(doc),
 	}, true
 }
 
@@ -405,6 +413,11 @@ func exampleOnlyRow(tfType, doc string) (Row, bool) {
 		ArgumentReference:     argEntries,
 		ArgumentNamesAnyDepth: argumentReferenceNamesAnyDepth(doc),
 		ExampleArguments:      exArgs,
+		// Read here too: the Attribute Reference is a section of its own
+		// and states what it states whether or not the page documents an
+		// import. Leaving it off this path would make an absent field mean
+		// two different things.
+		IDAttribute: idAttributeComposite(doc),
 	}, true
 }
 
