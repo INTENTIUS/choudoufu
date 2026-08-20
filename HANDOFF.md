@@ -692,6 +692,79 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### -2. Fixed: `#314`, a fourth `LogicalClass`, and the wall it revealed
+
+`local_file` is admitted. `ClassExternalAdmitted` ("EXTERNAL_ADMITTED") is
+the class #237 and #238 both correctly declined to force and neither left
+behind: a `record_store` admits it exactly as it admits RECORD_ADMITTED, it
+resolves `identity.ClassRecordBacked` through the same projection path, and
+what it does **not** get is `countIndexScopeForType`'s skip - because one of
+its own arguments names an object the record does not bound.
+`TestLocalFileKeepsItsCountIndexCheck` passes unchanged, which is the whole
+reason the boundary is drawn there rather than at RECORD_ADMITTED.
+
+**Two claims in the issue were false, and both are why the class is not
+spelled "argument-derived identity" the way #314 proposed.** First,
+hashicorp/local 2.9.0 implements no `ImportState` for `local_file` at all -
+`tofu import local_file.f <path>` answers "Resource Import Not Implemented" -
+so a resolution carrying the filename as `ImportID` would hand projection a
+string the provider refuses, trading a lint refusal for a "Cannot import for
+projection" hard error. Second, this estate's own `filename` is
+`data.external.archive_prepare[0].result.build_plan_filename`, so there was
+never a static value to fold. The record is the only carrier there is; the
+argument's job is to say why the count.index walk stays.
+
+Derived, not hand-wired: `live/logical-schemas.json`'s per-provider
+`store_only` used to gate whether a type derived a row **at all**, and now
+selects between the two admitted classes instead. That also retired the
+hand-written `local_sensitive_file` exception `ClassifyLogicalType` carried.
+**The new class reaches exactly one type today** - stated plainly rather than
+dressed up; hashicorp/local serves two and the other is secret-bearing. What
+generalizes is the rule.
+
+The `RecordBacked` leg of `countIndexScopeForType` is **gone**, not bypassed.
+It was a second door onto the same skip, safe only while the RecordBacked set
+and the RECORD_ADMITTED set were equal, and this change ends that equality on
+purpose. Both mutations were checked in place.
+
+`TestIdentityGolden` 1565 -> 1567: 0 changed, 2 added, 0 removed. Both added
+rows are the two `local_file` fixtures that already existed, both
+RECORD_BACKED with an **empty** value - the honest answer for a type nothing
+can import.
+
+**What the crossing then reached is a genuinely different wall, newly reached
+rather than caused, and it is worth a slot.** `corpus-lambda-simple` run for
+real against floci: `STAGE 1 PASS`, `STAGE 2 PASS`, `STAGE 3 BLOCKED at 5
+diagnostics`. `local_file` appears nowhere in `live-plan`'s output any more,
+and the script now asserts that **by absence** alongside #303's two types.
+All five that remain trace to one expression in the estate's own `main.tf`:
+
+    function_name = "${random_pet.this.id}-lambda-simple"
+
+`random_pet.this` is RECORD_ADMITTED, so its `id` lives in the record store
+and nowhere else, and three of the module's real AWS resources take their
+identity from it (`aws_iam_role.lambda.name` via a `local`,
+`aws_iam_role_policy.logs.name`, `aws_lambda_function.this.function_name`,
+`aws_cloudwatch_log_group.lambda.name` through a `coalesce`), plus one
+cascade. The diagnostics are `Non-static identity argument` and
+`Unresolvable identity`.
+
+Read it before assigning it: **choudoufu holds that value already** - the
+record store has `random_pet.this` and `internal/live/projection` already
+reads records to hydrate record-backed instances - and **all three affected
+resources are already marked**, stamped and CLI-verified by stage 2 of the
+same run. So it is an identity resolver declining to read a carrier the run
+already has, over resources whose markers already say which object they are.
+Whether the fix is the record or the marker is a real design question. Full
+chain in `live/e2e/corpus-lambda-simple/run.sh`'s own header.
+
+One methodology fix landed with it: that script said "no version pin needed"
+and silently followed whatever `hashicorp/aws` had published most recently
+(`>= 6.28`, resolving 6.61.0 today). It now pins `= 6.59.0` as
+corpus-cloudfront does - the release this fork's tables are actually derived
+at. The crossing was neither reproducible nor measuring the right provider
+before.
+
 ### -1. Resolved: `../wt/security-group-formula-carrying` was a real fix, now merged
 
 An orchestrator session ran out of budget 2026-08-19 mid-dispatch on the
@@ -789,9 +862,9 @@ the analyzed count against a real run or materialize a real directory
 Checked 2026-08-18: #313's `data.aws_availability_zones`/static-context wall
 does **not** explain any of the other five `test_plan`-stuck estates. Each
 hits its own, distinct, already-tracked cause -
-`corpus-lambda-simple` #314 (a new issue: `local_file` needs a fourth
-`LogicalClass`, argument-derived identity - real multi-package design work,
-not filed as a quick fix), `corpus-rds-complete-postgres` #304
+`corpus-lambda-simple` #314 (`local_file` needs a fourth `LogicalClass` -
+**fixed 2026-08-19, see item -2 above**, and the estate now blocks on a
+different wall entirely), `corpus-rds-complete-postgres` #304
 (`count.index` through a nested `lookup()` default), `corpus-ecs-fargate`
 #308, `corpus-sumaform-aws` two permanent RULE-classified refusals (#199,
 #103, no action needed), `corpus-alb-complete` #309. Evidence and commit
@@ -1134,9 +1207,12 @@ alone doesn't move either past the module-output wall above it.
 stage and why the rest do not; do not trust a stale count copied here
 instead.
 
-Not every remaining blocker in that set is a bug. A `local_file` resource
-correctly refused (no cloud counterpart to reconcile against; already ruled
-on) and a residue gap on two S3 attributes whose provider `Read()` needs
+Not every remaining blocker in that set is a bug - though the example this
+paragraph used to lead with was wrong and is retracted. A `local_file`
+resource was described here as "correctly refused (no cloud counterpart to
+reconcile against; already ruled on)"; the local filesystem is the
+counterpart, and #314 admitted the type (item -2 above). A residue gap on
+two S3 attributes whose provider `Read()` needs
 genuinely-remembered prior state a stateless discovery run cannot supply are
 both legitimate reasons to scope an estate around one resource rather than
 force it through - the same way the OpenTofu-native crossing scoped itself to
