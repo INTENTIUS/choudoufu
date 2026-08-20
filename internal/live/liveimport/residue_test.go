@@ -102,18 +102,18 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 			{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified},
 		},
 		eligible: map[string]*eligible{
-			addr.String(): {
+			addr.String(): {residuable{
 				provider: p,
 				schema:   residueSchema(),
 				typeName: "aws_nat_gateway",
-				liveVal: cty.ObjectVal(map[string]cty.Value{
+				applied: cty.ObjectVal(map[string]cty.Value{
 					"id":            cty.StringVal("ngw-x"),
 					"tags":          cty.MapValEmpty(cty.String),
 					"subnet_id":     cty.StringVal("subnet-real"),
 					"computed_only": cty.StringVal("fresh-from-remote"),
 				}),
 				identity: cty.NilVal,
-			},
+			}},
 		},
 		residueStore: store,
 	}
@@ -163,18 +163,18 @@ func TestApprove_SecondRunIsIdempotent(t *testing.T) {
 			Estate:  "residue-test-estate",
 			Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
 			eligible: map[string]*eligible{
-				addr.String(): {
+				addr.String(): {residuable{
 					provider: p,
 					schema:   residueSchema(),
 					typeName: "aws_nat_gateway",
-					liveVal: cty.ObjectVal(map[string]cty.Value{
+					applied: cty.ObjectVal(map[string]cty.Value{
 						"id":            cty.StringVal("ngw-x"),
 						"tags":          cty.MapValEmpty(cty.String),
 						"subnet_id":     cty.StringVal("subnet-real"),
 						"computed_only": cty.StringVal("fresh-from-remote"),
 					}),
 					identity: cty.NilVal,
-				},
+				}},
 			},
 			residueStore: store,
 		}
@@ -212,18 +212,18 @@ func TestApprove_NilResidueStoreIsANoOp(t *testing.T) {
 		Estate:  "residue-test-estate",
 		Entries: []Entry{{Addr: addr, TypeName: "aws_nat_gateway", Status: StatusVerified}},
 		eligible: map[string]*eligible{
-			addr.String(): {
+			addr.String(): {residuable{
 				provider: p,
 				schema:   residueSchema(),
 				typeName: "aws_nat_gateway",
-				liveVal: cty.ObjectVal(map[string]cty.Value{
+				applied: cty.ObjectVal(map[string]cty.Value{
 					"id":            cty.StringVal("ngw-x"),
 					"tags":          cty.MapValEmpty(cty.String),
 					"subnet_id":     cty.StringVal("subnet-real"),
 					"computed_only": cty.StringVal("fresh-from-remote"),
 				}),
 				identity: cty.NilVal,
-			},
+			}},
 		},
 		// residueStore left nil, matching a configuration with no
 		// record_store block.

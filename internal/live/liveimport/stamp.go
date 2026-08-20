@@ -122,6 +122,16 @@ type StampReport struct {
 // and while it did not happen a migrated estate lost every generated value
 // it had: the run reported success, and the next live-plan proposed creating
 // random_pet, null_resource, terraform_data and local_file from nothing.
+//
+// GitHub issue #341: and the residue write above is NOT limited to the
+// entries that reach a tag write. An admitted resource whose provider schema
+// has no tags argument is still a real cloud object with real arguments, and
+// while its residue was unreachable, a clean migrate of one left an estate
+// proposing the same phantom update forever - measured on
+// aws_route53_record.allow_overwrite, over an untaggable population of 342 of
+// [identity.DefaultTable]'s 1040 rows. Such an entry keeps
+// [OutcomeSkipped], because what was skipped is the marker write and that is
+// what this axis reports; no count this command prints moves as a result.
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -142,10 +152,18 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 				Outcome:  OutcomeSkipped,
 				Detail:   "Not stamped: " + entry.Detail,
 			})
+			// GitHub issue #341. Not stamped is not the same as nothing to
+			// do. An admitted, untaggable resource is a real cloud object
+			// with real arguments, and a migration is the only moment
+			// anything can classify the ones its provider never reads back.
+			// The outcome stays SKIPPED on purpose - the marker write is what
+			// was skipped, and that is what this axis reports - so no count
+			// this run prints moves.
+			diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, r.residuable[entry.Addr.String()]))
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig))
-		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, elig))
+		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, &elig.residuable))
 	}
 	return rep, diags
 }
@@ -188,8 +206,8 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 	return out
 }
 
-// recordResidueFor is Approve's GitHub issue #327 half: it wraps elig's
-// already-configured provider connection into the read
+// recordResidueFor is Approve's GitHub issue #327 half: it wraps the
+// carrier's already-configured provider connection into the read
 // [projection.RecordResidueForInstance] needs, called twice per its own doc
 // comment, and turns a non-nil error into the same warning
 // [writeBackResidue] already raises for the apply-time write path - reusing
@@ -197,11 +215,17 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 // situation ("an apply could not classify or store residue") reached from a
 // second call site.
 //
+// It takes a [residuable] and not an [eligible], which is GitHub issue #341's
+// whole fix in one signature: recording what an estate sent has nothing to do
+// with whether the thing it sent it to has a tags argument. Both call sites
+// in [Ratification.Approve] reach here now - the stamped one through the
+// [residuable] its *eligible embeds, and the untaggable one through its own.
+//
 // A nil residueStore (no record_store block, or a nil Ratification built
-// without one) makes this an immediate no-op, and so does elig itself being
-// nil - callers that already skip a resource for OutcomeSkipped never reach
-// here in the first place.
-func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr addrs.AbsResourceInstance, e *eligible) tfdiags.Diagnostics {
+// without one) makes this an immediate no-op, and so does e itself being nil
+// - an instance with no carrier at all, such as one whose type is unadmitted
+// or whose state holds no current object, has nothing to classify from.
+func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if store == nil || e == nil {
 		return diags
@@ -224,7 +248,7 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr 
 		}
 		return resp.NewState, nil
 	}
-	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.liveVal, read); err != nil {
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, read); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
 			addr, err,
@@ -247,7 +271,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 	chunks := discovery.SplitAddress(wantAddress)
 
-	tags, ok := tagsFromObject(e.schema, e.liveVal)
+	tags, ok := tagsFromObject(e.schema, e.applied)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema. Nothing was written.", e.typeName)
@@ -293,7 +317,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		desiredTags[discovery.AddressTagKey(i)] = chunk
 	}
 
-	desired, err := withTags(e.schema.Block, e.liveVal, desiredTags)
+	desired, err := withTags(e.schema.Block, e.applied, desiredTags)
 	if err != nil {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The tags of this %s could not be replaced: %s.", e.typeName, err)
@@ -301,11 +325,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 
 	configVal := configValue(e.schema.Block, desired)
-	proposed := objchange.ProposedNew(e.schema.Block, e.liveVal, configVal)
+	proposed := objchange.ProposedNew(e.schema.Block, e.applied, configVal)
 
 	planResp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 		TypeName:         e.typeName,
-		PriorState:       e.liveVal,
+		PriorState:       e.applied,
 		ProposedNewState: proposed,
 		Config:           configVal,
 		PriorPrivate:     e.private,
@@ -333,7 +357,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Detail = "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
 		return out
 	}
-	if extra := changedOutsideTags(e.schema.Block, e.liveVal, planned); len(extra) > 0 {
+	if extra := changedOutsideTags(e.schema.Block, e.applied, planned); len(extra) > 0 {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", e.typeName, strings.Join(extra, ", "))
 		return out
@@ -341,7 +365,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 
 	applyResp := e.provider.ApplyResourceChange(ctx, providers.ApplyResourceChangeRequest{
 		TypeName:        e.typeName,
-		PriorState:      e.liveVal,
+		PriorState:      e.applied,
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,

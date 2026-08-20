@@ -74,6 +74,13 @@ const (
 	// deliberately no sixth Status for it, because the ratification verdict
 	// is the same one ("nowhere to write a marker"); what differs is the
 	// carrier, which is Approve's business, not Ratify's.
+	//
+	// The same is true a third time for GitHub issue #341: an ordinary,
+	// admitted, untaggable cloud resource keeps this exact verdict and still
+	// has its argument residue recorded, through [residuable]. This status
+	// answers "is there anywhere to write a marker" and nothing else. Reading
+	// it as "there is nothing this run owes this resource" is the mistake
+	// #341 was.
 	StatusUntaggable Status = "UNTAGGABLE"
 )
 
@@ -96,17 +103,57 @@ type Entry struct {
 	Drifted []string
 }
 
+// residuable is what Approve needs to classify and record ONE instance's
+// argument residue - GitHub issue #275's class, through
+// [projection.RecordResidueForInstance]: a live provider connection, the
+// type's schema, and the object whose argument values are under test.
+//
+// It is its own carrier rather than a field of [eligible], and GitHub issue
+// #341 is what happened while it was not. "Write a marker" and "record what
+// we sent" are different jobs with different preconditions - the first needs
+// a tags argument in the provider's schema, the second needs nothing but a
+// provider and an object - and while one carrier gated both, an untaggable
+// resource migrated with no residue record at all. That is not an edge: of
+// [identity.DefaultTable]'s 1040 rows, live/survey-full.json's own taggable
+// signal calls 683 taggable and 342 untaggable (15 rows it does not cover at
+// all), and the whole association/attachment/membership family is in the 342.
+//
+// Nothing here reads that artifact, and nothing may. The gate is
+// [taggable] over the schema the provider itself served this run, which is
+// what decides the 15 too.
+//
+// applied is already unmarked, because a marked leaf cannot cross the plugin
+// channel and cannot be encoded into a record.
+type residuable struct {
+	provider providers.Interface
+	schema   providers.Schema
+	typeName string
+
+	// applied is the object this instance's arguments are classified from.
+	//
+	// For a stampable instance it is the live object [Ratify] just read - the
+	// same value the tag write is planned against. For an untaggable one it
+	// is the state's own recorded object, decoded against the provider's
+	// current schema, which is the same source [projection.WriteBack] takes
+	// an applied object from after an apply. That is deliberate rather than a
+	// shortcut: a residue attribute is by definition one no read ever returns,
+	// so the value the last apply sent is the only value there is, and the
+	// state file is where it is written down.
+	applied cty.Value
+
+	identity cty.Value
+	private  []byte
+}
+
 // eligible is what Approve needs for one resource beyond what its Entry
 // already reports: the live connection and the freshly read object, carried
 // forward from Ratify so Approve never reads the tfstate or the live
 // system's identity a second time - only the write itself is a new call.
+//
+// It embeds [residuable] because every stampable instance is also a residue
+// subject; the reverse is not true, which is the whole of issue #341.
 type eligible struct {
-	provider providers.Interface
-	schema   providers.Schema
-	typeName string
-	liveVal  cty.Value
-	identity cty.Value
-	private  []byte
+	residuable
 }
 
 // recordable is [eligible]'s sibling for a record-backed instance: what
@@ -184,8 +231,15 @@ type Ratification struct {
 	Estate  string
 	Entries []Entry
 
-	eligible     map[string]*eligible
-	recordable   map[string]*recordable
+	eligible   map[string]*eligible
+	recordable map[string]*recordable
+
+	// residuable holds the instances that are NOT stampable but still have
+	// arguments worth recording - GitHub issue #341. A stampable instance is
+	// deliberately not in here: its carrier is its *eligible, which embeds
+	// the same thing.
+	residuable map[string]*residuable
+
 	residueStore *projection.ResidueStore
 
 	recordStore     staterecord.Store
@@ -225,6 +279,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		Estate:          req.Estate,
 		eligible:        make(map[string]*eligible),
 		recordable:      make(map[string]*recordable),
+		residuable:      make(map[string]*residuable),
 		residueStore:    req.ResidueStore,
 		recordStore:     req.RecordStore,
 		recordKeyPrefix: req.RecordKeyPrefix,
@@ -237,13 +292,16 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 			for _, key := range sortedInstanceKeys(res) {
 				addr := res.Addr.Instance(key)
-				entry, elig, rec := ratifyOne(ctx, req, res, addr, res.Instances[key])
+				entry, car := ratifyOne(ctx, req, res, addr, res.Instances[key])
 				rat.Entries = append(rat.Entries, entry)
-				if elig != nil {
-					rat.eligible[addr.String()] = elig
+				if car.eligible != nil {
+					rat.eligible[addr.String()] = car.eligible
 				}
-				if rec != nil {
-					rat.recordable[addr.String()] = rec
+				if car.recordable != nil {
+					rat.recordable[addr.String()] = car.recordable
+				}
+				if car.residuable != nil {
+					rat.residuable[addr.String()] = car.residuable
 				}
 			}
 		}
@@ -252,15 +310,24 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	return rat, diags
 }
 
+// carriers is what one instance hands Approve beyond its Entry. At most one
+// field is ever set, and which one is the whole of what a migration means for
+// that instance: stamp a marker onto it ([eligible]), seed a record for it
+// ([recordable]), or record only what its arguments sent ([residuable]).
+//
+// A struct rather than a widening list of return values, so that a new
+// carrier cannot be added by silently appending a nil to twelve return
+// statements.
+type carriers struct {
+	eligible   *eligible
+	recordable *recordable
+	residuable *residuable
+}
+
 // ratifyOne is the whole verdict for one resource instance: admission, the
 // schema, the state's own recorded object, and - past every gate that would
 // make a live call meaningless - one ReadResource call.
-//
-// It returns at most one carrier alongside the verdict, never two: an
-// *eligible for an instance Approve should stamp, or a *recordable for one
-// Approve should seed a record for. See [recordable] for why the two are
-// disjoint.
-func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance) (Entry, *eligible, *recordable) {
+func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance) (Entry, carriers) {
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
@@ -269,13 +336,13 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		entry.Detail = fmt.Sprintf(
 			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
 			typeName)
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 
 	if inst == nil || inst.Current == nil {
 		entry.Status = StatusMissing
 		entry.Detail = "The state has no current object for this instance - only a deposed one, or none at all - so there is nothing recorded to verify against the live system."
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 
 	providerAddr := impliedProviderAddr(res)
@@ -283,14 +350,14 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	if err != nil {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("Provider %s could not be used, so this instance could not be verified: %s.", providerAddr, err)
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 
 	schema, schemaErr := resourceSchema(ctx, provider, typeName)
 	if schemaErr != nil {
 		entry.Status = StatusMissing
 		entry.Detail = schemaErr.Error()
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 
 	// Issue #340, and deliberately ahead of the taggability check: a
@@ -304,16 +371,14 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	}
 
 	if !taggable(schema.Block) {
-		entry.Status = StatusUntaggable
-		entry.Detail = fmt.Sprintf("%s has no tags argument in the provider's schema, so there is nowhere on it to carry an ownership marker.", typeName)
-		return entry, nil, nil
+		return ratifyUntaggable(entry, provider, schema, typeName, inst)
 	}
 
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
 	if decErr != nil {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("The recorded state does not fit the provider's current schema for %s: %s.", typeName, decErr)
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
@@ -328,12 +393,12 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	if readResp.Diagnostics.HasErrors() {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("The provider failed while reading this resource from the live system: %s.", readResp.Diagnostics.Err())
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 	if readResp.NewState == cty.NilVal || readResp.NewState.IsNull() {
 		entry.Status = StatusMissing
 		entry.Detail = "The live system reports that this identity no longer exists."
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 
 	if drifted := driftedAttrs(schema.Block, priorVal, readResp.NewState); len(drifted) > 0 {
@@ -345,14 +410,82 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		entry.Detail = "The live object matches the state's recorded attributes."
 	}
 
-	return entry, &eligible{
+	return entry, carriers{eligible: &eligible{residuable{
 		provider: provider,
 		schema:   schema,
 		typeName: typeName,
-		liveVal:  readResp.NewState,
+		applied:  readResp.NewState,
 		identity: readResp.NewIdentity,
 		private:  readResp.Private,
-	}, nil
+	}}}
+}
+
+// ratifyUntaggable is ratifyOne's verdict for an ADMITTED instance whose
+// provider schema offers nowhere to write a marker - GitHub issue #341.
+//
+// The verdict itself is exactly what it always was, and deliberately so:
+// StatusUntaggable, never stamped, never counted as eligible. Untaggability
+// is not an identity problem (live/MARKERS.md, and HANDOFF's invariant): the
+// association, attachment and membership family is admitted precisely
+// because its identity re-derives from tagged parents or from its own
+// declaration. What changes is that the run no longer throws away the one
+// other thing a migration owes such an instance.
+//
+// # What was thrown away
+//
+// A residue attribute is an argument the provider's own Read never returns -
+// aws_route53_record.allow_overwrite is the founding case, and
+// projection/residue.go's doc comment already named it. Stock OpenTofu never
+// notices, because the state file remembers what was sent; issue #73 deletes
+// the state file, so the FIRST live-plan after a clean migrate sees it null
+// and proposes an update that applying does not settle. Issue #327 closed
+// that for stamped resources and could not reach an untaggable one, because
+// the only carrier out of Ratify was the one taggability gates.
+//
+// # No ReadResource here, and that is not an optimisation either
+//
+// The object handed forward is the state's own, decoded against the
+// provider's current schema - the same source [projection.WriteBack] takes an
+// applied object from. Three reasons, in order of weight:
+//
+//  1. It is the RIGHT object. A residue attribute is by definition one no
+//     read returns, so a fresh read cannot tell us anything about it that the
+//     state does not already say, and the last apply's value is the value.
+//  2. Reaching a read here would let an untaggable instance come back
+//     MISSING or DRIFTED, moving live-import's reported counts for resources
+//     this run was never going to write to.
+//  3. A per-instance read for every untaggable instance is new live traffic
+//     at migrate time. The classifier's own two reads still happen, at
+//     Approve, and only for an instance that has a candidate argument at all.
+//
+// A store-less run (no live block, or a live block with no record_store)
+// builds no carrier, so it behaves exactly as it did before this existed.
+func ratifyUntaggable(entry Entry, provider providers.Interface, schema providers.Schema, typeName string, inst *states.ResourceInstance) (Entry, carriers) {
+	entry.Status = StatusUntaggable
+	entry.Detail = fmt.Sprintf("%s has no tags argument in the provider's schema, so there is nowhere on it to carry an ownership marker.", typeName)
+
+	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
+	if decErr != nil {
+		// Deliberately NOT StatusMissing: this instance was untaggable before
+		// this run tried to decode anything, that verdict is already correct
+		// and already reported, and a decode failure here only means no
+		// residue can be classified. Downgrading the verdict would move
+		// live-import's own UNTAGGABLE count for a reason that has nothing to
+		// do with markers.
+		entry.Detail += fmt.Sprintf(" Its recorded state does not fit the provider's current schema, so no argument values could be recorded for it either: %s.", decErr)
+		return entry, carriers{}
+	}
+	applied, _ := prior.Value.UnmarkDeep()
+	entry.LiveID = liveIDFrom(typeName, applied)
+
+	return entry, carriers{residuable: &residuable{
+		provider: provider,
+		schema:   schema,
+		typeName: typeName,
+		applied:  applied,
+		identity: prior.Identity,
+		private:  prior.Private,
+	}}
 }
 
 // recordBackedType is the one property this whole mechanism keys on, read
@@ -381,12 +514,12 @@ func recordBackedType(typeName string) bool {
 // way the live system is the source of truth for a stamped resource, which
 // is the same split [projection.WriteBack] makes when it takes the final
 // state's object rather than re-reading the provider.
-func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, inst *states.ResourceInstance) (Entry, *eligible, *recordable) {
+func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, inst *states.ResourceInstance) (Entry, carriers) {
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
 	if decErr != nil {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("The recorded state does not fit the provider's current schema for %s: %s.", typeName, decErr)
-		return entry, nil, nil
+		return entry, carriers{}
 	}
 	// UnmarkDeep for the same reason the stamping path unmarks its own
 	// prior, and it is load-bearing rather than defensive.
@@ -411,12 +544,12 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 	entry.Status = StatusUntaggable
 	entry.LiveID = liveIDFrom(typeName, val)
 	entry.Detail = fmt.Sprintf("%s has no live object to tag: its value IS its identity, so an approved migration seeds this estate's record store from the state's own object for it rather than writing a marker.", typeName)
-	return entry, nil, &recordable{
+	return entry, carriers{recordable: &recordable{
 		typeName: typeName,
 		value:    val,
 		private:  prior.Private,
 		status:   prior.Status,
-	}
+	}}
 }
 
 // impliedProviderAddr is the provider configuration this run reaches a
