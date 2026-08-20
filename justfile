@@ -962,8 +962,9 @@ demo-corpus-evoteum-modules:
 # production DNS configuration for seven domains it owns, crates.io included.
 # 35 instances, and the split is the point: 7 aws_route53_zone are TAGGABLE
 # and carry markers, 28 aws_route53_record carry no tags at all and must
-# re-derive their identity from their tagged parent zone - the highest
-# derived-from-tagged fraction (80%) of any estate in the manifest.
+# re-derive their identity from their tagged parent zone: 28 of 35 instances,
+# 80%, carry no marker at all. (No claim about the manifest's maximum - that
+# would need every entry counted, and it has not been.)
 #
 # It is not a duplicate of demo-repeated-module, which targets the same
 # .corpus directory for issue #280: that script applies the estate with the

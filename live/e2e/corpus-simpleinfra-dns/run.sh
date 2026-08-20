@@ -41,9 +41,11 @@ set -uo pipefail
 #                              zone's marker + the record's own name and type
 #                              (4 A, 13 CNAME, 3 MX, 8 TXT)
 #
-# The 7/28 split is the whole reason this estate is interesting: 80% of it
-# carries no marker and has to be found some other way, which is a far higher
-# derived-from-tagged fraction than any other crossing in the manifest.
+# The 7/28 split is the whole reason this estate is interesting: 28 of 35
+# instances, 80%, carry no marker and have to be found some other way. For
+# scale, the one other crossing whose untaggable fraction was counted here is
+# corpus-evoteum-modules at 3 of 10. No claim is made about the manifest's
+# maximum - that would need every entry counted, and it has not been.
 #
 # THE DELTAS, and how they compare to .corpus/simpleinfra/terraform/
 # team-members-access (#274's one previously-crossed estate from this SAME
