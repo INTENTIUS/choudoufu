@@ -134,6 +134,49 @@ set -uo pipefail
 # here should re-hit #275's problem on the Lambda function itself once the
 # identity wall above clears.
 #
+# THE FOURTH BLOCKER IS FIXED (issue #336, 2026-08-19) AND THE ISSUE'S OWN
+# READING OF IT WAS WRONG, which is worth knowing before touching this
+# estate again. It was filed as "the identity resolver declines to read the
+# record store". It does not decline: internal/live/identity's parentPart
+# already has a record-backed branch, and namedLeaf already carries the
+# resulting formula across a module-call argument - which is why
+# aws_lambda_function.this, whose function_name is a bare var.function_name,
+# resolved on main before anything was fixed. What refused was coalesce().
+# All three of the module's other identity chains go through one
+# (iam.tf:14, iam.tf:15, main.tf:279), every argument of all three is a var
+# or a local, so resolver.isSymbolic saw no managed resource in them and
+# never sent them to the structural decomposition that would have found it.
+# resolveCoalesceCall and resolveSelection (internal/live/identity/
+# coalesce.go) close that. Re-run against current main: live-plan raises
+# ZERO diagnostics for this estate and all four AWS resources resolve, three
+# of them newly - aws_iam_role.lambda and aws_lambda_function.this to
+# ${random_pet.this.id}-lambda-simple, aws_cloudwatch_log_group.lambda to
+# /aws/lambda/${random_pet.this.id}-lambda-simple, aws_iam_role_policy.logs
+# to the role:policy composite over the same.
+#
+# A FIFTH blocker sits underneath it, newly REACHED rather than caused, and
+# it refutes the premise the fourth was filed on. live-plan now completes
+# and proposes CREATING all eight resources, starting with
+#
+#     # random_pet.this will be created
+#
+# because the record store is EMPTY after a clean migrate. `live-import
+# -approve` writes markers, and for every stamped entry it also records
+# issue #327's residue - but a record-backed resource is not stampable, so
+# it is OutcomeSkipped and Approve `continue`s before recordResidueFor is
+# ever reached (internal/live/liveimport/stamp.go). random_pet.this's
+# generated id is therefore lost at migration, its whole object plans as a
+# create, and every identity derived from it - which, in this estate, is
+# every identity there is - has a parent with no value to render from. So
+# "the record store already holds random_pet.this, that's what made it
+# eligible for stamping" was false on both halves: nothing wrote the record,
+# and being record-backed is precisely what made it INeligible.
+#
+# That is a live-import gap, not an identity one, and it is the next slot's
+# work: a migrate has to seed the record store from the state's own object
+# for every record-backed instance, the same way it seeds residue for every
+# stamped one. Stages 4 and 5 remain unreached and unwritten below.
+#
 # So this script proves stages 1 and 2 for real and stops at stage 3 on the
 # fourth blocker. Stages 4 and 5 remain unwritten below (present as dead
 # code, never yet executed) because there is nothing running yet for them to
