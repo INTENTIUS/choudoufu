@@ -1010,6 +1010,40 @@ grammar it would read from is `live/import-grammar.json`'s `separator`,
 which it already parses. Not attempted: it is generator work, and
 `tools/row-gen` was held by another agent.
 
+**The roster is built** (`#337`, 2026-08-19), and the 43/16/27 split above is
+confirmed by an independent recomputation. `just composite-import` writes
+`live/composite-import-roster.json`. One correction to the paragraph above,
+though: the fix does **not** reach all 16 of the schema-backed types. Only
+**8** of them have a wire identity schema that requires `id` alongside
+another attribute, which is what `compositeIdentity` gates on; the other 8
+require two non-`id` attributes and fall through to the same bare-`id` rule
+as the 27. Whether that fallback is right for them is a separate,
+unmeasured question.
+
+The new evidence is a doc section nothing here had read: the Attribute
+Reference's own `id` bullet, which is the only account of what the provider
+puts in `id` after a create - every other grammar field describes the import
+STRING. `tools/importdocs-gen/idattribute.go` scrapes it, and the roster's
+verdict is that sentence's stated separator **agreeing** with the Import
+section's independently-scraped one. No component order is read, from prose
+or anywhere else: "is `id` the whole import string" is a yes/no question and
+a yes needs no grammar, which is what keeps this clear of the order
+counterexamples #309 documented. Validated provider-wide rather than on the
+27: of 1693 pages, 968 carry an `id` bullet, 123 state a composite, 120 are
+corroborated by the Import section and 3 have nothing to check against -
+**zero contradictions**.
+
+Result on the 27: **6 proven whole, 21 unproven** (12 whose page documents no
+`id` attribute at all, 9 whose `id` bullet states no composite form). The 9
+are deliberately left unproven rather than called leaves - "The EMR Instance
+ID" under a composite documented import is what a leaf looks like *and* what
+an incuriously written page says about a whole one, and weak evidence of a
+leaf is not proof of one.
+
+This is classification only. Wiring it into `identity.LocatedType` - which
+would move the 21 from a silent wrong record to an honest refusal - is
+#309's next step and is sequenced after this on purpose.
+
 ### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 
 Was a real silent destroy-recreate hazard, found scouting a smaller loose
