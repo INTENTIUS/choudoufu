@@ -223,7 +223,19 @@ var identityGoldenPin = map[string]int{
 	// (modulearg-nested-partial's aws_iam_role.dynamic) contributes no row
 	// either: a managed resource's own attribute is a separate, unmade
 	// ruling and nothing here pre-empts it. No pre-existing row moved.
-	"CONCRETE": 773,
+	// 775, up from 773 (issue #336, coalesce()'s selection rule): two ADDED
+	// rows, both the same fixture resource seen twice -
+	// internal/live/identity/testdata/coalesce-selection's
+	// aws_iam_group.literal_wins, once as module.child's instance from the
+	// root and once as the child module swept on its own. Its name is
+	// coalesce("literal-name", var.name), so the rule selects the LITERAL
+	// and never consults the record-backed parent at all - which is why it
+	// is the one row in that fixture that renders concretely rather than as
+	// a formula. The four resources whose identities really do come from
+	// the record-backed parent contribute no row here, because a
+	// PARENT_DERIVED identity renders empty in this sweep. No pre-existing
+	// row moved.
+	"CONCRETE": 775,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -420,7 +432,11 @@ var identityGoldenPin = map[string]int{
 	// there is no import identity to render and a record is the only thing
 	// that can bring the instance's prior state back. Nothing else in the
 	// class moved.
-	"RECORD_BACKED": 19,
+	// 21, up from 19 (issue #336): one random_pet.suffix from each of the
+	// two new coalesce fixtures' root modules, both rendering an empty
+	// value - the honest answer for a resource whose whole object lives in
+	// the estate's record store and nowhere else.
+	"RECORD_BACKED": 21,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -623,7 +639,7 @@ var identityGoldenPin = map[string]int{
 // identity row where it had none, and gives lint a class that admits it under
 // a record_store, and neither of those can move an existing resource's
 // rendered identity - a MODIFIED row here would have meant it had.
-const identityGoldenPinBodyDigest = "49a313fc47f2ca04794a0ba20c983fcf541e5629efc8577449122cde3856a315"
+const identityGoldenPinBodyDigest = "f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -989,9 +1005,36 @@ const identityGoldenPinBodyDigest = "49a313fc47f2ca04794a0ba20c983fcf541e5629efc
 // carrier that can bring the instance's prior state back. A row here carrying
 // the filename would be a string nothing can import by, which is exactly the
 // wrong-marker shape this file exists to catch.
+// 2026-08-19 (issue #336, deciding which argument coalesce() selects):
+// instances 1567 -> 1571 and dirs 499 -> 503. 0 changed, 4 added, 0 removed -
+// the zero changed is the load-bearing half here, since the whole change is a
+// rule that makes an EARLIER evaluation succeed, and the shape a bad one
+// takes is an existing fixture's marker quietly moving.
+//
+// Two new fixture roots, two directories each (root plus the module it
+// calls), because the shape only exists across a module-call argument:
+// coalesce-selection and coalesce-undecidable, the second being the
+// adversarial mutation. 4 = 2 + 2 exactly.
+//
+// The four added rows are worth reading, because most of both fixtures
+// contributes none. They are, exactly: coalesce-selection's
+// module.child.aws_iam_group.literal_wins and the same resource again with
+// the child module swept on its own, both CONCRETE literal-name - its name
+// is coalesce("literal-name", var.name), so the rule selects the literal and
+// never consults the parent; plus one RECORD_BACKED random_pet.suffix with an
+// empty value from each fixture's root.
+//
+// Everything else contributes nothing, and both silences are load-bearing.
+// coalesce-selection's other four children resolve PARENT_DERIVED over the
+// record-backed parent, which renders empty in this sweep, so their values
+// are asserted by TestCoalesceSelectsThroughToTheRecordBackedParent instead.
+// coalesce-undecidable/child appears in the sweep and contributes no
+// instance line at all, because all three of its children still refuse -
+// that directory being absent from the golden is the adversarial half
+// holding.
 const (
-	identityGoldenPinInstances = 1567
-	identityGoldenPinDirs      = 499
+	identityGoldenPinInstances = 1571
+	identityGoldenPinDirs      = 503
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
