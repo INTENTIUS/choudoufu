@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -66,6 +67,13 @@ const (
 	// on the live object to write a marker. Never stamped, and not a
 	// problem in itself - see the stamp package's doc comment on why an
 	// untaggable type is not a gap in an estate's records.
+	//
+	// A record-backed type reaches this status too, and for a stronger
+	// reason: it has no live object at all. What separates the two is what
+	// Approve then does - see [recordable] and GitHub issue #340. There is
+	// deliberately no sixth Status for it, because the ratification verdict
+	// is the same one ("nowhere to write a marker"); what differs is the
+	// carrier, which is Approve's business, not Ratify's.
 	StatusUntaggable Status = "UNTAGGABLE"
 )
 
@@ -101,6 +109,29 @@ type eligible struct {
 	private  []byte
 }
 
+// recordable is [eligible]'s sibling for a record-backed instance: what
+// Approve needs to seed the estate's record store for one resource whose
+// value has no live object to hang off, carried forward from Ratify the same
+// way and for the same reason.
+//
+// The two are disjoint by construction. A resource is eligible when the live
+// system can be asked about it and its schema offers somewhere to write a
+// tag; it is recordable when [identity.TypeIdentity.RecordBacked] says the
+// record IS the identity, which is precisely the case where neither of those
+// is true. Nothing is ever both, and GitHub issue #340 is what happened while
+// only the first of the two existed: a migrated estate's random_pet,
+// null_resource, terraform_data and local_file were reported SKIPPED and
+// their generated values were dropped on the floor, so the first live-plan
+// after a clean migrate proposed creating every one of them from nothing.
+//
+// value is already unmarked (see [ratifyRecordBacked]).
+type recordable struct {
+	typeName string
+	value    cty.Value
+	private  []byte
+	status   states.ObjectStatus
+}
+
 // Request is one ratification pass.
 type Request struct {
 	// Estate is the estate this run would stamp, matching the tofu-estate
@@ -126,6 +157,23 @@ type Request struct {
 	// residue is a write, and this package's whole contract is that Ratify
 	// never writes anything.
 	ResidueStore *projection.ResidueStore
+
+	// RecordStore is GitHub issue #73's record store itself - the same one
+	// ResidueStore is layered over, opened by the same caller from the same
+	// record_store block - and RecordKeyPrefix is the namespace that block
+	// resolves to ([projection.RecordStoreKeyPrefix]).
+	//
+	// Issue #340: a record-backed instance has no live object to tag, so its
+	// whole migration IS this write. Nil - no live block, or a live block
+	// with no record_store - makes Approve leave every record-backed
+	// instance SKIPPED exactly as it did before, which is the right answer
+	// there: without a store, internal/live/lint does not admit a
+	// record-backed type for planning either.
+	RecordStore staterecord.Store
+
+	// RecordKeyPrefix is the key namespace RecordStore's records live under.
+	// Ignored when RecordStore is nil.
+	RecordKeyPrefix string
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -137,7 +185,11 @@ type Ratification struct {
 	Entries []Entry
 
 	eligible     map[string]*eligible
+	recordable   map[string]*recordable
 	residueStore *projection.ResidueStore
+
+	recordStore     staterecord.Store
+	recordKeyPrefix string
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -170,9 +222,12 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 	}
 
 	rat := &Ratification{
-		Estate:       req.Estate,
-		eligible:     make(map[string]*eligible),
-		residueStore: req.ResidueStore,
+		Estate:          req.Estate,
+		eligible:        make(map[string]*eligible),
+		recordable:      make(map[string]*recordable),
+		residueStore:    req.ResidueStore,
+		recordStore:     req.RecordStore,
+		recordKeyPrefix: req.RecordKeyPrefix,
 	}
 
 	for _, mod := range sortedModules(req.State) {
@@ -182,10 +237,13 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 			}
 			for _, key := range sortedInstanceKeys(res) {
 				addr := res.Addr.Instance(key)
-				entry, elig := ratifyOne(ctx, req, res, addr, res.Instances[key])
+				entry, elig, rec := ratifyOne(ctx, req, res, addr, res.Instances[key])
 				rat.Entries = append(rat.Entries, entry)
 				if elig != nil {
 					rat.eligible[addr.String()] = elig
+				}
+				if rec != nil {
+					rat.recordable[addr.String()] = rec
 				}
 			}
 		}
@@ -197,7 +255,12 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 // ratifyOne is the whole verdict for one resource instance: admission, the
 // schema, the state's own recorded object, and - past every gate that would
 // make a live call meaningless - one ReadResource call.
-func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance) (Entry, *eligible) {
+//
+// It returns at most one carrier alongside the verdict, never two: an
+// *eligible for an instance Approve should stamp, or a *recordable for one
+// Approve should seed a record for. See [recordable] for why the two are
+// disjoint.
+func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addrs.AbsResourceInstance, inst *states.ResourceInstance) (Entry, *eligible, *recordable) {
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
@@ -206,13 +269,13 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		entry.Detail = fmt.Sprintf(
 			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
 			typeName)
-		return entry, nil
+		return entry, nil, nil
 	}
 
 	if inst == nil || inst.Current == nil {
 		entry.Status = StatusMissing
 		entry.Detail = "The state has no current object for this instance - only a deposed one, or none at all - so there is nothing recorded to verify against the live system."
-		return entry, nil
+		return entry, nil, nil
 	}
 
 	providerAddr := impliedProviderAddr(res)
@@ -220,27 +283,37 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	if err != nil {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("Provider %s could not be used, so this instance could not be verified: %s.", providerAddr, err)
-		return entry, nil
+		return entry, nil, nil
 	}
 
 	schema, schemaErr := resourceSchema(ctx, provider, typeName)
 	if schemaErr != nil {
 		entry.Status = StatusMissing
 		entry.Detail = schemaErr.Error()
-		return entry, nil
+		return entry, nil, nil
+	}
+
+	// Issue #340, and deliberately ahead of the taggability check: a
+	// record-backed instance is untaggable for a stronger reason than a
+	// missing tags argument - there is no live object at all - and the
+	// verdict it would reach below is the right one. What it must not do is
+	// fall off the end of a migration with nothing written anywhere, which
+	// is what happened while this branch did not exist.
+	if recordBackedType(typeName) && req.RecordStore != nil {
+		return ratifyRecordBacked(entry, typeName, schema, inst)
 	}
 
 	if !taggable(schema.Block) {
 		entry.Status = StatusUntaggable
 		entry.Detail = fmt.Sprintf("%s has no tags argument in the provider's schema, so there is nowhere on it to carry an ownership marker.", typeName)
-		return entry, nil
+		return entry, nil, nil
 	}
 
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
 	if decErr != nil {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("The recorded state does not fit the provider's current schema for %s: %s.", typeName, decErr)
-		return entry, nil
+		return entry, nil, nil
 	}
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
@@ -255,12 +328,12 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	if readResp.Diagnostics.HasErrors() {
 		entry.Status = StatusMissing
 		entry.Detail = fmt.Sprintf("The provider failed while reading this resource from the live system: %s.", readResp.Diagnostics.Err())
-		return entry, nil
+		return entry, nil, nil
 	}
 	if readResp.NewState == cty.NilVal || readResp.NewState.IsNull() {
 		entry.Status = StatusMissing
 		entry.Detail = "The live system reports that this identity no longer exists."
-		return entry, nil
+		return entry, nil, nil
 	}
 
 	if drifted := driftedAttrs(schema.Block, priorVal, readResp.NewState); len(drifted) > 0 {
@@ -279,6 +352,70 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		liveVal:  readResp.NewState,
 		identity: readResp.NewIdentity,
 		private:  readResp.Private,
+	}, nil
+}
+
+// recordBackedType is the one property this whole mechanism keys on, read
+// from the same place [projection.WriteBack] reads it after an apply:
+// [identity.TypeIdentity.RecordBacked], which tools/row-gen derives from
+// live/logical-schemas.json's per-provider store_only gate. There is no list
+// of type names here and there must never be one - a provider whose types
+// row-gen newly classifies store_only is migrated by this path the moment
+// the table regenerates, with nothing in Go to edit.
+func recordBackedType(typeName string) bool {
+	ti, ok := identity.LookupType(typeName)
+	return ok && ti.RecordBacked
+}
+
+// ratifyRecordBacked is ratifyOne's verdict for a record-backed instance: the
+// state's own object, decoded against the provider's current schema and
+// carried forward for Approve to seed the record store with.
+//
+// No ReadResource call is made, and that is not an optimisation. There is
+// nothing in the live system to read: the value a record-backed resource has
+// was generated once, by the provider, and the state file is the only place
+// it has ever existed. hashicorp/random's Read is a pure prior-passthrough,
+// so a call would answer with exactly the object handed to it and prove
+// nothing - and hashicorp/local's would answer about a file on whichever
+// machine ran the migration. The state is the source of truth here in the
+// way the live system is the source of truth for a stamped resource, which
+// is the same split [projection.WriteBack] makes when it takes the final
+// state's object rather than re-reading the provider.
+func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, inst *states.ResourceInstance) (Entry, *eligible, *recordable) {
+	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
+	if decErr != nil {
+		entry.Status = StatusMissing
+		entry.Detail = fmt.Sprintf("The recorded state does not fit the provider's current schema for %s: %s.", typeName, decErr)
+		return entry, nil, nil
+	}
+	// UnmarkDeep for the same reason the stamping path unmarks its own
+	// prior, and it is load-bearing rather than defensive.
+	// [states.ResourceInstanceObjectSrc.Decode] re-applies the state's
+	// AttrSensitivePaths, and a marked leaf panics ctyjson.Marshal - which
+	// is what encodes the payload. This is not hypothetical for the
+	// record-backed set: hashicorp/local marks local_file.content sensitive,
+	// and local_file is RECORD_BACKED (issue #314).
+	//
+	// What it costs, stated rather than hidden: [projection.recordPayload]
+	// has nowhere to put a sensitivity path, so the record carries the value
+	// and not the mark, and the first live-plan after a migration shows a
+	// sensitivity-only in-place update for such an attribute ("The value is
+	// unchanged", in OpenTofu's own renderer's words). That is a gap in the
+	// record payload format, reached by this path and shared with
+	// [projection.WriteBack] - which has it worse, since without an unmark
+	// of its own it panics rather than losing the mark. It is filed
+	// separately; storing the value is unambiguously better than storing
+	// nothing, which is what a migration did before issue #340.
+	val, _ := prior.Value.UnmarkDeep()
+
+	entry.Status = StatusUntaggable
+	entry.LiveID = liveIDFrom(typeName, val)
+	entry.Detail = fmt.Sprintf("%s has no live object to tag: its value IS its identity, so an approved migration seeds this estate's record store from the state's own object for it rather than writing a marker.", typeName)
+	return entry, nil, &recordable{
+		typeName: typeName,
+		value:    val,
+		private:  prior.Private,
+		status:   prior.Status,
 	}
 }
 
