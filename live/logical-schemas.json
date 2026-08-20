@@ -166,7 +166,7 @@
       "source": "hashicorp/local",
       "version": "2.9.0",
       "store_only": false,
-      "store_only_evidence": "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record and two instances with distinct records still collide on one filename, so the identity is the filename rather than the record - which is exactly what a RecordBacked row would claim it is not. internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins the consequence from the other side.",
+      "store_only_evidence": "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record, and two instances at distinct addresses hold distinct records and still collide on one filename, so what the resource affects is named by its filename argument rather than bounded by the record",
       "types": [
         {
           "type": "local_file",

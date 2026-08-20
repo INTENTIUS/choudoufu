@@ -410,7 +410,17 @@ var identityGoldenPin = map[string]int{
 	// reads ${aws_subnet.database[i].id}/${aws_route_table.private[i%2].id}).
 	// See identityGoldenPinInstances' own comment for the fixtures.
 	"PARENT_DERIVED": 115,
-	"RECORD_BACKED":  17,
+
+	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
+	// already existed - internal/live/lint/testdata/logical and
+	// live/e2e/limits/local-file - contributed a directory each and no
+	// instance line at all while the type had no identity.DefaultTable row.
+	// It has one now, RecordBacked, so both render. Both values are EMPTY:
+	// hashicorp/local 2.9.0 implements no ImportState for local_file, so
+	// there is no import identity to render and a record is the only thing
+	// that can bring the instance's prior state back. Nothing else in the
+	// class moved.
+	"RECORD_BACKED": 19,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -605,7 +615,15 @@ var identityGoldenPin = map[string]int{
 // sweep deliberately does not cover - 6154 directories, 22398 -> 22424
 // instances, 0 rows removed, 0 rows modified, and all 26 added rows
 // NEEDS_DISCOVERY with an empty rendered value.
-const identityGoldenPinBodyDigest = "01cb4e1b935f0c2d82c2ed3137584d0ef786f3d3b1782124872679c4f956b542"
+// 2026-08-19 (issue #314, local_file's fourth LogicalClass): body digest
+// moved because two more rows were ADDED, both local_file, both in fixture
+// directories the sweep already walked. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 2 added, 0
+// removed". The zero is the load-bearing half: this change gives a type an
+// identity row where it had none, and gives lint a class that admits it under
+// a record_store, and neither of those can move an existing resource's
+// rendered identity - a MODIFIED row here would have meant it had.
+const identityGoldenPinBodyDigest = "49a313fc47f2ca04794a0ba20c983fcf541e5629efc8577449122cde3856a315"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -955,8 +973,24 @@ const identityGoldenPinBodyDigest = "01cb4e1b935f0c2d82c2ed3137584d0ef786f3d3b17
 // it: modulearg-nested-partial contributes five instances and
 // modulearg-nested-dynkey, the mutation, contributes one. 6 = 5 + 1 and
 // 6 = 3 + 3, both exact.
+// 2026-08-19 (issue #314, local_file's fourth LogicalClass): instances 1565
+// -> 1567 and dirs unchanged at 499. 0 changed, 2 added, 0 removed - the zero
+// changed is the load-bearing half, since nothing about this change touches
+// how any existing resource's identity renders.
+//
+// The two added rows are the two local_file fixtures that already existed
+// (internal/live/lint/testdata/logical and live/e2e/limits/local-file), which
+// contributed a directory each and no instance line while the type had no
+// identity.DefaultTable row at all. Both now render RECORD_BACKED with an
+// EMPTY value, and the emptiness is the part worth reading rather than a gap:
+// hashicorp/local 2.9.0 implements no ImportState for local_file (`tofu
+// import local_file.f <path>` answers "Resource Import Not Implemented"), so
+// there is no import identity to render and the record store is the only
+// carrier that can bring the instance's prior state back. A row here carrying
+// the filename would be a string nothing can import by, which is exactly the
+// wrong-marker shape this file exists to catch.
 const (
-	identityGoldenPinInstances = 1565
+	identityGoldenPinInstances = 1567
 	identityGoldenPinDirs      = 499
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as

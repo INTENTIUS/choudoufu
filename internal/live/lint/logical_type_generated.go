@@ -18,12 +18,15 @@ package lint
 // message.
 //
 // One entry per provider in tools/row-gen's logicalProviderSources, taken
-// from the last segment of its source address. hashicorp/local is here and
-// contributes no [logicalTypes] row: its resources are not store-only, so its
-// types keep the no-row-found default. OpenTofu's built-in provider
+// from the last segment of its source address. OpenTofu's built-in provider
 // contributes no prefix at all - terraform_data is admitted by exact type
 // name, because a "terraform_" prefix would claim a whole family this fork
 // has never surveyed.
+//
+// The variable's name predates [ClassExternalAdmitted] and is now slightly
+// wider than it reads: hashicorp/local's resources do NOT exist only inside
+// OpenTofu's record - they write a file - and local_ is a member here all the
+// same, because what this list decides is which families lint explains at all.
 var logicalFamilyPrefixes = []string{
 	"local_",
 	"null_",
@@ -33,22 +36,30 @@ var logicalFamilyPrefixes = []string{
 }
 
 // logicalTypes is the per-type classification table, derived from
-// live/logical-schemas.json: every managed resource type served by a
-// store-only provider, classified by the rule that a live (non-deprecated)
-// sensitive attribute anywhere in the type's schema means it handles material
+// live/logical-schemas.json: every managed resource type of every measured
+// provider, classified by the rule that a live (non-deprecated) sensitive
+// attribute anywhere in the type's schema means it handles material
 // live/RECEIPTS.md's no-secrets rule forbids a record from carrying, and none
-// means the record can hold the type's whole value.
+// means the record can hold the type's whole prior state.
 //
 // It is the same rule, over the same artifact, that derives
-// [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's
-// RECORD_ADMITTED and identity's RecordBacked cannot name different sets.
-// They did once: the four types the hand-written table predated resolved
-// under identity and were refused outright by lint, so a configuration with a
-// record_store declared got told its type was out of the subset.
+// [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's admitted
+// classes and identity's RecordBacked cannot name different sets. They did
+// once: the four types the hand-written table predated resolved under identity
+// and were refused outright by lint, so a configuration with a record_store
+// declared got told its type was out of the subset.
+//
+// The provider's own store_only measurement then splits the admitted rows in
+// two. RECORD_ADMITTED means the record is the whole of the resource;
+// EXTERNAL_ADMITTED means the record holds its prior state while one of its
+// own arguments names something outside it, which is why that class does not
+// get countIndexScopeForType's skip.
 //
 // A type in a [logicalFamilyPrefixes] family with no row here classifies
 // [ClassOtherRefused] by default (see [ClassifyLogicalType]).
 var logicalTypes = map[string]LogicalType{
+	"local_file":              {Type: "local_file", Class: ClassExternalAdmitted, Prefix: "local_", Evidence: "hashicorp/local 2.9.0 marks sensitive_content sensitive, but deprecates every one of them (sensitive_content: \"Use the `local_sensitive_file` resource instead\"), so no attribute the provider still tells you to use carries secret material", External: "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record, and two instances at distinct addresses hold distinct records and still collide on one filename, so what the resource affects is named by its filename argument rather than bounded by the record"},
+	"local_sensitive_file":    {Type: "local_sensitive_file", Class: ClassSecretRefused, Prefix: "local_", Evidence: "hashicorp/local 2.9.0 marks content and content_base64 sensitive"},
 	"null_resource":           {Type: "null_resource", Class: ClassRecordAdmitted, Prefix: "null_", Evidence: "hashicorp/null 3.3.1 marks no attribute of null_resource sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"random_bytes":            {Type: "random_bytes", Class: ClassSecretRefused, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks base64 and hex sensitive"},
 	"random_id":               {Type: "random_id", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_id sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},

@@ -82,8 +82,14 @@ type logicalProviderSource struct {
 
 	// StoreOnly records whether this provider's resources exist only inside
 	// OpenTofu's own record of them - which is what makes a persisted
-	// micro-state record able to stand in for the state file entry, and
-	// therefore what makes a non-secret type of this provider RecordBacked.
+	// micro-state record able to stand in for the state file entry outright,
+	// and therefore what puts a non-secret type of this provider in lint's
+	// ClassRecordAdmitted rather than its ClassExternalAdmitted.
+	//
+	// It does NOT decide RecordBacked. A non-store-only provider's type is
+	// record-backed too, because there is no other way to bring its prior
+	// state back: hashicorp/local 2.9.0 implements no ImportState at all.
+	// See [recordBackedTypes].
 	//
 	// It is a per-provider fact, stated once here with its evidence, because
 	// nothing in a GetProviderSchema response distinguishes the two cases:
@@ -100,9 +106,10 @@ type logicalProviderSource struct {
 // logicalProviderSources is this generator's input: the five providers
 // internal/live/lint's logicalFamilyPrefixes names, plus the built-in.
 //
-// hashicorp/local is the one member with StoreOnly false, and it is measured
-// anyway rather than dropped, so the artifact is the complete picture of the
-// families lint classifies rather than only the part that produces rows.
+// hashicorp/local is the one member with StoreOnly false. It was measured
+// from the start so the artifact would be the complete picture of the families
+// lint classifies rather than only the part that produced rows; since #314 it
+// produces rows too, and StoreOnly picks the class instead of gating the row.
 var logicalProviderSources = []logicalProviderSource{
 	{
 		Type: "random", Source: "hashicorp/random", Version: "3.9.0",
@@ -140,11 +147,10 @@ var logicalProviderSources = []logicalProviderSource{
 		StoreOnlyEvidence: "hashicorp/local's resources write a file to the local filesystem and read " +
 			"it back on refresh. Measured against 2.9.0: delete the file and the provider drops the " +
 			"resource so the next plan proposes a create, and id is the SHA1 of the content, so " +
-			"changing the file changes the resource. The file outlives any record and two instances " +
-			"with distinct records still collide on one filename, so the identity is the filename " +
-			"rather than the record - which is exactly what a RecordBacked row would claim it is " +
-			"not. internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins the consequence " +
-			"from the other side.",
+			"changing the file changes the resource. The file outlives any record, and two instances " +
+			"at distinct addresses hold distinct records and still collide on one filename, so what " +
+			"the resource affects is named by its filename argument rather than bounded by the " +
+			"record",
 	},
 	{
 		Type: "", Builtin: true,
@@ -400,10 +406,19 @@ type logicalClassRow struct {
 	// Type is the resource type name.
 	Type string
 
-	// Class is "RECORD_ADMITTED" or "SECRET_REFUSED", spelled as lint's
-	// LogicalClass constants are. A store-only provider's type is one or the
-	// other and never lint's third class: OTHER_REFUSED is the no-row-found
-	// default, which is what a non-store-only provider's types keep.
+	// Class is "RECORD_ADMITTED", "EXTERNAL_ADMITTED" or "SECRET_REFUSED",
+	// spelled as lint's LogicalClass constants are. Every measured type is
+	// one of the three and never lint's fourth: OTHER_REFUSED is the
+	// no-row-found default, which is now reached only by a member of a
+	// surveyed family released since the last -logical-schemas run.
+	//
+	// Two facts choose between them, and they are independent. A live
+	// sensitive attribute settles SECRET_REFUSED whatever the provider is.
+	// Failing that, the provider's own StoreOnly settles which admitted
+	// class: true means the record is the whole of the resource
+	// (RECORD_ADMITTED), false means the record holds the resource's prior
+	// state while an argument of its own names something outside it
+	// (EXTERNAL_ADMITTED).
 	Class string
 
 	// Prefix is the family prefix, empty for the built-in provider.
@@ -412,6 +427,13 @@ type logicalClassRow struct {
 	// Evidence is the measured, operator-facing reason, built by
 	// [logicalEvidence] from this artifact rather than written by hand.
 	Evidence string
+
+	// External is the provider's StoreOnlyEvidence, carried onto the row for
+	// EXTERNAL_ADMITTED only - the measured reason the record does not bound
+	// what this type affects, which is the half of that class's operator
+	// message [logicalEvidence] cannot supply because it is a per-provider
+	// fact rather than a per-type one. Empty for every other class.
+	External string
 }
 
 // logicalClassRecordAdmitted and logicalClassSecretRefused are the string
@@ -420,8 +442,9 @@ type logicalClassRow struct {
 // rendered file's own compilation against the real constants is what checks
 // them, and TestGeneratedLogicalClassNamesMatchLint pins the pair directly.
 const (
-	logicalClassRecordAdmitted = "ClassRecordAdmitted"
-	logicalClassSecretRefused  = "ClassSecretRefused"
+	logicalClassRecordAdmitted   = "ClassRecordAdmitted"
+	logicalClassExternalAdmitted = "ClassExternalAdmitted"
+	logicalClassSecretRefused    = "ClassSecretRefused"
 )
 
 // logicalFamilyPrefix is the type prefix a provider's resources carry, taken
@@ -501,22 +524,28 @@ func logicalEvidence(p logicalProviderSchemas, t logicalTypeSchema) string {
 }
 
 // logicalClassRows derives lint's whole logicalTypes table: one row per
-// resource type of a store-only provider, classified by the same live-
-// sensitive-attribute rule [recordBackedTypes] applies, sorted by type.
+// measured resource type, classified by the same live-sensitive-attribute
+// rule [recordBackedTypes] applies, sorted by type.
 //
-// A non-store-only provider contributes no row at all, which is what keeps
-// hashicorp/local's two types on lint's OTHER_REFUSED default. That is not a
-// gap in the derivation: local_file's identity is its filename, so promoting
-// it would also silence lint's count.index walk over that filename, and
-// internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins the
-// consequence. StoreOnly is the field carrying that distinction, with its
-// evidence, and it gates both derivations identically.
+// StoreOnly used to gate whether a row was derived AT ALL, which left both of
+// hashicorp/local's types on lint's OTHER_REFUSED default and cost this
+// repository three issues (#237, #238, #314) arguing about whether that was a
+// verdict or a gap. It was neither: it was one measurement doing two jobs.
+// StoreOnly answers "is the record the whole of the resource", and the answer
+// "no" is a reason to pick a different admitted class, not a reason to say
+// nothing. So it now selects between RECORD_ADMITTED and EXTERNAL_ADMITTED,
+// and the sensitivity rule still decides admission itself - which is what
+// keeps local_sensitive_file refused on its own measured evidence rather than
+// on the hand-written exception internal/live/lint used to carry for it.
+//
+// The distinction StoreOnly=false actually buys downstream is
+// countIndexScopeForType's skip: an EXTERNAL_ADMITTED type does not get it,
+// because an argument of its own names the object it writes, and
+// internal/live/lint's TestLocalFileKeepsItsCountIndexCheck pins that from
+// the other side.
 func logicalClassRows(art logicalSchemas) ([]logicalClassRow, error) {
 	var out []logicalClassRow
 	for _, p := range art.Providers {
-		if !p.StoreOnly {
-			continue
-		}
 		prefix, hasPrefix := logicalFamilyPrefix(p)
 		for _, t := range p.Types {
 			if hasPrefix && !strings.HasPrefix(t.Type, prefix) {
@@ -527,14 +556,20 @@ func logicalClassRows(art logicalSchemas) ([]logicalClassRow, error) {
 					p.Source, t.Type, prefix)
 			}
 			class := logicalClassRecordAdmitted
-			if len(liveSensitiveAttrs(t)) > 0 {
+			external := ""
+			switch {
+			case len(liveSensitiveAttrs(t)) > 0:
 				class = logicalClassSecretRefused
+			case !p.StoreOnly:
+				class = logicalClassExternalAdmitted
+				external = p.StoreOnlyEvidence
 			}
 			out = append(out, logicalClassRow{
 				Type:     t.Type,
 				Class:    class,
 				Prefix:   prefix,
 				Evidence: logicalEvidence(p, t),
+				External: external,
 			})
 		}
 	}
@@ -561,8 +596,18 @@ func logicalFamilyPrefixesOf(art logicalSchemas) []string {
 	return out
 }
 
-// recordBackedTypes is the derivation: every resource type of a store-only
-// provider with no live sensitive attribute anywhere in its schema, sorted.
+// recordBackedTypes is the derivation: every measured resource type with no
+// live sensitive attribute anywhere in its schema, sorted.
+//
+// StoreOnly is deliberately not consulted here, and that is the one thing
+// worth reading twice. [TypeIdentity.RecordBacked] answers "does this type's
+// prior state come out of the record store rather than out of a cloud read",
+// and for hashicorp/local the answer is yes for a reason StoreOnly does not
+// touch: hashicorp/local 2.9.0 implements no ImportState for local_file at
+// all (`tofu import local_file.f <path>` answers "Resource Import Not
+// Implemented"), so there is no other way to bring its prior state back. What
+// StoreOnly settles is the lint class - see [logicalClassRows] - and that
+// governs the count.index walk, not the record.
 //
 // The rule is the one internal/live/lint's own classification already argues
 // from, in its rows' Evidence strings, spelled mechanically: a live sensitive
@@ -580,9 +625,6 @@ func logicalFamilyPrefixesOf(art logicalSchemas) []string {
 func recordBackedTypes(art logicalSchemas) []string {
 	var out []string
 	for _, p := range art.Providers {
-		if !p.StoreOnly {
-			continue
-		}
 		for _, t := range p.Types {
 			if len(liveSensitiveAttrs(t)) > 0 {
 				continue

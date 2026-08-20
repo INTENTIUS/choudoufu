@@ -68,7 +68,11 @@ type countIndexScope struct {
 	//     identity is the persisted record addressed by the resource's own
 	//     instance address, never by any argument value - null_resource's
 	//     only attributes are "triggers" and a create-time random "id",
-	//     terraform_data's identity is likewise not argument-derived.
+	//     terraform_data's identity is likewise not argument-derived. Note
+	//     RECORD_ADMITTED specifically and not "record-backed": the other
+	//     record-backed class, EXTERNAL_ADMITTED, is exactly the case where
+	//     an argument DOES name something outside the record, and it does
+	//     not skip.
 	//   - a ServerAssigned type (identity.LookupType), whose
 	//     Resolve (internal/live/identity/resolve.go) returns
 	//     ClassNeedsDiscovery before ever calling identityArgs - not one
@@ -104,17 +108,65 @@ type countIndexScope struct {
 // classifications lint.go's checkManagedResources already has in hand: lt/
 // isLogical from ClassifyLogicalType, and identity.LookupType's own table
 // row.
+//
+// # A logical type is decided by its class alone, and that is deliberate
+//
+// Both admitted logical classes resolve [identity.ClassRecordBacked], so both
+// carry a RecordBacked row, and the RecordBacked disjunct further down used to
+// be a second, quieter door onto the same skip - one keyed on the identity
+// table rather than on the classification. It reached the same answer for
+// every type only because the two sets happened to coincide;
+// TestRecordBackedSkipIsRedundantWithTheClassSkip was written when they had
+// already silently diverged once (row-gen derived four RecordBacked rows lint
+// had no row for at all, and the walk went quiet for them through a leg
+// nothing guarded).
+//
+// [ClassExternalAdmitted] (issue #314) makes the two sets genuinely differ:
+// local_file is RecordBacked and must NOT skip, because its filename argument
+// names a real file and two instances at distinct addresses hold distinct
+// records and still collide on one path. So the logical branch returns for
+// every logical type, and the RecordBacked disjunct below is gone rather than
+// merely bypassed - a leg that cannot be reached is one nobody can
+// accidentally widen. What is left of it is the honest default: a RecordBacked
+// row for a type lint does not classify at all now gets walkAll, which refuses
+// more, not less.
 func countIndexScopeForType(resourceType string, lt LogicalType, isLogical bool) countIndexScope {
-	if isLogical && lt.Class == ClassRecordAdmitted {
-		return countIndexScope{skip: true}
+	if isLogical {
+		if lt.Class == ClassRecordAdmitted {
+			return countIndexScope{skip: true}
+		}
+		// Every other logical class, admitted or refused. EXTERNAL_ADMITTED
+		// is the one that reaches checkCountIndex for real (a refused class
+		// raises RuleLogicalResource and the resource is out anyway), and it
+		// gets the safe default: no identity row names which argument
+		// carries the external object, so every argument is treated as
+		// carrying it. See [ClassExternalAdmitted].
+		return countIndexScope{walkAll: true}
 	}
 
 	entry, ok := identity.LookupType(resourceType)
 	if !ok {
 		return countIndexScope{walkAll: true}
 	}
-	if entry.ServerAssigned || entry.RecordBacked {
+	if entry.ServerAssigned {
 		return countIndexScope{skip: true}
+	}
+	if len(entry.Components) == 0 {
+		// No Components and not ServerAssigned is the shape a RecordBacked
+		// row has, and removing the RecordBacked disjunct above left it
+		// falling through to build an EMPTY attrs set - which puts no
+		// argument in scope and is therefore a silent skip wearing a
+		// different name. This is walkAll's own documented condition ("no
+		// data exists to say which arguments are identity-relevant") reached
+		// by a second route, and it answers it the same way.
+		//
+		// It is unreachable while every RecordBacked row is a type lint
+		// classifies, which TestRecordBackedSkipIsRedundantWithTheClassSkip
+		// requires. It is written anyway because the pre-#314 code was
+		// unreachable in exactly the same way and was reached: row-gen
+		// derived four RecordBacked rows lint had no row for, and the walk
+		// went quiet for a release.
+		return countIndexScope{walkAll: true}
 	}
 
 	attrs := make(map[string]bool)

@@ -409,7 +409,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 		checkIgnoreChanges(resource, addr, path, schemas, issues)
 
 		if isLogical {
-			if lt.Class == ClassRecordAdmitted && recordStoreConfigured {
+			if recordStoreAdmits(lt.Class) && recordStoreConfigured {
 				// GitHub issue #73: a RECORD_ADMITTED type flips from
 				// refused to admitted once a live block configures a
 				// record_store. Its identity is the persisted micro-state
@@ -420,6 +420,11 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 				// type never goes through admitted()'s generated table, so
 				// it is skipped entirely, the same way a refused logical
 				// type always has been.
+				//
+				// EXTERNAL_ADMITTED (issue #314) flips on the same
+				// condition and resolves through the same
+				// ClassRecordBacked path. What differs is upstream of
+				// here, in countIndexScopeForType, which has already run.
 				continue
 			}
 			*issues = append(*issues, Issue{
