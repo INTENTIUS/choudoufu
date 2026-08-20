@@ -6430,6 +6430,21 @@
       "name"
     ]
   },
+  "aws_iam_role_policies_exclusive": {
+    "type": "aws_iam_role_policies_exclusive",
+    "components": [
+      {
+        "attrs": [
+          "role_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ROLE_NAME",
+    "identity_attrs": [
+      "role_name"
+    ]
+  },
   "aws_iam_role_policy": {
     "type": "aws_iam_role_policy",
     "components": [
@@ -6475,6 +6490,21 @@
       }
     ],
     "import_syntax": "ROLENAME/POLICYARN"
+  },
+  "aws_iam_role_policy_attachments_exclusive": {
+    "type": "aws_iam_role_policy_attachments_exclusive",
+    "components": [
+      {
+        "attrs": [
+          "role_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "ROLE_NAME",
+    "identity_attrs": [
+      "role_name"
+    ]
   },
   "aws_iam_saml_provider": {
     "type": "aws_iam_saml_provider",

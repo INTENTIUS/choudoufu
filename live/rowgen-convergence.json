@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1038,
-    "compared": 1023,
+    "admitted_total": 1040,
+    "compared": 1025,
     "not_in_mapped_set": 15,
-    "adopted_unchanged": 876,
-    "adopted_unchanged_pct": 85.63,
+    "adopted_unchanged": 878,
+    "adopted_unchanged_pct": 85.66,
     "genuine_mismatches": 147,
     "annotated": 147,
     "unannotated_mismatches": 0,
@@ -13,9 +13,9 @@
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 70,
-      "adopted_unchanged": 61,
-      "adopted_unchanged_pct": 87.14
+      "compared": 72,
+      "adopted_unchanged": 63,
+      "adopted_unchanged_pct": 87.5
     },
     "ACMPCA": {
       "compared": 2,
@@ -5989,6 +5989,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_iam_role_policies_exclusive",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_iam_role_policy",
       "service": "IAM",
       "proposed_bucket": "composite",
@@ -6014,6 +6025,17 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "A fold-child proposal claims no components by design - its CFN evidence is the parent's - and the two grammar rules that resolve fold rows from the child's own Import section refuse here: the example pairs a role name with a full policy ARN; the scraped Identity Schema names [role, policy_arn] but the ARN segment defeats the arity check. The ratified row is the ratifiers' reading of the same page."
+    },
+    {
+      "tf_type": "aws_iam_role_policy_attachments_exclusive",
+      "service": "(no CFN model)",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_iam_saml_provider",
