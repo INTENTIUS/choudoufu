@@ -189,6 +189,10 @@ copy_module() {
 # write_root <destdir> <live_block>: this crossing's own root wiring, calling
 # the real module with the same S3/CloudFront/IAM/VPC inputs
 # examples/complete uses, scoped exactly as this script's header states.
+#
+# Both copies keep the provider's skip_requesting_account_id = true, and that
+# is a measured decision rather than boilerplate - see MEASURED, NOT ASSUMED
+# in this file's header for what setting it false costs.
 write_root() {
   local dest="$1" live_block="$2"
   cat > "$dest/main.tf" <<EOF
@@ -308,6 +312,12 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
+# Seed the estate copy's lock file from this init. The shared plugin cache
+# records no checksums, so a directory with no .terraform.lock.hcl re-downloads
+# the whole ~600MB AWS provider purely to compute them - ~320s, per init.
+# Copying the lock file the first init just produced takes stage 2's init from
+# that to about a second, and pins the identical provider build.
+[ -f "$PLAIN/.terraform.lock.hcl" ] && cp "$PLAIN/.terraform.lock.hcl" "$ESTATE/.terraform.lock.hcl"
 COLD_OUT="$(cd "$PLAIN" && tofu apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "stage 1 (cold deploy) failed"; }
 grep -qE 'Apply complete! Resources: 26 added, 0 changed, 0 destroyed' <<< "$COLD_OUT" \
@@ -349,11 +359,14 @@ log "  16 of 26 eligible (11 VERIFIED, 5 DRIFTED); 9 UNTAGGABLE; 1 UNADMITTED_TY
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "13 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 3 failed, 10 skipped" <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not match the expected 13/0/3/10 breakdown"; }
+grep -qF "16 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 10 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not match the expected 16/0/0/0/0/10 breakdown"; }
+# lex00/floci#72's own negative control. The three AWS Batch resources used to
+# fail here with floci's AppSync misroute text; if it ever comes back, the
+# emulator has regressed and stage 2 is partial again rather than clean.
 grep -qF "GraphQL API not found" <<< "$APPROVE_OUT" \
-  || fail "expected the 3 FAILED resources to carry floci's AppSync-misroute error text (lex00/floci#72) - if this no longer appears, the floci bug may be fixed and this script's scoping/assertions need revisiting"
-log "  13 stamped, 3 failed (floci's own Batch TagResource routing bug - lex00/floci#72, not a choudoufu defect), 10 correctly skipped"
+  && { printf '%s\n' "$APPROVE_OUT"; fail "floci's AppSync tag-path misroute is back (lex00/floci#72) - the three Batch resources cannot be stamped"; }
+log "  16 stamped, 0 failed, 10 correctly skipped (9 UNTAGGABLE + 1 already-ruled UNADMITTED_TYPE)"
 
 log "--- 2c: the markers that DID land, read through the AWS CLI directly - never through choudoufu ---"
 WANT_BUCKET_ADDR="module.overture_tiles.aws_s3_bucket.tiles:0"
@@ -367,12 +380,32 @@ GOT_BUCKET_ESTATE="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --que
 [ "$GOT_BUCKET_ESTATE" = "$ESTATE_NAME" ] || fail "the S3 bucket carries tofu-estate=$GOT_BUCKET_ESTATE, not $ESTATE_NAME"
 log "  bucket $BUCKET_NAME -> tofu-address=$GOT_BUCKET_ADDR tofu-estate=$GOT_BUCKET_ESTATE"
 
+# The AWS Batch job queue is the resource lex00/floci#72 blocked outright, so
+# its marker is read back the same way - through the AWS CLI's own
+# ListTagsForResource, which is the very call that used to be answered by
+# AppSync. A marker here proves the fix reached the right object, not just
+# that live-import stopped reporting a failure.
+BATCH_QUEUE_ARN="$(awsl batch describe-job-queues --query "jobQueues[?jobQueueName=='${ESTATE_NAME}-queue'].jobQueueArn | [0]" --output text)"
+[ -n "$BATCH_QUEUE_ARN" ] && [ "$BATCH_QUEUE_ARN" != "None" ] || fail "no job queue named ${ESTATE_NAME}-queue came back from floci"
+GOT_QUEUE_ADDR="$(awsl batch list-tags-for-resource --resource-arn "$BATCH_QUEUE_ARN" --query 'tags."tofu-address"' --output text)"
+[ "$GOT_QUEUE_ADDR" = "module.overture_tiles.aws_batch_job_queue.tiles" ] \
+  || fail "the Batch job queue carries tofu-address=$GOT_QUEUE_ADDR, not module.overture_tiles.aws_batch_job_queue.tiles"
+GOT_QUEUE_ESTATE="$(awsl batch list-tags-for-resource --resource-arn "$BATCH_QUEUE_ARN" --query 'tags."tofu-estate"' --output text)"
+[ "$GOT_QUEUE_ESTATE" = "$ESTATE_NAME" ] || fail "the Batch job queue carries tofu-estate=$GOT_QUEUE_ESTATE, not $ESTATE_NAME"
+# The module's own create-time tags must have survived the marker write: a
+# TagResource that replaces instead of merging is how a live object silently
+# loses either its own tags or its markers.
+GOT_QUEUE_PROJECT="$(awsl batch list-tags-for-resource --resource-arn "$BATCH_QUEUE_ARN" --query 'tags.Project' --output text)"
+[ "$GOT_QUEUE_PROJECT" = "overture-tiles-crossing" ] \
+  || fail "the Batch job queue lost its own create-time Project tag during the stamp (got '$GOT_QUEUE_PROJECT')"
+log "  batch job queue $BATCH_QUEUE_ARN -> tofu-address=$GOT_QUEUE_ADDR tofu-estate=$GOT_QUEUE_ESTATE, own Project tag intact"
+
 if [ "${BREAK:-}" = "1" ]; then
   fail "BREAK=1: the bucket's real tofu-address matched the WRONG expected value above without this script noticing - stage 2's assertion is not load-bearing"
 fi
 
 log ""
-log "STAGE 2 (migrate): BLOCKED (partial) - 13 of 26 stamped correctly; 3 blocked on lex00/floci#72, a floci bug, not a choudoufu one"
+log "STAGE 2 (migrate): PASS - 16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
