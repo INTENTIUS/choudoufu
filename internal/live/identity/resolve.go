@@ -1896,6 +1896,19 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 			return parts, leafOK
 		}
 
+		// A selection expression - `cond ? A : B`, or coalesce(A, B, ...) -
+		// written entirely out of var and local references, so
+		// [resolver.isSymbolic] saw no managed resource anywhere in it and
+		// sent the whole thing down this branch rather than to the
+		// symbolic switch below. The managed resource is there; it is
+		// behind one of those names, which is exactly what
+		// [resolver.namedLeaf] just proved by chasing it. See
+		// [resolver.resolveSelection].
+		if parts, selOK, applicable := r.resolveSelection(expr, scope, ident); applicable {
+			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
+			return parts, selOK
+		}
+
 		// Last of all, and only where every route above has already
 		// returned false: the value is in the caller's configuration, but
 		// a module argument this module's caller built out of a literal
@@ -1961,6 +1974,16 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		// when resource expansion settles which arguments raise an error -
 		// see fallback.go. Same not-applicable contract as above.
 		if parts, ok, applicable := r.resolveFallbackChain(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// coalesce(A, B, ...) resolved to whichever argument the language
+		// selects, when every argument before it is provably null or empty
+		// and that one is provably neither - see coalesce.go. Same
+		// not-applicable contract as above. This is the door the call
+		// arrives at when a managed resource is named directly inside it;
+		// the branch above [resolver.namedLeaf] is the one it arrives at
+		// when every argument is a var or local reference.
+		if parts, ok, applicable := r.resolveCoalesceCall(e, scope, ident); applicable {
 			return parts, ok
 		}
 	case *hclsyntax.IndexExpr:

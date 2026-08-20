@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=499 instances=1567
-# shape: class CONCRETE=773
+# shape: dirs=503 instances=1571
+# shape: class CONCRETE=775
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
-# shape: class RECORD_BACKED=19
-# shape: body-sha256=49a313fc47f2ca04794a0ba20c983fcf541e5629efc8577449122cde3856a315
+# shape: class RECORD_BACKED=21
+# shape: body-sha256=f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -116,6 +116,10 @@ internal/live/identity/testdata/cloud-singleton	aws_cloudwatch_otel_enrichment.o
 internal/live/identity/testdata/cloud-singleton	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.spelled	CONCRETE	eu-west-1	
+internal/live/identity/testdata/coalesce-selection	module.child.aws_iam_group.literal_wins	CONCRETE	literal-name	name=literal-name
+internal/live/identity/testdata/coalesce-selection	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/coalesce-selection/child	aws_iam_group.literal_wins	CONCRETE	literal-name	name=literal-name
+internal/live/identity/testdata/coalesce-undecidable	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[2]	NEEDS_DISCOVERY		
