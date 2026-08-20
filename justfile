@@ -1125,6 +1125,13 @@ survey-render:
 identity-sources:
     go run ./tools/row-gen -sources
 
+# Which markerless types with a documented composite import can have their
+# exported `id` recorded whole (#337), into live/composite-import-roster.json.
+# Reads live/survey-full.json and live/import-grammar.json. No provider, no
+# network.
+composite-import:
+    go run ./tools/row-gen -composite-import
+
 # live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
 # registries, the corpus artifact above, and live/wo-sweep.json's residue
 # figures (#126). No provider, no network: all three inputs are committed.

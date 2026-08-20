@@ -98,6 +98,7 @@ func main() {
 	convergence := flag.Bool("convergence", false, "measure row-gen's fresh proposals against tools/row-gen/ratified.json's ratified entries and write live/rowgen-convergence.json, instead of printing the pastable-row report")
 	propose := flag.Bool("propose", false, "issue #65's PROPOSE stage: print only the rule classes with a 100% historical adoption record and their not-yet-admitted candidates, instead of the full pastable-row report (see propose.go)")
 	sources := flag.Bool("sources", false, "issue #106: compare the sources that describe each type's identity - the provider's schema, the scraped docs, and the ratified table - and write live/identity-sources.json")
+	compositeImport := flag.Bool("composite-import", false, "issue #337: classify the markerless types whose documented import is composite and whose provider serves no wire identity schema, by whether the page's own Attribute Reference proves the exported `id` is the whole import string, and write live/composite-import-roster.json (see compositeimport.go)")
 	emit := flag.Bool("emit", false, "issue #96: write generated Go source for internal/live/identity.DefaultTable and internal/live/lint's admittedTypesV0 (one generated file per table; nothing hand-written participates), rendering every non-RecordBacked row from tools/row-gen/ratified.json, instead of printing blocks to paste by hand (see emit.go)")
 	logicalSchemas := flag.Bool("logical-schemas", false, "read the record-store effects providers' own schemas and write live/logical-schemas.json, the evidence -emit derives every RecordBacked row from (see logicalschemas.go). Needs -init-bin; every other mode is offline")
 	initBin := flag.String("init-bin", "terraform", "the binary -logical-schemas runs `init` with to install each provider")
@@ -130,6 +131,14 @@ func main() {
 
 	if *sources {
 		if err := runSources(os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if *compositeImport {
+		if err := runCompositeImport(os.Stdout, os.Stderr); err != nil {
 			fmt.Fprintf(os.Stderr, "row-gen: %v\n", err)
 			os.Exit(1)
 		}
