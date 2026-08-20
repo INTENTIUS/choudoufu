@@ -971,6 +971,45 @@ a separate maintainer call. Real, staged, well-precedented work now - not
 and `#329`. `corpus-alb-complete`'s stage 3 is unchanged - nothing
 implemented yet, this was scoping only.
 
+**`#329` is now built, and its own "not reachable today" premise was
+refuted while building it.** Landed 2026-08-19 (`250fd46952`). A located
+record now carries an identity OBJECT when the provider's own identity
+schema says the string is not the whole identity, and a composite whose
+components cannot all be read off an applied object is REFUSED rather than
+recorded in part. **It admits no new type and does not widen row-gen's
+markerless veto** - `LocatedType`'s first condition is still membership in
+`MarkerlessTypes`, untouched - so #309's veto-widening is still its own,
+still-unstarted work, now with something safe to land on.
+
+The premise this file repeated above, that the hole is unreachable because
+every type of this shape has a partly read-only CFN primary identifier and
+so is outside `MarkerlessTypes`, holds for the 16 types the issue
+enumerated and **not for the class**. Computed at `334bd26a44` from
+`markerless_generated.go` + `live/import-grammar.json` + the offline doc
+cache: all 140 `MarkerlessTypes` are outside `DefaultTable` and so reach
+`LocatedType`; **43 of them have a non-null documented import separator**;
+and of those 43 the docs describe `id` as a bare LEAF, not the composite,
+for at least fourteen (`aws_apigatewayv2_route`, `aws_backup_selection`,
+the five `aws_datazone_*`, both `aws_emr_instance_*`,
+`aws_ec2_client_vpn_network_association`, `aws_glue_partition`,
+`aws_route53_traffic_policy`, `aws_ssm_maintenance_window_task`,
+`aws_s3outposts_endpoint`), while seven document `id` AS the composite and
+were always fine. So this was a live defect in an estate declaring a
+`record_store`, not only a sequencing constraint. Two honest bounds on that
+figure: it is docs-and-artifact evidence, and `credentialMaterial` and
+`hasLocatedImportID` are schema facts not re-checked per type here, so a
+type failing either is refused before the defect can bite.
+
+The fix reaches the 16 of the 43 the provider serves an identity schema
+for. **The other 27 are the remaining debt and are named as such**: their
+composite import is documented but not in any schema, so nothing at run
+time can tell a leaf `id` from a whole one, and today's rule still admits
+them on the string. Closing it means row-gen emitting a derived
+composite-import roster the way it already emits `MarkerlessTypes` - the
+grammar it would read from is `live/import-grammar.json`'s `separator`,
+which it already parses. Not attempted: it is generator work, and
+`tools/row-gen` was held by another agent.
+
 ### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 
 Was a real silent destroy-recreate hazard, found scouting a smaller loose
