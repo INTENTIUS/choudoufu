@@ -1200,27 +1200,40 @@ fixes:**
    "This is a bug in the provider, which should be reported in the
    provider's own issue tracker." It is the one rule in the estate sourced
    from a prefix list rather than a CIDR or a referenced security group.
-   **Not investigated, not filed** - that is the next slot's first job, and
-   it is the last thing between this estate and five-of-five.
+   **Filed as #335** - it is the last thing between this estate and
+   five-of-five, and it is genuinely outside this fork's own code (the
+   diagnostic names no choudoufu path).
 
-   Two honest gaps in this entry, both worth knowing before re-running it.
-   First, `refusal-probe` over 250 corpus configurations (same tree both
-   runs) shows sites 16068 -> 16074 (+6) and **instances 4417 -> 4413
-   (-4)**, blocked 194 -> 194. The -4 is the point rather than a
-   regression: `.corpus/cyhy-amis` and `.corpus/cool-assessment` write
-   `aws_route.route_table_id = aws_default_route_table.X.id`, and `.id` is
-   no longer one of this type's identity attributes, so those children
-   refuse instead of silently taking a VPC id for a route table id.
-   Recovering them needs per-attribute values for a *discovered* parent,
-   which `discovery.Binding` does not carry - a real follow-up, not filed.
-   Second, stage 3's rewritten assertions (including the new step 3a, which
+   **The script itself needed a real update pass too, found only by
+   actually re-running it clean.** Three separate belt-and-suspenders
+   assertions (`aws_default_network_acl`/etc.'s code-frame loop, the
+   `aws_default_route_table`-named-nowhere check, and #313's
+   `aws_availability_zones`-absent check) were all written back when the
+   plan always errored out before reaching real execution, as bare
+   substring matches over the whole plan output. Once #332 let the plan
+   reach PROJECTION for real, each one started matching its own type's
+   ORDINARY, non-error plan-diff or data-source-refresh output instead of
+   an actual diagnostic - three separate false failures, found one at a
+   time by dumping the real plan text and reading it rather than trusting
+   the assertion's own error message. Fixed the same way each time: match
+   only the diagnostic's own numbered source-line echo (the pattern
+   `corpus-giantswarm-crossplane`'s own script already used), never a bare
+   substring. Confirmed clean: real run, `NORMAL_EXIT:0`, blocked at
+   exactly 1 site (the #335 provider bug); `BREAK=1` correctly fails.
+
+   One honest gap remains worth knowing. `refusal-probe` over 250 corpus
+   configurations (same tree both runs) shows sites 16068 -> 16074 (+6) and
+   **instances 4417 -> 4413 (-4)**, blocked 194 -> 194. The -4 is the point
+   rather than a regression: `.corpus/cyhy-amis` and `.corpus/cool-
+   assessment` write `aws_route.route_table_id = aws_default_route_table.X.
+   id`, and `.id` is no longer one of this type's identity attributes, so
+   those children refuse instead of silently taking a VPC id for a route
+   table id. Recovering them needs per-attribute values for a *discovered*
+   parent, which `discovery.Binding` does not carry - a real follow-up, not
+   filed. Stage 3's rewritten assertions (including step 3a, which
    re-derives each default route table's import identity from AWS itself
-   and asserts it BY VALUE) were written from a real run's measured output
-   but **have not themselves been executed end to end**: three consecutive
-   attempts were cut off by this agent's 600s per-command cap during the
-   adopted estate's `init`, with other agents' crossings holding the
-   machine at load average 6-9. Stage 1 passed in all three. Re-run it
-   before trusting the script's own PASS/FAIL line.
+   and asserts it BY VALUE) HAVE now been executed end to end for real, on
+   a clean run with the three assertion fixes above - see that entry.
 2. `corpus-rds-complete-postgres` needs (1) plus an actual, currently
    unmade ruling: **may this fork ever resolve a managed resource's own
    Computed attribute off configuration alone** (not read the cloud,

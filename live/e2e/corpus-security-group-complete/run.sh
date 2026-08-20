@@ -597,8 +597,18 @@ UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subse
 # tight as it was even though aws_default_route_table does now appear in the
 # output by name - see WANT_PROJECTION_IMPORT_N above and the assertion
 # below, which is what covers that.
+#
+# Matched against the diagnostic's own verbatim NUMBERED source snippet
+# (`^ +[0-9]+: resource "type" "name" {`, the same shape #332's own
+# crossing landed for corpus-giantswarm-crossplane's identical assertion
+# bug), not a bare `grep -cF "resource \"$t\""` over the whole plan output.
+# Once #332 let this estate's plan reach PROJECTION, an ordinary, non-error
+# plan-diff line - `~ resource "aws_default_network_acl" "this" {`,
+# reconciling a real DRIFTED resource migrate legitimately stamped - can
+# contain the same substring a diagnostic's code frame does. Only the
+# numbered form is a diagnostic; a plan diff line carries no line number.
 for t in aws_default_network_acl aws_default_route_table aws_default_security_group aws_vpc_security_group_rules_exclusive; do
-  N="$(grep -cF "resource \"$t\"" <<< "$PLAN_OUT")"
+  N="$(grep -cE "^ +[0-9]+: resource \"$t\" \"" <<< "$PLAN_OUT")"
   [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "expected $t to raise no ANALYSIS refusal (both #305 and #307 fixed), but it still appears in a diagnostic's declaring-line code frame"; }
 done
 
@@ -620,7 +630,18 @@ EMPTY_RESULT_N="$(grep -c '^Error: empty result$' <<< "$PLAN_OUT")"
 [ "$PROJECTION_IMPORT_N" = "$WANT_PROJECTION_IMPORT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_PROJECTION_IMPORT_N 'Cannot import for projection' sites (#332, aws_default_route_table imports by vpc_id), got $PROJECTION_IMPORT_N"; }
 [ "$EMPTY_RESULT_N" = "$WANT_EMPTY_RESULT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_EMPTY_RESULT_N 'empty result' sites (#332, the provider's own error for a route-table id it cannot look a VPC up by), got $EMPTY_RESULT_N"; }
 if [ "${BREAK:-}" != "1" ]; then
-  N="$(grep -c 'aws_default_route_table' <<< "$PLAN_OUT")"
+  # Same shape as the belt-and-suspenders loop above: matched against the
+  # diagnostic's own verbatim NUMBERED source snippet, not a bare substring
+  # count over the whole plan. Once #332 lets this type resolve correctly,
+  # a genuinely DRIFTED aws_default_route_table instance shows up in the
+  # plan's ORDINARY, non-error diff too (reconciling the tofu-address tag
+  # migrate has not yet written for it) - `~ resource "aws_default_route_table"
+  # "default" {` with no line number, which the analysis-layer counts above
+  # (PROJECTION_IMPORT_N, EMPTY_RESULT_N, and the four-type loop) already
+  # cover exhaustively. This check exists to catch the type reappearing in a
+  # diagnostic OUTSIDE those already-named shapes, not to forbid an ordinary
+  # diff line.
+  N="$(grep -cE '^ +[0-9]+: resource "aws_default_route_table" "' <<< "$PLAN_OUT")"
   [ "$N" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_default_route_table'; fail "expected aws_default_route_table to be named by no diagnostic at all (#332 fixed), got $N"; }
 fi
 
@@ -630,7 +651,14 @@ fi
 # rebuild in internal/live/identity's resolver.frozenClosureIsStale has
 # regressed, and every per-AZ subnet, route table and association in both
 # nested vpc calls is unresolvable again.
-! grep -qF 'aws_availability_zones' <<< "$PLAN_OUT" \
+#
+# Excludes the data source's own ordinary refresh log (`data.aws_
+# availability_zones.available: Reading...`/`: Read complete after ...`) -
+# once #332 lets the plan reach real execution, the data source is actually
+# read as part of a normal, successful plan, and that progress log mentions
+# the same name a diagnostic would. Only a mention OUTSIDE that shape is the
+# thing this assertion exists to catch.
+! grep -vE ': (Reading\.\.\.|Read complete)' <<< "$PLAN_OUT" | grep -qF 'aws_availability_zones' \
   || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|aws_availability_zones'; fail "#313's data.aws_availability_zones root cause is back - it must contribute no diagnostic at all"; }
 # ... and by presence of what it unblocked: the per-AZ resources whose
 # count/for_each reads local.azs through module.vpc's own var.azs are gone
