@@ -247,13 +247,36 @@ set -uo pipefail
 # Both are fixed in floci 94ca0669 (published as sha256:f068fa6b via
 # 720727be, re-pinned in live/floci-image the same day). Re-run against the
 # new pin: step 3b's stock-terraform control now names ZERO resource-level
-# changes at all - see that step's own comment for the one remaining
-# output-only diff, which live-plan cannot reach because it has no prior
-# state to diff an output against.
+# changes at all, confirmed by reading the raw `terraform plan
+# -detailed-exitcode` output directly (not through this script's own
+# extraction) immediately after a real cold apply. The one line left in
+# stock's own control is an OUTPUT diff (outputs.tf:49's
+# `try(aws_lambda_function.this[0].kms_key_arn, "")`), not a resource
+# attribute - see step 3b's own comment.
+#
+# A SIXTH BLOCKER SITS UNDERNEATH, newly REACHED rather than caused, and it
+# is real - filed as issue #348 rather than assumed away. `live-plan` itself
+# raises ZERO diagnostics, resolves every identity, and proposes changing
+# ZERO resources - there is no "OpenTofu will perform the following
+# actions" block at all - and the plan is STILL not empty, because ALL 23 of
+# this example's own root-level `output` blocks render as
+# "Changes to Outputs: + <name> = <value>" on every single run.
+# internal/live/projection.Manager.GetRootOutputValues (the statemgr
+# interface live-plan asks for the "prior" side of an output diff) always
+# returns an empty map, because nothing evaluates the configuration's
+# `output` blocks against the prior resource state live-plan reconstructs
+# from markers before the plan graph asks for them - there is no carrier for
+# an output value the way there is for a resource identity, and nothing
+# fills the gap that leaves. Stock Terraform does not hit this because its
+# refresh step recomputes outputs against a REAL persisted state file's
+# prior values; choudoufu never persists one. Verified this is genuinely
+# new, not a pre-existing gap this estate happened to reach first:
+# corpus-mastino-dns and corpus-evoteum-modules, the two crossings closest
+# to 5 of 5, both declare ZERO root-level outputs.
 #
 # Stages 4 and 5 remain to be written below, following
-# live/e2e/corpus-mastino-dns/run.sh's shape, now that stage 3 has a real
-# empty plan to build them on.
+# live/e2e/corpus-mastino-dns/run.sh's shape, once #348 lands and stage 3
+# has a real empty plan to build them on.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -652,14 +675,28 @@ CHOUDOUFU_DRIFTED="$(comm -23 <(printf '%s\n' "$LIVE_DRIFTED" | grep -v '^$' | s
 
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" || {
   log ""
-  log "STAGE 3 (test plan): BLOCKED for real - live-plan raises NO diagnostics"
-  log "  and every identity resolves, but the plan is not empty."
+  log "STAGE 3 (test plan): BLOCKED for real - live-plan raises NO diagnostics,"
+  log "  every identity resolves, and ZERO resources are proposed for change,"
+  log "  but the plan is not empty."
   log ""
-  if [ -z "$CHOUDOUFU_DRIFTED" ]; then
+  OUTPUT_ONLY=0
+  grep -qF "OpenTofu will perform the following actions" <<< "$PLAN_OUT" || {
+    grep -qF "Changes to Outputs:" <<< "$PLAN_OUT" && OUTPUT_ONLY=1
+  }
+  if [ "$OUTPUT_ONLY" = "1" ]; then
+    log "  lex00/floci#83 IS FIXED: there is no resource-level action block at"
+    log "  all (no "OpenTofu will perform the following actions"), which is"
+    log "  what step 3b's control already showed against stock terraform. What"
+    log "  remains is issue #348 - a choudoufu-side gap, not floci's: live-plan"
+    log "  never evaluates the root module's own 'output' blocks against the"
+    log "  prior resource state it reconstructs from markers, so"
+    log "  GetRootOutputValues always returns empty and every declared output"
+    log "  renders as newly created on every single run, regardless of"
+    log "  whether the underlying resources changed. This example's own 23"
+    log "  outputs are exactly what show up below."
+  elif [ -z "$CHOUDOUFU_DRIFTED" ]; then
     log "  Every resource in this plan is one stock terraform's OWN replan proposes"
-    log "  too (step 3b's control), so nothing here is choudoufu's: the whole"
-    log "  remainder is lex00/floci#83. Fixing the emulator is what takes this"
-    log "  estate to an empty replan; there is no choudoufu-side wall left."
+    log "  too (step 3b's control), so nothing here is choudoufu's."
   else
     log "  Beyond the emulator's own drift (step 3b), these are choudoufu's:"
     printf '%s\n' "$CHOUDOUFU_DRIFTED" | sed 's/^/    /'
@@ -672,14 +709,16 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN
   log "  them is proposed for creation and every identity derived from"
   log "  random_pet.this renders."
   log ""
-  log "  What remains is whatever the diff below says, which is a NEWLY REACHED"
-  log "  wall: nothing before this run had ever got a non-erroring plan out of"
-  log "  this estate to look at."
+  log "  What remains is whatever the diff below says."
   log ""
   # Bounded by sed's own range end rather than piped into head: head closes
   # the pipe early and printf then reports a broken pipe into the middle of
-  # the evidence this block exists to print.
+  # the evidence this block exists to print. An output-only diff (issue
+  # #348) has no "OpenTofu will perform" header at all, so both possible
+  # shapes are dumped - whichever is present prints, the other prints
+  # nothing.
   printf '%s\n' "$PLAN_OUT" | sed -n '/^OpenTofu will perform/,/^Plan: /p'
+  printf '%s\n' "$PLAN_OUT" | sed -n '/^Changes to Outputs:/,/^$/p'
   log ""
   log "STAGE 4 (test apply): NOT REACHED"
   log "STAGE 5 (drift and reconverge): NOT REACHED"
