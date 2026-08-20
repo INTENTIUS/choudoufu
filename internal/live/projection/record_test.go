@@ -18,6 +18,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -724,5 +725,121 @@ func TestRecordKeyIsSSMSafe(t *testing.T) {
 		default:
 			t.Fatalf("RecordKey(%s) = %q contains the SSM-unsafe character %q", addr, key, r)
 		}
+	}
+}
+
+// TestSensitiveAttributeSurvivesWriteBackAndMaterialization is the
+// end-to-end statement of the record store's sensitivity fix, and it runs
+// the two real paths rather than the encoder directly: [WriteBack] after an
+// apply, and materializeRecord (through BuildWith) on the next plan.
+//
+// It is the sibling of TestTaintedRecordSurvivesWriteBackAndMaterialization
+// and it exists for the same reason: a bit that lives ONLY in the record
+// store for a record-backed type - there is no state file to carry it - and
+// whose loss is invisible to every verdict-level check. A lost tainted bit
+// replans as healthy; a lost sensitivity mark replans as a perpetual
+// in-place update that OpenTofu's own renderer annotates "The value is
+// unchanged". corpus-lambda-simple's sixth wall was exactly that.
+//
+// Two things are asserted at the end, not one. The value has to survive
+// (it did before this fix), and inst.Current.AttrSensitivePaths has to
+// name the marked attribute - that field, and only that field, is what the
+// plan graph's "before" side decodes back out, since live-plan runs with
+// SkipRefresh and nothing re-marks a projected object afterwards.
+func TestSensitiveAttributeSurvivesWriteBackAndMaterialization(t *testing.T) {
+	ctx := context.Background()
+	store, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("building the local store: %s", err)
+	}
+	const prefix = "tofu-records/test-estate"
+	addr := mustAddr(t, `null_resource.trigger`)
+	schema := nullResourceSchema()
+
+	// The shape a real apply leaves behind for a type with a sensitive
+	// attribute: the value carries marks.Sensitive at one path, which is
+	// what node_resource_abstract_instance.go's apply puts there from
+	// schema.Block.ValueMarks and the config's own paths.
+	appliedVal := cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("applied"),
+		"triggers": cty.MapVal(map[string]cty.Value{"input": cty.StringVal("a-secret").Mark(marks.Sensitive)}),
+	})
+	obj := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: appliedVal}
+	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), 0)
+	if err != nil {
+		t.Fatalf("encoding the applied object: %s", err)
+	}
+	if len(src.AttrSensitivePaths) != 1 {
+		t.Fatalf("the fixture object encoded %d sensitive paths, want 1 - the test setup is broken, not the code under test", len(src.AttrSensitivePaths))
+	}
+
+	finalState := states.NewState()
+	finalState.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, nullProvider, addrs.NoKey)
+
+	schemas := &tofu.Schemas{
+		Providers: map[addrs.Provider]providers.ProviderSchema{
+			nullProvider.Provider: {
+				Provider:      providers.Schema{Block: &configschema.Block{}},
+				ResourceTypes: map[string]providers.Schema{"null_resource": schema},
+			},
+		},
+	}
+
+	// WriteBack decodes that src again - Decode re-applies
+	// AttrSensitivePaths - so this call is the one that used to hand a
+	// MARKED value to ctyjson.Marshal with no unmark of its own.
+	diags := WriteBack(ctx, WriteBackRequest{
+		Store:      store,
+		KeyPrefix:  prefix,
+		FinalState: finalState,
+		Schemas:    schemas,
+	})
+	assertNoErrors(t, diags)
+
+	rawPayload, _, exists, err := store.Get(ctx, RecordKey(prefix, addr))
+	if err != nil || !exists {
+		t.Fatalf("record missing after write-back: exists=%v err=%v", exists, err)
+	}
+	gotVal, _, _, err := decodeRecordPayload(rawPayload)
+	if err != nil {
+		t.Fatalf("decoding the written-back payload: %s", err)
+	}
+	if !gotVal.GetAttr("triggers").Index(cty.StringVal("input")).HasMark(marks.Sensitive) {
+		t.Error("the written-back record lost the sensitivity of triggers.input")
+	}
+
+	// The next plan's materialization, through the real builder.
+	cfg := loadConfig(t, writeNullResourceFixture(t))
+	provs := SingleProvider(nullProvider, nullResourceProvider())
+	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
+
+	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{
+		RecordStore:     store,
+		RecordKeyPrefix: prefix,
+	})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`null_resource.trigger`})
+
+	inst := res.State.ResourceInstance(addr)
+	if inst == nil || inst.Current == nil {
+		t.Fatal("no current object for the materialized instance")
+	}
+	if len(inst.Current.AttrSensitivePaths) != 1 {
+		t.Fatalf("the projected object carries %d sensitive paths, want 1 - the plan's before side is what reads this, and an unmarked before against a marked after is a perpetual diff", len(inst.Current.AttrSensitivePaths))
+	}
+	wantPath := cty.GetAttrPath("triggers").IndexString("input")
+	if got := inst.Current.AttrSensitivePaths[0].Path; !got.Equals(wantPath) {
+		t.Errorf("the projected object marks %#v, want %#v", got, wantPath)
+	}
+	decoded, err := inst.Current.Decode(schema.Block.ImpliedType())
+	if err != nil {
+		t.Fatalf("decoding the materialized object: %s", err)
+	}
+	if !decoded.Value.GetAttr("triggers").Index(cty.StringVal("input")).HasMark(marks.Sensitive) {
+		t.Error("the materialized object's triggers.input is unmarked - this is the sixth wall")
+	}
+	unmarked, _ := decoded.Value.UnmarkDeep()
+	if s := unmarked.GetAttr("triggers").Index(cty.StringVal("input")).AsString(); s != "a-secret" {
+		t.Errorf("triggers.input = %q, want the value that went in", s)
 	}
 }

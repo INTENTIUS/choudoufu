@@ -521,24 +521,23 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 		entry.Detail = fmt.Sprintf("The recorded state does not fit the provider's current schema for %s: %s.", typeName, decErr)
 		return entry, carriers{}
 	}
-	// UnmarkDeep for the same reason the stamping path unmarks its own
-	// prior, and it is load-bearing rather than defensive.
-	// [states.ResourceInstanceObjectSrc.Decode] re-applies the state's
-	// AttrSensitivePaths, and a marked leaf panics ctyjson.Marshal - which
-	// is what encodes the payload. This is not hypothetical for the
-	// record-backed set: hashicorp/local marks local_file.content sensitive,
-	// and local_file is RECORD_BACKED (issue #314).
+	// The MARKED object is what goes into the record store, and the unmark
+	// here is only for this function's own reads.
 	//
-	// What it costs, stated rather than hidden: [projection.recordPayload]
-	// has nowhere to put a sensitivity path, so the record carries the value
-	// and not the mark, and the first live-plan after a migration shows a
-	// sensitivity-only in-place update for such an attribute ("The value is
-	// unchanged", in OpenTofu's own renderer's words). That is a gap in the
-	// record payload format, reached by this path and shared with
-	// [projection.WriteBack] - which has it worse, since without an unmark
-	// of its own it panics rather than losing the mark. It is filed
-	// separately; storing the value is unambiguously better than storing
-	// nothing, which is what a migration did before issue #340.
+	// [states.ResourceInstanceObjectSrc.Decode] re-applies the state's
+	// AttrSensitivePaths, so a record-backed instance with a sensitive
+	// attribute arrives marked - hashicorp/local marks local_file.content
+	// sensitive and local_file is RECORD_BACKED (issue #314), so this is the
+	// ordinary case rather than an edge one. [projection.encodeRecordPayload]
+	// now splits that value from its sensitivity and persists both, the way
+	// a state file persists AttrSensitivePaths beside AttrsJSON; passing it
+	// an already-unmarked value would silently drop the sensitivity and
+	// leave the first live-plan after a migration proposing a
+	// sensitivity-only in-place update forever.
+	//
+	// liveIDFrom reads attributes out of the object, so it takes the
+	// unmarked copy: an identity component is a cloud tag in plaintext and
+	// must never be composed from a marked value.
 	val, _ := prior.Value.UnmarkDeep()
 
 	entry.Status = StatusUntaggable
@@ -546,7 +545,7 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 	entry.Detail = fmt.Sprintf("%s has no live object to tag: its value IS its identity, so an approved migration seeds this estate's record store from the state's own object for it rather than writing a marker.", typeName)
 	return entry, carriers{recordable: &recordable{
 		typeName: typeName,
-		value:    val,
+		value:    prior.Value,
 		private:  prior.Private,
 		status:   prior.Status,
 	}}

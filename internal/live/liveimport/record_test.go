@@ -313,19 +313,22 @@ func TestApprove_NeverOverwritesAnExistingRecord(t *testing.T) {
 	}
 }
 
-// TestApprove_RecordsAnObjectCarryingASensitiveAttribute pins the one thing
-// [ratifyRecordBacked]'s unmark buys and the one thing it costs.
+// TestApprove_RecordsAnObjectCarryingASensitiveAttribute pins what a
+// migration writes for a record-backed instance whose object is MARKED.
 //
 // hashicorp/local marks local_file.content sensitive and local_file is
-// RECORD_BACKED, so a real migration decodes a MARKED value out of the state
+// RECORD_BACKED, so a real migration decodes a marked value out of the state
 // (Decode re-applies AttrSensitivePaths) and hands it to an encoder that
-// panics on one. The value has to reach the store anyway: without it the
-// resource is proposed for creation, which is strictly worse than a
-// sensitivity-only in-place update.
+// ctyjson would panic on. Both halves are asserted here: the value reaches
+// the store, and so does the fact that it was sensitive.
 //
-// The second half of this test is deliberately an assertion about a
-// LIMITATION - the record holds the value and not the mark - so that a later
-// change to the payload format has to come here and say so.
+// The second half used to pin the OPPOSITE - "nothing in the payload records
+// that content was sensitive" - as a deliberate limitation. It cost this
+// estate its sixth wall: live-plan runs with SkipRefresh, so the record's
+// marks are the only marks the plan's "before" side has, and an unmarked
+// before against a schema-marked after is a difference. corpus-lambda-simple
+// replanned "~ content = (sensitive value)" with OpenTofu's own renderer
+// saying "The value is unchanged", forever.
 func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 	addr := mustAddr(t, "local_file.archive_plan")
 
@@ -383,11 +386,25 @@ func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 	if attrs.Content != "a-secret-build-plan" {
 		t.Errorf("the record holds content = %q, want the state's own value", attrs.Content)
 	}
-	// The limitation, pinned: nothing in the payload records that content
-	// was sensitive. Change this only alongside a payload format that can
-	// carry it.
-	if bytes.Contains(raw, []byte("sensitive")) {
-		t.Error("the record payload now carries sensitivity information; update ratifyRecordBacked's comment and this test together")
+	// The mark, pinned by VALUE rather than by "the word sensitive appears
+	// somewhere": the payload has to name the path that was marked, in the
+	// state file's own encoding, or projection cannot re-apply it.
+	var sens struct {
+		SensitiveAttrs json.RawMessage `json:"sensitive_attributes"`
+	}
+	if err := json.Unmarshal(raw, &sens); err != nil {
+		t.Fatalf("the stored record is not JSON: %s", err)
+	}
+	if got, want := string(sens.SensitiveAttrs), `[[{"type":"get_attr","value":"content"}]]`; got != want {
+		t.Errorf("the record's sensitive_attributes = %s, want %s", got, want)
+	}
+	// And nothing else in the object is claimed sensitive: filename and id
+	// are not marked in the state, so a migration that marked them would be
+	// inventing sensitivity rather than carrying it.
+	for _, attr := range []string{"filename", `"id"`} {
+		if bytes.Contains(sens.SensitiveAttrs, []byte(attr)) {
+			t.Errorf("the record's sensitive_attributes names %s, which the state did not mark: %s", attr, sens.SensitiveAttrs)
+		}
 	}
 }
 
