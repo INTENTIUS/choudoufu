@@ -85851,7 +85851,7 @@
         {
           "service": "apigatewayv2",
           "status": "implemented",
-          "evidence": "apigatewayv2 get-apis succeeded: {\n    \"Items\": [\n        {\n            \"ApiEndpoint\": \"https://93d657db2e.execute-api.us-east-1.amazonaws.com\",\n            \"ApiId\": \"93d657db2e\",\n            \"ApiKeySelectionExpression\": \"$request.he...",
+          "evidence": "apigatewayv2 get-apis succeeded: {\n    \"Items\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -85995,7 +85995,7 @@
         {
           "service": "dynamodb",
           "status": "implemented",
-          "evidence": "dynamodb list-tables succeeded: {\n    \"TableNames\": [\n        \"cloudcontrol-resource-2b3274de9c00\",\n        \"cloudcontrol-resource-93ec2f9a3c00\"\n    ]\n}",
+          "evidence": "dynamodb list-tables succeeded: {\n    \"TableNames\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86019,7 +86019,7 @@
         {
           "service": "eks",
           "status": "implemented",
-          "evidence": "eks list-clusters succeeded: {\n    \"clusters\": [\n        \"cloudcontrol-resource-7b3127c6ee60\"\n    ]\n}",
+          "evidence": "eks list-clusters succeeded: {\n    \"clusters\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86061,13 +86061,13 @@
         {
           "service": "events",
           "status": "implemented",
-          "evidence": "events list-rules succeeded: {\n    \"Rules\": [\n        {\n            \"Name\": \"cloudcontrol-resource-9c004e0b106e\",\n            \"Arn\": \"arn:aws:events:us-east-1:000000000000:rule/cloudcontrol-resource-9c004e0b106e\",\n            \"St...",
+          "evidence": "events list-rules succeeded: {\n    \"Rules\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
           "service": "firehose",
           "status": "implemented",
-          "evidence": "firehose list-delivery-streams succeeded: {\n    \"DeliveryStreamNames\": [\n        \"cloudcontrol-resource-8f2e729ff52f\"\n    ],\n    \"HasMoreDeliveryStreams\": false\n}",
+          "evidence": "firehose list-delivery-streams succeeded: {\n    \"DeliveryStreamNames\": [],\n    \"HasMoreDeliveryStreams\": false\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86127,7 +86127,7 @@
         {
           "service": "kms",
           "status": "implemented",
-          "evidence": "kms list-keys succeeded: {\n    \"Keys\": [\n        {\n            \"KeyId\": \"566fbe3c-143a-4dc9-a36f-95a6aecea79b\",\n            \"KeyArn\": \"arn:aws:kms:us-east-1:000000000000:key/566fbe3c-143a-4dc9-a36f-95a6aecea79b\"\n        },\n  ...",
+          "evidence": "kms list-keys succeeded: {\n    \"Keys\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86145,7 +86145,7 @@
         {
           "service": "logs",
           "status": "implemented",
-          "evidence": "logs describe-log-groups succeeded: {\n    \"logGroups\": [\n        {\n            \"logGroupName\": \"cloudcontrol-resource-26b0593a8de5\",\n            \"metricFilterCount\": 0,\n            \"arn\": \"arn:aws:logs:us-east-1:000000000000:log-group:c...",
+          "evidence": "logs describe-log-groups succeeded: {\n    \"logGroups\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86186,8 +86186,8 @@
         },
         {
           "service": "mwaa",
-          "status": "unverified",
-          "evidence": "none of 1 candidate operation(s) ever reached floci as an AWS-shaped call (1 non-AWS failure(s)) - likely a CLI command-name mismatch in servicecalls.go, not a floci gap",
+          "status": "implemented",
+          "evidence": "mwaa list-environments succeeded: {\n    \"Environments\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86247,7 +86247,7 @@
         {
           "service": "s3",
           "status": "implemented",
-          "evidence": "s3api list-buckets succeeded: {\n    \"Buckets\": [\n        {\n            \"Name\": \"cloudcontrol-resource-d492d4b2773c\",\n            \"CreationDate\": \"2026-08-20T18:52:48+00:00\"\n        },\n        {\n            \"Name\": \"awslambda-us-ea...",
+          "evidence": "s3api list-buckets succeeded: {\n    \"Buckets\": [],\n    \"Owner\": {\n        \"DisplayName\": \"owner\",\n        \"ID\": \"owner\"\n    },\n    \"Prefix\": null\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86271,7 +86271,7 @@
         {
           "service": "secretsmanager",
           "status": "implemented",
-          "evidence": "secretsmanager list-secrets succeeded: {\n    \"SecretList\": [\n        {\n            \"ARN\": \"arn:aws:secretsmanager:us-east-1:000000000000:secret:cloudcontrol-resource-c32497cb4f24-TM4S6P\",\n            \"Name\": \"cloudcontrol-resource-c32497cb...",
+          "evidence": "secretsmanager list-secrets succeeded: {\n    \"SecretList\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -86283,13 +86283,13 @@
         {
           "service": "sns",
           "status": "implemented",
-          "evidence": "sns list-topics succeeded: {\n    \"Topics\": [\n        {\n            \"TopicArn\": \"arn:aws:sns:us-east-1:000000000000:cloudcontrol-resource-8256d30aecfc\"\n        }\n    ]\n}",
+          "evidence": "sns list-topics succeeded: {\n    \"Topics\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
           "service": "sqs",
           "status": "implemented",
-          "evidence": "sqs list-queues succeeded: {\n    \"QueueUrls\": [\n        \"https://sqs.us-east-1.amazonaws.com/000000000000/cloudcontrol-resource-21e72355d4de\"\n    ]\n}",
+          "evidence": "sqs list-queues succeeded: {\n    \"QueueUrls\": []\n}",
           "source": "live probe (tools/floci-capability-gen -mode=services)"
         },
         {
@@ -87948,7 +87948,7 @@
           "type": "aws_dynamodb_table",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "dynamodb create-table tagged tofu-probe-table-98f2503f at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-98f2503f",
+          "evidence": "dynamodb create-table tagged tofu-probe-table-e81e53bd at creation; list-tags-of-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:dynamodb:us-east-1:000000000000:table/tofu-probe-table-e81e53bd",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -87969,7 +87969,7 @@
           "type": "aws_ebs_volume",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "ec2 create-volume tagged vol-ea34e7bb2925c00bf at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-ea34e7bb2925c00bf",
+          "evidence": "ec2 create-volume tagged vol-3d96df18f486670fb at creation; describe-volumes confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:ec2:us-east-1:000000000000:volume/vol-3d96df18f486670fb",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -88683,7 +88683,7 @@
           "type": "aws_iam_role",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "iam create-role tagged tofu-probe-role-98f2503f at creation; list-role-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:role/tofu-probe-role-98f2503f",
+          "evidence": "iam create-role tagged tofu-probe-role-e81e53bd at creation; list-role-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:iam::000000000000:role/tofu-probe-role-e81e53bd",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -90367,7 +90367,7 @@
           "type": "aws_s3_bucket",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-98f2503f; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-98f2503f",
+          "evidence": "s3api create-bucket + put-bucket-tagging on tofu-probe-bucket-e81e53bd; get-bucket-tagging confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:s3:::tofu-probe-bucket-e81e53bd",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -90647,7 +90647,7 @@
           "type": "aws_secretsmanager_secret",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-98f2503f at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-98f2503f-SFEYYK",
+          "evidence": "secretsmanager create-secret tagged tofu-probe-secret-e81e53bd at creation; describe-secret confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:secretsmanager:us-east-1:000000000000:secret:tofu-probe-secret-e81e53bd-EZORY7",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -90892,7 +90892,7 @@
           "type": "aws_sns_topic",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sns create-topic tagged tofu-probe-topic-98f2503f at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-98f2503f",
+          "evidence": "sns create-topic tagged tofu-probe-topic-e81e53bd at creation; list-tags-for-resource confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sns:us-east-1:000000000000:tofu-probe-topic-e81e53bd",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
@@ -90913,7 +90913,7 @@
           "type": "aws_sqs_queue",
           "mechanism": "tagging-sweep",
           "status": "implemented",
-          "evidence": "sqs create-queue tagged tofu-probe-queue-98f2503f at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-98f2503f",
+          "evidence": "sqs create-queue tagged tofu-probe-queue-e81e53bd at creation; list-queue-tags confirms tofu-estate/tofu-address natively, and an unfiltered resourcegroupstaggingapi GetResources sweep includes arn:aws:sqs:us-east-1:000000000000:tofu-probe-queue-e81e53bd",
           "source": "live probe (tools/floci-capability-gen -mode=tagging)"
         },
         {
