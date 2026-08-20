@@ -73,8 +73,9 @@ set -uo pipefail
 #      anyway: it is what keeps those two identities static and client-named,
 #      which is a different question from the abort.
 #
-#   3. OPEN, and newly reached - the provider will not validate a
-#      marker-derived identity ARN under this estate's own provider block.
+#   3. OPEN (INTENTIUS/choudoufu#345), and newly reached - the provider will
+#      not validate a marker-derived identity ARN under this estate's own
+#      provider block.
 #      Now that the three Batch resources carry markers, projection tries to
 #      import one by its ARN identity, and hashicorp/aws refuses:
 #
