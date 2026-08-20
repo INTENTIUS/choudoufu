@@ -663,12 +663,24 @@ plan_into > "$WORK/plan-drift.log" 2>&1; DRIFT_RC=$?
 
 CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' "$WORK/plan-drift.log" | awk '{print $2}' | sort -u)"
 N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+
+# The address list above counts UPDATES only, so a destroy or a create
+# alongside the one expected update would leave it reading 1 and this stage
+# would pass while the estate was being rebuilt underneath it. The plan's own
+# totals line is the independent check on that, and it is asserted before the
+# address is, so a co-occurring change fails here rather than two steps later.
+PLAN_TOTALS="$(grep -oE '^Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' "$WORK/plan-drift.log" | tail -1)"
+[ -n "$PLAN_TOTALS" ] \
+  || { grep -E '^Plan:|^No changes' "$WORK/plan-drift.log"; fail "the drift plan printed no 'Plan: N to add, M to change, K to destroy' line at all - this stage's totals assertion is reading nothing"; }
 if [ "${BREAK_STAGE5:-}" = "1" ]; then
   [ "$N_CHANGED" = "1" ] \
     && fail "BREAK_STAGE5=1 set (two records drifted), but the plan proposes fixing only 1 - this assertion is not load-bearing"
-  log "  BREAK_STAGE5=1: the plan proposes fixing $N_CHANGED instances, correctly more than"
-  log "                  one - the single-instance assertion and reconverge apply below are skipped"
+  log "  BREAK_STAGE5=1: the plan proposes fixing $N_CHANGED instances ($PLAN_TOTALS),"
+  log "                  correctly more than one - the single-instance assertion and"
+  log "                  reconverge apply below are skipped"
 else
+  [ "$PLAN_TOTALS" = "Plan: 0 to add, 1 to change, 0 to destroy" ] \
+    || { grep -E '^  # .+ will be' "$WORK/plan-drift.log"; fail "the drift plan's own totals are \"$PLAN_TOTALS\", not \"Plan: 0 to add, 1 to change, 0 to destroy\" - something other than the one drifted record is in the diff"; }
   [ "$N_CHANGED" = "1" ] \
     || { grep -E '^  # .+ will be' "$WORK/plan-drift.log"; fail "expected exactly 1 instance proposed for a fix, got $N_CHANGED"; }
   [ "$CHANGED_ADDRS" = "$DRIFT_ADDR" ] \
