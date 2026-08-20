@@ -1287,7 +1287,7 @@ being 15 IAM modules all reading a real cluster's OIDC provider, the same
 scope/risk class as the terraform-popular lane's already-blocked
 terraform-aws-eks crossing); and `corpus-overture-tiles`,
 `corpus-xancloud-iac` from fresh sourcing searches. Four of the six clear
-all five stages for real.
+all five stages for real; with the seventh below, five of seven do.
 
 Seventh, landed 2026-08-19 from a fresh sourcing search:
 `corpus-giantswarm-crossplane`, the `crossplane/` module of
@@ -1303,16 +1303,43 @@ with the string "terraform" appearing nowhere in it, and genuinely
 `.tofu`-suffixed files in the crossed directory. That last
 one is the standard only `corpus-hongbomiao-*` had met before;
 `corpus-overture-tiles` and `corpus-xancloud-iac` are both plain `.tf`.
-`cold_deploy` and `migrate` pass for real; `test_plan` is BLOCKED at exactly
-2 sites, both `unadmitted-type` on `aws_iam_role_policies_exclusive` and
-`aws_iam_role_policy_attachments_exclusive` (`#334`), and the script proves
-that is the whole block with its own control stage rather than asserting it:
-cut those two blocks out of the module and nothing else, and test plan, test
-apply and drift/reconverge all clear. Both types are the same shape
-`#307` already admitted for `aws_vpc_security_group_rules_exclusive` through
-row-gen's own `tryGrammarComposite` - one required argument naming the
-tagged parent, whole import ID, no separator - so this is ADMIT work with a
-worked precedent, not a new mechanism.
+**It clears all five stages as of 2026-08-19**, so five of the seven do.
+`test_plan` was BLOCKED at exactly 2 sites, both `unadmitted-type` on
+`aws_iam_role_policies_exclusive` and `aws_iam_role_policy_attachments_exclusive`
+(`#334`), with a control stage that cut those two blocks and nothing else out
+to prove they were the whole block. They were; `#334` ratified both rows and
+the control retired with the block it controlled for.
+
+**`#334` guessed at a generator gap and there was none, which is the part
+worth carrying forward.** `go run ./tools/row-gen -service '(no CFN model)'`
+proposed both rows all along, client-named, under the same rule that produced
+the `aws_vpc_security_group_rules_exclusive` row `#307` ratified - "import-grammar
+precedence: composed_of_arguments, single argument, arity confirmed against the
+example string" - resolving `role_name` off the provider's own Import
+documentation. Nobody had ratified the proposal. The `force_new` difference the
+issue flagged as a possible gate is not one; that branch reads no `force_new`
+field. `-convergence` now scores both rows `"matched": true`.
+
+So the reach is exactly two types, and that is the honest number: this is a
+ledger decision, not a rule. **The population behind it is the finding.** 316
+types row-gen proposes today sit unratified, 166 of them under this exact
+rule, including every other member of the same `*_exclusive` family -
+`aws_iam_group_policies_exclusive`, `aws_iam_group_policy_attachments_exclusive`,
+`aws_iam_user_policies_exclusive`, `aws_iam_user_policy_attachments_exclusive`,
+`aws_ram_resource_share_associations_exclusive`, `aws_route53_records_exclusive`,
+`aws_cloudfrontkeyvaluestore_keys_exclusive`. That is a ratification backlog
+rather than a generator defect, and working it is a maintainer-scale decision:
+every row a human ratifies is a claim that touches live infrastructure, which
+is why `-emit` copies them verbatim and no generator writes that file.
+
+One thing found running it, worth knowing before any crossing script is timed
+again: the shared plugin cache records no checksums, so `init` in a directory
+with no `.terraform.lock.hcl` re-downloads the whole ~600MB AWS provider purely
+to compute them, even when the cache already holds that exact version. Measured
+here at 320s, twice per run, which is most of a crossing's wall time and is what
+put three attempts past a ten-minute cap. Seeding the second directory's lock
+file from the first init's takes that init 320s -> 1s and a full five-stage run
+to 250s. Every crossing script that runs more than one `init` has this.
 
 The monorepo hongbomiao was sourced from has now
 been surveyed in full at the pinned commit - `network/main.tofu` is pure
