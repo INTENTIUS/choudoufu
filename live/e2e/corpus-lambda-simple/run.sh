@@ -55,68 +55,91 @@ set -uo pipefail
 # neither type is mentioned anywhere in live-plan's diagnostics any more -
 # not as an error, not as a warning.
 #
-# That fix uncovers a THIRD, different, and genuinely LAST blocker at stage
-# 3, and this one is not a bug: `local_file.archive_plan`
+# That fix uncovered a THIRD blocker at stage 3: `local_file.archive_plan`
 # (module.lambda_function's package.tf:44, `count = var.create &&
-# var.create_package ? 1 : 0`, both true by default and neither overridden
-# in this example, so a real, non-zero instance) refuses with "Logical
-# resource is not admitted" / Rule: logical-resource. That is DELIBERATE,
-# investigated, and load-bearing product behavior, not an oversight: issues
-# #237 and #238 (both closed 2026-08-18) put `local_file` through exactly
-# this question - whether the `ClassOtherRefused` default it falls to in
-# `internal/live/lint/logical_type.go` is a gap or a verdict - and #238's own
-# closing comment states the answer explicitly: "local_file deliberately
-# left OTHER_REFUSED with a documented reason: neither of lint's two classes
-# fits it correctly (its identity is argument-derived, not record-backed,
-# and promoting it would silently reopen a count.index collision hazard a
-# dedicated test already guards) - a genuine third-classification gap, not
-# an omission, correctly left open rather than forced." A local_file's
-# identity is the filename it writes to the LOCAL DISK of whatever machine
-# ran apply - not a cloud object, nothing to tag, nothing an AWS CLI call
-# could ever read back to confirm it still exists. There genuinely is no
-# live counterpart for a stateless replan to observe or reconcile against,
-# which is exactly the condition #73's whole design premise requires a
-# record (not a live read) to stand in for - and no class in
-# logical_type.go yet covers "argument-derived identity that is still
-# safe" (local_file's own comment names that missing class by name). This
-# is real, separate product work - a fourth LogicalClass, not a one-line
-# reclassification - and is deliberately NOT this run's fix to make.
+# var.create_package ? 1 : 0`, both true by default, so a real instance)
+# refusing with "Logical resource is not admitted". It was called "genuinely
+# LAST" here and it was not. It IS NOW FIXED AND MERGED (issue #314): a
+# fourth LogicalClass, EXTERNAL_ADMITTED, admits local_file the moment a
+# record_store is declared, which this estate already does. Re-run against
+# current main confirms local_file appears NOWHERE in live-plan's
+# diagnostics any more - not as an error, not as a warning.
 #
-# SCOPING CONSIDERED AND REJECTED: could this estate route around local_file
-# the way live/e2e/corpus-vpc-complete/run.sh and
-# live/e2e/corpus-sumaform-aws/run.sh route around their own out-of-scope
-# resources, by picking a different module input? The module does expose
-# `create_package = false` + `local_existing_package = <a pre-built zip>`,
-# which skips package.tf's local_file/null_resource/data.external trio
-# entirely. Rejected: unlike sumaform's `provision = false` (which picks
-# between the module's own equally-real, already-published deployment
-# modes to route around an infra-emulation gap in floci, not around
-# choudoufu's own admission policy), swapping to a pre-built zip would
-# replace the actual thing "simple" demonstrates - the module's own
-# packaging pipeline, the default path essentially every real minimal
-# deployment of this module takes - with a materially different
-# bring-your-own-zip scenario this corpus entry was never meant to test.
-# That is not a low-plumbing scoping decision; it would misrepresent what
-# real users of this exact example do by default. Left as a real, reported
-# block instead.
+# Two things about #314 are worth knowing before touching this estate again,
+# because both refute what this header used to say. First, #237/#238's
+# framing - "its identity is argument-derived, not record-backed" - was only
+# half right. hashicorp/local 2.9.0 implements NO import for local_file at
+# all (`tofu import local_file.f <path>` answers "Resource Import Not
+# Implemented"), so the record is the only carrier that can bring its prior
+# state back and it IS record-backed; what its filename argument settles is
+# not where the identity lives but why lint's count.index walk must keep
+# running over it. Second, this estate's own local_file could never have
+# resolved an argument-derived identity anyway: its filename is
+# `data.external.archive_prepare[0].result.build_plan_filename`, not a
+# static value.
 #
-# One piece of good news this investigation turned up: issue #275 (closed
-# 2026-08-18) built a residue mechanism specifically for arguments like
-# aws_lambda_function's own `filename`/`source_code_hash`/`publish` - pure
-# configuration inputs with no API-readable counterpart, which would
-# otherwise propose the same phantom update forever under a stateless
-# replan - gated on a configured `record_store`. This estate already
-# declares one (see step 4 below), so once local_file gets its own
-# identity class, nothing here should re-hit #275's problem on the Lambda
-# function itself; the local_file admission gap looks like the whole
-# remaining distance to a clean stage 3.
+# SCOPING CONSIDERED AND REJECTED, and still the right call: could this
+# estate route around local_file the way live/e2e/corpus-vpc-complete/run.sh
+# and live/e2e/corpus-sumaform-aws/run.sh route around their own
+# out-of-scope resources, by setting `create_package = false` +
+# `local_existing_package = <a pre-built zip>`? Rejected then and moot now.
+# Unlike sumaform's `provision = false` (which picks between the module's
+# own equally-real deployment modes to route around an infra-emulation gap
+# in floci, not around choudoufu's own admission policy), swapping to a
+# pre-built zip would replace the actual thing "simple" demonstrates - the
+# module's own packaging pipeline, the default path essentially every real
+# minimal deployment of this module takes. #314 fixed the product instead,
+# which is what the standing bar asks for.
 #
-# So this script currently proves stages 1 and 2 for real and stops at
-# stage 3 with the actual, current product error - stages 4 and 5 remain
-# unwritten below (present as dead code, never yet executed) because there
-# is nothing running yet for them to exercise. Once local_file gets a real
-# identity class, complete stage 3's identity assertions and confirm 4 and
-# 5 actually run, following live/e2e/reference-ec2-vpc/run.sh's shape.
+# A FOURTH blocker sits underneath, newly REACHED rather than caused, and it
+# is a different wall entirely - nothing to do with logical resources. Five
+# errors, and every one of them traces to a single expression in the
+# estate's own main.tf:
+#
+#     function_name = "${random_pet.this.id}-lambda-simple"
+#
+# `random_pet.this` is RECORD_ADMITTED, so its `id` exists only in the
+# record store. Three of the module's real AWS resources take their identity
+# from it, directly or through a local:
+#
+#   iam.tf:97    aws_iam_role.lambda.name          = local.role_name
+#                  (local.role_name = coalesce(var.role_name,
+#                   var.function_name, "*"))
+#   iam.tf:137   aws_iam_role_policy.logs.name     = "${local.policy_name}-logs"
+#   main.tf:46   aws_lambda_function.this.function_name = var.function_name
+#   main.tf:279  aws_cloudwatch_log_group.lambda.name   = coalesce(
+#                   var.logging_log_group, "/aws/lambda/${...}${var.function_name}")
+#
+# plus one cascade (aws_iam_role_policy.logs.role reads
+# aws_iam_role.lambda[0].name, which failed above). The diagnostic is
+# "Non-static identity argument" / "Unresolvable identity", not a logical or
+# an admission refusal.
+#
+# What makes this worth filing rather than shrugging at: choudoufu KNOWS
+# this value. The record store holds random_pet.this, internal/live/
+# projection reads records to hydrate record-backed instances, and all three
+# affected AWS resources are ALREADY MARKED - stage 2 below stamps them and
+# verifies the tags through the AWS CLI. So this is an identity resolver
+# that will not read a carrier the run already has, over resources whose
+# markers already say which object they are. Whether the fix is the record
+# (feed a record-backed resource attribute into static evaluation) or the
+# marker (an adoption-only refusal firing on a resource that carries one) is
+# a real design question and not this script's to answer.
+#
+# One piece of good news from the earlier investigation, still true: issue
+# #275 (closed 2026-08-18) built a residue mechanism specifically for
+# arguments like aws_lambda_function's own `filename`/`source_code_hash`/
+# `publish` - pure configuration inputs with no API-readable counterpart -
+# gated on a configured `record_store`. This estate declares one, so nothing
+# here should re-hit #275's problem on the Lambda function itself once the
+# identity wall above clears.
+#
+# So this script proves stages 1 and 2 for real and stops at stage 3 on the
+# fourth blocker. Stages 4 and 5 remain unwritten below (present as dead
+# code, never yet executed) because there is nothing running yet for them to
+# exercise. Once the record-backed-attribute wall clears, complete stage 3's
+# identity assertions and confirm 4 and 5 actually run, following
+# live/e2e/reference-ec2-vpc/run.sh's shape.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -206,7 +229,27 @@ log "=== 1. cold deploy: plain terraform, no live block, no choudoufu ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)(.*?\n)(\}\n)/$1  access_key                  = "test"\n  secret_key                  = "test"\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n$2$3/s' "$EST/main.tf"
 grep -q 's3_use_path_style' "$EST/main.tf" || fail "the emulator delta did not match main.tf - the corpus pin has moved"
-log "  DELTA  emulator flags added to the provider block; no backend, no version pin needed"
+log "  DELTA 1  emulator flags added to the provider block; no backend needed"
+
+# DELTA 2: pin the AWS provider to the release this fork's own tables are
+# derived at, the same way corpus-cloudfront and every other crossing that
+# carries a pin does.
+#
+# This script used to say "no version pin needed" and it was wrong twice
+# over. The estate asks for `>= 6.28`, so it silently followed whatever
+# hashicorp/aws had published most recently - which means the crossing was
+# not reproducible (a run today and a run last week measured different
+# providers), and it was measuring a provider the admission table, the
+# import grammar and live/survey.json were never derived against. Both are
+# methodology problems, not conveniences; the speed is a side effect.
+#
+# 6.59.0 is live/corpus-provider-pins.json's verified release and the
+# version tools/survey-gen and tools/row-gen measured. `>= 6.28` accepts it,
+# in both the example and the module (.corpus/lambda/versions.tf).
+perl -0pi -e 's/(aws = \{\n      source  = "hashicorp\/aws"\n)      version = ">= 6\.28"/$1      version = "= 6.59.0"/' "$EST/versions.tf"
+grep -q 'version = "= 6.59.0"' "$EST/versions.tf" \
+  || fail "the provider-pin delta did not match versions.tf - the corpus pin has moved"
+log "  DELTA 2  hashicorp/aws pinned to = 6.59.0, the release this fork's tables are derived at"
 
 log "=== 2. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -327,27 +370,51 @@ rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 
 PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 if [ "$PLAN_RC" -ne 0 ]; then
+  # Both previously-reported blockers are asserted CLEARED by absence, which
+  # is the only way a "this is fixed" claim survives the next reader. A grep
+  # that finds nothing proves more here than one that finds something: if
+  # #303 or #314 ever regresses, this stops being a report about the fourth
+  # wall and says so.
+  for gone in aws_lambda_function_url aws_lambda_function_recursion_config; do
+    grep -qF "$gone" <<< "$PLAN_OUT" \
+      && fail "$gone is back in live-plan's diagnostics - issue #303's per-instance admission fix has regressed"
+  done
+  grep -qF "local_file" <<< "$PLAN_OUT" \
+    && fail "local_file is back in live-plan's diagnostics - issue #314's EXTERNAL_ADMITTED class has regressed"
+  grep -qF "Logical resource is not admitted" <<< "$PLAN_OUT" \
+    && fail "a logical resource is refused again - this estate's random_pet/null_resource/terraform_data/local_file are all admitted under the record_store declared above"
+
+  BLOCKERS="$(grep -c "^Error:" <<< "$PLAN_OUT")"
   log ""
-  log "STAGE 3 (test plan): BLOCKED - #303's zero-count admission gap is"
-  log "  CONFIRMED FIXED (neither aws_lambda_function_url.this nor"
-  log "  aws_lambda_function_recursion_config.this appears anywhere in the"
-  log "  diagnostics below any more), but a THIRD, different, real blocker"
-  log "  remains, and it is deliberate product behavior, not a bug: see this"
-  log "  script's own header for the full investigation and why local_file's"
-  log "  refusal is correct and its scoping was rejected. The actual error:"
+  log "STAGE 3 (test plan): BLOCKED for real, at $BLOCKERS diagnostics."
+  log ""
+  log "  Two previously-reported blockers are CONFIRMED FIXED, each asserted"
+  log "  by ABSENCE just above rather than by reading a fresh log:"
+  log "    #303  zero-instance blocks no longer have to pass type admission"
+  log "          (aws_lambda_function_url, aws_lambda_function_recursion_config)"
+  log "    #314  local_file.archive_plan is admitted through the fourth"
+  log "          LogicalClass, EXTERNAL_ADMITTED, against the record_store"
+  log "          this estate declares at step 4"
+  log ""
+  log "  What remains is a FOURTH wall, newly reached rather than caused, and"
+  log "  a different kind entirely: every diagnostic below traces to one"
+  log "  expression in the estate's own main.tf,"
+  log ""
+  log "      function_name = \"\${random_pet.this.id}-lambda-simple\""
+  log ""
+  log "  random_pet.this is RECORD_ADMITTED, so its id lives in the record"
+  log "  store and nowhere else, and three of the module's real AWS resources"
+  log "  take their identity from it. See this script's header for the full"
+  log "  chain and for why this is worth filing: choudoufu holds that value"
+  log "  already, and all three resources are ALREADY MARKED - stage 2 above"
+  log "  stamped them and verified the tags through the AWS CLI."
   log ""
   printf '%s\n' "$PLAN_OUT" | grep -B1 -A6 "^Error:" | head -60
   log ""
   log "STAGE 4 (test apply): NOT REACHED"
   log "STAGE 5 (drift and reconverge): NOT REACHED"
   log ""
-  log "Stages 1 and 2 are real, verified passes - see above. Stage 3's block is"
-  log "reported, not routed around: local_file.archive_plan (package.tf:44,"
-  log "inside module.lambda_function) has no live counterpart to observe or"
-  log "reconcile against, and issues #237/#238 already ruled this a genuine,"
-  log "correctly-deferred third-classification gap (an argument-derived-but-"
-  log "safe LogicalClass logical_type.go does not have yet), not an omission"
-  log "to route around here."
+  log "Stages 1 and 2 are real, verified passes - see above."
   exit 1
 fi
 

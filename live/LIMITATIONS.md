@@ -115,30 +115,37 @@ configuration with a `record_store` was told its type could never work.
   since the no-secrets rule that already governs snapshots and receipts
   forbids a record from carrying it too. Refused permanently, with or
   without a `record_store` configured - the store never weakens this class.
-  `local_sensitive_file` gets this verdict by its own exact-match rule in
-  `ClassifyLogicalType` rather than a `logicalTypes` row, because
-  `hashicorp/local` contributes no row for either of its types (see
-  OTHER_REFUSED below) - but its own docs settle the question regardless:
-  "The arguments accepted by this resource are marked as sensitive," and its
-  schema marks `content` and `content_base64` `(String, Sensitive)`, neither
-  deprecated.
-- **OTHER_REFUSED** - `local_file`, plus any logical-family member released
-  since the last `-logical-schemas` run. `hashicorp/local` is the one
-  measured provider that is not store-only, and `local_file` is excluded
-  deliberately rather than left unreviewed: its own docs show its only
-  sensitive attribute (`sensitive_content`) is deprecated in favor of
-  `local_sensitive_file`, so the "no secret material" rule alone would
-  derive RECORD_ADMITTED for it - but its identity is its `filename`, an
-  argument value, not a record, so two instances at distinct addresses
-  still collide on one path - measured under stock OpenTofu, `count = 4`
-  with a filename built from `count.index % 2` never converges. Promoting
-  it would also silence lint's `count.index` walk over that filename, which
-  `TestLocalFileKeepsItsCountIndexCheck` pins. Settling `local_file` needs a
-  class this table does not have yet - argument-derived identity that is
-  still safe to admit - not a verdict from the two it does. For a type
-  released after the last measurement, this class is the safe default
-  rather than a verdict, and re-running `-logical-schemas` is what resolves
-  it.
+  `local_sensitive_file` is a derived row like every other since #314; it
+  used to carry a hand-written exact-match verdict in `ClassifyLogicalType`
+  because `hashicorp/local` contributed no rows at all, and the derivation
+  now reaches it from the schema directly - `content` and `content_base64`
+  are `(String, Sensitive)` and neither is deprecated.
+- **EXTERNAL_ADMITTED** - `local_file`, and nothing else today. Admitted
+  under a `record_store` exactly as RECORD_ADMITTED is, resolving through
+  the same record-backed projection path, and separated from it by one
+  thing: the record holds the resource's prior state but does not bound
+  what it AFFECTS. `hashicorp/local` is the one measured provider whose
+  `store_only` is false, because its resources write a real file onto the
+  machine that ran apply, and an argument of the resource's own
+  (`filename`) names that file. So two instances at distinct addresses hold
+  two distinct records and can still collide on one path - measured under
+  stock OpenTofu, `count = 4` with a filename built from `count.index % 2`
+  never converges - and lint's `count.index` walk keeps running over this
+  type's arguments where a RECORD_ADMITTED type's walk is skipped.
+  `TestLocalFileKeepsItsCountIndexCheck` pins that, unchanged, across the
+  admission.
+
+  Worth knowing before assuming the `filename` is an identity: it is not an
+  import identity, because `hashicorp/local` 2.9.0 implements no import for
+  `local_file` at all (`tofu import local_file.f <path>` answers "Resource
+  Import Not Implemented"), which is why the record is the only carrier
+  that can bring an instance's prior state back and why the rendered
+  identity for this class is deliberately empty.
+- **OTHER_REFUSED** - now reached only by a logical-family member released
+  since the last `-logical-schemas` run. It is the safe default for a type
+  the derivation has never measured, not a verdict, and re-running
+  `-logical-schemas` is what resolves it. `local_file` was its last named
+  holder and left in #314.
 
 ### null-resource
 
@@ -202,17 +209,35 @@ receipts pattern.
 
 **Construct.** `local_file`.
 
-**Why banned.** The file's content is generated once and stored in state,
-and there is no live system to read it back from on the next run.
-Logical-resource family.
+**Why it was banned, and what changed.** This section used to say "the
+file's content is generated once and stored in state, and there is no live
+system to read it back from on the next run." The second half was never
+true - the local filesystem is holding it, and `hashicorp/local`'s own
+refresh reads it back - and saying it to an author's face is what issue
+#314 finally cost. The real obstacle was that neither of lint's two
+verdicts fitted: RECORD_ADMITTED would have silenced a real safety check,
+and OTHER_REFUSED said something false.
 
-**Forwarding address.** A build artifact. Render it as a build step (CI,
-a Makefile, a chant task) that produces the file on disk before OpenTofu
-runs, not as a resource OpenTofu tracks.
+**Admitted with a record store.** Classified `EXTERNAL_ADMITTED` (see the
+class list above), so once a `record_store` is configured it runs through
+the stock provider lifecycle with prior state hydrated from and persisted
+to the store, the same as `null_resource`. The record is genuinely the only
+carrier available: `hashicorp/local` 2.9.0 implements no import for this
+type, so nothing can reconstruct an instance from the file it wrote.
 
-**Enforcement.** `RuleLogicalResource`, classified `OTHER_REFUSED` (see
-above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`.)
-Fixture at `live/e2e/limits/local-file/`.
+What the store does NOT do is make two instances interchangeable. The
+`filename` argument names a real file, so `count.index` stays refused
+inside this resource's arguments where a RECORD_ADMITTED type's walk is
+skipped - a configuration stock OpenTofu itself never converges.
+
+**Forwarding address (no record store).** A build artifact. Render it as a
+build step (CI, a Makefile, a chant task) that produces the file on disk
+before OpenTofu runs, not as a resource OpenTofu tracks.
+
+**Enforcement.** `RuleLogicalResource`, classified `EXTERNAL_ADMITTED` (see
+above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`),
+gated on `record_store` being absent. Fixture at
+`live/e2e/limits/local-file/` (no store, still refused).
 
 ### local-sensitive-file
 
