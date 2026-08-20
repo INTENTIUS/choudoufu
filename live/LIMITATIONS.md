@@ -141,6 +141,20 @@ configuration with a `record_store` was told its type could never work.
   Import Not Implemented"), which is why the record is the only carrier
   that can bring an instance's prior state back and why the rendered
   identity for this class is deliberately empty.
+
+  This is the one admitted class whose record holds an attribute the
+  provider marks sensitive: `local_file.content` is `(String, Sensitive)`,
+  and the SECRET_REFUSED rule above cannot reach it because that rule reads
+  `store_only` providers and `hashicorp/local` is not one. The record
+  carries that value, and since 2026-08-20 it also carries the FACT that it
+  was sensitive - `recordPayload.SensitiveAttrs`, encoded the way a state
+  file encodes `sensitive_attributes`. That is not extra secret material,
+  it is an attribute path; what it buys is that a replan's "before" side is
+  marked the same way its "after" side is. `live-plan` runs with
+  SkipRefresh, so the record's own marks are the only marks the before side
+  ever has, and without them every migrated estate holding such an attribute
+  proposed a sensitivity-only in-place update forever, annotated by
+  OpenTofu's own renderer with "The value is unchanged".
 - **OTHER_REFUSED** - now reached only by a logical-family member released
   since the last `-logical-schemas` run. It is the safe default for a type
   the derivation has never measured, not a verdict, and re-running
