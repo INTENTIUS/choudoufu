@@ -1034,7 +1034,15 @@ const identityGoldenPinBodyDigest = "f810e2e3ed824846a905fa75d2906ed2b1537775d07
 // holding.
 const (
 	identityGoldenPinInstances = 1571
-	identityGoldenPinDirs      = 503
+	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
+	// internal/live/projection/testdata/output-eval is a new fixture (a
+	// stub_cert resource plus root-level outputs, used to pin
+	// ApplyRootOutputValues), and stub_cert is not an admitted type, so it
+	// contributes zero rows to the body - identityGoldenPinInstances and
+	// identityGoldenPinBodyDigest are both unchanged, confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating: only the
+	// header's "dirs=" line moved.
+	identityGoldenPinDirs = 504
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
