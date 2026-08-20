@@ -71,7 +71,7 @@ func TestLocatedKeysAreInvisibleToOrphanDiscovery(t *testing.T) {
 	}
 	locAddr := locatedTestAddr(t, "aws_eip_association", "bastion")
 	located := NewLocatedStore(store, estate)
-	if _, err := located.Put(ctx, locAddr, "eipassoc-0123456789abcdef0", ""); err != nil {
+	if _, err := located.Put(ctx, locAddr, LocatedRecord{ImportID: "eipassoc-0123456789abcdef0"}, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
 
@@ -159,12 +159,12 @@ func TestLocatedStore_roundTrip(t *testing.T) {
 	}
 
 	const wantID = "arn:aws:globalaccelerator::123456789012:accelerator/abc/listener/def"
-	version, err := located.Put(ctx, addr, wantID, "")
+	version, err := located.Put(ctx, addr, LocatedRecord{ImportID: wantID}, "")
 	if err != nil {
 		t.Fatalf("Put: %s", err)
 	}
 
-	gotID, gotVersion, exists, err := located.Get(ctx, addr)
+	gotRec, gotVersion, exists, err := located.Get(ctx, addr)
 	if err != nil {
 		t.Fatalf("Get: %s", err)
 	}
@@ -173,8 +173,8 @@ func TestLocatedStore_roundTrip(t *testing.T) {
 	}
 	// The rendered string, not merely "something came back": a wrong
 	// identity is invisible to every verdict-level check.
-	if gotID != wantID {
-		t.Errorf("Get returned identity %q, want %q", gotID, wantID)
+	if gotRec.ImportID != wantID {
+		t.Errorf("Get returned identity %q, want %q", gotRec.ImportID, wantID)
 	}
 	if gotVersion != version {
 		t.Errorf("Get returned version %q, want the version Put reported, %q", gotVersion, version)
@@ -201,7 +201,7 @@ func TestLocatedStore_lostRecordReadsUnbound(t *testing.T) {
 	located := NewLocatedStore(store, "my-estate")
 	addr := locatedTestAddr(t, "aws_eip_association", "bastion")
 
-	version, err := located.Put(ctx, addr, "eipassoc-0123456789abcdef0", "")
+	version, err := located.Put(ctx, addr, LocatedRecord{ImportID: "eipassoc-0123456789abcdef0"}, "")
 	if err != nil {
 		t.Fatalf("Put: %s", err)
 	}
@@ -211,13 +211,13 @@ func TestLocatedStore_lostRecordReadsUnbound(t *testing.T) {
 		t.Fatalf("deleting the located record: %s", err)
 	}
 
-	id, _, exists, err := located.Get(ctx, addr)
+	gotRec, _, exists, err := located.Get(ctx, addr)
 	if err != nil {
 		t.Fatalf("Get after the record was lost returned an error: %s.\n"+
 			"A lost located record must read as unbound, not as a failure: the run proposes a create and foreign surfaces the object as unclaimed.", err)
 	}
-	if exists || id != "" {
-		t.Errorf("Get after the record was lost returned exists=%v id=%q, want false and empty", exists, id)
+	if exists || !gotRec.Empty() {
+		t.Errorf("Get after the record was lost returned exists=%v rec=%+v, want false and empty", exists, gotRec)
 	}
 
 	// And nothing was left behind for an enumeration to find, in either
@@ -321,7 +321,7 @@ func TestLocatedStore_nilIsInert(t *testing.T) {
 	if _, _, exists, err := s.Get(ctx, addr); err != nil || exists {
 		t.Errorf("nil LocatedStore Get: exists=%v err=%v, want false/nil", exists, err)
 	}
-	if _, err := s.Put(ctx, addr, "eipassoc-1", ""); err == nil {
+	if _, err := s.Put(ctx, addr, LocatedRecord{ImportID: "eipassoc-1"}, ""); err == nil {
 		t.Error("nil LocatedStore Put succeeded; it must refuse, naming the missing store")
 	}
 }

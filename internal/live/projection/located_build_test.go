@@ -176,7 +176,7 @@ func TestBuildMaterializesLocatedFromTheStore(t *testing.T) {
 
 	store := localHintStore(t)
 	located := NewLocatedStore(store, estate)
-	wantVersion, err := located.Put(context.Background(), addr, wantID, "")
+	wantVersion, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: wantID}, "")
 	if err != nil {
 		t.Fatalf("seeding the located record: %s", err)
 	}
@@ -348,15 +348,15 @@ func TestWriteBackLocatedRoundTrip(t *testing.T) {
 	})
 	assertNoErrors(t, diags)
 
-	gotID, _, exists, err := located.Get(context.Background(), addr)
+	gotRec, _, exists, err := located.Get(context.Background(), addr)
 	if err != nil {
 		t.Fatalf("reading back the located record: %s", err)
 	}
 	if !exists {
 		t.Fatal("write-back recorded nothing. Without a record, every later run reads unbound and proposes creating a second object - the mechanism would be inert and the estate would accumulate duplicates.")
 	}
-	if gotID != appliedID {
-		t.Fatalf("recorded identity %q, want %q", gotID, appliedID)
+	if gotRec.ImportID != appliedID {
+		t.Fatalf("recorded identity %q, want %q", gotRec.ImportID, appliedID)
 	}
 
 	// And the read side finds it. This is the crossing, in miniature: the
@@ -386,7 +386,7 @@ func TestWriteBackLocatedDeletesAWithdrawnInstance(t *testing.T) {
 
 	store := localHintStore(t)
 	located := NewLocatedStore(store, estate)
-	version, err := located.Put(context.Background(), addr, "eipassoc-gone", "")
+	version, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: "eipassoc-gone"}, "")
 	if err != nil {
 		t.Fatalf("seeding: %s", err)
 	}
