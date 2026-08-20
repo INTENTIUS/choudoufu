@@ -139,10 +139,14 @@ set -uo pipefail
 #                          resource instances eligible (#305's fix moved the
 #                          default-object trio from unadmitted into this
 #                          count); 47 newly stamped + 4 FAILED (floci#65) =
-#                          51 attempted; the other 29 correctly skipped (28
+#                          51 attempted; the other 29 not eligible (28
 #                          UNTAGGABLE by provider schema + 1 UNADMITTED_TYPE,
-#                          #309), asserted against live-import's own report
-#                          AND confirmed independently through the AWS CLI.
+#                          #309) - of which -approve records 1
+#                          (null_resource.download_package, record-backed
+#                          since #340, seeded into the record store rather
+#                          than skipped) and correctly skips 28. Asserted
+#                          against live-import's own report AND confirmed
+#                          independently through the AWS CLI.
 #   stage 3  test plan     BLOCKED, for real, by #309 alone (1 site) - the
 #                          exact same type stage 2 already named, specific
 #                          counts and resource addresses asserted against a
@@ -223,6 +227,14 @@ ELIGIBLE=$((VERIFIED_WANT + DRIFTED_WANT))
 STAMPED_WANT=47
 IMPORT_FAILED_WANT=4
 SKIPPED_WANT=$((UNTAGGABLE_WANT + UNADMITTED_WANT))
+# SKIPPED_WANT is the DRY RUN's own not-eligible total, which -approve then
+# splits in two (issue #340): null_resource.download_package is record-backed,
+# so -approve seeds the record store for it and reports it RECORDED rather
+# than SKIPPED. The dry run's UNTAGGABLE/UNADMITTED_TYPE counts do not move -
+# ratifyRecordBacked still answers StatusUntaggable - so only the -approve
+# summary line splits.
+RECORDED_WANT=1
+APPROVE_SKIPPED_WANT=$((SKIPPED_WANT - RECORDED_WANT))
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -406,8 +418,8 @@ log "=== 2b. -approve: stamp the eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
 APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
-grep -qF "$STAMPED_WANT resource(s) newly stamped, 0 already stamped, $IMPORT_FAILED_WANT failed, $SKIPPED_WANT skipped." <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $STAMPED_WANT stamped / $IMPORT_FAILED_WANT failed / $SKIPPED_WANT skipped"; }
+grep -qF "$STAMPED_WANT resource(s) newly stamped, 0 already stamped, $RECORDED_WANT newly recorded, 0 already recorded, $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $STAMPED_WANT stamped / $RECORDED_WANT recorded / $IMPORT_FAILED_WANT failed / $APPROVE_SKIPPED_WANT skipped"; }
 # The FAILED sites are all lex00/floci#65 (ELBv2 dropping
 # AuthenticateCognitoConfig/AuthenticateOidcConfig on read) - asserted by
 # name, not just count, so a different failure shape would be caught.
@@ -415,8 +427,9 @@ for addr in 'module.alb.aws_lb_listener.this["ex-cognito"]' 'module.alb.aws_lb_l
   grep -qF "$addr" <<< "$APPROVE_OUT" || fail "expected $addr among the FAILED-to-stamp resources (floci#65)"
 done
 grep -qF "must be specified when" <<< "$APPROVE_OUT" || fail "expected floci#65's provider validation error text among the FAILED details"
-log "  $STAMPED_WANT stamped, $IMPORT_FAILED_WANT failed (floci#65, named above), $SKIPPED_WANT skipped -"
-log "  matches the dry run exactly"
+log "  $STAMPED_WANT stamped, $RECORDED_WANT recorded (null_resource.download_package),"
+log "  $IMPORT_FAILED_WANT failed (floci#65, named above), $APPROVE_SKIPPED_WANT skipped - the dry run's"
+log "  $SKIPPED_WANT not-eligible, one of them record-backed and so recorded rather than skipped"
 
 log "=== 2c. the ALB's own marker, read through the AWS CLI directly ==="
 WANT_LB_ADDR="module.alb.aws_lb.this:0"

@@ -174,11 +174,14 @@ set -uo pipefail
 #   stage 1  cold deploy   PASS - real, verified, unmarked infrastructure.
 #   stage 2  migrate       PASS - real: 26 of 39 resource instances stamped
 #                          for real (20 VERIFIED + 6 DRIFTED), the other 13
-#                          correctly skipped (13 UNTAGGABLE by provider
-#                          schema; #305's default_* trio is admitted now and
-#                          stamped above), all asserted against live-import's
-#                          own report AND confirmed independently through
-#                          the AWS CLI.
+#                          UNTAGGABLE by provider schema in the dry run -
+#                          of which -approve records 1 (module.db_default's
+#                          random_id.snapshot_identifier, record-backed
+#                          since #340, seeded into the record store rather
+#                          than skipped) and correctly skips 12; #305's
+#                          default_* trio is admitted now and stamped above.
+#                          All asserted against live-import's own report AND
+#                          confirmed independently through the AWS CLI.
 #   stage 3  test plan     BLOCKED, for real, at exactly 2 sites (was 7,
 #                          then 33 once #304's mask lifted, then 14 once
 #                          #321+#324 cleared every "Identity not resolvable"
@@ -240,6 +243,14 @@ REGION="eu-west-1"
 INSTANCES=39
 ELIGIBLE=26
 SKIPPED=13
+# SKIPPED is the DRY RUN's untaggable bucket, which -approve then splits in
+# two (issue #340): module.db_default's random_id.snapshot_identifier is
+# record-backed, so -approve seeds the record store for it and reports it
+# RECORDED rather than SKIPPED. The dry run's own UNTAGGABLE count does not
+# move - ratifyRecordBacked still answers StatusUntaggable - so only the
+# -approve summary line splits.
+RECORDED=1
+APPROVE_SKIPPED=$((SKIPPED - RECORDED))
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -415,9 +426,10 @@ log "=== 2b. -approve: stamp the $ELIGIBLE eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
 APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
-grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, 0 failed, $SKIPPED skipped." <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly"; }
-log "  $ELIGIBLE stamped, 0 failed, $SKIPPED skipped - matches the dry run exactly"
+grep -qF "$ELIGIBLE resource(s) newly stamped, 0 already stamped, $RECORDED newly recorded, 0 already recorded, 0 failed, $APPROVE_SKIPPED skipped." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ELIGIBLE of $INSTANCES resources cleanly ($RECORDED recorded, $APPROVE_SKIPPED skipped)"; }
+log "  $ELIGIBLE stamped, $RECORDED recorded (random_id.snapshot_identifier), 0 failed,"
+log "  $APPROVE_SKIPPED skipped - $SKIPPED untaggable in the dry run, one of them record-backed"
 
 log "=== 2c. the primary DB instance's marker, read through the AWS CLI directly ==="
 WANT_DB_ADDR="module.db.module.db_instance.aws_db_instance.this:0"

@@ -450,7 +450,7 @@ log "  $ZONES of $INSTANCES verified against the live system; $RECORDS correctly
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "$ZONES resource(s) newly stamped, 0 already stamped, 0 failed, $RECORDS skipped" <<< "$APPROVE_OUT" \
+grep -qF "$ZONES resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, $RECORDS skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly $ZONES of $INSTANCES resources cleanly"; }
 log "  $ZONES stamped"
 

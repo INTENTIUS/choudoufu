@@ -570,7 +570,7 @@ IMPORT_OUT="$(tofu_run "$ADOPTED_REL" live-import -state="/work/$PLAIN_REL/terra
 # 2 are a genuine unadmitted-type gap (kubernetes_config_map, local_file -
 # see stage 3 below).
 EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
-EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 failed, 29 skipped."
+EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 29 skipped."
 if [ "${BREAK:-}" = "1" ]; then
   EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
   log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"

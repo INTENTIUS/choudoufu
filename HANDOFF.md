@@ -692,6 +692,54 @@ Every one of these has been hit, most more than once.
 Ranked. Every item is filed, so the tracker carries the evidence and this list
 carries only the reason and the order.
 
+### -5. Fixed: `#342`, and its own "one-line fix each" premise was wrong
+
+All nineteen crossing scripts now assert `#340`'s six-column summary line,
+and `just ci` can see the next widening. The issue's premise - insert
+`0 newly recorded, 0 already recorded` into each - holds for **sixteen** of
+them and not for three. `#340` did not only widen the line; it moved
+record-backed instances out of the SKIPPED bucket into a new RECORDED one, so
+an estate carrying one has a **different skipped count**, and not only a
+longer line. Three do: `corpus-alb-complete` (`null_resource.download_package`, 29
+-> 28 skipped), `corpus-ecs-fargate` (`time_sleep.this[0]`, 16 -> 15) and
+`corpus-rds-complete-postgres` (`random_id.snapshot_identifier`, 13 -> 12).
+The dry run's own UNTAGGABLE count is unmoved in all three -
+`ratifyRecordBacked` still answers `StatusUntaggable` - so only the
+`-approve` line splits, and each script now carries both numbers separately
+with the reason next to them.
+
+Two predicates decide which group a script is in, and neither is a type list:
+the estate's `live` block must declare a `record_store` at all
+(`ratify.go:369` gates on `req.RecordStore != nil`), and the migrated state
+must actually contain an instance of a `RecordBacked` type. Seven of the
+nineteen declare no store, and nine declare one but reach no such instance -
+`corpus-eks-basic` is the interesting near-miss, carrying four record-backed
+resources and no `record_store`, so its 29 skipped is unchanged;
+`corpus-s3-bucket-complete`'s DELTA 3 deletes the estate's only `random_pet`
+before migrating.
+
+The guard is `live/summary_line_guard_test.go`, and it is in `live/`
+deliberately: `just ci`'s fast tier runs `./internal/command/`, the package,
+not that package's whole subtree, so a test beside the view would not have
+run -
+the per-file/per-package check-unit trap for a fourth time.
+`TestApproveSummaryLineIsPinned` renders the real line through
+`views.StatelessImportHuman.Stamped` with a distinct prime per bucket and
+pins it; `TestCrossingScriptsAssertTheCurrentSummaryLine` recovers the column
+labels from that render and requires every whole-line assertion in
+`live/e2e/*/run.sh` to carry all of them in order. Both mutation-checked:
+stripping the two columns from one script names that script and line, and
+inserting a seventh column into the view fails the pin and names all 23
+script lines it costs.
+
+**Four crossings run for real against floci to verify it**, rather than read
+on paper: `corpus-rds-complete-postgres` (the count-moving case - stage 2 PASS,
+`26 stamped, 1 recorded (random_id.snapshot_identifier), 0 failed, 12
+skipped`, stage 3 still BLOCKED at exactly 2 sites as recorded),
+`corpus-giantswarm-crossplane` and `corpus-hongbomiao-storage` and
+`corpus-iam-read-only-policy`, all three 5 of 5. The other fifteen are
+pattern-matched against the shape those four proved.
+
 ### -4. Fixed: `#341`, and `corpus-mastino-dns` is 5 of 5
 
 `ratify.go`'s taggability check returned before the one carrier `Approve`'s
