@@ -456,6 +456,55 @@ fail() {
 gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
+# changed_addrs_excluding_markers: reads a `plan -no-color` transcript on
+# stdin, prints one changed resource address per line, EXCLUDING any address
+# whose only proposed change is the tofu-address/tofu-estate marker tags.
+# Stage 5's stock oracle plans against infra that choudoufu's own migrate
+# step (stage 2) already tagged for real, through the AWS API - stock's state
+# knows nothing about those tags, so its replan proposes removing them from
+# every tagged object, which is marker noise, not the out-of-band mutation
+# under test. This is the "marker tags normalised out of both plans" the
+# stage's oracle text calls for, applied to both choudoufu's plan and
+# stock's (choudoufu's plan may carry the same noise if a tagged object's
+# marker were ever out of sync, though it should not be here).
+FILTER_MARKERS_PY="$WORK/filter_changed_addrs.py"
+cat > "$FILTER_MARKERS_PY" <<'PY'
+# Reads a `plan -no-color` transcript on stdin, prints one changed resource
+# address per line, EXCLUDING any address whose only proposed change is the
+# tofu-address/tofu-estate marker tags. A file, not a `python3 - <<PY`
+# heredoc: the latter feeds the script itself to python3's stdin, leaving
+# nothing left on stdin for sys.stdin.read() below to read.
+import re, sys
+
+text = sys.stdin.read()
+lines = text.split("\n")
+header_re = re.compile(r'^  # (\S+) will be (.+)$')
+headers = [(i, m.group(1)) for i, line in enumerate(lines) for m in [header_re.match(line)] if m]
+
+MARKER_KEYS = ("tofu-address", "tofu-estate")
+changed = []
+for idx, (i, addr) in enumerate(headers):
+    end = headers[idx + 1][0] if idx + 1 < len(headers) else len(lines)
+    block = lines[i:end]
+    real_change = False
+    for line in block[1:]:
+        stripped = line.strip()
+        if not stripped or not re.match(r'^[~+-]', stripped):
+            continue
+        if any(k in stripped for k in MARKER_KEYS):
+            continue
+        if re.match(r'^[~+-]\s*(resource\b|tags(_all)?\s*=)', stripped):
+            continue
+        real_change = True
+    if real_change:
+        changed.append(addr)
+
+print("\n".join(sorted(set(changed))))
+PY
+changed_addrs_excluding_markers() {
+  python3 "$FILTER_MARKERS_PY"
+}
+
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
@@ -576,6 +625,22 @@ COLD_TAGS="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'length(Tags
 log "  confirmed unmarked: $LAMBDA_ARN carries no tags"
 
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
+
+# A snapshot of the pre-live-block config (DELTA 1 + DELTA 2, no live block),
+# taken before step 4 below adds one to $EST/versions.tf. Stage 5's stock
+# oracle needs a plain-terraform working directory that still points at the
+# same floci endpoint with no choudoufu involvement at all, and $EST itself
+# stops being that the moment migration starts.
+#
+# The WHOLE $WORK/lambda tree is snapshotted, not just $EST: the example's
+# module block is "source = \"../../\"", relative to the example directory's
+# own depth under the module root, and copying only $EST would leave that
+# path resolving to nothing (or to the wrong directory) once terraform init
+# runs a second time from a differently-nested copy.
+cp -a "$WORK/lambda" "$WORK/stocklambda"
+STOCKDRIFT="$WORK/stocklambda/examples/simple"
+rm -rf "$STOCKDRIFT/.terraform" "$STOCKDRIFT/.terraform.lock.hcl" "$STOCKDRIFT/terraform.tfstate" "$STOCKDRIFT/terraform.tfstate.backup"
+log "  snapshot of the pre-live-block config saved to $STOCKDRIFT, for stage 5's stock oracle"
 
 # ── 3b. the EMULATOR's own drift, measured before choudoufu exists ─────────
 # Stock terraform, its own state file, its own refresh, immediately after its
@@ -1016,7 +1081,124 @@ log ""
 log "STAGE 4 (test apply): PASS"
 log ""
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N; markers and record store intact"
-log "STAGE 5 (drift and reconverge): NOT YET WRITTEN"
-gauntlet_stage drift_reconverge not_run "not yet written"
+CURRENT_STAGE=drift_reconverge
+
+# ── STAGE 5: DRIFT AND RECONVERGE ───────────────────────────────────────────
+#
+# The same $EST estate, already stamped and already proven to plan and apply
+# empty (stages 2-4), is the natural place to prove the OTHER direction: one
+# live object changed out of band, directly through the AWS CLI, is detected
+# and the fix is scoped to exactly that object - not "the whole estate looks
+# different." The mutated attribute is memory_size on the module-nested
+# Lambda function (module.lambda_function.aws_lambda_function.this[0]): 128
+# in the config (var.memory_size's own default), changed live to 256 via
+# `aws lambda update-function-configuration` - never through choudoufu.
+
+log "=== 10. mutate one live object out of band, directly via the AWS CLI ==="
+if [ "${BREAK:-}" = "1" ]; then
+  # aws_iam_role.lambda's own mutable arguments (max_session_duration,
+  # description) go through IAM's UpdateRole/UpdateRoleDescription actions,
+  # and floci's UpdateRole response is missing the (empty but expected)
+  # <UpdateRoleResult/> element the AWS CLI's botocore deserializer requires
+  # - the live-side mutation succeeds (confirmed manually: MaxSessionDuration
+  # really moves) but the CLI call this script would make exits non-zero
+  # with "'UpdateRoleResult'", which would make this BREAK-only negative
+  # control fail on an emulator bug rather than on the assertion under test.
+  # A floci gap, not a choudoufu one (HANDOFF's "the emulator is wrong" row);
+  # not filed as its own issue since nothing else in this script depends on
+  # UpdateRole. aws_cloudwatch_log_group.lambda's retention_in_days
+  # (PutRetentionPolicy) has no such gap and is just as real a second object.
+  awsl logs put-retention-policy --log-group-name "/aws/lambda/${FN_NAME}" --retention-in-days 14 >/dev/null \
+    || fail "BREAK=1: could not tamper the log group's retention_in_days"
+  GOT_RETENTION="$(awsl logs describe-log-groups --log-group-name-prefix "/aws/lambda/${FN_NAME}" --query 'logGroups[0].retentionInDays' --output text)"
+  [ "$GOT_RETENTION" = "14" ] || fail "BREAK=1: the log group tamper did not take (read back $GOT_RETENTION)"
+  log "  BREAK=1: also tampered aws_cloudwatch_log_group.lambda's retention_in_days"
+  log "           (unset in config -> 14) out of band - stage 5 must now see TWO"
+  log "           drifted objects and fail the single-object assertion"
+fi
+
+awsl lambda update-function-configuration --function-name "$FN_NAME" --memory-size 256 >/dev/null \
+  || fail "could not tamper aws_lambda_function.this's memory_size via the AWS CLI"
+STATUS=""
+for _ in $(seq 1 30); do
+  STATUS="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query LastUpdateStatus --output text 2>/dev/null)"
+  [ "$STATUS" = "Successful" ] && break
+  sleep 1
+done
+[ "$STATUS" = "Successful" ] || fail "the out-of-band memory_size update never reached LastUpdateStatus=Successful (last seen: $STATUS)"
+DRIFTED_MEMORY="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query MemorySize --output text)"
+[ "$DRIFTED_MEMORY" = "256" ] || fail "the out-of-band memory_size mutation did not take (read back $DRIFTED_MEMORY)"
+log "  mutated $FN_NAME's memory_size to 256 (config says 128) directly via the AWS CLI - never through choudoufu"
+
+log "=== 11. choudoufu plan proposes fixing exactly that one object ==="
+DRIFT_PLAN_OUT="$(cd "$EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -40; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+
+CHANGED_ADDRS="$(changed_addrs_excluding_markers <<< "$DRIFT_PLAN_OUT")"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+
+if [ "${BREAK:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] \
+    && fail "BREAK=1 set (two objects tampered), but choudoufu's plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more"
+  log "           than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  [ "$CHANGED_ADDRS" = "module.lambda_function.aws_lambda_function.this[0]" ] \
+    || fail "choudoufu's plan proposes fixing $CHANGED_ADDRS, not module.lambda_function.aws_lambda_function.this[0]"
+  log "  choudoufu's plan proposes fixing exactly one object: $CHANGED_ADDRS"
+
+  log "=== 12. the stock oracle: the identical mutation, plain terraform ==="
+  # $STOCKDRIFT is the pre-live-block snapshot saved right after the cold
+  # apply (before step 4 added a live block to $EST/versions.tf) - a plain
+  # terraform working directory pointed at the same floci endpoint, zero
+  # choudoufu involvement. cold.tfstate is the state the cold apply itself
+  # wrote, before this stage's mutation.
+  cp "$WORK/cold.tfstate" "$STOCKDRIFT/terraform.tfstate"
+  ( cd "$STOCKDRIFT" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$STOCKDRIFT" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "the stock oracle's init failed"; }
+  STOCK_DRIFT_PLAN_OUT="$(cd "$STOCKDRIFT" && terraform plan -input=false -no-color -detailed-exitcode 2>&1)"; STOCK_DRIFT_PLAN_RC=$?
+  case "$STOCK_DRIFT_PLAN_RC" in
+    0) fail "the stock oracle replans EMPTY after the same mutation - this control is not load-bearing" ;;
+    2) ;;
+    *) printf '%s\n' "$STOCK_DRIFT_PLAN_OUT" | tail -40; fail "the stock oracle's plan failed to run at all (exit $STOCK_DRIFT_PLAN_RC)" ;;
+  esac
+  STOCK_CHANGED_ADDRS="$(changed_addrs_excluding_markers <<< "$STOCK_DRIFT_PLAN_OUT")"
+  STOCK_N_CHANGED="$(printf '%s\n' "$STOCK_CHANGED_ADDRS" | grep -c . || true)"
+  [ "$STOCK_N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$STOCK_DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected stock terraform's own plan to propose fixing exactly 1 object too, got $STOCK_N_CHANGED"; }
+  [ "$STOCK_CHANGED_ADDRS" = "module.lambda_function.aws_lambda_function.this[0]" ] \
+    || fail "stock terraform's plan proposes fixing $STOCK_CHANGED_ADDRS, not module.lambda_function.aws_lambda_function.this[0] - choudoufu and stock disagree about which object drifted"
+
+  # The oracle comparison itself: the memory_size diff line, choudoufu's
+  # against stock's. Filtering to that one attribute is how marker tags get
+  # normalised out of the comparison - stock's plan carries none (it never
+  # wrote tofu-address/tofu-estate tags to begin with) and choudoufu's would
+  # only show tag churn if the tags themselves had drifted, which they have
+  # not here, so comparing the memory_size line alone is comparing the same
+  # thing either way: the actual change, not incidental formatting.
+  CHOUDOUFU_MEMORY_DIFF="$(grep -E 'memory_size' <<< "$DRIFT_PLAN_OUT" | sed -E 's/^[[:space:]]*[~+-]?[[:space:]]*//; s/[[:space:]]+/ /g' | sort -u)"
+  STOCK_MEMORY_DIFF="$(grep -E 'memory_size' <<< "$STOCK_DRIFT_PLAN_OUT" | sed -E 's/^[[:space:]]*[~+-]?[[:space:]]*//; s/[[:space:]]+/ /g' | sort -u)"
+  [ -n "$CHOUDOUFU_MEMORY_DIFF" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -B2 -A10 'will be updated'; fail "choudoufu's plan proposes fixing the object but names no memory_size diff line"; }
+  [ "$CHOUDOUFU_MEMORY_DIFF" = "$STOCK_MEMORY_DIFF" ] || fail "choudoufu says \"$CHOUDOUFU_MEMORY_DIFF\", stock says \"$STOCK_MEMORY_DIFF\" - same object, different proposed change"
+  log "  the stock oracle proposes fixing the identical object with the identical change: $CHOUDOUFU_MEMORY_DIFF"
+
+  log "=== 13. apply the reconverging plan; the drift is gone ==="
+  RECONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -40; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_MEMORY="$(awsl lambda get-function-configuration --function-name "$FN_NAME" --query MemorySize --output text)"
+  [ "$FIXED_MEMORY" = "128" ] \
+    || fail "the function's memory_size is $FIXED_MEMORY after reconverging, not 128"
+  [ ! -f "$EST/terraform.tfstate" ] || fail "the reconverge apply left a state file behind"
+  log "  reconverged: $FN_NAME's memory_size is back to 128, read via the AWS CLI"
+
+  log ""
+  log "STAGE 5 (drift and reconverge): PASS"
+  log ""
+  gauntlet_stage drift_reconverge pass "one object tampered (memory_size 128->256), exactly module.lambda_function.aws_lambda_function.this[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and memory_size reads back as 128"
+fi
 CURRENT_STAGE=""
 gauntlet_end
