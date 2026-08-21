@@ -1397,7 +1397,15 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		b.omitFailed(addr, detail)
 		return
 	}
-	converted, err := convert.Convert(val, schema.Block.ImpliedType())
+	// The record's own sensitivity comes off before the conversion and goes
+	// back on after it, which is the same order
+	// states.ResourceInstanceObjectSrc.Decode uses: unmarshal, then
+	// MarkWithPaths. Converting a marked value would work - cty's convert
+	// carries marks - but the paths are needed separately anyway, and doing
+	// it in one visible place keeps every accessor below this line reading
+	// a value nothing has marked.
+	unmarkedVal, sensitive := val.UnmarkDeepWithPaths()
+	converted, err := convert.Convert(unmarkedVal, schema.Block.ImpliedType())
 	if err != nil {
 		detail := fmt.Sprintf(
 			"The persisted record for %s does not fit %s's current schema: %s. This usually means the record was written under a different provider version. Delete the stale record from the store to let the plan re-create it, or pin the provider version that wrote it.",
@@ -1406,6 +1414,14 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Persisted record does not match the current schema", detail))
 		b.omitFailed(addr, detail)
 		return
+	}
+	// Re-marking before obj.Encode is the whole point of persisting the
+	// paths: Encode derives AttrSensitivePaths from the value's own marks,
+	// and that is what the plan graph's "before" side decodes back out.
+	// Without this the plan proposes a sensitivity-only in-place update for
+	// every sensitive attribute, every run, forever.
+	if len(sensitive) > 0 {
+		converted = converted.MarkWithPaths(sensitive)
 	}
 
 	// status came out of the record itself (decodeRecordPayload), not a

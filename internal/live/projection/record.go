@@ -116,6 +116,28 @@ type recordPayload struct {
 	// using it is not this package's business to notice.
 	Private []byte `json:"private,omitempty"`
 
+	// SensitiveAttrs is the set of paths inside Attrs that carried
+	// [marks.Sensitive], encoded exactly as the state file's own
+	// "sensitive_attributes" is (see sensitivepaths.go). It is what
+	// [states.ResourceInstanceObjectSrc.AttrSensitivePaths] is to a state
+	// file, and it exists for the same reason: ctyjson cannot encode a
+	// marked value, so the marks have to travel beside it or be lost.
+	//
+	// Losing them is not cosmetic. `live-plan` runs with SkipRefresh, so a
+	// projected object's marks are the only marks the plan's "before" side
+	// ever has, while the "after" side is re-marked from the configuration
+	// and the provider schema on every run - and an unmarked before against
+	// a marked after is a difference. Every migrated estate holding a
+	// sensitive attribute on a record-backed type therefore proposed a
+	// perpetual sensitivity-only in-place update, annotated by OpenTofu's
+	// own renderer with "The value is unchanged".
+	//
+	// Omitted entirely when nothing is sensitive, so a record for such a
+	// value is byte-identical to one written before this field existed -
+	// which [SeedRecordForInstance] depends on, since it treats a
+	// byte-different record as a conflict rather than an update.
+	SensitiveAttrs json.RawMessage `json:"sensitive_attributes,omitempty"`
+
 	// Status is the object's [states.ObjectStatus], encoded as
 	// recordStatusTainted for a tainted object and omitted entirely for a
 	// ready one - see encodeObjectStatus. A record-backed resource has no
@@ -185,19 +207,34 @@ func decodeObjectStatus(raw string) (states.ObjectStatus, error) {
 // holds for one record-backed resource instance. status must be
 // states.ObjectReady or states.ObjectTainted - see [encodeObjectStatus].
 func encodeRecordPayload(val cty.Value, private []byte, status states.ObjectStatus) ([]byte, error) {
-	valTy, err := ctyjson.MarshalType(val.Type())
+	// The unmark is the first thing that happens and it is not defensive.
+	// ctyjson.Marshal panics on a marked leaf, and both callers hand this a
+	// value that has been through states.ResourceInstanceObjectSrc.Decode,
+	// which re-applies the state's AttrSensitivePaths - so a marked value
+	// is the ordinary case for any record-backed type with a sensitive
+	// attribute, not an edge one. splitSensitiveMarks keeps the paths so
+	// they can be persisted beside the value; see recordPayload.SensitiveAttrs.
+	unmarked, sensitive, err := splitSensitiveMarks(val)
+	if err != nil {
+		return nil, fmt.Errorf("reading the record's sensitivity: %w", err)
+	}
+	valTy, err := ctyjson.MarshalType(unmarked.Type())
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record's value type: %w", err)
 	}
-	attrs, err := ctyjson.Marshal(val, val.Type())
+	attrs, err := ctyjson.Marshal(unmarked, unmarked.Type())
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record's value: %w", err)
+	}
+	sensitiveAttrs, err := marshalSensitivePaths(sensitive)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the record's sensitive paths: %w", err)
 	}
 	statusStr, err := encodeObjectStatus(status)
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record's status: %w", err)
 	}
-	p := recordPayload{ValueType: valTy, Attrs: attrs, Private: private, Status: statusStr}
+	p := recordPayload{ValueType: valTy, Attrs: attrs, SensitiveAttrs: sensitiveAttrs, Private: private, Status: statusStr}
 	out, err := json.Marshal(p)
 	if err != nil {
 		return nil, fmt.Errorf("encoding the record payload: %w", err)
@@ -223,6 +260,16 @@ func decodeRecordPayload(raw []byte) (cty.Value, []byte, states.ObjectStatus, er
 	val, err := ctyjson.Unmarshal(p.Attrs, ty)
 	if err != nil {
 		return cty.NilVal, nil, 0, fmt.Errorf("the stored record's value could not be read: %w", err)
+	}
+	// Marked exactly the way states.ResourceInstanceObjectSrc.Decode marks
+	// what it reads out of a state file, and for the same reason: the
+	// caller is entitled to an object whose sensitivity is intact.
+	sensitive, err := unmarshalSensitivePaths(p.SensitiveAttrs)
+	if err != nil {
+		return cty.NilVal, nil, 0, fmt.Errorf("the stored record's sensitive paths could not be read: %w", err)
+	}
+	if pvms := asSensitiveMarks(sensitive); len(pvms) > 0 {
+		val = val.MarkWithPaths(pvms)
 	}
 	status, err := decodeObjectStatus(p.Status)
 	if err != nil {

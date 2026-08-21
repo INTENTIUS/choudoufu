@@ -89,43 +89,66 @@ set -uo pipefail
 #   bucket, accurately asserted in stage 2 below rather than worked around,
 #   since it does not block the other 44 resources from stamping.
 #
-# TWO REAL CHOUDOUFU ADMISSION GAPS, BOTH BLOCK STAGE 3, NEITHER FIXED HERE:
+# ONE REAL CHOUDOUFU ADMISSION GAP BLOCKS STAGE 3, NOT FIXED HERE:
 #
-#   #305 (already tracked, open). aws_default_network_acl/
-#   aws_default_route_table/aws_default_security_group - the VPC module's
-#   "adopt the account's default objects" resources, created here because
-#   this module pins terraform-aws-modules/vpc ~> 5.0 (v5.21.0 resolves),
-#   whose manage_default_* variables default to true, unlike the v6.x line
-#   corpus-vpc-complete crosses. 3 sites (one VPC module call here, vs.
-#   corpus-security-group-complete's 6 across two calls).
+#   #309 (open). aws_cognito_user_pool_client is unadmitted: untaggable, no
+#   resource identity schema in the pinned provider release. 1 site.
 #
-#   #309 (NEW, filed this session). aws_cognito_user_pool_client is
-#   unadmitted: untaggable, no resource identity schema in the pinned
-#   provider release, and live/survey-full.json's own evidence says why -
-#   Cloud Control's generic list handler needs UserPoolId as scoping input,
-#   which no enumeration leg supplies today. What the survey did not
-#   consider: the Cognito-native ListUserPoolClients API takes exactly that
-#   as its one required parameter, and this configuration's own declaration
-#   always supplies it (a reference to the already-admitted, taggable,
-#   ServerAssigned aws_cognito_user_pool parent) - the same parent-derived
-#   shape as other admitted composite-identity rows, just not yet wired to a
-#   discovery leg. See the issue for the full technical lead. 1 site.
+#   THE ENUMERATION LEAD THIS HEADER USED TO CARRY IS WITHDRAWN (2026-08-19).
+#   It said the fix was to reach Cognito's own ListUserPoolClients from a new
+#   discovery leg. Enumeration is not the missing piece and never was: this
+#   estate is MIGRATED by the time stage 3 runs, so the question is not "what
+#   objects exist" but "which one does this block own", and for an object with
+#   nowhere to carry a marker the fork's answer is the estate's record store -
+#   identity.ClassRecordLocated, issue #270, wired through lint, resolve,
+#   projection, mv and onboard and admitting 124 types at aws 6.59.0. A
+#   listing cannot supply that answer anyway: Cognito does not document
+#   ClientName as unique within a pool, so a scoped listing of two clients
+#   cannot say which is which.
+#
+#   What actually blocks it is three predicates, all measured in code on
+#   2026-08-19 and recorded with their evidence in tools/row-gen/rejected.json:
+#   the type's CFN primary_identifier is only PARTLY read-only ([UserPoolId,
+#   ClientId], ClientId alone read-only), so row-gen's markerless veto never
+#   fires and identity.LocatedType's first condition - membership in
+#   MarkerlessTypes - is never met; identity.credentialMaterial then fires on
+#   client_secret; and LocatedType's third condition assumes the "id"
+#   attribute IS the import identity, which is false here - the provider's own
+#   Attribute Reference calls id "ID of the user pool client" while the Import
+#   section wants <user_pool_id>/<client_id>.
+#
+#   #305 (aws_default_network_acl/aws_default_route_table/
+#   aws_default_security_group, the VPC module's default-object adopters)
+#   is FIXED and merged as of this script's last verified run - it no
+#   longer blocks anything here; the 3 sites it used to name are now
+#   VERIFIED/DRIFTED and eligible in stage 2 like everything else.
+#
+#   Checked against #313 (corpus-security-group-complete's
+#   data.aws_availability_zones-feeding-a-nested-module-for_each wall,
+#   filed the same session #305 landed): this estate's live-plan output
+#   carries exactly one distinct Error: line, the #309 unadmitted-type
+#   refusal, and never "Unable to use data.aws_availability_zones.available
+#   in static context". Different wall; #313 does not reach this estate.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
 #   stage 1  cold deploy   PASS - real, unmarked infrastructure, all 80
 #                          resources, once for real (no manual retries) with
 #                          the fixed floci image.
-#   stage 2  migrate       PASS - real: 39 VERIFIED + 9 DRIFTED = 48 of 80
-#                          resource instances eligible; 44 newly stamped + 4
-#                          FAILED (floci#65) = 48 attempted; the other 32
-#                          correctly skipped (28 UNTAGGABLE by provider
-#                          schema + 4 UNADMITTED_TYPE, #305+#309), asserted
+#   stage 2  migrate       PASS - real: 41 VERIFIED + 10 DRIFTED = 51 of 80
+#                          resource instances eligible (#305's fix moved the
+#                          default-object trio from unadmitted into this
+#                          count); 47 newly stamped + 4 FAILED (floci#65) =
+#                          51 attempted; the other 29 not eligible (28
+#                          UNTAGGABLE by provider schema + 1 UNADMITTED_TYPE,
+#                          #309) - of which -approve records 1
+#                          (null_resource.download_package, record-backed
+#                          since #340, seeded into the record store rather
+#                          than skipped) and correctly skips 28. Asserted
 #                          against live-import's own report AND confirmed
 #                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by #305 (3 sites) and #309 (1
-#                          site) - 4 unadmitted-type sites total, the exact
-#                          same 4 types stage 2 already named, specific
+#   stage 3  test plan     BLOCKED, for real, by #309 alone (1 site) - the
+#                          exact same type stage 2 already named, specific
 #                          counts and resource addresses asserted against a
 #                          real live-plan run on the really-migrated estate,
 #                          state file deleted first, BREAK=1 negative
@@ -196,14 +219,22 @@ PKG_HASH="$(printf '%s' "$PKG_URL" | md5 2>/dev/null || printf '%s' "$PKG_URL" |
 PKG_FILE="downloaded_package_${PKG_HASH}.zip"
 
 INSTANCES=80
-VERIFIED_WANT=39
-DRIFTED_WANT=9
+VERIFIED_WANT=41
+DRIFTED_WANT=10
 UNTAGGABLE_WANT=28
-UNADMITTED_WANT=4
+UNADMITTED_WANT=1
 ELIGIBLE=$((VERIFIED_WANT + DRIFTED_WANT))
-STAMPED_WANT=44
+STAMPED_WANT=47
 IMPORT_FAILED_WANT=4
 SKIPPED_WANT=$((UNTAGGABLE_WANT + UNADMITTED_WANT))
+# SKIPPED_WANT is the DRY RUN's own not-eligible total, which -approve then
+# splits in two (issue #340): null_resource.download_package is record-backed,
+# so -approve seeds the record store for it and reports it RECORDED rather
+# than SKIPPED. The dry run's UNTAGGABLE/UNADMITTED_TYPE counts do not move -
+# ratifyRecordBacked still answers StatusUntaggable - so only the -approve
+# summary line splits.
+RECORDED_WANT=1
+APPROVE_SKIPPED_WANT=$((SKIPPED_WANT - RECORDED_WANT))
 
 cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
@@ -373,21 +404,22 @@ UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep 
 [ "${VERIFIED_N:-0}" = "$VERIFIED_WANT" ] || fail "expected $VERIFIED_WANT VERIFIED, got ${VERIFIED_N:-0}"
 [ "${DRIFTED_N:-0}" = "$DRIFTED_WANT" ] || fail "expected $DRIFTED_WANT DRIFTED, got ${DRIFTED_N:-0}"
 [ "${UNTAGGABLE_N:-0}" = "$UNTAGGABLE_WANT" ] || fail "expected $UNTAGGABLE_WANT UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
-[ "${UNADMITTED_N:-0}" = "$UNADMITTED_WANT" ] || fail "expected $UNADMITTED_WANT UNADMITTED_TYPE (#305 + #309), got ${UNADMITTED_N:-0}"
-grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among UNADMITTED_TYPE (#305)"
-grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among UNADMITTED_TYPE (#305)"
-grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among UNADMITTED_TYPE (#305)"
+[ "${UNADMITTED_N:-0}" = "$UNADMITTED_WANT" ] || fail "expected $UNADMITTED_WANT UNADMITTED_TYPE (#309), got ${UNADMITTED_N:-0}"
+grep -qF 'module.vpc.aws_default_network_acl.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_network_acl.this[0] among DRIFTED (#305, fixed)"
+grep -qF 'module.vpc.aws_default_route_table.default[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_route_table.default[0] among VERIFIED (#305, fixed)"
+grep -qF 'module.vpc.aws_default_security_group.this[0]' <<< "$IMPORT_OUT" || fail "expected module.vpc.aws_default_security_group.this[0] among VERIFIED (#305, fixed)"
 grep -qF 'aws_cognito_user_pool_client.this' <<< "$IMPORT_OUT" || fail "expected aws_cognito_user_pool_client.this among UNADMITTED_TYPE (#309)"
 log "  $ELIGIBLE of $INSTANCES eligible ($VERIFIED_WANT VERIFIED + $DRIFTED_WANT DRIFTED); $SKIPPED_WANT skipped"
-log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema + $UNADMITTED_WANT UNADMITTED_TYPE - #305's"
-log "  default_* trio + #309's aws_cognito_user_pool_client); nothing written yet"
+log "  ($UNTAGGABLE_WANT UNTAGGABLE by provider schema + $UNADMITTED_WANT UNADMITTED_TYPE - #309's"
+log "  aws_cognito_user_pool_client; #305's default_* trio is now admitted and"
+log "  eligible above); nothing written yet"
 
 log "=== 2b. -approve: stamp the eligible resources for real ==="
 APPROVE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-import -state="$PLAIN_EST/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"
 APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
-grep -qF "$STAMPED_WANT resource(s) newly stamped, 0 already stamped, $IMPORT_FAILED_WANT failed, $SKIPPED_WANT skipped." <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $STAMPED_WANT stamped / $IMPORT_FAILED_WANT failed / $SKIPPED_WANT skipped"; }
+grep -qF "$STAMPED_WANT resource(s) newly stamped, 0 already stamped, $RECORDED_WANT newly recorded, 0 already recorded, $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped." <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $STAMPED_WANT stamped / $RECORDED_WANT recorded / $IMPORT_FAILED_WANT failed / $APPROVE_SKIPPED_WANT skipped"; }
 # The FAILED sites are all lex00/floci#65 (ELBv2 dropping
 # AuthenticateCognitoConfig/AuthenticateOidcConfig on read) - asserted by
 # name, not just count, so a different failure shape would be caught.
@@ -395,8 +427,9 @@ for addr in 'module.alb.aws_lb_listener.this["ex-cognito"]' 'module.alb.aws_lb_l
   grep -qF "$addr" <<< "$APPROVE_OUT" || fail "expected $addr among the FAILED-to-stamp resources (floci#65)"
 done
 grep -qF "must be specified when" <<< "$APPROVE_OUT" || fail "expected floci#65's provider validation error text among the FAILED details"
-log "  $STAMPED_WANT stamped, $IMPORT_FAILED_WANT failed (floci#65, named above), $SKIPPED_WANT skipped -"
-log "  matches the dry run exactly"
+log "  $STAMPED_WANT stamped, $RECORDED_WANT recorded (null_resource.download_package),"
+log "  $IMPORT_FAILED_WANT failed (floci#65, named above), $APPROVE_SKIPPED_WANT skipped - the dry run's"
+log "  $SKIPPED_WANT not-eligible, one of them record-backed and so recorded rather than skipped"
 
 log "=== 2c. the ALB's own marker, read through the AWS CLI directly ==="
 WANT_LB_ADDR="module.alb.aws_lb.this:0"
@@ -419,39 +452,40 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #305 and/or #309 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #309 may be fixed; update this script"; }
 
 WANT_UNADMITTED_N=$UNADMITTED_WANT
-WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security_group aws_cognito_user_pool_client)
+WANT_TYPES=(aws_cognito_user_pool_client)
 if [ "${BREAK:-}" = "1" ]; then
-  WANT_UNADMITTED_N=5
-  WANT_TYPES[3]="aws_default_dhcp_options"
-  log "  BREAK=1: expecting 5 unadmitted-type sites (one more than the real"
-  log "           4) and aws_default_dhcp_options among them - a real AWS"
-  log "           default-object type, same shape as the other three, just"
-  log "           not one this estate's config actually declares. Both"
-  log "           wrong. This step must fail."
+  WANT_UNADMITTED_N=2
+  WANT_TYPES[1]="aws_default_dhcp_options"
+  log "  BREAK=1: expecting 2 unadmitted-type sites (one more than the real"
+  log "           1) and aws_default_dhcp_options among them - a real AWS"
+  log "           default-object type, same shape as the ones #305 already"
+  log "           fixed, just not one this estate's config actually"
+  log "           declares. Both wrong. This step must fail."
 fi
 
+log "  all distinct Error: lines from this live-plan run:"
+grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c | sed 's/^/    /'
 UNADMITTED_SITES_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
 [ "$UNADMITTED_SITES_N" = "$WANT_UNADMITTED_N" ] \
-  || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305 + #309), got $UNADMITTED_SITES_N"; }
+  || { fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#309), got $UNADMITTED_SITES_N"; }
 for t in "${WANT_TYPES[@]}"; do
   grep -qE "resource \"$t\"" <<< "$PLAN_OUT" \
     || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|resource "'; fail "expected $t among the unadmitted-type refusals"; }
 done
-log "  #305 confirmed: exactly 3 default-object adopter sites (aws_default_"
-log "  network_acl, aws_default_route_table, aws_default_security_group -"
-log "  module.vpc pins terraform-aws-modules/vpc ~> 5.0, whose"
-log "  manage_default_* variables default to true)."
 log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - no"
 log "  identity schema in the pinned provider release, untaggable, and no"
 log "  discovery leg wired to the Cognito-native ListUserPoolClients API"
-log "  yet (see the issue for the technical lead)."
+log "  yet (see the issue for the technical lead). #305's default-object"
+log "  trio is fixed and no longer appears as an unadmitted-type site here"
+log "  (confirmed VERIFIED/DRIFTED and eligible in stage 2 above)."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #305 (3 sites) and #309 (1 site),"
-log "the exact same 4 unadmitted types stage 2 already named, nothing new"
+log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site), the same type"
+log "stage 2 already named as UNADMITTED_TYPE; #305's 3 sites are no longer"
+log "part of this wall"
 log ""
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -464,7 +498,8 @@ log "                              header for the 3 floci fixes this needed:"
 log "                              #58, #61, #62)"
 log "  stage 2  migrate            PASS (real: $STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed on"
 log "                              floci#65, see header)"
-log "  stage 3  test_plan          BLOCKED - #305 and #309 (choudoufu, see header)"
+log "  stage 3  test_plan          BLOCKED - #309 (choudoufu, see header); #305's"
+log "                              trio is fixed and no longer a stage-3 wall here"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

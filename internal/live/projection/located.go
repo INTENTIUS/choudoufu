@@ -123,7 +123,7 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 
 	typeName := addr.Resource.Resource.Type
 
-	importID, version, exists, err := b.opts.LocatedStore.Get(ctx, addr)
+	rec, version, exists, err := b.opts.LocatedStore.Get(ctx, addr)
 	if err != nil {
 		detail := fmt.Sprintf("Reading the located record for %s failed: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a located record", detail))
@@ -143,9 +143,17 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 
 	b.locatedVersions = append(b.locatedVersions, RecordVersion{Addr: addr, Version: version})
 
+	// values is what carries a COMPOSITE identity through, and it needs no
+	// new transport: [wanted.values] is the identity-attribute-per-component
+	// form [identity.Resolution.IdentityValues] already holds for a concrete
+	// instance, and importTarget/identityFromValues already turn it into the
+	// provider's own identity object, checked against the provider's own
+	// identity schema. A single-string record leaves it nil and takes the
+	// importID path exactly as before.
 	b.materialize(ctx, wanted{
 		addr:     addr,
-		importID: importID,
+		importID: rec.ImportID,
+		values:   rec.Components,
 	})
 }
 
@@ -233,8 +241,26 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 				))
 				continue
 			}
-			importID, ok := identity.LocatedImportID(obj.Value)
-			if !ok {
+			// Which of the two forms this type's identity takes is the
+			// provider's own account of it, re-asked here rather than
+			// remembered, for the same reason LocatedType is above: one
+			// function answering one question is what keeps the set that
+			// gets written identical to the set that gets read.
+			components, recordable := identity.LocatedIdentityComponents(typeName, *schema)
+			rec := LocatedRecord{}
+			if recordable {
+				if len(components) == 0 {
+					rec.ImportID, recordable = identity.LocatedImportID(obj.Value)
+				} else {
+					// A composite identity is recorded as an OBJECT and with
+					// no string at all. "id" holds the bare leaf for such a
+					// type, so recording it as the import ID would store a
+					// fragment that reads back as a whole identity - the
+					// exact defect this branch exists to close.
+					rec.Components, recordable = identity.LocatedIdentity(obj.Value, components)
+				}
+			}
+			if !recordable || rec.Empty() {
 				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
 					fmt.Sprintf(
 						"Recording which live %s %s owns failed: the applied object carries no usable identity to record. A %s carries no ownership marker, so without this record no later run can find the object again, and the next plan would propose creating a second one.",
@@ -243,7 +269,7 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 				))
 				continue
 			}
-			if _, err := req.LocatedStore.Put(ctx, addr, importID, priorVersion(req.LocatedVersions, addr)); err != nil {
+			if _, err := req.LocatedStore.Put(ctx, addr, rec, priorVersion(req.LocatedVersions, addr)); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
 			}
 		}
@@ -340,9 +366,52 @@ type locatedPayload struct {
 	Address string `json:"address"`
 
 	// ImportID is the provider's import identity string for the live
-	// object this instance owns: the answer to "which object is this", and
-	// the whole of what a located record is for.
+	// object this instance owns: the answer to "which object is this" for
+	// every type whose identity is one server-minted string.
 	ImportID string `json:"importID"`
+
+	// Identity is the same answer for a type whose identity is COMPOSITE -
+	// a server-minted leaf under a config-known parent, where the provider
+	// sets "id" to the bare leaf and the import path expects the whole
+	// thing. It is one string per component, named as the provider's own
+	// identity schema names them, and it is what
+	// [identity.LocatedIdentityComponents] decides the shape of.
+	//
+	// Empty for a type whose identity is the string, which is what every
+	// record written before composite identities existed looks like. That
+	// is why it is omitempty and why the format version did not move: an
+	// old record decodes into this struct unchanged and still means exactly
+	// what it meant.
+	//
+	// The two are not alternatives to be reconciled. A composite record
+	// carries the object and an empty ImportID, because there is no string
+	// form of a composite identity that this fork is willing to invent -
+	// issue #105's rule, kept by having nothing to join. A single-string
+	// record carries the string and no object. [LocatedStore.Get] requires
+	// one or the other and refuses a record carrying neither.
+	Identity map[string]string `json:"identity,omitempty"`
+}
+
+// LocatedRecord is one record-located instance's identity as the store holds
+// it: exactly one of the two forms [locatedPayload] documents.
+//
+// It is a struct rather than two parameters because two independently
+// written branches extending the same call by position is a merge git
+// resolves silently and wrongly; a named field cannot land in the wrong
+// slot.
+type LocatedRecord struct {
+	// ImportID is the identity of a type identified by one string.
+	ImportID string
+
+	// Components is the identity of a type identified by several, one
+	// string per identity-schema attribute.
+	Components map[string]string
+}
+
+// Empty reports whether this record says nothing about which object an
+// instance owns, which is the one thing a stored record may never do.
+func (r LocatedRecord) Empty() bool {
+	return r.ImportID == "" && len(r.Components) == 0
 }
 
 // LocatedStore is the point-lookup view of an estate's located records.
@@ -410,54 +479,70 @@ func NewLocatedStore(store staterecord.Store, estate string) *LocatedStore {
 //
 // version is the store's version for the key, for a later conditional Put
 // or Delete.
-func (s *LocatedStore) Get(ctx context.Context, addr addrs.AbsResourceInstance) (importID string, version string, exists bool, err error) {
+func (s *LocatedStore) Get(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, exists bool, err error) {
 	if s == nil {
-		return "", "", false, nil
+		return LocatedRecord{}, "", false, nil
 	}
 	key := LocatedKey(s.estate, addr)
 	payload, version, exists, err := s.store.Get(ctx, key)
 	if err != nil {
-		return "", "", false, fmt.Errorf("reading the located record for %s: %w", addr, err)
+		return LocatedRecord{}, "", false, fmt.Errorf("reading the located record for %s: %w", addr, err)
 	}
 	if !exists {
-		return "", "", false, nil
+		return LocatedRecord{}, "", false, nil
 	}
-	var rec locatedPayload
-	if err := json.Unmarshal(payload, &rec); err != nil {
-		return "", "", false, fmt.Errorf("decoding the located record for %s: %w", addr, err)
+	var stored locatedPayload
+	if err := json.Unmarshal(payload, &stored); err != nil {
+		return LocatedRecord{}, "", false, fmt.Errorf("decoding the located record for %s: %w", addr, err)
 	}
-	if rec.FormatVersion != locatedFormatVersion {
-		return "", "", false, fmt.Errorf("the located record for %s names format %q, which this version of choudoufu does not understand", addr, rec.FormatVersion)
+	if stored.FormatVersion != locatedFormatVersion {
+		return LocatedRecord{}, "", false, fmt.Errorf("the located record for %s names format %q, which this version of choudoufu does not understand", addr, stored.FormatVersion)
 	}
-	if rec.Address != addr.String() {
+	if stored.Address != addr.String() {
 		// The key said one address and the payload says another. Refusing
 		// is the only safe answer: continuing would bind this instance to
 		// whatever object the OTHER address names, and a wrong identity is
 		// invisible to every verdict-level check - the plan would be empty
 		// and the marker would be right about the wrong object.
-		return "", "", false, fmt.Errorf("the located record stored for %s says it is for %s; refusing to bind an instance to another resource's identity", addr, rec.Address)
+		return LocatedRecord{}, "", false, fmt.Errorf("the located record stored for %s says it is for %s; refusing to bind an instance to another resource's identity", addr, stored.Address)
 	}
-	if rec.ImportID == "" {
-		return "", "", false, fmt.Errorf("the located record for %s carries an empty identity", addr)
+	out := LocatedRecord{ImportID: stored.ImportID, Components: stored.Identity}
+	if out.Empty() {
+		return LocatedRecord{}, "", false, fmt.Errorf("the located record for %s carries an empty identity", addr)
 	}
-	return rec.ImportID, version, true, nil
+	for name, v := range out.Components {
+		if v == "" {
+			// A component recorded empty is a partial identity wearing the
+			// shape of a whole one. It would build an identity object the
+			// provider accepts and no object answers, which is a wrong
+			// identity rather than a missing one.
+			return LocatedRecord{}, "", false, fmt.Errorf("the located record for %s carries an empty %q component", addr, name)
+		}
+	}
+	return out, version, true, nil
 }
 
-// Put records importID as addr's identity, conditional on the key's current
+// Put records rec as addr's identity, conditional on the key's current
 // version - expectedVersion "" asserting that nothing is recorded yet, the
 // same convention [staterecord.Store.PutIfVersion] uses. It returns the new
 // version.
-func (s *LocatedStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, importID, expectedVersion string) (string, error) {
+func (s *LocatedStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, rec LocatedRecord, expectedVersion string) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("no record store is configured, so %s's identity cannot be recorded", addr)
 	}
-	if importID == "" {
+	if rec.Empty() {
 		return "", fmt.Errorf("refusing to record an empty identity for %s", addr)
+	}
+	for name, v := range rec.Components {
+		if v == "" {
+			return "", fmt.Errorf("refusing to record an identity for %s whose %q component is empty", addr, name)
+		}
 	}
 	payload, err := json.Marshal(locatedPayload{
 		FormatVersion: locatedFormatVersion,
 		Address:       addr.String(),
-		ImportID:      importID,
+		ImportID:      rec.ImportID,
+		Identity:      rec.Components,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encoding the located record for %s: %w", addr, err)

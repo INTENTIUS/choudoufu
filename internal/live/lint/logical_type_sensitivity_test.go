@@ -97,6 +97,44 @@ var measuredDeprecated = map[string][]string{
 	"random_string":   {"number"},
 }
 
+// measuredWritesOutsideItsRecord is the second measured axis, per family:
+// does an instance of this family leave anything behind that OpenTofu's own
+// record of it does not contain?
+//
+// It is what tools/row-gen's logicalProviderSources spells StoreOnly, stated
+// here independently and from behaviour rather than copied from the
+// generator, for the same reason [measuredSensitivity] is: a cross-check that
+// reads its subject's own input is not a cross-check. Two facts settle the
+// one family whose answer is "yes", both re-runnable in a scratch directory
+// against hashicorp/local 2.9.0:
+//
+//   - `tofu import local_file.f /path/to/an/existing/file` answers "Resource
+//     Import Not Implemented / This resource does not support import." The
+//     provider offers no way to recover an instance from the file, which is
+//     why the record is still the carrier for its prior state and why
+//     [identity.TypeIdentity.RecordBacked] is true for it.
+//   - Apply a local_file, delete the record, and the file is still on disk;
+//     apply four instances of `filename = "c-${count.index % 2}.txt"` under
+//     stock OpenTofu and it reports "5 added", leaves two files, then plans
+//     "2 to add" forever. The file is a real object two records can name.
+//
+// The other four families leave nothing: hashicorp/random generates a value
+// and keeps it in the record, hashicorp/time stores a timestamp ("keeps a ...
+// UTC timestamp stored in the Terraform state", its own description),
+// null_resource "implements the standard resource lifecycle but takes no
+// further action", and terraform_data echoes its input back.
+//
+// Keyed by family prefix rather than by type because the property is a
+// provider's, not a type's - which is also why the generator records it once
+// per provider.
+var measuredWritesOutsideItsRecord = map[string]bool{
+	"local_":  true,
+	"null_":   false,
+	"random_": false,
+	"time_":   false,
+	"tls_":    false,
+}
+
 // liveSensitiveAttrs is typ's sensitive attributes with its deprecated ones
 // removed: the input to the classification rule below.
 func liveSensitiveAttrs(typ string) []string {
@@ -122,9 +160,14 @@ func liveSensitiveAttrs(typ string) []string {
 // reading explicit by refusing a type whose own cert_pem output is not
 // secret, on the strength of a sensitive private_key_pem *argument*. So the
 // mechanical form of that argument is: a live (non-deprecated) sensitive
-// attribute anywhere in the schema => SECRET_REFUSED, none =>
-// RECORD_ADMITTED. Applied to the measured data it reproduces all fifteen
-// provider-backed rows, and this test is what keeps that true.
+// attribute anywhere in the schema => SECRET_REFUSED, none => admitted.
+//
+// Which of the two ADMITTED classes then comes from the second measured
+// axis, [measuredWritesOutsideItsRecord]: a family that leaves an object
+// behind its record does not contain is EXTERNAL_ADMITTED, and one that
+// leaves nothing is RECORD_ADMITTED. Applied to the measured data the pair
+// reproduces all seventeen provider-backed rows, and this test is what keeps
+// that true.
 //
 // The deprecation clause is [measuredDeprecated]'s doc comment; it changes
 // no row here, and is stated as part of the rule rather than as a special
@@ -146,14 +189,38 @@ func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 		}
 		covered++
 
+		external, known := measuredWritesOutsideItsRecord[lt.Prefix]
+		if !known {
+			t.Errorf("logicalTypes[%q] carries prefix %q, which measuredWritesOutsideItsRecord does "+
+				"not cover; measure the family rather than dropping the cross-check", typ, lt.Prefix)
+			continue
+		}
+
 		want := ClassRecordAdmitted
-		if len(sensitive) > 0 {
+		switch {
+		case len(sensitive) > 0:
 			want = ClassSecretRefused
+		case external:
+			want = ClassExternalAdmitted
 		}
 		if lt.Class != want {
 			t.Errorf("logicalTypes[%q].Class = %q, but the provider's schema marks %d attribute(s) "+
-				"sensitive (%v), which derives %q - one of the two is wrong",
-				typ, lt.Class, len(sensitive), sensitive, want)
+				"sensitive (%v) and its family writes-outside-its-record is %v, which derives %q - "+
+				"one of the two is wrong",
+				typ, lt.Class, len(sensitive), sensitive, external, want)
+		}
+
+		// The half that matters most is not the class name but what the
+		// class licenses. Recomputed here rather than left to
+		// TestLocalFileKeepsItsCountIndexCheck's two hardcoded type names,
+		// so a future family measured as writing outside its record cannot
+		// pick up the skip by inheriting a class name.
+		scope := countIndexScopeForType(typ, lt, true)
+		if scope.skip != (!external && len(sensitive) == 0) {
+			t.Errorf("countIndexScopeForType(%q).skip = %v, but the family's measured "+
+				"writes-outside-its-record is %v - the count.index walk must run for exactly the "+
+				"types whose arguments can name something the record does not bound",
+				typ, scope.skip, external)
 		}
 	}
 	if want := len(logicalTypes) - 1; covered != want {
@@ -211,37 +278,30 @@ func TestDeprecationClauseMovesOnlyLocalFile(t *testing.T) {
 // derived [logicalTypes] from live/logical-schemas.json
 // (tools/row-gen/logicalschemas.go), the same rule that admitted them to
 // [identity.DefaultTable] admitted them here, and all four left this list.
-// local_sensitive_file left it next: hashicorp/local is not store-only, so
-// the derivation still contributes no [logicalTypes] row for it, but
-// [ClassifyLogicalType] now gives it an exact-match SECRET_REFUSED verdict of
-// its own, settled by its own provider docs - "The arguments accepted by
-// this resource are marked as sensitive", and content/content_base64 are
-// (String, Sensitive) and not deprecated, unlike local_file's sole sensitive
-// field.
+// local_sensitive_file left it next, on a hand-coded exact-match SECRET_REFUSED
+// verdict [ClassifyLogicalType] carried for a while and no longer needs: the
+// derivation reaches it now, from its own schema (content and content_base64,
+// String and Sensitive and not deprecated) rather than from its docs' prose.
 //
-// local_file is the one that remains, and it is not an unreviewed remainder:
-// the derivation excludes it deliberately, because hashicorp/local is the
-// one input provider whose StoreOnly is false, and a hand-coded verdict was
-// considered and rejected. Its ONLY sensitive attribute is
-// sensitive_content, which is deprecated with the message "Use the
-// `local_sensitive_file` resource instead" - so the sensitivity rule alone
-// would derive RECORD_ADMITTED for it, and that would be wrong for a reason
-// the rule cannot see. Measured against hashicorp/local 2.9.0: delete the
-// file and the provider drops the resource from state, so the next plan
-// proposes a create; change its content and the same happens, because id is
-// the SHA1 of the content. Its identity is the filename, an argument value,
-// not the record, which is what [TestLocalFileKeepsItsCountIndexCheck] pins
-// from the other side. OTHER_REFUSED's Detail is still an imperfect fit: it
-// tells the author "there is no live system holding it", which is false -
-// the local filesystem is holding it, and every attribute is a function of
-// configuration plus that file. What local_file lacks is not a value to
-// recover but a class this table does not have yet - argument-derived
-// identity that is still safe to admit.
+// local_file was the last, and issue #314 emptied the list. It was never an
+// unreviewed remainder - the derivation excluded it because hashicorp/local is
+// the one input provider whose StoreOnly is false - but "excluded" was the
+// wrong answer to the right observation. Its ONLY sensitive attribute is
+// sensitive_content, deprecated with the message "Use the
+// `local_sensitive_file` resource instead", so the sensitivity rule alone
+// derives an admitted class for it; what StoreOnly=false says is that
+// RECORD_ADMITTED is the wrong admitted class, not that no class fits.
+// OTHER_REFUSED never fitted either, and its Detail said something false to
+// the author's face: "there is no live system holding it", when the local
+// filesystem is holding it. [ClassExternalAdmitted] is the class that fits,
+// and [TestLocalFileKeepsItsCountIndexCheck] still pins the reason it is not
+// RECORD_ADMITTED.
 //
-// See the tracker issue this list cites for the work that would empty it.
-var unclassifiedFamilyMembers = []string{
-	"local_file",
-}
+// The list stays, empty, rather than being deleted with the test below: the
+// gap it measures is "a family member the derivation reaches no verdict for",
+// which a future provider release can re-open, and an empty pinned list is
+// what makes that visible on the release rather than on the estate.
+var unclassifiedFamilyMembers = []string{}
 
 // TestUnclassifiedFamilyMembersAreExactlyTheKnownGap pins that list against
 // [measuredSensitivity], so adding a [logicalTypes] row for one of them - or
@@ -269,9 +329,16 @@ func TestUnclassifiedFamilyMembersAreExactlyTheKnownGap(t *testing.T) {
 	}
 }
 
-// TestLocalFileKeepsItsCountIndexCheck guards the second thing that would
-// break if local_file were promoted to RECORD_ADMITTED on the strength of
-// the derivation above, which is not a lint message but a silenced check.
+// TestLocalFileKeepsItsCountIndexCheck guards the thing that would break if
+// local_file were promoted to RECORD_ADMITTED on the strength of the
+// derivation above, which is not a lint message but a silenced check.
+//
+// It survives issue #314's admission unchanged, and that is the point of
+// citing it here. #314 admitted local_file - through
+// [ClassExternalAdmitted], a class that exists precisely so this assertion
+// keeps holding - and the temptation the whole way through was to reach
+// RECORD_ADMITTED and delete this. The class boundary is drawn where it is so
+// that admitting the type and keeping this check are not in tension.
 //
 // countIndexScopeForType (count_index.go) returns skip:true for a
 // RECORD_ADMITTED type, on the stated ground that such a type's identity is
@@ -328,7 +395,7 @@ func TestLocalFileKeepsItsCountIndexCheck(t *testing.T) {
 func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 	for typ, lt := range logicalTypes {
 		entry, ok := identity.LookupType(typ)
-		if lt.Class != ClassRecordAdmitted {
+		if !recordStoreAdmits(lt.Class) {
 			if ok && entry.RecordBacked {
 				t.Errorf("logicalTypes[%q] is %s but identity.DefaultTable marks it RecordBacked; "+
 					"resolution would hold a record for a type lint refuses", typ, lt.Class)
@@ -336,9 +403,9 @@ func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 			continue
 		}
 		if !ok || !entry.RecordBacked {
-			t.Errorf("logicalTypes[%q] is RECORD_ADMITTED, so lint admits it under a record_store, "+
+			t.Errorf("logicalTypes[%q] is %s, so lint admits it under a record_store, "+
 				"but identity.DefaultTable has no RecordBacked row for it - resolution would refuse "+
-				"what lint just promised", typ)
+				"what lint just promised", typ, lt.Class)
 		}
 	}
 
@@ -353,10 +420,52 @@ func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 				"which by construction does not list a RecordBacked type", typ)
 			continue
 		}
-		if lt.Class != ClassRecordAdmitted {
-			t.Errorf("identity.DefaultTable marks %q RecordBacked, so resolution holds its whole value "+
+		if !recordStoreAdmits(lt.Class) {
+			t.Errorf("identity.DefaultTable marks %q RecordBacked, so resolution holds its prior state "+
 				"in a record, but lint classifies it %s and refuses it before resolution ever runs - "+
 				"a record_store cannot admit what lint has already rejected", typ, lt.Class)
 		}
+	}
+}
+
+// TestRecordStoreAdmitsMatchesTheRecordBackedSet is [recordStoreAdmits]'s own
+// external check, and it is deliberately not a restatement of the two-constant
+// disjunction that function contains.
+//
+// It computes the set of classes that ACTUALLY carry a RecordBacked identity
+// row, from identity.DefaultTable, and requires recordStoreAdmits to answer
+// true for exactly those and false for every other class this package
+// declares. A class added to the disjunction with no RecordBacked row behind
+// it fails here, and so does a class left out of it that has one - the drift
+// the test above records happening once already, when the two sets were
+// maintained by hand.
+func TestRecordStoreAdmitsMatchesTheRecordBackedSet(t *testing.T) {
+	backing := map[LogicalClass]bool{}
+	for typ, entry := range identity.DefaultTable {
+		if !entry.RecordBacked {
+			continue
+		}
+		if lt, ok := ClassifyLogicalType(typ); ok {
+			backing[lt.Class] = true
+		}
+	}
+	if len(backing) == 0 {
+		t.Fatal("no RecordBacked row in identity.DefaultTable resolves to a logical class; " +
+			"this check is not exercising anything")
+	}
+
+	all := []LogicalClass{ClassRecordAdmitted, ClassExternalAdmitted, ClassSecretRefused, ClassOtherRefused}
+	for _, c := range all {
+		if got, want := recordStoreAdmits(c), backing[c]; got != want {
+			t.Errorf("recordStoreAdmits(%s) = %v, but %d RecordBacked identity row(s) carry that "+
+				"class (want %v) - lint's admission set and identity's record-backed set have diverged",
+				c, got, len(backing), want)
+		}
+	}
+	if len(backing) != 2 {
+		t.Errorf("RecordBacked rows resolve to %d logical class(es) (%v), want 2 "+
+			"(RECORD_ADMITTED and EXTERNAL_ADMITTED) - a new one needs recordStoreAdmits, "+
+			"countIndexScopeForType and logicalResourceDetail all considered on purpose",
+			len(backing), backing)
 	}
 }

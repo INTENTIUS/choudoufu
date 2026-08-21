@@ -54,19 +54,47 @@ import (
 //
 // The measured shapes it deliberately does NOT move, from the same probe:
 //
-//   - element(<splat>, <index>) - 21 sites, every one of them in
-//     terraform-aws-modules/vpc and every one with count.index somewhere in
-//     the index expression. That is an index SELECTION into a multi-element
-//     list, a different rule, and it has to clear the same injectivity
-//     analysis internal/live/lint/count_index.go performs before it can be
-//     allowed anywhere near an identity. That lint already fires at those
-//     exact lines - vpc/examples/issues carries 177 count-index sites,
-//     including main.tf:348 and main.tf:351, the two element() index
-//     positions on aws_route_table_association.private - so resolving
-//     element() without settling injectivity first would remove 21 identity
-//     sites and unblock nothing. Nothing here opens that door: the arity
-//     check below refuses every splat that is not one element long,
-//     whatever is wrapped around it.
+//   - element(<splat>, <index>) - 21 sites at the time of this note, every
+//     one of them in terraform-aws-modules/vpc and every one with
+//     count.index somewhere in the index expression. That is an index
+//     SELECTION into a multi-element list, a different rule from arity
+//     collapse, and GitHub issue #321 gave it its own resolver
+//     (resolveElementCall, below) once a real crossing
+//     (corpus-security-group-complete) reached it for real: both operands
+//     are tagged, admitted resources, and element(R[*].attr, idx) names the
+//     same live object element() itself would pick at apply time, for
+//     every idx, by element()'s own wraparound definition - not a claim
+//     that needs an injectivity proof at all, unlike a value written into a
+//     tag.
+//
+//     What #321 did NOT settle, and left as a real, separately-scoped gap:
+//     internal/live/lint/count_index.go's RuleCountIndex refuses
+//     count.index inside ANY collection-accessor call (element, lookup,
+//     slice, chunklist) on sight, whatever the collection is, and its
+//     second-chance domain check (count_index_domain.go) only ever renders
+//     a var/local/path/terraform-rooted collection - a splat over a managed
+//     resource never qualifies, so it stays "unprovable" and the hit
+//     stands. That lint pass runs, and gates the whole plan, BEFORE
+//     resolution - so a configuration where the enclosing resource's own
+//     count is knowable without a data read hits RuleCountIndex first and
+//     never reaches resolveElementCall at all. It is what vpc/examples/
+//     issues (177 count-index sites, including the same main.tf:348/351
+//     positions) still hits. resolveElementCall only fires in the config
+//     where a real crossing found it because that block's own count is
+//     itself gated behind a data source's value (#313), which lint's
+//     earlier, data-read-free scan cannot see either - so lint treats the
+//     block as having no instances at all (admission.go's
+//     blockHasNoInstances) and skips it, and resolution runs afterward,
+//     once the data has actually been read. Teaching count_index.go that
+//     "index selects a sibling INSTANCE via marker" is a different
+//     claim than "index selects a VALUE that must differ" is real,
+//     generalizing work, not attempted here - it also has a genuine open
+//     question resolveElementCall does not: whether an argument that maps
+//     several sibling instances onto the SAME parent (var.single_nat_gateway
+//     ? 0 : count.index, when true) is still safe once considered alongside
+//     the OTHER identity component that always does vary, which
+//     count_index.go currently has no way to see, checking one argument at
+//     a time.
 //   - join(".", reverse(split(".", aws_instance.x.private_ip))) - 6 sites in
 //     cisagov/cyhy-amis. The argument is not a splat and the value genuinely
 //     is not known until apply.
@@ -197,6 +225,364 @@ func (r *resolver) splatTargets(e *hclsyntax.SplatExpr) (insts []addrs.AbsResour
 		insts = append(insts, resAddr.Instance(k).Absolute(r.modInst))
 	}
 	return insts, attrStep.Name, true, true
+}
+
+// resolveElementCall recognizes element(R[*].attr, idx) - a splat over a
+// managed resource picked by element()'s own wraparound indexing - and
+// resolves it the way a direct indexed traversal (R[idx].attr,
+// [resolver.resolveIndexedTraversal]) already does: element(R[*].attr, idx)
+// and R[idx % len(R)].attr name the same live object, for every idx, by
+// element()'s own definition (github.com/zclconf/go-cty/cty/function/stdlib's
+// ElementFunc: `index = index % l; if index < 0 { index += l }`), so this is
+// that same resolution reached through the second spelling rather than new
+// machinery. idx is evaluated once, against the current instance's own scope
+// ([resolver.evalStatic] - the same call [resolver.resolveIndexedTraversal]
+// makes for idx.Key, so count.index, a conditional over it
+// (var.single_nat_gateway ? 0 : count.index), and every other shape that
+// scope already answers resolve exactly as they would spelled as a bare
+// index), then wrapped modulo R's own instance count and handed to
+// [resolver.parentPart].
+//
+// This is deliberately NOT the arity-collapse rule above: that rule exists
+// because join/one need the list to be exactly one element long for a
+// separator or a "no duplicates" claim to be moot. element() picks one
+// element out of a list of any length by position, which is a different and
+// unconditional claim - every index, wrapped, names exactly one instance -
+// so no arity restriction applies here at all.
+//
+// applicable is false whenever the shape is not this at all: not element(),
+// the wrong argument count, or the first argument not a splat over a bare
+// managed resource selecting a single attribute - [resolver.splatTargets]'
+// own restriction, the same one the arity-collapse rule above relies on.
+// The caller's own "cannot follow" diagnostic stands unreplaced in those
+// cases. When applicable is true, ok reports whether resolution succeeded,
+// and a diagnostic has already been recorded in its place when it did not -
+// either by this function directly, or by whatever evaluated the index or
+// the source resource's own expansion.
+func (r *resolver) resolveElementCall(call *hclsyntax.FunctionCallExpr, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	if call.Name != "element" || len(call.Args) != 2 {
+		return nil, false, false
+	}
+
+	splat, isSplat := call.Args[0].(*hclsyntax.SplatExpr)
+	if !isSplat {
+		return nil, false, false
+	}
+	insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+	if !instApplicable {
+		return nil, false, false
+	}
+	if !instOK {
+		// The resource's own expansion already failed and already carries a
+		// diagnostic - see [resolver.expansionFor].
+		return nil, false, true
+	}
+	if len(insts) == 0 {
+		r.errorf(call.Range(), "Identity not resolvable from configuration",
+			"%s picks an element from a list built from another resource with element(), but that resource expands to no instances at all, so there is nothing to pick: element() itself errors on an empty list at apply time.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	idxVal, idxOK := r.evalStatic(call.Args[1], scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(call.Args[1].Range(), "Identity not resolvable from configuration",
+			"%s calls element() with an index that is not a whole number, so it cannot select one of the source resource's instances.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	// element()'s own wraparound - see this function's doc comment.
+	n := len(insts)
+	wrapped := idx % n
+	if wrapped < 0 {
+		wrapped += n
+	}
+
+	got, gotOK := r.parentPart(insts[wrapped], attrName, call.Range(), ident)
+	return got, gotOK, true
+}
+
+// resolveElementCoalescelist recognizes element(coalescelist(A[*].attr,
+// B[*].attr, ...), idx) - GitHub issue #324 item 1, terraform-aws-modules/vpc's
+// own accessor for whichever of two conditionally-created sets of route
+// tables actually exists:
+//
+//	element(
+//	  coalescelist(aws_route_table.database[*].id, aws_route_table.private[*].id),
+//	  idx,
+//	)
+//
+// coalescelist()'s own runtime semantics (github.com/zclconf/go-cty/cty/
+// function/stdlib's CoalesceListFunc) are "return the first argument that is
+// a non-empty list; error if every argument is empty" - and, exactly as
+// [resolver.resolveConcatIndex]'s doc comment establishes for concat(), each
+// argument's own length here is provable from configuration alone before any
+// live value is read: a splat's length is its source resource's own instance
+// count ([resolver.expansionFor], through [resolver.splatTargets]), and a
+// literal list's ([hclsyntax.TupleConsExpr]) is simply the number of elements
+// written. So which argument coalescelist() would select - the first with a
+// provably nonzero length - is itself provable, without needing to know any
+// argument's actual element VALUES, only their counts. Once that argument is
+// found, element()'s own wraparound indexing into it is exactly
+// [resolver.resolveElementCall]'s own resolution, applied to that one
+// argument's instances or literal elements instead of call.Args[0]'s.
+//
+// This is deliberately narrower than resolveConcatIndex in one respect:
+// concat() flattens every argument into one list and locates a single
+// position within the concatenation, so an argument this package cannot size
+// is only fatal if the sought index could fall inside it. coalescelist()
+// instead selects one WHOLE argument and discards the rest, so an argument
+// this package cannot size is fatal the moment it is reached, regardless of
+// idx: whether that argument's own (unknown) length is zero determines
+// whether coalescelist() would have skipped it, and this package has no way
+// to answer that without reading the cloud. Scope, deliberately: only a bare
+// splat over a managed resource or a literal list are recognized as
+// coalescelist() arguments here, the same restriction resolveConcatIndex
+// places on concat()'s own arguments - not, for instance, a nested
+// coalescelist() or a local value, which would need their own recursive
+// sizing this package does not attempt yet.
+//
+// applicable is false whenever the shape is not this at all: not element(),
+// the wrong argument count, or the first argument not a coalescelist() call.
+// Once applicable, an argument whose length cannot be proven before it is
+// reached in evaluation order, or every argument provably empty (the case
+// coalescelist() itself errors on at apply time), is a resolution failure
+// (ok=false) with its own specific diagnostic - the same contract every
+// other rule in this file follows.
+func (r *resolver) resolveElementCoalescelist(call *hclsyntax.FunctionCallExpr, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	if call.Name != "element" || len(call.Args) != 2 {
+		return nil, false, false
+	}
+	inner, isCall := call.Args[0].(*hclsyntax.FunctionCallExpr)
+	if !isCall || inner.Name != "coalescelist" || len(inner.Args) == 0 {
+		return nil, false, false
+	}
+
+	idxVal, idxOK := r.evalStatic(call.Args[1], scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(call.Args[1].Range(), "Identity not resolvable from configuration",
+			"%s calls element() with an index that is not a whole number, so it cannot select one of the source resource's instances.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	for _, argExpr := range inner.Args {
+		if splat, isSplat := argExpr.(*hclsyntax.SplatExpr); isSplat {
+			insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+			if instApplicable {
+				if !instOK {
+					// The resource's own expansion already failed and
+					// already carries a diagnostic - see
+					// [resolver.expansionFor].
+					return nil, false, true
+				}
+				if len(insts) == 0 {
+					// coalescelist() skips an empty argument - see this
+					// function's doc comment.
+					continue
+				}
+				// element()'s own wraparound, applied to the winning
+				// argument's own instances - see this function's doc
+				// comment.
+				n := len(insts)
+				wrapped := idx % n
+				if wrapped < 0 {
+					wrapped += n
+				}
+				got, gotOK := r.parentPart(insts[wrapped], attrName, argExpr.Range(), ident)
+				return got, gotOK, true
+			}
+			// A splat splatTargets cannot decompose falls through to the
+			// generic "unrecognized argument" refusal below, exactly as
+			// resolveConcatIndex's own does.
+		} else if tuple, isTuple := argExpr.(*hclsyntax.TupleConsExpr); isTuple {
+			if len(tuple.Exprs) == 0 {
+				continue
+			}
+			n := len(tuple.Exprs)
+			wrapped := idx % n
+			if wrapped < 0 {
+				wrapped += n
+			}
+			got, gotOK := r.resolveExpr(tuple.Exprs[wrapped], scope, ident)
+			return got, gotOK, true
+		}
+
+		r.errorf(argExpr.Range(), "Identity not resolvable from configuration",
+			"%s selects from coalescelist(), but one of its arguments is neither a splat over a managed resource nor a literal list, so whether it is empty (and so whether coalescelist() would skip it in favor of a later argument) is not known without reading the cloud.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	r.errorf(call.Args[0].Range(), "Identity not resolvable from configuration",
+		"%s selects from coalescelist(), but every argument provably expands to no elements at all, so there is nothing to pick: coalescelist() itself errors when every argument is empty at apply time.",
+		ident.Subject)
+	return nil, false, true
+}
+
+// resolveConcatIndex recognizes concat(A[*].attr, B[*].attr, ...,
+// [literal, ...])[N] - a list built by concatenating zero or more splats
+// over managed resources with zero or more literal-list arguments, then
+// picked apart by a single index - and resolves it the way
+// [resolver.resolveElementCall] resolves element(R[*].attr, idx): N is
+// evaluated once against the current instance's own scope, and each
+// argument's own contribution to the flattened list is exactly as many
+// elements as that argument's own length. For a splat, that length is the
+// source resource's own instance count ([resolver.expansionFor], through
+// [resolver.splatTargets] - the same machinery every other rule in this file
+// uses); for a literal list ([hclsyntax.TupleConsExpr], the `[...]` syntax)
+// it is simply the number of elements written. Summing those lengths in
+// argument order locates which argument N falls into and at what position
+// within it, and that argument's own element at that position - a resource
+// instance's attribute, or whatever that literal-list element turns out to
+// be - is the answer: a splat position resolves through
+// [resolver.parentPart], exactly as resolveElementCall's does, and a
+// literal-list position resolves through [resolver.resolveExpr] on that one
+// element, which already knows how to turn a plain literal into a Part and
+// would equally resolve a resource reference sitting in that slot, without
+// this function needing its own copy of that logic.
+//
+// This is the same claim resolveElementCall's own doc comment makes for
+// element(): concat(...)[N] and a direct reference to whichever source
+// argument's element N provably lands on name the same value, for every N
+// that is provably in range, by concat()'s own definition - it does nothing
+// but flatten its arguments into one list, so this is not a claim that needs
+// an injectivity proof, unlike a value written into a tag.
+//
+// applicable is false whenever the shape is not this at all: not an index
+// into a concat() call. Once applicable, an argument this package cannot
+// size without reading the cloud (anything but a recognized splat or a
+// literal list), an index that is not a known non-negative whole number, or
+// an index this package can prove is out of range given every argument's
+// provable length, is a resolution failure (ok=false) with its own specific
+// diagnostic recorded - the same contract every other rule in this file
+// follows.
+//
+// expr arrives as one of two different node shapes for the same surface
+// syntax, and both are handled here rather than only the more obvious one.
+// HCL's parser folds a constant index directly into a traversal step - the
+// same folding that makes R[0].attr and R.attr both parse as plain
+// traversals - so concat(...)[0] (the shape this package actually needs;
+// #324's own local.this_sg_id uses a literal 0) parses as a
+// *hclsyntax.RelativeTraversalExpr whose Source is the concat() call and
+// whose one-element Traversal is a single hcl.TraverseIndex, NOT as a
+// *hclsyntax.IndexExpr. A non-constant index such as concat(...)[count.index]
+// cannot be folded that way and does produce a genuine *hclsyntax.IndexExpr.
+// Both are accepted so a caller reaching either shape gets the same
+// resolution; a RelativeTraversalExpr carrying anything beyond that one
+// index step (a trailing .attr, selecting into a sub-object of whatever
+// element concat() picked) is left to applicable=false, unhandled.
+func (r *resolver) resolveConcatIndex(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	var collExpr hclsyntax.Expression
+	var keyExpr hcl.Expression
+	switch e := expr.(type) {
+	case *hclsyntax.IndexExpr:
+		collExpr, keyExpr = e.Collection, e.Key
+	case *hclsyntax.RelativeTraversalExpr:
+		if len(e.Traversal) != 1 {
+			return nil, false, false
+		}
+		idxStep, isIdx := e.Traversal[0].(hcl.TraverseIndex)
+		if !isIdx {
+			return nil, false, false
+		}
+		src, isExpr := e.Source.(hclsyntax.Expression)
+		if !isExpr {
+			return nil, false, false
+		}
+		collExpr = src
+		keyExpr = &hclsyntax.LiteralValueExpr{Val: idxStep.Key, SrcRange: idxStep.SrcRange}
+	default:
+		return nil, false, false
+	}
+
+	call, isCall := collExpr.(*hclsyntax.FunctionCallExpr)
+	if !isCall || call.Name != "concat" || len(call.Args) == 0 {
+		return nil, false, false
+	}
+
+	idxVal, idxOK := r.evalStatic(keyExpr, scope, ident)
+	if !idxOK {
+		// evalStatic already recorded why.
+		return nil, false, true
+	}
+	// elementIndexValue is reused rather than indexKeyValue: both accept a
+	// number, but a list index (unlike a resource instance key) is never a
+	// string, and this function needs the plain int to walk arguments below
+	// - indexKeyValue hands back an addrs.InstanceKey instead. Negative is
+	// rejected explicitly next, unlike element()'s own caller: a plain [N]
+	// index does not wrap around the way element()'s does.
+	idx, idxIsInt := elementIndexValue(idxVal)
+	if !idxIsInt {
+		r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+			"%s indexes concat() with a value that is not a whole number, so it cannot select one of its elements.",
+			ident.Subject)
+		return nil, false, true
+	}
+	if idx < 0 {
+		r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+			"%s indexes concat() with a negative index (%d). Unlike element(), a plain [N] index does not wrap around and errors at apply time.",
+			ident.Subject, idx)
+		return nil, false, true
+	}
+
+	remaining := idx
+	total := 0
+	for _, argExpr := range call.Args {
+		if splat, isSplat := argExpr.(*hclsyntax.SplatExpr); isSplat {
+			insts, attrName, instOK, instApplicable := r.splatTargets(splat)
+			if instApplicable {
+				if !instOK {
+					// The resource's own expansion already failed and
+					// already carries a diagnostic - see
+					// [resolver.expansionFor].
+					return nil, false, true
+				}
+				if remaining < len(insts) {
+					got, gotOK := r.parentPart(insts[remaining], attrName, argExpr.Range(), ident)
+					return got, gotOK, true
+				}
+				remaining -= len(insts)
+				total += len(insts)
+				continue
+			}
+			// A splat splatTargets cannot decompose (a multi-step per-item
+			// traversal, a splat over something other than a bare managed
+			// resource) falls through to the generic "unrecognized argument"
+			// refusal below, exactly as any other unclassifiable argument
+			// does: this package does not know how many elements it
+			// contributes, so it cannot locate N through it either.
+		} else if tuple, isTuple := argExpr.(*hclsyntax.TupleConsExpr); isTuple {
+			if remaining < len(tuple.Exprs) {
+				got, gotOK := r.resolveExpr(tuple.Exprs[remaining], scope, ident)
+				return got, gotOK, true
+			}
+			remaining -= len(tuple.Exprs)
+			total += len(tuple.Exprs)
+			continue
+		}
+
+		r.errorf(argExpr.Range(), "Identity not resolvable from configuration",
+			"%s builds an identity from concat(), but one of its arguments is neither a splat over a managed resource nor a literal list, so how many elements it contributes to the combined list is not known without reading the cloud.",
+			ident.Subject)
+		return nil, false, true
+	}
+
+	r.errorf(keyExpr.Range(), "Identity not resolvable from configuration",
+		"%s indexes concat() at position %d, but its arguments provably contribute only %d element(s) in total, so this index is out of range and would error at apply time.",
+		ident.Subject, idx, total)
+	return nil, false, true
 }
 
 // refuseSplatArity is the arity refusal, and it is the only thing standing

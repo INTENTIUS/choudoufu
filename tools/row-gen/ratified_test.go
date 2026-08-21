@@ -134,6 +134,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 			{
 				Literal:                "/",
 				Attrs:                  []string{"a", "b"},
+				Block:                  "some_block",
 				OmitIfAbsent:           true,
 				Default:                "d",
 				ServerAssignedIfAbsent: true,

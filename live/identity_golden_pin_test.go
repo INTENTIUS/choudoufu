@@ -103,7 +103,139 @@ var identityGoldenPin = map[string]int{
 	// provider's own documented Import section. Not a moved row - no
 	// pre-existing CONCRETE row used this type before; see the digest
 	// below.
-	"CONCRETE": 742,
+	//
+	// 755, up from 742 (worstCaseChildKey's count'd module call): thirteen
+	// ADDED rows, all one fixture's aws_s3_bucket with a fixed literal
+	// bucket argument. internal/live/lint/testdata/overlong-address gained
+	// a count = 12 module call whose child holds a single bucket, so the
+	// call's twelve instances contribute
+	// module.counted[0..11].aws_s3_bucket.q...  to that directory and the
+	// child directory contributes the bare aws_s3_bucket.q... when the
+	// sweep reaches it on its own. All thirteen render the same literal,
+	// "counted-child", which is the whole reason they are CONCRETE and not
+	// a class this rule could have got wrong. Not a moved row: the fixture
+	// is new and no pre-existing row's rendered value changed.
+	//
+	// 759, up from 755 (issue #308's fix): four ADDED rows across two
+	// fresh fixtures exercising the same shape -
+	// internal/live/identity/testdata/module-foreach-comprehension-chase
+	// and internal/live/lint/testdata/child-module-foreach-comprehension -
+	// each contributing
+	// module.wrapper.module.task["app"].aws_iam_user.this and
+	// module.wrapper.module.task["fluent-bit"].aws_iam_user.this. Both
+	// mirror the corpus shape: a child module's own module call for_each
+	// ranges over a for-comprehension whose SOURCE is a bare var.X
+	// reference chased across a module-call boundary, filtering on one
+	// attribute (v.create) while an unrelated sibling attribute (image)
+	// reaches a data source; fluent-bit's own "create" comes from the
+	// variable's declared `optional(bool, true)` default, never from its
+	// own literal. Not a moved row - no pre-existing fixture used this
+	// shape before, so every other CONCRETE row in the golden is
+	// byte-identical; see the digest below.
+	//
+	// 761, up from 759 (issue #315's fix): two ADDED rows in a fresh
+	// fixture, internal/live/identity/testdata/module-foreach-comprehension-each-value -
+	// module.wrapper.module.task["app"].aws_iam_user.this and
+	// ["fluent-bit"].aws_iam_user.this, rendering app-core-unset and
+	// fluent-bit-default-team-unset. #308 proved a child module's for_each
+	// KEY set even when one entry's value has an unprovable sibling
+	// attribute (fluent-bit's own "image", an SSM-sourced data source);
+	// this fixture goes one step further, into the module call's OWN
+	// argument list, which reads each.value.<attr> off the same entries -
+	// label (an explicit typeexpr default) and owner (a bare
+	// optional(string) with none at all, needing the declared
+	// ConstraintType directly rather than typeexpr.Defaults, which never
+	// records an entry for that shape). Not a moved row - no pre-existing
+	// fixture used this shape before, so every other CONCRETE row in the
+	// golden is byte-identical; see the digest below.
+	//
+	// 762, up from 761 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// one ADDED row, internal/live/identity/testdata/concat-splat-index-
+	// literal-fallback's aws_security_group_rule.ingress, rendering
+	// "sg-fallback_ingress_tcp_80_80_0.0.0.0/0". Both of the fixture's own
+	// splats (aws_security_group.a, .b) provably expand to zero instances,
+	// so concat(a.*.id, b.*.id, ["sg-fallback"])[0] provably lands on the
+	// trailing literal rather than any resource's attribute - the case the
+	// fix's own doc comment says is NOT identity-bearing via a marker, and
+	// resolves through resolveExpr on that one literal element the same
+	// way any other plain string does. Not a moved row - no pre-existing
+	// fixture used this shape before, so every other CONCRETE row in the
+	// golden is byte-identical; see the digest below.
+	//
+	// 763, up from 762 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): one ADDED row,
+	// internal/live/identity/testdata/coalescelist-element-literal-fallback's
+	// aws_route_table_association.database, rendering
+	// "subnet-fake/rtb-fallback". Both of coalescelist()'s splat arguments
+	// (aws_route_table.database, .private) provably expand to zero
+	// instances, so coalescelist() provably falls through to its trailing
+	// literal-list argument, and element()'s index [0] lands on that one
+	// literal element rather than any resource's attribute - not
+	// identity-bearing via a marker at all, resolved through resolveExpr
+	// on that literal the same way resolveConcatIndex's own literal
+	// fallback does. Not a moved row - no pre-existing fixture used this
+	// shape before; see the digest below.
+	// 765, up from 763 (issue #323, the identity-argument half of
+	// partialargs.go's tolerant retry): two ADDED rows, both in the one
+	// new fixture root
+	// internal/live/identity/testdata/modulearg-partial-value -
+	// aws_iam_role.r (the-role, the caller's own literal) and
+	// module.u.aws_iam_user.literal[0] (platform-alpha, two literal leaves
+	// of a module argument whose third leaf names a resource). No
+	// pre-existing row moved.
+	// 766, up from 765 (module output read inside a module-CALL argument,
+	// moduleoutputvalue.go): one ADDED row, in the one new fixture root
+	// internal/live/identity/testdata/module-output-in-call-arg -
+	// module.sg.aws_security_group_rule.a[0], rendering
+	// sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16. The CIDR is written once
+	// in that fixture's root locals and reaches the rule only by evaluating
+	// module.vpc's own output expression, so a fabricated or defaulted value
+	// could not spell it; it is asserted by value in
+	// internal/live/identity's TestModuleOutputInsideModuleCallArgument. The
+	// same fixture's five adversarial siblings (rules b..f) contribute no
+	// row at all, which is the half that has to hold. No pre-existing row
+	// moved.
+	//
+	// 767, up from 766 (issue #310, identity.Component gaining a Block
+	// field): one ADDED row,
+	// internal/live/identity/testdata/nested-block-component's
+	// aws_autoscaling_traffic_source_attachment.present, rendering the
+	// provider's own documented import example verbatim. The fixture's two
+	// adversarial siblings (absent, impure) contribute no row. No
+	// pre-existing row moved.
+	//
+	// 773, up from 767 (issue #191, a partial module argument composing
+	// across two module calls): six ADDED rows across two new fixture
+	// roots. internal/live/identity/testdata/modulearg-nested-partial
+	// contributes five - aws_iam_role.r (the-role, the caller's own
+	// literal) and four instances two calls down, keyed http/app and
+	// https/app on each of two resources, rendering user-http-app,
+	// user-https-app, group-80 and group-443. The two group rows are the
+	// ones worth reading: 80 and 443 are written in the MIDDLE module's own
+	// default and reach the identity through a setproduct, a merge into the
+	// object carrying the unknowable leaf, a second merge and a type
+	// constraint, so no fabricated or defaulted value could spell them.
+	// internal/live/identity/testdata/modulearg-nested-dynkey contributes
+	// one, its own aws_iam_role.r; that fixture is the mutation - the same
+	// leaf moved into a map key and into a set's elements - and everything
+	// below the module call contributes no row at all, which is the half
+	// that has to hold. The resource reading the refused leaf itself
+	// (modulearg-nested-partial's aws_iam_role.dynamic) contributes no row
+	// either: a managed resource's own attribute is a separate, unmade
+	// ruling and nothing here pre-empts it. No pre-existing row moved.
+	// 775, up from 773 (issue #336, coalesce()'s selection rule): two ADDED
+	// rows, both the same fixture resource seen twice -
+	// internal/live/identity/testdata/coalesce-selection's
+	// aws_iam_group.literal_wins, once as module.child's instance from the
+	// root and once as the child module swept on its own. Its name is
+	// coalesce("literal-name", var.name), so the rule selects the LITERAL
+	// and never consults the record-backed parent at all - which is why it
+	// is the one row in that fixture that renders concretely rather than as
+	// a formula. The four resources whose identities really do come from
+	// the record-backed parent contribute no row here, because a
+	// PARENT_DERIVED identity renders empty in this sweep. No pre-existing
+	// row moved.
+	"CONCRETE": 775,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -153,7 +285,94 @@ var identityGoldenPin = map[string]int{
 	// supporting aws_subnet/aws_vpc pair in this golden already carries
 	// (e.g. live/e2e/estates/ec2-networking's aws_subnet.ec2-networking,
 	// aws_vpc.ec2-networking).
-	"NEEDS_DISCOVERY": 616,
+	//
+	// 618, up from 616 (markers.UnescapeAddress's module-step key): one new
+	// fixture, internal/live/discovery/testdata/counted-module-orphan, whose
+	// root holds a count = 1 module call and whose child/ holds the one
+	// aws_vpc it wraps. The two rows are that one resource seen twice - once
+	// as module.counted[0].aws_vpc.kept from the root, once as
+	// aws_vpc.kept with the child directory swept as a root of its own - and
+	// aws_vpc is server-assigned with no client-supplied identity, so both
+	// render NEEDS_DISCOVERY like every other bare aws_vpc in this golden.
+	// The module.counted[0] spelling in the first row is worth reading: it
+	// is identity resolution's own rendering of the count'd call, and it is
+	// the address the fix makes UnescapeAddress recover from that marker.
+	//
+	// 622, up from 618 (issue #316, the rename-withholding guard): one new
+	// fixture, internal/live/discovery/testdata/module-rename-withhold,
+	// which declares the same for_each'd aws_subnet.this three times over -
+	// at the root, inside a static module call, and inside a count = 1
+	// module call - so that the guard can be driven down all three module
+	// paths and asserted to answer identically. Four rows, because the
+	// child/ directory is also swept as a root of its own: the root's own
+	// aws_subnet.this["b"], module.net's, module.counted[0]'s, and the
+	// child taken alone. aws_subnet is server-assigned with no
+	// client-supplied identity, so all four render NEEDS_DISCOVERY, the
+	// same class every other bare aws_subnet in this golden carries.
+	// 630, up from 622 (issue #321): six new server-assigned resources
+	// across element-splat-count-index (aws_route_table.private x3,
+	// aws_subnet.private x3) and element-splat-wraparound (aws_subnet.small
+	// x2) - eight rows total, all NEEDS_DISCOVERY like every other bare
+	// aws_route_table/aws_subnet in this golden. See
+	// identityGoldenPinInstances' own comment for the fixtures.
+	// 636, up from 630 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// six new server-assigned aws_security_group instances across three
+	// fixtures - concat-splat-index-out-of-range's a[0], concat-splat-
+	// index-second-arg's a[0]/b[0]/b[1], concat-splat-index-security-
+	// group's this[0], and concat-splat-index-unrecognized-arg's a[0] -
+	// all NEEDS_DISCOVERY like every other bare aws_security_group in this
+	// golden. See identityGoldenPinInstances' own comment for the fixtures
+	// and the PARENT_DERIVED rows the same fix adds.
+	// 652, up from 636 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): sixteen new server-assigned instances
+	// across three fixtures - coalescelist-element-first-arg-wins'
+	// aws_route_table.database[0..2], aws_route_table.private[0..2] and
+	// aws_subnet.database[0..2] (9), and coalescelist-element-second-arg-
+	// wraparound's aws_route_table.private[0..1] and
+	// aws_subnet.database[0..4] (7) - all NEEDS_DISCOVERY like every other
+	// bare aws_route_table/aws_subnet in this golden. See
+	// identityGoldenPinInstances' own comment for the fixtures and the
+	// PARENT_DERIVED rows the same fix adds.
+	// 654, up from 652 (module output read inside a module-CALL argument):
+	// two ADDED rows, both aws_vpc.this[0] in the new
+	// internal/live/identity/testdata/module-output-in-call-arg fixture -
+	// once as module.vpc.aws_vpc.this[0] from the fixture root, once as
+	// aws_vpc.this[0] with the child directory swept as a root of its own.
+	// Server-assigned like every other bare aws_vpc in this golden, and
+	// unrelated to the change: the fixture needed a real managed resource
+	// for its adversarial outputs to read.
+	// 656, up from 654 (issue #325's discovery double-claim fix): two ADDED
+	// rows, aws_default_security_group.default and aws_security_group.other
+	// in the new internal/live/discovery/testdata/default-adopter-dup
+	// fixture - a config declaring both sides of a default-adopter pair,
+	// the regression case claimantAlreadyPresent guards. Both bare-marker
+	// NEEDS_DISCOVERY like every other resource of these types in this
+	// golden.
+	// 658, up from 656 (issue #302's role/service-linked-role sibling fix):
+	// two ADDED rows, aws_iam_role.other and aws_iam_service_linked_role.app
+	// in the new internal/live/discovery/testdata/iam-service-linked-role-
+	// sibling fixture - a config declaring both an ordinary aws_iam_role
+	// and an aws_iam_service_linked_role, the regression case
+	// iamServiceLinkedRoleSibling guards. Both bare-marker NEEDS_DISCOVERY
+	// like every other resource of these types in this golden; the fix's
+	// ARN-based import ID is a discovery-time correction, not a static
+	// identity change, so neither row's rendered class or identity moves.
+	//
+	// 660, up from 658 (issue #330, the count-keyed-module moved-block fix):
+	// two ADDED rows, module.counted[0].aws_sqs_queue.doi and
+	// module.counted[0].aws_sqs_queue.stray, in
+	// internal/live/moved/testdata/estate/main.tf - a new module "counted"
+	// (source ./modules/queues, count = 1) added so
+	// TestOriginsCoversEveryCorpusShape could exercise a moved block whose
+	// destination passes through a count-keyed MODULE instance, the shape
+	// Honourable's own hasCountKeyedModuleStep case used to refuse on a
+	// premise issue #195 already retired. Both bare-marker NEEDS_DISCOVERY,
+	// aws_sqs_queue being server-assigned with no client-supplied identity,
+	// the same class every other bare aws_sqs_queue in this golden already
+	// carries (module.queues.aws_sqs_queue.doi/.stray, two rows above). Not
+	// a moved row - no pre-existing CONCRETE/NEEDS_DISCOVERY row's rendered
+	// value changed; see the digest below.
+	"NEEDS_DISCOVERY": 660,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -170,8 +389,54 @@ var identityGoldenPin = map[string]int{
 	// "gh-image-builder/${aws_iam_policy.imagebuilder.arn}" through the
 	// same [resolver.parentPart] machinery issue #284 built for a direct
 	// reference. See internal/live/identity/typedvar.go's preservedExpr.
-	"PARENT_DERIVED": 97,
-	"RECORD_BACKED":  17,
+	// 105, up from 97 (issue #321): eight new aws_route_table_association
+	// rows resolving element(<resource>[*].attr, idx) through
+	// resolveElementCall - three in element-splat-count-index (subnet_id
+	// AND route_table_id both through element(), formula reading both
+	// parents at the matching index) and five in element-splat-wraparound
+	// (element()'s own modulo wraparound over a 5-instance block and a
+	// 2-instance source). See identityGoldenPinInstances' own comment for
+	// the fixtures.
+	// 107, up from 105 (issue #324 item 2, splat.go's resolveConcatIndex):
+	// two new rows, concat-splat-index-second-arg's and concat-splat-
+	// index-security-group's aws_security_group_rule.ingress, resolving
+	// concat(A[*].id, B[*].id, [literal])[N] reached through a local value
+	// - security-group's formula reads
+	// ${aws_security_group.this[0].id}_ingress_tcp_80_80_0.0.0.0/0 (index
+	// 0 lands on the first splat's own single instance, the second splat
+	// contributing zero elements); second-arg's reads
+	// ${aws_security_group.b[1].id}_ingress_tcp_80_80_0.0.0.0/0 (index 2
+	// lands on the SECOND splat's second element, proving the cumulative-
+	// length offset arithmetic across two non-empty splats). See
+	// identityGoldenPinInstances' own comment for the fixtures.
+	// 115, up from 107 (issue #324 item 1, splat.go's
+	// resolveElementCoalescelist): eight new rows resolving
+	// element(coalescelist(A[*].attr, B[*].attr), idx) - three in
+	// coalescelist-element-first-arg-wins (database provably non-empty,
+	// so coalescelist() selects it over private; formula reads
+	// ${aws_subnet.database[i].id}/${aws_route_table.database[i].id})
+	// and five in coalescelist-element-second-arg-wraparound (database
+	// provably expands to zero instances, so coalescelist() selects
+	// private instead, and element()'s own wraparound then applies to
+	// PRIVATE's own 2-instance length against a 5-instance block; formula
+	// reads ${aws_subnet.database[i].id}/${aws_route_table.private[i%2].id}).
+	// See identityGoldenPinInstances' own comment for the fixtures.
+	"PARENT_DERIVED": 115,
+
+	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
+	// already existed - internal/live/lint/testdata/logical and
+	// live/e2e/limits/local-file - contributed a directory each and no
+	// instance line at all while the type had no identity.DefaultTable row.
+	// It has one now, RecordBacked, so both render. Both values are EMPTY:
+	// hashicorp/local 2.9.0 implements no ImportState for local_file, so
+	// there is no import identity to render and a record is the only thing
+	// that can bring the instance's prior state back. Nothing else in the
+	// class moved.
+	// 21, up from 19 (issue #336): one random_pet.suffix from each of the
+	// two new coalesce fixtures' root modules, both rendering an empty
+	// value - the honest answer for a resource whose whole object lives in
+	// the estate's record store and nowhere else.
+	"RECORD_BACKED": 21,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -241,7 +506,140 @@ var identityGoldenPin = map[string]int{
 // live/e2e/estates/apigateway directory) - aws_subnet.apigateway and
 // aws_vpc.apigateway, both NEEDS_DISCOVERY. See identityGoldenPin's own
 // comment above.
-const identityGoldenPinBodyDigest = "f98c87622e773b616a8b9b73ac0c3dca7232adb39398d164c38d21401546d17f"
+// 2026-08-18 (worstCaseChildKey's count'd module call): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities
+// changed, 13 added, 0 removed". The zero is the load-bearing half, and here
+// it is close to a tautology worth stating anyway: the fix is confined to
+// internal/live/lint's address-BUDGET measurement, which renders no
+// identity and is not on any path this sweep runs. Every one of the 13
+// ADDED rows comes from the fixture the fix needed - one count = 12 module
+// call in internal/live/lint/testdata/overlong-address and its child - and
+// all 13 render the same literal bucket name, "counted-child". Read them in
+// the diff: a fabricated identity would have shown up as a rendered value
+// that is not that literal.
+//
+// 2026-08-18 (issue #308's fix): four ADDED rows, dirs 455 -> 461 (two new
+// fixture roots, each with two child-module subdirectories of its own -
+// see identityGoldenPin's own comment above for the four rows themselves).
+//
+// 2026-08-18 (markers.UnescapeAddress's module-step key): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities changed,
+// 2 added, 0 removed". The zero is again the load-bearing half, and here it
+// is a real result rather than a tautology: the fix changes how an escaped
+// marker DECODES, and this sweep renders identities from configuration
+// without ever decoding a marker, so a change visible here would have meant
+// the fix reached somewhere it has no business being. The two ADDED rows are
+// the fixture the reachability test needed,
+// internal/live/discovery/testdata/counted-module-orphan and its child/, both
+// rendering NEEDS_DISCOVERY for the same aws_vpc.kept.
+//
+// 2026-08-18 (issue #316, the rename-withholding guard): TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities changed,
+// 4 added, 0 removed". The zero is the load-bearing half, and it is a real
+// result rather than a tautology: the fix changes which orphans discovery
+// withholds from removal and which module a "is this block still declared"
+// lookup descends into, and this sweep renders identities from configuration
+// without classifying an orphan or reading a marker at all, so a changed row
+// would have meant the fix reached somewhere it has no business being. The
+// four ADDED rows are the fixture the reproduction needed,
+// internal/live/discovery/testdata/module-rename-withhold and its child/ -
+// one for_each'd aws_subnet.this declared at three module paths, plus the
+// child directory swept as a root of its own.
+// 2026-08-18 (issue #315's fix): body digest moved because two rows were
+// ADDED (see the CONCRETE class comment above for the fixture and shape);
+// no pre-existing row's rendered value changed.
+// 2026-08-19 (issue #321's fix): body digest moved because sixteen rows
+// were ADDED (see identityGoldenPinInstances' own comment above for the
+// three fixtures and the class breakdown); no pre-existing row's rendered
+// value changed - TestIdentityGolden's own diff read "0 identities
+// changed, 16 added, 0 removed" before this line was edited.
+// 2026-08-19 (issue #324 item 2, splat.go's resolveConcatIndex): body
+// digest moved because nine rows were ADDED (see the CONCRETE,
+// NEEDS_DISCOVERY and PARENT_DERIVED class comments above and
+// identityGoldenPinInstances' own comment below for the five fixtures);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 9 added, 0 removed" before this line
+// was edited.
+// 2026-08-19 (issue #324 item 1, splat.go's resolveElementCoalescelist):
+// body digest moved because twenty-five rows were ADDED (see the CONCRETE,
+// NEEDS_DISCOVERY and PARENT_DERIVED class comments above and
+// identityGoldenPinInstances' own comment below for the three fixtures);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 25 added, 0 removed" before this line
+// was edited.
+// 2026-08-19 (issue #323, partialargs.go's tolerantPart): body digest
+// moved because two rows were ADDED (see the CONCRETE class comment above
+// and identityGoldenPinInstances' own comment below for the one fixture);
+// no pre-existing row's rendered value changed - TestIdentityGolden's own
+// diff read "0 identities changed, 2 added, 0 removed" before this line
+// was edited. Read together with the corpus measurement that change was
+// landed on: across all 250 offline-corpus entries it resolved not one
+// new instance, so the two rows here are the ONLY new rendered identities
+// it produces anywhere, and both are asserted by value in
+// internal/live/identity's TestPartialModuleArgumentResolvesALiteralLeaf.
+// 2026-08-19 (module output read inside a module-CALL argument,
+// identity/moduleoutputvalue.go): body digest moved because three rows were
+// ADDED (see the CONCRETE and NEEDS_DISCOVERY class comments above and
+// identityGoldenPinInstances' own comment below for the one fixture); no
+// pre-existing row's rendered value changed - TestIdentityGolden's own diff
+// read "0 identities changed, 3 added, 0 removed" before this line was
+// edited. Read together with the corpus measurement the change was landed
+// on: across all 250 offline-corpus entries it moved nothing at all -
+// sites 16165 -> 16165, instances 4394 -> 4394, blocked 194 -> 194, with
+// the "Module output not supported in static context" class unchanged at
+// 58 - because every one of those 58 sites reads an output defined as
+// try(<managed resource attribute>, fallback), which this deliberately
+// does not answer. The three rows here are therefore the ONLY new rendered
+// identities it produces anywhere.
+// 2026-08-19 (issue #302's role/service-linked-role sibling fix,
+// iamServiceLinkedRoleSibling in internal/live/discovery/discovery.go):
+// body digest moved because two rows were ADDED (see the NEEDS_DISCOVERY
+// class comment above and identityGoldenPinInstances' own comment below for
+// the one fixture); no pre-existing row's rendered value changed -
+// TestIdentityGolden's own diff read "0 identities changed, 2 added, 0
+// removed" before this line was edited.
+//
+// 2026-08-19 (issue #310, identity.Component gaining a Block field, merged
+// on top of #302 above): body digest moved again because one more row was
+// ADDED (see the CONCRETE class comment above and identityGoldenPinInstances'
+// own comment below for the one fixture); no pre-existing row's rendered
+// value changed.
+//
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix,
+// internal/live/moved's Honourable, merged on top of #310 above): body
+// digest moved again because two more rows were ADDED (see the
+// NEEDS_DISCOVERY class comment above and identityGoldenPinInstances' own
+// comment below for the one fixture); no pre-existing row's rendered value
+// changed. Each of #302/#310/#330 independently regenerated the golden from
+// a different ancestor, producing a real merge conflict in the data file
+// itself at every step; resolved per this repository's standing rule by
+// regenerating fresh against the fully merged code (-update) rather than
+// hand-merging the diffs, then copying the regenerated body-sha256 here.
+//
+// 2026-08-19 (issue #191, a partial module argument composing across two
+// module calls, merged on top of #330 above): body digest moved because six
+// more rows were ADDED, all six in two new fixture roots (see the CONCRETE
+// class comment above and identityGoldenPinInstances' own comment below).
+// TestIdentityGolden's own diff, read before this line was edited, reported
+// "0 identities changed, 6 added, 0 removed". That zero is the load-bearing
+// half twice over here, because this change makes an EARLIER evaluation
+// succeed where it used to fail, which is the exact shape that broke
+// testdata/shapeb-tryref the first time this wrapper was written: a
+// resolution that was concrete becoming a refusal, or a formula becoming an
+// unknown, would show as a REMOVED or MODIFIED row and there are none of
+// either. The same comparison was run over .corpus as well, which this
+// sweep deliberately does not cover - 6154 directories, 22398 -> 22424
+// instances, 0 rows removed, 0 rows modified, and all 26 added rows
+// NEEDS_DISCOVERY with an empty rendered value.
+// 2026-08-19 (issue #314, local_file's fourth LogicalClass): body digest
+// moved because two more rows were ADDED, both local_file, both in fixture
+// directories the sweep already walked. TestIdentityGolden's own diff, read
+// before this line was edited, reported "0 identities changed, 2 added, 0
+// removed". The zero is the load-bearing half: this change gives a type an
+// identity row where it had none, and gives lint a class that admits it under
+// a record_store, and neither of those can move an existing resource's
+// rendered identity - a MODIFIED row here would have meant it had.
+const identityGoldenPinBodyDigest = "f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -355,9 +753,296 @@ const identityGoldenPinBodyDigest = "f98c87622e773b616a8b9b73ac0c3dca7232adb3939
 // it). See identityGoldenPin's own comment above for the class breakdown.
 // 2026-08-18: instances 1470 -> 1472, dirs unchanged at 454 (both new rows
 // land in the existing live/e2e/estates/apigateway directory).
+// 2026-08-18 (worstCaseChildKey's count'd module call): dirs 454 -> 455,
+// instances 1472 -> 1485. One new directory,
+// internal/live/lint/testdata/overlong-address/counted, holding one
+// resource; the +13 is that one row plus the twelve instances the parent
+// directory's new count = 12 module call expands it into. dirs rises by one
+// and instances by thirteen because a count'd module call multiplies rows
+// without adding directories - the same arithmetic a for_each'd call has
+// always produced here.
+// 2026-08-18 (issue #308's fix): instances 1485 -> 1489, dirs 455 -> 461.
+// Two new fixture roots (module-foreach-comprehension-chase,
+// child-module-foreach-comprehension), each with a wrapper/ and a
+// wrapper/task/ child module directory - six new directories, four new
+// CONCRETE instances (two per fixture; see identityGoldenPin's own comment
+// above).
+// 2026-08-18 (markers.UnescapeAddress's module-step key): instances
+// 1489 -> 1491, dirs 461 -> 463. One new fixture root,
+// internal/live/discovery/testdata/counted-module-orphan, plus its child/
+// module directory - two directories, and two instances because the child's
+// single aws_vpc is swept once under the root's count = 1 module call and
+// once with child/ taken as a root of its own.
+// 2026-08-18 (issue #316, the rename-withholding guard): instances
+// 1491 -> 1495, dirs 463 -> 465. One new fixture root,
+// internal/live/discovery/testdata/module-rename-withhold, plus its child/
+// module directory - two directories, and four instances because the root
+// sweep sees the same for_each'd aws_subnet.this three times (the root's own
+// block, the static module call's, and the count = 1 module call's, the last
+// two being the child's one block seen through two calls), with a fourth
+// coming from child/ swept as a root of its own.
+// 2026-08-18 (issue #313, the data-read value crossing a plain module call):
+// instances 1495 -> 1495, dirs 465 -> 467. One new fixture root,
+// internal/live/identity/testdata/data-read-across-module-call, plus its
+// child/ module directory - two directories, and NO new instances, which is
+// the whole point of this entry. The fixture is a root-module data source
+// feeding an unrepeated module call's argument, and the golden renders every
+// fixture without DataResults, so it resolves nothing here by construction.
+// That is #313's offline guarantee written down as a number: the widening in
+// internal/live/identity's resolver.frozenClosureIsStale is reachable only
+// when read results exist, so live-check, which never reads, cannot see it.
+// An instance appearing here later would mean the widening had escaped that
+// condition.
+// 2026-08-18 (issue #315's fix): instances 1495 -> 1497, dirs 467 -> 470.
+// One new fixture root, internal/live/identity/testdata/module-foreach-
+// comprehension-each-value, plus its wrapper/ and wrapper/task/ module
+// directories - three directories, two new CONCRETE instances (see the
+// CONCRETE class comment above).
+// 2026-08-19 (issue #321's fix, splat.go's resolveElementCall): instances
+// 1497 -> 1513, dirs 470 -> 473, NEEDS_DISCOVERY 622 -> 630, PARENT_DERIVED
+// 97 -> 105. Three new fixture roots -
+// internal/live/identity/testdata/element-splat-count-index,
+// element-splat-wraparound and element-splat-empty-source - pinning
+// element(<resource>[*].attr, idx) resolving structurally to the
+// same-indexed sibling instance. element-splat-count-index contributes
+// three aws_route_table.private and three aws_subnet.private
+// (NEEDS_DISCOVERY, both server-assigned) plus three
+// aws_route_table_association.private (PARENT_DERIVED, formula reading
+// both parents at the matching index); element-splat-wraparound
+// contributes two aws_subnet.small (NEEDS_DISCOVERY) plus five
+// aws_route_table_association.wrap (PARENT_DERIVED), the fifth exercising
+// element()'s own modulo wraparound (a 5-instance block over a 2-instance
+// source); element-splat-empty-source contributes zero rows - its one
+// resource refuses (the source resource expands to no instances), which
+// is the point of that fixture. Totals: +16 instances (8 NEEDS_DISCOVERY +
+// 8 PARENT_DERIVED), +3 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0 changed,
+// 16 added, 0 removed".
+// 2026-08-19 (the #304 crash fix, normalizeRefValue's nil cty.Type): dirs
+// 473 -> 475, instances unchanged at 1513, every class count unchanged and
+// the body digest unchanged. One new fixture root,
+// internal/live/lint/testdata/count-index-undeclared-var, plus its child/
+// module directory - two directories and NOT ONE instance, which is this
+// entry's whole point. The fixture exists to reproduce a crash, so its one
+// resource sits under a count nobody can compute (the caller's module
+// argument is a binary operation over an undeclared variable), and a block
+// whose expansion is unknown resolves no instance by construction. A row
+// appearing here later would mean the count had become computable, which
+// would mean the fixture had stopped reproducing what it was built for.
+//
+// The zero on the instances line is the load-bearing half of this entry for
+// a second reason: the fix changes a value that the static evaluator hands
+// into every hcl.EvalContext it builds, which is as central as this fork
+// gets. It moving no rendered identity anywhere in the tree is the evidence
+// that it changed only the crashing path.
+//
+// 2026-08-19 (issue #324 item 2, splat.go's resolveConcatIndex): instances
+// 1513 -> 1522, dirs 475 -> 480. Five new fixture roots -
+// internal/live/identity/testdata/concat-splat-index-security-group,
+// concat-splat-index-second-arg, concat-splat-index-literal-fallback,
+// concat-splat-index-out-of-range and concat-splat-index-unrecognized-arg
+// - pinning concat(A[*].attr, B[*].attr, ..., [literal])[N] reached
+// through a local value, the shape terraform-aws-modules/security-
+// group's own this_sg_id accessor uses (#324's motivating site,
+// aws_security_group_rule.ingress_with_cidr_blocks[0].security_group_id
+// in corpus-rds-complete-postgres). security-group contributes one
+// aws_security_group.this[0] (NEEDS_DISCOVERY) plus one
+// aws_security_group_rule.ingress (PARENT_DERIVED, index 0 landing on
+// the first splat's own single instance while the second splat's zero
+// instances contribute nothing); second-arg contributes three
+// aws_security_group instances across two splats (NEEDS_DISCOVERY) plus
+// one aws_security_group_rule.ingress (PARENT_DERIVED, index 2 landing
+// on the SECOND splat's second element - the cumulative-length offset
+// arithmetic across two non-empty splats); literal-fallback contributes
+// zero aws_security_group rows (both splats expand to zero instances)
+// plus one aws_security_group_rule.ingress (CONCRETE, the provable index
+// landing on the trailing literal rather than any resource); out-of-
+// range and unrecognized-arg each contribute one aws_security_group.a[0]
+// (NEEDS_DISCOVERY) and refuse identity resolution for their own rule
+// resource (an out-of-range index and an unsizeable argument
+// respectively), so neither contributes a rule-resource row. Totals: +9
+// instances (+1 CONCRETE, +6 NEEDS_DISCOVERY, +2 PARENT_DERIVED), +5
+// dirs. Every pre-existing row is byte-identical; this is a pure
+// addition, matching TestIdentityGolden's own "0 identities changed, 9
+// added, 0 removed".
+// 2026-08-19 (issue #324 item 1, splat.go's resolveElementCoalescelist):
+// instances 1522 -> 1547, dirs 480 -> 485. Three new fixture roots -
+// internal/live/identity/testdata/coalescelist-element-first-arg-wins,
+// coalescelist-element-second-arg-wraparound and
+// coalescelist-element-literal-fallback - pinning
+// element(coalescelist(A[*].attr, B[*].attr), idx), the shape
+// terraform-aws-modules/vpc's own route_table_id accessor for
+// aws_route_table_association.database uses (#324's own motivating site
+// in corpus-rds-complete-postgres). first-arg-wins contributes three
+// aws_route_table.database, three aws_route_table.private and three
+// aws_subnet.database (all NEEDS_DISCOVERY, coalescelist() selecting the
+// first, provably non-empty argument) plus three
+// aws_route_table_association.database (PARENT_DERIVED, resolving
+// through database - not private); second-arg-wraparound contributes two
+// aws_route_table.private and five aws_subnet.database (NEEDS_DISCOVERY;
+// aws_route_table.database itself contributes zero rows, provably
+// expanding to no instances) plus five
+// aws_route_table_association.database (PARENT_DERIVED, resolving through
+// private with element()'s own wraparound applied to private's 2-instance
+// length against a 5-instance block); literal-fallback contributes zero
+// aws_route_table rows (both splats provably expand to zero instances)
+// plus one aws_route_table_association.database (CONCRETE, the provable
+// index landing on a trailing literal rather than any resource). Two more
+// fixtures, coalescelist-element-all-empty and
+// coalescelist-element-unrecognized-arg, contribute two more directories
+// to the dirs total but zero rows - both refuse identity resolution for
+// their own association resource (every branch provably empty with no
+// literal fallback, and an unsizeable second argument respectively), and
+// their own route_table resources have zero instances by construction.
+// Totals: +25 instances (+1 CONCRETE, +16 NEEDS_DISCOVERY,
+// +8 PARENT_DERIVED), +5 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0
+// identities changed, 25 added, 0 removed".
+// 2026-08-19 (issue #323, resolve.go's tolerantPart): instances 1547 ->
+// 1549, dirs 485 -> 487. One new fixture root,
+// internal/live/identity/testdata/modulearg-partial-value (two
+// directories - the root and its ./mod child), pinning the identity-
+// ARGUMENT half of the shape modulearg-partial already pins the key-set
+// half of: a caller writes a composite module argument whose skeleton is
+// literal and one of whose leaves names a resource, and the child builds
+// an identity out of it. It contributes aws_iam_role.r (CONCRETE,
+// the-role - the caller's own literal, unrelated to the change) and
+// module.u.aws_iam_user.literal[0] (CONCRETE, platform-alpha - the two
+// literal leaves the caller wrote, joined by a template, read through a
+// list(map(string)) type constraint). Its sibling
+// module.u.aws_iam_user.dynamic reads the ONE leaf that is not in the
+// configuration and contributes NO row, which is the half that has to
+// hold: an unknown leaf is turned away rather than standing in for
+// lookup()'s default. Totals: +2 instances (+2 CONCRETE), +2 dirs. Every
+// pre-existing row is byte-identical; this is a pure addition, matching
+// TestIdentityGolden's own "0 identities changed, 2 added, 0 removed".
+// 2026-08-19 (module output read inside a module-CALL argument,
+// identity/moduleoutputvalue.go): instances 1549 -> 1552, dirs 487 -> 490.
+// One new fixture root, internal/live/identity/testdata/
+// module-output-in-call-arg (three directories - the root and its ./vpc and
+// ./sg children), pinning the shape terraform-aws-modules/terraform-aws-rds's
+// complete-postgres example writes at its own main.tf:224: a module call
+// argument that is a literal list of objects, one of whose leaves reads
+// another module call's output. It contributes
+// module.sg.aws_security_group_rule.a[0] (CONCRETE,
+// sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16) and two rows for the
+// fixture's aws_vpc.this[0] (NEEDS_DISCOVERY, unrelated to the change).
+// Its five adversarial siblings contribute NO row, which is the half that
+// has to hold: an output reading a managed resource's attribute (whether
+// Optional+Computed or plain Optional), one calling uuid(), one declared
+// sensitive, and one carrying two CIDRs are each turned away rather than
+// standing in for the value. Totals: +3 instances (+1 CONCRETE,
+// +2 NEEDS_DISCOVERY), +3 dirs. Every pre-existing row is byte-identical;
+// this is a pure addition, matching TestIdentityGolden's own "0 identities
+// changed, 3 added, 0 removed".
+// 2026-08-19 (issue #325's discovery double-claim fix, claimantAlreadyPresent
+// in internal/live/discovery/discovery.go): instances 1552 -> 1554, dirs
+// 490 -> 491. One new fixture, internal/live/discovery/testdata/
+// default-adopter-dup - a config declaring both aws_default_security_group
+// and an unrelated aws_security_group, the shape that produced a false
+// ProblemCollision before the fix. Contributes exactly two rows,
+// aws_default_security_group.default and aws_security_group.other, both
+// NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a pure
+// addition.
+// 2026-08-19 (issue #302's role/service-linked-role sibling fix,
+// iamServiceLinkedRoleSibling in internal/live/discovery/discovery.go):
+// instances 1554 -> 1556, dirs 491 -> 492. One new fixture,
+// internal/live/discovery/testdata/iam-service-linked-role-sibling - a
+// config declaring both an ordinary aws_iam_role and an
+// aws_iam_service_linked_role, the shape iam:ListRoles' own listing overlap
+// produced a false malformed-marker refusal for before the fix. Contributes
+// exactly two rows, aws_iam_role.other and aws_iam_service_linked_role.app,
+// both NEEDS_DISCOVERY. Every pre-existing row is byte-identical; this is a
+// pure addition.
+//
+// 2026-08-19 (issue #310, identity.Component gaining a Block field, merged
+// on top of #302 above): instances 1556 -> 1557, dirs 492 -> 493. One new
+// fixture, internal/live/identity/testdata/nested-block-component - one
+// ADDED row, aws_autoscaling_traffic_source_attachment.present, rendering
+// "example,elbv2,arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456"
+// (the provider's own documented import example, verbatim), with identity
+// attributes autoscaling_group_name/identifier/type - the second and third
+// read out of the fixture's own traffic_source nested block rather than the
+// top level. The fixture's other two instances (absent: no traffic_source
+// block at all; impure: identifier built from uuid()) contribute no row,
+// which is the half that has to hold - both are refused, not fabricated or
+// defaulted. Every pre-existing row is byte-identical; this is a pure
+// addition.
+//
+// 2026-08-19 (issue #330, the count-keyed-module moved-block fix, merged on
+// top of #310 above): instances 1557 -> 1559, dirs unchanged at 493 (both
+// new rows land in the existing internal/live/moved/testdata/estate
+// directory, which gained a module "counted" call rather than a new fixture
+// root). Two new rows, module.counted[0].aws_sqs_queue.doi and
+// module.counted[0].aws_sqs_queue.stray, both NEEDS_DISCOVERY. See
+// identityGoldenPin's own comment above for the fixture and the shape it
+// proves. Three independent branches (#302/#310/#330) each regenerated the
+// golden from a different ancestor (see the body-digest comment above for
+// the merge resolution); the arithmetic checks: 1554 (pre-#302) + 2 (#302's
+// own delta) + 1 (#310's own delta) + 2 (#330's own delta) = 1559, exactly
+// the regenerated total.
+// 2026-08-19 (issue #191, a partial module argument composing across two
+// module calls, merged on top of #330 above): instances 1559 -> 1565 and
+// dirs 493 -> 499. Two new fixture roots, each three directories deep
+// (root, the middle module, the module it calls), because the shape this
+// fixes only exists across TWO module calls and one call cannot exercise
+// it: modulearg-nested-partial contributes five instances and
+// modulearg-nested-dynkey, the mutation, contributes one. 6 = 5 + 1 and
+// 6 = 3 + 3, both exact.
+// 2026-08-19 (issue #314, local_file's fourth LogicalClass): instances 1565
+// -> 1567 and dirs unchanged at 499. 0 changed, 2 added, 0 removed - the zero
+// changed is the load-bearing half, since nothing about this change touches
+// how any existing resource's identity renders.
+//
+// The two added rows are the two local_file fixtures that already existed
+// (internal/live/lint/testdata/logical and live/e2e/limits/local-file), which
+// contributed a directory each and no instance line while the type had no
+// identity.DefaultTable row at all. Both now render RECORD_BACKED with an
+// EMPTY value, and the emptiness is the part worth reading rather than a gap:
+// hashicorp/local 2.9.0 implements no ImportState for local_file (`tofu
+// import local_file.f <path>` answers "Resource Import Not Implemented"), so
+// there is no import identity to render and the record store is the only
+// carrier that can bring the instance's prior state back. A row here carrying
+// the filename would be a string nothing can import by, which is exactly the
+// wrong-marker shape this file exists to catch.
+// 2026-08-19 (issue #336, deciding which argument coalesce() selects):
+// instances 1567 -> 1571 and dirs 499 -> 503. 0 changed, 4 added, 0 removed -
+// the zero changed is the load-bearing half here, since the whole change is a
+// rule that makes an EARLIER evaluation succeed, and the shape a bad one
+// takes is an existing fixture's marker quietly moving.
+//
+// Two new fixture roots, two directories each (root plus the module it
+// calls), because the shape only exists across a module-call argument:
+// coalesce-selection and coalesce-undecidable, the second being the
+// adversarial mutation. 4 = 2 + 2 exactly.
+//
+// The four added rows are worth reading, because most of both fixtures
+// contributes none. They are, exactly: coalesce-selection's
+// module.child.aws_iam_group.literal_wins and the same resource again with
+// the child module swept on its own, both CONCRETE literal-name - its name
+// is coalesce("literal-name", var.name), so the rule selects the literal and
+// never consults the parent; plus one RECORD_BACKED random_pet.suffix with an
+// empty value from each fixture's root.
+//
+// Everything else contributes nothing, and both silences are load-bearing.
+// coalesce-selection's other four children resolve PARENT_DERIVED over the
+// record-backed parent, which renders empty in this sweep, so their values
+// are asserted by TestCoalesceSelectsThroughToTheRecordBackedParent instead.
+// coalesce-undecidable/child appears in the sweep and contributes no
+// instance line at all, because all three of its children still refuse -
+// that directory being absent from the golden is the adversarial half
+// holding.
 const (
-	identityGoldenPinInstances = 1472
-	identityGoldenPinDirs      = 454
+	identityGoldenPinInstances = 1571
+	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
+	// internal/live/projection/testdata/output-eval is a new fixture (a
+	// stub_cert resource plus root-level outputs, used to pin
+	// ApplyRootOutputValues), and stub_cert is not an admitted type, so it
+	// contributes zero rows to the body - identityGoldenPinInstances and
+	// identityGoldenPinBodyDigest are both unchanged, confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating: only the
+	// header's "dirs=" line moved.
+	identityGoldenPinDirs = 504
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

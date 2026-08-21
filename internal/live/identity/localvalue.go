@@ -192,7 +192,7 @@ func (r *resolver) namedDef(root, name string, scope instScope) (hcl.Expression,
 			// guess" - and declining here leaves the ordinary "Dynamic
 			// value in static context" diagnostic in place, the same
 			// answer this shape has always gotten.
-			rd, ok := ChildModuleRepetitionData(r.ctx, r.mod, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
+			rd, ok := ChildModuleRepetitionData(r.ctx, r.curCfg, childSubject(callInst.Call.Name), mc.Count, mc.ForEach, callInst.Key)
 			if !ok {
 				restore()
 				return nil, instScope{}, nil, noop, false
@@ -1088,7 +1088,7 @@ func (r *resolver) resolveModuleOutput(callName string, rest []hcl.Traverser, id
 	// identity for an instance that will never exist.
 	if repeated {
 		subject := "module." + callName
-		if _, ok := ChildModuleRepetitionData(r.ctx, r.mod, subject, mc.Count, mc.ForEach, key); !ok {
+		if _, ok := ChildModuleRepetitionData(r.ctx, r.curCfg, subject, mc.Count, mc.ForEach, key); !ok {
 			return nil, false, false
 		}
 	}

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=454 instances=1472
-# shape: class CONCRETE=742
-# shape: class NEEDS_DISCOVERY=616
-# shape: class PARENT_DERIVED=97
-# shape: class RECORD_BACKED=17
-# shape: body-sha256=f98c87622e773b616a8b9b73ac0c3dca7232adb39398d164c38d21401546d17f
+# shape: dirs=504 instances=1571
+# shape: class CONCRETE=775
+# shape: class NEEDS_DISCOVERY=660
+# shape: class PARENT_DERIVED=115
+# shape: class RECORD_BACKED=21
+# shape: body-sha256=f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -72,6 +72,10 @@ internal/live/discovery/testdata/count-module-walk/child	aws_eip.pool[1]	NEEDS_D
 internal/live/discovery/testdata/count-pool	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/count-pool	aws_eip.pool[2]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/counted-module-orphan	module.counted[0].aws_vpc.kept	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/counted-module-orphan/child	aws_vpc.kept	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/default-adopter-dup	aws_default_security_group.default	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/default-adopter-dup	aws_security_group.other	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names	aws_vpc.root	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names	module.child.aws_vpc.child	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names	module.child.module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
@@ -79,6 +83,12 @@ internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVER
 internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_role.other	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/iam-service-linked-role-sibling	aws_iam_service_linked_role.app	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/module-rename-withhold	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/module-rename-withhold	module.counted[0].aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/module-rename-withhold	module.net.aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/module-rename-withhold/child	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-clientnamed	aws_s3_bucket.renamed	CONCRETE	tofu-stateless-e2e-renamed	bucket=tofu-stateless-e2e-renamed
 internal/live/discovery/testdata/moved-gained-count	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/moved-gained-count	aws_eip.pool[1]	NEEDS_DISCOVERY		
@@ -106,9 +116,47 @@ internal/live/identity/testdata/cloud-singleton	aws_cloudwatch_otel_enrichment.o
 internal/live/identity/testdata/cloud-singleton	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.inherited	CONCRETE	eu-west-1	
 internal/live/identity/testdata/cloud-singleton-collision	aws_vpc_block_public_access_options.spelled	CONCRETE	eu-west-1	
+internal/live/identity/testdata/coalesce-selection	module.child.aws_iam_group.literal_wins	CONCRETE	literal-name	name=literal-name
+internal/live/identity/testdata/coalesce-selection	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/coalesce-selection/child	aws_iam_group.literal_wins	CONCRETE	literal-name	name=literal-name
+internal/live/identity/testdata/coalesce-undecidable	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[0]	PARENT_DERIVED	${aws_subnet.database[0].id}/${aws_route_table.database[0].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[1]	PARENT_DERIVED	${aws_subnet.database[1].id}/${aws_route_table.database[1].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_route_table_association.database[2]	PARENT_DERIVED	${aws_subnet.database[2].id}/${aws_route_table.database[2].id}	
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-first-arg-wins	aws_subnet.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-literal-fallback	aws_route_table_association.database	CONCRETE	subnet-fake/rtb-fallback	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[0]	PARENT_DERIVED	${aws_subnet.database[0].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[1]	PARENT_DERIVED	${aws_subnet.database[1].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[2]	PARENT_DERIVED	${aws_subnet.database[2].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[3]	PARENT_DERIVED	${aws_subnet.database[3].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_route_table_association.database[4]	PARENT_DERIVED	${aws_subnet.database[4].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[3]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/coalescelist-element-second-arg-wraparound	aws_subnet.database[4]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-expression	aws_iam_role.app	CONCRETE	estate-app	name=estate-app
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/computed-for-each	aws_subnet.this["b"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-literal-fallback	aws_security_group_rule.ingress	CONCRETE	sg-fallback_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=sg-fallback,to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-out-of-range	aws_security_group.a[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.a[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.b[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group.b[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-second-arg	aws_security_group_rule.ingress	PARENT_DERIVED	${aws_security_group.b[1].id}_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=${aws_security_group.b[1].id},to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-security-group	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/concat-splat-index-security-group	aws_security_group_rule.ingress	PARENT_DERIVED	${aws_security_group.this[0].id}_ingress_tcp_80_80_0.0.0.0/0	cidr_blocks=0.0.0.0/0,from_port=80,protocol=tcp,security_group_id=${aws_security_group.this[0].id},to_port=80,type=ingress
+internal/live/identity/testdata/concat-splat-index-unrecognized-arg	aws_security_group.a[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_ecs_cluster.main	CONCRETE	prod-cluster	name=prod-cluster
 internal/live/identity/testdata/concrete-parent-attr	aws_ecs_service.web	NEEDS_DISCOVERY		
 internal/live/identity/testdata/concrete-parent-attr	aws_eks_access_entry.assumed	NEEDS_DISCOVERY		
@@ -159,6 +207,22 @@ internal/live/identity/testdata/docdb-family-collision	aws_docdb_cluster.first	C
 internal/live/identity/testdata/docdb-family-collision	aws_docdb_cluster.second	CONCRETE	docdb-prod	cluster_identifier=docdb-prod
 internal/live/identity/testdata/duplicate-identity	aws_s3_bucket.one	CONCRETE	estate-shared	bucket=estate-shared
 internal/live/identity/testdata/duplicate-identity	aws_s3_bucket.two	CONCRETE	estate-shared	bucket=estate-shared
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[0]	PARENT_DERIVED	${aws_subnet.private[0].id}/${aws_route_table.private[0].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[1]	PARENT_DERIVED	${aws_subnet.private[1].id}/${aws_route_table.private[1].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_route_table_association.private[2]	PARENT_DERIVED	${aws_subnet.private[2].id}/${aws_route_table.private[2].id}	
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[1]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-count-index	aws_subnet.private[2]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[0]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-0	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[1]	PARENT_DERIVED	${aws_subnet.small[1].id}/rtb-1	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[2]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-2	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[3]	PARENT_DERIVED	${aws_subnet.small[1].id}/rtb-3	
+internal/live/identity/testdata/element-splat-wraparound	aws_route_table_association.wrap[4]	PARENT_DERIVED	${aws_subnet.small[0].id}/rtb-4	
+internal/live/identity/testdata/element-splat-wraparound	aws_subnet.small[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/element-splat-wraparound	aws_subnet.small[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/foreach-comprehension	aws_route_table_association.selected["a"]	CONCRETE	subnet-a/rtb-fixed	
 internal/live/identity/testdata/foreach-comprehension	aws_route_table_association.selected["c"]	CONCRETE	subnet-c/rtb-fixed	
 internal/live/identity/testdata/foreach-comprehension	aws_subnet.this["a"]	NEEDS_DISCOVERY		
@@ -276,6 +340,10 @@ internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_detecti
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_lambda_function_event_invoke_config.main	CONCRETE	example:production	function_name=example,qualifier=production
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
+internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
+internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit	name=fluent-bit
+internal/live/identity/testdata/module-foreach-comprehension-each-value	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app-core-unset	name=app-core-unset
+internal/live/identity/testdata/module-foreach-comprehension-each-value	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit-default-team-unset	name=fluent-bit-default-team-unset
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["alice"]	CONCRETE	primary-alice	name=primary-alice
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.primary["bob"]	CONCRETE	primary-bob	name=primary-bob
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.secondary["alice"]	CONCRETE	secondary-alice	name=secondary-alice
@@ -308,6 +376,9 @@ internal/live/identity/testdata/module-output-foreach	aws_iam_role_policy.blue	C
 internal/live/identity/testdata/module-output-foreach	aws_iam_role_policy.green	CONCRETE	g-role:p	name=p,role=g-role
 internal/live/identity/testdata/module-output-foreach	module.shard["blue"].aws_iam_role.this	CONCRETE	b-role	name=b-role
 internal/live/identity/testdata/module-output-foreach	module.shard["green"].aws_iam_role.this	CONCRETE	g-role	name=g-role
+internal/live/identity/testdata/module-output-in-call-arg	module.sg.aws_security_group_rule.a[0]	CONCRETE	sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16	cidr_blocks=10.77.0.0/16,from_port=5432,protocol=tcp,security_group_id=sg-fixed,to_port=5432,type=ingress
+internal/live/identity/testdata/module-output-in-call-arg	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-in-call-arg/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-output-refused	module.shard["a"].aws_iam_role.this	CONCRETE	one	name=one
 internal/live/identity/testdata/module-output-refused	module.shard["b"].aws_iam_role.this	CONCRETE	two	name=two
 internal/live/identity/testdata/module-output-refused	module.single.aws_iam_role.this	CONCRETE	solo	name=solo
@@ -325,11 +396,19 @@ internal/live/identity/testdata/module-sibling-count	module.a_with_children.modu
 internal/live/identity/testdata/module-sibling-count/child-leaf	aws_cloudwatch_log_group.b	CONCRETE	/b-leaf-count/should-not-exist	name=/b-leaf-count/should-not-exist
 internal/live/identity/testdata/module-sibling-count/child-with-children	module.nested.aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
 internal/live/identity/testdata/module-sibling-count/child-with-children/nested	aws_cloudwatch_log_group.leaf	CONCRETE	/a-with-children/nested	name=/a-with-children/nested
+internal/live/identity/testdata/modulearg-nested-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-nested-partial	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_group.sibling["http/app"]	CONCRETE	group-80	name=group-80
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_group.sibling["https/app"]	CONCRETE	group-443	name=group-443
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_user.keyed["http/app"]	CONCRETE	user-http-app	name=user-http-app
+internal/live/identity/testdata/modulearg-nested-partial	module.preset.module.inner.aws_iam_user.keyed["https/app"]	CONCRETE	user-https-app	name=user-https-app
 internal/live/identity/testdata/modulearg-partial	aws_iam_role.r	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_group.g[0]	CONCRETE	the-group	name=the-group
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["alice"]	CONCRETE	user-alice	name=user-alice
 internal/live/identity/testdata/modulearg-partial	module.u.aws_iam_user.this["bob"]	CONCRETE	user-bob	name=user-bob
 internal/live/identity/testdata/modulearg-partial-dynkey	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-partial-value	aws_iam_role.r	CONCRETE	the-role	name=the-role
+internal/live/identity/testdata/modulearg-partial-value	module.u.aws_iam_user.literal[0]	CONCRETE	platform-alpha	name=platform-alpha
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.broken_no_prefix	NEEDS_DISCOVERY		
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.named_conditional	CONCRETE	explicit-name-2	name=explicit-name-2
 internal/live/identity/testdata/name-prefix-conditional-null	aws_iam_role.prefixed	NEEDS_DISCOVERY		
@@ -346,6 +425,7 @@ internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.one	CONCRETE	t
 internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["a"]	CONCRETE	tofu-signal-a	bucket=tofu-signal-a
 internal/live/identity/testdata/naming-signal-named	aws_s3_bucket.two["b"]	CONCRETE	tofu-signal-b	bucket=tofu-signal-b
 internal/live/identity/testdata/naming-signal-named	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/identity/testdata/nested-block-component	aws_autoscaling_traffic_source_attachment.present	CONCRETE	example,elbv2,arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456	autoscaling_group_name=example,identifier=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/example/1234567890123456,type=elbv2
 internal/live/identity/testdata/non-identity-attr	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.present_but_null["from_map"]	CONCRETE	my_test_lambda_function/AllowFromMapNotification	function_name=my_test_lambda_function,statement_id=AllowFromMapNotification
 internal/live/identity/testdata/omit-if-absent	aws_lambda_permission.qualified	CONCRETE	my_test_lambda_function:qualifier_name/AllowExecutionFromCloudWatch	function_name=my_test_lambda_function,qualifier=qualifier_name,statement_id=AllowExecutionFromCloudWatch
@@ -457,6 +537,8 @@ internal/live/identity/testdata/typedvar-untyped	module.child.aws_sqs_queue.q["b
 internal/live/lint/testdata/child-live-config	module.vendored.aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-live-config/mod	aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 internal/live/lint/testdata/child-module	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/child-module-foreach-comprehension	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
+internal/live/lint/testdata/child-module-foreach-comprehension	module.wrapper.module.task["fluent-bit"].aws_iam_user.this	CONCRETE	fluent-bit	name=fluent-bit
 internal/live/lint/testdata/clean	aws_cloudwatch_log_group.optional[0]	CONCRETE	/stateless-lint/optional	name=/stateless-lint/optional
 internal/live/lint/testdata/clean	aws_eip.pool[0]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/clean	aws_eip.pool[1]	NEEDS_DISCOVERY		
@@ -560,6 +642,7 @@ internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["sub.example.com (
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["team_one"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["with space"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["été"]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/logical	local_file.rendered	RECORD_BACKED		
 internal/live/lint/testdata/logical	null_resource.trigger	RECORD_BACKED		
 internal/live/lint/testdata/logical	random_pet.name	RECORD_BACKED		
 internal/live/lint/testdata/logical	time_sleep.wait	RECORD_BACKED		
@@ -590,6 +673,19 @@ internal/live/lint/testdata/overlong-address	aws_subnet.wide["kkkkkkkkkkkkkkkkkk
 internal/live/lint/testdata/overlong-address	aws_subnet.wide["ok"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/overlong-address	aws_vpc.yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy[0]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/overlong-address	aws_vpc.yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy[1]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/overlong-address	module.counted[0].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[10].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[11].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[1].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[2].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[3].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[4].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[5].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[6].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[7].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[8].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address	module.counted[9].aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
+internal/live/lint/testdata/overlong-address/counted	aws_s3_bucket.qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq	CONCRETE	counted-child	bucket=counted-child
 internal/live/lint/testdata/provisioner	aws_s3_bucket.data	CONCRETE	tofu-stateless-lint-data	bucket=tofu-stateless-lint-data
 internal/live/lint/testdata/receipt-leaf	aws_iam_role.leaks_via_depends_on	CONCRETE	leaks-via-depends-on	name=leaks-via-depends-on
 internal/live/lint/testdata/receipt-leaf	aws_s3_bucket.leaks_via_argument	NEEDS_DISCOVERY		
@@ -624,6 +720,8 @@ internal/live/marksafe/testdata/foreach-tuple-comprehension-sensitive-if	aws_ecr
 internal/live/moved/testdata/chain	aws_s3_bucket.c	CONCRETE	chain	bucket=chain
 internal/live/moved/testdata/estate	aws_s3_bucket.new	CONCRETE	estate-data	bucket=estate-data
 internal/live/moved/testdata/estate	aws_s3_bucket_versioning.this[0]	CONCRETE	estate-data	bucket=estate-data
+internal/live/moved/testdata/estate	module.counted[0].aws_sqs_queue.doi	NEEDS_DISCOVERY		
+internal/live/moved/testdata/estate	module.counted[0].aws_sqs_queue.stray	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.queues.aws_sqs_queue.doi	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.queues.aws_sqs_queue.stray	NEEDS_DISCOVERY		
 internal/live/moved/testdata/estate	module.renamed.aws_sqs_queue.doi	NEEDS_DISCOVERY		
@@ -1456,6 +1554,7 @@ live/e2e/limits/ignore-changes	aws_s3_bucket.marker_key	CONCRETE	estate-marker-k
 live/e2e/limits/ignore-changes	aws_s3_bucket.one_foreign_key	CONCRETE	estate-one-foreign-key	bucket=estate-one-foreign-key
 live/e2e/limits/ignore-changes	aws_s3_bucket.whole_tags	CONCRETE	estate-whole-tags	bucket=estate-whole-tags
 live/e2e/limits/local-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-local-exec	bucket=tofu-stateless-limits-local-exec
+live/e2e/limits/local-file	local_file.rendered	RECORD_BACKED		
 live/e2e/limits/module-provider-block	module.compute.aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-provider-block/child	aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-providers	module.aliased.aws_s3_bucket.data	CONCRETE	estate-module-providers-aliased	bucket=estate-module-providers-aliased

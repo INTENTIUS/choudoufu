@@ -160,8 +160,8 @@ func Honoured(cfg *configs.Config) []Statement {
 // block is declared in - because a `moved` block may only ever traverse
 // *down* into child modules, so that node reaches both endpoints.
 //
-// The three refusals are the three ways the alias would be built wrong, not
-// three kinds of untidiness:
+// The two refusals are the two ways the alias would be built wrong, not two
+// kinds of untidiness:
 //
 //   - A source address the configuration still declares. The old address is
 //     not vacated, so the live resource carrying it stays bound to it and the
@@ -173,28 +173,42 @@ func Honoured(cfg *configs.Config) []Statement {
 //     resource's own type (see internal/live/discovery, markerTypeOf): an
 //     alias across types could never match, and the live resource would read
 //     as an orphan.
-//   - An endpoint passing through a count-expanded module instance. Count
-//     modules are refused outright (lint's child-module rule) because count
-//     renumbers every address beneath it, so an alias into one would name
-//     addresses that move under their own markers. This mirrors
-//     internal/live/mv's checkAddresses, which refuses the same step for the
-//     same reason.
 //
-// A count-expanded *resource* is deliberately not refused. Its instances are
-// a fungible set told apart by tofu-slot markers, and discovery's set matcher
-// reads claimants off the declared entry an alias lands on, never off the
-// marker string - so `count = var.create ? 1 : 0`, which is how every
-// terraform-aws-modules resource is written and therefore what every
-// `moved` block shipped inside one lands on, carries through unchanged.
+// An endpoint passing through a count-expanded module instance is
+// deliberately not refused (issue #330, mirroring internal/live/mv's
+// checkAddresses fix, issue #317). The premise both refusals once shared -
+// "count renumbers every address beneath it" - is the one issue #195 retired
+// for a plain scalar module count: shrinking count only ever retires the
+// highest index, never renumbers a survivor, so an integer module-instance
+// key is exactly as stable an address component as a resource's own
+// count-keyed instance. What remains to prove is that the *to* endpoint's
+// module, when it is still declared, has a statically evaluable count with no
+// count.index leak into its own arguments - and that is [checkChildModules]'
+// RuleChildModule, which runs in this very same lint.CheckWith pass (see
+// checkConfig in internal/live/lint/lint.go, which calls checkChildModules
+// immediately before checkMovedBlocks over every module in the tree) and is
+// fatal on its own. So a moved block whose destination module call is unsafe
+// never reaches here with a clean lint result regardless of what this
+// function does; nothing here needs to re-derive that proof. A *from*
+// endpoint typically names a module call the configuration no longer
+// declares at all - that is the ordinary shape of a retired address - so
+// RuleChildModule has nothing to check there, and needs nothing to check:
+// the literal integer index written into the block's own `from` endpoint is
+// not an expression subject to a count.index leak, only a stable slot
+// address, which #195's fact covers unconditionally.
+//
+// A count-expanded *resource* is deliberately not refused either. Its
+// instances are a fungible set told apart by tofu-slot markers, and
+// discovery's set matcher reads claimants off the declared entry an alias
+// lands on, never off the marker string - so `count = var.create ? 1 : 0`,
+// which is how every terraform-aws-modules resource is written and therefore
+// what every `moved` block shipped inside one lands on, carries through
+// unchanged.
 func Honourable(node *configs.Config, stmt Statement) (string, bool) {
 	fromSub, fromOK := subject(stmt, stmt.From)
 	toSub, toOK := subject(stmt, stmt.To)
 	if !fromOK || !toOK {
 		return "its endpoints could not be resolved to addresses", false
-	}
-
-	if hasCountKeyedModuleStep(fromSub) || hasCountKeyedModuleStep(toSub) {
-		return "one of its endpoints passes through a count-expanded module instance, whose addresses renumber under insertion and removal and so cannot carry a stable ownership marker", false
 	}
 
 	fromType, fromIsResource := resourceTypeOf(fromSub)
@@ -344,31 +358,6 @@ func subject(stmt Statement, e *addrs.MoveEndpointInModule) (addrs.AbsMoveable, 
 		return nil, false
 	}
 	return e.InModuleInstance(inst), true
-}
-
-// hasCountKeyedModuleStep reports whether any module step in an endpoint's
-// address carries an integer instance key: a count-expanded module call. See
-// [Honourable] for why that is the one module shape a marker cannot follow.
-func hasCountKeyedModuleStep(sub addrs.AbsMoveable) bool {
-	var steps addrs.ModuleInstance
-	switch s := sub.(type) {
-	case addrs.ModuleInstance:
-		steps = s
-	case addrs.AbsModuleCall:
-		steps = s.Module
-	case addrs.AbsResource:
-		steps = s.Module
-	case addrs.AbsResourceInstance:
-		steps = s.Module
-	default:
-		return false
-	}
-	for _, step := range steps {
-		if _, isInt := step.InstanceKey.(addrs.IntKey); isInt {
-			return true
-		}
-	}
-	return false
 }
 
 // resourceTypeOf reports the resource type an endpoint names, and false for a

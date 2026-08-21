@@ -332,15 +332,31 @@ func TestAnalyzeCountIndexSafetyUnrecognizedNodeTypeNeverFallsThrough(t *testing
 // record, which is the property the skip rests on - but it was harmless by
 // luck, not by construction.
 //
-// It is now harmless by construction, and this is the assertion that says so:
-// both tables are derived from live/logical-schemas.json by one rule, so the
-// RecordBacked set and the RECORD_ADMITTED set are equal, and the second leg
-// can no longer reach a type the first would not already have skipped. This
-// recomputes that over the whole identity table rather than restating it, so
-// the day the two sets diverge again, the silenced walk is reported here
-// instead of being found by an operator.
+// It was made harmless by equality first - both tables derived from
+// live/logical-schemas.json by one rule, so the RecordBacked set and the
+// RECORD_ADMITTED set were the same set and the second leg could not reach a
+// type the first would not already have skipped. Issue #314 ended that
+// equality on purpose: [ClassExternalAdmitted]'s local_file is RecordBacked
+// and must NOT skip, because its filename argument names a real file. Under
+// the old shape it would have skipped anyway, silently, through exactly the
+// leg this test is named for - the equality had been carrying the safety, and
+// the first genuine divergence would have defeated it.
+//
+// So the leg is now GONE rather than merely redundant: countIndexScopeForType
+// returns for every logical type from its class branch, and the identity
+// table's RecordBacked flag no longer silences anything by itself. This test
+// keeps its name and asserts the stronger property in three parts, all
+// recomputed over the whole identity table rather than restated:
+//
+//  1. every RecordBacked row is a type lint classifies, so the class branch is
+//     what decides it;
+//  2. its scope is exactly what its class says it should be - skip for
+//     RECORD_ADMITTED, walk for EXTERNAL_ADMITTED;
+//  3. a RecordBacked row for a type lint does NOT classify gets walkAll, not
+//     skip. That is the leg's removal, asserted directly: under the old code
+//     this case skipped.
 func TestRecordBackedSkipIsRedundantWithTheClassSkip(t *testing.T) {
-	checked := 0
+	checked, skipped, walked := 0, 0, 0
 	for typ, entry := range identity.DefaultTable {
 		if !entry.RecordBacked {
 			continue
@@ -348,21 +364,57 @@ func TestRecordBackedSkipIsRedundantWithTheClassSkip(t *testing.T) {
 		checked++
 
 		lt, isLogical := ClassifyLogicalType(typ)
-		if !isLogical || lt.Class != ClassRecordAdmitted {
-			t.Errorf("countIndexScopeForType(%q) skips the count.index walk on the RecordBacked leg, "+
-				"but lint classifies it isLogical=%v/%s - the walk is silenced by a leg no "+
-				"classification guards", typ, isLogical, lt.Class)
+		if !isLogical {
+			t.Errorf("identity.DefaultTable marks %q RecordBacked but lint does not classify it as "+
+				"logical at all, so countIndexScopeForType decides it from the identity table alone - "+
+				"the walk is silenced, or not, by a leg no classification guards", typ)
 			continue
 		}
 
-		// The class leg alone must already skip it: recomputed by asking for
-		// the scope of a type carrying this class with no identity row behind
-		// it at all.
-		if scope := countIndexScopeForType(typ, lt, isLogical); !scope.skip {
-			t.Errorf("countIndexScopeForType(%q) does not skip, but the type is RecordBacked", typ)
+		scope := countIndexScopeForType(typ, lt, isLogical)
+		switch lt.Class {
+		case ClassRecordAdmitted:
+			if !scope.skip {
+				t.Errorf("countIndexScopeForType(%q) does not skip, but the type is RECORD_ADMITTED: "+
+					"the record is the whole of the resource, so no argument can name anything else", typ)
+			}
+			skipped++
+		case ClassExternalAdmitted:
+			if scope.skip {
+				t.Errorf("countIndexScopeForType(%q) skips the count.index walk, but the type is "+
+					"EXTERNAL_ADMITTED: an argument of its own names an object outside the record, "+
+					"and two instances at distinct addresses can collide on it", typ)
+			}
+			walked++
+		default:
+			t.Errorf("identity.DefaultTable marks %q RecordBacked, but lint classifies it %s - "+
+				"resolution would hold a record for a type lint refuses", typ, lt.Class)
 		}
 	}
 	if checked == 0 {
 		t.Fatal("no RecordBacked row in identity.DefaultTable; this check is not exercising anything")
+	}
+	if skipped == 0 || walked == 0 {
+		t.Errorf("RecordBacked rows split %d skipping / %d walking; both must be non-zero or this "+
+			"test is only exercising one side of the class boundary it exists to hold", skipped, walked)
+	}
+
+	// Part 3: the leg's removal, asserted directly rather than by reading the
+	// code. A RecordBacked row that lint does not classify must fall to the
+	// safe default. Under the pre-#314 shape this returned skip:true, which is
+	// how four types went quiet for a release with nothing to notice.
+	//
+	// countIndexScopeForType reads identity.LookupType for the type name it is
+	// given, so the way to pose this question without mutating the shared table
+	// is to ask about a real RecordBacked type while telling it lint has no
+	// classification - which is precisely the state that used to be reachable.
+	if scope := countIndexScopeForType("null_resource", LogicalType{}, false); scope.skip {
+		t.Error("countIndexScopeForType skips for a RecordBacked type lint does not classify; " +
+			"the RecordBacked leg is back, and an identity row added on its own can silence the " +
+			"count.index walk again")
+	} else if !scope.walkAll {
+		t.Errorf("countIndexScopeForType for an unclassified RecordBacked type = %+v, want walkAll - "+
+			"the safe default for a type no classification covers is to treat every argument as "+
+			"identity-relevant", scope)
 	}
 }

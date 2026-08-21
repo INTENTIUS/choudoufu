@@ -136,7 +136,16 @@ func countIndexDomainFor(ctx context.Context, mod *configs.Module, resource *con
 		Subject:   addr,
 		DeclRange: resource.Count.Range(),
 	}
-	val, diags := eval.Evaluate(ctx, resource.Count, ident)
+	// EvaluateStructural, not Evaluate: a count expression built from
+	// length(var.x) (or similar) needs only var.x's own SHAPE - how many
+	// elements it has - never any one element's contents. A list-of-objects
+	// module argument where one sibling field is genuinely resource-derived
+	// (terraform-aws-modules/security-group's ingress_with_cidr_blocks
+	// pattern, cidr_blocks set from a VPC module's own output) still has a
+	// perfectly well-defined length even though that one field does not;
+	// see EvaluateStructural's own doc for why Evaluate cannot tell the two
+	// apart and this can. GitHub issue #304.
+	val, diags := eval.EvaluateStructural(ctx, resource.Count, ident)
 	if diags.HasErrors() || val.IsNull() || !val.IsWhollyKnown() || val.ContainsMarked() {
 		return countIndexDomain{}
 	}
@@ -213,7 +222,12 @@ func (d countIndexDomain) verdict(expr hclsyntax.Expression) countIndexVerdict {
 		eval := d.eval.WithRepetitionData(instances.RepetitionData{
 			CountIndex: cty.NumberIntVal(int64(i)),
 		})
-		val, diags := eval.Evaluate(d.ctx, expr, ident)
+		// EvaluateStructural for the same reason countIndexDomainFor uses it
+		// for the count expression itself: an attribute that reads one KEY
+		// of var.x[count.index] (e.g. "from_port") does not need every OTHER
+		// key of that same element to be static too. See its own doc and
+		// GitHub issue #304.
+		val, diags := eval.EvaluateStructural(d.ctx, expr, ident)
 		if diags.HasErrors() || val.IsNull() || !val.IsWhollyKnown() || val.ContainsMarked() {
 			return countIndexUnprovable
 		}

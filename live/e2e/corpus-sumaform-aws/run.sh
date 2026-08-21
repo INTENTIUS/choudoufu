@@ -475,7 +475,7 @@ log "  9 of 11 verified/drifted against the live system; nothing written yet"
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "9 resource(s) newly stamped, 0 already stamped, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
+grep -qF "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 9 resources cleanly"; }
 log "  9 stamped"
 

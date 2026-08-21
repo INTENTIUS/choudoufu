@@ -722,6 +722,34 @@ var (
 		// argument in the pinned v6.59.0 Argument Reference; confirmed
 		// against live/survey-full.json's signals.taggable (false).
 		"aws_vpc_security_group_rules_exclusive",
+
+		// Issue #310: aws_autoscaling_traffic_source_attachment, ratified
+		// off its documented composite import ID
+		// (autoscaling_group_name,traffic_source_type,traffic_source_identifier)
+		// - the second and third components read out of a required,
+		// max_items:1 traffic_source nested block via the new
+		// identity.Component.Block field rather than as top-level
+		// arguments. The provider ships no resource Identity Schema for
+		// this type. No tags argument in the pinned v6.59.0 Argument
+		// Reference; confirmed against live/survey-full.json's
+		// signals.taggable (false).
+		"aws_autoscaling_traffic_source_attachment",
+
+		// Issue #334: the two IAM exclusive-set enforcers, ratified
+		// client-named off their sole identity-bearing argument role_name,
+		// which the provider's own Import documentation states is the
+		// whole import ID ("% terraform import
+		// aws_iam_role_policies_exclusive.example MyRole"). Same shape and
+		// same row-gen rule as the #307 entry above - "import-grammar
+		// precedence: composed_of_arguments, single argument, arity
+		// confirmed against the example string" - and row-gen proposed
+		// both of these rows verbatim all along; they were simply never
+		// ratified. Neither ships a resource Identity Schema in v6.59.0
+		// and neither has a tags argument in the pinned Argument
+		// Reference; confirmed against live/survey-full.json's
+		// signals.taggable (false for both).
+		"aws_iam_role_policies_exclusive",
+		"aws_iam_role_policy_attachments_exclusive",
 	}
 )
 
@@ -1236,6 +1264,9 @@ func testSchemas() Schemas {
 		"aws_vpc_security_group_ingress_rule":                taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "from_port", "to_port", "ip_protocol"),
 		"aws_vpc_security_group_egress_rule":                 taggedSchema("id", "arn", "security_group_rule_id", "security_group_id", "cidr_ipv4", "ip_protocol"),
 		"aws_vpc_security_group_rules_exclusive":             untaggedSchema("security_group_id", "ingress_rule_ids", "egress_rule_ids"),
+		"aws_iam_role_policies_exclusive":                    untaggedSchema("role_name", "policy_names"),
+		"aws_iam_role_policy_attachments_exclusive":          untaggedSchema("role_name", "policy_arns"),
+		"aws_autoscaling_traffic_source_attachment":          untaggedSchema("autoscaling_group_name", "traffic_source"),
 		"aws_launch_template":                                taggedSchema("id", "arn", "name", "image_id", "instance_type"),
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),

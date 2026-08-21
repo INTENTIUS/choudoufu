@@ -491,6 +491,18 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 
 	statelessView.Policy(statelessPolicyReport(projResult, disco, stampRes, reconcile))
 
+	// GitHub issue #348: evaluate the configuration's root-level `output`
+	// blocks against the projection now, in place, the same way a real
+	// refresh recomputes them before a plan diffs "prior" output values
+	// against "planned" ones. Without this, projResult.State carries no
+	// output values at all, and every declared output shows as newly
+	// created on every run regardless of whether the underlying resources
+	// changed. See [projection.ApplyRootOutputValues].
+	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables))
+	if diags.HasErrors() {
+		return 1, false, diags
+	}
+
 	plan, planDiags := tfCtx.Plan(ctx, config, projResult.State, &tofu.PlanOpts{
 		Mode: plans.NormalMode,
 		// The projection was built from live reads a moment ago, so a

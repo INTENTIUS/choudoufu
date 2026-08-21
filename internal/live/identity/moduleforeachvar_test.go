@@ -74,7 +74,6 @@ func TestChildModuleRepetitionDataRefusesNonStatic(t *testing.T) {
 	// Any loaded module with a StaticEvaluator will do; this test only
 	// exercises ChildModuleRepetitionData's own static-scope check, which
 	// runs before the evaluator is ever asked to evaluate anything.
-	mod := cfg.Module
 
 	rng := hcl.Range{Filename: "test", Start: hcl.Pos{Line: 1}, End: hcl.Pos{Line: 1}}
 	expr := &hclsyntax.ScopeTraversalExpr{
@@ -85,12 +84,12 @@ func TestChildModuleRepetitionDataRefusesNonStatic(t *testing.T) {
 		SrcRange: rng,
 	}
 
-	_, ok := ChildModuleRepetitionData(context.Background(), mod, "module \"x\"", nil, expr, addrs.StringKey("public"))
+	_, ok := ChildModuleRepetitionData(context.Background(), cfg, "module \"x\"", nil, expr, addrs.StringKey("public"))
 	if ok {
 		t.Fatal("expected ok=false: the for_each expression references a managed resource, not var/local/path/terraform/tofu")
 	}
 
-	_, ok = ChildModuleRepetitionData(context.Background(), mod, "module \"x\"", nil, expr, addrs.StringKey("nonexistent-key"))
+	_, ok = ChildModuleRepetitionData(context.Background(), cfg, "module \"x\"", nil, expr, addrs.StringKey("nonexistent-key"))
 	if ok {
 		t.Fatal("expected ok=false: even a statically-evaluable for_each must refuse a key it did not itself produce")
 	}

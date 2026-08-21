@@ -273,7 +273,7 @@ func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance,
 		// [ChildCallKeys] makes the count / for_each / static dispatch, in
 		// that order, and is shared with the three other walks that have to
 		// build the same addresses this one does.
-		keys, diag := ChildCallKeys(r.ctx, r.mod, name)
+		keys, diag := ChildCallKeys(r.ctx, r.curCfg, name)
 		if diag != nil {
 			r.diags = r.diags.Append(diag)
 			continue
@@ -1602,9 +1602,11 @@ func cloudReason(entry TypeIdentity, missing CloudValue) string {
 }
 
 // identityArgs pulls just the arguments the type's identity needs out of
-// the resource body. Everything else in the body, including nested blocks,
-// is ignored: identity resolution has no business decoding a whole
-// resource.
+// the resource body. Everything else in the body is ignored: identity
+// resolution has no business decoding a whole resource. A nested block is
+// ignored too, UNLESS some component names it through [Component.Block], in
+// which case exactly that block's own named leaf attributes join the result,
+// under their own (unqualified) names.
 func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.Attributes, bool) {
 	var names []string
 	seen := make(map[string]bool)
@@ -1614,8 +1616,31 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 			names = append(names, n)
 		}
 	}
+
+	// blockLeaves collects, per [Component.Block] name, the leaf attribute
+	// names some component reads from inside it. A block-scoped leaf never
+	// joins the flat `names` set above - it is read from its own block's
+	// body, not the resource's top-level body - and it gets none of the
+	// "<name>_prefix" treatment below, which is a top-level-argument
+	// convention with no bearing on a nested block's own attributes.
+	var blockNames []string
+	blockLeaves := map[string]map[string]bool{}
+	addBlockLeaf := func(block, leaf string) {
+		leaves, ok := blockLeaves[block]
+		if !ok {
+			leaves = map[string]bool{}
+			blockLeaves[block] = leaves
+			blockNames = append(blockNames, block)
+		}
+		leaves[leaf] = true
+	}
+
 	for _, comp := range entry.Components {
 		for _, n := range comp.Attrs {
+			if comp.Block != "" {
+				addBlockLeaf(comp.Block, n)
+				continue
+			}
 			add(n)
 			// Every provider that names an object through one of these
 			// arguments also offers the "<name>_prefix" sibling documented
@@ -1634,10 +1659,14 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 		}
 	}
 	sort.Strings(names)
+	sort.Strings(blockNames)
 
 	schema := &hcl.BodySchema{}
 	for _, n := range names {
 		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
+	}
+	for _, b := range blockNames {
+		schema.Blocks = append(schema.Blocks, hcl.BlockHeaderSchema{Type: b})
 	}
 
 	content, _, diags := rc.Config.PartialContent(schema)
@@ -1645,7 +1674,44 @@ func (r *resolver) identityArgs(rc *configs.Resource, entry TypeIdentity) (hcl.A
 		r.appendDiags(diags)
 		return nil, false
 	}
-	return content.Attributes, true
+	if len(blockNames) == 0 {
+		return content.Attributes, true
+	}
+
+	// Merge in each named block's own leaves. The provider's own schema
+	// caps every block [Component.Block] names at one instance
+	// (max_items: 1, checked at ratification time - see that field's doc
+	// comment), so only the FIRST occurrence of a repeated block name is
+	// read; a config that syntactically repeats it anyway is one the
+	// provider would refuse at validate time regardless of what this reads,
+	// the same "safe direction, not a wrong one" this package takes
+	// elsewhere rather than specially diagnosing an already-invalid shape.
+	merged := make(hcl.Attributes, len(content.Attributes))
+	for k, v := range content.Attributes {
+		merged[k] = v
+	}
+	for _, block := range content.Blocks {
+		leaves, ok := blockLeaves[block.Type]
+		if !ok {
+			continue
+		}
+		delete(blockLeaves, block.Type) // first occurrence only
+		leafSchema := &hcl.BodySchema{}
+		for leaf := range leaves {
+			leafSchema.Attributes = append(leafSchema.Attributes, hcl.AttributeSchema{Name: leaf})
+		}
+		leafContent, _, leafDiags := block.Body.PartialContent(leafSchema)
+		if leafDiags.HasErrors() {
+			r.appendDiags(leafDiags)
+			return nil, false
+		}
+		for k, v := range leafContent.Attributes {
+			if _, exists := merged[k]; !exists {
+				merged[k] = v
+			}
+		}
+	}
+	return merged, true
 }
 
 // resolveExpr turns one argument expression into import-ID parts.
@@ -1701,6 +1767,18 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, scope instScope, attr *h
 // expression. When applicable is true, ok carries the same "exactly one
 // element" verdict the syntactic case enforces, and the diagnostic (if any)
 // is already recorded.
+//
+// The strict evaluation is backed by [resolver.tolerantRetry], the fourth and
+// last caller of it, for the reason [resolver.tolerantPart] is the third: a
+// collection-typed identity argument reached through a module CALL argument
+// whose skeleton is literal and one of whose leaves is not
+// ([resolver.tolerantVariables]) refuses whole, so the one-element rule never
+// gets a collection to apply itself to and the argument falls through to a
+// vaguer refusal about the whole variable. The retry is reached only after
+// the strict evaluation has failed and only for an expression isSymbolic has
+// already cleared, so it cannot pre-empt the element-expression chase; and
+// its value still has to be a known, unmarked, one-element collection below,
+// which is the same bar the strict path meets.
 func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (hcl.Expression, bool, bool) {
 	if r.isSymbolic(expr, scope) {
 		return nil, false, false
@@ -1709,7 +1787,11 @@ func (r *resolver) soleElementFromValue(expr hcl.Expression, scope instScope, at
 	val, ok := r.evalStatic(expr, scope, ident)
 	if !ok {
 		r.diags = r.diags[:mark]
-		return nil, false, false
+		retried, retryOK := r.tolerantRetry(expr, scope, ident)
+		if !retryOK {
+			return nil, false, false
+		}
+		val = retried
 	}
 	ty := val.Type()
 	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
@@ -1813,6 +1895,34 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
 			return parts, leafOK
 		}
+
+		// A selection expression - `cond ? A : B`, or coalesce(A, B, ...) -
+		// written entirely out of var and local references, so
+		// [resolver.isSymbolic] saw no managed resource anywhere in it and
+		// sent the whole thing down this branch rather than to the
+		// symbolic switch below. The managed resource is there; it is
+		// behind one of those names, which is exactly what
+		// [resolver.namedLeaf] just proved by chasing it. See
+		// [resolver.resolveSelection].
+		if parts, selOK, applicable := r.resolveSelection(expr, scope, ident); applicable {
+			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
+			return parts, selOK
+		}
+
+		// Last of all, and only where every route above has already
+		// returned false: the value is in the caller's configuration, but
+		// a module argument this module's caller built out of a literal
+		// skeleton and one unresolvable leaf stands between this argument
+		// and it. `lookup(var.ingress_with_cidr_blocks[count.index],
+		// "from_port", ...)` over `ingress_with_cidr_blocks = [{ from_port
+		// = 5432, ..., cidr_blocks = module.vpc.vpc_cidr_block }]` is 5432
+		// whatever the one dynamic leaf turns out to be, and the sibling
+		// that DOES read that leaf keeps refusing on the same rebuilt
+		// value. See [resolver.tolerantPart], which restores r.diags
+		// itself when it declines.
+		if parts, ok := r.tolerantPart(expr, scope, ident, mark, sibMark); ok {
+			return parts, true
+		}
 		return nil, false
 	}
 
@@ -1841,10 +1951,67 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveArityCollapse(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// element(R[*].attr, idx) resolved to the one instance idx names,
+		// wrapped modulo R's own instance count exactly as element() itself
+		// wraps it - see splat.go's resolveElementCall. Not applicable to
+		// any other call or any collection that is not a splat over a bare
+		// managed resource, which falls through to the generic refusal
+		// below exactly as it always has.
+		if parts, ok, applicable := r.resolveElementCall(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// element(coalescelist(A[*].attr, B[*].attr, ...), idx) resolved to
+		// the winning coalescelist() argument's own idx-th instance, wrapped
+		// modulo THAT argument's own length - see splat.go's
+		// resolveElementCoalescelist. Not applicable unless the first
+		// argument is itself a coalescelist() call, which
+		// resolveElementCall's own bare-splat requirement above already
+		// excludes, so trying both here is safe and order-independent.
+		if parts, ok, applicable := r.resolveElementCoalescelist(e, scope, ident); applicable {
+			return parts, ok
+		}
 		// try(A, B, ...) resolved to whichever argument the language selects,
 		// when resource expansion settles which arguments raise an error -
 		// see fallback.go. Same not-applicable contract as above.
 		if parts, ok, applicable := r.resolveFallbackChain(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// coalesce(A, B, ...) resolved to whichever argument the language
+		// selects, when every argument before it is provably null or empty
+		// and that one is provably neither - see coalesce.go. Same
+		// not-applicable contract as above. This is the door the call
+		// arrives at when a managed resource is named directly inside it;
+		// the branch above [resolver.namedLeaf] is the one it arrives at
+		// when every argument is a var or local reference.
+		if parts, ok, applicable := r.resolveCoalesceCall(e, scope, ident); applicable {
+			return parts, ok
+		}
+	case *hclsyntax.IndexExpr:
+		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N is not a
+		// literal (count.index, a local) - see splat.go's
+		// resolveConcatIndex, whose own doc comment explains why this
+		// shape needs both this case and the next one. Not applicable to
+		// anything but an index into a concat() call, which falls through
+		// to the generic refusal below exactly as it always has.
+		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
+			return parts, ok
+		}
+	case *hclsyntax.RelativeTraversalExpr:
+		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N IS a
+		// literal, e.g. concat(...)[0] - #324's own local.this_sg_id shape.
+		// HCL folds a constant index into a traversal step rather than
+		// building an IndexExpr, so this arrives as a RelativeTraversalExpr
+		// wrapping the concat() call, not as the case above - see
+		// resolveConcatIndex's doc comment. Trying it here, before
+		// resolveIndexedTraversal runs below, changes nothing for the
+		// shape resolveIndexedTraversal itself owns (R[idx].attr, a
+		// RelativeTraversalExpr wrapping an *IndexExpr with a trailing
+		// TraverseAttr): resolveConcatIndex requires its Source to be a
+		// concat() FunctionCallExpr and its Traversal to be a single
+		// TraverseIndex, which that shape never is, so it reports
+		// applicable=false and falls through to resolveIndexedTraversal
+		// unchanged.
+		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
 			return parts, ok
 		}
 	}
@@ -2011,6 +2178,29 @@ func (r *resolver) resolveIndexedTraversal(expr hcl.Expression, scope instScope,
 
 	got, gotOK := r.parentPart(resAddr.Instance(key).Absolute(r.modInst), attrStep.Name, expr.Range(), ident)
 	return got, gotOK, true
+}
+
+// elementIndexValue turns an evaluated element() index argument into a plain
+// int, converting through cty.Number first so a value that is already a
+// number in a different cty representation (or, degenerately, a numeric
+// string) still resolves - the same tolerance [resolver.resolveConditional]
+// applies converting its own condition to cty.Bool. Unlike [indexKeyValue],
+// this deliberately allows a negative result: element()'s own wraparound
+// (see [resolver.resolveElementCall]) is defined for one, and refusing it
+// here would refuse a shape the function itself accepts.
+func elementIndexValue(val cty.Value) (int, bool) {
+	if val.IsNull() || !val.IsKnown() || val.IsMarked() {
+		return 0, false
+	}
+	num, err := convert.Convert(val, cty.Number)
+	if err != nil {
+		return 0, false
+	}
+	var n int
+	if err := gocty.FromCtyValue(num, &n); err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // indexKeyValue turns an evaluated index expression into the instance key it

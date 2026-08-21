@@ -24,12 +24,17 @@ import (
 // corpus actually contains through one estate: a plain rename, a
 // root-to-module refactor, a module rename, and a cross-module move. The
 // point is that none of them needs a case in this package - they are all one
-// structural rewrite through addrs.
+// structural rewrite through addrs. A fifth shape, a count-keyed MODULE
+// destination (issue #330), rides along: unlike the other four it does not
+// occur in the 105-config corpus today, but it is the shape #330 admits, and
+// TestMovedThroughCountedModuleClearsLintInTheSamePass (lint_integration_test.go)
+// is what proves it also clears lint's own RuleChildModule check in the same
+// pass, which this file cannot import lint to assert directly.
 func TestOriginsCoversEveryCorpusShape(t *testing.T) {
 	cfg := loadConfigDir(t, filepath.Join("testdata", "estate"))
 	stmts := Honoured(cfg)
-	if len(stmts) != 5 {
-		t.Fatalf("Honoured() returned %d statements, want all 5: %s", len(stmts), statementStrings(stmts))
+	if len(stmts) != 6 {
+		t.Fatalf("Honoured() returned %d statements, want all 6: %s", len(stmts), statementStrings(stmts))
 	}
 
 	tests := []struct {
@@ -46,6 +51,19 @@ func TestOriginsCoversEveryCorpusShape(t *testing.T) {
 			name:     "count-expanded destination keeps its index",
 			declared: "aws_s3_bucket_versioning.this[0]",
 			want:     []string{"aws_s3_bucket_versioning.legacy[0]"},
+		},
+		{
+			// Issue #330: a moved block whose destination passes through a
+			// count-keyed MODULE instance (as opposed to the resource-level
+			// count case above) used to be refused by Honourable's own copy
+			// of the premise issue #195 already retired for a module's
+			// plain scalar count. module "counted" above has a literal,
+			// static count = 1 and no count.index leak - the shape
+			// RuleChildModule admits - so this is exactly the shape a
+			// moved block through it should carry.
+			name:     "count-expanded module destination keeps its index",
+			declared: "module.counted[0].aws_sqs_queue.doi",
+			want:     []string{"aws_sqs_queue.solo"},
 		},
 		{
 			name:     "root to module",

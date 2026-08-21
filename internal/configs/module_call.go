@@ -321,7 +321,24 @@ func (mc *ModuleCall) VariablesUsing(ctx context.Context, eval *StaticEvaluator)
 			Subject:   fmt.Sprintf("var.%s", variable.Name),
 			DeclRange: v.Range,
 		}
-		return eval.Evaluate(ctx, v.Expr, ident)
+		// EvaluateStructural, not Evaluate: v.Expr is this module-call
+		// argument's own literal, most often a list or object constructor
+		// (terraform-aws-modules' own "ingress_with_cidr_blocks = [{...}]"
+		// idiom is one of many). A single genuinely dynamic field nested
+		// inside it - a sibling attribute reading a DIFFERENT module's
+		// output, say - must not make every OTHER, statically-known part of
+		// this SAME value (another field, or simply the collection's own
+		// length) unrecoverable too. See EvaluateStructural's own doc for
+		// the full argument and GitHub issue #304 for the shape that
+		// surfaced it: Evaluate could not even learn how many elements a
+		// list had because one of them, elsewhere, read a live VPC's own
+		// CIDR block. Every caller that already gates on diags.HasErrors()
+		// before trusting the value - the convention this whole package
+		// uses - is unaffected: EvaluateStructural returns the identical
+		// (value, diagnostics) pair Evaluate would whenever any diagnostic
+		// is not classifiable as a refused reference, or the value it
+		// renders anyway is not wholly known.
+		return eval.EvaluateStructural(ctx, v.Expr, ident)
 	}
 }
 

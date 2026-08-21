@@ -62,6 +62,18 @@ func TestNoUnregisteredRefusalsInTheTree(t *testing.T) {
 	if len(dirs) < 500 {
 		t.Fatalf("found only %d configuration directories under %v; the walk is not reaching the tree it is supposed to cover", len(dirs), sweepRoots)
 	}
+	// live and internal alone hold on the order of 1700 configuration
+	// directories; .corpus, when present, adds several thousand more (7748
+	// total measured 2026-08-19, .corpus fetched). 500 is loose enough that
+	// a sweep silently missing .corpus entirely - which is exactly what
+	// happened when filepath.WalkDir did not descend a symlinked .corpus
+	// root - still clears it and passes. When .corpus is actually on disk,
+	// demand a count only a real walk of it would produce.
+	if corpusRoot := filepath.Join(root, ".corpus"); dirExists(corpusRoot) && len(dirs) < 3000 {
+		t.Fatalf("found only %d configuration directories under %v even though %s exists; "+
+			"a sweep root that resolves but is not actually being descended (e.g. a symlink filepath.WalkDir skipped) "+
+			"would look exactly like this - see configDirs's filepath.EvalSymlinks step", len(dirs), sweepRoots, corpusRoot)
+	}
 
 	known := map[string]bool{}
 	for _, r := range AllRefusals() {
@@ -124,6 +136,19 @@ func analyzeSafely(t *testing.T, dir string) (report Report, panicked any) {
 // configDirs returns every directory under the sweep roots holding at least
 // one .tf or .tf.json file. A root that does not exist is skipped: .corpus is
 // gitignored and absent until someone runs `just corpus-fetch`.
+//
+// Every sweep root is resolved with filepath.EvalSymlinks before the walk.
+// filepath.WalkDir Lstats its own root argument, so when the root itself is a
+// symlink (most worktrees symlink .corpus in rather than refetch it - see
+// HANDOFF.md), WalkDir sees a non-directory entry, calls the walk function
+// once for that entry, and returns without ever descending into it. The
+// walk then silently covers only the roots that happened to be real
+// directories, finishes in a couple of seconds instead of several minutes,
+// and reports a plausible-looking count. Resolving the root first turns a
+// symlinked root into the real path WalkDir already handles correctly;
+// nested symlinks under a sweep root are left alone; the corpus's own
+// symlinks are all to individual files, not directories, so WalkDir's normal
+// per-entry handling already treats them as leaves.
 func configDirs(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -132,6 +157,9 @@ func configDirs(t *testing.T, root string) []string {
 		base := filepath.Join(root, name)
 		if _, err := os.Stat(base); err != nil {
 			continue
+		}
+		if resolved, err := filepath.EvalSymlinks(base); err == nil {
+			base = resolved
 		}
 		err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
@@ -155,9 +183,76 @@ func configDirs(t *testing.T, root string) []string {
 	return out
 }
 
+// TestConfigDirsFollowsASymlinkedSweepRoot proves configDirs walks through a
+// sweep root that is itself a symlink, not just a real directory.
+//
+// filepath.WalkDir Lstats its own root argument. When that root is a symlink
+// to a directory, Lstat reports it as a non-directory entry, WalkDir calls
+// the walk function once for that single entry, and returns without ever
+// descending - the directory behind the symlink is never visited. Most
+// worktrees symlink .corpus in rather than refetch it (see HANDOFF.md's
+// "materialize a real directory" trap), and .corpus is itself one of
+// sweepRoots, so this was not a hypothetical: it silently limited every such
+// worktree's sweep to live/ and internal/ while still reporting a plausible
+// "analyzed N loadable configurations" line and a clean pass.
+//
+// Revert the filepath.EvalSymlinks call in configDirs to see this test fail:
+// dirs comes back without the .tf directory behind the symlinked root.
+func TestConfigDirsFollowsASymlinkedSweepRoot(t *testing.T) {
+	root := t.TempDir()
+
+	real := t.TempDir()
+	nested := filepath.Join(real, "modules", "example")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "main.tf"), []byte(`resource "null_resource" "x" {}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// ".corpus" is not a magic string here - it is drawn from sweepRoots
+	// itself, so this test tracks whatever the real sweep actually walks.
+	found := false
+	for _, name := range sweepRoots {
+		if name == ".corpus" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("sweepRoots %v no longer contains \".corpus\"; update this test to name whichever root worktrees symlink in", sweepRoots)
+	}
+
+	link := filepath.Join(root, ".corpus")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+
+	dirs := configDirs(t, root)
+
+	want, err := filepath.EvalSymlinks(nested)
+	if err != nil {
+		t.Fatalf("resolving the expected directory: %s", err)
+	}
+	for _, d := range dirs {
+		if d == want {
+			return
+		}
+	}
+	t.Fatalf("configDirs(%q) = %v, want it to include %s (the .tf directory reached only through the symlinked .corpus root); "+
+		"a symlinked sweep root is being skipped instead of walked", root, dirs, want)
+}
+
 func rel(root, dir string) string {
 	if r, err := filepath.Rel(root, dir); err == nil {
 		return r
 	}
 	return dir
+}
+
+// dirExists reports whether path exists, following symlinks - the same
+// existence test configDirs itself uses to decide whether a sweep root has
+// been fetched.
+func dirExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

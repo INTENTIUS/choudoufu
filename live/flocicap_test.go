@@ -66,12 +66,16 @@ func TestFlociServiceCapability(t *testing.T) {
 }
 
 func TestFlociTypeCapability(t *testing.T) {
+	// aws_redshift_cluster's CreateCluster misrouted to the SQS handler on
+	// every digest through sha256:488f4d6d. Re-probed 2026-08-18 against
+	// the pinned digest: create-cluster now succeeds and returns
+	// ClusterStatus "available" - the honest status is implemented.
 	cap, ok := FlociTypeCapability(pinnedDigest, "aws_redshift_cluster", "")
 	if !ok {
 		t.Fatal("expected a manifest entry for aws_redshift_cluster at the pinned digest")
 	}
-	if cap.Status != FlociUnimplemented {
-		t.Errorf("aws_redshift_cluster status = %q, want %q", cap.Status, FlociUnimplemented)
+	if cap.Status != FlociImplemented {
+		t.Errorf("aws_redshift_cluster status = %q, want %q", cap.Status, FlociImplemented)
 	}
 
 	// aws_qldb_ledger was FlociBroken (HTML-error-page crash) until the

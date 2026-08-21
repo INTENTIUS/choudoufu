@@ -814,6 +814,196 @@ demo-corpus-autoscaling-complete:
 demo-corpus-alb-complete:
     bash live/e2e/corpus-alb-complete/run.sh
 
+# hongbo-miao/hongbomiao.com's own "Labelbox" integration (live/corpus-
+# manifest.json, pinned by commit - no tag, see that entry's own comment),
+# the SECOND OpenTofu-native estate this goal has crossed and the first to
+# reach all five stages: every file in it, root and leaf modules alike, is
+# genuinely .tofu-suffixed (not just self-described as OpenTofu-native the
+# way corpus-sumaform-aws is) - proven inside the script itself by showing
+# stock terraform sees an empty directory here. Three real, unmodified leaf
+# modules (an S3 bucket, its CORS configuration, an IAM role with an inline
+# S3-read policy trusting Labelbox's own published AWS account), copied
+# byte-identical from the pinned commit; this script supplies its own root
+# wiring in place of the real project's remote-state-coupled environment
+# root, the same convention corpus-sumaform-aws uses for module.base's
+# network. All five stages pass for real: 4 resources cold-deployed, 2
+# stamped (the other 2 are correctly UNTAGGABLE - a schema-admitted,
+# client-named CORS configuration and an inline role policy - and still
+# plan and apply correctly), an empty replan with the state file deleted,
+# a genuine no-op apply, and drift on the bucket's tags reconverging
+# without touching the role. See the script's own header for two real,
+# non-blocking findings (deprecated shadow-attribute drift during
+# verification; an already-documented no-orphan-recovery warning for the
+# schema-admitted CORS type). Needs Docker, the AWS CLI, and the real
+# `tofu` binary (not just `terraform` - see the header for why); runs on
+# its own port (4724).
+demo-corpus-hongbomiao-labelbox:
+    bash live/e2e/corpus-hongbomiao-labelbox/run.sh
+
+# hongbo-miao/hongbomiao.com's own "storage" environment bootstrap section
+# (live/corpus-manifest.json, pinned by commit - same repo and pin as
+# corpus-hongbomiao-labelbox, a SECOND disjoint self-contained slice of it):
+# the three module calls at the top of environments/production/aws/storage/
+# main.tofu that read no terraform_remote_state at all, before that file's
+# next section starts reading network's - the shared production S3 bucket,
+# a second independent IoT-data S3 bucket, and the Kafka KMS key (an
+# aws_kms_key/aws_kms_alias pair). Unlike Labelbox, this exercises the same
+# leaf module (amazon_s3_bucket) called twice under different module names,
+# plus a server-assigned-ID taggable type paired with a client-named
+# untaggable one that is already a ratified DefaultTable row rather than a
+# schema fallback. All five stages pass for real: 4 resources cold-deployed,
+# 3 stamped (the KMS alias is correctly UNTAGGABLE), an empty replan with
+# the state file deleted and identities re-asserted against the AWS CLI's
+# own answer, a genuine no-op apply, and drift on the IoT-data bucket's tags
+# reconverging without touching the production bucket or the KMS key. See
+# the script's own header for why Amazon SageMaker (the other candidate
+# section) was ruled out: floci itself returns UnknownOperationException for
+# CreateNotebookInstance, confirmed directly before writing this script.
+# Needs Docker, the AWS CLI, and the real `tofu` binary; runs on its own
+# port (4725).
+demo-corpus-hongbomiao-storage:
+    bash live/e2e/corpus-hongbomiao-storage/run.sh
+
+# OvertureMaps/terraform-aws-overture-tiles (live/corpus-manifest.json,
+# pinned by TAG v1.2.0 AND commit - the third OpenTofu-native crossing, and
+# the first with a real tagged release): a real, actively-maintained AWS
+# Batch/S3/CloudFront tile-generation module from the Overture Maps
+# Foundation, CI-verified against OpenTofu exclusively (tofu fmt/validate/
+# test/tflint, mock_provider tests - terraform never appears in its own
+# CI) though its own HCL is plain .tf and Terraform-compatible too, so the
+# evidence here is in tooling rather than syntax. Stage 1 (cold deploy, 26
+# real resources) passes clean. Stages 2-3 are genuinely BLOCKED, and
+# asserted as such rather than skipped or routed around: a real floci bug
+# (lex00/floci#72 - AWS Batch's TagResource path misroutes to AppSync's
+# catch-all handler) blocks 3 of 26 resources from stamping, and a real
+# choudoufu gap (INTENTIUS/choudoufu#322 - an untaggable admitted type with
+# a server-assigned name component hard-aborts the whole live-plan) was
+# found and worked around via the module's own name_overrides input rather
+# than fixed. See the script's own header for the full evidence, the exact
+# scoping, and both issues. Needs Docker, the AWS CLI, and the real `tofu`
+# binary; runs on its own port (4726).
+demo-corpus-overture-tiles:
+    bash live/e2e/corpus-overture-tiles/run.sh
+
+# The fourth OpenTofu-native crossing: XanCloud/xancloud-iac's own
+# landing-zone-basic blueprint (VPC + CloudTrail + account-level IAM
+# baseline, 42 resource instances), pinned by tag v0.2.0 and commit. A
+# young, single-maintainer, actively-developed AWS landing-zone
+# accelerator whose README and docs describe it as "OpenTofu-first"
+# throughout, run with its own examples/dev.tfvars unmodified. See the
+# script's own header for the full evidence and exactly which two files
+# (providers.tf, versions.tf) this crossing patches for emulator wiring
+# and why. Needs Docker, the AWS CLI, and the real `tofu` binary; runs on
+# its own port (4727).
+demo-corpus-xancloud-iac:
+    bash live/e2e/corpus-xancloud-iac/run.sh
+
+# The fifth OpenTofu-native crossing, and a THIRD disjoint slice of
+# hongbo-miao/hongbomiao.com (live/corpus-manifest.json, same pin as
+# corpus-hongbomiao-labelbox and corpus-hongbomiao-storage): the "Harbor"
+# section of environments/production/aws/kubernetes/main.tofu (S3 bucket +
+# IAM user + inline user policy) - the ONE module block in that whole
+# environment that needs no EKS cluster, no OIDC provider and no remote
+# state, unlike every other IAM-role module there
+# (velero_iam_role/mimir_iam_role/... all take
+# amazon_eks_cluster_oidc_provider(_arn) from the real EKS cluster this
+# file also builds). Exercises aws_iam_user/aws_iam_user_policy, a
+# genuinely different resource pair from Labelbox's aws_iam_role/
+# aws_iam_role_policy, both already-ratified DefaultTable rows. All five
+# stages pass for real: 3 resources cold-deployed, 2 stamped (the inline
+# user policy is correctly UNTAGGABLE), an empty replan with the state
+# file deleted and identities re-asserted against the AWS CLI's own
+# answer, a genuine no-op apply, and drift on the bucket's tags
+# reconverging without touching the user. See the script's own header for
+# why network/main.tofu (zero resources) and every OIDC-coupled IAM role
+# in kubernetes/main.tofu were ruled out. Needs Docker, the AWS CLI, and
+# the real `tofu` binary; runs on its own port (4728).
+demo-corpus-hongbomiao-harbor:
+    bash live/e2e/corpus-hongbomiao-harbor/run.sh
+
+# The sixth OpenTofu-native crossing, from a fresh sourcing search:
+# giantswarm/giantswarm-aws-account-prerequisites (live/corpus-manifest.json,
+# pinned by tag v8.2.2 and commit), the crossplane/ module - Giant Swarm's
+# own customer-facing AWS account prerequisites, genuine .tofu files, and
+# the first estate in this lane from a commercial vendor's production
+# repository rather than a module registry, a personal monorepo or a
+# single-maintainer accelerator. All five stages pass for real against the
+# fully unmodified module as of 2026-08-19: test_plan was BLOCKED at exactly
+# 2 sites, both unadmitted *_exclusive enforcer types, and #334 ratified both
+# rows, so the script's own cut-down control stage retired with the block it
+# controlled for. Needs Docker, the AWS CLI, and the real `tofu` binary; runs
+# on its own port (4729).
+demo-corpus-giantswarm-crossplane:
+    bash live/e2e/corpus-giantswarm-crossplane/run.sh
+
+# The eighth OpenTofu-native crossing - counted off
+# live/corpus-crossing-manifest.json's own lane field, which reads 7 before
+# this one; the ordinals in the recipes above were written when the lane was
+# shorter and do not all agree with it. From a fresh sourcing search:
+# evoteum/tofu-modules (live/corpus-manifest.json, pinned by commit -
+# the repository publishes no tags and its README says why), the
+# aws/networking and aws/dynamodb modules - Evoteum Ltd's own reusable
+# module library, the second commercial vendor in this lane. Its
+# OpenTofu-native evidence is of four independent kinds and includes the
+# only one so far that Terraform could not even parse: .tofutest.hcl unit
+# tests. All five stages PASS for real - 10 instances cold-deployed, 7
+# stamped, 3 route table associations correctly UNTAGGABLE and re-derived
+# from their tagged parents, an empty replan with markers re-read via the
+# AWS CLI, a genuine no-op apply, and drift on the VPC's Name tag
+# reconverging without touching anything else. It is the first crossing in
+# either lane whose for_each keys fall outside the AWS tag-value charset,
+# so internal/live/markers' address escaping is load-bearing here and the
+# expected escaped markers are asserted by hand. Needs Docker, the AWS CLI,
+# and the real `tofu` binary; runs on its own port (4730).
+demo-corpus-evoteum-modules:
+    bash live/e2e/corpus-evoteum-modules/run.sh
+
+# rust-lang/simpleinfra's terraform/dns estate - the Rust project's real
+# production DNS configuration for seven domains it owns, crates.io included.
+# 35 instances, and the split is the point: 7 aws_route53_zone are TAGGABLE
+# and carry markers, 28 aws_route53_record carry no tags at all and must
+# re-derive their identity from their tagged parent zone: 28 of 35 instances,
+# 80%, carry no marker at all. (No claim about the manifest's maximum - that
+# would need every entry counted, and it has not been.)
+#
+# It is not a duplicate of demo-repeated-module, which targets the same
+# .corpus directory for issue #280: that script applies the estate with the
+# live block already declared, so it never cold-deploys, never runs
+# live-import, and has no drift stage. This runs all five. Stage 5 is the one
+# worth reading - it drifts an UNTAGGABLE record set out of band, which no
+# other crossing's drift stage does, so the derived-from-tagged identity has
+# to be right before the drift is even visible.
+#
+# All five stages PASS for real as of 2026-08-19, with three deltas from the
+# published form (backend removed #268, provider pin #269, emulator flags) -
+# the same three .corpus/simpleinfra/terraform/team-members-access needed,
+# minus its fourth: this estate declares no data block anywhere, asserted
+# rather than assumed. Needs Docker, the AWS CLI, and the real `terraform`
+# binary (it is a Terraform-authored estate); runs on its own port (4741).
+demo-corpus-simpleinfra-dns:
+    bash live/e2e/corpus-simpleinfra-dns/run.sh
+
+# .corpus/mastino/global/dns - DataCite's own global DNS root module
+# (datacite/mastino), the second-largest of #274's twenty-eight
+# offline-clean estates and the largest that had never touched a cloud.
+# 54 blocks, 63 instances: 4 aws_route53_zone - TWO of them both named
+# datacite.org, one public and one private - and 59 aws_route53_record,
+# none of which can carry a tag at all. So 4 markers carry the identity of
+# 63 instances - 59 of 63, or 94% derived-from-tagged, against
+# corpus-simpleinfra-dns's 28 of 35 - and the two same-named zones make the
+# marker the only thing that can tell a stateless replan which zone a block
+# owns. It is also the first crossing
+# with count.index arithmetic in an identity-bearing argument
+# (name = "staging${count.index + 3}.datacite.org", count = 10, all ten
+# rendered identities asserted individually). One estate-owned wall found
+# and documented in the script's header: the four apex NS blocks cannot be
+# CREATEd from an empty account because Route 53 makes that record set
+# itself, so DELTA 5 adds the allow_overwrite the estate's own author
+# already writes on wp-prod-staging. Needs Docker, the AWS CLI and stock
+# `terraform` for stage 1; runs on its own port (4731).
+demo-corpus-mastino-dns:
+    bash live/e2e/corpus-mastino-dns/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #
@@ -999,6 +1189,13 @@ survey-render:
 # Compare the sources describing each type's identity -> live/identity-sources.json.
 identity-sources:
     go run ./tools/row-gen -sources
+
+# Which markerless types with a documented composite import can have their
+# exported `id` recorded whole (#337), into live/composite-import-roster.json.
+# Reads live/survey-full.json and live/import-grammar.json. No provider, no
+# network.
+composite-import:
+    go run ./tools/row-gen -composite-import
 
 # live/LIMITATIONS.md's per-refusal content (#110), from the three refusal
 # registries, the corpus artifact above, and live/wo-sweep.json's residue

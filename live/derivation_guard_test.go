@@ -111,6 +111,17 @@ const estateGenCohortReason = "estate-gen per-cohort typeOverrides: Data entries
 // argue for.
 var typeLiteralSurfaces = map[string]typeLiteralSurface{
 	// ---- product path -------------------------------------------------
+	"internal/live/discovery/discovery.go": {
+		Reason: "iamServiceLinkedRoleSibling names the one pair, aws_iam_role and aws_iam_service_linked_role (issue #302). " +
+			"IAM has no ListServiceLinkedRoles operation, so aws_iam_role's own native list call returns every " +
+			"service-linked role too, right alongside the ordinary ones. This pair's ratified identity does not carry the " +
+			"same ImportSyntax or IdentityAttrs the way defaultAdopterSiblings' three prefix-derived pairs do (aws_iam_role " +
+			"imports by bare role name; aws_iam_service_linked_role's documented import ID is the role's ARN), so no " +
+			"prefix-plus-table derivation covers it generically the way defaultAdopterSiblings covers #305's family. " +
+			"tagging.go's iamRoleEntry already hand-curates the identical fact one join stage earlier, for the ARN-shape " +
+			"leg rather than this native-list leg.",
+		Data: 0, Code: 2,
+	},
 	"internal/live/foreign/classify.go": {
 		Reason: "foreign-resource matchTable: which argument makes a live resource the one a declared block means. Each entry's " +
 			"justification is an AWS uniqueness guarantee (ELBv2 names unique per account/region, an SNS ARN built out of its " +
@@ -175,6 +186,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"sweep's report can state whether its own derived buckets catch them. Naming them is the control in the " +
 			"experiment; deriving them would make the check circular.",
 		Data: 0, Code: 2,
+	},
+	"tools/importer-probe/main.go": {
+		Reason: "controlTypes: four types with a documented Import section (issue #331), probed alongside the " +
+			"identity_schema_wire_only bucket - itself read at runtime from live/identity-sources.json, not hand-listed " +
+			"here - to prove the discriminator reports HAS_IMPORTER for something known to have one. Same shape as " +
+			"tools/wo-sweep's own positive control, immediately above: naming the control is the experiment, deriving it " +
+			"would make the check circular.",
+		Data: 4, Code: 0,
 	},
 
 	// ---- estate-gen shared machinery ----------------------------------
@@ -254,8 +273,24 @@ const (
 	// NeedsSupporting: []string{"aws_lb","aws_subnet","aws_vpc"}) and two
 	// Code-classed g.byType[...] sibling lookups (aws_lb's Apply reads
 	// "aws_subnet", aws_api_gateway_vpc_link's Apply reads "aws_lb").
-	typeLiteralDataTotal = 426
-	typeLiteralCodeTotal = 126
+	// 126 -> 128 code, 2026-08-19 (issue #302): internal/live/discovery/
+	// discovery.go's new iamServiceLinkedRoleSibling names the one
+	// aws_iam_role/aws_iam_service_linked_role pair as a function-body
+	// const, because that pair's ratified identity does not match the way
+	// defaultAdopterSiblings' three prefix-derived pairs do and so cannot
+	// be derived the same way. Two Code literals, no Data, nothing moved.
+	// 426 -> 430 data, 2026-08-19 (issue #331 follow-up): new
+	// tools/importer-probe/main.go's controlTypes, four fixed positive
+	// controls (aws_iam_role, aws_s3_bucket, aws_iam_role_policy_attachment,
+	// aws_security_group) proving the tool's Importer discriminator reports
+	// HAS_IMPORTER for something known to have one. The tool's actual
+	// subject - the identity_schema_wire_only bucket - is read from
+	// live/identity-sources.json at runtime rather than hand-listed, so
+	// this file gains only the control set, same shape as tools/wo-sweep's
+	// own two-literal control immediately above it in the registry. Four
+	// Data literals added, no Code, nothing moved.
+	typeLiteralDataTotal = 430
+	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and
@@ -280,6 +315,7 @@ const (
 var generatedTypeLiteralFiles = []string{
 	"internal/live/identity/contentmatch_generated.go",
 	"internal/live/identity/discoverablefallback_generated.go",
+	"internal/live/identity/idnotwhole_generated.go",
 	"internal/live/identity/markerless_generated.go",
 	"internal/live/identity/table_generated.go",
 	"internal/live/lint/admission_generated.go",

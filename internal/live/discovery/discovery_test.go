@@ -719,6 +719,83 @@ func TestDiscoverNoTags(t *testing.T) {
 	}
 }
 
+// TestDiscoverNoTagsIsGracefulForAnUntaggableType is issue #322: a listed
+// object of a type whose OWN SCHEMA carries no tags attribute at all (real
+// examples: aws_iam_role_policy, aws_s3_bucket_policy) is not a provider
+// bug - it is the permanent, expected shape [markerCapable]/[typeTaggable]
+// already route gracefully everywhere else in this package (the sweep gate
+// a few lines above scanType's loop, and #272's unique-name leg in
+// cloudcontrol.go). It must not raise the same hard [ProblemNoTags] error
+// TestDiscoverNoTags pins for a genuinely anomalous object of a
+// schema-TAGGABLE declared type (aws_vpc, there) - and, critically, it must
+// not abort discovery for the rest of the estate the way a hard error does
+// (internal/command/live_plan.go's discoDiags.HasErrors() early return).
+//
+// aws_route_table is repurposed as the untaggable type here (via
+// listableUntagged) rather than adding an aws_iam_role_policy block to the
+// P0.1 fixture, so every other address in allDiscovered still exercises the
+// real fixture's real declarations, unmodified, exactly as the "rest of the
+// plan still resolves" assertion needs.
+func TestDiscoverNoTagsIsGracefulForAnUntaggableType(t *testing.T) {
+	cloud := newFakeCloud()
+	want := ownAllDiscovered(cloud)
+	cloud.listableUntagged("aws_route_table")
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	assertNoErrors(t, diags)
+
+	if got := res.ProblemsOfKind(ProblemNoTags); len(got) != 0 {
+		t.Errorf("a schema-untaggable declared type still raised the hard ProblemNoTags error:\n%s", renderProblems(got))
+	}
+	if len(res.ProblemsOfKind(ProblemUnreadableMarker)) == 0 {
+		t.Errorf("the unbound untaggable instance produced no per-address warning:\n%s", res)
+	}
+	if _, ok := res.BindingFor(mustAddr(t, `aws_route_table.main`)); ok {
+		t.Error("an untaggable type's object was bound through tags it structurally cannot carry")
+	}
+
+	// Confirm the blast radius: every OTHER declared instance in the same
+	// estate still binds to its live identity. Before the fix, none of these
+	// would ever be checked - live-plan exited 1 before projection ran at
+	// all.
+	for addr, id := range want {
+		if addr == `aws_route_table.main` {
+			continue
+		}
+		got, ok := res.BindingFor(mustAddr(t, addr))
+		if !ok {
+			t.Errorf("%s did not bind once the untaggable escalation stopped aborting the run:\n%s", addr, res)
+			continue
+		}
+		if got.ImportID != id {
+			t.Errorf("%s bound to import ID %q, want %q", addr, got.ImportID, id)
+		}
+	}
+}
+
+// TestDiscoverNoTagsStillAbortsOnAGenuineAnomaly re-asserts TestDiscoverNoTags'
+// own claim from beside the new graceful case above, so the two cannot drift
+// apart: a schema-TAGGABLE declared type (aws_vpc has a real tags argument)
+// whose listed object comes back with no readable object at all is still a
+// provider or emulator anomaly worth aborting the whole plan over, not
+// something #322's fix silently downgrades alongside the untaggable-by-design
+// case. If this ever goes green with diags.HasErrors() false, the fix above
+// stopped distinguishing "the schema never had tags" from "the schema has
+// tags and this object mysteriously lost them."
+func TestDiscoverNoTagsStillAbortsOnAGenuineAnomaly(t *testing.T) {
+	cloud := newFakeCloud()
+	cloud.own("aws_vpc", "vpc-1", `aws_vpc.main`)
+	cloud.objects["aws_vpc"][0].noObject = true
+
+	res, diags := discoverFixture(t, cloud, Request{})
+	if !diags.HasErrors() {
+		t.Fatalf("a taggable type's objectless result produced no error after #322's fix:\n%s", res)
+	}
+	if len(res.ProblemsOfKind(ProblemNoTags)) != 1 {
+		t.Fatalf("want one no-tags problem:\n%s", res)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Request validation
 // ---------------------------------------------------------------------------
@@ -819,8 +896,16 @@ type fakeObject struct {
 	id          string
 	displayName string
 	tags        map[string]string
-	noIdentity  bool
-	noObject    bool
+	// extra are string attributes on the object's FULL resource value,
+	// beyond the id and tags every object carries. Issue #302's repro needs
+	// a listed object with a real arn attribute the way aws_iam_role's
+	// schema always has one; issue #332's needs an aws_route_table object
+	// with the vpc_id its schema always has. Same mechanism, keyed by
+	// attribute name so a third one needs no new field here - see
+	// [fakeCloud.withAttr].
+	extra      map[string]string
+	noIdentity bool
+	noObject   bool
 }
 
 // fakeCloud is a listclient.Lister backed by canned objects. It serves the
@@ -835,6 +920,7 @@ type fakeCloud struct {
 	unfilter  map[string]bool
 	missing   map[string]bool
 	untagged  map[string]bool
+	extraAttr map[string]map[string]bool
 	accountID string
 
 	requests []providers.ListResourceRequest
@@ -842,7 +928,8 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		objects: make(map[string][]*fakeObject),
+		extraAttr: make(map[string]map[string]bool),
+		objects:   make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
@@ -904,6 +991,38 @@ func (c *fakeCloud) obj(typeName, id string, tags map[string]string) {
 		displayName: id,
 		tags:        tags,
 	})
+}
+
+// withAttr makes a type's resource schema carry one more plain computed
+// string attribute, beyond the id and tags every type here already has.
+// [importIdentityFromResource] reads a type's own ratified identity attribute
+// off the listed object regardless of which declared type's list call
+// surfaced it, so the two shipped instances of that - aws_iam_role's arn
+// ("Amazon Resource Name (ARN) specifying the role.", per the AWS provider's
+// iam_role.html.markdown doc page, issue #302) and aws_route_table's vpc_id
+// ("The VPC ID.", per route_table.html.markdown, issue #332) - are the same
+// mechanism with a different attribute name, and this is it.
+func (c *fakeCloud) withAttr(typeName, attr string) {
+	if c.extraAttr[typeName] == nil {
+		c.extraAttr[typeName] = make(map[string]bool)
+	}
+	c.extraAttr[typeName][attr] = true
+}
+
+// ownWithAttrs is [fakeCloud.own] plus values for attributes registered via
+// [fakeCloud.withAttr]. An attribute in the schema with no value here reads
+// null off the object, which is the "the provider served the attribute but
+// left it empty" case every caller of [importIdentityFromResource] has to
+// survive.
+func (c *fakeCloud) ownWithAttrs(typeName, id, address string, attrs map[string]string) {
+	c.own(typeName, id, address)
+	objs := c.objects[typeName]
+	objs[len(objs)-1].extra = attrs
+}
+
+// ownWithARN is [fakeCloud.ownWithAttrs] for the arn attribute alone.
+func (c *fakeCloud) ownWithARN(typeName, id, arn, address string) {
+	c.ownWithAttrs(typeName, id, address, map[string]string{"arn": arn})
 }
 
 // noFilter makes a type's list schema offer no filter argument, the way the
@@ -970,6 +1089,9 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 			"id":   {Type: cty.String, Computed: true},
 			"tags": {Type: cty.Map(cty.String), Optional: true},
 		}
+		for attr := range c.extraAttr[name] {
+			attrs[attr] = &configschema.Attribute{Type: cty.String, Computed: true}
+		}
 		if c.untagged[name] {
 			delete(attrs, "tags")
 		}
@@ -1027,18 +1149,35 @@ func (c *fakeCloud) ListResourceStream(_ context.Context, req providers.ListReso
 			})
 		}
 		if req.IncludeResourceObject && !o.noObject {
-			tags := cty.NullVal(cty.Map(cty.String))
-			if len(o.tags) > 0 {
-				vals := map[string]cty.Value{}
-				for k, v := range o.tags {
-					vals[k] = cty.StringVal(v)
+			attrs := map[string]cty.Value{"id": cty.StringVal(o.id)}
+			for attr := range c.extraAttr[req.TypeName] {
+				if v := o.extra[attr]; v != "" {
+					attrs[attr] = cty.StringVal(v)
+				} else {
+					attrs[attr] = cty.NullVal(cty.String)
 				}
-				tags = cty.MapVal(vals)
 			}
-			ev.ResourceObject = cty.ObjectVal(map[string]cty.Value{
-				"id":   cty.StringVal(o.id),
-				"tags": tags,
-			})
+			if !c.untagged[req.TypeName] {
+				// c.untagged only trimmed the schema's "tags" attribute
+				// (GetProviderSchema, above) - the object this stream
+				// emitted still carried one regardless, so no scenario built
+				// on listableUntagged could ever exercise [markers.TagsOf]'s
+				// runtime "this object's type has no tags attribute at all"
+				// case, only its schema-level twin [markerCapable] reads.
+				// Real AWS never emits a tags key for a genuinely untaggable
+				// type like aws_iam_role_policy either, so the object here
+				// now matches the schema (issue #322).
+				tags := cty.NullVal(cty.Map(cty.String))
+				if len(o.tags) > 0 {
+					vals := map[string]cty.Value{}
+					for k, v := range o.tags {
+						vals[k] = cty.StringVal(v)
+					}
+					tags = cty.MapVal(vals)
+				}
+				attrs["tags"] = tags
+			}
+			ev.ResourceObject = cty.ObjectVal(attrs)
 		}
 		if !emit(ev) {
 			break

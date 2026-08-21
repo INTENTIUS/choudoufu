@@ -36,15 +36,13 @@ import (
 // round-trips: ImportResourceState is given a string and returns an object
 // whose "id" is that string, so a type carrying a top-level string "id" is
 // exactly a type that can be re-found from one. A type without one may
-// still be importable by an identity OBJECT, but a [locatedPayload] holds a
-// single string and inventing a grammar to flatten several attributes into
-// one is what issue #105 exists to prevent - so such a type stays refused,
-// which is where it already was. Measured against hashicorp/aws 6.59.0,
-// thirteen of the 145 markerless types carry no top-level string id, of
-// which eleven reach this condition (the other two are credential material
-// and are refused before it). Closing that residue means a located payload
-// that can carry an identity OBJECT, not a wider rule here.
-// TestLocatedTypePopulation records the counts so they cannot drift
+// still be importable by an identity OBJECT; that is what
+// [LocatedIdentityComponents] answers, and a located record now carries the
+// object when the provider's own identity schema says the string is not the
+// whole identity. Measured against hashicorp/aws 6.59.0, thirteen of the 145
+// markerless types carry no top-level string id, of which eleven reach this
+// condition (the other two are credential material and are refused before
+// it). TestLocatedTypePopulation records the counts so they cannot drift
 // silently.
 //
 // It is a schema fact, not a type list: no resource type is named here or
@@ -88,11 +86,19 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 //     reachable from the block, nested attribute types and nested blocks
 //     included, minus the deprecated ones.
 //
-//  3. The type has a top-level string [locatedImportIDAttr], so an applied
-//     object has an identity that can actually be written to the store.
-//     Admitting a type whose identity could never be recorded would trade a
-//     plan refusal for an apply-time failure, which is the trade this whole
-//     mechanism is forbidden to make.
+//  3. The type has an identity this mechanism can record IN FULL - which is
+//     the top-level string [locatedImportIDAttr] for a type whose whole
+//     identity is server-minted, and every component of the provider's own
+//     identity schema for a type whose identity is composite. Where the
+//     provider serves no identity schema and its own documentation describes
+//     a composite import string it does not corroborate `id` as, the type is
+//     refused instead ([IDNotProvenWholeTypes]). See
+//     [LocatedIdentityComponents]. Admitting a type whose identity could
+//     never be recorded would trade a plan refusal for an apply-time
+//     failure, which is the trade this whole mechanism is forbidden to make,
+//     and recording only PART of a composite identity is the same trade
+//     wearing a disguise: the record would be written, the plan would be
+//     clean, and the next run's import would be handed a fragment.
 //
 // # Failing closed
 //
@@ -122,7 +128,8 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 	if credentialMaterial(schema.Block) {
 		return false
 	}
-	return hasLocatedImportID(schema.Block)
+	_, recordable := LocatedIdentityComponents(resourceType, schema)
+	return recordable
 }
 
 // hasLocatedImportID reports whether b carries a top-level string
@@ -130,6 +137,113 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 func hasLocatedImportID(b *configschema.Block) bool {
 	a, ok := b.Attributes[locatedImportIDAttr]
 	return ok && a != nil && a.Type == cty.String
+}
+
+// LocatedIdentityComponents answers the question [locatedImportIDAttr]'s own
+// doc comment used to answer by assumption: what IS this type's identity,
+// and can a located record hold the whole of it?
+//
+// components is the attribute-per-component identity a located record must
+// carry, or nil when the type's whole identity is the string
+// [locatedImportIDAttr] and a record of that string alone is complete.
+// recordable is false when the identity is composite and this mechanism
+// cannot record it, which is a refusal rather than a partial record.
+//
+// # The defect this exists to close
+//
+// The premise the located mechanism shipped on is that a type carrying a
+// top-level string "id" can be re-found from that string. That holds for a
+// type whose whole identity is server-minted, and fails for a type whose
+// identity is a server-minted LEAF under a config-known parent: the provider
+// sets "id" to the bare leaf and the import path expects <parent>/<leaf>.
+// Recording the leaf and importing by it later is a wrong identity, not a
+// missing one, and a wrong identity is invisible to every verdict-level
+// check - the record is written, the apply succeeds, and the failure arrives
+// on the NEXT run as an import of a fragment.
+//
+// # Why the provider's identity schema is the source
+//
+// It is the only account of a type's identity that is a schema fact rather
+// than a scrape, and it names the components without ordering them or
+// putting a separator between them - which is exactly what an identity
+// OBJECT import needs and an import-ID string does not. So this needs no
+// grammar, no separator and no component order, and issue #105's rule that a
+// composite must never be flattened into a plausible string is kept by
+// construction rather than by care: nothing here builds a string.
+// internal/live/projection's identityFromValues turns these components into
+// the provider's own identity object, and importTarget already ranks that
+// above the string.
+//
+// # Why the composite branch requires "id" to be one of the components
+//
+// A type whose identity schema requires something OTHER than "id" and not
+// "id" itself - an ARN, say - is a shape today's rule already serves
+// correctly, because the provider's own d.SetId put that value in "id".
+// Reclassifying it here would change what a working population records for
+// no defect. The population this is about is the one where "id" is present
+// AND insufficient, and that is the population this branch selects.
+//
+// # The second source, for the types the wire schema cannot settle
+//
+// A provider that serves no identity schema for a type leaves the wire with
+// nothing to say, and the fallback below - record the string `id` - is then
+// a bet rather than a reading. Issue #337 measured that bet: of the
+// markerless types whose Import section documents a COMPOSITE string, most
+// carry no wire identity schema at all, so nothing at run time could tell a
+// leaf `id` from a whole one and this function recorded either.
+//
+// [IDNotProvenWholeTypes] is what settles it, from the provider's own
+// documentation rather than from the wire: the Import section's scraped
+// separator and the Attribute Reference's own `id` bullet naming the same
+// join character. A type in that set has a composite documented import and
+// no corroboration that `id` is the whole of it, and this function refuses
+// it - the same refusal, for the same reason, the composite branch below
+// makes when a component cannot be read off the applied object. Refusing an
+// identity that MIGHT be a fragment and recording one that IS are not
+// symmetric errors: the first is visible immediately and the second arrives
+// on the next run as an import of half a string.
+//
+// It names no resource type, here or anywhere it reads.
+func LocatedIdentityComponents(resourceType string, schema providers.Schema) (components []string, recordable bool) {
+	if schema.Block == nil {
+		return nil, false
+	}
+	required, _ := identityAttrs(schema.IdentitySchema)
+	if !compositeIdentity(required) {
+		// Either the provider serves no identity schema at all, or the one
+		// it serves is answered by the string this mechanism already
+		// records - so the string is all there is to go on, and the
+		// question becomes whether the documentation says it is enough.
+		if _, unproven := IDNotProvenWholeTypes[resourceType]; unproven {
+			return nil, false
+		}
+		return nil, hasLocatedImportID(schema.Block)
+	}
+	for _, name := range required {
+		a := schema.Block.Attributes[name]
+		if a == nil || a.Type != cty.String {
+			// A component the applied object does not carry as a top-level
+			// string cannot be read back out of it, so the record would be
+			// incomplete. Refusing is the whole point of this function.
+			return nil, false
+		}
+	}
+	return required, true
+}
+
+// compositeIdentity reports whether required - a type's required identity
+// attributes - describes an identity that [locatedImportIDAttr] alone cannot
+// carry: "id" is one of the components and it is not the only one.
+func compositeIdentity(required []string) bool {
+	if len(required) < 2 {
+		return false
+	}
+	for _, name := range required {
+		if name == locatedImportIDAttr {
+			return true
+		}
+	}
+	return false
 }
 
 // credentialMaterial reports whether b describes a resource that holds
@@ -222,24 +336,63 @@ func walkSchemaObjectAttrs(o *configschema.Object, visit func(*configschema.Attr
 // is null, or when it is not yet known, which is what a value read from a
 // plan rather than from a finished apply looks like.
 func LocatedImportID(obj cty.Value) (string, bool) {
+	return locatedAttrString(obj, locatedImportIDAttr)
+}
+
+// LocatedIdentity reads the whole identity of an applied record-located
+// object, component by component, for writing back to the store.
+//
+// components is [LocatedIdentityComponents]'s first return. A nil or empty
+// components yields a nil map and ok == true: the type's identity is the
+// string [LocatedImportID] reads and there is no object to record, which is
+// the answer for every type the located mechanism admitted before composite
+// identities existed.
+//
+// It is all-or-nothing on purpose. A component that is absent, null, unknown
+// or marked makes the whole identity unrecordable, because a record carrying
+// SOME of a composite identity is worse than no record at all: no record
+// proposes a create, which internal/live/foreign then surfaces as an
+// unclaimed live object, whereas a partial one is handed to a later import
+// as though it were complete.
+func LocatedIdentity(obj cty.Value, components []string) (map[string]string, bool) {
+	if len(components) == 0 {
+		return nil, true
+	}
+	out := make(map[string]string, len(components))
+	for _, name := range components {
+		v, ok := locatedAttrString(obj, name)
+		if !ok {
+			return nil, false
+		}
+		out[name] = v
+	}
+	return out, true
+}
+
+// locatedAttrString reads one top-level string attribute off an applied
+// object, under the guards [LocatedImportID] documents: absent, null,
+// unknown, wrongly typed, marked and empty all answer false.
+//
+// The marked case is the one worth reading twice. A marked value is refused,
+// never unmarked. cty panics rather than errors on a marked receiver, so
+// this guard is what keeps AsString below safe (internal/live/marksafe) -
+// but the reason it REFUSES is the stronger one: an identity derived from a
+// sensitive value would be written into the estate's record store in clear,
+// which is the no-secrets rule. Refusing produces the "no usable identity to
+// record" error, which stops the run.
+func locatedAttrString(obj cty.Value, name string) (string, bool) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() {
 		return "", false
 	}
-	if !obj.Type().HasAttribute(locatedImportIDAttr) {
+	if !obj.Type().HasAttribute(name) {
 		return "", false
 	}
-	v := obj.GetAttr(locatedImportIDAttr)
+	v := obj.GetAttr(name)
 	if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
 		return "", false
 	}
 	if v.IsMarked() {
-		// A marked value is refused, never unmarked. cty panics rather
-		// than errors on a marked receiver, so this guard is what keeps
-		// AsString below safe (internal/live/marksafe) - but the reason it
-		// REFUSES is the stronger one: an identity derived from a
-		// sensitive value would be written into the estate's record store
-		// in clear, which is the no-secrets rule. Refusing produces the
-		// "no usable identity to record" error, which stops the run.
+		// See this function's doc comment: refused, never unmarked.
 		return "", false
 	}
 	s := v.AsString()

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -1106,7 +1107,7 @@ func (d *declared) walkCountBlocks(ctx context.Context, cfg *configs.Config, mod
 		// which is this modInst - carried the unkeyed path into
 		// [countBlock.instanceAddr], so a binding that did land named an
 		// address no instance has.
-		keys, diag := identity.ChildCallKeys(ctx, cfg.Module, name)
+		keys, diag := identity.ChildCallKeys(ctx, cfg, name)
 		if diag != nil {
 			// RuleChildModule already refused this call before discovery
 			// ever ran; nothing to index under it.
@@ -1425,6 +1426,33 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 				}
 				continue
 			}
+			if !markerCapable(ts) {
+				// Issue #322: the type's own schema has no tags attribute at
+				// all - [markerCapable] read the same way [typeTaggable]
+				// reads it, off the provider schema rather than off this one
+				// listed object - so no object of this type could EVER carry
+				// a marker. That is not a provider bug; it is the same
+				// expected shape [markerCapable] already routes gracefully
+				// a few lines up for the sweep leg (SweepGapNotTaggable /
+				// SweepGapObjectUntagged) and that [uniqueNameIndexFor] /
+				// [scanUniqueName] already route around entirely for a
+				// statically-named untaggable type. Escalating here to
+				// [ProblemNoTags] - an ERROR that aborts the whole plan, see
+				// [Severity] - would fail every OTHER resource in the estate
+				// over one address this run already reports gracefully: the
+				// decl.unreadable increment above feeds
+				// [unreadableMarkerProblem]'s per-address WARNING at bind
+				// time, which is the correct and sufficient diagnostic for a
+				// resource that structurally cannot carry a marker.
+				//
+				// This does not weaken the genuine anomaly one branch up:
+				// when the schema DOES declare tags (markerCapable true) but
+				// this object came back without them anyway, taggable is
+				// still false and the ProblemNoTags error below still fires,
+				// unchanged - that shape is still a real provider or emulator
+				// bug worth aborting over, not this one.
+				continue
+			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,
 				TypeName: typeName,
@@ -1496,32 +1524,116 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			continue
 		}
 
+		// bindType is the type every declared-set lookup and reported record
+		// below uses to find where this object belongs. It starts as
+		// typeName - which list call found the object - and is corrected to
+		// the marker's own type only for the cases known safe: see
+		// defaultAdopterSiblings and iamServiceLinkedRoleSibling.
+		bindType := typeName
+		// claimIdentity is the identity object the claimant carries;
+		// ordinarily r.Identity unchanged, and only ever overridden in the
+		// identity-recomposing branch below, where r.Identity's schema no
+		// longer matches bindType.
+		claimIdentity := r.Identity
 		if markerType := markerTypeOf(escaped); markerType != typeName {
-			// The estate owns this resource and its marker names an address
-			// of another type. Nothing can be done with it: binding it to the
-			// address it names would attach a plan for one resource type to a
-			// resource of another, and ignoring it would leave a resource this
-			// estate owns invisible to every section of the output. So it is
-			// the marker spec's third answer - malformed - and a human says
-			// which address it belongs to. (Audit finding C4: this used to
-			// match the declared-address set, which carried no type, and the
-			// resource was silently dropped.)
-			diags = diags.Append(problemDiag(res, Problem{
-				Kind:     ProblemMalformedMarker,
-				TypeName: typeName,
-				Marker:   raw,
-				LiveIDs:  liveIDs(importID),
-				Detail: fmt.Sprintf(
-					"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
-					typeName, req.Estate, raw, markerType, typeName),
-			}))
-			continue
+			// Both predicates name the same shape: AWS itself has no
+			// separate list call for the special case, so one type's native
+			// list call returns objects a second registered type manages.
+			// #305/#325's adopt-don't-create family (a route table is a
+			// route table, and DescribeRouteTables returns the VPC's
+			// default one right alongside every other) and #302's
+			// role/service-linked-role overlap (IAM has no
+			// ListServiceLinkedRoles, so iam:ListRoles returns both) are
+			// the two known instances. In neither is this a cross-type
+			// marker: it is the same live object this list call was always
+			// going to return, and the marker's own type - not the list
+			// call that happened to surface it - says which declared
+			// instance it is.
+			overlappingListCall := defaultAdopterSiblings(markerType, typeName) ||
+				iamServiceLinkedRoleSibling(markerType, typeName)
+			switch {
+			case overlappingListCall && sameRatifiedIdentity(markerType, typeName):
+				// The two names agree about what this type's import
+				// identity IS, so the identity [importIdentity] already
+				// read under typeName's row is bindType's identity too and
+				// carries forward unchanged. aws_default_security_group /
+				// aws_security_group and aws_default_network_acl /
+				// aws_network_acl are this case: both sides of each pair
+				// import by the object's own id.
+				bindType = markerType
+			case overlappingListCall:
+				// The two names do NOT agree, so a bindType flip alone
+				// would carry the wrong importID forward, silently. Two
+				// real instances, one per predicate:
+				//
+				//   - aws_iam_role imports by bare role name, while
+				//     aws_iam_service_linked_role's documented import ID is
+				//     the role's ARN (issue #302; see tagging.go's
+				//     iamRoleEntry doc comment).
+				//   - aws_route_table imports by the route table's own
+				//     rtb-… id, while aws_default_route_table imports by
+				//     the VPC's id - the provider's own Import section says
+				//     so and means it literally, and a route table id gets
+				//     "Error: empty result" from the real provider (issue
+				//     #332).
+				//
+				// [importIdentityFromResource] recomposes it from this same
+				// listed object's own attributes, under bindType's own
+				// ratified identity attribute rather than typeName's: the
+				// listed object is the same live object either way, so it
+				// carries every attribute either schema exports.
+				if fixedID, fixedAttr, composedOK := importIdentityFromResource(markerType, r.Resource); composedOK {
+					bindType = markerType
+					importID, idAttr, hasID = fixedID, fixedAttr, true
+					// r.Identity is typed by typeName's identity schema,
+					// not bindType's - carrying it forward under the
+					// corrected type would hand a wrongly-shaped object to
+					// whatever reads Binding.Identity downstream. Every
+					// other claimant construction that composes an identity
+					// by hand rather than trusting the list call's own
+					// schema-matched identity (tagging.go, cloudcontrol.go)
+					// already uses cty.NilVal for the same reason.
+					claimIdentity = cty.NilVal
+				} else {
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemMalformedMarker,
+						TypeName: typeName,
+						Marker:   raw,
+						LiveIDs:  liveIDs(importID),
+						Detail: fmt.Sprintf(
+							"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). This looks like the overlapping-list-call case issues #302 and #332 describe - the two types share one live object - but %s imports by a different identity than %s does and %s could not be read off the listed object, so it was not corrected automatically. Retag the resource with its own address, or remove the marker to disown it.",
+							typeName, req.Estate, raw, markerType, typeName, markerType, typeName, identityAttrNames(markerType)),
+					}))
+					continue
+				}
+			default:
+				// The estate owns this resource and its marker names an
+				// address of another, unrelated type. Nothing can be done
+				// with it: binding it to the address it names would attach a
+				// plan for one resource type to a resource of another, and
+				// ignoring it would leave a resource this estate owns
+				// invisible to every section of the output. So it is the
+				// marker spec's third answer - malformed - and a human says
+				// which address it belongs to. (Audit finding C4: this used
+				// to match the declared-address set, which carried no type,
+				// and the resource was silently dropped.)
+				diags = diags.Append(problemDiag(res, Problem{
+					Kind:     ProblemMalformedMarker,
+					TypeName: typeName,
+					Marker:   raw,
+					LiveIDs:  liveIDs(importID),
+					Detail: fmt.Sprintf(
+						"A live %s claims estate %q and carries the tofu-address value %q, which names a %s rather than a %s. A marker names the resource it is written on (see live/MARKERS.md). Retag the resource with its own address, or remove the marker to disown it.",
+						typeName, req.Estate, raw, markerType, typeName),
+				}))
+				continue
+			}
 		}
 
 		c := claimant{
 			importID:     importID,
 			identityAttr: idAttr,
-			identity:     r.Identity,
+			identity:     claimIdentity,
 			displayName:  r.DisplayName,
 			marker:       raw,
 			escaped:      escaped,
@@ -1531,11 +1643,13 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			noIdentity:   !hasID,
 		}
 
-		if entry, ok := decl.entryFor(typeName, escaped); ok {
-			entry.claimants = append(entry.claimants, c)
+		if entry, ok := decl.entryFor(bindType, escaped); ok {
+			if !claimantAlreadyPresent(entry.claimants, c) {
+				entry.claimants = append(entry.claimants, c)
+			}
 			continue
 		}
-		if decl.declares(typeName, escaped) {
+		if decl.declares(bindType, escaped) {
 			// A declared instance whose identity came out of the
 			// configuration rather than out of a marker: nothing was waiting
 			// to be found here, and the projection reads it by the identity
@@ -1544,8 +1658,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// whether this object is the instance that address names, or a
 			// second object left carrying its marker (GitHub issue #244).
 			// Reported, never acted on: see displaced.go.
-			if want, displaced := decl.displacedFrom(typeName, escaped, c); displaced {
-				diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, c)))
+			if want, displaced := decl.displacedFrom(bindType, escaped, c); displaced {
+				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
 			}
 			continue
 		}
@@ -1556,11 +1670,11 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// question slots answer. Parking it on the block hands it to the set
 		// matcher, which either binds it by slot or - for an estate with no
 		// slots - puts it back where it was.
-		if cb := decl.countBlockFor(typeName, escaped); cb != nil {
+		if cb := decl.countBlockFor(bindType, escaped); cb != nil {
 			cb.extra = append(cb.extra, c)
 			continue
 		}
-		if blk, ok := decl.blocks[typeName][escaped]; ok && blk.keyed {
+		if blk, ok := decl.blocks[bindType][escaped]; ok && blk.keyed {
 			// The marker names the resource block, not one of its
 			// instances: markers written before instance keys were part of
 			// the address. For a for_each block nothing distinguishes which
@@ -1570,7 +1684,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			continue
 		}
 		res.Orphans = append(res.Orphans, OwnedResource{
-			TypeName:     typeName,
+			TypeName:     bindType,
 			ImportID:     importID,
 			IdentityAttr: idAttr,
 			Identity:     r.Identity,
@@ -1616,6 +1730,241 @@ func markerTypeOf(escaped string) string {
 	}
 	head, _, _ := strings.Cut(escaped, ".")
 	return head
+}
+
+// defaultAdopterPrefix names the AWS provider's "adopt the account or VPC's
+// already-existing default object rather than creating one" family:
+// aws_default_vpc, aws_default_subnet, aws_default_vpc_dhcp_options,
+// aws_default_route_table, aws_default_security_group and
+// aws_default_network_acl are the whole documented set (every one of their
+// doc pages states, verbatim, "Terraform does not _create_ this resource but
+// instead attempts to \"adopt\" it into management"). Only the last three are
+// admitted into [identity.DefaultTable] today (#305); [defaultAdopterSiblings]
+// derives the relationship from this prefix and the ratified table rather
+// than a hand list of three pairs, so admitting aws_default_vpc or
+// aws_default_subnet later needs no change here to be recognized too.
+const defaultAdopterPrefix = "aws_default_"
+
+// defaultAdopterSiblings reports whether a and b are the two admitted names
+// of one adopt-don't-create pair: the plain type AWS mints exactly one of per
+// VPC or account, and the aws_default_* type that manages that same live
+// object under a second registered name.
+//
+// What it proves is that the two names denote ONE live object, which is what
+// [scanType] needs before it will let a marker of one type bind an object the
+// other type's list call surfaced: the name relationship is exact rather than
+// a prefix guess (aws_default_X pairs only with aws_X, and neither side may
+// itself be a default adopter of the other), both names are admitted, and both
+// are ratified server-assigned - which is what makes the object AWS itself
+// minted the one either name manages.
+//
+// It deliberately does NOT require the two rows to agree about what that
+// object's import identity is. It used to, and that equality read as a safety
+// proof while actually concealing a defect: aws_default_route_table's ratified
+// row claimed the route table's own rtb-… id, matching aws_route_table's, and
+// the real provider answers "Error: empty result" for it - the documented and
+// verified import identity is the VPC's id (issue #332). "The same object" and
+// "the same import identity" are two facts, so they are checked separately
+// now: [sameRatifiedIdentity] decides whether the identity already read under
+// the listing type's row carries forward unchanged or has to be recomposed
+// under the marker type's own row by [importIdentityFromResource]. A pair whose
+// identities diverge and whose marker type's identity attribute cannot be read
+// off the listed object still refuses as a malformed marker; nothing is
+// guessed.
+//
+// This is [scanType]'s only caller, which is why the check runs on demand
+// rather than as a table precomputed at package init: the admitted set is
+// small (three pairs today) and the lookups are two map reads.
+func defaultAdopterSiblings(a, b string) bool {
+	plain, def := a, b
+	if strings.HasPrefix(a, defaultAdopterPrefix) {
+		plain, def = b, a
+	}
+	if !strings.HasPrefix(def, defaultAdopterPrefix) || strings.HasPrefix(plain, defaultAdopterPrefix) {
+		return false
+	}
+	if defaultAdopterPrefix+strings.TrimPrefix(plain, "aws_") != def {
+		return false
+	}
+	plainTI, ok := identity.LookupType(plain)
+	if !ok {
+		return false
+	}
+	defTI, ok := identity.LookupType(def)
+	if !ok {
+		return false
+	}
+	return plainTI.ServerAssigned && defTI.ServerAssigned
+}
+
+// defaultAdopterPlainSibling names the plain type an aws_default_* adopter
+// shares its one live object with - aws_route_table for
+// aws_default_route_table - or reports false when typeName is not an admitted
+// adopter with an admitted sibling.
+//
+// It is [defaultAdopterSiblings] asked from one side instead of two, for the
+// callers that hold one type name and need the other rather than a yes/no; the
+// pairing rule and its proof live there.
+func defaultAdopterPlainSibling(typeName string) (string, bool) {
+	if !strings.HasPrefix(typeName, defaultAdopterPrefix) {
+		return "", false
+	}
+	plain := "aws_" + strings.TrimPrefix(typeName, defaultAdopterPrefix)
+	if !defaultAdopterSiblings(typeName, plain) {
+		return "", false
+	}
+	return plain, true
+}
+
+// sameRatifiedIdentity reports whether two admitted types' ratified rows
+// describe the same import identity: the same documented syntax, and the same
+// identity attributes to read it out of.
+//
+// [scanType] uses it to pick which of two treatments an overlapping-list-call
+// sibling pair gets. True means the import identity [importIdentity] already
+// read under the listing type's row IS the marker type's identity too, so it
+// carries forward untouched - aws_default_security_group / aws_security_group
+// and aws_default_network_acl / aws_network_acl, where both sides import by the
+// object's own id. False means it is not, and has to be recomposed from the
+// listed object under the marker type's own row - aws_default_route_table /
+// aws_route_table (issue #332) and aws_iam_service_linked_role / aws_iam_role
+// (issue #302).
+//
+// An unadmitted type answers false: the absence of a row is not agreement, and
+// the caller's recomposition path refuses when it cannot read an identity
+// rather than carrying one forward on faith.
+func sameRatifiedIdentity(a, b string) bool {
+	aTI, ok := identity.LookupType(a)
+	if !ok {
+		return false
+	}
+	bTI, ok := identity.LookupType(b)
+	if !ok {
+		return false
+	}
+	return aTI.ImportSyntax == bTI.ImportSyntax && slices.Equal(aTI.IdentityAttrs, bTI.IdentityAttrs)
+}
+
+// iamServiceLinkedRoleSibling reports whether a and b are aws_iam_role and
+// aws_iam_service_linked_role, in either order - GitHub issue #302.
+//
+// It is the same "AWS itself has no separate list call for the special
+// case" shape [defaultAdopterSiblings] names above: IAM has no
+// ListServiceLinkedRoles operation, so iam:ListRoles - aws_iam_role's own
+// native list call - returns every service-linked role right alongside the
+// ordinary ones, no PathPrefix filter applied. That is what #302 pointed at
+// [defaultAdopterSiblings] as precedent for.
+//
+// It is deliberately not folded into [defaultAdopterSiblings] itself: that
+// function's safety proof is "same ImportSyntax, same IdentityAttrs", and
+// this pair fails it for real - aws_iam_role imports by bare role name,
+// while aws_iam_service_linked_role's documented import ID is the role's
+// ARN (tagging.go's iamRoleEntry doc comment carries the same fact,
+// confirmed against a live floci-created role while crossing issue #293's
+// corpus). A bindType flip using typeName's own importID unchanged would
+// carry the wrong value forward, silently. [scanType]'s caller pairs a
+// match here with [importIdentityFromResource] to recompose the identity
+// under bindType's own scheme instead of reusing typeName's.
+func iamServiceLinkedRoleSibling(a, b string) bool {
+	const role, serviceLinked = "aws_iam_role", "aws_iam_service_linked_role"
+	return (a == role && b == serviceLinked) || (a == serviceLinked && b == role)
+}
+
+// importIdentityFromResource composes bindType's own import identity from a
+// listed object's full resource attributes, for the overlapping-list-call
+// cases where the importID [importIdentity] already composed under the listing
+// type's row is not bindType's importID and cannot simply be carried forward
+// (see [sameRatifiedIdentity] for which pairs those are).
+//
+// Which attribute to read is the ratified table's answer, not this function's:
+// [identity.TypeIdentity.IdentityAttrs] is defined as "the attribute names
+// whose value equals this type's identity", and the leading one is the type's
+// own documented import identity. So aws_iam_service_linked_role (IdentityAttrs
+// leading with "arn", ImportSyntax "ARN") reads arn, and
+// aws_default_route_table (IdentityAttrs ["vpc_id"], ImportSyntax "vpc-ID")
+// reads vpc_id. Neither type name appears here; adding a third such pair needs
+// only its row to be right.
+//
+// Reading it off the LISTED object rather than off bindType's own list call is
+// the whole point: there is no separate list call, the object the sibling's
+// call returned is the same live object, and it carries every attribute either
+// schema exports - aws_iam_role's schema exports arn ("Amazon Resource Name
+// (ARN) specifying the role.", per iam_role.html.markdown) and
+// aws_route_table's exports vpc_id ("The VPC ID.", per
+// route_table.html.markdown) regardless of which declared type asked.
+//
+// Only the LEADING identity attribute is tried. A row listing several
+// (["arn", "id"], say) means each of them equals the identity for the type's
+// OWN reads; it does not license falling back to a second attribute of a
+// sibling's object when the first is missing, which is how a service-linked
+// role would come back identified by its bare name instead of its ARN. An
+// unreadable leading attribute returns false rather than guessing, and the
+// caller's existing malformed-marker refusal stands.
+//
+// An arn-valued identity goes through [importIDFromARN] rather than being used
+// raw, because for some types the documented import ID is the ARN's resource-id
+// segment rather than the whole string - that function owns the distinction
+// (see [importsWholeARNString]), and tagging.go's ARN-join path already trusts
+// it for the identical fact. Every other attribute's value IS the import ID.
+func importIdentityFromResource(bindType string, resource cty.Value) (importID, identityAttr string, ok bool) {
+	ti, tableOK := identity.LookupType(bindType)
+	if !tableOK || len(ti.IdentityAttrs) == 0 {
+		return "", "", false
+	}
+	if resource == cty.NilVal || resource.IsNull() {
+		return "", "", false
+	}
+	attr := ti.IdentityAttrs[0]
+	ty := resource.Type()
+	if !ty.IsObjectType() || !ty.HasAttribute(attr) {
+		return "", "", false
+	}
+	v := resource.GetAttr(attr)
+	// IsMarked checked first, and nothing below reads v.AsString() until
+	// this guard has already returned on a marked value - cty panics rather
+	// than errors on a marked receiver, and a resource's attribute flowing
+	// from a sensitive input variable is the ordinary way to produce one,
+	// however unlikely for an identity attribute in practice. See
+	// internal/live/marksafe.
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+		return "", "", false
+	}
+	if v.AsString() == "" {
+		return "", "", false
+	}
+	if attr == "arn" {
+		return importIDFromARN(ti, v.AsString())
+	}
+	return v.AsString(), attr, true
+}
+
+// claimantAlreadyPresent reports whether cs already holds a claimant for the
+// same live object as c, by import ID. An estate that declares BOTH sides of
+// a [defaultAdopterSiblings] pair - a real, ordinary shape: a VPC module's
+// aws_default_security_group.this sitting next to an unrelated
+// aws_security_group.other block - has decl.typeNames() include both types,
+// so [scanType] runs once per type and each run's own list call
+// (DescribeSecurityGroups, DescribeRouteTables, DescribeNetworkAcls) returns
+// every security group / route table / network ACL in the account,
+// including the shared default object. That object's marker settles its
+// bindType correctly every time (see the defaultAdopterSiblings branch
+// above), so both scans append an otherwise-identical claimant - same
+// importID, because it is the same live resource - for the very entry this
+// function guards. Without this check that reads as
+// [ProblemCollision] ("Two live resources claiming one address") printing
+// the same ID twice, rather than the single object it actually is. A
+// claimant with no importID (noIdentity) is never deduplicated against
+// anything: "no identity" is not an identity two claimants could share.
+func claimantAlreadyPresent(cs []claimant, c claimant) bool {
+	if c.importID == "" {
+		return false
+	}
+	for _, existing := range cs {
+		if existing.importID == c.importID {
+			return true
+		}
+	}
+	return false
 }
 
 // typeTaggable reports whether typeName's own managed resource schema has a
@@ -1667,6 +2016,16 @@ func markerCapable(ts listclient.TypeSchema) bool {
 // the case where it fails - two orphans and two unclaimed instances, say - is
 // the case where guessing is least defensible.
 //
+// [blockKey] is what "the same resource block" means for that first check,
+// and issue #316 is what happens when the two sides of it disagree: the
+// declared side dropped the module path while the read side cut the escaped
+// marker at its first ":", which in a module-qualified marker is the module
+// step's own key rather than the resource's. The two strings could only ever
+// be equal for a root-module address, so the guard fired for a re-keyed root
+// resource and for nothing inside any module at all - and a for_each key
+// renamed inside an ordinary static module was destroyed and recreated,
+// which is the exact outcome the paragraph above says must not happen.
+//
 // What survives that check reaches the projection as a concrete resolution
 // with no configuration behind it, which is precisely the shape a stock run's
 // prior state has for a resource whose block was deleted, and which the plan
@@ -1682,7 +2041,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 	// claimed. Membership here is what makes an orphan a possible rename.
 	pending := make(map[string]bool, len(res.Unbound))
 	for _, addr := range res.Unbound {
-		pending[EscapeAddress(addr.Resource.Resource.String())] = true
+		pending[blockKey(addr)] = true
 	}
 
 	// Two live resources whose markers unescape to one address would
@@ -1699,7 +2058,7 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
-		block, _, _ := strings.Cut(o.Normalized, ":")
+		block := orphanBlockKey(o)
 
 		switch {
 		case pending[block]:
@@ -1762,10 +2121,11 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 		if !o.Removal {
 			continue
 		}
-		declared := false
-		if modCfg, ok := identity.ConfigForModule(req.Config, o.Addr.Module); ok && modCfg.Module != nil {
-			_, declared = modCfg.Module.ManagedResources[o.Addr.Resource.Resource.String()]
-		}
+		// The same predicate internal/live/foreign's removal section reports
+		// as BlockGone, through the one function, so that the plan's own
+		// Undeclared flag and the sentence an operator reads beside it cannot
+		// answer differently (issue #316).
+		declared := identity.DeclaresBlock(req.Config, o.Addr)
 		res.Resolutions = append(res.Resolutions, identity.Resolution{
 			Addr:  o.Addr,
 			Class: identity.ClassConcrete,
@@ -1779,6 +2139,60 @@ func classifyOrphans(req Request, res *Result) tfdiags.Diagnostics {
 	}
 
 	return diags
+}
+
+// blockKey is the resource block one instance address belongs to, as
+// [classifyOrphans]'s rename guard compares blocks: the type and name, with
+// the instance key and the module path both taken off.
+//
+// Both sides of that comparison go through this, which is the point of it
+// existing at all. Before issue #316 the declared side computed
+// EscapeAddress(addr.Resource.Resource.String()) and the read side computed
+// strings.Cut(marker, ":") - two readings of one grammar, agreeing by
+// coincidence on a root-module address and on nothing else.
+//
+// The module path is deliberately not part of the key, and that is the one
+// judgement in this function rather than a mechanical consequence of the fix.
+// A module-qualified key is the narrower reading, and it is what the issue
+// proposed; it is also strictly less safe than what the guard did before,
+// because it stops withholding an orphan whose block was moved from the root
+// into a module (or between two modules) while an instance of the moved block
+// sits unclaimed. That refactor is ordinary, the marker for it has to be
+// rewritten by hand either way, and destroying the live resource is the one
+// outcome the guard exists to prevent. Keyed on type and name the guard is a
+// strict superset of what it withheld before this fix: it can only ever
+// withhold more, never less, so no configuration that planned no destroy
+// before this change plans one after it.
+//
+// The cost of the wider key is an orphan of a genuinely deleted block
+// lingering because an unrelated module happens to declare an unclaimed
+// instance of the same type and name. That is the direction this function's
+// caller says out loud it is willing to be wrong in: one command for an
+// operator, rather than a resource nobody asked to touch being destroyed and
+// recreated.
+func blockKey(addr addrs.AbsResourceInstance) string {
+	return addr.Resource.Resource.String()
+}
+
+// orphanBlockKey is [blockKey] for the other side of the comparison: the
+// block an orphan's marker names.
+//
+// It reads the block off the decoded address, so the two sides are the same
+// expression over the same type and cannot drift apart again.
+//
+// A marker that will not decode at all falls back to the text-level cut the
+// guard used before, which is right for exactly the markers that cut was ever
+// right for - root-module ones - and is kept because withholding runs BEFORE
+// the malformed-marker report. A corrupt value like "aws_subnet.this:" sitting
+// in a block that still has an unclaimed instance is withheld silently today;
+// dropping the fallback would turn that silence into a hard error on an
+// estate that plans cleanly now.
+func orphanBlockKey(o *OwnedResource) string {
+	if o.Addressable {
+		return blockKey(o.Addr)
+	}
+	legacy, _, _ := strings.Cut(o.Normalized, ":")
+	return legacy
 }
 
 // collisionOrphanProblem is the ownership collision of the undeclared: two

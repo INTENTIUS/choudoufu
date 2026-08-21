@@ -81,7 +81,8 @@ import (
 // The walk is per-module rather than "does the root have children", so a
 // configuration three deep reports every refused call in one pass instead
 // of one per run of the fix-and-rerun loop.
-func checkChildModules(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkChildModules(ctx context.Context, cfg *configs.Config, path addrs.Module, issues *[]Issue) {
+	mod := cfg.Module
 	names := make([]string, 0, len(mod.ModuleCalls))
 	for name := range mod.ModuleCalls {
 		names = append(names, name)
@@ -90,7 +91,7 @@ func checkChildModules(ctx context.Context, mod *configs.Module, path addrs.Modu
 
 	for _, name := range names {
 		call := mod.ModuleCalls[name]
-		detail, refused := childModuleDetail(ctx, mod, call)
+		detail, refused := childModuleDetail(ctx, cfg, call)
 		if !refused {
 			continue
 		}
@@ -110,7 +111,8 @@ func checkChildModules(ctx context.Context, mod *configs.Module, path addrs.Modu
 // mutually exclusive on a module block - HCL itself refuses a call that
 // sets both - so this is a strict three-way choice (count, for_each, or
 // admitted), not a priority order.
-func childModuleDetail(ctx context.Context, mod *configs.Module, call *configs.ModuleCall) (string, bool) {
+func childModuleDetail(ctx context.Context, cfg *configs.Config, call *configs.ModuleCall) (string, bool) {
+	mod := cfg.Module
 	switch {
 	case call.Count != nil:
 		if _, ok := staticCount(ctx, mod, call.Count); !ok {
@@ -142,7 +144,7 @@ func childModuleDetail(ctx context.Context, mod *configs.Module, call *configs.M
 		}
 		return "", false
 	case call.ForEach != nil:
-		if _, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", call.Name), call.ForEach); diag != nil {
+		if _, diag := identity.ChildModuleKeys(ctx, cfg, fmt.Sprintf("module %q", call.Name), call.ForEach); diag != nil {
 			return fmt.Sprintf(
 				"for_each on a module block is admitted only when its keys are statically "+
 					"evaluable - a literal collection, or one built from variables, locals, "+

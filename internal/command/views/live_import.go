@@ -127,23 +127,25 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 }
 
 var statelessImportOutcomeHeadline = map[string]string{
-	"STAMPED":         "stamped",
-	"ALREADY_STAMPED": "already carried this estate's markers; no write made",
-	"SKIPPED":         "not attempted (see the ratification report above)",
-	"FAILED":          "a write was attempted and refused, or failed",
+	"STAMPED":          "stamped",
+	"ALREADY_STAMPED":  "already carried this estate's markers; no write made",
+	"RECORDED":         "record-backed: its value was seeded into the estate's record store, which is where such a resource's identity lives",
+	"ALREADY_RECORDED": "record-backed, and the record store already held exactly this object; no write made",
+	"SKIPPED":          "not attempted (see the ratification report above)",
+	"FAILED":           "a write was attempted and refused, or failed",
 }
 
 func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 	var b strings.Builder
 
-	b.WriteString("\nApprove: stamping tofu-estate and tofu-address on every eligible resource. This was a cloud write, one tags-only apply per resource.\n\n")
+	b.WriteString("\nApprove: stamping tofu-estate and tofu-address on every eligible resource, and seeding the record store for every record-backed one. This was a cloud write, one tags-only apply per stamped resource.\n\n")
 
 	byOutcome := make(map[string][]StatelessImportOutcome)
 	for _, o := range rep.Outcomes {
 		byOutcome[o.Outcome] = append(byOutcome[o.Outcome], o)
 	}
 
-	for _, outcome := range []string{"STAMPED", "ALREADY_STAMPED", "FAILED", "SKIPPED"} {
+	for _, outcome := range []string{"STAMPED", "ALREADY_STAMPED", "RECORDED", "ALREADY_RECORDED", "FAILED", "SKIPPED"} {
 		outcomes := byOutcome[outcome]
 		if len(outcomes) == 0 {
 			continue
@@ -158,7 +160,8 @@ func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 
 	stamped := len(byOutcome["STAMPED"])
 	failed := len(byOutcome["FAILED"])
-	fmt.Fprintf(&b, "%d resource(s) newly stamped, %d already stamped, %d failed, %d skipped.\n", stamped, len(byOutcome["ALREADY_STAMPED"]), failed, len(byOutcome["SKIPPED"]))
+	fmt.Fprintf(&b, "%d resource(s) newly stamped, %d already stamped, %d newly recorded, %d already recorded, %d failed, %d skipped.\n",
+		stamped, len(byOutcome["ALREADY_STAMPED"]), len(byOutcome["RECORDED"]), len(byOutcome["ALREADY_RECORDED"]), failed, len(byOutcome["SKIPPED"]))
 	b.WriteString("The tfstate file was not touched: it was read once, at the start of this run, and never opened again.\n")
 	if failed > 0 {
 		b.WriteString("Nothing about a FAILED resource's live tags was changed; it is exactly as it was before this run. Re-running live-import is safe: STAMPED and ALREADY_STAMPED resources are no-ops the second time.\n")

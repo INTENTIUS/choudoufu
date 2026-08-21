@@ -540,18 +540,38 @@ func ValidMarkerAddress(escaped string) bool {
 // A root-module address is the two trailing segments: type, then
 // name(+key). Anything before them has to be a run of "module", "<name>"
 // pairs, each name optionally carrying its own key - the
-// module.a.module.b["x"] prefix a static or for_each-keyed module call
-// contributes to the address (issue #59: 59b for the unkeyed form, 59c for
-// the keyed one) - or the value is refused rather than guessed at.
+// module.a.module.b["x"] prefix a static, count'd or for_each-keyed module
+// call contributes to the address (issue #59: 59b for the unkeyed form, 59c
+// for the keyed one; issue #195 for the count'd one) - or the value is
+// refused rather than guessed at.
 //
-// A module step's key, unlike a resource instance's, is never ambiguous
-// between a count index and a quoted string of the same digits: count on a
-// module block is refused permanently (RuleChildModule; live/LIMITATIONS.md,
-// "child-module"), so every module instance key this fork ever writes came
-// from a for_each, which only ever produces string keys. A module step's
-// key therefore always decodes as [addrs.StringKey], with no digit-string
-// special case - unlike the trailing resource segment just below, where
-// count and for_each really do collide on the wire.
+// A module step's key decodes exactly as a resource instance's does, digit
+// case and all, through the one [decodeInstanceKey]. This used to be a
+// deliberate asymmetry - a module step always decoded as [addrs.StringKey],
+// on the premise that count on a module block was refused permanently
+// (RuleChildModule) so every module instance key this fork ever wrote came
+// from a for_each - and issue #195 retired the premise without retiring the
+// asymmetry. A statically-evaluable count that does not leak count.index is
+// admitted, and [internal/live/stamp] resolves a count of exactly 1 itself
+// and writes "module.counted[0].aws_vpc.main"
+// (live/e2e/limits/child-module/counted, live/LIMITATIONS.md's
+// "child-module"). That marker escapes to "module.counted:0.aws_vpc.main"
+// and came back as module.counted["0"].aws_vpc.main: a different address
+// than the one stamped, printed on every removal line and carried into the
+// synthetic prior-state instance a destroy is planned at.
+//
+// So the module step has the same digit ambiguity the resource segment has,
+// and it is now resolved the same way and for a stronger reason. The
+// stamping pass writes a digit-keyed module step only for a count'd call;
+// resources inside a for_each'd call are SkipModuleKeyed and are never
+// stamped at all (live/LIMITATIONS.md, "Resources inside a keyed module
+// need hand-written markers"), so the count reading is the only reading
+// this fork can itself produce. A hand-written marker for a for_each'd
+// module whose key happens to be the digits "0" is the residual coincidence,
+// and it is the module-level twin of the resource-level one the first bullet
+// above already accepts: it can only ever mislabel, never misbind, because
+// a declared instance binds by comparing two escaped strings and never
+// reaches this function at all.
 func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	var zero addrs.AbsResourceInstance
 	if !ValidMarkerAddress(escaped) {
@@ -583,10 +603,11 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 		}
 		step := addrs.ModuleInstanceStep{Name: modName, InstanceKey: addrs.NoKey}
 		if modHasKey {
-			if modKey == "" || strings.ContainsAny(modKey, ".:") {
+			decoded, ok := decodeInstanceKey(modKey)
+			if !ok {
 				return zero, false
 			}
-			step.InstanceKey = addrs.StringKey(UnescapeKey(modKey))
+			step.InstanceKey = decoded
 		}
 		modInst = append(modInst, step)
 	}
@@ -598,20 +619,50 @@ func UnescapeAddress(escaped string) (addrs.AbsResourceInstance, bool) {
 	}
 	instKey := addrs.NoKey
 	if hasKey {
-		if key == "" || strings.ContainsAny(key, ".:") {
+		decoded, ok := decodeInstanceKey(key)
+		if !ok {
 			return zero, false
 		}
-		decoded := UnescapeKey(key)
-		if n, err := strconv.Atoi(decoded); err == nil && decoded == strconv.Itoa(n) && n >= 0 {
-			instKey = addrs.IntKey(n)
-		} else {
-			instKey = addrs.StringKey(decoded)
-		}
+		instKey = decoded
 	}
 	return addrs.AbsResourceInstance{
 		Module:   modInst,
 		Resource: res.Instance(instKey),
 	}, true
+}
+
+// decodeInstanceKey turns one escaped instance key - the text after a ":" in
+// an escaped address, whether it keys a module step or the trailing resource
+// - back into an [addrs.InstanceKey], and reports whether it could.
+//
+// It is one function rather than two so that the two positions cannot drift:
+// they read the same grammar off the same wire format, and the whole reason
+// [UnescapeAddress]'s module half was wrong is that it carried a second,
+// simpler answer to this question that nobody re-derived when issue #195
+// changed the premise it rested on.
+//
+// The digit reading is the count reading. A key that is an exact decimal
+// round-trip - strconv.Itoa of what strconv.Atoi read reproduces the text -
+// and non-negative is an [addrs.IntKey]; everything else is an
+// [addrs.StringKey]. The round-trip test is what keeps "007", "+7" and " 7"
+// out of the int reading: Atoi accepts some of them and Itoa does not
+// reproduce any of them, so they stay string keys, which is what the address
+// they came from actually said.
+//
+// An un-escaped "." or ":" is refused rather than guessed at: neither
+// [EscapeKey] nor any grammar this fork has stamped with could produce one
+// inside a key, so a value carrying one was never validly escaped, and the
+// two characters are exactly the ones this function's caller has already
+// split on.
+func decodeInstanceKey(escaped string) (addrs.InstanceKey, bool) {
+	if escaped == "" || strings.ContainsAny(escaped, ".:") {
+		return addrs.NoKey, false
+	}
+	decoded := UnescapeKey(escaped)
+	if n, err := strconv.Atoi(decoded); err == nil && decoded == strconv.Itoa(n) && n >= 0 {
+		return addrs.IntKey(n), true
+	}
+	return addrs.StringKey(decoded), true
 }
 
 // TagsOf reads a resource object's ownership-relevant tags.

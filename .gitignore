@@ -91,6 +91,7 @@ site/public/
 /harness-gen
 /iamref-gen
 /importdocs-gen
+/importer-probe
 /limits-gen
 /loggraphdiff
 /mapping-gen

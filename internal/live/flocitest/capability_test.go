@@ -40,17 +40,24 @@ func TestImageDigest(t *testing.T) {
 
 // TestCapabilityGateSkipsForKnownGap exercises CapabilityGate against the
 // real, committed live/floci-capabilities.json entry for the default
-// pinned image (no FLOCI_IMAGE override) - aws_redshift_cluster is one of
-// the databases cohort's documented "Floci coverage" findings.
+// pinned image (no FLOCI_IMAGE override) - aws_qldb_ledger is one of the
+// databases cohort's documented "Floci coverage" findings: QLDBSession/QLDB
+// CreateLedger both return a clean UnknownOperationException, re-probed
+// against the pinned digest 2026-08-18, no QLDB handler at all.
+//
+// This used aws_redshift_cluster until 2026-08-18: re-probing the pinned
+// digest found redshift create-cluster now succeeds (the SQS-misroute that
+// made it a "known gap" is fixed on this pin), so it stopped being a gap
+// example and moved to aws_qldb_ledger, which is still genuinely broken.
 func TestCapabilityGateSkipsForKnownGap(t *testing.T) {
 	var sub *testing.T
 	t.Run("gap", func(st *testing.T) {
 		sub = st
-		CapabilityGate(st, "aws_redshift_cluster")
+		CapabilityGate(st, "aws_qldb_ledger")
 		t.Fatal("unreachable: CapabilityGate should have skipped before this line")
 	})
 	if !sub.Skipped() {
-		t.Fatal("CapabilityGate did not skip for aws_redshift_cluster, a documented manifest gap")
+		t.Fatal("CapabilityGate did not skip for aws_qldb_ledger, a documented manifest gap")
 	}
 	if sub.Failed() {
 		t.Error("the subtest failed rather than skipped cleanly")

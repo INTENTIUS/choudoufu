@@ -79,12 +79,30 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt an expected identity string and a
 #                 drift assertion, proving both are load-bearing.
 #
-# KNOWN, NOT PAPERED OVER: as of this script's writing, stage 1 fails
-# against the pinned floci image on a real, current emulator gap - not a
-# choudoufu bug, not a fixture problem. See this crossing's own report for
-# the exact remaining errors and floci-side sizing. This script is not
-# routed around that gap (no -target, no resource removed from the
-# example): it runs the real module and reports the real result, per this
+# WHERE THIS ESTATE STANDS, 2026-08-20, verified by a real run against
+# ghcr.io/lex00/floci@sha256:dc246b1e (lex00/floci#71's fix): stages 1 and 2
+# PASS. Stage 1 cold-deploys all 62 resources ("Apply complete! Resources: 62
+# added"); stage 2 stamps 40 of them, skips 22 as untaggable, fails none, and
+# all three sampled identities read back through the AWS CLI by value.
+#
+# Stage 1 was blocked for two prior sessions on two successive floci gaps in
+# the same resource, both now fixed upstream: lex00/floci#70 (Create/
+# ModifyCacheSubnetGroup read SubnetIds under the generic member key while
+# ElastiCache's service model overrides it to SubnetIdentifier) and
+# lex00/floci#71 (ElastiCache served no tagging actions at all, so the AWS
+# provider's unconditional ListTagsForResource on every
+# aws_elasticache_subnet_group read 400'd).
+#
+# KNOWN, NOT PAPERED OVER: stage 3 fails on exactly one diagnostic, filed as
+# choudoufu #346. The estate's own example passes [module.vpc.vpc_cidr_block]
+# - i.e. aws_vpc.this[0].cidr_block, a NON-identity attribute of another
+# managed resource - into aws_security_group_rule's identity-bearing
+# cidr_blocks. The diagnostic surfaces at the lookup() on the module's line
+# 116, but lookup() is a red herring: a static-valued lookup() resolves fine,
+# and the same map written with a direct each.value.cidr_blocks refuses
+# identically. #346 carries the three-variant check that establishes that.
+# This script is not routed around it (no -target, no resource removed from
+# the example): it runs the real module and reports the real result, per this
 # goal's own standing rule that a partial, accurate failure is worth more
 # than a green run that does not hold up.
 
@@ -100,6 +118,13 @@ FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
 ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
 
 ESTATE="vpc-complete-crossing"
+
+# What the estate is, asserted rather than described. 62 resource instances, of
+# which 40 carry a tags argument in the AWS provider's schema and 22 do not - see
+# stage 2's own comment for why that split is the invariant rather than a gap.
+INSTANCES=62
+TAGGABLE=40
+UNTAGGABLE=22
 REGION="eu-west-1"
 TF_COLD_BIN="${TF_COLD_BIN:-terraform}"
 
@@ -212,22 +237,58 @@ if [ "$IMPORT_RC" -ne 0 ]; then
   fail "live-import (dry run) failed"
 fi
 grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
-log "  dry run: $(grep -oE '[0-9]+ of [0-9]+ resource instance\(s\) are eligible for stamping' <<< "$IMPORT_OUT")"
+grep -qF "$TAGGABLE of $INSTANCES resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT" | tail -40
+       fail "live-import did not verify exactly $TAGGABLE of $INSTANCES as eligible"; }
+# The 22 that are not eligible must be untaggable, not unadmitted. Those are two
+# entirely different verdicts: UNTAGGABLE is the invariant working as designed
+# (aws_route, aws_route_table_association, aws_vpc_dhcp_options_association and
+# aws_security_group_rule carry no tags argument in the provider's schema at all,
+# so there is nowhere to hang a marker and their identity derives from tagged
+# parents instead), while UNADMITTED_TYPE would mean a type this fork cannot
+# resolve. Asserting the first by value and the second by ABSENCE is what makes
+# this check say something: a future admission regression that turned one of the
+# 40 into an unadmitted type would keep the eligible count wrong AND put an
+# UNADMITTED_TYPE section in this report, and either one fails here.
+grep -qF "UNTAGGABLE ($UNTAGGABLE)" <<< "$IMPORT_OUT" \
+  || { grep -E 'UNTAGGABLE|UNADMITTED_TYPE' <<< "$IMPORT_OUT"
+       fail "expected exactly $UNTAGGABLE UNTAGGABLE instances in the ratification report"; }
+grep -qE '^UNADMITTED_TYPE \(' <<< "$IMPORT_OUT" \
+  && { grep -A 40 '^UNADMITTED_TYPE (' <<< "$IMPORT_OUT"
+       fail "the ratification report names an UNADMITTED_TYPE - every type in this estate is admitted"; }
+log "  dry run: $TAGGABLE of $INSTANCES eligible, $UNTAGGABLE untaggable, 0 unadmitted"
 
 APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)"; APPROVE_RC=$?
 if [ "$APPROVE_RC" -ne 0 ]; then
   printf '%s\n' "$APPROVE_OUT" | tail -60
   fail "live-import -approve failed"
 fi
-grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, 0 skipped' <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve did not stamp cleanly"; }
-log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 failed, 0 skipped' <<< "$APPROVE_OUT")"
+# The counts, by exact string. The two record-backed columns #340 added both read
+# 0 here because this estate declares no record_store and reaches no record-backed
+# type; asserting them anyway is how a change that starts routing an ordinary AWS
+# type through that path fails here rather than passing quietly.
+grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT" | tail -30
+       fail "live-import -approve did not stamp exactly $TAGGABLE of $INSTANCES cleanly"; }
+log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"
 
 # ── identity assertions, read via the AWS CLI directly, never through choudoufu ──
 VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=ex-complete" --query "Vpcs[0].VpcId" --output text)"
 [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "no live VPC found by its Name tag"
 VPC_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-[ "$VPC_ADDR" = "module.vpc.aws_vpc.this[0]" ] || fail "the VPC carries tofu-address=$VPC_ADDR, not module.vpc.aws_vpc.this[0]"
+# An instance key reaches a tag in its ESCAPED form, never OpenTofu's bracket
+# spelling: an AWS tag value cannot carry "[", "]" or a quote, so
+# internal/live/stamp writes "module.vpc.aws_vpc.this:0" and
+# internal/live/discovery normalizes an observed marker back the same way
+# (internal/live/markers.EscapeKey; TestStamp_countInstancesGetEscapedAddresses
+# and TestStamp_forEachInstancesGetEscapedAddresses pin both directions). The
+# two forms are kept as separate variables wherever both are needed, because
+# comparing one against the other is a check that can never match - a vacuous
+# assertion of exactly that shape shipped in corpus-iam-policy and
+# corpus-iam-read-only-policy before it was caught.
+VPC_ADDR_BRACKET='module.vpc.aws_vpc.this[0]'
+VPC_ADDR_TAG='module.vpc.aws_vpc.this:0'
+[ "$VPC_ADDR" = "$VPC_ADDR_TAG" ] || fail "the VPC carries tofu-address=$VPC_ADDR, not $VPC_ADDR_TAG"
 log "  $VPC_ID carries tofu-address=$VPC_ADDR"
 
 RDS_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=ex-complete-rds*" --query "SecurityGroups[0].GroupId" --output text)"
@@ -241,10 +302,13 @@ S3_EP_ID="$(awsl ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_I
 S3_EP_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$S3_EP_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
 if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: expecting the wrong address for $S3_EP_ID's endpoint on purpose - this check must fail"
-  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this["dynamodb"]'
+  # The escaped form of the WRONG key: still a well-formed marker value, so
+  # this fails on the address rather than on the escaping.
+  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this:dynamodb'
 else
-  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this["s3"]'
+  WANT_S3_ADDR='module.vpc_endpoints.aws_vpc_endpoint.this:s3'
 fi
+S3_EP_ADDR_BRACKET='module.vpc_endpoints.aws_vpc_endpoint.this["s3"]' 
 [ "$S3_EP_ADDR" = "$WANT_S3_ADDR" ] || fail "the s3 vpc endpoint carries tofu-address=$S3_EP_ADDR, not $WANT_S3_ADDR"
 log "  $S3_EP_ID carries tofu-address=$S3_EP_ADDR"
 
@@ -335,7 +399,15 @@ if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
 else
   [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be' ; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
-  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$RDS_SG_ADDR" && fail "the plan proposes changing $RDS_SG_ADDR, which was never touched"
+  # CHANGED_ADDRS comes from the plan's own diff headers, which print OpenTofu
+  # addresses in BRACKET form - so the untouched objects are named here in that
+  # form, not in the tag form stage 2 asserted. aws_security_group.rds carries no
+  # instance key at all, so its two spellings coincide; the other two do not, and
+  # naming them in tag form here would be a check that could never fire.
+  for UNTOUCHED in "$RDS_SG_ADDR" "$VPC_ADDR_BRACKET" "$S3_EP_ADDR_BRACKET"; do
+    printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$UNTOUCHED" \
+      && fail "the plan proposes changing $UNTOUCHED, which was never touched"
+  done
   log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
 
   RECONVERGE_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?

@@ -197,6 +197,38 @@ type Component struct {
 	// OmitIfAbsent below says what omission means.
 	Attrs []string
 
+	// Block names a singular (max_items: 1) nested list block Attrs is read
+	// from, instead of the resource's own top-level body. Empty means Attrs
+	// names top-level arguments, the ordinary case.
+	//
+	// aws_autoscaling_traffic_source_attachment is the type this exists for
+	// (GitHub issue #310): its documented import ID is
+	// autoscaling_group_name,traffic_source_type,traffic_source_identifier,
+	// and the provider's own schema (verified against `terraform providers
+	// schema -json` at 6.59.0) confirms every one of those three components
+	// is a required, client-specified value - but the second and third are
+	// not top-level arguments. They are the `type` and `identifier`
+	// attributes of a required, max_items:1 `traffic_source` list block, so
+	// {Block: "traffic_source", Attrs: []string{"type"}} is what reads them.
+	//
+	// This is deliberately narrow, matching [resolver.identityArgs]'s own
+	// "everything else in the body, including nested blocks, is ignored"
+	// rule for the ordinary case: only a component that names Block reaches
+	// into one, and it reaches into exactly the one block it names, so no
+	// row that leaves this empty (every row before #310) changes behavior at
+	// all. The resolver reads the block's FIRST instance only - correct for
+	// a schema that caps it at one, and the same "safe direction" the rest
+	// of this package takes when a provider-side invariant the schema
+	// enforces makes a further check redundant.
+	//
+	// A leaf name has to be unique across every Block this type's Components
+	// use and the type's own top-level arguments; nothing here namespaces
+	// one nested block's "type" apart from another's or from a same-named
+	// top-level argument. No committed row needs that yet, so it is a
+	// documented constraint rather than an enforced one - the same tradeoff
+	// [Component.Attrs] itself makes for a duplicate name across components.
+	Block string
+
 	// OmitIfAbsent is true when this component is genuinely optional in the
 	// provider's own grammar: not a missing identity, and not a documented
 	// substitute value (that is Default), but a segment - and the Literal

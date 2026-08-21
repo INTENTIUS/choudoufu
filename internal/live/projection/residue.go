@@ -438,6 +438,64 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 	return out
 }
 
+// RecordResidueForInstance is [classifyResidue]'s classify-and-record step
+// for ONE instance, exported so a second write path can populate the same
+// residue store [writeBackResidue] does, from ITS OWN real applied value
+// rather than waiting for a choudoufu apply to observe one.
+//
+// GitHub issue #327 is why this exists: live-import's Approve ratifies every
+// eligible instance against the live system with a real, non-null prior -
+// the migrated state file's own recorded object - which is exactly the
+// [classifyResidue] "read B" a migrate never otherwise produces. Without
+// this, an attribute an SDKv2 resource's Read only preserves from whatever
+// prior it was given - never reads from the remote, see [carriesNoInformation]'s
+// doc comment - comes back null on the FIRST live-plan after a clean
+// migrate, because that plan's own prior (built from
+// [providers.Configured.ImportResourceState]'s bare stub) has nothing to
+// preserve. For an ordinary argument this is a phantom update, already
+// covered once a first choudoufu apply classifies it; for a ForceNew
+// argument it is a phantom REPLACE of an object that is not actually
+// different, on every plan until that first apply happens.
+//
+// read is the caller's ReadResource wrapper, called twice by
+// [classifyResidue] exactly as [writeBackResidue] calls it - once with an
+// identity-only stub, once with applied itself. recorded reports whether
+// anything was classified and stored; a false with a nil error is the
+// ordinary "this type has nothing residue-shaped" or "the provider proved it
+// reads everything from the remote" answer, not a failure.
+//
+// Every failure is closed the same way [writeBackResidue] closes one: the
+// caller is expected to turn a non-nil error into a warning, never into a
+// reason to fail the migration over a residue nicety.
+func RecordResidueForInstance(ctx context.Context, store *ResidueStore, addr addrs.AbsResourceInstance, schema providers.Schema, applied cty.Value, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
+	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
+		return false, nil
+	}
+	candidates := residueCandidates(schema, applied)
+	if len(candidates) == 0 {
+		return false, nil
+	}
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), read)
+	if !ok {
+		return false, nil
+	}
+	// Read-before-write rather than a version this call was handed: unlike
+	// [writeBackResidue], which already tracked a prior-plan version through
+	// [builder.fillResidueFor], a migrate has never read this estate's
+	// residue store before, so there is nothing to have tracked. A second
+	// live-import run over the same state (documented as idempotent) is what
+	// makes this matter - without a fresh Get, its Put would always assert
+	// "nothing recorded yet" and fail every time but the first.
+	_, version, _, getErr := store.Get(ctx, addr)
+	if getErr != nil {
+		return false, fmt.Errorf("reading the existing residue record for %s before writing: %w", addr, getErr)
+	}
+	if _, err := store.Put(ctx, addr, attrs, version); err != nil {
+		return false, fmt.Errorf("recording residue for %s: %w", addr, err)
+	}
+	return true, nil
+}
+
 // writeBackResidue is [WriteBack]'s residue half: after an apply, every
 // marker-managed instance in the final state is put to its provider twice
 // (see [classifyResidue]) and whatever the two answers prove the provider

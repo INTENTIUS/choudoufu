@@ -115,30 +115,51 @@ configuration with a `record_store` was told its type could never work.
   since the no-secrets rule that already governs snapshots and receipts
   forbids a record from carrying it too. Refused permanently, with or
   without a `record_store` configured - the store never weakens this class.
-  `local_sensitive_file` gets this verdict by its own exact-match rule in
-  `ClassifyLogicalType` rather than a `logicalTypes` row, because
-  `hashicorp/local` contributes no row for either of its types (see
-  OTHER_REFUSED below) - but its own docs settle the question regardless:
-  "The arguments accepted by this resource are marked as sensitive," and its
-  schema marks `content` and `content_base64` `(String, Sensitive)`, neither
-  deprecated.
-- **OTHER_REFUSED** - `local_file`, plus any logical-family member released
-  since the last `-logical-schemas` run. `hashicorp/local` is the one
-  measured provider that is not store-only, and `local_file` is excluded
-  deliberately rather than left unreviewed: its own docs show its only
-  sensitive attribute (`sensitive_content`) is deprecated in favor of
-  `local_sensitive_file`, so the "no secret material" rule alone would
-  derive RECORD_ADMITTED for it - but its identity is its `filename`, an
-  argument value, not a record, so two instances at distinct addresses
-  still collide on one path - measured under stock OpenTofu, `count = 4`
-  with a filename built from `count.index % 2` never converges. Promoting
-  it would also silence lint's `count.index` walk over that filename, which
-  `TestLocalFileKeepsItsCountIndexCheck` pins. Settling `local_file` needs a
-  class this table does not have yet - argument-derived identity that is
-  still safe to admit - not a verdict from the two it does. For a type
-  released after the last measurement, this class is the safe default
-  rather than a verdict, and re-running `-logical-schemas` is what resolves
-  it.
+  `local_sensitive_file` is a derived row like every other since #314; it
+  used to carry a hand-written exact-match verdict in `ClassifyLogicalType`
+  because `hashicorp/local` contributed no rows at all, and the derivation
+  now reaches it from the schema directly - `content` and `content_base64`
+  are `(String, Sensitive)` and neither is deprecated.
+- **EXTERNAL_ADMITTED** - `local_file`, and nothing else today. Admitted
+  under a `record_store` exactly as RECORD_ADMITTED is, resolving through
+  the same record-backed projection path, and separated from it by one
+  thing: the record holds the resource's prior state but does not bound
+  what it AFFECTS. `hashicorp/local` is the one measured provider whose
+  `store_only` is false, because its resources write a real file onto the
+  machine that ran apply, and an argument of the resource's own
+  (`filename`) names that file. So two instances at distinct addresses hold
+  two distinct records and can still collide on one path - measured under
+  stock OpenTofu, `count = 4` with a filename built from `count.index % 2`
+  never converges - and lint's `count.index` walk keeps running over this
+  type's arguments where a RECORD_ADMITTED type's walk is skipped.
+  `TestLocalFileKeepsItsCountIndexCheck` pins that, unchanged, across the
+  admission.
+
+  Worth knowing before assuming the `filename` is an identity: it is not an
+  import identity, because `hashicorp/local` 2.9.0 implements no import for
+  `local_file` at all (`tofu import local_file.f <path>` answers "Resource
+  Import Not Implemented"), which is why the record is the only carrier
+  that can bring an instance's prior state back and why the rendered
+  identity for this class is deliberately empty.
+
+  This is the one admitted class whose record holds an attribute the
+  provider marks sensitive: `local_file.content` is `(String, Sensitive)`,
+  and the SECRET_REFUSED rule above cannot reach it because that rule reads
+  `store_only` providers and `hashicorp/local` is not one. The record
+  carries that value, and since 2026-08-20 it also carries the FACT that it
+  was sensitive - `recordPayload.SensitiveAttrs`, encoded the way a state
+  file encodes `sensitive_attributes`. That is not extra secret material,
+  it is an attribute path; what it buys is that a replan's "before" side is
+  marked the same way its "after" side is. `live-plan` runs with
+  SkipRefresh, so the record's own marks are the only marks the before side
+  ever has, and without them every migrated estate holding such an attribute
+  proposed a sensitivity-only in-place update forever, annotated by
+  OpenTofu's own renderer with "The value is unchanged".
+- **OTHER_REFUSED** - now reached only by a logical-family member released
+  since the last `-logical-schemas` run. It is the safe default for a type
+  the derivation has never measured, not a verdict, and re-running
+  `-logical-schemas` is what resolves it. `local_file` was its last named
+  holder and left in #314.
 
 ### null-resource
 
@@ -202,17 +223,35 @@ receipts pattern.
 
 **Construct.** `local_file`.
 
-**Why banned.** The file's content is generated once and stored in state,
-and there is no live system to read it back from on the next run.
-Logical-resource family.
+**Why it was banned, and what changed.** This section used to say "the
+file's content is generated once and stored in state, and there is no live
+system to read it back from on the next run." The second half was never
+true - the local filesystem is holding it, and `hashicorp/local`'s own
+refresh reads it back - and saying it to an author's face is what issue
+#314 finally cost. The real obstacle was that neither of lint's two
+verdicts fitted: RECORD_ADMITTED would have silenced a real safety check,
+and OTHER_REFUSED said something false.
 
-**Forwarding address.** A build artifact. Render it as a build step (CI,
-a Makefile, a chant task) that produces the file on disk before OpenTofu
-runs, not as a resource OpenTofu tracks.
+**Admitted with a record store.** Classified `EXTERNAL_ADMITTED` (see the
+class list above), so once a `record_store` is configured it runs through
+the stock provider lifecycle with prior state hydrated from and persisted
+to the store, the same as `null_resource`. The record is genuinely the only
+carrier available: `hashicorp/local` 2.9.0 implements no import for this
+type, so nothing can reconstruct an instance from the file it wrote.
 
-**Enforcement.** `RuleLogicalResource`, classified `OTHER_REFUSED` (see
-above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`.)
-Fixture at `live/e2e/limits/local-file/`.
+What the store does NOT do is make two instances interchangeable. The
+`filename` argument names a real file, so `count.index` stays refused
+inside this resource's arguments where a RECORD_ADMITTED type's walk is
+skipped - a configuration stock OpenTofu itself never converges.
+
+**Forwarding address (no record store).** A build artifact. Render it as a
+build step (CI, a Makefile, a chant task) that produces the file on disk
+before OpenTofu runs, not as a resource OpenTofu tracks.
+
+**Enforcement.** `RuleLogicalResource`, classified `EXTERNAL_ADMITTED` (see
+above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`),
+gated on `record_store` being absent. Fixture at
+`live/e2e/limits/local-file/` (no store, still refused).
 
 ### local-sensitive-file
 
@@ -349,12 +388,13 @@ module cannot delete upstream source. Once the tag has been rewritten the block
 is simply a no-op on every later run, because the old address matches nothing.
 
 Resource renames, root-to-module refactors, cross-module moves, module renames,
-chains of two or more statements, and destinations expanded with `count` all
-carry. The last matters more than it sounds: `count = var.create ? 1 : 0` is how
-every `terraform-aws-modules` resource is written, so it is what most shipped
-`moved` blocks land on.
+chains of two or more statements, and destinations expanded with `count` - a
+resource's own, or (issue #330) a module call's - all carry. The resource case
+matters more than it sounds: `count = var.create ? 1 : 0` is how every
+`terraform-aws-modules` resource is written, so it is what most shipped `moved`
+blocks land on.
 
-**Why the rest are banned.** Three shapes cannot be aliased safely, and the
+**Why the rest are banned.** Two shapes cannot be aliased safely, and the
 danger is one-directional - a block admitted but not aliased leaves the live
 resource reading as an orphan at the old address (the plan proposes destroying
 it) while the new address reads as absent (the plan proposes creating it), which
@@ -366,10 +406,24 @@ is one cloud object and two wrong beliefs:
   apart. Stock refuses this too, as "Moved object still exists".
 - The two endpoints name different resource types. A marker names the type of
   the resource it is written on, so an alias across types could never match.
-- An endpoint passes through a `count`-expanded module instance. `count`
-  renumbers every address beneath it, so an alias into one would name addresses
-  that move under their own markers - the same step `choudoufu live-mv` refuses,
-  and the reason "child-module" refuses `count` modules outright.
+
+An endpoint passing through a `count`-expanded *module* instance used to be a
+third banned shape, `internal/live/moved`'s own refusal and not shared with
+`choudoufu live-mv`. Issue #317 found that `live-mv`'s copy of this reasoning
+was citing a premise issue #195 had already retired for a plain scalar module
+`count` (see "child-module" below), and admitted the rename once lint's own
+`RuleChildModule` has already proven the step static - but left `moved`'s
+copy for a separate read, since its mechanism (structural statement matching)
+differs from a two-address rename. Issue #330 did that read: `Honourable` is
+not downstream of a separate command step the way `live-mv`'s check is, it
+*is* one of lint's own rules (`RuleMovedBlock`, `checkMovedBlocks`), invoked
+from the same `checkConfig` walk that runs `RuleChildModule`
+(`checkChildModules`) over the same module immediately before it. Both are
+fatal and both feed the one `[]Issue` slice every gated caller inspects
+together, so a module call unsafe enough to matter - non-static count, or a
+count.index leak into its own arguments - never produces a clean lint result
+regardless of what `Honourable` decides, and a moved block through a module
+that *is* safe was refused for nothing. Admitted since #330.
 
 **Forwarding address.** `choudoufu live-mv <old-address> <new-address>`, the
 marker rewrite that plays the same role by editing the live resource's
@@ -3198,6 +3252,7 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_athena_prepared_statement`, `aws_auditmanager_account_registration`,
 `aws_autoscaling_group`, `aws_autoscaling_lifecycle_hook`,
 `aws_autoscaling_policy`, `aws_autoscaling_schedule`,
+`aws_autoscaling_traffic_source_attachment`,
 `aws_backup_restore_testing_selection`,
 `aws_bedrock_model_invocation_logging_configuration`,
 `aws_bedrockagentcore_resource_policy`,
@@ -3261,10 +3316,12 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_guardduty_organization_admin_account`,
 `aws_guardduty_organization_configuration`, `aws_iam_account_alias`,
 `aws_iam_account_password_policy`, `aws_iam_group`, `aws_iam_group_policy`,
-`aws_iam_group_policy_attachment`, `aws_iam_role_policy`,
-`aws_iam_role_policy_attachment`, `aws_iam_user_group_membership`,
-`aws_iam_user_login_profile`, `aws_iam_user_policy`,
-`aws_iam_user_policy_attachment`, `aws_inspector2_delegated_admin_account`,
+`aws_iam_group_policy_attachment`, `aws_iam_role_policies_exclusive`,
+`aws_iam_role_policy`, `aws_iam_role_policy_attachment`,
+`aws_iam_role_policy_attachments_exclusive`,
+`aws_iam_user_group_membership`, `aws_iam_user_login_profile`,
+`aws_iam_user_policy`, `aws_iam_user_policy_attachment`,
+`aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_internet_gateway_attachment`,
 `aws_iot_event_configurations`, `aws_iot_thing`,
 `aws_iot_thing_group_membership`, `aws_kinesis_account_settings`,
@@ -3633,7 +3690,8 @@ per-type reasoning as it stands.
 `aws_arczonalshift_zonal_autoshift_configuration`,
 `aws_auditmanager_account_registration`, `aws_autoscaling_group`,
 `aws_autoscaling_lifecycle_hook`, `aws_autoscaling_policy`,
-`aws_autoscaling_schedule`, `aws_backup_restore_testing_selection`,
+`aws_autoscaling_schedule`, `aws_autoscaling_traffic_source_attachment`,
+`aws_backup_restore_testing_selection`,
 `aws_bedrock_model_invocation_logging_configuration`,
 `aws_bedrockagentcore_resource_policy`,
 `aws_bedrockagentcore_workload_identity`, `aws_cloudfront_cache_policy`,
@@ -3670,6 +3728,8 @@ per-type reasoning as it stands.
 `aws_glue_resource_policy`, `aws_glue_security_configuration`,
 `aws_guardduty_organization_admin_account`, `aws_iam_account_alias`,
 `aws_iam_account_password_policy`, `aws_iam_group`, `aws_iam_group_policy`,
+`aws_iam_role_policies_exclusive`,
+`aws_iam_role_policy_attachments_exclusive`,
 `aws_inspector2_delegated_admin_account`,
 `aws_inspector2_member_association`, `aws_iot_event_configurations`,
 `aws_iot_thing`, `aws_iot_thing_group_membership`,
@@ -3741,29 +3801,40 @@ or delete it out of band. Every plan still names this narrower list under
 too when it is report-only, and left out of it entirely on the one row this
 pass also removes.
 
-**An import-derived prior state cannot hold config-only attributes.** A
-provider attribute that the cloud does not store and the configuration
-does not set has no value in a projection, since no read can return it.
-When the resource changes for any other reason, the provider's default
-arrives in the diff as a null-to-default line beside the real change.
-`aws_security_group`'s `revoke_rules_on_delete` is the case in the v0
-subset. This is not specific to marker runs. A stock `choudoufu import` of
-the same resource followed by the same drift prints the identical line. It
-is cosmetic (the attribute is only consulted on delete) and not
-recoverable at OpenTofu's layer, because provider defaults live in the SDK
-and not in the schema OpenTofu is served.
+**An import-derived prior state cannot hold config-only attributes, unless
+an estate declares a `record_store`.** A provider attribute that the cloud
+does not store and the configuration does not set has no value in a
+projection, since no read can return it. When the resource changes for any
+other reason, the provider's default arrives in the diff as a
+null-to-default line beside the real change. `aws_security_group`'s
+`revoke_rules_on_delete` is the case in the v0 subset. This is not specific
+to marker runs. A stock `choudoufu import` of the same resource followed by
+the same drift prints the identical line. It is cosmetic (the attribute is
+only consulted on delete).
 
-The same gap stops being cosmetic when the configuration *does* set such
-an argument. Then the projection holds the null the read returned, the
+The same gap stops being cosmetic when the configuration *does* set such an
+argument. Then the projection holds the null the read returned, the
 configuration holds the written value, and every plan proposes the same
-in-place update forever, a standing non-empty plan rather than a stray
-line beside a real change. `aws_kms_key`'s `deletion_window_in_days` and
-`aws_route53_zone`'s `force_destroy` are the two in the v0 subset: KMS and
-Route 53 never return either one, and both are consulted only on destroy.
-The estate fixture leaves both at their defaults for exactly this reason
-(`live/e2e/estate/keys.tf`, `dns.tf`). If you need a non-default
-value for one of these, a marker run will re-propose it on every plan,
-that is the cost, and it is visible rather than silent.
+in-place update forever, a standing non-empty plan rather than a stray line
+beside a real change - with no `record_store` declared. Where one is
+declared, this is exactly the class "Attribute-level residue" above
+(issue #275) exists for: nothing has classified the argument until an
+estate's first choudoufu-driven apply, so the FIRST plan after adoption, or
+after the argument's value first changes, still shows it, but the very next
+plan is empty once that one apply has run. Verified directly against floci
+for `revoke_rules_on_delete` on `aws_default_security_group` (issue #328):
+the apply records `tofu-residue/<estate>/aws_default_security_group/...`
+holding `revoke_rules_on_delete: true`, and the following cold replan
+reports "No changes." `aws_kms_key`'s `deletion_window_in_days` and
+`aws_route53_zone`'s `force_destroy` are the two other v0-subset arguments
+in the same class: KMS and Route 53 never return either one, and both are
+consulted only on destroy. The estate fixture leaves both at their defaults
+and declares no `record_store` (`live/e2e/estate/keys.tf`, `dns.tf`), so for
+it the standing-diff behavior above still applies in full - not because the
+class is unrecoverable, but because that fixture has nowhere to record it.
+If you need a non-default value for one of these with no `record_store`
+declared, a marker run will re-propose it on every plan, that is the cost,
+and it is visible rather than silent.
 
 ## Exclusion cohorts
 

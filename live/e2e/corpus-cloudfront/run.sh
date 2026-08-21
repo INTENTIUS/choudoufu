@@ -30,14 +30,51 @@ set -uo pipefail
 #           narrowing each to the resolutions whose own resource block names
 #           it - and this step now asserts that refusal is GONE.
 #
-#           The estate still does not cross, but it now dies somewhere else
-#           and for an unrelated reason: aws_wafv2_web_acl has no list
-#           operation the provider serves, so the one declared instance of
-#           it cannot be found by marker at all. That is a type-listability
-#           gap, nothing to do with provider configurations - and reaching
-#           it is itself the proof the aliased configuration's own pass ran,
-#           because aws_wafv2_web_acl sits on aws.global and no pass ever
-#           looked at it before.
+#           The estate still does not cross. RE-VERIFIED 2026-08-19 (issue
+#           #300): the aws_wafv2_web_acl listability gap this comment used to
+#           pin is GONE - no "cannot list" error anywhere, and the aliased
+#           aws.global pass's own "Incomplete sweep for undeclared resources"
+#           warnings no longer name it, exactly as they would if it were
+#           still unlistable. The estate now fails earlier, on three
+#           unrelated causes at once:
+#
+#             aws_cloudwatch_log_delivery_destination (2 instances) and
+#             aws_cloudwatch_log_delivery_source (2 instances) - a FLOCI GAP,
+#             not a choudoufu defect. Reading either back 400s with
+#             "UnsupportedOperation: Operation Get{DeliveryDestination,
+#             DeliverySource} is not supported" - floci never implemented
+#             these two CloudWatch Logs calls. That is a different SHAPE of
+#             failure than issue #297's fix folds into ordinary absence:
+#             #297 matches a not-found-shaped diagnostic ("couldn't find
+#             resource", ResourceNotFoundException) and treats it as "not
+#             created yet"; UnsupportedOperation says the operation itself
+#             does not exist in the emulator, and #297 correctly leaves that
+#             alone rather than silently swallowing it. Filed as
+#             lex00/floci#79.
+#
+#             aws_iam_policy_attachment (1 instance, basic_lambda_attach) -
+#             a REAL, PERMANENT PROVIDER BOUNDARY, not a choudoufu gap.
+#             "resource aws_iam_policy_attachment doesn't support import" is
+#             internal/legacy/helper/schema/provider.go:384's own hard stop
+#             for a resource with a nil Importer - the same code path stock
+#             OpenTofu's `terraform import` would hit for this type. The
+#             provider's own docs confirm it: v6.59.0's
+#             iam_policy_attachment.html.markdown carries no Import section
+#             at all. choudoufu currently admits the type anyway, through
+#             internal/live/lint/admission.go's schema fallback, because the
+#             provider's WIRE identity schema declares an import identity
+#             (policy_arn) that the resource's actual Importer does not back -
+#             live/identity-sources.json's identity_schema_wire_only already
+#             flags this exact mismatch, for this type and five others
+#             (aws_acm_certificate_validation,
+#             aws_acmpca_certificate_authority_certificate,
+#             aws_codegurureviewer_repository_association,
+#             aws_inspector_resource_group,
+#             aws_shield_application_layer_automatic_response). That is a
+#             genuine finding about admission trusting a wire-only identity
+#             schema it cannot verify against the resource's real Importer -
+#             not acted on here, because it is a design question spanning
+#             several types and not a contained fix. Reported on issue #300.
 #
 #   STEP 5  a REAL fix, found by this script's first run today. Before it,
 #           EVERY unique-name type failed its very first apply,
@@ -52,21 +89,38 @@ set -uo pipefail
 #           check to the second reader (`git log -1 --grep BindsByName` for
 #           the commit, if this file's history survives a rebase).
 #
-#   STEP 6  a FLOCI GAP, not a choudoufu defect: once state is deleted and
-#           the estate is replanned, Cloud Control's List/GetResource for
-#           these two CloudFront types answers with a FLAT Properties object
-#           ({"Id":...,"Name":...}) instead of AWS's own documented shape,
-#           nested under a *Config object ({"Id":...,"CachePolicyConfig":
-#           {"Name":...}}) - live/registry.json's unique_name_property field
-#           for both types, scraped from AWS's real CloudFormation registry
-#           schema, says CachePolicyConfig/Name and OriginRequestPolicyConfig/
-#           Name. choudoufu reads the documented path, finds nothing there,
-#           and REFUSES - "Listed resource with no readable name" - rather
-#           than silently binding wrong or creating a duplicate. That is the
-#           mechanism failing safe, not failing; the crossing itself (delete
-#           state, replan empty) cannot complete against floci today because
-#           floci's own emulation of these two types does not match the
-#           schema this fork verified against.
+#   STEP 6  a FLOCI GAP, not a choudoufu defect - but RE-VERIFIED 2026-08-19
+#           (issue #300) to be a DIFFERENT floci gap than the one this
+#           comment used to pin. The original shape gap - Cloud Control's
+#           List/GetResource for these two CloudFront types answering with a
+#           FLAT Properties object ({"Id":...,"Name":...}) instead of AWS's
+#           documented shape nested under a *Config object
+#           ({"Id":...,"CachePolicyConfig":{"Name":...}}) - is CLOSED: a cold
+#           replan now finds both objects by name instead of refusing with
+#           "Listed resource with no readable name".
+#
+#           It still does not cross empty, for a new reason: floci's
+#           GetCachePolicy/GetOriginRequestPolicy responses carry almost
+#           nothing besides Name/Comment. Read straight back with the AWS
+#           CLI (bypassing choudoufu/OpenTofu entirely), the CachePolicyConfig
+#           this estate created with default_ttl=300, max_ttl=31536000,
+#           min_ttl=1 and a full parameters_in_cache_key_and_forwarded_to_origin
+#           block comes back as {"Comment":"","Name":"no-cookies"} - every
+#           other field silently dropped, and the same for
+#           OriginRequestPolicyConfig's cookies/headers/query-strings config.
+#           choudoufu's replan sees the live object's config reset to zero
+#           values and proposes an in-place update to "restore" configuration
+#           that was never actually lost against real AWS - a false-drift
+#           plan (Plan: 0 to add, 2 to change, 0 to destroy), not the empty
+#           plan a real crossing needs. Filed as lex00/floci#80; the earlier
+#           shape gap this comment used to describe was lex00/floci's own
+#           fix, not tracked under a kept-open number here.
+#
+#           This step is NOT rewritten into a real crossing: "the cold
+#           replan succeeded" (RC 0) is necessary but not sufficient, and
+#           this script now distinguishes RC 0 with an empty plan (a real
+#           crossing) from RC 0 with a nonempty one (still blocked, just by
+#           a different floci gap than the one first documented here).
 #
 #   bash live/e2e/corpus-cloudfront/run.sh
 #
@@ -211,23 +265,29 @@ log "  configuration (default eu-west-1 and aliased global us-east-1)"
 log "  rather than refusing the estate outright.                (#283)"
 
 if [ "$RC" -eq 0 ]; then
-  fail "the full estate applied cleanly, which this script does not yet expect. That is GOOD NEWS: the aws_wafv2_web_acl listability gap below has been closed too, and this step should be rewritten into a real crossing (apply, delete the state, replan empty, replan empty again - per every other script in live/e2e)."
+  fail "the full estate applied cleanly, which this script does not yet expect. That is GOOD NEWS: every remaining blocker below has been closed too, and this step should be rewritten into a real crossing (apply, delete the state, replan empty, replan empty again - per every other script in live/e2e)."
 fi
 
-# Where it stops instead. Nothing to do with provider configurations:
-# aws_wafv2_web_acl has no list operation the provider serves, so its one
-# declared instance cannot be found by marker at all. Pinned because
-# reaching it is what proves the aliased configuration's own pass ran -
-# aws_wafv2_web_acl is declared with `provider = aws.global`, and before
-# #283 nothing ever listed for it.
+# The aws_wafv2_web_acl listability gap this comment used to pin is GONE -
+# verified 2026-08-19 (#300). If it ever comes back, say so rather than let
+# the generic fallback below swallow it as "something moved".
 grep -q 'cannot list aws_wafv2_web_acl' <<< "$APPLY_FULL" \
+  && fail "the aws_wafv2_web_acl listability gap fired again. It was verified CLOSED on 2026-08-19 (issue #300) - no 'cannot list' error, and the aliased aws.global pass's own undeclared-resource sweep no longer named the type. Something has regressed; read the errors above and re-stale this script's header comment to match."
+
+# Where it stops instead: three unrelated causes at once, none of them about
+# provider configurations or wafv2 listability. See this script's header for
+# the full account of each (issue #300).
+grep -q 'reading CloudWatch Logs Delivery Destination' <<< "$APPLY_FULL" \
+  && grep -q 'reading CloudWatch Logs Delivery Source' <<< "$APPLY_FULL" \
+  && grep -q "aws_iam_policy_attachment doesn't support import" <<< "$APPLY_FULL" \
   || { grep -E '^Error|^│' <<< "$APPLY_FULL" | head -20
-       fail "the full estate failed, but not on the aws_wafv2_web_acl listability gap this script now pins, and not on the two-configuration refusal either. Something else about the corpus pin or this fork has moved - read the errors above."; }
-log "  it stops later, and elsewhere: the provider serves no list operation"
-log "  for aws_wafv2_web_acl, which is declared on aws.global. A type-"
-log "  listability gap, not a provider-configuration one - and reaching it"
-log "  at all is the aliased configuration's pass having run."
-log "  This estate is still NOT crossed."
+       fail "the full estate failed, but not on the three causes this script now pins (the CloudWatch Logs Delivery Destination/Source floci gap, lex00/floci#79, and aws_iam_policy_attachment's real lack of provider Import support). Something else about the corpus pin or this fork has moved - read the errors above."; }
+log "  it stops earlier now, and on three unrelated causes: floci has never"
+log "  implemented CloudWatch Logs' GetDeliveryDestination/GetDeliverySource"
+log "  (lex00/floci#79, not a not-found shape #297 should fold), and"
+log "  aws_iam_policy_attachment has no real provider Import support (a"
+log "  permanent boundary stock OpenTofu would hit too)."
+log "  This estate is still NOT crossed.                        (#300)"
 
 # ── 4. the unique-name mechanism, isolated ──────────────────────────────────
 # The two resources in this estate that exercise the leg #274 asked this
@@ -292,22 +352,37 @@ log "=== 6. delete the state, replan cold: floci's own gap ==="
 rm -f "$UNIQ/terraform.tfstate" "$UNIQ/terraform.tfstate.backup"
 PLAN1="$(cd "$UNIQ" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 RC=$?
-if [ "$RC" -eq 0 ]; then
-  fail "the cold replan succeeded. floci's Cloud Control emulation for AWS::CloudFront::CachePolicy / AWS::CloudFront::OriginRequestPolicy now nests Name under *Config the way AWS's own schema documents - re-read this script's header, this is GOOD NEWS, and step 6 should be rewritten into a real crossing (assert No changes, twice, per every other script in live/e2e)."
+
+# The shape gap this step used to pin - Cloud Control answering with a FLAT
+# Properties object instead of Name nested under *Config, refused as "Listed
+# resource with no readable name" - is CLOSED, verified 2026-08-19 (#300). A
+# nonzero exit now means something else has moved, not the gap this script
+# knows about.
+if [ "$RC" -ne 0 ]; then
+  grep -E '^Error|^│' <<< "$PLAN1" | head -20
+  fail "the cold replan failed. The 'Listed resource with no readable name' shape gap this script used to pin was verified CLOSED on 2026-08-19 (issue #300) - Cloud Control now nests Name under *Config correctly. Something else about the corpus pin or this fork has moved; read the errors above."
 fi
-grep -q 'Listed resource with no readable name' <<< "$PLAN1" \
-  || { grep -E '^Error|^│' <<< "$PLAN1" | head -20
-       fail "the cold replan failed, but not with the unreadable-name refusal this script pins. Something has moved."; }
-log "  refused, exactly as documented: Cloud Control listed both objects"
-log "  back with a FLAT Properties shape (Id, Name, Etag, LastModifiedTime),"
-log "  not AWS's own documented shape (Name nested under CachePolicyConfig /"
-log "  OriginRequestPolicyConfig - live/registry.json's unique_name_property"
-log "  for both types). choudoufu reads the documented path, finds nothing"
-log "  there, and REFUSES rather than binding wrong or proposing a duplicate"
-log "  create. That is the mechanism failing SAFE. The crossing itself -"
-log "  delete state, replan empty, replan empty again - cannot complete"
-log "  against floci today for these two types; it is not something this"
-log "  fork's code gets to decide."
+
+if grep -q 'No changes' <<< "$PLAN1"; then
+  fail "the cold replan came back with no changes. That is GREAT NEWS: floci's CachePolicyConfig/OriginRequestPolicyConfig completeness gap (lex00/floci#80) has closed too, and this step should be rewritten into a real crossing (replan empty a second time, per every other script in live/e2e)."
+fi
+
+# Where it stops instead: not a refusal at all now, but a nonempty plan.
+# floci's GetCachePolicy/GetOriginRequestPolicy drop nearly every field but
+# Name/Comment (lex00/floci#80), so the replan sees the live object's config
+# reset to zero values and proposes restoring configuration that was never
+# actually lost - a false-drift update, not the empty plan a real crossing
+# needs.
+grep -q 'to change' <<< "$PLAN1" \
+  || { printf '%s\n' "$PLAN1" | tail -40
+       fail "the cold replan succeeded with an unexpected shape - not the 'N to change' false-drift plan this script now pins for lex00/floci#80, and not 'No changes' either. Something has moved; read the plan output above."; }
+log "  the old shape gap is GONE: Cloud Control now nests Name under *Config"
+log "  the way AWS's own schema documents, and the cold replan finds both"
+log "  objects by name instead of refusing.                     (#300)"
+log "  It still does not cross empty, for a DIFFERENT floci gap:"
+log "  GetCachePolicy/GetOriginRequestPolicy drop nearly every field but"
+log "  Name/Comment (lex00/floci#80), so the replan proposes restoring"
+log "  configuration that was never actually lost against real AWS."
 
 log ""
 log "=== PASS (partial) ==="
@@ -316,14 +391,17 @@ log "The unique-name discovery leg had never touched a live cloud before"
 log "today. Its own bug did: EVERY unique-name type failed its first apply"
 log "unconditionally, before discovery ran at all (step 5's fix). What"
 log "remains untestable against floci is the leg's actual binding behavior -"
-log "step 6's floci gap blocks it before that question is reachable."
+log "step 6's floci gap (lex00/floci#80, a false-drift plan from an"
+log "incomplete read) blocks it before that question is reachable."
 log ""
 log "The full 16-instance estate still does not cross (step 3), but no"
 log "longer for the reason it used to. It spans two provider configurations -"
 log "the shape AWS's own CloudFront-plus-WAF guidance produces - and that"
 log "was a hard refusal before any resource was touched. Issue #283 lifted"
-log "it: the estate now runs one scoped discovery pass per configuration and"
-log "stops further in, on a type the provider serves no list operation for"
-log "(aws_wafv2_web_acl, declared on aws.global). This script measures the"
-log "estate as GOV.UK wrote it, not a version restructured to fit around"
-log "either bound."
+log "it: the estate now runs one scoped discovery pass per configuration."
+log "aws_wafv2_web_acl's old listability gap is gone too (re-verified"
+log "2026-08-19, #300); the estate now stops further in still, on a floci"
+log "gap (CloudWatch Logs Delivery Destination/Source, lex00/floci#79) and a"
+log "real provider boundary (aws_iam_policy_attachment has no Import"
+log "support at all). This script measures the estate as GOV.UK wrote it,"
+log "not a version restructured to fit around any of these bounds."

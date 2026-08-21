@@ -14,6 +14,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -33,6 +35,22 @@ const (
 	// second live-import run over the same state is idempotent rather than
 	// re-writing tags that already say the right thing.
 	OutcomeAlreadyStamped Outcome = "ALREADY_STAMPED"
+
+	// OutcomeRecorded means this instance is record-backed - its value is
+	// its identity, and no live object exists to carry a tag - and Approve
+	// seeded the estate's record store with the object the state recorded.
+	// This is the whole migration for such a resource, and it is what GitHub
+	// issue #340 found missing: without it a migrated random_pet,
+	// null_resource, terraform_data or local_file has its generated value
+	// nowhere, and the first live-plan after the migration proposes creating
+	// it from scratch.
+	OutcomeRecorded Outcome = "RECORDED"
+
+	// OutcomeAlreadyRecorded means the record store already held exactly
+	// this object for this address. A no-op, on purpose, and the same
+	// idempotence [OutcomeAlreadyStamped] gives the tag write: a second
+	// live-import run over the same state file writes nothing twice.
+	OutcomeAlreadyRecorded Outcome = "ALREADY_RECORDED"
 
 	// OutcomeSkipped means Ratify never made this resource eligible - its
 	// Status was MISSING, UNADMITTED_TYPE or UNTAGGABLE - so Approve never
@@ -84,11 +102,48 @@ type StampReport struct {
 // from: everything it needs (the live object, its private data, its
 // identity, the provider connection) was already carried forward by
 // [Ratify]. See the package doc, "What Ratify never does".
+//
+// GitHub issue #327: for every VERIFIED or DRIFTED entry, Approve also tries
+// to record [projection.RecordResidueForInstance]'s residue classification,
+// independent of whether the tag write itself succeeds - it is its own
+// provider conversation, using the object Ratify already read rather than
+// the (possibly still-unmarked) object the tag write produces. This is what
+// closes the gap a migrate would otherwise leave open forever: without it, a
+// residue-shaped attribute (one an SDKv2 resource's Read only ever preserves
+// from its prior, never reads from the remote) has no residue record until
+// a choudoufu apply first classifies it, so the FIRST live-plan after a
+// clean migrate sees it null - a phantom update for an ordinary argument, a
+// phantom REPLACE for a ForceNew one.
+//
+// GitHub issue #340: and for every RECORD-BACKED entry, which by definition
+// has no live object and therefore never reaches a tag write at all, Approve
+// seeds the estate's record store from the state's own object instead - see
+// [recordOne]. That is the whole of what migrating such a resource means,
+// and while it did not happen a migrated estate lost every generated value
+// it had: the run reported success, and the next live-plan proposed creating
+// random_pet, null_resource, terraform_data and local_file from nothing.
+//
+// GitHub issue #341: and the residue write above is NOT limited to the
+// entries that reach a tag write. An admitted resource whose provider schema
+// has no tags argument is still a real cloud object with real arguments, and
+// while its residue was unreachable, a clean migrate of one left an estate
+// proposing the same phantom update forever - measured on
+// aws_route53_record.allow_overwrite, over an untaggable population of 342 of
+// [identity.DefaultTable]'s 1040 rows. Such an entry keeps
+// [OutcomeSkipped], because what was skipped is the marker write and that is
+// what this axis reports; no count this command prints moves as a result.
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	rep := &StampReport{Estate: r.Estate}
 	for _, entry := range r.Entries {
+		if rec, ok := r.recordable[entry.Addr.String()]; ok {
+			// Issue #340. A record-backed instance is never also eligible
+			// (see [recordable]), so this branch and the one below are
+			// alternatives, not a sequence.
+			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, r.recordKeyPrefix, entry.Addr, rec))
+			continue
+		}
 		elig, ok := r.eligible[entry.Addr.String()]
 		if !ok {
 			rep.Outcomes = append(rep.Outcomes, StampOutcome{
@@ -97,11 +152,109 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 				Outcome:  OutcomeSkipped,
 				Detail:   "Not stamped: " + entry.Detail,
 			})
+			// GitHub issue #341. Not stamped is not the same as nothing to
+			// do. An admitted, untaggable resource is a real cloud object
+			// with real arguments, and a migration is the only moment
+			// anything can classify the ones its provider never reads back.
+			// The outcome stays SKIPPED on purpose - the marker write is what
+			// was skipped, and that is what this axis reports - so no count
+			// this run prints moves.
+			diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, r.residuable[entry.Addr.String()]))
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig))
+		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, &elig.residuable))
 	}
 	return rep, diags
+}
+
+// recordOne is Approve's GitHub issue #340 half: the migration of one
+// record-backed instance, which is a single write to the estate's record
+// store and no cloud call at all.
+//
+// It is the exact counterpart of [approveOne] - one carrier per resource,
+// one write per resource, one outcome per resource - and the reason a
+// migration needs both is that "which live object is this" and "what value
+// is this" are answered by different carriers. A tag answers the first. For
+// the fifteen types [recordBackedType] covers today there is no first
+// question to answer, and the record is the only answer to the second.
+//
+// A nil store cannot be reached from Approve (Ratify never builds a
+// *recordable without one), but it is handled anyway rather than trusted:
+// [projection.SeedRecordForInstance] treats it as a no-op, which would
+// report ALREADY_RECORDED, so the guard here says the true thing instead.
+func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, addr addrs.AbsResourceInstance, rec *recordable) StampOutcome {
+	out := StampOutcome{Addr: addr, TypeName: rec.typeName}
+	if store == nil {
+		out.Outcome = OutcomeSkipped
+		out.Detail = fmt.Sprintf("Not recorded: %s is record-backed and this configuration declares no record_store, so there is nowhere to keep its value.", rec.typeName)
+		return out
+	}
+
+	wrote, err := projection.SeedRecordForInstance(ctx, store, keyPrefix, addr, rec.value, rec.private, rec.status)
+	switch {
+	case err != nil:
+		out.Outcome = OutcomeFailed
+		out.Detail = fmt.Sprintf("The record store could not be seeded for this %s: %s. Nothing was written, and the first live-plan after this migration will propose creating it.", rec.typeName, err)
+	case wrote:
+		out.Outcome = OutcomeRecorded
+		out.Detail = "Wrote the state's own object into this estate's record store; there is no live object to tag."
+	default:
+		out.Outcome = OutcomeAlreadyRecorded
+		out.Detail = "The record store already holds exactly this object; nothing written."
+	}
+	return out
+}
+
+// recordResidueFor is Approve's GitHub issue #327 half: it wraps the
+// carrier's already-configured provider connection into the read
+// [projection.RecordResidueForInstance] needs, called twice per its own doc
+// comment, and turns a non-nil error into the same warning
+// [writeBackResidue] already raises for the apply-time write path - reusing
+// its Summary rather than minting a new one, since it is the identical
+// situation ("an apply could not classify or store residue") reached from a
+// second call site.
+//
+// It takes a [residuable] and not an [eligible], which is GitHub issue #341's
+// whole fix in one signature: recording what an estate sent has nothing to do
+// with whether the thing it sent it to has a tags argument. Both call sites
+// in [Ratification.Approve] reach here now - the stamped one through the
+// [residuable] its *eligible embeds, and the untaggable one through its own.
+//
+// A nil residueStore (no record_store block, or a nil Ratification built
+// without one) makes this an immediate no-op, and so does e itself being nil
+// - an instance with no carrier at all, such as one whose type is unadmitted
+// or whose state holds no current object, has nothing to classify from.
+func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if store == nil || e == nil {
+		return diags
+	}
+	read := func(prior cty.Value) (cty.Value, error) {
+		resp := e.provider.ReadResource(ctx, providers.ReadResourceRequest{
+			TypeName:   e.typeName,
+			PriorState: prior,
+			Private:    e.private,
+			// The same null-of-dynamic every other read in this package and
+			// projection's own residue path pass, and for the same reason:
+			// the plugin client marshals ProviderMeta whenever the provider
+			// declares a provider_meta schema, and a value with no type at
+			// all panics the conformance check.
+			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			PriorIdentity: e.identity,
+		})
+		if resp.Diagnostics.HasErrors() {
+			return cty.NilVal, resp.Diagnostics.Err()
+		}
+		return resp.NewState, nil
+	}
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, read); err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
+			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
+			addr, err,
+		)))
+	}
+	return diags
 }
 
 // approveOne is the tags-only write for one resource, from the object
@@ -118,7 +271,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 	chunks := discovery.SplitAddress(wantAddress)
 
-	tags, ok := tagsFromObject(e.schema, e.liveVal)
+	tags, ok := tagsFromObject(e.schema, e.applied)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema. Nothing was written.", e.typeName)
@@ -164,7 +317,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		desiredTags[discovery.AddressTagKey(i)] = chunk
 	}
 
-	desired, err := withTags(e.schema.Block, e.liveVal, desiredTags)
+	desired, err := withTags(e.schema.Block, e.applied, desiredTags)
 	if err != nil {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The tags of this %s could not be replaced: %s.", e.typeName, err)
@@ -172,11 +325,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 
 	configVal := configValue(e.schema.Block, desired)
-	proposed := objchange.ProposedNew(e.schema.Block, e.liveVal, configVal)
+	proposed := objchange.ProposedNew(e.schema.Block, e.applied, configVal)
 
 	planResp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 		TypeName:         e.typeName,
-		PriorState:       e.liveVal,
+		PriorState:       e.applied,
 		ProposedNewState: proposed,
 		Config:           configVal,
 		PriorPrivate:     e.private,
@@ -204,7 +357,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Detail = "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
 		return out
 	}
-	if extra := changedOutsideTags(e.schema.Block, e.liveVal, planned); len(extra) > 0 {
+	if extra := changedOutsideTags(e.schema.Block, e.applied, planned); len(extra) > 0 {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", e.typeName, strings.Join(extra, ", "))
 		return out
@@ -212,7 +365,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 
 	applyResp := e.provider.ApplyResourceChange(ctx, providers.ApplyResourceChangeRequest{
 		TypeName:        e.typeName,
-		PriorState:      e.liveVal,
+		PriorState:      e.applied,
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,

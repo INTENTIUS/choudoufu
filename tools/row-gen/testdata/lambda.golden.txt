@@ -1,11 +1,18 @@
 row-gen: registry-evidence admission proposals (issue #44)
 
 Turns live/registry.json's per-type evidence, joined against live/mapping.json,
-into proposed rows for internal/live/lint/admission.go (admittedTypesV0) and
-internal/live/identity/table.go (DefaultTable). Nothing is written to either
+into proposed rows for tools/row-gen/ratified.json, the hand-owned corpus
+-emit copies every non-RecordBacked row out of. Nothing is written to that
 file by this tool: every block below is printed for a human to paste, edit
-and ratify. A wrong row touches live infrastructure, so the generator
-proposes and humans decide - see issue #37.
+and ratify, and -emit then renders the generated tables from it. A wrong row
+touches live infrastructure, so the generator proposes and humans decide -
+see issue #37.
+
+Paste a block into tools/row-gen/ratified.json and re-run
+"go run ./tools/row-gen -emit". There is no second paste: admittedTypesV0 in
+internal/live/lint/admission_generated.go is DERIVED from the emitted table's
+own key set, so admitting a type is exactly the act of giving it a row here
+(issue #263).
 
 Non-goals (also true of every block below, not just this header):
   - no IdentityAttrs id-alias inference: whether a type's own "id" attribute
@@ -41,86 +48,100 @@ rule: len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyPropert
 registry fields read: primary_identifier=["CapacityProviderName"] read_only_properties=["State", "Arn"] create_only_properties=["CapacityProviderName", "VpcConfig", "InstanceRequirements", "PermissionsConfig", "KmsKeyArn"]
 enumeration: list-free
 argument: name (source: provider identity schema (live/survey-full.json))
+before ratifying: "identity_attrs" names the resolved argument only; "id" is intentionally omitted (issue #44 non-goals).
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_capacity_provider": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-TypeIdentity{
-	Type:          "aws_lambda_capacity_provider",
-	Components:    []Component{attr("name")},
-	ImportSyntax:  "NAME",
-	IdentityAttrs: []string{"name"}, // "id" intentionally omitted; see issue #44 non-goals
-},
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_capacity_provider": {
+    "type": "aws_lambda_capacity_provider",
+    "components": [
+      {
+        "attrs": [
+          "name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAME",
+    "identity_attrs": [
+      "name"
+    ]
+  },
 
 ## aws_lambda_code_signing_config -> AWS::Lambda::CodeSigningConfig [proposed: server-assigned]
 rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["CodeSigningConfigArn"] read_only_properties=["CodeSigningConfigId", "CodeSigningConfigArn"] create_only_properties=[]
 enumeration: list-free
+before ratifying: "reason" is TEMPLATED - it names the CFN service and asserts server assignment, nothing more specific. Rewrite it, or accept it deliberately.
+before ratifying: "import_syntax" is TEMPLATED from the registry's primaryIdentifier name(s), not from the provider's documented import syntax. Verify it.
+before ratifying: "identity_attrs" is intentionally absent: whether this type's own "id" attribute equals the identity above is the id-alias inference row-gen does not make (issue #44 non-goals). Add "id" and any other alias only after confirming it against the provider schema or docs.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_code_signing_config": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-serverAssigned("aws_lambda_code_signing_config",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"CODESIGNINGCONFIGARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_code_signing_config": {
+    "type": "aws_lambda_code_signing_config",
+    "server_assigned": true,
+    "reason": "the Lambda service assigns this identity at create time; no argument reconstructs it.",
+    "import_syntax": "CODESIGNINGCONFIGARN"
+  },
 
 ## aws_lambda_event_source_mapping -> AWS::Lambda::EventSourceMapping [proposed: server-assigned]
 rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["Id"] read_only_properties=["Id", "EventSourceMappingArn"] create_only_properties=["EventSourceArn", "StartingPosition", "StartingPositionTimestamp", "SelfManagedEventSource"]
 enumeration: list-free
+before ratifying: "reason" is TEMPLATED - it names the CFN service and asserts server assignment, nothing more specific. Rewrite it, or accept it deliberately.
+before ratifying: "import_syntax" is TEMPLATED from the registry's primaryIdentifier name(s), not from the provider's documented import syntax. Verify it.
+before ratifying: "identity_attrs" is intentionally absent: whether this type's own "id" attribute equals the identity above is the id-alias inference row-gen does not make (issue #44 non-goals). Add "id" and any other alias only after confirming it against the provider schema or docs.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_event_source_mapping": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-serverAssigned("aws_lambda_event_source_mapping",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"ID", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_event_source_mapping": {
+    "type": "aws_lambda_event_source_mapping",
+    "server_assigned": true,
+    "reason": "the Lambda service assigns this identity at create time; no argument reconstructs it.",
+    "import_syntax": "ID"
+  },
 
 ## aws_lambda_function -> AWS::Lambda::Function [proposed: client-named]
 rule: len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties
 registry fields read: primary_identifier=["FunctionName"] read_only_properties=["SnapStartResponse", "SnapStartResponse/ApplyOn", "SnapStartResponse/OptimizationStatus", "Arn"] create_only_properties=["FunctionName", "PackageType", "TenancyConfig"]
 enumeration: list-free
 argument: function_name (source: provider identity schema (live/survey-full.json))
+before ratifying: "identity_attrs" names the resolved argument only; "id" is intentionally omitted (issue #44 non-goals).
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_function": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-TypeIdentity{
-	Type:          "aws_lambda_function",
-	Components:    []Component{attr("function_name")},
-	ImportSyntax:  "FUNCTION_NAME",
-	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
-},
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_function": {
+    "type": "aws_lambda_function",
+    "components": [
+      {
+        "attrs": [
+          "function_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FUNCTION_NAME",
+    "identity_attrs": [
+      "function_name"
+    ]
+  },
 
 ## aws_lambda_function_event_invoke_config -> AWS::Lambda::EventInvokeConfig [proposed: server-assigned]
 rule: import-grammar precedence: the registry's composite primaryIdentifier does not reconstruct the documented example string under any known separator; the provider's own Import section shows a single opaque value instead
 registry fields read: primary_identifier=["FunctionName", "Qualifier"] read_only_properties=[] create_only_properties=["FunctionName", "Qualifier"]
 enumeration: parent-input ["FunctionName"]
 note: import docs example "arn:aws:lambda:us-east-1:123456789012:function:example" is a single value, not the registry's 2-part composite primaryIdentifier ["FunctionName", "Qualifier"]
+before ratifying: "reason" is TEMPLATED - it names the CFN service and asserts server assignment, nothing more specific. Rewrite it, or accept it deliberately.
+before ratifying: "import_syntax" comes from import-grammar precedence: the registry's primaryIdentifier disagreed with the documented import example, and the documented shape won. Still verify it.
+before ratifying: "identity_attrs" was recovered from the documented import example by import-grammar precedence. Still verify it.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_function_event_invoke_config": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-serverAssigned("aws_lambda_function_event_invoke_config",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"ARN", // import-grammar precedence: registry primaryIdentifier disagreed with the documented import example; this is the documented shape - still verify
-	"arn", // import-grammar precedence: identity attribute recovered from the documented example - still verify
-),
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_function_event_invoke_config": {
+    "type": "aws_lambda_function_event_invoke_config",
+    "server_assigned": true,
+    "reason": "the Lambda service assigns this identity at create time; no argument reconstructs it.",
+    "import_syntax": "ARN",
+    "identity_attrs": [
+      "arn"
+    ]
+  },
 
 ## aws_lambda_function_url -> AWS::Lambda::Url [proposed: client-named]
 rule: import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string
@@ -129,35 +150,40 @@ enumeration: parent-input ["TargetFunctionArn"]
 argument: function_name (source: import grammar (live/import-grammar.json))
 note: import docs show argument-composed ID: example
 note: import docs pin a single-argument composed ID (example), superseding the registry-only classification
+before ratifying: "identity_attrs" names the resolved argument only; "id" is intentionally omitted (issue #44 non-goals).
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_function_url": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-TypeIdentity{
-	Type:          "aws_lambda_function_url",
-	Components:    []Component{attr("function_name")},
-	ImportSyntax:  "FUNCTION_NAME",
-	IdentityAttrs: []string{"function_name"}, // "id" intentionally omitted; see issue #44 non-goals
-},
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_function_url": {
+    "type": "aws_lambda_function_url",
+    "components": [
+      {
+        "attrs": [
+          "function_name"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FUNCTION_NAME",
+    "identity_attrs": [
+      "function_name"
+    ]
+  },
 
 ## aws_lambda_layer_version -> AWS::Lambda::LayerVersion [proposed: server-assigned]
 rule: primaryIdentifier ⊆ readOnlyProperties
 registry fields read: primary_identifier=["LayerVersionArn"] read_only_properties=["LayerVersionArn"] create_only_properties=["CompatibleRuntimes", "LicenseInfo", "CompatibleArchitectures", "LayerName", "Description", "Content"]
 enumeration: parent-input ["LayerName"]
+before ratifying: "reason" is TEMPLATED - it names the CFN service and asserts server assignment, nothing more specific. Rewrite it, or accept it deliberately.
+before ratifying: "import_syntax" is TEMPLATED from the registry's primaryIdentifier name(s), not from the provider's documented import syntax. Verify it.
+before ratifying: "identity_attrs" is intentionally absent: whether this type's own "id" attribute equals the identity above is the id-alias inference row-gen does not make (issue #44 non-goals). Add "id" and any other alias only after confirming it against the provider schema or docs.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_layer_version": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-serverAssigned("aws_lambda_layer_version",
-	"the Lambda service assigns this identity at create time; no argument reconstructs it.", // TEMPLATED: rewrite or accept this reason during ratification
-	"LAYERVERSIONARN", // TEMPLATED: registry primaryIdentifier name(s), not the provider's documented import syntax; verify
-	// IdentityAttrs intentionally omitted: whether this type's own "id"
-	// attribute equals the identity above is the id-alias inference row-gen
-	// does not make (issue #44 non-goals). Add "id" and any other alias
-	// only after confirming it against the provider schema or docs.
-),
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_layer_version": {
+    "type": "aws_lambda_layer_version",
+    "server_assigned": true,
+    "reason": "the Lambda service assigns this identity at create time; no argument reconstructs it.",
+    "import_syntax": "LAYERVERSIONARN"
+  },
 
 ## aws_lambda_layer_version_permission -> AWS::Lambda::LayerVersionPermission [proposed: composite]
 rule: import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)
@@ -166,21 +192,30 @@ enumeration: parent-input ["LayerVersionArn"]
 components: ["layer_name", "version_number"] joined by "," (source: import grammar (live/import-grammar.json))
 note: import docs show argument-composed ID: arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
 note: import docs pin ["layer_name", "version_number"] joined by ",": arn:aws:lambda:us-west-2:123456789012:layer:shared_utilities,1
+before ratifying: "identity_attrs" is intentionally absent: whether the composed value also equals an exported attribute is the id-alias inference issue #44 keeps as a human call - hand out nothing rather than something that happens to look right.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_layer_version_permission": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-TypeIdentity{
-	Type: "aws_lambda_layer_version_permission",
-	Components: []Component{
-		attr("layer_name"),
-		sep(","),
-		attr("version_number"),
-	},
-	ImportSyntax:  "LAYER_NAME,VERSION_NUMBER",
-	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
-},
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_layer_version_permission": {
+    "type": "aws_lambda_layer_version_permission",
+    "components": [
+      {
+        "attrs": [
+          "layer_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": ","
+      },
+      {
+        "attrs": [
+          "version_number"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "LAYER_NAME,VERSION_NUMBER"
+  },
 
 ## aws_lambda_permission -> AWS::Lambda::Permission [proposed: composite]
 rule: import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)
@@ -188,18 +223,27 @@ registry fields read: primary_identifier=["FunctionName", "Id"] read_only_proper
 enumeration: parent-input ["FunctionName"]
 components: ["function_name", "statement_id"] joined by "/" (source: import grammar (live/import-grammar.json))
 note: import docs pin ["function_name", "statement_id"] joined by "/": my_test_lambda_function/AllowExecutionFromCloudWatch
+before ratifying: "identity_attrs" is intentionally absent: whether the composed value also equals an exported attribute is the id-alias inference issue #44 keeps as a human call - hand out nothing rather than something that happens to look right.
 
---- paste into internal/live/lint/admission_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-"aws_lambda_permission": {},
-
---- paste into internal/live/identity/table_cohort_<cohort>.go (see contributing/LIVE-TABLES.md) ---
-TypeIdentity{
-	Type: "aws_lambda_permission",
-	Components: []Component{
-		attr("function_name"),
-		sep("/"),
-		attr("statement_id"),
-	},
-	ImportSyntax:  "FUNCTION_NAME/STATEMENT_ID",
-	IdentityAttrs: nil, // id-alias inference intentionally left to the ratifier; see issue #44 non-goals
-},
+--- paste into tools/row-gen/ratified.json (see contributing/LIVE-TABLES.md), then re-run -emit ---
+  "aws_lambda_permission": {
+    "type": "aws_lambda_permission",
+    "components": [
+      {
+        "attrs": [
+          "function_name"
+        ],
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "statement_id"
+        ],
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "FUNCTION_NAME/STATEMENT_ID"
+  },

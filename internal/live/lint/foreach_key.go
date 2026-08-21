@@ -130,7 +130,8 @@ func DescribeForEachKeyRune(r rune) string {
 //     for_each this pass cannot evaluate is simply not checked here, exactly
 //     as an unevaluable resource for_each is not, and RuleChildModule is
 //     what stops the run.
-func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Module, issues *[]Issue) {
+func checkForEachKeys(ctx context.Context, cfg *configs.Config, path addrs.Module, issues *[]Issue) {
+	mod := cfg.Module
 	for _, resource := range mod.ManagedResources {
 		if resource.ForEach == nil {
 			continue
@@ -146,7 +147,7 @@ func checkForEachKeys(ctx context.Context, mod *configs.Module, path addrs.Modul
 		if call.ForEach == nil {
 			continue
 		}
-		instKeys, diag := identity.ChildModuleKeys(ctx, mod, fmt.Sprintf("module %q", name), call.ForEach)
+		instKeys, diag := identity.ChildModuleKeys(ctx, cfg, fmt.Sprintf("module %q", name), call.ForEach)
 		if diag != nil {
 			// checkChildModules (RuleChildModule) is what refuses a module
 			// for_each this pass cannot enumerate; nothing to check here.

@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/backend"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configload"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans/planfile"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
@@ -243,6 +244,19 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		projected, projDiags := b.Stateless.PriorState(ctx, config, tfCtx)
 		diags = diags.Append(projDiags)
 		if projDiags.HasErrors() {
+			return nil, nil, diags
+		}
+		// GitHub issue #348: evaluate the configuration's root-level
+		// `output` blocks against the projection now, in place, the same
+		// way a real refresh recomputes them before a plan diffs "prior"
+		// output values against "planned" ones. Without this, projected
+		// carries no output values at all, and every declared output shows
+		// as newly created on every stateless plan or apply regardless of
+		// whether the underlying resources changed. See
+		// [projection.ApplyRootOutputValues].
+		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables)
+		diags = diags.Append(outputDiags)
+		if outputDiags.HasErrors() {
 			return nil, nil, diags
 		}
 		if err := s.WriteState(projected); err != nil {

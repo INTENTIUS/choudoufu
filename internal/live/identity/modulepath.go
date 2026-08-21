@@ -39,9 +39,9 @@ func ModuleInstance(cfg *configs.Config) addrs.ModuleInstance {
 // the instance keys it expands to, sorted, or a diagnostic explaining why it
 // could not.
 //
-// mod is the module the call is written in (the parent, not the child):
-// exactly like a resource's own for_each, a module call's for_each is
-// evaluated through the static evaluator of the module the call block
+// cfg.Module is the module the call is written in (the parent, not the
+// child): exactly like a resource's own for_each, a module call's for_each
+// is evaluated through the static evaluator of the module the call block
 // itself lives in, not the module the call points at - the child's own
 // variables (and anything in the child that depends on them) are a
 // different, and much harder, question this function does not answer. See
@@ -59,18 +59,28 @@ func ModuleInstance(cfg *configs.Config) addrs.ModuleInstance {
 //
 // A nil expr (no for_each: a static module call) reports the single
 // unkeyed instance every static call has always had.
-func ChildModuleKeys(ctx context.Context, mod *configs.Module, subject string, expr hcl.Expression) ([]addrs.InstanceKey, *hcl.Diagnostic) {
+//
+// cfg is the *configs.Config node mod belongs to - the same node the
+// caller is walking when it asks this question - so that the fallback
+// [staticForEachKeyNames] path can chase a bare var.X/local.X for_each
+// SOURCE across the module-call boundary that defines it (issue #308:
+// module.container_definition's for_each ranges over var.container_definitions,
+// a bare reference whose actual object literal, with its own provably-
+// static key set, lives one call up in cfg.Parent). mod is read off cfg
+// rather than carried as a second parameter, so the two can never disagree
+// about which module they describe.
+func ChildModuleKeys(ctx context.Context, cfg *configs.Config, subject string, expr hcl.Expression) ([]addrs.InstanceKey, *hcl.Diagnostic) {
 	if expr == nil {
 		return []addrs.InstanceKey{addrs.NoKey}, nil
 	}
-	elems, diag := childModuleForEachElements(ctx, mod, subject, expr)
+	elems, diag := childModuleForEachElements(ctx, cfg, subject, expr)
 	if diag != nil {
 		// The whole expression did not evaluate, but a for_each only
 		// needs its KEYS to be static - the paired values are read
 		// back through each.value, from inside an instance that
 		// already exists, and [ChildModuleRepetitionData] still
 		// refuses those separately. See [staticForEachKeyNames].
-		if names, ok := staticForEachKeyNames(ctx, mod, subject, expr); ok {
+		if names, ok := staticForEachKeyNames(ctx, cfg, subject, expr); ok {
 			keys := make([]addrs.InstanceKey, 0, len(names))
 			for _, name := range names {
 				keys = append(keys, addrs.StringKey(name))
@@ -112,7 +122,11 @@ func ChildModuleKeys(ctx context.Context, mod *configs.Module, subject string, e
 // instances exist either. That fallback proves keys and never values, so
 // nothing it admits can put a value here that this function did not
 // produce.
-func childModuleForEachElements(ctx context.Context, mod *configs.Module, subject string, expr hcl.Expression) (map[string]cty.Value, *hcl.Diagnostic) {
+func childModuleForEachElements(ctx context.Context, cfg *configs.Config, subject string, expr hcl.Expression) (map[string]cty.Value, *hcl.Diagnostic) {
+	var mod *configs.Module
+	if cfg != nil {
+		mod = cfg.Module
+	}
 	if mod == nil || mod.StaticEvaluator == nil {
 		return nil, staticEvalDiag(expr.Range(), subject, "no static evaluator is available to evaluate it")
 	}
@@ -213,14 +227,18 @@ func childModuleForEachElements(ctx context.Context, mod *configs.Module, subjec
 // instance - which is what both key functions report for a nil expression,
 // so the three-way dispatch really is those two calls and no extra case.
 //
-// mod is the module the CALL is written in (the parent), the same scope
-// [ChildModuleKeys] documents for the expression it evaluates.
+// cfg.Module is the module the CALL is written in (the parent), the same
+// scope [ChildModuleKeys] documents for the expression it evaluates.
 //
 // A caller that needs the diagnostic reports it; a caller for whom an
 // unenumerable call is somebody else's refusal (lint's RuleChildModule
 // refuses these before any of these walks run) skips the child. Neither
 // may treat a diagnostic as "one unkeyed instance".
-func ChildCallKeys(ctx context.Context, mod *configs.Module, name string) ([]addrs.InstanceKey, *hcl.Diagnostic) {
+func ChildCallKeys(ctx context.Context, cfg *configs.Config, name string) ([]addrs.InstanceKey, *hcl.Diagnostic) {
+	var mod *configs.Module
+	if cfg != nil {
+		mod = cfg.Module
+	}
 	var count, forEach hcl.Expression
 	if mod != nil {
 		if call, ok := mod.ModuleCalls[name]; ok && call != nil {
@@ -232,7 +250,7 @@ func ChildCallKeys(ctx context.Context, mod *configs.Module, name string) ([]add
 	if count != nil {
 		return ChildModuleCountKeys(ctx, mod, subject, count)
 	}
-	return ChildModuleKeys(ctx, mod, subject, forEach)
+	return ChildModuleKeys(ctx, cfg, subject, forEach)
 }
 
 // ChildModuleRepetitionData evaluates a module call's own count or for_each
@@ -257,7 +275,20 @@ func ChildCallKeys(ctx context.Context, mod *configs.Module, name string) ([]add
 // must actually be a member of what it produces. There is no path here that
 // returns data for a key it has not itself just verified - a caller must
 // never substitute a guess for a false ok.
-func ChildModuleRepetitionData(ctx context.Context, mod *configs.Module, subject string, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+//
+// consumers is issue #315: the expressions that will actually read the
+// RepetitionData this returns, so that when the for_each expression's own
+// whole value cannot be proven (below), each.value can still be answered
+// for the one or few attribute names those consumers actually reference
+// ([referencedEachValueAttrs], [eachValueAttrs]) rather than left wholesale
+// unset the way it always was before. Optional and additive: a caller that
+// passes none gets exactly today's behavior, key proven and EachValue left
+// at cty.NilVal on this path, unchanged.
+func ChildModuleRepetitionData(ctx context.Context, cfg *configs.Config, subject string, countExpr, forEachExpr hcl.Expression, key addrs.InstanceKey, consumers ...hcl.Expression) (instances.RepetitionData, bool) {
+	var mod *configs.Module
+	if cfg != nil {
+		mod = cfg.Module
+	}
 	switch {
 	case countExpr != nil:
 		idx, ok := key.(addrs.IntKey)
@@ -285,24 +316,34 @@ func ChildModuleRepetitionData(ctx context.Context, mod *configs.Module, subject
 		if !ok {
 			return instances.RepetitionData{}, false
 		}
-		elems, diag := childModuleForEachElements(ctx, mod, subject, forEachExpr)
+		elems, diag := childModuleForEachElements(ctx, cfg, subject, forEachExpr)
 		if diag != nil {
 			// The whole expression did not evaluate, but its KEY set
 			// may still be proven - the same widening [ChildModuleKeys]
 			// applies, so the two cannot disagree about which instances
-			// exist. EachValue stays cty.NilVal, and
-			// [configs.StaticEvaluator.repetitionAttr] answers
-			// each.value only for a non-nil one, so a reference to the
-			// value this pass could not read refuses where it is
-			// written instead of being guessed at here.
-			names, keysOK := staticForEachKeyNames(ctx, mod, subject, forEachExpr)
+			// exist. EachValue is left at cty.NilVal UNLESS consumers
+			// names specific each.value.<attr> reads this pass can
+			// still answer without the whole value - issue #315; see
+			// [referencedEachValueAttrs] and [eachValueAttrs]. Where
+			// neither applies, [configs.StaticEvaluator.repetitionAttr]
+			// answers each.value only for a non-nil one, so a reference
+			// to the value this pass could not project refuses where it
+			// is written instead of being guessed at here.
+			names, keysOK := staticForEachKeyNames(ctx, cfg, subject, forEachExpr)
 			if !keysOK {
 				return instances.RepetitionData{}, false
 			}
 			for _, name := range names {
-				if name == string(strKey) {
-					return instances.RepetitionData{EachKey: cty.StringVal(name)}, true
+				if name != string(strKey) {
+					continue
 				}
+				rd := instances.RepetitionData{EachKey: cty.StringVal(name)}
+				if neededAttrs, ok := referencedEachValueAttrs(consumers); ok && len(neededAttrs) > 0 {
+					if val, ok := eachValueAttrs(ctx, cfg, subject, forEachExpr, name, neededAttrs); ok {
+						rd.EachValue = val
+					}
+				}
+				return rd, true
 			}
 			return instances.RepetitionData{}, false
 		}
@@ -453,6 +494,33 @@ func ConfigForModule(root *configs.Config, modInst addrs.ModuleInstance) (*confi
 		cur = child
 	}
 	return cur, true
+}
+
+// DeclaresBlock reports whether a configuration still declares the managed
+// resource block one instance address belongs to.
+//
+// The lookup descends to the address's OWN module first. That is the whole
+// content of the function, and it is a function rather than four lines
+// written twice because it had been written twice: internal/live/discovery
+// descended (as [identity.Resolution.Undeclared]) and internal/live/foreign
+// did not (as foreign.Removal.BlockGone, which read the root module's
+// ManagedResources with the module path stripped off the address it looked
+// up). The two then disagreed about the same orphan in both directions - a
+// block still declared inside a module read as deleted, and a block that
+// exists only at the root read as still declared for an orphan inside a
+// module - and the sentence an operator reads about a destroy was built from
+// the wrong one of the two. See GitHub issue #316.
+//
+// A nil configuration, a module the tree does not have, and a module whose
+// config carries no module body all answer false: nothing declares the
+// block, which is what "the block is gone" means.
+func DeclaresBlock(root *configs.Config, addr addrs.AbsResourceInstance) bool {
+	modCfg, ok := ConfigForModule(root, addr.Module)
+	if !ok || modCfg == nil || modCfg.Module == nil {
+		return false
+	}
+	_, declared := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+	return declared
 }
 
 // SortedChildNames returns a config's child module call names, sorted, so

@@ -122,12 +122,24 @@ func TestRecordBackedDerivationReproducesEveryCommittedRow(t *testing.T) {
 func TestRecordBackedDerivationRefusesToDropARow(t *testing.T) {
 	art := loadLogicalSchemasForTest(t)
 
-	// Clearing store_only on every provider empties the derived set without
-	// touching a single type name, which is the realistic way this breaks:
-	// a re-acquisition against a source list someone edited.
+	// Marking one attribute of every type sensitive empties the derived set
+	// without touching a single type name, which is the realistic way this
+	// breaks: a re-acquisition against a provider release that widened its
+	// own sensitivity markings, or a source list someone edited.
+	//
+	// This used to clear store_only instead, which stopped emptying anything
+	// once issue #314 made StoreOnly select a class rather than gate a row -
+	// a mutation that no longer mutates is a guard that passes forever, and
+	// the whole point of this test is the opposite.
 	mutated := logicalSchemas{}
 	for _, p := range art.Providers {
-		p.StoreOnly = false
+		var types []logicalTypeSchema
+		for _, ty := range p.Types {
+			ty.Sensitive = append(append([]logicalAttr(nil), ty.Sensitive...),
+				logicalAttr{Name: "zzz_synthetic_secret"})
+			types = append(types, ty)
+		}
+		p.Types = types
 		mutated.Providers = append(mutated.Providers, p)
 	}
 
@@ -151,8 +163,18 @@ func TestRecordBackedDerivationRefusesToDropARow(t *testing.T) {
 // including one that does not exist yet - derives a row from the rule alone,
 // with no edit anywhere in this generator.
 //
-// The synthetic type is deliberately not a plausible name. If the rule had a
+// The synthetic types are deliberately not plausible names. If the rule had a
 // list of type names hiding in it anywhere, this fails.
+//
+// It also pins where StoreOnly is and is NOT load-bearing, which issue #314
+// moved. It used to require that a non-store-only provider's type derive NO
+// RecordBacked row; that was wrong, and this test asserting it is part of why
+// it survived three issues. hashicorp/local 2.9.0 implements no ImportState
+// at all, so the record is the ONLY carrier that can bring a local_file's
+// prior state back - it is record-backed for a reason StoreOnly does not
+// speak to. What StoreOnly decides is the lint class, and
+// [TestLogicalClassRowsSplitTheAdmittedClassesByStoreOnly] is where that is
+// now pinned.
 func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 	art := loadLogicalSchemasForTest(t)
 
@@ -168,10 +190,13 @@ func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 	future := logicalTypeSchema{Type: "random_zzz_not_yet_released"}
 	art.Providers[storeOnly].Types = append(art.Providers[storeOnly].Types, future)
 
-	// The same type under a provider whose resources are not store-only must
-	// NOT derive a row, so the flag is doing real work rather than decorating
-	// the artifact.
-	art.Providers[other].Types = append(art.Providers[other].Types, logicalTypeSchema{Type: "local_zzz_not_yet_released"})
+	// The same shape under a provider whose resources are not store-only
+	// derives a row too - the record is what holds its prior state either
+	// way - while a SENSITIVE type of either provider derives none, which is
+	// the flag that really gates this derivation.
+	art.Providers[other].Types = append(art.Providers[other].Types,
+		logicalTypeSchema{Type: "local_zzz_not_yet_released"},
+		logicalTypeSchema{Type: "local_zzz_secret", Sensitive: []logicalAttr{{Name: "content"}}})
 
 	derived := map[string]bool{}
 	for _, typeName := range recordBackedTypes(art) {
@@ -181,8 +206,71 @@ func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 		t.Errorf("a new non-secret type of a store-only provider does not derive a RecordBacked row; "+
 			"the rule is not general (derived: %d types)", len(derived))
 	}
-	if derived["local_zzz_not_yet_released"] {
-		t.Errorf("a type of a provider marked store_only=false derived a RecordBacked row; the flag is not load-bearing")
+	if !derived["local_zzz_not_yet_released"] {
+		t.Error("a new non-secret type of a non-store-only provider derives no RecordBacked row; " +
+			"its prior state has nowhere else to come from - hashicorp/local implements no import at all")
+	}
+	if derived["local_zzz_secret"] {
+		t.Error("a type with a live sensitive attribute derived a RecordBacked row; " +
+			"the no-secrets rule is not load-bearing")
+	}
+}
+
+// TestLogicalClassRowsSplitTheAdmittedClassesByStoreOnly is where StoreOnly's
+// real job is pinned since issue #314: not whether a type derives a row, but
+// which ADMITTED class the row carries.
+//
+// The distinction is the count.index walk. A RECORD_ADMITTED type's identity
+// is the record addressed by its own instance address, so
+// internal/live/lint's countIndexScopeForType skips the walk for it; an
+// EXTERNAL_ADMITTED type has an argument naming an object the record does not
+// bound, so the walk runs. Getting this backwards silences a real safety
+// check, which is what internal/live/lint's TestLocalFileKeepsItsCountIndexCheck
+// catches from the other side.
+//
+// Both halves are mutated, so neither passes by the artifact happening to
+// have one provider of each kind.
+func TestLogicalClassRowsSplitTheAdmittedClassesByStoreOnly(t *testing.T) {
+	art := loadLogicalSchemasForTest(t)
+
+	classOf := func(a logicalSchemas, typeName string) string {
+		t.Helper()
+		rows, err := logicalClassRows(a)
+		if err != nil {
+			t.Fatalf("logicalClassRows: %v", err)
+		}
+		for _, r := range rows {
+			if r.Type == typeName {
+				return r.Class
+			}
+		}
+		return ""
+	}
+
+	for i, p := range art.Providers {
+		if len(p.Types) == 0 {
+			continue
+		}
+		typeName := p.Types[0].Type
+		if len(liveSensitiveAttrs(p.Types[0])) > 0 {
+			continue // SECRET_REFUSED either way; not what this checks
+		}
+
+		flipped := logicalSchemas{Providers: append([]logicalProviderSchemas(nil), art.Providers...)}
+		flipped.Providers[i].StoreOnly = !p.StoreOnly
+
+		asIs, want := classOf(art, typeName), logicalClassRecordAdmitted
+		flip, wantFlip := classOf(flipped, typeName), logicalClassExternalAdmitted
+		if !p.StoreOnly {
+			want, wantFlip = wantFlip, want
+		}
+		if asIs != want {
+			t.Errorf("%s (store_only=%v) derives %s, want %s", typeName, p.StoreOnly, asIs, want)
+		}
+		if flip != wantFlip {
+			t.Errorf("%s with store_only flipped to %v derives %s, want %s - StoreOnly is not "+
+				"selecting the admitted class", typeName, !p.StoreOnly, flip, wantFlip)
+		}
 	}
 }
 
@@ -289,9 +377,16 @@ func TestLogicalClassRowsAgreeWithRecordBackedDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("logicalClassRows: %v", err)
 	}
+	// Both ADMITTED classes, not just RECORD_ADMITTED. Since issue #314 the
+	// lint side of this equality is a set of two classes - a record_store
+	// admits either - and comparing only one half against the whole
+	// RecordBacked set would report the other half as a divergence, which is
+	// exactly the false alarm that makes a guard get relaxed.
 	admitted := map[string]bool{}
+	classes := map[string]string{}
 	for _, r := range rows {
-		if r.Class == logicalClassRecordAdmitted {
+		classes[r.Type] = r.Class
+		if r.Class == logicalClassRecordAdmitted || r.Class == logicalClassExternalAdmitted {
 			admitted[r.Type] = true
 		}
 	}
@@ -301,19 +396,37 @@ func TestLogicalClassRowsAgreeWithRecordBackedDerivation(t *testing.T) {
 	}
 
 	if len(admitted) == 0 {
-		t.Fatal("no RECORD_ADMITTED row derived at all; the rule is not being exercised")
+		t.Fatal("no admitted row derived at all; the rule is not being exercised")
 	}
 	for typeName := range admitted {
 		if !backed[typeName] {
-			t.Errorf("%s derives RECORD_ADMITTED for lint but no RecordBacked row for identity: "+
-				"lint would admit under a record_store what resolution then refuses", typeName)
+			t.Errorf("%s derives %s for lint but no RecordBacked row for identity: "+
+				"lint would admit under a record_store what resolution then refuses",
+				typeName, classes[typeName])
 		}
 	}
 	for typeName := range backed {
 		if !admitted[typeName] {
-			t.Errorf("%s derives a RecordBacked identity row but not lint's RECORD_ADMITTED: "+
-				"resolution would hold a record for a type lint refuses first", typeName)
+			t.Errorf("%s derives a RecordBacked identity row but lint's class is %q: "+
+				"resolution would hold a record for a type lint refuses first", typeName, classes[typeName])
 		}
+	}
+
+	// Each class must actually be populated, or the loop above degenerates
+	// into checking one class against itself and the equality it guards stops
+	// being an equality between two different things.
+	var recordAdmitted, externalAdmitted int
+	for typeName := range admitted {
+		if classes[typeName] == logicalClassExternalAdmitted {
+			externalAdmitted++
+		} else {
+			recordAdmitted++
+		}
+	}
+	if recordAdmitted == 0 || externalAdmitted == 0 {
+		t.Errorf("admitted rows split %d RECORD_ADMITTED / %d EXTERNAL_ADMITTED; both must be "+
+			"non-zero or this test only exercises one side of the class boundary",
+			recordAdmitted, externalAdmitted)
 	}
 }
 
@@ -327,58 +440,75 @@ func TestGeneratedLogicalClassNamesMatchLint(t *testing.T) {
 	if got, want := string(lint.ClassRecordAdmitted), "RECORD_ADMITTED"; got != want {
 		t.Errorf("lint.ClassRecordAdmitted = %q, want %q", got, want)
 	}
+	if got, want := string(lint.ClassExternalAdmitted), "EXTERNAL_ADMITTED"; got != want {
+		t.Errorf("lint.ClassExternalAdmitted = %q, want %q", got, want)
+	}
 	if got, want := string(lint.ClassSecretRefused), "SECRET_REFUSED"; got != want {
 		t.Errorf("lint.ClassSecretRefused = %q, want %q", got, want)
 	}
-	for _, name := range []string{logicalClassRecordAdmitted, logicalClassSecretRefused} {
+	for _, name := range []string{logicalClassRecordAdmitted, logicalClassExternalAdmitted, logicalClassSecretRefused} {
 		if !strings.HasPrefix(name, "Class") {
 			t.Errorf("rendered class identifier %q is not one of lint's exported Class* constants", name)
 		}
 	}
 }
 
-// TestLogicalClassRowsCoverEveryStoreOnlyType pins that the derivation is
-// total over the store-only providers and empty over the rest, recomputed
-// from the artifact. A row per store-only type and none from hashicorp/local
-// is what keeps local_file on lint's OTHER_REFUSED default, which
-// internal/live/lint's TestLocalFileKeepsItsCountIndexCheck depends on.
-func TestLogicalClassRowsCoverEveryStoreOnlyType(t *testing.T) {
+// TestLogicalClassRowsCoverEveryMeasuredType pins that the derivation is
+// total over the artifact, recomputed from it: every measured type gets a row
+// and a verdict, whoever serves it.
+//
+// It used to require the opposite of hashicorp/local's two types - a row per
+// store-only type and NONE from the rest - on the reasoning that a row would
+// have promoted local_file to RECORD_ADMITTED and silenced its count.index
+// walk. Issue #314 separated those two things: local_file now has a row, in a
+// class that keeps the walk, and internal/live/lint's
+// TestLocalFileKeepsItsCountIndexCheck still passes unchanged.
+//
+// What the coverage bound buys is that OTHER_REFUSED - the class with no
+// evidence behind it - is reachable only by a type this generator has never
+// measured. Every measured type is entitled to a measured verdict.
+func TestLogicalClassRowsCoverEveryMeasuredType(t *testing.T) {
 	art := loadLogicalSchemasForTest(t)
 
 	rows, err := logicalClassRows(art)
 	if err != nil {
 		t.Fatalf("logicalClassRows: %v", err)
 	}
-	got := map[string]bool{}
+	got := map[string]string{}
 	for _, r := range rows {
-		got[r.Type] = true
+		got[r.Type] = r.Class
 		if r.Evidence == "" {
 			t.Errorf("%s derives an empty Evidence string", r.Type)
 		}
+		// External is the EXTERNAL_ADMITTED class's own evidence and says
+		// nothing true about any other, which internal/live/lint's
+		// TestLogicalTypesTableWellFormed pins on the emitted table. Pinned
+		// here too, at the source, so the generator cannot start populating
+		// it everywhere and have the emitted table be the only thing that
+		// notices.
+		if (r.External != "") != (r.Class == logicalClassExternalAdmitted) {
+			t.Errorf("%s is %s with External=%q; that field belongs to EXTERNAL_ADMITTED and to no "+
+				"other class", r.Type, r.Class, r.External)
+		}
 	}
 
-	wantCount, excluded := 0, 0
+	wantCount, nonStoreOnly := 0, 0
 	for _, p := range art.Providers {
 		for _, ty := range p.Types {
-			if p.StoreOnly {
-				wantCount++
-				if !got[ty.Type] {
-					t.Errorf("%s is served by store-only %s but derives no logicalTypes row", ty.Type, p.Source)
-				}
-				continue
+			wantCount++
+			if !p.StoreOnly {
+				nonStoreOnly++
 			}
-			excluded++
-			if got[ty.Type] {
-				t.Errorf("%s is served by %s, which is not store-only, but derives a logicalTypes row anyway",
-					ty.Type, p.Source)
+			if _, ok := got[ty.Type]; !ok {
+				t.Errorf("%s is served by %s but derives no logicalTypes row", ty.Type, p.Source)
 			}
 		}
 	}
 	if len(rows) != wantCount {
-		t.Errorf("derived %d rows, want %d (every store-only type, and only those)", len(rows), wantCount)
+		t.Errorf("derived %d rows, want %d (every measured type)", len(rows), wantCount)
 	}
-	if excluded == 0 {
-		t.Error("no non-store-only type in the artifact; the StoreOnly exclusion is not being exercised")
+	if nonStoreOnly == 0 {
+		t.Error("no non-store-only type in the artifact; the StoreOnly class split is not being exercised")
 	}
 }
 

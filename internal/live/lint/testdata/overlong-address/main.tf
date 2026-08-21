@@ -4,11 +4,11 @@
 # = 1024).
 #
 # Every block is an admitted type with nothing else wrong with it: the only
-# finding is address length. The three hot shapes are the three ways an
-# instance address is measured (plain, for_each key, count index), and the
-# two quiet blocks pin the boundaries: a short address, and a long label
-# whose for_each the static scope cannot evaluate, which the rule skips
-# rather than guesses at.
+# finding is address length. The four hot shapes are the four ways an
+# instance address is measured (plain, for_each key, count index, and - in
+# counted/ - a count'd MODULE step's index), and the two quiet blocks pin
+# the boundaries: a short address, and a long label whose for_each the
+# static scope cannot evaluate, which the rule skips rather than guesses at.
 
 # "aws_s3_bucket." is 14 characters, so this 1011-character label escapes to
 # a 1025-character address with no instance key involved - one character
@@ -50,3 +50,15 @@ resource "aws_cloudwatch_log_group" "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 }
 
 data "aws_availability_zones" "available" {}
+
+# A count'd module call, admitted by RuleChildModule since issue #195 (the
+# count is statically evaluable and no argument here reads count.index).
+# Every address inside it carries a "[N]" module step the marker has to
+# spell out, so the budget for its resources has to be measured at the
+# call's worst-case index - the highest one, since a decimal index never
+# gets shorter as it gets bigger. See counted/main.tf, sized so that only
+# the highest index crosses the line.
+module "counted" {
+  source = "./counted"
+  count  = 12
+}
