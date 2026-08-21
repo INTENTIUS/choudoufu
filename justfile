@@ -99,6 +99,21 @@ demo-per-element:
 demo-record-located:
     bash live/e2e/record-located/run.sh
 
+# Issue #353's crossing: a create-time provisioner that FAILS on an ordinary
+# marker-tracked cloud resource. internal/live/stamp marks the object before
+# the create request goes out, so the moment the bucket exists it looks
+# healthy to every later run; the tofu-provisioned namespace is the only
+# thing that says otherwise, and this proves it end to end - the apply
+# fails, the object is live and fully marked, the next plan (with no state
+# file) proposes replacing it, and the provisioner really re-runs, counted
+# from the shell's own side effects rather than from a plan verdict. Also
+# pins the two things that must NOT happen: on_failure = continue records
+# nothing, and changing the provisioner's command text between runs changes
+# nothing. Needs Docker and the AWS CLI; runs on its own port (4742) so it
+# can run beside `just demo`.
+demo-provisioner-taint:
+    bash live/e2e/provisioner-taint/run.sh
+
 # Issue #274's crossing, on a real third-party estate rather than a fixture:
 # .corpus/mastino/prod-eu-west/services/message-queue, 28 aws_sqs_queue in a
 # module and one aws_iam_policy in the root, kept by its authors in a

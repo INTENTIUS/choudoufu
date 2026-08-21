@@ -173,6 +173,23 @@ type Options struct {
 	// before this mechanism existed. That is visible, which is why it is
 	// allowed to be the default.
 	ResidueStore *ResidueStore
+
+	// ProvisionedStore is where GitHub issue #353's one bit is read from:
+	// did a create-time provisioner fail on this instance the last time it
+	// was applied. See provisioned.go.
+	//
+	// A fourth namespace in ordinarily the same underlying store, a fourth
+	// point-lookup type with no List, and separate from all three others
+	// for the same reason each of them is separate from the rest: the only
+	// enumeration in this package proposes destroying what it finds, and a
+	// note that a shell command failed must never be able to reach it.
+	//
+	// Nil means no store, and an instance carrying a create-time
+	// provisioner then has nowhere to have been remembered - which is
+	// precisely why internal/live/lint still refuses one for such a run.
+	// The lint gate and this field answer the same question and must keep
+	// answering it the same way.
+	ProvisionedStore *ProvisionedStore
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -238,19 +255,23 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	sort.Slice(b.residueVersions, func(i, j int) bool {
 		return b.residueVersions[i].Addr.String() < b.residueVersions[j].Addr.String()
 	})
+	sort.Slice(b.provisionedVersions, func(i, j int) bool {
+		return b.provisionedVersions[i].Addr.String() < b.provisionedVersions[j].Addr.String()
+	})
 	sort.Slice(b.policyList, func(i, j int) bool {
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
 
 	res := &Result{
-		State:           b.state,
-		Materialized:    b.materialized,
-		Omitted:         b.omissionList,
-		Unowned:         b.unownedList,
-		RecordVersions:  b.recordVersions,
-		LocatedVersions: b.locatedVersions,
-		ResidueVersions: b.residueVersions,
-		Policy:          b.policyList,
+		State:               b.state,
+		Materialized:        b.materialized,
+		Omitted:             b.omissionList,
+		Unowned:             b.unownedList,
+		RecordVersions:      b.recordVersions,
+		LocatedVersions:     b.locatedVersions,
+		ResidueVersions:     b.residueVersions,
+		ProvisionedVersions: b.provisionedVersions,
+		Policy:              b.policyList,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -333,6 +354,14 @@ type builder struct {
 	// no residue record, which write-back reads as expectedVersion "" - a
 	// create assertion.
 	residueVersions []RecordVersion
+
+	// provisionedVersions is the same field again for GitHub issue #353's
+	// provisioner-taint records: the version read at plan time for every
+	// taint record that existed, so [WriteBack]'s conditional Put or
+	// Delete opens with the right expected version. An instance with no
+	// entry here had no taint record, which is the ordinary case for every
+	// instance in an estate whose provisioners all succeeded.
+	provisionedVersions []RecordVersion
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -1284,6 +1313,17 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// own this" - that is what the marker is for. Filling first would let a
 	// record about a filename argue about a tag.
 	b.fillResidueFor(ctx, addr, schema, obj)
+
+	// GitHub issue #353's one bit, applied after the ownership check for
+	// fillResidueFor's exact reason and read only for an instance whose
+	// block still declares a create-time provisioner. If the last apply
+	// left one failed, this is what makes the object arrive in the plan
+	// graph as states.ObjectTainted - and a tainted prior object is what
+	// stock turns into a synthetic Replace, which re-runs the provisioner
+	// on the new object with no new execution machinery of any kind.
+	if !b.applyProvisionedTaint(ctx, addr, rc, obj) {
+		return
+	}
 
 	if rc != nil {
 		obj.Dependencies = b.dependencies(rc, modPath, schema)

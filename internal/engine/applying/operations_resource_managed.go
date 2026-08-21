@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -330,12 +331,24 @@ func (ops *execOperations) ManagedApply(
 
 	if provs := plan.ProvisionersAfter; len(provs) != 0 {
 		log.Printf("[TRACE] apply phase: ManagedApply running %d post-apply provisioner(s) for %s", len(provs), plan.Addr)
+		// The value a create-time provisioner's `self` refers to has to
+		// carry its marks, or nothing downstream of it can tell that an
+		// argument is sensitive: internal/engine/applying's own
+		// runProvisioner unmarks the built provisioner config and hands the
+		// marks to the ProvisionOutput hook precisely so a sensitive value
+		// is not echoed into the log, and it has nothing to hand over when
+		// the value it built from was never marked in the first place.
+		//
+		// resp.NewState comes back off the plugin wire, where marks cannot
+		// travel, so they are re-applied here from the two sources
+		// internal/tofu's own apply path composes (see
+		// node_resource_abstract_instance.go's newValMarks): the marks the
+		// PLANNED value carried, which is where a sensitive input variable
+		// or a sensitive upstream attribute puts them, and the schema's own
+		// Sensitive flags as they read TODAY.
+		selfVal := markedAppliedValue(resp.NewState, plan.PlannedVal, schema.Block)
 		for _, prov := range provs {
-			// FIXME: resp.NewState isn't the correct value to use here because
-			// it hasn't yet had marks applied to it, and so provisioner
-			// execution won't be able to notice when arguments are sensitive,
-			// etc.
-			cont, provDiags := ops.runProvisioner(ctx, objAddr, prov, resp.NewState)
+			cont, provDiags := ops.runProvisioner(ctx, objAddr, prov, selfVal)
 			diags = diags.Append(provDiags)
 			if !cont {
 				log.Printf("[TRACE] apply phase: ManagedApply %s post-apply provisioner failed, so aborting", plan.Addr)
@@ -510,4 +523,65 @@ func (ops *execOperations) ManagedChangeAddr(
 		return nil, diags
 	}
 	return currentObj.WithNewAddr(newAddr), diags
+}
+
+// markedAppliedValue re-applies to a provider's post-apply object the marks
+// that could not cross the plugin wire, so that a create-time provisioner's
+// `self` sees a sensitive attribute as sensitive.
+//
+// It composes exactly the two sources internal/tofu's own apply path
+// composes when it rebuilds newVal (node_resource_abstract_instance.go's
+// newValMarks): the marks the planned value carried - where a sensitive
+// input variable or a sensitive upstream attribute leaves them - and the
+// schema's own Sensitive flags as the installed provider declares them
+// today. Neither alone is enough: the schema does not know a value came
+// from a sensitive variable, and the plan does not know a provider version
+// has since started marking an attribute.
+//
+// A planned mark at a path the applied object does not have is dropped
+// rather than carried, which is why the planned marks are filtered through
+// the applied value's own structure before they are applied: a create can
+// legitimately return an object shaped differently from the plan (an
+// unknown that resolved into a null, say), and marking a path that is not
+// there would fail the whole apply over a log-redaction detail.
+func markedAppliedValue(applied, planned cty.Value, schema *configschema.Block) cty.Value {
+	if applied == cty.NilVal || applied.IsNull() || schema == nil {
+		return applied
+	}
+
+	var pvms []cty.PathValueMarks
+	if planned != cty.NilVal {
+		_, plannedMarks := planned.UnmarkDeepWithPaths()
+		for _, pvm := range plannedMarks {
+			if _, err := pvm.Path.Apply(applied); err != nil {
+				continue
+			}
+			pvms = append(pvms, pvm)
+		}
+	}
+	for _, pvm := range schema.ValueMarks(applied, nil, nil) {
+		var merged bool
+		for i, existing := range pvms {
+			if !existing.Path.Equals(pvm.Path) {
+				continue
+			}
+			combined := make(cty.ValueMarks, len(existing.Marks)+len(pvm.Marks))
+			for k, v := range existing.Marks {
+				combined[k] = v
+			}
+			for k, v := range pvm.Marks {
+				combined[k] = v
+			}
+			pvms[i] = cty.PathValueMarks{Path: existing.Path, Marks: combined}
+			merged = true
+			break
+		}
+		if !merged {
+			pvms = append(pvms, pvm)
+		}
+	}
+	if len(pvms) == 0 {
+		return applied
+	}
+	return applied.MarkWithPaths(pvms)
 }

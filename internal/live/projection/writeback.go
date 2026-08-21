@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
@@ -93,6 +94,30 @@ type WriteBackRequest struct {
 	// deliberately, before the plan graph starts - has to open new ones for
 	// this.
 	Providers Providers
+
+	// ProvisionedStore is where GitHub issue #353's one bit persists: did a
+	// create-time provisioner fail on this instance. Nil makes that half of
+	// [WriteBack] a no-op, the same way a nil Store does for the
+	// record-backed half. See provisioned.go.
+	ProvisionedStore *ProvisionedStore
+
+	// ProvisionedVersions is [Result.ProvisionedVersions] - the plan-time
+	// version of every taint record this run's projection read, playing
+	// exactly the role PriorVersions plays for record-backed instances.
+	ProvisionedVersions []RecordVersion
+
+	// Config is the configuration this run planned and applied. The
+	// provisioned half needs it and nothing else here does: whether an
+	// instance gets a taint record turns on whether its resource block
+	// declares a create-time provisioner, which is a fact about the
+	// configuration and is not recoverable from the final state.
+	//
+	// Nil disables the provisioned half's write side entirely, which is
+	// the correct fail-safe: with no configuration to ask, no instance can
+	// be proven to declare a provisioner, so nothing is written. The
+	// delete side still runs, because it walks the versions this run's
+	// plan read rather than the configuration.
+	Config *configs.Config
 }
 
 // WriteBack persists every record-backed resource instance's post-apply
@@ -116,6 +141,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 
 	diags = diags.Append(writeBackLocated(ctx, req))
 	diags = diags.Append(writeBackResidue(ctx, req))
+	diags = diags.Append(writeBackProvisioned(ctx, req))
 
 	if req.Store == nil {
 		return diags

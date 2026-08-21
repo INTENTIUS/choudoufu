@@ -164,8 +164,31 @@ receipt change in a plan knows the effect's declared inputs changed since
 the last recorded run, so the layer above is about to run it. If OpenTofu
 ran the effect itself, the diff would stop being a preview of what is
 about to happen outside the plan and become the thing happening mid-plan,
-which is a provisioner (and provisioners are already banned, see
-live/LIMITATIONS.md).
+which is a provisioner.
+
+That used to end the argument, because provisioners were banned outright.
+They are not any more: GitHub issue #353 admits `local-exec`, `remote-exec`
+and `file` for any estate that declares a `record_store`, since a
+create-time provisioner's one piece of memory (the tainted flag a failed one
+sets) then has somewhere to live. So the argument has to be made honestly
+rather than by pointing at a ban, and it still holds, because the two
+mechanisms answer different questions:
+
+- A provisioner runs **once, when its resource is created**, and never
+  again. There is no plan-time signal that it is about to run, nothing
+  re-examines it on a later plan, and it cannot express "run again because
+  the inputs changed" - stock OpenTofu has no memory of a provisioner's
+  content and never re-runs one because its command changed.
+- A receipt tracks **staleness across the resource's whole lifetime**. Its
+  diff is the standing, reviewable answer to "have this effect's declared
+  inputs changed since it last ran", asked on every plan, for as long as the
+  resource exists.
+
+A provisioner is therefore not a stricter receipt or a smaller one; it is a
+different tool. Nothing in issue #353 gives choudoufu a memory of what a
+provisioner did or what it was configured with - the record it writes is one
+bit, "this create-time provisioner failed", which is exactly what stock keeps
+in the state file and no more. See live/LIMITATIONS.md's `local-exec` entry.
 
 The plan/apply/failure semantics:
 

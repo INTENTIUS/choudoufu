@@ -18,9 +18,10 @@ run at once.
 | `live/e2e/per-element/` | `Component.PerElement`: a set-valued identity tail, rendered sorted | Docker, AWS CLI, :4604 |
 | `live/e2e/record-located/` | #270's crossing: an object with no marker, found again by the estate's record store | Docker, AWS CLI, :4605 |
 | `live/e2e/repeated-module/` | #280's crossing: one local module called seven times, and the seven markers read off the live objects | Docker, AWS CLI, :4606, `.corpus` |
+| `live/e2e/provisioner-taint/` | #353's crossing: a create-time provisioner that fails on a marker-tracked cloud resource, and the one bit that survives it | Docker, AWS CLI, :4742 |
 
-All but `per-element` and `repeated-module` are documented at the bottom of
-this file.
+All but `per-element`, `repeated-module` and `provisioner-taint` are
+documented at the bottom of this file.
 
 ## Quickstart
 

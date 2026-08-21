@@ -781,7 +781,7 @@ func validateRecordStorePath(raw string) string {
 // validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
 // "s3" key_prefix may not be used, or "" when it is fine.
 //
-// The rule that matters: four namespaces beside the records must stay
+// The rule that matters: five namespaces beside the records must stay
 // unreachable from an override. The receipts pattern (live/RECEIPTS.md)
 // owns "/tofu-receipts/<estate>/<effect>"; guided discovery's hint
 // (issue #109) owns "tofu-hints/<estate>" in the same store - see
@@ -801,13 +801,17 @@ func validateRecordStorePath(raw string) string {
 // override is checked here at the segment level, the same "/"-delimited
 // hierarchy SSM parameter names and S3 key prefixes both already use: a
 // key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
-// "tofu-located" or "tofu-residue" is refused, whether or not it carries a
-// leading or trailing slash.
+// "tofu-located", "tofu-residue" or "tofu-provisioned" is refused, whether
+// or not it carries a leading or trailing slash.
 //
 // Residue (issue #275, internal/live/projection's residueNamespaceRoot) is
 // the fourth and joined for "tofu-located"'s reason rather than
 // "tofu-receipts"': it names arguments of live cloud objects the record
-// namespace has no authority over.
+// namespace has no authority over. The provisioner taint (issue #353,
+// internal/live/projection's provisionedNamespaceRoot) is the fifth and
+// joined for the same reason: it is a note that a shell command failed
+// against a live cloud object, and it must never be readable as a record
+// whose absence of configuration means "destroy this".
 func validateRecordStoreKeyPrefix(raw string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
@@ -825,6 +829,9 @@ func validateRecordStoreKeyPrefix(raw string) string {
 	}
 	if first == "tofu-residue" {
 		return "The \"key_prefix\" argument must not begin with the \"tofu-residue\" segment: that namespace holds the argument values a provider's read never gives back (GitHub issue #275), for live objects the estate owns and the records have no authority over. It must stay unenumerable for the same reason \"tofu-located\" must - a record key with no configuration behind it is proposed for destruction, and a residue key is only a note about what was last sent to an object that exists."
+	}
+	if first == "tofu-provisioned" {
+		return "The \"key_prefix\" argument must not begin with the \"tofu-provisioned\" segment: that namespace holds the one bit saying a create-time provisioner failed on a live object (GitHub issue #353). It must stay unenumerable for \"tofu-located\"'s reason - a record key with no configuration behind it is proposed for destruction, and a provisioner note is only a record that a command failed against an object that exists."
 	}
 	return ""
 }

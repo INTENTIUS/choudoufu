@@ -245,7 +245,15 @@ var identityGoldenPin = map[string]int{
 	// half that has to hold, since namespace is Optional in the provider's
 	// own schema and a resolver that defaulted it would fabricate an
 	// identity the configuration never stated. No pre-existing row moved.
-	"CONCRETE": 776,
+	// 781, up from 776 (issue #353, the provisioner crossing's fixture):
+	// five ADDED rows, all of them live/e2e/provisioner-taint's
+	// aws_s3_bucket instances (app[0], control, shrinker[0], shrinker[1],
+	// tolerant), each rendering the client-named bucket it declares. Nothing
+	// about admitting a provisioner touches how any identity renders - a
+	// provisioner is not an identity argument and contributes nothing to a
+	// marker - so a MODIFIED row here would have meant the fix reached
+	// somewhere it has no business reaching. No pre-existing row moved.
+	"CONCRETE": 781,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -658,7 +666,17 @@ var identityGoldenPin = map[string]int{
 // added, 0 removed" - the load-bearing zero, since this is the first row
 // any Kubernetes-provider type has ever contributed to this golden and a
 // MODIFIED or REMOVED row here would have meant an existing marker moved.
-const identityGoldenPinBodyDigest = "5f6b53c201f5a6674e299b175312cd6ec638bc2f53c131c5f1a5a84c0fb85b68"
+// 2026-08-21 (issue #353, provisioners admitted under a record_store): body
+// digest moved because five more rows were ADDED, all five from the one new
+// fixture directory live/e2e/provisioner-taint (aws_s3_bucket app[0],
+// control, shrinker[0], shrinker[1], tolerant - see the CONCRETE class
+// comment above). TestIdentityGolden's own diff, read before this line was
+// edited, reported "0 identities changed, 5 added, 0 removed". The zero is
+// the load-bearing half twice over here: a provisioner block is not an
+// identity argument, so admitting one must not move any existing marker,
+// and the fix also writes a new kind of record - a MODIFIED row would have
+// meant that record had somehow reached identity resolution.
+const identityGoldenPinBodyDigest = "bd6bc91a533d94301ba6a3b6b253beb09edb9497086edde3314af28181e58386"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1063,8 +1081,15 @@ const identityGoldenPinBodyDigest = "5f6b53c201f5a6674e299b175312cd6ec638bc2f53c
 // absent) contributes no row at all - the half that has to hold, the same
 // "wrong marker outranks a missing one" discipline every other addition
 // above holds to.
+//
+// 2026-08-21 (issue #353, provisioners admitted under a record_store):
+// instances 1572 -> 1577 and dirs 507 -> 508. 0 changed, 5 added, 0
+// removed. One new fixture root, live/e2e/provisioner-taint, contributing
+// five aws_s3_bucket instances, each rendering the client-named bucket it
+// declares. Its provisioner blocks contribute nothing to any identity,
+// which is the point: a provisioner is an effect, not an identity argument.
 const (
-	identityGoldenPinInstances = 1572
+	identityGoldenPinInstances = 1577
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1096,7 +1121,12 @@ const (
 	// import example verbatim). Its adversarial sibling (no_namespace,
 	// metadata.namespace absent) contributes no row at all. 0 existing
 	// instances changed, 1 added, 0 removed.
-	identityGoldenPinDirs = 507
+	//
+	// Then 507 -> 508 dirs and 1572 -> 1577 instances for GitHub issue
+	// #353: one new fixture root, live/e2e/provisioner-taint, contributing
+	// five aws_s3_bucket instances. See identityGoldenPinInstances' own
+	// comment directly above.
+	identityGoldenPinDirs = 508
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

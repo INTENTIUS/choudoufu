@@ -78,6 +78,27 @@ type Result struct {
 	// conditional write against one namespace with another's version.
 	ResidueVersions []RecordVersion
 
+	// ProvisionedVersions is the same list once more for GitHub issue
+	// #353's provisioner-taint records, in address order: the version each
+	// taint record carried when this projection read it, so write-back's
+	// conditional Put or Delete opens with the right expected version.
+	//
+	// Two things about this list are unlike the three above and are worth
+	// reading as design rather than as omission. It only ever has an entry
+	// for an instance whose configuration still declares a create-time
+	// provisioner - the store is not consulted at all for anything else,
+	// so an estate with no provisioners anywhere pays no store round trips
+	// and this list is always empty for it. And an entry here means the
+	// projected object arrived TAINTED, which is exactly what makes the
+	// plan propose replacing it; there is no "read it and found it
+	// healthy" entry, because absence is the only spelling of healthy in
+	// that namespace.
+	//
+	// Separate from the three lists above for LocatedVersions' reason:
+	// four namespace roots, four sets of versions, and no way to open a
+	// conditional write against one namespace with another's version.
+	ProvisionedVersions []RecordVersion
+
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
 	// quadrant's [policy.DefaultVerb] - so a run with no policy block, or

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=507 instances=1572
-# shape: class CONCRETE=776
+# shape: dirs=508 instances=1577
+# shape: class CONCRETE=781
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=5f6b53c201f5a6674e299b175312cd6ec638bc2f53c131c5f1a5a84c0fb85b68
+# shape: body-sha256=bd6bc91a533d94301ba6a3b6b253beb09edb9497086edde3314af28181e58386
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -1580,6 +1580,11 @@ live/e2e/per-element	aws_iam_user.users["pe-e2e-trio"]	CONCRETE	pe-e2e-trio	name
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-pair"]	CONCRETE	pe-e2e-pair/pe-e2e-alpha/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-zulu,user=pe-e2e-pair
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-solo"]	CONCRETE	pe-e2e-solo/pe-e2e-mike	groups=pe-e2e-mike,user=pe-e2e-solo
 live/e2e/per-element	aws_iam_user_group_membership.members["pe-e2e-trio"]	CONCRETE	pe-e2e-trio/pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu	groups=pe-e2e-alpha/pe-e2e-mike/pe-e2e-zulu,user=pe-e2e-trio
+live/e2e/provisioner-taint	aws_s3_bucket.app[0]	CONCRETE	pt-e2e-app	bucket=pt-e2e-app
+live/e2e/provisioner-taint	aws_s3_bucket.control	CONCRETE	pt-e2e-control	bucket=pt-e2e-control
+live/e2e/provisioner-taint	aws_s3_bucket.shrinker[0]	CONCRETE	pt-e2e-shrinker-0	bucket=pt-e2e-shrinker-0
+live/e2e/provisioner-taint	aws_s3_bucket.shrinker[1]	CONCRETE	pt-e2e-shrinker-1	bucket=pt-e2e-shrinker-1
+live/e2e/provisioner-taint	aws_s3_bucket.tolerant	CONCRETE	pt-e2e-tolerant	bucket=pt-e2e-tolerant
 live/e2e/record-located	aws_vpc.control	NEEDS_DISCOVERY		
 live/e2e/record-store	null_resource.trigger	RECORD_BACKED		
 live/e2e/record-store	random_pet.name	RECORD_BACKED		

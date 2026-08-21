@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# GitHub issue #353's crossing: a create-time provisioner on a
+# MARKER-TRACKED CLOUD RESOURCE, end to end against a real emulator.
+#
+# The claim under test, in one sentence: an apply whose create-time
+# provisioner failed leaves a live, fully-marked, half-built object behind,
+# and the NEXT plan has to say so - which stock does from the tainted bit in
+# its state file, and this fork does from one record in the
+# tofu-provisioned namespace, because a live marker cannot carry that bit.
+#
+# Why this exists and a unit test does not replace it. Every piece can be
+# individually correct and the crossing still fail. internal/live/stamp
+# writes tofu-estate/tofu-address BEFORE the create request goes out, so the
+# instant the bucket exists it is fully marked and looks, to every later
+# run, exactly like a healthy one. The record has to be written by an apply
+# that FAILED (which is not the path anything else in this repository
+# exercises), read back by a plan with no state file, and turned into a
+# replacement by stock's own graph. Those are three different processes and
+# two different commands.
+#
+# What makes it a measurement rather than an exercise:
+#
+#   1. The provisioner appends a line to ./provisioner-runs.txt on every
+#      real execution. "The provisioner re-ran" is therefore counted from
+#      the shell's own side effects, not inferred from a plan verdict - a
+#      replace that proposed itself and then did not run the command would
+#      pass every plan-level assertion and fail step 6.
+#   2. Step 4 is a live mutation check, run every time and not only under
+#      BREAK=1: the taint record is moved aside, the plan is re-run, and the
+#      run FAILS unless that plan comes out EMPTY. That is the silent
+#      under-run issue #353 is about, reproduced deliberately, so step 3's
+#      assertion cannot be passing for some other reason.
+#   3. Step 7 changes the provisioner's command text between runs and
+#      requires the plan to stay empty. Stock has no memory of a
+#      provisioner's content and never re-runs one because its command
+#      changed; a hash-and-diff design (explicitly rejected in issue #353)
+#      would propose a replacement here.
+#
+#   bash live/e2e/provisioner-taint/run.sh
+#
+# Needs Docker and the AWS CLI.
+#
+# Env overrides:
+#   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
+#   FLOCI_PORT   host port for the emulator (default 4742, clear of every
+#                other harness's own default).
+#   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
+#                live/floci-image.
+#   BREAK        set to 1 to report step 4's negative control as the run's
+#                own result, proving this script's exit code is not
+#                vacuously 0.
+#   DEBUG_KEEP   set to 1 to skip the exit trap and leave the container and
+#                the work directory behind.
+#
+# Exit codes: 0 on a real pass, non-zero on a real failure. Every assertion
+# reads actual command output, an exit code, a file on disk, or the
+# emulator's own answer through the AWS CLI - never a timeout.
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+FIXTURE="$ROOT/live/e2e/provisioner-taint"
+WORK="$(mktemp -d)"
+FLOCI_PORT="${FLOCI_PORT:-4742}"
+FLOCI_NAME="choudoufu-provisioner-taint-$$"
+FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
+ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+
+ESTATE="provisioner-taint-e2e"
+
+cleanup() {
+  if [ "${DEBUG_KEEP:-}" = "1" ]; then
+    printf 'DEBUG_KEEP=1: leaving %s and container %s behind\n' "$WORK" "$FLOCI_NAME" >&2
+    return
+  fi
+  docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+log() { printf '%s\n' "$*"; }
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+awsl() { aws --endpoint-url "$ENDPOINT" --region us-east-1 "$@"; }
+
+# ── 0. tools ────────────────────────────────────────────────────────────────
+log "=== 0. tools ==="
+command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
+docker info >/dev/null 2>&1 || fail "docker is not running"
+command -v aws >/dev/null 2>&1 || fail "the AWS CLI is not on PATH"
+command -v python3 >/dev/null 2>&1 || fail "python3 is not on PATH"
+
+if [ -n "${TOFU_BIN:-}" ]; then
+  TOFU="$TOFU_BIN"
+  [ -x "$TOFU" ] || fail "TOFU_BIN=$TOFU_BIN is not an executable file"
+  log "  using TOFU_BIN=$TOFU"
+else
+  mkdir -p "$WORK/bin"
+  TOFU="$WORK/bin/choudoufu"
+  ( cd "$ROOT" && go build -o "$TOFU" ./cmd/choudoufu ) || fail "go build ./cmd/choudoufu failed"
+  log "  built $TOFU from $ROOT"
+fi
+
+# ── 1. floci ────────────────────────────────────────────────────────────────
+log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
+docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
+  || fail "docker run for $FLOCI_NAME failed"
+for _ in $(seq 1 45); do
+  HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+  grep -q '"s3"' <<< "$HEALTH" && break
+  sleep 2
+done
+HEALTH="$(curl -fs "${ENDPOINT}/_localstack/health" 2>/dev/null)" || true
+grep -q '"s3"' <<< "$HEALTH" || fail "floci did not come up healthy (s3) at $ENDPOINT"
+log "  healthy"
+
+export AWS_ENDPOINT_URL="$ENDPOINT"
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
+
+MAIN="$WORK/estate"
+mkdir -p "$MAIN"
+cp "$FIXTURE/main.tf" "$MAIN/main.tf"
+RUNLOG="$MAIN/provisioner-runs.txt"
+RECORDS="$MAIN/.tofu-records"
+PROVISIONED="$RECORDS/tofu-provisioned/$ESTATE"
+
+# provisioned_key reproduces internal/live/projection's ProvisionedKey
+# encoding for one instance address: unpadded base64url of the address
+# string. Spelled out rather than discovered by globbing the directory, on
+# purpose - a step that globbed would still pass if the addresses were
+# wrong, which is precisely the failure mode where one resource's failed
+# provisioner forces a replacement of another.
+provisioned_key() { printf '%s' "$1" | base64 | tr -d '=\n' | tr '+/' '-_'; }
+
+APP_ADDR='aws_s3_bucket.app[0]'
+TOLERANT_ADDR='aws_s3_bucket.tolerant'
+CONTROL_ADDR='aws_s3_bucket.control'
+
+APP_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$APP_ADDR")"
+TOLERANT_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$TOLERANT_ADDR")"
+CONTROL_REC="$PROVISIONED/aws_s3_bucket/$(provisioned_key "$CONTROL_ADDR")"
+
+count_taint_records() {
+  find "$PROVISIONED" -type f ! -name '*.lock' ! -name '*.tmp-*' 2>/dev/null | wc -l | tr -d ' '
+}
+
+run_log_lines() {
+  [ -f "$RUNLOG" ] || { printf '0'; return; }
+  wc -l < "$RUNLOG" | tr -d ' '
+}
+
+# A fresh prior state on every plan. Live mode rebuilds it from the cloud
+# and the record store rather than from a state file, and deleting the file
+# is what makes that claim testable rather than assumed: if the tainted bit
+# were surviving in terraform.tfstate, every assertion below would pass with
+# the record store doing nothing at all.
+tofu_plan() {
+  rm -f "$MAIN/terraform.tfstate"
+  ( cd "$MAIN" && "$TOFU" plan -input=false -no-color -detailed-exitcode "$@" )
+}
+tofu_apply() {
+  rm -f "$MAIN/terraform.tfstate"
+  ( cd "$MAIN" && "$TOFU" apply -input=false -auto-approve -no-color -parallelism=1 "$@" )
+}
+
+# ── 2. apply with a FAILING create-time provisioner ─────────────────────────
+log "=== 2. apply: aws_s3_bucket.app's create-time provisioner fails ==="
+( cd "$MAIN" && "$TOFU" init -input=false -no-color >/dev/null ) || fail "init failed"
+
+set +e
+APPLY1="$(tofu_apply 2>&1)"
+APPLY1_RC=$?
+set -e
+[ "$APPLY1_RC" != "0" ] \
+  || { tail -30 <<< "$APPLY1"; fail "the apply SUCCEEDED, but its provisioner runs 'exit 3' - the fixture is not exercising a failure at all"; }
+grep -q 'local-exec provisioner error' <<< "$APPLY1" \
+  || { tail -30 <<< "$APPLY1"; fail "the apply failed, but not on the provisioner - some other error is being measured"; }
+log "  apply failed on the provisioner, as designed"
+
+# Everything ahead of app in the depends_on chain was created; app's own
+# bucket exists too, because the provider's create SUCCEEDED and only the
+# provisioner after it failed. That is the whole shape of the problem.
+LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | sort | tr '\n' ' ')"
+for b in pt-e2e-app pt-e2e-control pt-e2e-shrinker-0 pt-e2e-shrinker-1 pt-e2e-tolerant; do
+  grep -qw "$b" <<< "$LIVE" || fail "$b is not live after the apply; live buckets are: $LIVE"
+done
+log "  all five buckets are live, including the half-provisioned one"
+
+# And app is FULLY MARKED. This is the premise of issue #353 stated as an
+# assertion rather than as prose: the markers went on before the create, so
+# nothing about the live object distinguishes it from a healthy one.
+APP_TAGS="$(awsl s3api get-bucket-tagging --bucket pt-e2e-app --output json)"
+grep -q "\"$ESTATE\"" <<< "$APP_TAGS" || { printf '%s\n' "$APP_TAGS"; fail "pt-e2e-app carries no tofu-estate marker"; }
+# The marker's own escaping: markers.EscapeAddress renders an index key as
+# ":0", since "[" and "]" are outside the AWS tag-value charset. Asserted in
+# that spelling rather than the address spelling, so a change to the
+# escaping shows up here rather than silently passing a looser grep.
+grep -q '"aws_s3_bucket.app:0"' <<< "$APP_TAGS" || { printf '%s\n' "$APP_TAGS"; fail "pt-e2e-app carries no tofu-address marker"; }
+log "  pt-e2e-app carries both ownership markers: nothing about the live object says its provisioner failed"
+
+# ── 3. the record, and exactly the record ───────────────────────────────────
+log "=== 3. the tofu-provisioned namespace ==="
+[ -f "$APP_REC" ] || { find "$RECORDS" -type f | sort; fail "no taint record for $APP_ADDR at $APP_REC"; }
+python3 -c '
+import json,sys
+p=json.load(open(sys.argv[1]))
+assert p["address"]==sys.argv[2], "the record names %s, not %s" % (p["address"], sys.argv[2])
+assert p["tainted"] is True, "the record does not say tainted: %r" % (p,)
+assert set(p) == {"formatVersion","address","tainted"}, "the record carries unexpected fields %r - this namespace stores ONE BIT, and a memory of the provisioner CONTENT is the design issue #353 rejected" % (sorted(p),)
+' "$APP_REC" "$APP_ADDR" || fail "the taint record's content is wrong (see above)"
+log "  $APP_ADDR has a taint record, carrying the address and one bit and nothing else"
+
+# on_failure = continue means the failure was not an error at all, so stock
+# does not taint - and neither may this. A mechanism that taints on any
+# provisioner error would write a record here, and the tolerant bucket would
+# then be proposed for replacement on every plan forever.
+[ ! -f "$TOLERANT_REC" ] || fail "$TOLERANT_ADDR got a taint record despite on_failure = continue"
+[ ! -f "$CONTROL_REC" ] || fail "$CONTROL_ADDR got a taint record despite declaring no provisioner at all"
+N="$(count_taint_records)"
+[ "$N" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record, found $N"; }
+log "  exactly one: not the on_failure=continue bucket, not the bucket with no provisioner"
+
+[ "$(run_log_lines)" = "2" ] || { cat "$RUNLOG"; fail "expected 2 provisioner executions (tolerant, app), got $(run_log_lines)"; }
+log "  2 real provisioner executions so far: $(tr '\n' ' ' < "$RUNLOG")"
+
+# ── 4. the next plan proposes a replace - the whole feature ─────────────────
+log "=== 4. re-plan with no state file: the half-built object must be replaced ==="
+set +e
+PLAN1="$(tofu_plan 2>&1)"
+PLAN1_RC=$?
+set -e
+[ "$PLAN1_RC" = "2" ] \
+  || { grep -vE '^(Warning|.*tagging\.go|.*ARN join table)' <<< "$PLAN1" | tail -30; fail "the re-plan exited $PLAN1_RC, want 2 (changes proposed)"; }
+grep -qF "$APP_ADDR is tainted, so it must be replaced" <<< "$PLAN1" \
+  || { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN1"; fail "the plan does not propose replacing $APP_ADDR because it is tainted"; }
+grep -qF 'Plan: 1 to add, 0 to change, 1 to destroy.' <<< "$PLAN1" \
+  || { grep -E '^Plan:' <<< "$PLAN1"; fail "the plan proposes something other than exactly one replacement - the taint must reach app and nothing else"; }
+log "  '$APP_ADDR is tainted, so it must be replaced'; 1 to add, 0 to change, 1 to destroy"
+
+# The negative control, and the reason step 4's assertion means anything.
+# Move the record aside and the SAME plan must come out empty - which is the
+# silent under-run issue #353 describes, reproduced on purpose. Run every
+# time, not only under BREAK=1, because it costs one plan.
+mv "$APP_REC" "$WORK/app-record-set-aside"
+set +e
+PLAN_NOREC="$(tofu_plan 2>&1)"
+PLAN_NOREC_RC=$?
+set -e
+mv "$WORK/app-record-set-aside" "$APP_REC"
+if [ "$PLAN_NOREC_RC" != "0" ] || ! grep -qF 'No changes.' <<< "$PLAN_NOREC"; then
+  grep -E '^  # aws_s3_bucket|^Plan:|^No changes' <<< "$PLAN_NOREC"
+  fail "with the taint record removed the plan still proposed changes (exit $PLAN_NOREC_RC). Something OTHER than the record is carrying the tainted bit, so step 4 is not measuring what it claims to."
+fi
+log "  negative control: with the record moved aside the same plan says 'No changes' - the record is what carries the bit, and nothing else does"
+
+if [ "${BREAK:-}" = "1" ]; then
+  fail "BREAK=1: reporting the negative control above as this run's own result, to prove the exit code is not vacuously 0"
+fi
+
+# ── 5. apply with a SUCCEEDING provisioner ──────────────────────────────────
+log "=== 5. apply the replacement, with the provisioner now succeeding ==="
+set +e
+APPLY2="$(tofu_apply -var app_command='exit 0' -var app_marker=run-2 2>&1)"
+APPLY2_RC=$?
+set -e
+[ "$APPLY2_RC" = "0" ] || { tail -30 <<< "$APPLY2"; fail "the replacement apply failed"; }
+grep -qF 'Apply complete! Resources: 1 added, 0 changed, 1 destroyed.' <<< "$APPLY2" \
+  || { grep -E 'Apply complete' <<< "$APPLY2"; fail "the replacement apply did not report exactly one added and one destroyed"; }
+log "  $(grep -E 'Apply complete' <<< "$APPLY2")"
+
+# ── 6. the provisioner actually RE-RAN, and the record is gone ──────────────
+log "=== 6. the shell's own account of what ran ==="
+[ "$(run_log_lines)" = "3" ] || { cat "$RUNLOG"; fail "expected 3 provisioner executions after the replacement, got $(run_log_lines)"; }
+[ "$(tail -n1 "$RUNLOG")" = "run-2" ] \
+  || { cat "$RUNLOG"; fail "the last provisioner execution was not the replacement's - the plan proposed a replace and the command did not actually run"; }
+grep -cx 'tolerant' "$RUNLOG" | grep -qx 1 \
+  || { cat "$RUNLOG"; fail "the on_failure=continue bucket's provisioner ran again; it was never supposed to be replaced"; }
+log "  3 executions, the last one run-2: the provisioner really re-ran on the replacement"
+
+N="$(count_taint_records)"
+[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "the taint record survived a successful re-run ($N left); the bucket would be proposed for replacement on every plan from now on"; }
+log "  the taint record is gone: a succeeding provisioner clears its predecessor's failure"
+
+log "=== 7. a clean re-plan proposes nothing ==="
+set +e
+PLAN2="$(tofu_plan -var app_command='exit 0' -var app_marker=run-2 2>&1)"
+PLAN2_RC=$?
+set -e
+[ "$PLAN2_RC" = "0" ] && grep -qF 'No changes.' <<< "$PLAN2" \
+  || { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN2"; fail "the clean re-plan proposed changes (exit $PLAN2_RC)"; }
+log "  no changes"
+
+# ── 8. a CHANGED provisioner command must change nothing ────────────────────
+# Parity, pinned against the design issue #353 rejected. Stock keeps no
+# memory of a provisioner's content and never re-runs one because the
+# command changed; a stored hash of the provisioner block would propose a
+# replacement right here, and it would be a memory stock does not have.
+log "=== 8. changing the provisioner's command text: the plan must stay empty ==="
+set +e
+PLAN3="$(tofu_plan -var app_command='exit 0' -var app_marker=THIS-IS-A-DIFFERENT-COMMAND 2>&1)"
+PLAN3_RC=$?
+set -e
+[ "$PLAN3_RC" = "0" ] && grep -qF 'No changes.' <<< "$PLAN3" \
+  || { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN3"; fail "changing the provisioner's command produced a plan (exit $PLAN3_RC). Stock does not re-run a provisioner because its command changed, and neither may this - see issue #353's rejected hash-and-diff design."; }
+[ "$(run_log_lines)" = "3" ] || { cat "$RUNLOG"; fail "a plan executed a provisioner; plan time is a preview and must never run one"; }
+log "  no changes, and no provisioner ran: plan time is still a preview"
+
+# ── 9. the destroy-time half, which needs no record at all ──────────────────
+# Stock only runs a destroy-time provisioner when it is also calling the
+# provider's delete, strictly before it. On failure the delete never
+# happens, so the object survives WITH ITS MARKER - and the marker's
+# continued existence already is the "still needs destroying" signal. This
+# step proves that claim rather than restating it: the destroy fails, the
+# bucket is still there, still marked, and NOTHING was written anywhere.
+log "=== 9. a FAILING destroy-time provisioner on a count shrink ==="
+touch "$MAIN/fail-destroy"
+set +e
+APPLY3="$(tofu_apply -var app_command='exit 0' -var app_marker=run-2 -var shrink_count=1 2>&1)"
+APPLY3_RC=$?
+set -e
+[ "$APPLY3_RC" != "0" ] || { tail -20 <<< "$APPLY3"; fail "the destroy-time provisioner did not fail; the fixture is not exercising it"; }
+grep -q 'local-exec provisioner error' <<< "$APPLY3" \
+  || { tail -30 <<< "$APPLY3"; fail "the apply failed, but not on the destroy-time provisioner"; }
+
+LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | sort | tr '\n' ' ')"
+grep -qw pt-e2e-shrinker-1 <<< "$LIVE" \
+  || fail "pt-e2e-shrinker-1 was deleted even though its destroy-time provisioner failed; stock runs the provisioner FIRST and skips the delete"
+SHRINK_TAGS="$(awsl s3api get-bucket-tagging --bucket pt-e2e-shrinker-1 --output json)"
+grep -q "\"$ESTATE\"" <<< "$SHRINK_TAGS" \
+  || { printf '%s\n' "$SHRINK_TAGS"; fail "pt-e2e-shrinker-1 lost its ownership marker; the marker IS the retry signal for this case, so losing it strands the object"; }
+N="$(count_taint_records)"
+[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "a failed DESTROY-time provisioner wrote $N record(s); it must write none - the surviving marker is the signal"; }
+log "  the bucket survives, still marked, and no record was written: the marker is the retry signal"
+
+log "=== 10. the retry destroys it, re-running the provisioner ==="
+rm -f "$MAIN/fail-destroy"
+set +e
+APPLY4="$(tofu_apply -var app_command='exit 0' -var app_marker=run-2 -var shrink_count=1 2>&1)"
+APPLY4_RC=$?
+set -e
+[ "$APPLY4_RC" = "0" ] || { tail -30 <<< "$APPLY4"; fail "the retry apply failed"; }
+grep -qF 'Apply complete! Resources: 0 added, 0 changed, 1 destroyed.' <<< "$APPLY4" \
+  || { grep -E 'Apply complete' <<< "$APPLY4"; fail "the retry did not destroy exactly the one shrunk instance"; }
+[ "$(grep -cx 'destroy-1' "$RUNLOG")" = "2" ] \
+  || { cat "$RUNLOG"; fail "the destroy-time provisioner did not run twice; at-least-once through the marker is the claim being made"; }
+LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | sort | tr '\n' ' ')"
+grep -qw pt-e2e-shrinker-1 <<< "$LIVE" \
+  && fail "pt-e2e-shrinker-1 is still live after a successful destroy"
+log "  destroyed on the retry, provisioner ran twice: at-least-once, through the marker and no new storage"
+
+# ── 11. a second failure, arranged through count rather than by hand ───
+# Step 6 proved a SUCCEEDING re-run clears the record. This proves the other
+# way out: an instance the configuration stops declaring is destroyed
+# through the ordinary path, and its record must go with it. Getting there
+# needs a fresh create-time failure, and a create needs a destroy first -
+# so the count goes to 0 and back to 1. Nothing edits the store by hand at
+# any point.
+log "=== 11. destroy app, then re-create it with a failing provisioner ==="
+set +e
+APPLY5="$(tofu_apply -var app_command='exit 0' -var app_marker=run-2 -var app_count=0 -var shrink_count=1 2>&1)"
+APPLY5_RC=$?
+set -e
+[ "$APPLY5_RC" = "0" ] || { tail -30 <<< "$APPLY5"; fail "destroying app failed"; }
+grep -qF 'Apply complete! Resources: 0 added, 0 changed, 1 destroyed.' <<< "$APPLY5" \
+  || { grep -E 'Apply complete' <<< "$APPLY5"; fail "the count-to-zero apply did not destroy exactly the one app instance"; }
+[ "$(count_taint_records)" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "destroying a HEALTHY instance wrote a taint record"; }
+
+set +e
+APPLY6="$(tofu_apply -var app_command='exit 3' -var app_marker=run-3 -var shrink_count=1 2>&1)"
+APPLY6_RC=$?
+set -e
+[ "$APPLY6_RC" != "0" ] || { tail -20 <<< "$APPLY6"; fail "the re-create apply succeeded; its provisioner runs 'exit 3'"; }
+[ -f "$APP_REC" ] || { find "$PROVISIONED" -type f | sort; fail "the second create-time failure wrote no taint record"; }
+[ "$(count_taint_records)" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record after the second failure"; }
+[ "$(tail -n1 "$RUNLOG")" = "run-3" ] || { cat "$RUNLOG"; fail "the re-created instance's provisioner did not run"; }
+log "  destroyed clean (no record), re-created with a failure (one record)"
+
+log "=== 12. destroy the tainted instance: its record goes with it ==="
+set +e
+APPLY7="$(tofu_apply -var app_command='exit 3' -var app_marker=run-3 -var app_count=0 -var shrink_count=1 2>&1)"
+APPLY7_RC=$?
+set -e
+[ "$APPLY7_RC" = "0" ] || { tail -30 <<< "$APPLY7"; fail "the destroy apply failed"; }
+grep -qF 'Apply complete! Resources: 0 added, 0 changed, 1 destroyed.' <<< "$APPLY7" \
+  || { grep -E 'Apply complete' <<< "$APPLY7"; fail "the destroy apply did not destroy exactly the one app instance"; }
+LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | sort | tr '\n' ' ')"
+grep -qw pt-e2e-app <<< "$LIVE" && fail "pt-e2e-app is still live after being destroyed"
+N="$(count_taint_records)"
+[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "$N taint record(s) survived the instance being destroyed; the key would outlive everything it describes"; }
+log "  1 destroyed, tofu-provisioned namespace empty"
+
+log "=== PASS ==="

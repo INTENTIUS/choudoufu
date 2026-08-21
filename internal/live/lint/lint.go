@@ -404,7 +404,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 		// argument-derived identity at all, not before it.
 		lt, isLogical := ClassifyLogicalType(resource.Type)
 
-		checkProvisioners(resource, addr, path, isLogical, issues)
+		checkProvisioners(resource, addr, path, isLogical, recordStoreConfigured, issues)
 		checkCountIndex(ctx, mod, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
 		checkIgnoreChanges(resource, addr, path, schemas, issues)
 
@@ -586,15 +586,47 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 }
 
 // checkProvisioners rejects provisioner blocks and connection blocks on a
-// managed cloud resource. Both describe effects, and this fork gives up
-// effect-memory for a cloud resource on purpose: whether a create-time
-// provisioner already ran, or a destroy-time one still needs to, is
-// recoverable under stock OpenTofu only from a stored record of the attempt
-// (specifically, the tainted-resource bit a failed provisioner sets in
-// state) - and a live-marker-tracked resource has no state entry to carry
-// that bit. A live object simply exists or does not; nothing about it says
-// whether the provisioner attached to its config address already fired, or
-// half-fired and needs cleanup.
+// managed cloud resource that has nowhere to carry the one bit stock
+// OpenTofu keeps about a provisioner.
+//
+// # What the bit is, and why it is the whole question
+//
+// Stock has exactly one piece of provisioner memory. When a create-time
+// provisioner fails, the resource's state object is marked
+// states.ObjectTainted (internal/tofu's maybeTainted), and the next plan
+// turns a tainted prior object into a synthetic Replace, which re-runs the
+// provisioner because a replace is a create. Stock remembers nothing else -
+// not what the command was, not whether it changed, not whether a
+// SUCCESSFUL provisioner has run before. So the only thing this fork has to
+// be able to do is store one bit per instance.
+//
+// A live-marker-tracked resource has no state entry to put that bit in, and
+// internal/live/stamp writes its ownership markers BEFORE the create
+// request goes out - so on a provisioner failure the estate is left with a
+// fully-marked, live, unprovisioned object that the next plan reads back as
+// healthy. That silent under-run, and nothing else, is what this rule
+// existed to prevent. GitHub issue #353 gave the bit a home
+// (internal/live/projection's tofu-provisioned namespace, provisioned.go),
+// so the refusal now applies only where that home does not exist.
+//
+// recordStoreConfigured is that home: the root module's live block declares
+// a record_store (see [recordStoreConfiguredIn]), the same admission gate
+// issue #73's RECORD_ADMITTED types already turn on. The predicate is
+// derived and names no provisioner type and no provider type - it is "does
+// this instance have somewhere to carry a tainted bit", answered by
+// "RecordBacked (the isLogical branch below) or a record_store is
+// configured", and it covers local-exec, remote-exec and file uniformly
+// because there is nothing in it that could tell them apart.
+//
+// The destroy-time case needs no storage at all and is admitted by the same
+// gate for a different reason, stated here so nobody looks for the missing
+// half: stock only runs a destroy-time provisioner when it is also calling
+// the provider's delete, strictly before it. On failure the delete never
+// happens, nothing is written, and the live object survives WITH ITS MARKER
+// INTACT - so the marker's continued existence already is the "still needs
+// destroying" signal, and the next plan re-proposes the destroy and re-runs
+// the provisioner. At-least-once, for free, through a mechanism this fork
+// already has.
 //
 // isLogical narrows that to resources actually exposed to it: a logical,
 // record-backed type (null_resource, terraform_data, time_*, non-secret
@@ -619,8 +651,16 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 // an operator to also strip a provisioner that a record_store declaration
 // already brings back to life is noise, not a second fix they need to
 // make.
-func checkProvisioners(resource *configs.Resource, addr string, path addrs.Module, isLogical bool, issues *[]Issue) {
+func checkProvisioners(resource *configs.Resource, addr string, path addrs.Module, isLogical, recordStoreConfigured bool, issues *[]Issue) {
 	if isLogical {
+		return
+	}
+	// The issue #353 gate, mirroring the isLogical branch above: with a
+	// record_store declared, a create-time provisioner's failure has
+	// somewhere to be remembered, so a provisioner is an ordinary thing to
+	// write and stock's behavior is reproduced exactly. Without one, it is
+	// not, and the refusal below says which declaration would change that.
+	if recordStoreConfigured {
 		return
 	}
 	managed := resource.Managed
@@ -633,10 +673,13 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Rule:      RuleProvisioner,
 			Construct: fmt.Sprintf("provisioner %q on %s", provisioner.Type, addr),
 			Module:    path,
-			Detail: "a provisioner runs an effect, not a resource. Whether it has already run " +
-				"is knowable only from a stored record of the run, which is exactly the " +
-				"authority live resource markers give up: the live system can say what exists, " +
-				"never what happened to it. Remove the provisioner",
+			Detail: "a provisioner that fails while creating a resource leaves the object " +
+				"live but half-built, and OpenTofu remembers that as one bit - the tainted " +
+				"flag - so the next plan replaces it and runs the provisioner again. A live " +
+				"resource marker cannot carry that bit: the marker is written before the " +
+				"object is created, so a marked object says nothing about whether its " +
+				"provisioner ran. Declare a record_store in this configuration's live block " +
+				"to give that bit a home, or remove the provisioner",
 			Subject: provisioner.DeclRange,
 		})
 	}
@@ -649,8 +692,10 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Rule:      RuleProvisioner,
 			Construct: fmt.Sprintf("connection block on %s", addr),
 			Module:    path,
-			Detail: "a connection block configures how provisioners reach the resource, and " +
-				"provisioners are not available under live resource markers. Remove the connection block",
+			Detail: "a connection block configures how provisioners reach the resource, and a " +
+				"provisioner needs a record_store declared in this configuration's live block " +
+				"before it can run under live resource markers. Declare one, or remove the " +
+				"connection block",
 			Subject: conn.DeclRange,
 		})
 	}

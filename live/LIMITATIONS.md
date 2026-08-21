@@ -43,33 +43,74 @@ whether a construct is usable.
 
 ### local-exec
 
-**Construct.** `provisioner "local-exec"` on a resource.
+**Construct.** `provisioner "local-exec"` on a resource, in an estate whose
+root module declares **no `record_store`**.
 
-**Why banned.** A provisioner runs an effect, not a resource. Whether it
-already ran is knowable only from a stored record of the run, which is
-exactly the authority live markers give up. The store test applies directly.
+**Not banned outright any more (GitHub issue #353).** Declare a
+`record_store` in the `live` block and `local-exec`, `remote-exec` and
+`file` all run exactly as they do under stock OpenTofu. The three are
+admitted together because the predicate that admits them - "does this
+instance have somewhere to carry a tainted bit" - has nothing in it that
+could tell one provisioner type from another.
 
-**Forwarding address.** The lifecycle layer. Run it in Ops/CI, outside the
-plan/apply cycle, where a real execution log can say whether it happened.
+**Why the refusal still fires without one.** Stock keeps exactly one piece
+of memory about a provisioner: when a create-time provisioner fails, the
+resource's state object is marked tainted, and the next plan replaces it,
+which re-runs the provisioner. A live-marker-tracked resource has no state
+entry to hold that bit, and `internal/live/stamp` writes the ownership
+markers *before* the create request goes out - so a marked live object says
+nothing about whether its provisioner ran. Without somewhere to keep the
+bit, a failed provisioner would leave a fully-marked, live, unprovisioned
+object that every later plan reads back as healthy: a silent under-run. The
+`record_store` is that somewhere (`tofu-provisioned/<estate>`, one bit per
+instance, point-lookup only and never enumerated - see
+`internal/live/projection/provisioned.go`).
+
+Note what is *not* stored: nothing about the provisioner's content. Stock
+has no memory of what the command was and never re-runs a provisioner
+because its command changed, so neither does this. Changing a
+`local-exec`'s `command` between runs produces an empty plan, exactly as it
+does under stock.
+
+The destroy-time case (`when = destroy`) needs no storage at all and is
+admitted by the same gate for a different reason: stock only runs a
+destroy-time provisioner when it is also calling the provider's delete,
+strictly before it, so on failure the delete never happens and the live
+object survives *with its marker intact*. The marker's continued existence
+already is the "still needs destroying" signal, and the next plan
+re-proposes the destroy and re-runs the provisioner.
+
+**Forwarding address** (when no `record_store` is wanted). The lifecycle
+layer. Run it in Ops/CI, outside the plan/apply cycle, where a real
+execution log can say whether it happened.
 
 **Enforcement.** `RuleProvisioner`, `internal/live/lint/lint.go`
-(`checkProvisioners`). Fixture at `live/e2e/limits/local-exec/`.
+(`checkProvisioners`), which returns early when a `record_store` is
+declared. Fixture at `live/e2e/limits/local-exec/`, which declares no `live`
+block and is therefore still refused. The admitted half is exercised by
+`TestProvisionerAdmittedWithARecordStore`
+(`internal/live/lint/provisioner_test.go`) and end to end by
+`live/e2e/provisioner-taint/run.sh`.
 
 ### remote-exec
 
 **Construct.** `provisioner "remote-exec"` plus the `connection` block that
-configures it.
+configures it, in an estate whose root module declares **no
+`record_store`**.
 
-**Why banned.** Same as local-exec, an effect with no stored record of
-whether it ran. The connection block only exists to reach a provisioner, so
-it is rejected in its own right rather than tolerated once the provisioner
-using it is gone.
+**Why refused.** Identical to `local-exec` above, and admitted by the same
+declaration - the previous wording here ("same as local-exec, no stored
+record") was true only while there was no store to put a record in. The
+connection block only exists to reach a provisioner, so it is rejected in
+its own right rather than tolerated once the provisioner using it is gone,
+and it is admitted alongside them for the same reason.
 
 **Forwarding address.** The lifecycle layer, Ops/CI, same as local-exec.
 
 **Enforcement.** `RuleProvisioner` (fires twice, once for the provisioner
 and once for the connection block). Fixture at
-`live/e2e/limits/remote-exec/`.
+`live/e2e/limits/remote-exec/`, which declares no `live` block and is
+therefore still refused.
 
 #### Logical resources: a three-way classification (GitHub issue #73)
 
@@ -1719,6 +1760,8 @@ refused, and each says so in its own entry.
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
 | - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
+| - | - | projection | Provisioner outcome could not be recorded | error | `internal/live/projection` | "Provisioner outcome could not be recorded" |
+| - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
 | - | - | projection | Record store write conflict | error | `internal/live/projection` | "Record store write conflict" |
 | - | - | projection | Record-backed instance with no record store | error | `internal/live/projection` | "Record-backed instance with no record store" |
 | - | - | projection | Record-located instance with no record store | error | `internal/live/projection` | "Record-located instance with no record store" |
@@ -1733,7 +1776,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**192 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**194 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Two layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`) and a discovery refusal, whose severity is read from the same call the diagnostic is built from. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2976,6 +3019,22 @@ reserved for the limits wing's fixture directories, and
 #### Provider unavailable
 
 **What.** The provider configuration a resource needs could not be started or configured.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Provisioner outcome could not be recorded
+
+**What.** An apply could not record, or could not clear, whether a create-time provisioner failed (GitHub issue #353). The live system already changed; what is lost is the next plan's knowledge of whether the provisioner needs to run again.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Provisioner record could not be read
+
+**What.** An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

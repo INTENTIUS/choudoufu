@@ -170,6 +170,14 @@ var refusals = []Refusal{
 		What:    "A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.",
 	},
 	{
+		Summary: SummaryProvisionedUnreadable,
+		What:    "An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.",
+	},
+	{
+		Summary: SummaryProvisionedNotRecorded,
+		What:    "An apply could not record, or could not clear, whether a create-time provisioner failed (GitHub issue #353). The live system already changed; what is lost is the next plan's knowledge of whether the provisioner needs to run again.",
+	},
+	{
 		Summary: SummaryResidueUnreadable,
 		What:    "An estate's residue record - the argument values an earlier apply sent that the provider's read never gives back (GitHub issue #275) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. The plan continues from what the provider returned, so those arguments are proposed for update again.",
 	},

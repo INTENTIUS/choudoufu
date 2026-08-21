@@ -320,16 +320,30 @@ type statelessRunner struct {
 	locatedVersions []projection.RecordVersion
 
 	// residueStore and residueVersions are GitHub issue #275's half again,
-	// set alongside the others and from the same store. residueConfig is
-	// the configuration WriteBack re-opens providers from: the ones
-	// PriorState read through are closed before the plan graph starts (see
-	// this file's "The provider double-launch" comment), and the residue
-	// classifier is the only write-back half that needs a live provider -
-	// because there is no static answer to which arguments a provider's
-	// read manages.
+	// set alongside the others and from the same store. See liveConfig,
+	// below, for the configuration this half re-opens providers from.
 	residueStore    *projection.ResidueStore
 	residueVersions []projection.RecordVersion
-	residueConfig   *configs.Config
+
+	// provisionedStore and provisionedVersions are GitHub issue #353's
+	// half again, set alongside the others and from the same store: the one
+	// bit saying a create-time provisioner failed on an instance whose
+	// prior state is otherwise read back out of the cloud. See
+	// internal/live/projection/provisioned.go.
+	provisionedStore    *projection.ProvisionedStore
+	provisionedVersions []projection.RecordVersion
+
+	// liveConfig is the configuration WriteBack works from. The residue
+	// classifier re-opens providers from it - the ones PriorState read
+	// through are closed before the plan graph starts (see this file's
+	// "The provider double-launch" comment), and it is the only write-back
+	// half that needs a live provider, because there is no static answer to
+	// which arguments a provider's read manages. The provisioned half needs
+	// it for a different reason: whether an instance gets a taint record
+	// turns on whether its resource block declares a create-time
+	// provisioner, which is a fact about the configuration and is not
+	// recoverable from the final state.
+	liveConfig *configs.Config
 
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
@@ -454,7 +468,14 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// discovery's listing would find it and the plan would propose
 		// destroying whatever it names.
 		r.residueStore = projection.NewResidueStore(store, estate)
-		r.residueConfig = config
+		// Issue #353's provisioner-taint namespace rides the same store,
+		// and takes the ESTATE rather than r.recordKeyPrefix for the
+		// located and residue namespaces' exact reason: a key_prefix
+		// override must not be able to move one of these keys under the
+		// record root, where orphan discovery's listing would find it and
+		// the plan would propose destroying whatever it names.
+		r.provisionedStore = projection.NewProvisionedStore(store, estate)
+		r.liveConfig = config
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
 		// timestamp land at [projection.HintKey](estate), where the next
@@ -545,6 +566,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		RecordKeyPrefix:     r.recordKeyPrefix,
 		LocatedStore:        r.locatedStore,
 		ResidueStore:        r.residueStore,
+		ProvisionedStore:    r.provisionedStore,
 	})
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
@@ -557,6 +579,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	r.recordVersions = projResult.RecordVersions
 	r.locatedVersions = projResult.LocatedVersions
 	r.residueVersions = projResult.ResidueVersions
+	r.provisionedVersions = projResult.ProvisionedVersions
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -640,8 +663,8 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	// does below and for the same reason. Only when there is a residue
 	// store to write to: a run with no record_store pays nothing.
 	var provs *statelessProviders
-	if r.residueStore != nil && r.residueConfig != nil {
-		provs = newStatelessProviders(r.residueConfig, r.lib)
+	if r.residueStore != nil && r.liveConfig != nil {
+		provs = newStatelessProviders(r.liveConfig, r.lib)
 	}
 
 	var provAccess projection.Providers
@@ -660,6 +683,13 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		Providers:       provAccess,
 		FinalState:      finalState,
 		Schemas:         schemas,
+
+		// Issue #353's half. Config is what the write side asks "does this
+		// instance's resource block declare a create-time provisioner",
+		// which the final state cannot answer.
+		ProvisionedStore:    r.provisionedStore,
+		ProvisionedVersions: r.provisionedVersions,
+		Config:              r.liveConfig,
 	}))
 
 	if provs != nil {

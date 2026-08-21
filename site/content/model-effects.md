@@ -31,7 +31,17 @@ real effect, and lets apply write the new value only once the effect succeeded.
 
 If the tool ran the effect itself, the diff would stop being a preview of what
 is about to happen and become the thing happening mid-plan. That is a
-provisioner, and provisioners are refused.
+provisioner.
+
+choudoufu does run provisioners, once an estate declares a `record_store`
+(before that it refuses them, because a failed one has nowhere to be
+remembered). But a provisioner is not a smaller receipt, and reaching for one
+here would answer a different question. A provisioner runs when its resource is
+created and never again; nothing about it is re-examined on a later plan, and no
+plan shows you that it is about to run. A receipt tracks staleness across a
+resource's whole lifetime: its diff is the standing answer to "have this
+effect's inputs changed since it last ran", asked on every plan, for as long as
+the resource exists. Only one of those is reviewable before the fact.
 
 The semantics are at-least-once. If the effect runs but the process dies before
 the receipt is written, the next plan proposes the same change and the effect
