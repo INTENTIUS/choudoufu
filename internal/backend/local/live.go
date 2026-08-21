@@ -8,6 +8,8 @@ package local
 import (
 	"context"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
@@ -68,6 +70,19 @@ type StatelessRun interface {
 	//
 	// Error diagnostics abort the run before anything is planned.
 	PriorState(ctx context.Context, config *configs.Config, core *tofu.Context) (*states.State, tfdiags.Diagnostics)
+
+	// RootOutputData is the live data-source values PriorState read for the
+	// configuration's root outputs, keyed by absolute resource instance
+	// address, or nil when it read none - which is the ordinary case.
+	//
+	// It is a second return value of PriorState in everything but shape.
+	// The reason it is a method instead is timing: the values are read while
+	// the provider instances that serve them are open, inside PriorState,
+	// and they are USED a moment later by
+	// [projection.ApplyRootOutputValues], which is the caller's own step
+	// rather than the run's. Called at most once per operation, always after
+	// PriorState has returned without errors.
+	RootOutputData() map[string]cty.Value
 
 	// WriteBack is GitHub issue #73's third leg: after a successful apply,
 	// persist every record-backed resource instance's new state to the

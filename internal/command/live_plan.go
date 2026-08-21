@@ -439,6 +439,14 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// crossing's stage 3 reads.
 		ProvisionedStore: projection.NewProvisionedStore(hintStore, estate),
 	})
+	// GitHub issue #349's root-output data reads, taken here because this is
+	// the last moment the provider instances that read the live system are
+	// still open - the output evaluation itself happens after the plan
+	// context exists, several steps below. Scoped: whatever this cannot read
+	// costs one root output its prior value and nothing else.
+	rootOutputData, rootOutputDataDiags := statelessRootOutputDataReads(ctx, config, provs, resourceSchemas, scope)
+	diags = diags.Append(rootOutputDataDiags)
+
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.
 	diags = diags.Append(provs.close(ctx))
@@ -528,8 +536,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// against "planned" ones. Without this, projResult.State carries no
 	// output values at all, and every declared output shows as newly
 	// created on every run regardless of whether the underlying resources
-	// changed. See [projection.ApplyRootOutputValues].
-	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables))
+	// changed. See [projection.ApplyRootOutputValues]. rootOutputData is
+	// issue #349's second half: the data sources those outputs reach, read
+	// live a few steps above while the projection's providers were open.
+	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables, rootOutputData))
 	if diags.HasErrors() {
 		return 1, false, diags
 	}
@@ -1740,6 +1750,71 @@ func statelessDataReads(ctx context.Context, config *configs.Config, provs *stat
 		return nil, nil
 	}
 	return dataread.Read(ctx, config, analysis, provs)
+}
+
+// statelessRootOutputDataReads is the same phase's SECOND demand class,
+// GitHub issue #349's sub-problem 2: the data sources a root-level `output`
+// block's value reaches, read live so that [projection.ApplyRootOutputValues]
+// can compute the output's prior value instead of leaving it unset and
+// letting every run render it as newly created.
+//
+// It is scoped, not fatal, in both halves. The analysis
+// ([dataread.AnalyzeRootOutputs]) skips what it cannot read rather than
+// refusing the configuration, and the read ([dataread.ReadForOutputs])
+// carries on past a source that fails. Nothing this function returns can
+// stop a run: the worst case is the one an operator already had, an output
+// showing "+".
+//
+// The provider seam it hands the read phase is deliberately NOT the
+// unrestricted one the identity class uses. See [liveProviderReads].
+//
+// Cost: one ReadDataSource per data BLOCK a root output reaches, shared
+// across that block's instances, and none at all for a configuration whose
+// outputs reach no data source - which is every estate the plan-call budget
+// ratchet (live/plan-budget.json) measures, since tools/estate-gen's
+// generated estates declare no root outputs.
+//
+// scope is GitHub issue #352's targeting scope, and it applies here for the
+// reason it applies to the identity class: a block the plan graph does not
+// contain is one the plan will not read, so reading it would put a prior
+// value in front of a diff whose other side cannot match it.
+func statelessRootOutputDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
+	analysis := dataread.AnalyzeRootOutputs(ctx, config, dataread.Options{Schemas: resourceSchemas, Scope: scope})
+	if analysis.Empty() {
+		return nil, nil
+	}
+	return dataread.ReadForOutputs(ctx, config, analysis, liveProviderReads{
+		inner: provs,
+		live:  dataread.LiveProviders(config),
+	})
+}
+
+// liveProviderReads is the structural half of the root-output read class's
+// safety boundary: a [dataread.Providers] seam that can only ever hand back
+// a provider this configuration manages live objects through
+// ([dataread.LiveProviders]).
+//
+// The analysis draws the same line, and this draws it again at the one point
+// where it becomes a real process doing a real thing. That redundancy is the
+// point. The rule being enforced is that live-plan's pre-plan phase makes
+// read-only calls to the same remote APIs the projection is already reading
+// and does nothing else - and the shape that would violate it,
+// data "external", runs a program named by its own arguments on the machine
+// running the plan. A boundary that exists only as a classification is one
+// refactor away from being bypassed by a caller that constructs an analysis
+// some other way; a boundary that also owns the provider handle cannot be.
+type liveProviderReads struct {
+	inner dataread.Providers
+	live  map[addrs.Provider]bool
+}
+
+func (p liveProviderReads) ConfiguredProvider(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error) {
+	if !p.live[addr.Provider] {
+		return nil, fmt.Errorf(
+			"%s manages no live object in this configuration, so the root-output data-read phase will not configure it: this phase reads only the remote APIs this run is already reading the estate through",
+			addr.Provider)
+	}
+	return p.inner.ConfiguredProvider(ctx, addr)
 }
 
 // statelessTargetScope is GitHub issue #352: which resource blocks a

@@ -17,7 +17,7 @@ import (
 //
 // The two dynamic sites are the one legitimate shape bent slightly: both
 // pass a Summary-prefixed constant through a variable - refuse takes the
-// summary as a parameter, and Read raises a Source's classified
+// summary as a parameter, and read raises a Source's classified
 // ReasonSummary, which classify assigned from the same constants. Every
 // value that can flow there is one of the constants in summaries.go, which
 // the scan sees and the registry covers.
@@ -33,6 +33,6 @@ func TestRefusalsRegistered(t *testing.T) {
 		SkipFile:     "refusals.go",
 		Registered:   summaries,
 		What:         whats,
-		DynamicSites: []string{"refuse", "Read"},
+		DynamicSites: []string{"refuse", "read"},
 	})
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend"
@@ -359,6 +360,17 @@ type statelessRunner struct {
 	// recoverable from the final state.
 	liveConfig *configs.Config
 
+	// rootOutputData holds the live data-source values PriorState read for
+	// the configuration's root outputs (GitHub issue #349's sub-problem 2),
+	// keyed by absolute resource instance address. Set by PriorState, read
+	// once by the caller through [statelessRunner.RootOutputData] at the one
+	// moment root outputs are evaluated - which is after PriorState has
+	// returned and the provider instances that produced these values are
+	// closed, which is the whole reason the values are carried on the runner
+	// rather than read where they are used. Nil for a configuration whose
+	// outputs reach no data source, which is nearly all of them.
+	rootOutputData map[string]cty.Value
+
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
 	// this type's own doc comment), and backend_local.go's localRunDirect
@@ -378,6 +390,11 @@ var _ backendLocal.StatelessRun = (*statelessRunner)(nil)
 // StateMgr implements [backendLocal.StatelessRun].
 func (r *statelessRunner) StateMgr() statemgr.Full {
 	return r.mgr
+}
+
+// RootOutputData implements [backendLocal.StatelessRun].
+func (r *statelessRunner) RootOutputData() map[string]cty.Value {
+	return r.rootOutputData
 }
 
 // PriorStateCalls returns how many times PriorState has run on this runner.
@@ -592,6 +609,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		ResidueStore:        r.residueStore,
 		ProvisionedStore:    r.provisionedStore,
 	})
+	// GitHub issue #349's root-output data reads, taken here because this is
+	// the last moment the provider instances that read the live system are
+	// still open - [projection.ApplyRootOutputValues] runs after PriorState
+	// returns, by which point they are closed. Scoped: whatever this cannot
+	// read costs one root output its prior value and nothing else, so its
+	// diagnostics are collected and the run continues regardless.
+	outputData, outputDataDiags := statelessRootOutputDataReads(ctx, config, provs, resourceSchemas, scope)
+	diags = diags.Append(outputDataDiags)
+	r.rootOutputData = outputData
+
 	// The provider processes started to read the live system have done their
 	// job by this point; the plan below starts its own from the same library.
 	diags = diags.Append(provs.close(ctx))

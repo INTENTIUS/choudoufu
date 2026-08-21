@@ -1122,11 +1122,24 @@ const (
 	// metadata.namespace absent) contributes no row at all. 0 existing
 	// instances changed, 1 added, 0 removed.
 	//
-	// Then 507 -> 508 dirs and 1572 -> 1577 instances for GitHub issue
+	// Then 507 -> 510 dirs for GitHub issue #349's sub-problem 2, the
+	// root-output data-read class: three more fixture directories -
+	// internal/live/dataread/testdata/root-output-data and its ./m child,
+	// which pin the demand walk and the local-execution provider boundary,
+	// and internal/live/projection/testdata/output-eval-data, which pins
+	// the seeded value reaching the output evaluation. Same reason as every
+	// entry above: test_thing, stub_cert and stub_lookup are not admitted
+	// types, so none of the three contributes a row. identityGoldenPinInstances
+	// and identityGoldenPinBodyDigest are both unchanged, confirmed by
+	// diffing testdata/identity-golden.txt before and after regenerating -
+	// only the header's "dirs=" line moved, and TestIdentityGolden itself
+	// reported "differs but no instance's identity did".
+	//
+	// Then 510 -> 511 dirs and 1572 -> 1577 instances for GitHub issue
 	// #353: one new fixture root, live/e2e/provisioner-taint, contributing
 	// five aws_s3_bucket instances. See identityGoldenPinInstances' own
 	// comment directly above.
-	identityGoldenPinDirs = 508
+	identityGoldenPinDirs = 511
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
