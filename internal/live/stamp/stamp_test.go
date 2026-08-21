@@ -750,6 +750,24 @@ var (
 		// signals.taggable (false for both).
 		"aws_iam_role_policies_exclusive",
 		"aws_iam_role_policy_attachments_exclusive",
+
+		// Issue #326: the first four Kubernetes-provider types this table
+		// admits, ratified straight from the real, current
+		// hashicorp/kubernetes provider docs (tools/row-gen/annotations.json's
+		// own rulings for the four, since they have no CFN evidence path for
+		// row-gen to compare against at all). Confirmed via
+		// markers.Taggable/TagSurface reading that the Kubernetes provider's
+		// schemas carry no top-level "tags" attribute at all (0 of 0 per
+		// #243's own recomputed table) - the same "admitted, unstamped,
+		// plans anyway" shape the 11 google_* schema-fallback types already
+		// have, reached here instead through a hand-ratified import-ID row
+		// because api_version/kind are Go constants with no config source
+		// (crossprovider_test.go's TestKubernetesAPIVersionAndKindHaveNoConfigSource),
+		// so schema-fallback alone can never admit them.
+		"kubernetes_cluster_role_binding",
+		"kubernetes_config_map",
+		"kubernetes_namespace",
+		"kubernetes_storage_class",
 	}
 )
 
@@ -867,6 +885,40 @@ resource "aws_tag_blocks" "asg" {
 	if len(res.Stamped) != 0 {
 		t.Errorf("a type whose tags are blocks was stamped: %+v", res.Stamped)
 	}
+}
+
+// TestKubernetesConfigMapIsAdmittedButUntaggable is remaining-work item 3's
+// "admitted-but-unstamped" assertion (issue #326), behaviorally rather than
+// only via the pinned lists above: kubernetes_config_map resolves an
+// identity and plans (internal/live/identity's own
+// TestKubernetesConfigMapIdentity proves that half), but the Kubernetes
+// provider's schema carries no top-level tags attribute at all, so the
+// sweep has nothing to write an ownership marker into. This is the same
+// "admitted, unstamped, plans anyway" shape google_workstations_workstation_
+// cluster already has via schema fallback
+// (TestStamp_exhibitedKeyFormatIsNotStamped, keyspace_test.go) - here
+// reached instead through a hand-ratified import-ID row, because
+// api_version/kind are Go constants with no config source
+// (crossprovider_test.go's
+// TestKubernetesAPIVersionAndKindHaveNoConfigSource), so schema-fallback
+// alone could never have admitted this type.
+func TestKubernetesConfigMapIsAdmittedButUntaggable(t *testing.T) {
+	cfg := loadSource(t, `
+resource "kubernetes_config_map" "cm" {
+  metadata {
+    name      = "my-config"
+    namespace = "default"
+  }
+}
+`)
+
+	res, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: testSchemas()})
+	assertNoErrors(t, diags)
+
+	if len(res.Stamped) != 0 {
+		t.Errorf("kubernetes_config_map was stamped, but its schema carries no tags attribute to write one into: %+v", res.Stamped)
+	}
+	assertSkippedUntaggable(t, res, "kubernetes_config_map.cm")
 }
 
 // ---------------------------------------------------------------------------
@@ -1267,6 +1319,10 @@ func testSchemas() Schemas {
 		"aws_iam_role_policies_exclusive":                    untaggedSchema("role_name", "policy_names"),
 		"aws_iam_role_policy_attachments_exclusive":          untaggedSchema("role_name", "policy_arns"),
 		"aws_autoscaling_traffic_source_attachment":          untaggedSchema("autoscaling_group_name", "traffic_source"),
+		"kubernetes_cluster_role_binding":                    untaggedSchema("metadata", "role_ref", "subject"),
+		"kubernetes_config_map":                              untaggedSchema("metadata", "data", "binary_data"),
+		"kubernetes_namespace":                               untaggedSchema("metadata"),
+		"kubernetes_storage_class":                           untaggedSchema("metadata", "storage_provisioner"),
 		"aws_launch_template":                                taggedSchema("id", "arn", "name", "image_id", "instance_type"),
 		"aws_acm_certificate":                                taggedSchema("id", "arn", "domain_name", "validation_method"),
 		"aws_sfn_state_machine":                              taggedSchema("id", "arn", "name", "role_arn", "definition"),

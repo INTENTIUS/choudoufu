@@ -110,6 +110,7 @@ type ratifiedRow struct {
 	ServerAssigned     bool                 `json:"server_assigned,omitempty"`
 	Reason             string               `json:"reason,omitempty"`
 	RecordBacked       bool                 `json:"record_backed,omitempty"`
+	NonAWSProvider     bool                 `json:"non_aws_provider,omitempty"`
 	Components         *[]ratifiedComponent `json:"components,omitempty"`
 	ImportSyntax       string               `json:"import_syntax,omitempty"`
 	IdentityAttrs      *[]string            `json:"identity_attrs,omitempty"`
@@ -157,6 +158,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 		ServerAssigned:     e.ServerAssigned,
 		Reason:             e.Reason,
 		RecordBacked:       e.RecordBacked,
+		NonAWSProvider:     e.NonAWSProvider,
 		ImportSyntax:       e.ImportSyntax,
 		IdentityAttrs:      strsPtr(e.IdentityAttrs),
 		IdentityObjectOnly: e.IdentityObjectOnly,
@@ -196,6 +198,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 		ServerAssigned:     r.ServerAssigned,
 		Reason:             r.Reason,
 		RecordBacked:       r.RecordBacked,
+		NonAWSProvider:     r.NonAWSProvider,
 		ImportSyntax:       r.ImportSyntax,
 		IdentityAttrs:      strsValue(r.IdentityAttrs),
 		IdentityObjectOnly: r.IdentityObjectOnly,

@@ -39,6 +39,24 @@ import (
 // TestUntaggableTypesMatchLimitationsDoc compare the artifact against a
 // rendering of the same artifact. What is wanted is that adding a type to the
 // wrong list becomes impossible, and that is what this does.
+// nonAWSVerifiedUntaggable is this package's own reading of the ruling
+// tools/survey-gen/untaggable_render.go's nonAWSAdmittedUntaggable ledger
+// records (issue #326): live/survey-full.json is CloudFormation-registry-
+// backed and structurally cannot ever carry a row for a type belonging to a
+// different provider, so the four Kubernetes-provider types this table
+// first admitted have no survey row to compare against and never will,
+// short of a non-AWS analogue of that artifact. Their taggability was
+// verified directly against the real, current hashicorp/kubernetes provider
+// schema instead (markers.Taggable/TagSurface reading - see
+// tools/row-gen/annotations.json's own rulings for these four types, which
+// record the same finding: no top-level tags attribute on any of them).
+var nonAWSVerifiedUntaggable = map[string]bool{
+	"kubernetes_cluster_role_binding": true,
+	"kubernetes_config_map":           true,
+	"kubernetes_namespace":            true,
+	"kubernetes_storage_class":        true,
+}
+
 func TestPinnedTaggabilityMatchesTheSurvey(t *testing.T) {
 	survey := readSurveyTaggable(t)
 
@@ -54,10 +72,21 @@ func TestPinnedTaggabilityMatchesTheSurvey(t *testing.T) {
 		for _, resourceType := range tc.types {
 			got, ok := survey[resourceType]
 			if !ok {
-				// Not "skip": a pinned type the survey has never heard of
-				// means one of the two is talking about a provider the other
-				// is not, and silently passing over it is how a check ends up
-				// seeing almost nothing.
+				// nonAWSVerifiedUntaggable is the one deliberate exception:
+				// live/survey-full.json is CloudFormation-registry-backed
+				// and structurally cannot carry a row for a type belonging
+				// to a different provider, so these are never going to
+				// appear there and their absence is not the drift the
+				// error below exists to catch. Every other pinned type the
+				// survey has never heard of still means one of the two is
+				// talking about a provider the other is not.
+				if nonAWSVerifiedUntaggable[resourceType] {
+					classified++
+					if tc.want {
+						t.Errorf("%s pins %s as taggable, but it is in the non-AWS verified-untaggable ledger (tools/survey-gen/untaggable_render.go's nonAWSAdmittedUntaggable)", tc.list, resourceType)
+					}
+					continue
+				}
 				t.Errorf("%s pins %s, which live/survey-full.json does not carry at all", tc.list, resourceType)
 				continue
 			}

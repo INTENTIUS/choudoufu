@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=503 instances=1571
-# shape: class CONCRETE=775
+# shape: dirs=504 instances=1572
+# shape: class CONCRETE=776
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86
+# shape: body-sha256=5f6b53c201f5a6674e299b175312cd6ec638bc2f53c131c5f1a5a84c0fb85b68
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -306,6 +306,7 @@ internal/live/identity/testdata/indexed-traversal	aws_route_table_association.as
 internal/live/identity/testdata/indexed-traversal	aws_subnet.this["a"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/indexed-traversal	aws_subnet.this["b"]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/keyset-scope	aws_iam_user.anchor	CONCRETE	anchor	name=anchor
+internal/live/identity/testdata/kubernetes-config-map	kubernetes_config_map.present	CONCRETE	default/my-config	name=my-config,namespace=default
 internal/live/identity/testdata/local-attr-foreach	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/local-attr-foreach	aws_iam_group.readers	CONCRETE	readers	name=readers
 internal/live/identity/testdata/local-attr-foreach	aws_iam_user.team["alice"]	CONCRETE	alice	name=alice

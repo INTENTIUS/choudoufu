@@ -174,6 +174,20 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"table now says marker too, so there is nothing left to override and the rendered counts did not move.",
 		Data: 1, Code: 0,
 	},
+	"tools/survey-gen/untaggable_render.go": {
+		Reason: "nonAWSAdmittedUntaggable (issue #326): a named ledger, not hand-wiring in the sense this file exists to " +
+			"catch - it is the exact escape hatch contributing/LIVE-TABLES.md and tools/row-gen/annotations.json's own doc " +
+			"comment describe, for a ruling that genuinely cannot be derived from live/survey-full.json. That artifact is " +
+			"CloudFormation-registry-backed and by construction carries only the AWS provider's roster, so it has no row, " +
+			"and never will, for a type belonging to a different provider entirely. kubernetes_cluster_role_binding, " +
+			"kubernetes_config_map, kubernetes_namespace and kubernetes_storage_class are the first four admitted types " +
+			"to cross that line; each entry's taggability was verified directly against the real, current " +
+			"hashicorp/kubernetes provider schema (markers.Taggable/TagSurface reading - see tools/row-gen/annotations.json's " +
+			"own rulings for these four types, which record the same finding) rather than derived from the AWS survey. " +
+			"Retires the same way those four rulings' own Exit fields say: once there is a non-AWS analogue of " +
+			"live/survey-full.json this derivation can read instead.",
+		Data: 4, Code: 0,
+	},
 	"tools/floci-capability-gen/tagging.go": {
 		Reason: "taggingRecipes: seven hand-verified probes of floci's tagging index. Each is a literal sequence of `aws` CLI " +
 			"calls for one service - a create, a native tag read-back, a cleanup - which is an experiment against an emulator " +
@@ -289,7 +303,14 @@ const (
 	// this file gains only the control set, same shape as tools/wo-sweep's
 	// own two-literal control immediately above it in the registry. Four
 	// Data literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 430
+	// 430 -> 434 data, 2026-08-20 (issue #326): new
+	// tools/survey-gen/untaggable_render.go's nonAWSAdmittedUntaggable, a
+	// named ledger ruling taggability for the first four non-AWS admitted
+	// types (the Kubernetes provider's kubernetes_cluster_role_binding,
+	// kubernetes_config_map, kubernetes_namespace, kubernetes_storage_class)
+	// live/survey-full.json structurally has no row for and never will.
+	// Four Data literals added, no Code, nothing moved.
+	typeLiteralDataTotal = 434
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

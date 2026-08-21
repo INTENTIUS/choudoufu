@@ -111,11 +111,19 @@ func TestGovernanceSplitAgreesWithAnIndependentRead(t *testing.T) {
 
 	// The join, done here rather than borrowed: an admitted type the AWS
 	// survey has a row for, whose row says it carries no tags argument.
-	// Types with no row are the record-backed logical ones, which belong to
-	// the null, time and random providers and are not AWS objects at all.
+	// Types with no row are either the record-backed logical ones, which
+	// belong to the null, time and random providers and are not AWS objects
+	// at all, or the small nonAWSAdmittedUntaggable ledger
+	// (untaggable_render.go, issue #326) naming the Kubernetes-provider
+	// types this table has admitted with no AWS survey row to ever carry -
+	// read here too, so this leg stays independent of the join it is
+	// checking rather than independent of the evidence that join rests on.
 	var wantUntaggable, wantTaggable []string
 	for _, typeName := range identity.AdmittedTypes() {
 		if !surveyed[typeName] {
+			if nonAWSAdmittedUntaggable[typeName] {
+				wantUntaggable = append(wantUntaggable, typeName)
+			}
 			continue
 		}
 		if taggable[typeName] {

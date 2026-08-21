@@ -130,6 +130,10 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 		// file leg below, and proving it round-trips through the conversion
 		// pair is the strongest statement available about it.
 		RecordBacked: true,
+		// NonAWSProvider, unlike RecordBacked and UniqueName just below,
+		// IS a ratified fact - it travels through both legs, the same as
+		// ServerAssigned or Reason - so it stays set in viaFile too.
+		NonAWSProvider: true,
 		Components: []identity.Component{
 			{
 				Literal:                "/",

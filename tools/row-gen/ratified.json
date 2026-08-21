@@ -14830,6 +14830,7 @@
   },
   "kubernetes_cluster_role_binding": {
     "type": "kubernetes_cluster_role_binding",
+    "non_aws_provider": true,
     "components": [
       {
         "attrs": [
@@ -14843,6 +14844,7 @@
   },
   "kubernetes_config_map": {
     "type": "kubernetes_config_map",
+    "non_aws_provider": true,
     "components": [
       {
         "attrs": [
@@ -14866,6 +14868,7 @@
   },
   "kubernetes_namespace": {
     "type": "kubernetes_namespace",
+    "non_aws_provider": true,
     "components": [
       {
         "attrs": [
@@ -14879,6 +14882,7 @@
   },
   "kubernetes_storage_class": {
     "type": "kubernetes_storage_class",
+    "non_aws_provider": true,
     "components": [
       {
         "attrs": [

@@ -206,20 +206,25 @@ func TestNoVetoNamesATypeTheProviderDoesNotServe(t *testing.T) {
 // measured by.
 //
 // live/survey-full.json describes one provider, so it can only answer for
-// aws_ rows. The table's other ten rows are the effects set the fork keeps in
-// the state file (null_resource, terraform_data, the random_* and time_*
-// families) and no AWS roster describes them - so rather than exempt them by
-// name, this asks the row itself: a non-aws_ row is acceptable exactly when
-// it is RecordBacked, which is the property that makes it an effect rather
-// than a live object. A hand-written exemption list would go stale; the
-// row's own field cannot.
+// aws_ rows. The table's other rows are one of two things: the effects set
+// the fork keeps in the state file (null_resource, terraform_data, the
+// random_* and time_* families), which are not live objects at all, or -
+// since issue #326 - a live object served by a real provider that simply
+// is not AWS (the four Kubernetes-provider rows). No AWS roster describes
+// either kind, so rather than exempt them by name, this asks the row
+// itself: a non-aws_ row is acceptable when it is RecordBacked (the
+// property that makes it an effect rather than a live object) or when it
+// is NonAWSProvider (the property that names the roster gap explicitly -
+// tools/survey-gen/untaggable_render.go's own nonAWSAdmittedUntaggable
+// ledger records the same fact and the same reason). A hand-written
+// exemption list would go stale; the row's own field cannot.
 func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 	universe := providerTypeUniverse(t)
 
 	var strays, unrostered []string
 	for typeName, row := range identity.DefaultTable {
 		if len(typeName) < 4 || typeName[:4] != "aws_" {
-			if !row.RecordBacked {
+			if !row.RecordBacked && !row.NonAWSProvider {
 				unrostered = append(unrostered, typeName)
 			}
 			continue
@@ -230,9 +235,10 @@ func TestAdmittedTableNamesOnlyTypesTheProviderServes(t *testing.T) {
 	}
 	if len(unrostered) > 0 {
 		sort.Strings(unrostered)
-		t.Errorf("internal/live/identity.DefaultTable has %d non-aws_ row(s) that are not RecordBacked: %v - "+
-			"live/survey-full.json describes one provider, so this test can say nothing about a live type from "+
-			"another one; it needs a roster for that provider before it can claim to check the row",
+		t.Errorf("internal/live/identity.DefaultTable has %d non-aws_ row(s) that are neither RecordBacked nor "+
+			"NonAWSProvider: %v - live/survey-full.json describes one provider, so this test can say nothing "+
+			"about a live type from another one; it needs a roster for that provider before it can claim to "+
+			"check the row",
 			len(unrostered), unrostered)
 	}
 	if len(strays) > 0 {

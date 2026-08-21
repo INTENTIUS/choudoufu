@@ -1,9 +1,9 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1040,
+    "admitted_total": 1044,
     "compared": 1025,
-    "not_in_mapped_set": 15,
+    "not_in_mapped_set": 19,
     "adopted_unchanged": 878,
     "adopted_unchanged_pct": 85.66,
     "genuine_mismatches": 147,

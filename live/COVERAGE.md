@@ -26,7 +26,7 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1040 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1044 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
 | Evidence-only | 314 types | An identity-argument name no current evidence source states. |
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1040<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1044<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -606,11 +606,12 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_workspacesweb_user_settings`,
   `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
   `aws_xray_group`, `aws_xray_resource_policy`, `aws_xray_sampling_rule`,
-  `aws_xray_trace_segment_destination`, `local_file`, `null_resource`,
-  `random_id`, `random_integer`, `random_pet`, `random_shuffle`,
-  `random_string`, `random_uuid`, `random_uuid4`, `random_uuid7`,
-  `terraform_data`, `time_offset`, `time_rotating`, `time_sleep`, and
-  `time_static`<!-- survey-gen:end contract-types -->
+  `aws_xray_trace_segment_destination`, `kubernetes_cluster_role_binding`,
+  `kubernetes_config_map`, `kubernetes_namespace`, `kubernetes_storage_class`,
+  `local_file`, `null_resource`, `random_id`, `random_integer`, `random_pet`,
+  `random_shuffle`, `random_string`, `random_uuid`, `random_uuid4`,
+  `random_uuid7`, `terraform_data`, `time_offset`, `time_rotating`,
+  `time_sleep`, and `time_static`<!-- survey-gen:end contract-types -->
 
 ## Round-trip proven
 

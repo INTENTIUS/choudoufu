@@ -1041,4 +1041,8 @@ var admittedTypesV0 = map[string]struct{}{
 	"aws_xray_resource_policy":                                              {},
 	"aws_xray_sampling_rule":                                                {},
 	"aws_xray_trace_segment_destination":                                    {},
+	"kubernetes_cluster_role_binding":                                       {},
+	"kubernetes_config_map":                                                 {},
+	"kubernetes_namespace":                                                  {},
+	"kubernetes_storage_class":                                              {},
 }
