@@ -53,8 +53,26 @@ set -uo pipefail
 #                     queue), replan, and assert the diff proposes fixing
 #                     exactly that one object and nothing else.
 #
-# BREAK=1 corrupts one expected identity string ahead of stage 3's
-# assertion, and separately corrupts the drift assertion in stage 5, so
+# ON THE ASG'S OWN IDENTITY: an aws_autoscaling_group carries no ownership
+# marker, and that is the marker vocabulary working rather than a gap. Its
+# tags are `tag` NESTED BLOCKS, not the top-level tags map
+# internal/live/markers.TagSurface requires, so Taggable() refuses it from
+# the schema and live-import skips all eight of this example's ASGs as
+# UNTAGGABLE. markers.go's Taggable doc comment names this exact type as the
+# worked example of the shape it will not stamp. Stage 2 therefore asserts
+# the ASG's resolved identity out of live-import's own UNTAGGABLE row, which
+# prints the address beside the live id it bound to, and separately asserts
+# that the live ASG carries ZERO tofu-* tags - a marker written into a tag
+# block would be the wrong-marker failure this repository ranks above a
+# missing one. An earlier version of this script asserted a tofu-address tag
+# on the ASG instead. It had never run (stage 1 had never passed), it could
+# never have passed, and floci does not implement autoscaling:DescribeTags
+# either, so the CLI error was being swallowed by a 2>/dev/null and read
+# back as an empty tag.
+#
+# BREAK=1 corrupts the expected identity string for the IAM role in stage 2
+# (the header said "stage 3" until 2026-08-20; the assertion has always been
+# in stage 2), and separately corrupts the drift assertion in stage 5, so
 # both assertions are proven non-vacuous rather than a grep that always
 # matches.
 #
@@ -223,31 +241,70 @@ grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorde
   || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve did not stamp cleanly"; }
 log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT")"
 
-# ── identity assertions, read via the AWS CLI directly, never through choudoufu ──
-# module.complete's ASG uses ignore_desired_capacity_changes=true, so the
-# module's OWN two count-gated resources (aws_autoscaling_group.this vs
-# .idc, only one ever has count=1 for a given call) resolve to .idc[0] here
-# - a real exercise of the count-is-zero-per-instance admission fix, not a
-# synthetic repro.
-ASG_TAG_VALUE="$(awsl autoscaling describe-tags --filters "Name=auto-scaling-group,Values=complete" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text 2>/dev/null)"
-[ -n "$ASG_TAG_VALUE" ] && [ "$ASG_TAG_VALUE" != "None" ] || fail "no tofu-address tag found on ASG 'complete'"
+# ── the ASG's own identity, read out of live-import's UNTAGGABLE listing ──
+# An aws_autoscaling_group carries NO ownership marker, and that is the
+# product working rather than a gap: its tags are `tag` NESTED BLOCKS, not
+# the top-level tags map internal/live/markers.TagSurface requires, so
+# Taggable() refuses it by schema and live-import skips it. All eight ASGs
+# in this example are skipped for exactly that reason. See
+# internal/live/markers/markers.go's Taggable doc comment, which names this
+# type as the worked example of the shape it will not stamp.
+#
+# So the ASG's identity cannot be read off a tag; it is asserted from
+# live-import's own UNTAGGABLE row instead, which prints the resolved
+# address BESIDE the live id it bound to - a cross-check between the two
+# that a tag read-back would not give either. This is the assertion that
+# exercises the count-is-zero-per-instance admission fix for real:
+# module.complete sets ignore_desired_capacity_changes=true, so of the
+# module's OWN two count-gated ASG resources (aws_autoscaling_group.this vs
+# .idc, only one of which ever has count=1 in a given call) it must be .idc
+# that resolves and .this that does not exist at all.
 ASG_ADDR="module.complete.aws_autoscaling_group.idc[0]"
-[ "$ASG_TAG_VALUE" = "$ASG_ADDR" ] || fail "the ASG carries tofu-address=$ASG_TAG_VALUE, not $ASG_ADDR"
-log "  ASG 'complete' carries tofu-address=$ASG_TAG_VALUE"
+ASG_ROW="$(grep -F "$ASG_ADDR " <<< "$IMPORT_OUT" | head -1)"
+[ -n "$ASG_ROW" ] || { grep -F 'aws_autoscaling_group' <<< "$IMPORT_OUT" | head -20; fail "live-import's listing never mentions $ASG_ADDR"; }
+grep -qF 'aws_autoscaling_group' <<< "$ASG_ROW" || fail "$ASG_ADDR did not resolve as an aws_autoscaling_group: $ASG_ROW"
+grep -qE 'live id: complete$' <<< "$ASG_ROW" || fail "$ASG_ADDR did not bind to live ASG 'complete': $ASG_ROW"
+grep -qF 'module.complete.aws_autoscaling_group.this[' <<< "$IMPORT_OUT" \
+  && fail "module.complete.aws_autoscaling_group.this has count=0 here (ignore_desired_capacity_changes=true) and must not resolve to any instance"
+log "  $ASG_ADDR resolved to live ASG 'complete', untaggable by schema - the count-gated .this/.idc pair resolved to .idc"
+ASG_TAGS_ON_LIVE="$(awsl autoscaling describe-auto-scaling-groups --auto-scaling-group-names complete \
+  --query "AutoScalingGroups[0].Tags[?starts_with(Key, 'tofu-')] | length(@)" --output text)"
+[ "$ASG_TAGS_ON_LIVE" = "0" ] || fail "ASG 'complete' carries $ASG_TAGS_ON_LIVE tofu-* tag(s); an ASG's tag blocks are not a marker surface and must never be stamped"
+log "  ASG 'complete' carries 0 tofu-* tags, as the marker vocabulary requires"
 
-LT_ID="$(awsl ec2 describe-launch-templates --launch-template-names complete --query "LaunchTemplates[0].LaunchTemplateId" --output text 2>/dev/null)"
-[ -n "$LT_ID" ] && [ "$LT_ID" != "None" ] || fail "no live launch template found named 'complete'"
-LT_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$LT_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-[ "$LT_ADDR" = "module.complete.aws_launch_template.this[0]" ] || fail "the launch template carries tofu-address=$LT_ADDR, not module.complete.aws_launch_template.this[0]"
-log "  $LT_ID carries tofu-address=$LT_ADDR"
+# ── identity assertions, read via the AWS CLI directly, never through choudoufu ──
+# A tag VALUE can never carry '[': internal/live/markers.EscapeKey renders
+# an index as ':0'. The bracket spelling is what a plan diff header uses, so
+# the two forms are separate variables here - comparing a tag against the
+# bracket form is the vacuous comparison corpus-vpc-complete, corpus-iam-policy
+# and corpus-iam-read-only-policy each shipped once.
+LT_ADDR="module.complete.aws_launch_template.this:0"
+LT_ADDR_PLAN="module.complete.aws_launch_template.this[0]"
+# Found BY ITS MARKER, not by name: the module builds this launch template
+# from name_prefix, so its live name carries a provider-minted random suffix
+# ("complete-5c94d67aed...") that no assertion can hardcode. Reading the
+# marker back as a lookup key is the product's own claim under test.
+LT_ID="$(awsl ec2 describe-tags --filters "Name=key,Values=tofu-address" "Name=value,Values=$LT_ADDR" --query 'Tags[].ResourceId' --output text)"
+[ -n "$LT_ID" ] && [ "$LT_ID" != "None" ] || fail "no live object carries tofu-address=$LT_ADDR"
+# grep -c, not wc -w: BSD wc pads its count with leading spaces, so a
+# string comparison against "1" never matches on macOS.
+[ "$(printf '%s\n' $LT_ID | grep -c .)" = "1" ] || fail "tofu-address=$LT_ADDR is on more than one live object: $LT_ID"
+LT_NAME="$(awsl ec2 describe-launch-templates --launch-template-ids "$LT_ID" --query "LaunchTemplates[0].LaunchTemplateName" --output text)"
+case "$LT_NAME" in complete-*) ;; *) fail "tofu-address=$LT_ADDR resolved to launch template '$LT_NAME', which is not one of module.complete's (name_prefix 'complete-')" ;; esac
+log "  $LT_ID ('$LT_NAME') carries tofu-address=$LT_ADDR"
 
+# The IAM role named exactly "complete" is the example's ROOT-LEVEL
+# aws_iam_role.ssm (name = local.name), not module.complete's own role -
+# that one is built from a name_prefix and lands as "complete-5c82d83c...".
+# The root role is the one with a stable name, so it is the one asserted by
+# value here.
 ROLE_TAG_VALUE="$(awsl iam list-role-tags --role-name complete --query "Tags[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null)"
 [ -n "$ROLE_TAG_VALUE" ] && [ "$ROLE_TAG_VALUE" != "None" ] || fail "no tofu-address tag found on IAM role 'complete'"
 if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: expecting the wrong address for role 'complete' on purpose - this check must fail"
-  WANT_ROLE_ADDR="module.default.aws_iam_role.this[0]"
+  WANT_ROLE_ADDR="module.complete.aws_iam_role.this:0"
 else
-  WANT_ROLE_ADDR="module.complete.aws_iam_role.this[0]"
+  WANT_ROLE_ADDR="aws_iam_role.ssm"
 fi
 [ "$ROLE_TAG_VALUE" = "$WANT_ROLE_ADDR" ] || fail "the IAM role carries tofu-address=$ROLE_TAG_VALUE, not $WANT_ROLE_ADDR"
 log "  IAM role 'complete' carries tofu-address=$ROLE_TAG_VALUE"
@@ -272,16 +329,17 @@ grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
-# Re-assert the same three identities, after the local state file was
-# deleted - so any answer below can only have come from the marker on the
-# live object itself, same discipline corpus-vpc-complete's stage 3 uses.
-ASG_TAG_VALUE2="$(awsl autoscaling describe-tags --filters "Name=auto-scaling-group,Values=complete" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
-[ "$ASG_TAG_VALUE2" = "$ASG_TAG_VALUE" ] || fail "the ASG's tofu-address changed across the empty plan: $ASG_TAG_VALUE -> $ASG_TAG_VALUE2"
+# Re-assert the two marker-carrying identities, after the local state file
+# was deleted - so any answer below can only have come from the marker on
+# the live object itself, same discipline corpus-vpc-complete's stage 3
+# uses. The ASG is not re-read here because it carries no marker to re-read
+# (see stage 2); the empty plan just above is what proves choudoufu still
+# knows which ASG is which without one.
 LT_ADDR2="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$LT_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
 [ "$LT_ADDR2" = "$LT_ADDR" ] || fail "the launch template's tofu-address changed across the empty plan: $LT_ADDR -> $LT_ADDR2"
 ROLE_TAG_VALUE2="$(awsl iam list-role-tags --role-name complete --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
 [ "$ROLE_TAG_VALUE2" = "$ROLE_TAG_VALUE" ] || fail "the IAM role's tofu-address changed across the empty plan: $ROLE_TAG_VALUE -> $ROLE_TAG_VALUE2"
-log "  identity re-check: all three objects still carry the same tofu-address after the state file was deleted (re-read via the AWS CLI): $ASG_TAG_VALUE2, $LT_ADDR2, $ROLE_TAG_VALUE2"
+log "  identity re-check: both marked objects still carry the same tofu-address after the state file was deleted (re-read via the AWS CLI): $LT_ADDR2, $ROLE_TAG_VALUE2"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -332,7 +390,9 @@ if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
 else
   [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be' ; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
-  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$LT_ADDR" && fail "the plan proposes changing $LT_ADDR, which was never touched"
+  # The plan's own diff header spells an index in BRACKETS, so the bracket
+  # form is the one compared here - not the colon form the tag carries.
+  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$LT_ADDR_PLAN" && fail "the plan proposes changing $LT_ADDR_PLAN, which was never touched"
   log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
 
   RECONVERGE_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
