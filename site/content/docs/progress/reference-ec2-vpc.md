@@ -10,14 +10,14 @@ Set: core. Lane: reference.
 
 Why it is in the core set: the plainest hand-written reference shape, kept in this repository
 
-**Not clear yet.**
+**Clear.** Every active stage passes.
 
 | Stage | Verdict | Detail |
 |---|---|---|
 | Cold deploy | pass | 5 resources from plain terraform, a real terraform.tfstate, zero markers |
 | Migrate | pass | 5 of 5 verified, 5 stamped, 0 skipped |
 | Replan from nothing | pass | post-adoption plan is empty; markers read back through the AWS CLI in part A |
-| No-op apply | not run | this script has no no-op apply after the empty plan yet |
+| No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5 |
 | Drift and reconverge | pass | one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured |
 | Rename (planned) | not run |  |
 | Remove a block (planned) | not run |  |
@@ -29,7 +29,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Greenfield apply (planned) | not run | Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `f7b163dabe` on 2026-08-21T17:45:39Z, exit code 0.
+Last run at commit `f1548bc23a` on 2026-08-21T18:08:37Z, exit code 0.
 
 Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does).
 

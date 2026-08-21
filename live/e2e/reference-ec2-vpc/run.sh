@@ -26,7 +26,11 @@ set -uo pipefail
 #               stock terraform (a real state file, zero choudoufu
 #               involvement, zero markers - confirmed by reading the live
 #               tags directly), then migrated with "choudoufu live-import
-#               -state=... -approve" and replanned. Empty.
+#               -state=... -approve" and replanned. Empty. That empty plan is
+#               then applied - a genuine no-op, "0 added, 0 changed, 0
+#               destroyed" - and the tofu-estate-tagged object count read via
+#               the AWS CLI's resourcegroupstaggingapi is asserted unchanged
+#               before and after (the gauntlet's test_apply stage).
 #
 #   DRIFT AND   against that same adopted estate, one live object (the EC2
 #   RECONVERGE  instance's Name tag) is changed out of band directly via
@@ -395,7 +399,24 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$ADOP
   || { grep -E '^  #' <<< "$ADOPT_PLAN_OUT"; fail "the post-adoption plan is not empty"; }
 log "  No changes. The infra terraform created, unmarked, is now under live markers with an empty plan."
 gauntlet_stage test_plan pass "post-adoption plan is empty; markers read back through the AWS CLI in part A"
-gauntlet_stage test_apply not_run "this script has no no-op apply after the empty plan yet"
+CURRENT_STAGE=test_apply
+
+log "=== B5. apply the empty plan: a genuine no-op ==="
+BEFORE_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$BEFORE_N" = "5" ] || fail "expected 5 objects carrying tofu-estate=$ESTATE before the no-op apply (vpc, subnet, igw, sg, instance), got $BEFORE_N"
+NOOP_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
+[ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -30; fail "the no-op apply exited $NOOP_APPLY_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_APPLY_OUT" \
+  || { grep -E 'Apply complete' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
+AFTER_N="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
+log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
 CURRENT_STAGE=drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -474,6 +495,9 @@ log "  GREENFIELD  apply from a live block -> 5 marked -> empty plan ->"
 log "              empty plan again with the local record store deleted."
 log "  ADOPTION    plain terraform -> real state, zero markers -> choudoufu"
 log "              live-import -approve -> empty plan."
+log "  NO-OP APPLY applying that empty plan is a genuine no-op (0 added, 0"
+log "              changed, 0 destroyed) and the tofu-estate-tagged object"
+log "              count is unchanged, read via the AWS CLI."
 log "  DRIFT       one live object tampered out of band -> choudoufu plan"
 log "              proposes fixing that object and nothing else -> apply"
 log "              reconverges it -> the live tag reads back as configured."

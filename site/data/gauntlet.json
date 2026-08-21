@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "f7b163dabed098b5b7f1215bd0cc087bddd6ae14",
+  "commit": "f1548bc23a9993fead62ef9d8480b8dbc82fe774",
   "emulator": "ghcr.io/lex00/floci@sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9",
-  "generated": "2026-08-21T17:44:02Z",
+  "generated": "2026-08-21T18:06:47Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 25,
-      "clear": 13,
+      "clear": 14,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -198,9 +198,9 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 13,
+          "pass": 14,
           "fail": 0,
-          "not_run": 12
+          "not_run": 11
         },
         "test_plan": {
           "pass": 14,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 24,
-      "clear": 12,
+      "clear": 13,
       "stages": {
         "cold_deploy": {
           "pass": 24,
@@ -275,9 +275,9 @@
           "not_run": 24
         },
         "test_apply": {
-          "pass": 12,
+          "pass": 13,
           "fail": 0,
-          "not_run": 12
+          "not_run": 11
         },
         "test_plan": {
           "pass": 13,
@@ -1003,21 +1003,21 @@
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
+        "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "f7b163dabed098b5b7f1215bd0cc087bddd6ae14",
-        "date": "2026-08-21T17:45:39Z",
+        "commit": "f1548bc23a9993fead62ef9d8480b8dbc82fe774",
+        "date": "2026-08-21T18:08:37Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",
-          "test_apply": "this script has no no-op apply after the empty plan yet",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5",
           "test_plan": "post-adoption plan is empty; markers read back through the AWS CLI in part A"
         }
       },
