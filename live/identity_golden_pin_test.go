@@ -275,7 +275,18 @@ var identityGoldenPin = map[string]int{
 	// makes name null, so coalesce takes the key) and an earlier version of
 	// the change re-routed it through the caller's constructor and lost it.
 	// No pre-existing row moved.
-	"CONCRETE": 791,
+	// 792, up from 791 (issue #369, a Component.SoleElement alternation
+	// member that is a proven zero-element list): one ADDED row,
+	// internal/live/identity/testdata/sole-element-from-value's new
+	// aws_security_group_rule.resolved_by_sibling, where
+	// source_security_group_id supplies the identity and
+	// prefix_list_ids (var.empty_prefix_list_ids, default []) is
+	// demoted from "present" to "absent" by firstApplicablePresent
+	// rather than read as ambiguous. The fixture's negative control,
+	// all_empty_no_sibling (every alternation member a proven empty
+	// list, nothing else set), stays refused and contributes no row -
+	// the half that has to hold. No pre-existing row moved.
+	"CONCRETE": 792,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -740,7 +751,18 @@ var identityGoldenPin = map[string]int{
 // the element VALUE that was already bound, consulted only where that value
 // came back unknown, so nothing that renders a marker today can be re-routed
 // by it.
-const identityGoldenPinBodyDigest = "0ead9a814e0f3009883241324202c3def7067bd7d53804133cb38937db5139d8"
+//
+// 2026-08-21 (issue #369): digest moved because one more row was ADDED,
+// internal/live/identity/testdata/sole-element-from-value's new
+// aws_security_group_rule.resolved_by_sibling (see identityGoldenPinInstances'
+// own comment above). TestIdentityGolden's own diff, read before this line
+// was edited, reported "0 identities changed, 1 added, 0 removed" over 524
+// directories. The zero is the load-bearing half: firstApplicablePresent only
+// ever demotes a Component.SoleElement alternation member that is a PROVEN
+// zero-element list from "present" to "absent" so the search can try the
+// next alternative - it never resolves or picks a value itself, so no
+// existing fixture's rendered identity can move.
+const identityGoldenPinBodyDigest = "9baddc13a248e718c033a8ae85ced20e18a9171135ddc860b63060bd1ddb6bce"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1169,7 +1191,20 @@ const identityGoldenPinBodyDigest = "0ead9a814e0f3009883241324202c3def7067bd7d53
 // no rows: swept alone, alb/ has an unset required `groups` variable and asg/
 // has no attachments at all, so neither expands an instance.
 const (
-	identityGoldenPinInstances = 1592
+	// 2026-08-21 (issue #369): instances 1592 -> 1593, dirs unchanged at
+	// 524. 0 changed, 1 added, 0 removed. No new directory - the existing
+	// internal/live/identity/testdata/sole-element-from-value fixture
+	// gained one new resolved resource,
+	// aws_security_group_rule.resolved_by_sibling, whose
+	// source_security_group_id and zero-element prefix_list_ids exercise
+	// [firstApplicablePresent]'s fix: a Component.SoleElement alternation
+	// member that is a definite empty list defers to an already-satisfied
+	// sibling instead of refusing "Ambiguous list-valued identity
+	// argument". The fixture's second new resource,
+	// all_empty_no_sibling, is the negative control (every alternation
+	// member proven empty, no sibling set) and stays refused, so it
+	// contributes no row.
+	identityGoldenPinInstances = 1593
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin

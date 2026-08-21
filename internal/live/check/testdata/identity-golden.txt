@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=524 instances=1592
-# shape: class CONCRETE=791
+# shape: dirs=524 instances=1593
+# shape: class CONCRETE=792
 # shape: class NEEDS_DISCOVERY=664
 # shape: class PARENT_DERIVED=116
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=0ead9a814e0f3009883241324202c3def7067bd7d53804133cb38937db5139d8
+# shape: body-sha256=9baddc13a248e718c033a8ae85ced20e18a9171135ddc860b63060bd1ddb6bce
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -499,6 +499,7 @@ internal/live/identity/testdata/shapeb-tryref	aws_iam_role.r	CONCRETE	the-role	n
 internal/live/identity/testdata/shapeb-tryref	module.u.aws_iam_user.this["alice"]	CONCRETE	the-role	name=the-role
 internal/live/identity/testdata/sibling-literal-attr	aws_route53_zone.production	NEEDS_DISCOVERY		
 internal/live/identity/testdata/sole-element-from-value	aws_security_group_rule.from_default	CONCRETE	sg-0123456789abcdef0_ingress_tcp_22_22_10.0.0.0/8	cidr_blocks=10.0.0.0/8,from_port=22,protocol=tcp,security_group_id=sg-0123456789abcdef0,to_port=22,type=ingress
+internal/live/identity/testdata/sole-element-from-value	aws_security_group_rule.resolved_by_sibling	CONCRETE	sg-0123456789abcdef0_ingress_tcp_80_80_sg-fedcba9876543210f	from_port=80,protocol=tcp,security_group_id=sg-0123456789abcdef0,source_security_group_id=sg-fedcba9876543210f,to_port=80,type=ingress
 internal/live/identity/testdata/splat-arity-multi	aws_route_table.pair[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/splat-arity-multi	aws_route_table.pair[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/splat-arity-multi	aws_subnet.this	NEEDS_DISCOVERY		

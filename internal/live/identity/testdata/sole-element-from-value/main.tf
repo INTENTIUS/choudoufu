@@ -34,3 +34,43 @@ resource "aws_security_group_rule" "ambiguous" {
   to_port             = 443
   cidr_blocks        = var.many
 }
+
+# GitHub issue #369: terraform-aws-modules/terraform-aws-security-group's own
+# computed_ingress_with_source_security_group_id resource (main.tf, v5.3.1)
+# sets BOTH source_security_group_id (a real value) and prefix_list_ids
+# (var.ingress_prefix_list_ids, defaulted here to []) on the very same
+# instance. cidr_blocks/ipv6_cidr_blocks/prefix_list_ids/
+# source_security_group_id is one alternation, and prefix_list_ids being a
+# zero-element list is not "unclear which of the four supplies the
+# identity" - the sibling source_security_group_id already answers that -
+# so this must resolve concretely off the sibling, not refuse as
+# "Ambiguous list-valued identity argument".
+variable "empty_prefix_list_ids" {
+  type    = list(string)
+  default = []
+}
+
+resource "aws_security_group_rule" "resolved_by_sibling" {
+  security_group_id         = "sg-0123456789abcdef0"
+  type                      = "ingress"
+  protocol                  = "tcp"
+  from_port                 = 80
+  to_port                   = 80
+  source_security_group_id  = "sg-fedcba9876543210f"
+  prefix_list_ids           = var.empty_prefix_list_ids
+}
+
+# The genuine-ambiguity case #369 says must still refuse: every alternation
+# member is a definite empty list (or absent), so NONE of them settles the
+# identity - a set of members that each contribute nothing is exactly the
+# existing all-absent case, and must read as "Identity argument not set",
+# never resolve to a guessed value.
+resource "aws_security_group_rule" "all_empty_no_sibling" {
+  security_group_id = "sg-0123456789abcdef0"
+  type               = "ingress"
+  protocol           = "tcp"
+  from_port          = 8080
+  to_port            = 8080
+  cidr_blocks        = var.empty_prefix_list_ids
+  prefix_list_ids    = var.empty_prefix_list_ids
+}
