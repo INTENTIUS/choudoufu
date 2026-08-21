@@ -595,6 +595,18 @@ func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 // Fetching the provider or its schema failing here is not itself reported:
 // it just means the fallback does not apply, and the caller's ordinary "no
 // identity knowledge" refusal stands exactly as it did before this existed.
+//
+// The claim above - that this is the same admission lint applies - is a
+// claim about ONE function, [identity.SynthesizeTypeIdentity], and it was
+// briefly false. Issue #331's veto landed inside lint's own admitted() and
+// not inside the fallback, so for a day this function admitted a type
+// (aws_iam_policy_attachment) that a live-plan over the identical
+// configuration refused: live-import migrated it out of a tfstate and
+// reported success, and the next plan said it was not admitted. The veto now
+// sits in the fallback itself ([identity.NotImportable]), so the equivalence
+// this comment asserts is held by construction rather than by two functions
+// being kept in step - which is what live/notimportable_routes_test.go
+// measures over the whole provider surface.
 func admittedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
 	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
 	if err != nil {

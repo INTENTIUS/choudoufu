@@ -70,8 +70,19 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 // its identity can be recorded in and recovered from the estate's record
 // store.
 //
-// Three conditions, all from the provider's own schema and none from a
-// roster:
+// Four conditions. Three are read from the provider's own schema; the
+// fourth is the one question a schema cannot answer:
+//
+//  0. The type is not vetoed by [NotImportable]. A located record holds an
+//     identity so that a LATER run can import the object back - so the
+//     located mechanism is an importing mechanism, and a type the provider
+//     will not import is one it cannot serve. Left out, this route admitted
+//     the type, the first apply created the object and wrote its record,
+//     and every plan after that failed on internal/live/projection's
+//     importAndRead with "resource ... doesn't support import" - a plan
+//     refusal traded for an apply refusal, with the object already live.
+//     Issue #331; see [NotImportable] for why the check is one function
+//     rather than one lookup per route.
 //
 //  1. The type is in [MarkerlessTypes] and has no row of its own. A type
 //     with a ratified row is already admitted by an ordinary path and must
@@ -112,6 +123,14 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 // credential material whenever a schema failed to load, which is not a
 // trade worth making for a cheaper measurement.
 func LocatedType(resourceType string, schemas map[string]providers.Schema) bool {
+	if NotImportable(resourceType) {
+		// Condition 0, ahead of everything else because it is the one that
+		// does not depend on a schema being present: a run with no schemas
+		// already fails closed below, and a run WITH them must not be
+		// talked into this route by a schema that is entirely correct
+		// about an identity the provider will never accept back.
+		return false
+	}
 	if _, ok := MarkerlessTypes[resourceType]; !ok {
 		return false
 	}
