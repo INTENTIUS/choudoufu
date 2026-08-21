@@ -244,6 +244,21 @@ type elemBinding struct {
 	expr    hcl.Expression
 	scope   instScope
 	modInst addrs.ModuleInstance
+
+	// declTy is the type the element has INSIDE the module, when the
+	// expression survived a hop through a declared type that is not the
+	// identity function on it ([preservedExpr]'s object case). cty.NilType -
+	// which is every binding built anywhere else - means the expression is
+	// the element as the module sees it and nothing constrains what may be
+	// selected out of it.
+	//
+	// A non-nil declTy makes the caller's constructor evidence of LESS than
+	// it usually is, in both directions, and [resolver.eachValueSelect] is
+	// where both are enforced: optional() can supply an attribute the
+	// constructor never wrote, so absence may only be read off this type;
+	// and a non-string attribute type converts what the caller wrote, so
+	// only a string-typed attribute may be selected at all.
+	declTy cty.Type
 }
 
 // binding is the ordinary way to build one: prove the value if it proves,
@@ -507,6 +522,113 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 	}
 
 	return nil, nil, false
+}
+
+// elementExprBindings is #354's collector: the element EXPRESSIONS of a
+// for_each source whose VALUE the tolerant retry has already answered.
+//
+// It runs beside [resolver.forEachExpansion]'s tolerant branch, never instead
+// of it, and it changes no key and no value. What the retry produces is the
+// binding - a value rebuilt from the caller's own literal skeleton with an
+// unknown where a leaf could not be read - and what this adds is the syntax
+// that unknown came from, so [resolver.eachValueDeferredParts] has somewhere
+// to look when an identity argument reads exactly that attribute.
+//
+// It has its own guard-conditional unwrapping, which [resolver.staticCollElems]
+// deliberately does not: `local.create && var.attachments != null ?
+// var.attachments : {}` is how nearly every terraform-aws-modules block gates
+// an optional sub-resource, and the chase declines at that node. Unwrapping it
+// inside staticCollElems itself was measured and rejected - it makes the
+// STRUCTURAL chase succeed, which pre-empts the tolerant retry, and the
+// structural chase's own value for an element it cannot read is an unknown of
+// the whole element rather than an object with one unknown attribute in it.
+// That is a worse binding: `corpus-autoscaling-complete`'s
+// aws_autoscaling_policy.this["request-count-per-target"] resolves from
+// `try(coalesce(each.value.name, each.key), "")` today because each.value.name
+// is a readable NULL, and it stops resolving the moment the whole element goes
+// unknown. Collecting only expressions here cannot do that: no value this
+// function produces is ever bound.
+//
+// Diagnostics the chase leaves behind are rolled back. It is a probe, and the
+// caller has its own answer either way.
+func (r *resolver) elementExprBindings(expr hcl.Expression, ident configs.StaticIdentifier) map[string]elemBinding {
+	mark, sibMark := len(r.diags), len(r.pendingSiblingApply)
+	defer func() {
+		r.diags = r.diags[:mark]
+		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+	}()
+
+	for depth := 0; depth <= maxStaticDecomposeDepth; depth++ {
+		switch e := expr.(type) {
+		case *hclsyntax.ParenthesesExpr:
+			expr = e.Expression
+			continue
+		case *hclsyntax.ConditionalExpr:
+			branch, ok := r.chosenBranch(e, ident)
+			if !ok {
+				return nil
+			}
+			expr = branch
+			continue
+		}
+		break
+	}
+
+	keys, elems, ok := r.staticForEachKeys(expr, ident, 0, false)
+	if !ok {
+		return nil
+	}
+	out := map[string]elemBinding{}
+	for i, name := range keys {
+		if i >= len(elems) || elems[i].expr == nil {
+			continue
+		}
+		out[name] = elems[i]
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// chosenBranch decides which arm of `cond ? A : B` the language takes, for
+// the one position that needs it before any value exists: the for_each source
+// [resolver.elementExprBindings] is walking for its element expressions.
+//
+// The condition is evaluated strictly first and only then through
+// [resolver.tolerantRetry], which is the same order and the same wrapper
+// [resolver.forEachExpansion] already applies one layer out. The tolerant
+// evaluation matters because the guard usually READS the very argument whose
+// leaf is unresolvable - `var.attachments != null` over an argument holding
+// one module-output leaf - and the answer it gives is decided entirely by the
+// caller's own literal skeleton: [rebuildConstructor] substitutes an unknown
+// for the refused leaf and nothing else, so a condition that depends on that
+// leaf comes back UNKNOWN and is refused below, while one that depends only
+// on the structure the caller wrote comes back known and is correct.
+//
+// Known, non-null, unmarked and convertible to bool are all required. A
+// condition this cannot decide leaves the caller with no expressions at all,
+// which is what it had before.
+func (r *resolver) chosenBranch(cond *hclsyntax.ConditionalExpr, ident configs.StaticIdentifier) (hcl.Expression, bool) {
+	val, diags := r.evalPure(cond.Condition, instScope{}, ident)
+	if diags.HasErrors() || val == cty.NilVal {
+		retried, ok := r.tolerantRetry(cond.Condition, instScope{}, ident)
+		if !ok {
+			return nil, false
+		}
+		val = retried
+	}
+	b, err := convert.Convert(val, cty.Bool)
+	// IsMarked before True, which panics rather than errors on a marked
+	// value - the same three lines [resolver.forCondIncludes] carries, for
+	// the same reason: this decides which instance addresses exist.
+	if err != nil || b.IsNull() || !b.IsKnown() || b.IsMarked() {
+		return nil, false
+	}
+	if b.True() {
+		return cond.TrueResult, true
+	}
+	return cond.FalseResult, true
 }
 
 // keyUnion accumulates the key sets of merge()'s arguments - or of the
@@ -1189,6 +1311,40 @@ func (r *resolver) selectStatic(expr hcl.Expression, rest []hcl.Traverser, scope
 				}
 				return r.resolveNamed(root, nameStep.Name, combined, scope, ident)
 			}
+		} else if len(rest) > 0 && r.isSymbolic(expr, scope) {
+			// The chase landed on a MANAGED RESOURCE reference with steps
+			// still owed - `aws_lb_target_group.this` selected with
+			// `["ex_asg"].arn`. Until this branch existed the switch below
+			// had no case for a traversal and answered applicable=false, so
+			// the caller kept a refusal about the whole chain rather than the
+			// verdict this reference deserves on its own.
+			//
+			// The shape is what a module output that publishes a whole
+			// resource produces: `output "target_groups" { value =
+			// aws_lb_target_group.this }` in terraform-aws-modules/alb, read
+			// by a caller as module.alb.target_groups["ex_asg"].arn.
+			// [resolver.resolveModuleOutput] enters the child module and
+			// hands the output's expression here with the caller's remaining
+			// steps still in rest; every one of those steps is an index or an
+			// attribute of the resource itself, which is exactly what a
+			// DIRECT reference spells and what [resolver.resolveTraversal]
+			// already reads.
+			//
+			// So the steps are re-joined onto the reference and resolved as
+			// the one traversal the configuration would have written if the
+			// module boundary were not in the way. No new claim is made: the
+			// combined traversal goes through addrs.ParseRef, the
+			// identity-attribute restriction and [resolver.parentPart]
+			// unchanged, and a step those refuse still refuses. Gated on
+			// [resolver.isSymbolic] so that only a managed reference takes
+			// it - path.*, terraform.*, data.* and a for-comprehension's own
+			// loop variable are evaluable or have their own diagnostics, and
+			// each.* is handled above this function by eachvalue.go.
+			combined := make(hcl.Traversal, 0, len(trav)+len(rest))
+			combined = append(combined, trav...)
+			combined = append(combined, rest...)
+			parts, ok := r.resolveTraversal(combined, scope, ident)
+			return parts, ok, true
 		}
 	}
 

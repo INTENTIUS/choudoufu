@@ -265,7 +265,17 @@ var identityGoldenPin = map[string]int{
 	// the deferred read of aws_vpc.this[0].cidr_block - are absent here
 	// rather than wrong, exactly as TestConcreteParentAttributeNeedsSchemas
 	// records for the same branch. No pre-existing row moved.
-	"CONCRETE": 790,
+	// 791, up from 790 (issue #354, an identity argument reading an unknown
+	// attribute of a for_each element the declared-type conversion produced):
+	// one ADDED row, module.asg.aws_autoscaling_policy.this["p1"] in the new
+	// fixture internal/live/identity/testdata/module-output-whole-resource.
+	// It is the CONTROL row rather than the fix's own: it resolves today and
+	// had to keep resolving, because `try(coalesce(each.value.name,
+	// each.key), "")` is answered by the element VALUE (the declared type
+	// makes name null, so coalesce takes the key) and an earlier version of
+	// the change re-routed it through the caller's constructor and lost it.
+	// No pre-existing row moved.
+	"CONCRETE": 791,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -411,7 +421,13 @@ var identityGoldenPin = map[string]int{
 	// module to make an element expression unevaluable as a value, which is
 	// what binds each.value as an EXPRESSION and puts the argument on the
 	// route the issue is about.
-	"NEEDS_DISCOVERY": 663,
+	// 664, up from 663 (issue #354): one ADDED row,
+	// module.alb.aws_lb_target_group.this["ex_asg"] in the new
+	// module-output-whole-resource fixture. Server-assigned like every other
+	// bare aws_lb_target_group, and incidental to the change: the fixture
+	// needs a real managed resource behind the module output for the deferred
+	// read to have something to point at.
+	"NEEDS_DISCOVERY": 664,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -460,7 +476,14 @@ var identityGoldenPin = map[string]int{
 	// PRIVATE's own 2-instance length against a 5-instance block; formula
 	// reads ${aws_subnet.database[i].id}/${aws_route_table.private[i%2].id}).
 	// See identityGoldenPinInstances' own comment for the fixtures.
-	"PARENT_DERIVED": 115,
+	// 116, up from 115 (issue #354): one ADDED row, and it is the fix itself -
+	// module.asg.aws_autoscaling_traffic_source_attachment.this["ex-alb"]
+	// renders asg-fixed,elbv2,${module.alb.aws_lb_target_group.this["ex_asg"].arn}.
+	// The value in that row is the whole assertion: the formula has to name
+	// the target group INSTANCE the caller indexed, and three other strings
+	// would have satisfied a class check - the group's own name, the module
+	// output's name, and the type default that supplies the "elbv2" beside it.
+	"PARENT_DERIVED": 116,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -707,7 +730,17 @@ var identityGoldenPin = map[string]int{
 // #346 widens which parent classes a non-identity attribute may be deferred
 // to, and adds a narrowing rule for one-element lists on the each.value route,
 // and neither may change a marker any existing fixture already renders.
-const identityGoldenPinBodyDigest = "a6df4368705c9ffd7e160b6d168d786785d08727cb5fce0d69fbeb83484715c5"
+//
+// 2026-08-21 (issue #354): digest moved because three more rows were ADDED,
+// every one of them from the single new fixture directory
+// internal/live/identity/testdata/module-output-whole-resource.
+// TestIdentityGolden's own diff, read before this line was edited, reported
+// "0 identities changed, 3 added, 0 removed" over 524 directories. The zero is
+// again the load-bearing half: #354 layers an element's own EXPRESSION under
+// the element VALUE that was already bound, consulted only where that value
+// came back unknown, so nothing that renders a marker today can be re-routed
+// by it.
+const identityGoldenPinBodyDigest = "0ead9a814e0f3009883241324202c3def7067bd7d53804133cb38937db5139d8"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1128,8 +1161,15 @@ const identityGoldenPinBodyDigest = "a6df4368705c9ffd7e160b6d168d786785d08727cb5
 // no row at all (its parent's entry is synthesized rather than ratified, which
 // is precisely the condition #346 did not relax, and its child therefore stays
 // refused).
+//
+// 2026-08-21 (issue #354): instances 1589 -> 1592 and dirs 521 -> 524. 0
+// changed, 3 added, 0 removed. Three new directories - the fixture root
+// internal/live/identity/testdata/module-output-whole-resource and its two
+// child modules swept as roots of their own. The child directories contribute
+// no rows: swept alone, alb/ has an unset required `groups` variable and asg/
+// has no attachments at all, so neither expands an instance.
 const (
-	identityGoldenPinInstances = 1589
+	identityGoldenPinInstances = 1592
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1214,7 +1254,11 @@ const (
 	// Then 517 -> 521 dirs and 1577 -> 1589 instances for GitHub issue #346:
 	// four new directories, twelve added rows, nothing modified. See
 	// identityGoldenPinInstances' own comment directly above.
-	identityGoldenPinDirs = 521
+	//
+	// Then 521 -> 524 dirs and 1589 -> 1592 instances for GitHub issue #354:
+	// three new directories, three added rows, nothing modified. See
+	// identityGoldenPinInstances' own comment directly above.
+	identityGoldenPinDirs = 524
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
