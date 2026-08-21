@@ -1004,6 +1004,19 @@ demo-corpus-simpleinfra-dns:
 demo-corpus-mastino-dns:
     bash live/e2e/corpus-mastino-dns/run.sh
 
+# The ninth OpenTofu-native crossing: leynos/df12-www's modules/monitoring -
+# a real, actively-maintained personal-site deployment (34 .tofu files to 1
+# .tf, README opens "using OpenTofu" with no compatibility claim). cold
+# deploy passes for real (the two aws_cloudwatch_metric_alarm resources plus
+# aws_cloudwatch_dashboard, aws_budgets_budget targeted out - floci does not
+# implement AWS Budgets); migrate fails for real on a confirmed floci bug,
+# not a choudoufu one (CloudWatch's TagResource returns a bare `{}` body the
+# AWS Go SDK cannot parse - stock OpenTofu hits the identical error with no
+# choudoufu involved at all, filed as lex00/floci#88). Needs Docker, the AWS
+# CLI, and the real `tofu` binary; runs on its own port (4732).
+demo-corpus-leynos-monitoring:
+    bash live/e2e/corpus-leynos-monitoring/run.sh
+
 # Build the docs site into site/public/. Wipes the directory first, so a
 # page removed from the generator stops being served instead of lingering.
 #

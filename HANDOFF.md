@@ -1573,7 +1573,7 @@ script's own header says which resource and why.
 
 ### 3. Broaden the OpenTofu-native lane
 
-Eight estates crossed now. The first six: `corpus-sumaform-aws`; three disjoint slices of
+Nine estates crossed now. The first six: `corpus-sumaform-aws`; three disjoint slices of
 `hongbo-miao/hongbomiao.com` (`corpus-hongbomiao-labelbox`, landed
 2026-08-18, the first OpenTofu-native estate to clear all five stages and
 stronger evidence than sumaform - genuine `.tofu` files throughout, not a
@@ -1747,6 +1747,62 @@ block, so an estate's state-encryption configuration is not exercised by any
 of the five stages anyway. Provider `for_each` and OCI-sourced modules are
 the OpenTofu-only surface that would actually be exercised, and neither has
 turned up in a real AWS-targeting estate yet.
+
+Ninth, `corpus-leynos-monitoring`: `leynos/df12-www`'s `modules/monitoring`
+(pinned by commit alone at `e59eabba`, no tags published), a real,
+actively-maintained personal-site deployment (241 commits, AGPL-3.0,
+dependabot-active) whose README opens "This repository contains the
+configuration for my static website deployment using OpenTofu" with no
+compatibility claim, and whose pinned tree is 34 `.tofu` files to exactly 1
+`.tf` file (a Terraform test fixture outside the crossed module). Scoped to
+`modules/monitoring` because it is the one leaf module needing nothing else
+stood up first: `bucket_name`/`distribution_id` are free-form metric-
+dimension strings, never looked up against a live bucket or distribution,
+and the module has no remote state and no data source. `aws_budgets_budget`
+is targeted out of every stage - confirmed genuinely unimplemented by floci
+(absent from `live/floci-capabilities.json`'s service list for this pin,
+absent from the running container's own `/_localstack/health`, and a direct
+`aws budgets create-budget` call returns `UnknownOperationException`) -
+leaving the two `aws_cloudwatch_metric_alarm` resources and the one
+`aws_cloudwatch_dashboard` as the crossed set.
+
+**This one does not reach five of five, and the reason is a floci bug, not
+a choudoufu one - the "OpenTofu fails here too" label, confirmed rather than
+assumed.** `cold_deploy` passes for real (3 resources via `-target`, 0
+pre-existing `tofu-estate` tags). `migrate`'s dry run correctly verifies 2 of
+3 eligible (the dashboard UNTAGGABLE, no `tags` argument in the provider's
+schema), but `-approve`'s write fails on both alarms: `operation error
+CloudWatch: TagResource, https response error StatusCode: 200, ...
+deserialization failed, failed to decode response body, TagResourceResult
+node not found`. Before filing anything, the same write shape was run
+through **real stock OpenTofu with no choudoufu involved at all** - create
+an untagged `aws_cloudwatch_metric_alarm`, then a second apply that adds
+`tags = {...}` (an update-in-place `TagResource` call on an object that
+already exists live, the identical shape choudoufu's stamping performs) -
+and it fails with the byte-identical error against the same floci pin. Root
+cause, confirmed with `aws --debug`: floci's `TagResource` response body is
+a bare `{}` regardless of the query-protocol shape the real API returns;
+botocore (the AWS CLI's own SDK) tolerates an empty body for an operation
+with no output fields and reports success, but the AWS Go SDK v2 - used by
+both OpenTofu's own `hashicorp/aws` provider and choudoufu's direct-write
+stamping path - requires the `TagResourceResult` wrapper element and errors
+when it is absent; the tag never lands under the Go SDK path either,
+confirmed via `list-tags-for-resource`. Filed as `lex00/floci#88` with the
+stock-OpenTofu repro and the raw-body evidence. Scope, derived rather than
+guessed: confirmed only for `aws_cloudwatch_metric_alarm`, but the defect is
+in CloudWatch's own shared `TagResource`/`UntagResource` API, so it should
+reach every taggable type in that service whenever a tag changes on an
+already-live object (create-time tags via `PutMetricAlarm`'s own `Tags`
+parameter are unaffected, confirmed in the same repro) - named as untested
+candidates rather than claimed: `aws_cloudwatch_composite_alarm`,
+`aws_cloudwatch_contributor_managed_insight_rule`,
+`aws_cloudwatch_metric_stream`. `test_plan`/`test_apply`/`drift_reconverge`
+are not reached - `migrate` never completes, so there is nothing valid to
+plan against - but `live/e2e/corpus-leynos-monitoring/run.sh` writes and
+asserts all five stages, and stages 3-5 will run the moment `lex00/floci#88`
+is fixed. No choudoufu code touched: per this section's own three-label
+rule, "OpenTofu fails here too" is the `PARITY` row and stops here rather
+than becoming a choudoufu fix.
 
 ### Loose ends worth an hour, not a slot
 
