@@ -54,7 +54,11 @@ also asserted by value; an exit code is not a verdict.
    with `gauntlet_stage <id> pass|fail|not_run [detail]` and make `fail()`
    report the current stage; `live/e2e/reference-ec2-vpc/run.sh` is the
    pattern. Report a stage the script genuinely does not exercise as
-   `not_run`, never as `pass`. Lower the bound in
+   `not_run`, never as `pass`. Patterns to copy: `live/e2e/reference-ec2-vpc/run.sh`
+   for a script wired through `gauntlet_stage` end to end (its B5 block is
+   the `test_apply` object-count assertion through `resourcegroupstaggingapi`);
+   `live/e2e/corpus-vpc-complete/run.sh` for the fullest legacy stage set.
+   Lower the bound in
    `tools/gauntlet/gauntlet_test.go`'s `TestLegacyScriptsOnlyGoDown` by one.
 2. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
    binary you built (`go build -o "$TMPDIR/choudoufu" ./cmd/choudoufu`). Read
