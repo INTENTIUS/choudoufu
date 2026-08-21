@@ -33,6 +33,31 @@ set -uo pipefail
 # removed, or parameterized away - stage 1 runs the module exactly as
 # terraform-aws-modules publishes it.
 #
+# THE MIGRATION EDIT, which is a different thing and belongs to stages 2-5
+# only: the adopted copy's versions.tf gains a live block, and that block
+# declares `record_store "local"`. Every other crossing here declares only
+# the estate name. This one needs the store, and the reason is worth stating
+# because it is the whole of what GitHub issue #353 changed: main.tf:889's
+# aws_iam_service_linked_role.autoscaling carries a `provisioner
+# "local-exec"` (the example's own `sleep 10`, commented "Sometimes good
+# sleep is required to have some IAM resources created before they can be
+# used"). Stock OpenTofu remembers one thing about a create-time
+# provisioner - the tainted flag it sets when one fails - and a live
+# resource marker cannot carry it, because internal/live/stamp writes the
+# marker BEFORE the create request goes out. So a provisioner is refused
+# for an estate with nowhere to keep that bit and admitted for one that has
+# somewhere, and declaring the store is what an operator migrating this
+# estate would actually do. It is not routing around the wall: it is the
+# supported way past it, and live/e2e/provisioner-taint/run.sh is where the
+# mechanism itself is proven end to end.
+#
+# Measured on this estate, at commit 7aea0eef95, both ways in the same
+# session against the same floci pin: WITHOUT the record_store, stage 3
+# fails on exactly one diagnostic, "Provisioners are not available under
+# live resource markers". WITH it, that diagnostic is gone. The estate does
+# NOT reach five of five as a result - see the stage-3 comment below and
+# live/corpus-crossing-manifest.json for the two walls that stand behind it.
+#
 # STAGE-BY-STAGE SHAPE (issue #274's five-stage pipeline; see
 # live/corpus-crossing-manifest.json):
 #
@@ -177,8 +202,16 @@ log "  module + example copied out of .corpus into $WORK/plain (stage 1: plain t
 
 copy_estate "$WORK/adopted"
 emulator_delta "$ADOPTED"
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$ADOPTED/versions.tf"
+# The live block, plus a record_store. The store is not decoration and is
+# not there for any record-backed type - this estate has none. It is what
+# admits main.tf:889's `provisioner "local-exec"` (GitHub issue #353): a
+# create-time provisioner that fails leaves a live, already-marked,
+# half-built object, and the tainted bit stock keeps in its state file needs
+# somewhere to live. Without this line the estate is refused at stage 3 with
+# exactly that diagnostic, which is what it did until 2026-08-21.
+perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$ADOPTED/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$ADOPTED/versions.tf" || fail "the live-block delta did not match versions.tf"
+grep -q 'record_store "local"' "$ADOPTED/versions.tf" || fail "the record_store delta did not match versions.tf"
 log "  module + example copied out of .corpus into $WORK/adopted (stages 2-5: choudoufu, live block added)"
 
 # ── 1. floci ────────────────────────────────────────────────────────────────
@@ -317,6 +350,33 @@ log "  $MARKED objects carry tofu-estate=$ESTATE after migration"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+# WHERE THIS STAGE ACTUALLY STOPS, measured 2026-08-21 at commit 7aea0eef95
+# against floci sha256:d65baf42 and hashicorp/aws 6.59.0, read off this
+# script's own output and not inferred. GitHub issue #353 removed this
+# estate's only provisioner diagnostic - the sole stage-3 failure it had
+# since 2026-08-20 - and two stand behind it, so the stage still fails and
+# the estate is still 2 of 5. Neither remaining one is specific to
+# autoscaling, and neither is in issue #353's scope:
+#
+#   1. "Non-static identity argument" on
+#      module.complete.aws_autoscaling_traffic_source_attachment.this["ex-alb"].identifier
+#      (main.tf:1102, `identifier = each.value.traffic_source_identifier`,
+#      which reaches module.complete_alb's target-group ARN). This is #346's
+#      wall - an identity argument reading another managed resource's
+#      non-identity Computed attribute - one spelling further out than the
+#      corpus-vpc-complete/corpus-rds-complete-postgres/corpus-ecs-fargate
+#      form. #346 is unresolved by maintainer decision and needs a design
+#      pass, not code.
+#   2. "Ambiguous list-valued identity argument" on
+#      module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids,
+#      which "has 0 elements" - the Component.SoleElement refusal, whose own
+#      registry text (internal/live/identity/refusals.go) already states
+#      that zero elements and more than one are both refused. Deliberate,
+#      not a new find.
+#
+# Stages 4 and 5 are therefore never reached and stay not_run in
+# live/corpus-crossing-manifest.json: running them against a refused plan
+# would prove nothing.
 log "=== STAGE 3: test plan (state deleted, live-plan empty) ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "the state file is still there"
