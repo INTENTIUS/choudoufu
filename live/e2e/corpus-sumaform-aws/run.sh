@@ -98,14 +98,22 @@ set -uo pipefail
 # into backend_modules/aws/host - the ONE leaf module EVERY AWS host role
 # in this estate (bastion, mirror, server, minion) shares:
 #
-#   1. aws_instance.instance carries an unconditional, provisioner-less
+#   1. [RESOLVED by #353, no longer refused - kept here for the history]
+#      aws_instance.instance carries an unconditional, provisioner-less
 #      `connection { private_ip = self.private_ip }` block - dead code in
 #      sumaform's own module (no provisioner anywhere in the same
-#      resource references it), but internal/live/lint's own
-#      checkProvisioners rule flags a connection block on its own terms,
-#      deliberately, per that function's own comment ("reported in its
-#      own right rather than silently tolerated when the provisioners it
-#      feeds have been removed").
+#      resource references it). internal/live/lint's checkProvisioners
+#      used to flag a connection block on its own terms regardless of
+#      whether the estate had anywhere to keep a tainted-object bit.
+#      GitHub issue #353 gave that bit a generic home - any instance
+#      whose estate declares a record_store (this one does, see
+#      write_main_tf below) now has one - and checkProvisioners's own
+#      recordStoreConfigured gate (internal/live/lint/lint.go) returns
+#      before ever looking at Provisioners or Connection, for every
+#      resource type, not only RECORD_ADMITTED logical ones. Confirmed by
+#      re-running this exact estate on the post-#353 tree: the connection-
+#      block error no longer appears, only the ignore_changes refusal
+#      below does. Unrelated work fixed this crossing's own finding; nice.
 #   2. Both aws_instance.instance and aws_ebs_volume.data_disk carry
 #      `lifecycle { ignore_changes = [tags] }` - sumaform's own
 #      WORKAROUND comment names why: "SUSE internal openbare AWS accounts
@@ -119,13 +127,24 @@ set -uo pipefail
 #      re-tagged. The message even names the fix - `ignore_changes =
 #      [tags["Owner"]]`, not the whole argument - but making it is an
 #      edit to sumaform's own module, which this crossing does not make.
+#      This one is not #353's shape: it is HANDOFF.md's fourth row,
+#      "handling it would write a wrong marker" - honouring stock's
+#      ignore_changes = [tags] here would plan the marker write and then
+#      silently discard it, so the resource is left unmarked, exactly
+#      the failure mode the rule exists to prevent. The escape is the
+#      record rung (per-resource identity held in the record store
+#      instead of tags), but that rung has no fallback path yet for a
+#      tag-marker-backed type under a whole-argument ignore_changes on
+#      tags; building one is a real feature, not a script fix, and is not
+#      this unit's to add.
 #
 # Because both live in the ONE leaf module every role shares, this is not
 # an artifact of this crossing's own reduced slice: module.mirror,
 # module.minion, and module.base's own bastion would hit the identical
-# two refusals the moment any of them is actually instantiated. A real,
-# generalizable finding about this real, popular project's compatibility
-# with choudoufu today, not a corner this script backed itself into.
+# ignore_changes refusal the moment any of them is actually instantiated.
+# A real, generalizable finding about this real, popular project's
+# compatibility with choudoufu today, not a corner this script backed
+# itself into.
 #
 # Stages 4 and 5 are unwritten, the same discipline
 # live/e2e/corpus-lambda-simple/run.sh's own header uses for its own
@@ -545,22 +564,32 @@ PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
 [ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited 0 - the known refusal has apparently been fixed; update this script's header and stages 3-5"; }
 
+# The connection-block refusal used to fire here too (see this script's
+# header, item 1): #353 gave every instance whose estate declares a
+# record_store somewhere to keep a tainted-object bit, and this estate's
+# own write_main_tf does declare one, so checkProvisioners now admits the
+# dead connection block on aws_instance.instance the same as it would a
+# real provisioner. Assert that stays fixed - not just absent by
+# accident - so a future regression here is caught the same way the
+# original gap was.
 grep -qF 'Error: Provisioners are not available under live resource markers' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected the connection-block refusal, did not find it - something else has moved"; }
-grep -qF 'connection block on' <<< "$PLAN_OUT" || fail "expected the connection-block refusal to name its construct"
+  && { printf '%s\n' "$PLAN_OUT" | tail -60; fail "the connection-block refusal is back - #353's record_store admission (internal/live/lint.go's recordStoreConfigured gate) has regressed"; }
 [ "$(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")" = "2" ] \
   || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected exactly 2 ignore-changes refusals (aws_instance.instance and aws_ebs_volume.data_disk), got $(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")"; }
 grep -qF 'lifecycle { ignore_changes =' <<< "$PLAN_OUT" || fail "expected the ignore-changes refusal detail"
-log "  confirmed: exactly the 3 known refusals fired (1 connection block, 2 ignore_changes[tags]) -"
-log "  all three live in backend_modules/aws/host, the ONE leaf module every AWS host role"
-log "  in this estate shares. See this script's header for why this is not routed around."
+log "  confirmed: exactly the 2 known refusals fired (ignore_changes[tags] on aws_instance.instance"
+log "  and aws_ebs_volume.data_disk) - the connection-block refusal this script used to also expect"
+log "  is gone, fixed generically by #353 (record_store gives every instance a home for the tainted"
+log "  bit, not only RECORD_ADMITTED types). Both remaining refusals live in backend_modules/aws/host,"
+log "  the ONE leaf module every AWS host role in this estate shares. See this script's header for"
+log "  why the ignore_changes refusal is not routed around."
 
 log ""
 log "STAGE 3 (test plan): BLOCKED (real, structural - see header). Stages 4-5 unwritten:"
 log "nothing runs yet for them to exercise. Stopping here rather than forcing a plan"
 log "this script cannot honestly call empty."
 log ""
-gauntlet_stage test_plan fail "3 known refusals: 1 connection block + 2 ignore_changes[tags]"
+gauntlet_stage test_plan fail "2 known refusals: ignore_changes[tags] on aws_instance.instance and aws_ebs_volume.data_disk (the connection-block refusal this script used to also expect is fixed generically by #353)"
 gauntlet_stage test_apply not_run "stage 3 blocks structurally; stages 4-5 unwritten"
 gauntlet_stage drift_reconverge not_run "stage 3 blocks structurally; stages 4-5 unwritten"
 CURRENT_STAGE=""
