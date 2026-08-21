@@ -134,7 +134,7 @@ type IDAttribute struct {
 	// simply did not describe carefully.
 	StatedSeparator string `json:"stated_separator,omitempty"`
 
-	// Reading names which of the four spellings matched, so a reviewer can
+	// Reading names which of the spellings matched, so a reviewer can
 	// see which rule produced the answer without re-deriving it. Empty
 	// alongside an empty StatedSeparator.
 	Reading string `json:"reading,omitempty"`
@@ -145,13 +145,23 @@ type IDAttribute struct {
 	Description string `json:"description"`
 }
 
-// The four readings' names, as they appear in IDAttribute.Reading.
+// The readings' names, as they appear in IDAttribute.Reading.
 const (
 	idAttrReadingSeparatedByBacktick = "separated-by-backtick"
 	idAttrReadingSeparatedByWord     = "separated-by-word"
 	idAttrReadingDelimitedWord       = "delimited-word"
 	idAttrReadingFormatToken         = "format-token"
 	idAttrReadingCompositeToken      = "composite-token"
+
+	// idAttrReadingCompositeAdjacent is adjacentBacktickSeparator's
+	// reading: a chain of two or more backtick-quoted tokens joined, in
+	// the prose itself, by one identical candidate-separator character
+	// and nothing else - "`disk_name`,`instance_name`". The doc is
+	// spelling the id out as a literal template of quoted segments, and
+	// the separator is the plain character between them, not a character
+	// found inside any one segment (that is splitSegments' question,
+	// answered by idAttrReadingCompositeToken above).
+	idAttrReadingCompositeAdjacent = "composite-adjacent-backtick"
 )
 
 // idAttributeComposite reads the Attribute Reference's `id` bullet: its text
@@ -169,10 +179,14 @@ func idAttributeComposite(doc string) *IDAttribute {
 	return &IDAttribute{StatedSeparator: sep, Reading: reading, Description: desc}
 }
 
-// statedIDSeparator applies the four readings in descending order of how
-// little each infers. The quoted character is read first because it infers
-// nothing; the format token last because it is the only one that derives
-// the separator from a value rather than from a statement about the form.
+// statedIDSeparator applies the readings in descending order of how little
+// each infers. The quoted character is read first because it infers
+// nothing; the format token is read after it because it is the only one
+// that derives the separator from a value rather than from a statement
+// about the form; the two composition-word-gated readings run last because
+// they are the only ones that need a claim of composition to be safe at
+// all - one reading a token's own contents, the other reading the plain
+// text between two tokens.
 func statedIDSeparator(desc string) (sep, reading string, ok bool) {
 	if m := idAttrSeparatedByBacktickRe.FindStringSubmatch(desc); m != nil && isCandidateSeparator(m[1]) {
 		return m[1], idAttrReadingSeparatedByBacktick, true
@@ -194,8 +208,50 @@ func statedIDSeparator(desc string) (sep, reading string, ok bool) {
 				return sep, idAttrReadingCompositeToken, true
 			}
 		}
+		if sep, ok := adjacentBacktickSeparator(desc); ok {
+			return sep, idAttrReadingCompositeAdjacent, true
+		}
 	}
 	return "", "", false
+}
+
+// adjacentBacktickSeparator reads the separator from BETWEEN backtick-quoted
+// tokens rather than from inside one, for the idiom idAttrQuotedTokenRe's
+// per-token reading cannot see: a composite spelled as a literal template of
+// quoted segments, "`disk_name`,`instance_name`" or
+// "`name`,`domain_name`,`type`,`target`". splitSegments already owns
+// everything a single token can state; this owns everything the description
+// states between two of them.
+//
+// It requires EVERY gap between consecutive quoted tokens in desc to reduce,
+// once trimmed of whitespace, to the exact same one candidate-separator
+// character - not just the gaps inside what a human would call the
+// composite list. That is deliberately stricter than "some adjacent pair
+// agrees": a description quoting other, unrelated backtick tokens elsewhere
+// (an example value, a cross-reference) would otherwise let an unrelated gap
+// forge agreement with the real one. Requiring the whole chain to agree
+// costs nothing against the measured corpus - every real instance is a
+// clean, self-contained list with no other quoted token in the sentence -
+// and it means a description this cannot uniquely resolve is refused rather
+// than guessed at, same as every other reading here.
+func adjacentBacktickSeparator(desc string) (string, bool) {
+	idx := idAttrQuotedTokenRe.FindAllStringIndex(desc, -1)
+	if len(idx) < 2 {
+		return "", false
+	}
+	var sep string
+	for i := 0; i+1 < len(idx); i++ {
+		between := strings.TrimSpace(desc[idx[i][1]:idx[i+1][0]])
+		if len(between) != 1 || !isCandidateSeparator(between) {
+			return "", false
+		}
+		if sep == "" {
+			sep = between
+		} else if sep != between {
+			return "", false
+		}
+	}
+	return sep, true
 }
 
 // soleCandidateSeparatorIn returns the one candidate separator character

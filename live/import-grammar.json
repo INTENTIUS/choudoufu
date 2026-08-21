@@ -101556,6 +101556,8 @@
         "region"
       ],
       "id_attribute": {
+        "stated_separator": ",",
+        "reading": "composite-adjacent-backtick",
         "description": "Combination of attributes to create a unique id: `disk_name`,`instance_name`."
       }
     },
@@ -101869,6 +101871,8 @@
         "region"
       ],
       "id_attribute": {
+        "stated_separator": ",",
+        "reading": "composite-adjacent-backtick",
         "description": "Combination of attributes to create a unique id: `name`,`domain_name`,`type`,`target`."
       }
     },
@@ -102268,6 +102272,8 @@
         "region"
       ],
       "id_attribute": {
+        "stated_separator": ",",
+        "reading": "composite-adjacent-backtick",
         "description": "Combination of attributes to create a unique ID: `lb_name`,`instance_name`."
       }
     },
@@ -102336,6 +102342,8 @@
         "subject_alternative_names"
       ],
       "id_attribute": {
+        "stated_separator": ",",
+        "reading": "composite-adjacent-backtick",
         "description": "Combination of attributes to create a unique id: `lb_name`,`name`"
       }
     },
@@ -102387,6 +102395,8 @@
         "region"
       ],
       "id_attribute": {
+        "stated_separator": ",",
+        "reading": "composite-adjacent-backtick",
         "description": "Combination of attributes to create a unique id: `lb_name`,`certificate_name`"
       }
     },

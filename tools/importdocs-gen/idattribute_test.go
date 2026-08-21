@@ -70,15 +70,58 @@ func TestStatedIDSeparatorReadings(t *testing.T) {
 		{name: "single value", desc: "The EMR Instance ID"},
 		{name: "single value with an article", desc: "ID of the traffic policy."},
 
-		// THE UNDERSCORE TRAP. Every argument name in these docs is
-		// snake_case, so a reading that finds its separator by scanning a
-		// quoted token for a candidate character calls "`disk_name`" an
+		// THE UNDERSCORE TRAP, guarded on a single quoted token: a reading
+		// that finds its separator by scanning a quoted token for a
+		// candidate character calls "`disk_name`" alone an
 		// underscore-joined composite. Measured before splitSegments took
 		// over the split: seven pages fired with "_" against an Import
-		// section that had independently scraped "," or ":".
+		// section that had independently scraped "," or ":". One token
+		// gives adjacentBacktickSeparator nothing to compare either - it
+		// needs a gap between two tokens, and there is none here.
 		{
-			name: "composition word beside snake_case argument names only",
-			desc: "Combination of attributes to create a unique id: `disk_name`,`instance_name`.",
+			name: "composition word beside a single snake_case argument name",
+			desc: "Combination of attributes to create a unique id: `disk_name`.",
+		},
+
+		// The adjacent-backtick composite: the doc spells the id out as a
+		// literal template of quoted segments joined by nothing but the
+		// separator character itself (aws_lightsail_disk_attachment's own
+		// wording, 6.59.0). Neither token contains a separator on its
+		// own - splitSegments finds nothing inside "disk_name" or
+		// "instance_name" - so the stated "," has to be read from BETWEEN
+		// the two tokens, which is adjacentBacktickSeparator's job.
+		{
+			name:        "composite spelled as a template of adjacent quoted tokens",
+			desc:        "Combination of attributes to create a unique id: `disk_name`,`instance_name`.",
+			wantSep:     ",",
+			wantReading: idAttrReadingCompositeAdjacent,
+		},
+
+		// The same idiom with more than two segments (aws_lightsail_domain_entry,
+		// 6.59.0): every gap in the chain has to agree, not just one pair.
+		{
+			name:        "composite adjacent-backtick chain with more than two segments",
+			desc:        "Combination of attributes to create a unique id: `name`,`domain_name`,`type`,`target`.",
+			wantSep:     ",",
+			wantReading: idAttrReadingCompositeAdjacent,
+		},
+
+		// A composition word plus quoted names joined only by English
+		// ("and", no character between the tokens) states which fields
+		// compose the id, not what joins them - same as "a quoted token
+		// spelling the whole composite" needing an actual separator
+		// character, not just a claim of composition.
+		{
+			name: "adjacent tokens joined by prose, not a separator character",
+			desc: "The combination of `service_name` and `user_name`.",
+		},
+
+		// Mismatched gaps refuse rather than guess: if this chain doesn't
+		// agree on one character throughout, no reading here has grounds
+		// to pick either.
+		{
+			name: "adjacent-backtick chain with inconsistent separators",
+			desc: "Combination of attributes to create a unique id: `a`,`b`:`c`.",
 		},
 
 		// The composition-word gate. Without it, any quoted value
