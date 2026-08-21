@@ -89,33 +89,34 @@ set -uo pipefail
 #   bucket, accurately asserted in stage 2 below rather than worked around,
 #   since it does not block the other 44 resources from stamping.
 #
-# ONE REAL CHOUDOUFU ADMISSION GAP BLOCKS STAGE 3, NOT FIXED HERE:
+# ONE REAL CHOUDOUFU GAP BLOCKS STAGE 3, NOT FIXED HERE:
 #
-#   #309 (open). aws_cognito_user_pool_client is unadmitted: untaggable, no
-#   resource identity schema in the pinned provider release. 1 site.
+#   #309 (CLOSED 2026-08-21, under the reframe that retired admission as a
+#   gate - HANDOFF.md). aws_cognito_user_pool_client is no longer unadmitted:
+#   the issue's own MarkerlessTypes-widening work (closing comment,
+#   2026-08-19) put it in the roster, where record_store-declared estates
+#   like this one can resolve it as identity.ClassRecordLocated
+#   (issue #270). It still blocks this estate's stage 3, one layer down and
+#   for a narrower, better-founded reason than before - the closing comment
+#   says so explicitly ("nothing in this change makes
+#   aws_cognito_user_pool_client plannable, so its one blocking diagnostic
+#   stands, with a better-founded reason behind it"). Still 1 site, but the
+#   refusal is now RuleMarkerlessType ("Resource type has nowhere to write
+#   an ownership marker"), not RuleUnadmittedType ("Resource type is outside
+#   the live-markers subset") - this script's assertions were still checking
+#   the old rule's text until this pass; updated below.
 #
-#   THE ENUMERATION LEAD THIS HEADER USED TO CARRY IS WITHDRAWN (2026-08-19).
-#   It said the fix was to reach Cognito's own ListUserPoolClients from a new
-#   discovery leg. Enumeration is not the missing piece and never was: this
-#   estate is MIGRATED by the time stage 3 runs, so the question is not "what
-#   objects exist" but "which one does this block own", and for an object with
-#   nowhere to carry a marker the fork's answer is the estate's record store -
-#   identity.ClassRecordLocated, issue #270, wired through lint, resolve,
-#   projection, mv and onboard and admitting 124 types at aws 6.59.0. A
-#   listing cannot supply that answer anyway: Cognito does not document
-#   ClientName as unique within a pool, so a scoped listing of two clients
-#   cannot say which is which.
-#
-#   What actually blocks it is three predicates, all measured in code on
-#   2026-08-19 and recorded with their evidence in tools/row-gen/rejected.json:
-#   the type's CFN primary_identifier is only PARTLY read-only ([UserPoolId,
-#   ClientId], ClientId alone read-only), so row-gen's markerless veto never
-#   fires and identity.LocatedType's first condition - membership in
-#   MarkerlessTypes - is never met; identity.credentialMaterial then fires on
-#   client_secret; and LocatedType's third condition assumes the "id"
-#   attribute IS the import identity, which is false here - the provider's own
-#   Attribute Reference calls id "ID of the user pool client" while the Import
-#   section wants <user_pool_id>/<client_id>.
+#   What actually blocks it, per identity.LocatedType (internal/live/identity/
+#   located.go): record_store IS declared here (DELTA 4), so LocatedType gets
+#   to run at all, but identity.credentialMaterial fires on client_secret
+#   (Sensitive, not Deprecated at 6.59.0) before the identity-shape question
+#   is even reached. The closing comment names this the same way: "Prerequisite
+#   (a) - credentialMaterial's breadth for the located path - is untouched
+#   and is still the maintainer call this thread scoped it as." Narrowing
+#   credentialMaterial is exactly that maintainer call, not attempted here.
+#   (The type's identity is unproven-whole too - idnotwhole_generated.go - so
+#   even a narrower credentialMaterial would not alone clear this site; both
+#   walls would need to fall.)
 #
 #   #305 (aws_default_network_acl/aws_default_route_table/
 #   aws_default_security_group, the VPC module's default-object adopters)
@@ -126,7 +127,7 @@ set -uo pipefail
 #   Checked against #313 (corpus-security-group-complete's
 #   data.aws_availability_zones-feeding-a-nested-module-for_each wall,
 #   filed the same session #305 landed): this estate's live-plan output
-#   carries exactly one distinct Error: line, the #309 unadmitted-type
+#   carries exactly one distinct Error: line, the #309 markerless-type
 #   refusal, and never "Unable to use data.aws_availability_zones.available
 #   in static context". Different wall; #313 does not reach this estate.
 #
@@ -141,18 +142,20 @@ set -uo pipefail
 #                          count); 47 newly stamped + 4 FAILED (floci#65) =
 #                          51 attempted; the other 29 not eligible (28
 #                          UNTAGGABLE by provider schema + 1 UNADMITTED_TYPE,
-#                          #309) - of which -approve records 1
+#                          #309, live-import's own bucket name for it) - of
+#                          which -approve records 1
 #                          (null_resource.download_package, record-backed
 #                          since #340, seeded into the record store rather
 #                          than skipped) and correctly skips 28. Asserted
 #                          against live-import's own report AND confirmed
 #                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by #309 alone (1 site) - the
-#                          exact same type stage 2 already named, specific
-#                          counts and resource addresses asserted against a
-#                          real live-plan run on the really-migrated estate,
-#                          state file deleted first, BREAK=1 negative
-#                          control.
+#   stage 3  test plan     BLOCKED, for real, by #309 alone (1 site,
+#                          markerless-type now rather than unadmitted-type -
+#                          see above) - the exact same type stage 2 already
+#                          named, specific counts and resource addresses
+#                          asserted against a real live-plan run on the
+#                          really-migrated estate, state file deleted first,
+#                          BREAK=1 negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
@@ -191,7 +194,7 @@ set -uo pipefail
 #                live/floci-image (re-pinned by this change to include
 #                #58/#61/#62).
 #   BREAK        set to 1 to corrupt the expected stage-3 site counts and
-#                one expected unadmitted-type name, proving those
+#                one expected markerless-type name, proving those
 #                assertions are load-bearing rather than a grep that always
 #                matches. Stages 1 and 2 are unaffected and still pass;
 #                stage 3 is the one that must fail.
@@ -480,14 +483,28 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #309 may be fixed; update this script"; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the markerless-type wall below may be fixed; update this script"; }
 
-WANT_UNADMITTED_N=$UNADMITTED_WANT
+# #309 closed under the 2026-08-21 reframe (admission as a gate is retired;
+# every type stock supports is admitted, and what varies is the instance's
+# rung). Its own MarkerlessTypes-widening work (closing comment, 2026-08-19)
+# put aws_cognito_user_pool_client IN the roster: it is no longer refused as
+# RuleUnadmittedType ("Resource type is outside the live-markers subset").
+# It is still refused, one layer down, as RuleMarkerlessType ("Resource type
+# has nowhere to write an ownership marker") - this estate DOES declare a
+# record_store (DELTA 4), so identity.LocatedType gets to run, and it
+# answers false because client_secret is credential material, a wall the
+# same closing comment names as unresolved and scoped as a maintainer call
+# (credentialMaterial's breadth for the record-located path). So the site
+# count below is still exactly 1, just under the more precisely founded
+# rule; the closing comment says the same thing in words ("its one blocking
+# diagnostic stands, with a better-founded reason behind it").
+WANT_MARKERLESS_N=$UNADMITTED_WANT
 WANT_TYPES=(aws_cognito_user_pool_client)
 if [ "${BREAK:-}" = "1" ]; then
-  WANT_UNADMITTED_N=2
+  WANT_MARKERLESS_N=2
   WANT_TYPES[1]="aws_default_dhcp_options"
-  log "  BREAK=1: expecting 2 unadmitted-type sites (one more than the real"
+  log "  BREAK=1: expecting 2 markerless-type sites (one more than the real"
   log "           1) and aws_default_dhcp_options among them - a real AWS"
   log "           default-object type, same shape as the ones #305 already"
   log "           fixed, just not one this estate's config actually"
@@ -496,26 +513,29 @@ fi
 
 log "  all distinct Error: lines from this live-plan run:"
 grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c | sed 's/^/    /'
-UNADMITTED_SITES_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-[ "$UNADMITTED_SITES_N" = "$WANT_UNADMITTED_N" ] \
-  || { fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#309), got $UNADMITTED_SITES_N"; }
+MARKERLESS_SITES_N="$(grep -c '^Error: Resource type has nowhere to write an ownership marker$' <<< "$PLAN_OUT")"
+[ "$MARKERLESS_SITES_N" = "$WANT_MARKERLESS_N" ] \
+  || { fail "expected $WANT_MARKERLESS_N markerless-type sites (#309), got $MARKERLESS_SITES_N"; }
 for t in "${WANT_TYPES[@]}"; do
   grep -qE "resource \"$t\"" <<< "$PLAN_OUT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|resource "'; fail "expected $t among the unadmitted-type refusals"; }
+    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|resource "'; fail "expected $t among the markerless-type refusals"; }
 done
-log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - no"
-log "  identity schema in the pinned provider release, untaggable, and no"
-log "  discovery leg wired to the Cognito-native ListUserPoolClients API"
-log "  yet (see the issue for the technical lead). #305's default-object"
-log "  trio is fixed and no longer appears as an unadmitted-type site here"
-log "  (confirmed VERIFIED/DRIFTED and eligible in stage 2 above)."
+log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - admitted"
+log "  to MarkerlessTypes (no longer unadmitted-type), and still refused as"
+log "  markerless-type: record_store IS declared here, but"
+log "  identity.LocatedType answers false because client_secret is"
+log "  credential material (the closing comment's own open item - narrowing"
+log "  credentialMaterial for the record-located path is a maintainer call,"
+log "  not attempted here). #305's default-object trio is fixed and no"
+log "  longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
+log "  eligible in stage 2 above)."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site), the same type"
-log "stage 2 already named as UNADMITTED_TYPE; #305's 3 sites are no longer"
-log "part of this wall"
+log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site, now markerless-type"
+log "rather than unadmitted-type - see comment above); #305's 3 sites are no"
+log "longer part of this wall"
 log ""
-gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, see header); #305's trio is fixed and no longer a stage-3 wall here"
+gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: record_store declared, but client_secret is credential material - see header); #305's trio is fixed and no longer a stage-3 wall here"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
