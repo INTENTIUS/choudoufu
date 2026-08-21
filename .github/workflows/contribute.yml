@@ -60,7 +60,10 @@ jobs:
           git branch -f main HEAD
           just contribute "${{ github.event.inputs.max_usd }}"
       - name: If no upstream token, say how to open the pull request
-        if: always() && !secrets.CONTRIBUTE_TOKEN
+        if: always()
+        env:
+          HAS_TOKEN: ${{ secrets.CONTRIBUTE_TOKEN != '' }}
         run: |
+          if [ "$HAS_TOKEN" = "true" ]; then exit 0; fi
           echo "No CONTRIBUTE_TOKEN secret: the branch was pushed to this fork. Open the pull request at"
           echo "https://github.com/INTENTIUS/choudoufu/compare/main...${{ github.repository_owner }}:$(git branch --show-current)"
