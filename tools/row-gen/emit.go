@@ -206,7 +206,7 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel, idNotWholeTableRel, docImportIDTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, notImportableTableRel, discoverableFallbackTableRel, contentMatchTableRel, idNotWholeTableRel, docImportIDTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
@@ -231,7 +231,13 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
 	contentMatchRows := contentMatchRoster(proposals, grammar, schemaFacts)
 	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatchSet(contentMatchRows))
-	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, setOf(vetoed))
+	notImportable := notImportableRoster(survey)
+	// emittedRows' vetoed set is the union of both rules (issue #331):
+	// either one alone is enough to keep a type out of the table, and the
+	// two are still rendered into their own separate generated rosters below
+	// so each keeps its own reason. A type can be in both; setOf collapses
+	// the duplicate harmlessly.
+	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, setOf(append(append([]string(nil), vetoed...), notImportable...)))
 
 	// The convergence comparison runs over the rows about to be written, not
 	// over the ones last written: a row that is ratified but not yet in the
@@ -305,6 +311,10 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", markerlessTableRel, err)
 	}
+	notImportableSrc, err := renderNotImportableFile(notImportable)
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", notImportableTableRel, err)
+	}
 	contentMatchSrc, err := renderContentMatchFile(contentMatchRows)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", contentMatchTableRel, err)
@@ -347,6 +357,7 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		lintTableRel:                 lintSrc,
 		logicalTableRel:              logicalSrc,
 		markerlessTableRel:           markerlessSrc,
+		notImportableTableRel:        notImportableSrc,
 		discoverableFallbackTableRel: discoverableFallbackSrc,
 		contentMatchTableRel:         contentMatchSrc,
 		idNotWholeTableRel:           idNotWholeSrc,

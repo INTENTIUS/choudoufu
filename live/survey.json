@@ -15,7 +15,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -30,7 +31,8 @@
       "signals": {
         "taggable": false,
         "list_resource": false,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": false
       },
       "identity": {
         "required_for_import": [
@@ -46,7 +48,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -66,7 +69,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -86,7 +90,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -105,7 +110,8 @@
       "signals": {
         "taggable": false,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::CloudFront::OriginAccessControl with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
@@ -115,7 +121,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -135,7 +142,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -155,7 +163,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -175,7 +184,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
     },
@@ -185,7 +195,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
     },
@@ -195,7 +206,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -215,7 +227,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -235,7 +248,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -255,7 +269,8 @@
       "signals": {
         "taggable": false,
         "list_resource": false,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -275,7 +290,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -295,7 +311,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
     },
@@ -305,7 +322,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -326,7 +344,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -346,7 +365,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
     },
@@ -356,7 +376,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -376,7 +397,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -396,7 +418,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -417,7 +440,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -436,7 +460,8 @@
       "signals": {
         "taggable": false,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; untaggable, so Cloud Control listing AWS::IAM::Group with no scoping input enumerates it but no discovery leg can bind what it returns - binding reads the two ownership tags and this type has nowhere to write them"
     },
@@ -446,7 +471,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -465,7 +491,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -480,7 +507,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -499,7 +527,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -519,7 +548,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -539,7 +569,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -558,7 +589,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -578,7 +610,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -598,7 +631,8 @@
       "signals": {
         "taggable": true,
         "list_resource": false,
-        "identity_schema": false
+        "identity_schema": false,
+        "importable": true
       },
       "evidence": "no identity schema in v6.59.0; taggable, so recoverable by tag-filtered list"
     },
@@ -608,7 +642,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -628,7 +663,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -648,7 +684,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -668,7 +705,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -690,7 +728,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -710,7 +749,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -725,7 +765,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -740,7 +781,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -755,7 +797,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -779,7 +822,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -799,7 +843,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -822,7 +867,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -844,7 +890,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -862,7 +909,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -882,7 +930,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -902,7 +951,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -922,7 +972,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -942,7 +993,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -962,7 +1014,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -982,7 +1035,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1002,7 +1056,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1022,7 +1077,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1037,7 +1093,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1057,7 +1114,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1077,7 +1135,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1092,7 +1151,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1107,7 +1167,8 @@
       "signals": {
         "taggable": false,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1122,7 +1183,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1137,7 +1199,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1157,7 +1220,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1177,7 +1241,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1197,7 +1262,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1217,7 +1283,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [
@@ -1236,7 +1303,8 @@
       "signals": {
         "taggable": true,
         "list_resource": true,
-        "identity_schema": true
+        "identity_schema": true,
+        "importable": true
       },
       "identity": {
         "required_for_import": [

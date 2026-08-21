@@ -172,13 +172,13 @@ func run(initBin string, all, accept bool) error {
 	}
 	defer os.RemoveAll(workdir)
 
-	schemas, err := acquireSchemas(initBin, workdir, os.Stderr)
+	schemas, importable, err := acquireSchemas(initBin, workdir, os.Stderr)
 	if err != nil {
 		return err
 	}
 
 	today := time.Now().UTC().Format("2006-01-02")
-	return writeSurveys(root, schemas, roster, all, accept, today, os.Stderr)
+	return writeSurveys(root, schemas, importable, roster, all, accept, today, os.Stderr)
 }
 
 // writeSurveys writes live/survey.json from the curated roster and, when
@@ -196,7 +196,7 @@ func run(initBin string, all, accept bool) error {
 // 1): when accept is true, both written artifacts carry today verbatim in
 // their accepted field; when it is false, today is unused and the field is
 // left unset, which is how an unreviewed regeneration surfaces in the diff.
-func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, roster []HandRow, all, accept bool, today string, log io.Writer) error {
+func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, importable map[string]bool, roster []HandRow, all, accept bool, today string, log io.Writer) error {
 	// The CFN service per Terraform type, for parentRef's suffix-match
 	// affinity (issue #167). live/mapping.json is the only thing that knows
 	// two differently-prefixed types belong to one AWS service, and the
@@ -208,7 +208,7 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 	serviceOf := identity.ServiceOf(reg.ServiceOf)
 	enumerate := rosterEnumeration(reg)
 
-	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf, enumerate)
+	survey := buildSurvey(schemas, rosterTypes(roster), serviceOf, enumerate, importable)
 	if accept {
 		survey.Accepted = today
 	}
@@ -228,7 +228,7 @@ func writeSurveys(root string, schemas providers.GetProviderSchemaResponse, rost
 		return nil
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf, enumerate)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), serviceOf, enumerate, importable)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	if accept {
 		full.Accepted = today

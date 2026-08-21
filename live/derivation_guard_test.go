@@ -187,6 +187,13 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"experiment; deriving them would make the check circular.",
 		Data: 0, Code: 2,
 	},
+	"tools/row-gen/notimportable.go": {
+		Reason: "notImportableExempt: aws_acm_certificate_validation, the one type issue #331's importable=false veto must not " +
+			"act on. classify.go's 2026-08-17 ruling already admits it on the nameability axis (identity.Derivable resolves " +
+			"certificate_arn from configuration, no Importer ever in that path); the importability gap is new evidence on a " +
+			"different axis and reversing the ruling over it is the maintainer's call, not a mechanical veto tied to this fix.",
+		Data: 1, Code: 0,
+	},
 	"tools/importer-probe/main.go": {
 		Reason: "controlTypes: four types with a documented Import section (issue #331), probed alongside the " +
 			"identity_schema_wire_only bucket - itself read at runtime from live/identity-sources.json, not hand-listed " +
@@ -289,7 +296,13 @@ const (
 	// this file gains only the control set, same shape as tools/wo-sweep's
 	// own two-literal control immediately above it in the registry. Four
 	// Data literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 430
+	// 430 -> 431 data, 2026-08-20 (issue #331's derived fix): new
+	// tools/row-gen/notimportable.go's notImportableExempt, one entry -
+	// aws_acm_certificate_validation, the type the new importable=false veto
+	// must not act on because classify.go already rules it admitted on a
+	// different axis (nameability). One Data literal added, no Code, nothing
+	// moved.
+	typeLiteralDataTotal = 431
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
@@ -318,6 +331,7 @@ var generatedTypeLiteralFiles = []string{
 	"internal/live/identity/docimportid_generated.go",
 	"internal/live/identity/idnotwhole_generated.go",
 	"internal/live/identity/markerless_generated.go",
+	"internal/live/identity/notimportable_generated.go",
 	"internal/live/identity/table_generated.go",
 	"internal/live/lint/admission_generated.go",
 }

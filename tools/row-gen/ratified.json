@@ -6873,12 +6873,6 @@
       "name"
     ]
   },
-  "aws_iot_ca_certificate": {
-    "type": "aws_iot_ca_certificate",
-    "server_assigned": true,
-    "reason": "IoT mints the CA certificate's own id at create time; the pinned v6.59.0 provider docs carry no Import section at all, so this identity is registry-backed only (CloudFormation's AWS::IoT::CACertificate declares Id its sole, read-only primaryIdentifier, issue #40's registry-backed admission path).",
-    "import_syntax": "ID"
-  },
   "aws_iot_domain_configuration": {
     "type": "aws_iot_domain_configuration",
     "components": [
@@ -7936,21 +7930,6 @@
     "import_syntax": "NAME",
     "identity_attrs": [
       "name"
-    ]
-  },
-  "aws_lightsail_domain": {
-    "type": "aws_lightsail_domain",
-    "components": [
-      {
-        "attrs": [
-          "domain_name"
-        ],
-        "identity_attr": "*"
-      }
-    ],
-    "import_syntax": "DOMAIN_NAME",
-    "identity_attrs": [
-      "domain_name"
     ]
   },
   "aws_lightsail_domain_entry": {

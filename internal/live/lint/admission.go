@@ -53,6 +53,9 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	if markerlessVetoed(resourceType) {
 		return false
 	}
+	if notImportableVetoed(resourceType) {
+		return false
+	}
 	if len(schemas) == 0 {
 		return false
 	}
@@ -82,6 +85,31 @@ func markerlessVetoed(resourceType string) bool {
 		return false
 	}
 	_, vetoed := identity.MarkerlessTypes[resourceType]
+	return vetoed
+}
+
+// notImportableVetoed reports whether resourceType is refused because the
+// provider reports no classic Importer for it at all (issue #331) - a fact
+// [identity.SynthesizeTypeIdentity]'s schema fallback cannot see, since it
+// derives an identity from the schemas and never asks whether
+// ImportResourceState itself works. A wire identity schema or a taggable
+// marker path can both be genuinely correct and the type can still fail
+// "resource ... doesn't support import" the moment a real migrate calls it -
+// [identity.NotImportableTypes] is tools/survey-gen's own probe of that
+// question, not an inference from something else.
+//
+// Same table-wins-over-veto ordering [markerlessVetoed] uses, and for the
+// same reason: a ratified row is a batch's explicit decision, and this
+// predicate must not contradict one still standing in the table. Retracting
+// a wrongly-admitted ratified row (issue #331 found two:
+// aws_iot_ca_certificate, aws_lightsail_domain) is tools/row-gen -emit's job -
+// see notimportable.go's own doc comment for why the veto has to reach the
+// table as well as the schema fallback, not one or the other.
+func notImportableVetoed(resourceType string) bool {
+	if _, ok := admittedTypesV0[resourceType]; ok {
+		return false
+	}
+	_, vetoed := identity.NotImportableTypes[resourceType]
 	return vetoed
 }
 

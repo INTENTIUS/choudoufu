@@ -323,7 +323,13 @@ func buildProposeReport(root string) (report, summary string, err error) {
 		return "", "", fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
 	}
 	contentMatch := contentMatchSet(contentMatchRoster(proposals, importGrammar, schemaFacts))
-	vetoed := setOf(markerlessRoster(ratified, survey, proposals, importGrammar, uniqueNameRows(ratified, survey, proposals, importGrammar), contentMatch))
+	// The veto set PROPOSE checks candidates against is the same union
+	// buildEmitFiles feeds emittedRows (issue #331): a type with no classic
+	// Importer is exactly as unproposable as a markerless one, for the same
+	// reason - a row would promise support a real migrate cannot deliver.
+	vetoed := setOf(append(
+		markerlessRoster(ratified, survey, proposals, importGrammar, uniqueNameRows(ratified, survey, proposals, importGrammar), contentMatch),
+		notImportableRoster(survey)...))
 
 	candidates := selectProposeCandidates(proposals, admitted, rejected, vetoed, qualifying)
 

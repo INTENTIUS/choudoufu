@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1040,
-    "compared": 1025,
+    "admitted_total": 1038,
+    "compared": 1023,
     "not_in_mapped_set": 15,
-    "adopted_unchanged": 878,
-    "adopted_unchanged_pct": 85.66,
+    "adopted_unchanged": 876,
+    "adopted_unchanged_pct": 85.63,
     "genuine_mismatches": 147,
     "annotated": 147,
     "unannotated_mismatches": 0,
@@ -488,8 +488,8 @@
       "adopted_unchanged_pct": 100
     },
     "IoT": {
-      "compared": 11,
-      "adopted_unchanged": 11,
+      "compared": 10,
+      "adopted_unchanged": 10,
       "adopted_unchanged_pct": 100
     },
     "KMS": {
@@ -543,9 +543,9 @@
       "adopted_unchanged_pct": 50
     },
     "Lightsail": {
-      "compared": 15,
-      "adopted_unchanged": 10,
-      "adopted_unchanged_pct": 66.67
+      "compared": 14,
+      "adopted_unchanged": 9,
+      "adopted_unchanged_pct": 64.29
     },
     "Location": {
       "compared": 6,
@@ -6387,14 +6387,6 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_iot_ca_certificate",
-      "service": "IoT",
-      "proposed_bucket": "server-assigned",
-      "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_iot_domain_configuration",
       "service": "IoT",
       "proposed_bucket": "client-named",
@@ -7097,20 +7089,9 @@
       "annotated": false
     },
     {
-      "tf_type": "aws_lightsail_domain",
-      "service": "Lightsail",
-      "proposed_bucket": "client-named",
-      "proposed_rule": "import-grammar precedence: the guessed argument name is confirmed as a Required top-level argument in the provider's own Argument Reference",
-      "cosmetic_notes": [
-        "identity-attrs-not-proposed (issue #44 non-goal)"
-      ],
-      "matched": true,
-      "annotated": false
-    },
-    {
       "tf_type": "aws_lightsail_domain_entry",
       "service": "Lightsail",
-      "proposed_bucket": "fold-child",
+      "proposed_bucket": "evidence-only",
       "proposed_rule": "via==fold: property-child of AWS::Lightsail::Domain",
       "mismatch_classes": [
         "components"

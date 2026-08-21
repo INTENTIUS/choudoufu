@@ -217,6 +217,26 @@ type Signals struct {
 	// IdentitySchema: the provider ships a resource identity schema for
 	// the type.
 	IdentitySchema bool `json:"identity_schema"`
+
+	// Importable: the provider's classic ImportState reports a real
+	// Importer for the type rather than "doesn't support import" (SDKv2) or
+	// "Resource Import Not Implemented" (the plugin framework) - schemas.go's
+	// probeImportability, one extra ImportResourceState RPC per type with a
+	// syntactically invalid dummy ID, over the same provider connection this
+	// tool already launches to read the schema.
+	//
+	// Issue #331: a resource identity schema is not proof of this. Six types
+	// in the identity_schema_wire_only bucket carry one and no documented
+	// Import section; the audit that opened this field found two of the six
+	// have no Importer at all (aws_iam_policy_attachment,
+	// aws_acm_certificate_validation) and would hard-fail
+	// "resource ... doesn't support import" the moment a real migrate calls
+	// ImportResourceState, while the other four import fine. Taggability is
+	// not proof either: aws_iot_ca_certificate and aws_lightsail_domain are
+	// both admitted on other evidence (a ratified row, an enumeration path)
+	// and both have no Importer. This is the one signal that answers the
+	// question directly instead of inferring it from something else.
+	Importable bool `json:"importable"`
 }
 
 // IdentityAttrs is the identity schema's attribute composition.
@@ -237,7 +257,7 @@ type IdentityAttrs struct {
 // artifact on its own is harder to test than one handed the answer.
 // enumerate is the same arrangement for the Cloud Control listing question;
 // see cfnEnumeration.
-func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, service identity.ServiceOf, enumerate cfnEnumeration) Survey {
+func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, service identity.ServiceOf, enumerate cfnEnumeration, importable map[string]bool) Survey {
 	// The strict client-named judgment is identity.Derivable's, not this
 	// tool's: it is the one classifier that already knows the
 	// Optional+Computed trap (aws_s3_bucket.bucket and aws_vpc.id are the
@@ -277,7 +297,7 @@ func buildSurvey(schema providers.GetProviderSchemaResponse, roster []string, se
 	sorted := append([]string(nil), roster...)
 	sort.Strings(sorted)
 	for _, typeName := range sorted {
-		row := classify(typeName, schema, derivable, allTypes, service, enumerate)
+		row := classify(typeName, schema, derivable, allTypes, service, enumerate, importable[typeName])
 		if c, ok := report.Admits(typeName); ok {
 			row.Admission = string(c.Admits)
 		}
@@ -342,7 +362,7 @@ func allResourceTypeNames(schema providers.GetProviderSchemaResponse) []string {
 // reads. It is passed in for the same reason service is: the fact lives in
 // live/mapping.json and live/registry.json, and a classifier handed the
 // answer is easier to test than one that reaches for an artifact.
-func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string, service identity.ServiceOf, enumerate cfnEnumeration) Row {
+func classify(typeName string, schema providers.GetProviderSchemaResponse, derivable map[string]identity.DerivableType, allTypes []string, service identity.ServiceOf, enumerate cfnEnumeration, importable bool) Row {
 	rs := schema.ResourceTypes[typeName]
 	_, hasList := schema.ListResourceTypes[typeName]
 
@@ -352,6 +372,7 @@ func classify(typeName string, schema providers.GetProviderSchemaResponse, deriv
 			Taggable:       taggable(rs.Block),
 			ListResource:   hasList,
 			IdentitySchema: rs.IdentitySchema != nil,
+			Importable:     importable,
 		},
 	}
 	if rs.IdentitySchema != nil {
