@@ -1359,33 +1359,35 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			addTo(comp.identityAttrFor(attr.Name), got)
 			continue
 		}
+		diagMark := len(r.diags)
+		var got []Part
+		var ok, resolvedHere bool
 		if comp.SoleElement {
 			// GitHub issue #346: on the each.value-as-an-EXPRESSION route the
 			// list construct is in the element, not in the argument, so the
-			// one-element rule has to be applied one selection in. It resolves
-			// there too, because the narrowed expression belongs to the
-			// caller's module rather than this one. Not applicable to any
-			// other shape, which falls through to the syntactic narrowing
-			// below exactly as it always has. See
-			// [resolver.eachValueSoleElement].
-			if got, gotOK, applicable := r.eachValueSoleElement(expr, scope, attr, ident); applicable {
-				if !gotOK {
+			// one-element rule has to be applied one selection in - and it
+			// resolves there too, because the narrowed expression belongs to
+			// the caller's module rather than to this one, which is why this
+			// returns parts instead of an expression the way the syntactic
+			// narrowing below does. Not applicable to any other shape, which
+			// falls through to that narrowing exactly as it always has. The
+			// failure path is deliberately shared with resolveExpr's below,
+			// so [Component.OmitIfAbsent] and [Component.Literal] mean the
+			// same thing on both routes. See [resolver.eachValueSoleElement].
+			if g, gotOK, applicable := r.eachValueSoleElement(expr, scope, attr, ident); applicable {
+				got, ok, resolvedHere = g, gotOK, true
+			} else {
+				narrowed, narrowOK := r.soleElementExpr(expr, scope, attr, ident)
+				if !narrowOK {
 					fail(sibBefore, attr.Name)
 					continue
 				}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(attr.Name), got)
-				continue
+				expr = narrowed
 			}
-			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
-			if !ok {
-				fail(sibBefore, attr.Name)
-				continue
-			}
-			expr = narrowed
 		}
-		diagMark := len(r.diags)
-		got, ok := r.resolveExpr(expr, scope, ident)
+		if !resolvedHere {
+			got, ok = r.resolveExpr(expr, scope, ident)
+		}
 		if !ok {
 			// [Component.OmitIfAbsent]'s omission is not only syntactic. A
 			// for_each-driven module's ordinary way to say "this instance
