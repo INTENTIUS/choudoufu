@@ -105,7 +105,10 @@ func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 
 	if !analysis.Scoped() {
 		for _, src := range analysis.Demanded() {
-			if src.Eligible {
+			if src.Eligible || src.OutOfScope {
+				// OutOfScope is the one ineligibility this contract does not
+				// treat as a hole: the plan graph does not contain the block
+				// either. See [Source.OutOfScope].
 				continue
 			}
 			diags = diags.Append(&hcl.Diagnostic{
@@ -155,6 +158,11 @@ func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 				copy(failed, r.diags[mark:])
 				r.diags = append(r.diags[:mark], tfdiags.OverrideAll(failed, tfdiags.Warning, nil)...)
 			}
+			continue
+		}
+		if !src.Eligible {
+			// Only [Source.OutOfScope] can reach here: every other
+			// ineligibility already returned above. Not read, not raised.
 			continue
 		}
 		if !r.readSource(src) {

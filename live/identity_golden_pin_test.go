@@ -1139,7 +1139,25 @@ const (
 	// #353: one new fixture root, live/e2e/provisioner-taint, contributing
 	// five aws_s3_bucket instances. See identityGoldenPinInstances' own
 	// comment directly above.
-	identityGoldenPinDirs = 511
+	//
+	// Then 511 -> 515 dirs for the 2026-08-21 data-read safety audit: four
+	// more fixture directories - internal/live/dataread/testdata's
+	// identity-local-execution (a local-execution data source in an
+	// identity-bearing position), scope-recursion (an out-of-scope data
+	// source reached only through classify's recursion) and
+	// aliased-provider-source (a required_providers entry binding a local
+	// name to a provider that does not serve the type), plus
+	// internal/live/projection/testdata/output-eval-sensitive (a root output
+	// reaching a sensitive schema attribute). Same reason as every entry
+	// above: external, test_thing and stub_cert are not admitted types, and
+	// the one aws_cloudwatch_log_group pair in identity-local-execution
+	// resolves no instance without schemas, so none of the four contributes
+	// a row. identityGoldenPinInstances and identityGoldenPinBodyDigest are
+	// both unchanged, confirmed by diffing testdata/identity-golden.txt
+	// before and after regenerating - only the header's "dirs=" line moved,
+	// and TestIdentityGolden itself reported "differs but no instance's
+	// identity did".
+	identityGoldenPinDirs = 515
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

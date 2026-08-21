@@ -213,7 +213,7 @@ func TestRootOutputReadDoesNotAbortOnAnIneligibleOrFailingSource(t *testing.T) {
 // being measurements rather than a list of provider names.
 func TestLiveProvidersIsDerivedNotListed(t *testing.T) {
 	cfg := loadConfigTree(t, filepath.Join("testdata", "root-output-data"), nil)
-	live := LiveProviders(cfg)
+	live := LiveProviders(cfg, nil)
 
 	if !live[addrs.NewDefaultProvider("test")] {
 		t.Errorf("the test provider is not live even though this configuration manages test_thing.a through it")

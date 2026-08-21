@@ -58,8 +58,12 @@ var refusals = []Refusal{
 		What:    "The provider returned an error for a pre-resolution data-source read, quoted verbatim. Fatal for the run: resolution built on a missing value would plan to create things that exist.",
 	},
 	{
+		Summary: SummaryOutOfScope,
+		What:    "A data source the phase would otherwise read is outside the set of resource blocks this run's -target or -exclude leaves in the plan graph. It is not read, and nothing is refused over it: the plan does not act on that block either.",
+	},
+	{
 		Summary: SummaryProviderNotLive,
-		What:    "A data source a root output's value reaches belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads. The read is skipped and the output shows its planned value as new; nothing else in the run is affected.",
+		What:    "A data source the phase must read belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads - and a provider reached only through its data sources may run a program on the machine running the plan (data \"external\"). For a source an identity needs, this refuses the run. For a source only a root output's value reaches, the read is skipped and the output shows its planned value as new; nothing else in the run is affected.",
 	},
 	{
 		Summary: SummaryEligibleRead,
@@ -77,6 +81,11 @@ var refusals = []Refusal{
 // plan renders it as newly created and everything else proceeds. See
 // [ReadForOutputs].
 //
+// [SummaryProviderNotLive] answers true because it can now be raised for
+// EITHER class: the boundary it names applies to identity demand as well
+// (see [LiveProviders]), and there it refuses the run. A Summary is labelled
+// by the worst it can do, not by the commonest.
+//
 // It exists because tools/limits-gen labels a refusal `error` unless the
 // raising layer says otherwise, and lint and discovery were the only two
 // layers with anything to say. A scoped refusal rendered as a blocker in
@@ -85,10 +94,10 @@ var refusals = []Refusal{
 // blockers.
 func StopsTheRun(summary string) bool {
 	switch summary {
-	case SummaryProviderNotLive:
-		// Raised only for a root-output demand, and in fact never raised as
-		// a diagnostic at all: the source is skipped in silence and the
-		// plan's own "+ name = ..." line is the report.
+	case SummaryOutOfScope:
+		// Never fatal for either class: the plan graph does not contain the
+		// block, so not reading it costs this run nothing. See
+		// [Source.OutOfScope].
 		return false
 	case SummaryEligibleRead:
 		// Not a refusal at all - live-check's "this resolves at plan time"

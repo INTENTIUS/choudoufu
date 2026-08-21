@@ -121,6 +121,37 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		if !val.IsWhollyKnown() {
 			continue
 		}
+		// Marks come off before the value is stored, and this is a crash fix
+		// rather than tidiness.
+		//
+		// A real state file's output values carry no cty marks - marks are an
+		// in-memory evaluation artifact and do not survive serialization - and
+		// the plan graph relies on that. NodeApplyableOutput.setValue
+		// (internal/tofu/node_output.go) unmarks the value it is comparing and
+		// then evaluates unmarkedVal.Equals(before).True() against the value
+		// it read out of state, saying in its own comment that "the state will
+		// have been loaded without any marks to consider". cty.Value.Equals
+		// propagates its operands' marks onto its result and True() calls
+		// assertUnmarked, so a marked `before` PANICS the run.
+		//
+		// This evaluation is not reading a state file, it is reading the
+		// projection, so its values arrive with the sensitivity marks
+		// internal/tofu/evaluate.go applies from the schema. Any root output
+		// whose value reaches a sensitive attribute - a
+		// data.aws_secretsmanager_secret_version.v.secret_string, a managed
+		// resource's password argument - was one of these.
+		//
+		// Nothing downstream needs the marks: SetOutputValue takes
+		// sensitivity as its own parameter, from the output block's own
+		// `sensitive`, which is what the plan graph compares against
+		// (n.Config.Sensitive == sensitiveBefore) and what the renderer hides
+		// on. The mark carried no information the stored record does not.
+		//
+		// This is not tonight's regression. It has been reachable since #348
+		// first stored output values, for any root output reaching a sensitive
+		// MANAGED attribute; widening the read class to data sources made it
+		// common rather than made it possible.
+		val, _ = val.UnmarkDeep()
 		root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
 	}
 	return diags

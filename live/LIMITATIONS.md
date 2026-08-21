@@ -1610,7 +1610,8 @@ refused, and each says so in its own entry.
 | 1 | 1 | identity | Two resources with the same identity | error | `internal/live/identity` | "duplicate-identity" |
 | 0 | 0 | dataread | Cross-stack outputs unavailable | error | `internal/live/dataread` | "Cross-stack outputs unavailable" |
 | 0 | 0 | dataread | Cross-stack state unavailable | error | `internal/live/dataread` | "Cross-stack state unavailable" |
-| - | - | dataread | Data source provider manages no live object here | warning | `internal/live/dataread` | "Data source provider manages no live object here" |
+| - | - | dataread | Data source outside this run's -target scope | warning | `internal/live/dataread` | "Data source outside this run's -target scope" |
+| - | - | dataread | Data source provider manages no live object here | error | `internal/live/dataread` | "Data source provider manages no live object here" |
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
@@ -1777,7 +1778,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**195 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**196 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -1953,9 +1954,17 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Data source outside this run's -target scope
+
+**What.** A data source the phase would otherwise read is outside the set of resource blocks this run's -target or -exclude leaves in the plan graph. It is not read, and nothing is refused over it: the plan does not act on that block either.
+
+**Where.** The dataread pass, raised by `internal/live/dataread`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Data source provider manages no live object here
 
-**What.** A data source a root output's value reaches belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads. The read is skipped and the output shows its planned value as new; nothing else in the run is affected.
+**What.** A data source the phase must read belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads - and a provider reached only through its data sources may run a program on the machine running the plan (data "external"). For a source an identity needs, this refuses the run. For a source only a root output's value reaches, the read is skipped and the output shows its planned value as new; nothing else in the run is affected.
 
 **Where.** The dataread pass, raised by `internal/live/dataread`.
 

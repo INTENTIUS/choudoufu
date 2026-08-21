@@ -491,7 +491,7 @@ every identity refusal.
 env -u PWD go test ./internal/live/check/ -run TestIdentityGolden
 ```
 
-1577 rendered identities across 511 configuration directories in under a
+1577 rendered identities across 515 configuration directories in under a
 second, with no generator, schemas or network. Address, class, `ImportID`,
 identity attributes.
 
