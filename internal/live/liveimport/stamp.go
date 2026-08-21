@@ -191,12 +191,19 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 		return out
 	}
 
-	wrote, err := projection.SeedRecordForInstance(ctx, store, keyPrefix, addr, rec.value, rec.private, rec.status)
+	seeded, err := projection.SeedRecordForInstance(ctx, store, keyPrefix, addr, rec.value, rec.private, rec.status)
 	switch {
 	case err != nil:
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The record store could not be seeded for this %s: %s. Nothing was written, and the first live-plan after this migration will propose creating it.", rec.typeName, err)
-	case wrote:
+	case seeded == projection.SeedMarksAdded:
+		// GitHub issue #344's case. Reported as recorded because the store
+		// really was written, and said differently from a fresh record
+		// because an operator re-migrating an estate is entitled to know
+		// that the value was already there and only its sensitivity moved.
+		out.Outcome = OutcomeRecorded
+		out.Detail = "The record store already held this exact object, recorded before choudoufu persisted which of its attributes are sensitive; rewrote it to carry them. The value itself is unchanged."
+	case seeded.Wrote():
 		out.Outcome = OutcomeRecorded
 		out.Detail = "Wrote the state's own object into this estate's record store; there is no live object to tag."
 	default:
