@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=521 instances=1589
-# shape: class CONCRETE=790
-# shape: class NEEDS_DISCOVERY=663
-# shape: class PARENT_DERIVED=115
+# shape: dirs=524 instances=1592
+# shape: class CONCRETE=791
+# shape: class NEEDS_DISCOVERY=664
+# shape: class PARENT_DERIVED=116
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=a6df4368705c9ffd7e160b6d168d786785d08727cb5fce0d69fbeb83484715c5
+# shape: body-sha256=0ead9a814e0f3009883241324202c3def7067bd7d53804133cb38937db5139d8
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -395,6 +395,9 @@ internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_
 internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_two.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2447_2447_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2447,protocol=tcp,security_group_id=sg-fixed,to_port=2447,type=ingress
 internal/live/identity/testdata/module-output-sibling-computed	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-output-sibling-computed/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-whole-resource	module.alb.aws_lb_target_group.this["ex_asg"]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-whole-resource	module.asg.aws_autoscaling_policy.this["p1"]	CONCRETE	asg-fixed/p1	autoscaling_group_name=asg-fixed,name=p1
+internal/live/identity/testdata/module-output-whole-resource	module.asg.aws_autoscaling_traffic_source_attachment.this["ex-alb"]	PARENT_DERIVED	asg-fixed,elbv2,${module.alb.aws_lb_target_group.this["ex_asg"].arn}	autoscaling_group_name=asg-fixed,identifier=${module.alb.aws_lb_target_group.this["ex_asg"].arn},type=elbv2
 internal/live/identity/testdata/module-output/role	aws_iam_role.this	CONCRETE	worker	name=worker
 internal/live/identity/testdata/module-provider-region	aws_arczonalshift_autoshift_observer_notification_status.root	CONCRETE	us-east-1	
 internal/live/identity/testdata/module-provider-region	aws_sqs_queue.root	NEEDS_DISCOVERY		

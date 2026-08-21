@@ -129,6 +129,21 @@ func (r *resolver) eachValueSelect(trav hcl.Traversal, scope instScope, ident co
 		rest = append(rest, step)
 	}
 
+	// A binding that crossed a declared type answers for one string-typed
+	// attribute of that type and for nothing else. See [elemBinding.declTy]
+	// and [declaredAttrString], which is the whole of the rule; a selection
+	// it does not cover is undecided, never absent, so nothing falls back
+	// over it.
+	if b.declTy != cty.NilType {
+		switch declaredAttrString(b.declTy, rest) {
+		case declAttrString:
+		case declAttrMissing:
+			return nil, eachAttrAbsent
+		default:
+			return nil, eachAttrUndecided
+		}
+	}
+
 	// The element expression belongs to the module it was WRITTEN in, which
 	// is the calling module whenever the for_each source came through a
 	// module variable - [resolver.namedDef]'s hop, whose own restore() ran
@@ -149,10 +164,149 @@ func (r *resolver) eachValueSelect(trav hcl.Traversal, scope instScope, ident co
 		// Present, and this package cannot resolve it. Whatever the reason,
 		// the attribute is NOT absent, so nothing may fall back over it.
 		return nil, eachAttrUnresolved
+	case b.declTy != cty.NilType:
+		// The declared type already said the attribute IS there, and a
+		// constructor that does not write it is a caller relying on
+		// optional()'s default rather than an element without it. So the
+		// constructor may not be read for absence here; the reference is
+		// undecided and refuses.
+		return nil, eachAttrUndecided
 	case r.eachAttrAbsent(b.expr, b.scope, rest, ident):
 		return nil, eachAttrAbsent
 	}
 	return nil, eachAttrUndecided
+}
+
+// eachValueDeferredParts is GitHub issue #354's answer, and it is a layering
+// rather than a new representation.
+//
+// The issue asks whether the VALUE-shaped route can carry a deferred parent
+// read. It cannot: a deferred read is a [ParentRef] and there is no cty.Value
+// that stands for one, so [rebuildConstructor] substitutes cty.DynamicVal for
+// a leaf it cannot answer and every gate downstream correctly refuses the
+// unknown that produces. What can be done instead is to keep BOTH answers for
+// one for_each element - the converted value, which is what the module sees
+// and is right about every attribute it knows, and the caller's own
+// expression, which is right about the one attribute the value does not know -
+// and to consult the second only where the first came back unknown.
+//
+// That ordering is the whole safety argument, and it is enforced by
+// construction rather than by care: [instScope.eachValueDeferred] is invisible
+// to [resolver.isSymbolic], so the argument is evaluated exactly as it is
+// today, and this runs only after [resolver.stringValueIn] has already refused
+// the result as not wholly known. An argument that resolves today cannot
+// reach here at all.
+//
+// Three further conditions, each load-bearing:
+//
+//   - The selection has to be an each.value one, in either of the two
+//     spellings [resolver.eachValueSelector] reads - `each.value.attr` and
+//     `lookup(each.value, "attr", fallback)`. Anything else is a different
+//     unknown with a different cause and is left refused.
+//   - Where the binding crossed a declared type, [declaredAttrString] has to
+//     say the type declares that attribute a STRING. prepareFinalInputVariableValue
+//     converts the caller's value to the declared type before the module sees
+//     it, and only for a string is that conversion the identity function - the
+//     #251 defect is exactly what happens when a package renders the raw value
+//     where OpenTofu renders a converted one.
+//   - Only a successful resolution is taken. A selection that lands on
+//     something this package refuses leaves stringValueIn's own diagnostic
+//     standing, unreplaced, and this function's own probe is rolled back so no
+//     second one is stapled on top of it.
+//
+// The estate that found it is `corpus-autoscaling-complete`:
+// terraform-aws-modules/autoscaling declares
+// `map(object({ traffic_source_identifier = string, ... }))` and the caller
+// writes `{ ex-alb = { traffic_source_identifier = module.alb.target_groups["ex_asg"].arn } }`.
+// The conversion produces an object whose traffic_source_identifier is unknown
+// and whose traffic_source_type is the type default; before this, the unknown
+// refused the identity outright, and now it resolves to a formula over the
+// target group's own arn.
+func (r *resolver) eachValueDeferredParts(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
+	b := scope.eachValueDeferred
+	if b == nil || b.expr == nil {
+		return nil, false
+	}
+	steps, ok := r.eachValueSelector(expr, scope, ident)
+	if !ok || len(steps) == 0 {
+		// Zero steps is a bare each.value, which is the whole element: the
+		// bound value already IS the element and an unknown in it is not one
+		// attribute's problem to fix.
+		return nil, false
+	}
+	if b.declTy != cty.NilType && declaredAttrString(b.declTy, steps) != declAttrString {
+		return nil, false
+	}
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(b.modInst) {
+		return nil, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	mark, sibMark := len(r.diags), len(r.pendingSiblingApply)
+	parts, resolved, applicable := r.selectStatic(b.expr, steps, b.scope, ident, 0)
+	if !applicable || !resolved {
+		r.diags = r.diags[:mark]
+		r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+		return nil, false
+	}
+	return parts, true
+}
+
+// declAttrVerdict is what [declaredAttrString] can say about one selection
+// against the type an element has inside the module.
+type declAttrVerdict int
+
+const (
+	// declAttrUnknown: the selection is not one this can rule on - more than
+	// one step, a non-attribute step, a map or dynamic type that constrains
+	// nothing, or an attribute whose declared type is not a string.
+	declAttrUnknown declAttrVerdict = iota
+
+	// declAttrMissing: the type is an object type and does not declare the
+	// attribute at all, so the module cannot see it whatever the caller
+	// wrote. This is a STRONGER absence proof than the caller's own
+	// constructor: a conversion drops an attribute the type does not have.
+	declAttrMissing
+
+	// declAttrString: the type declares the attribute and declares it a
+	// string, so prepareFinalInputVariableValue's conversion of that one
+	// attribute is the identity function and the caller's own expression for
+	// it is what the module sees.
+	declAttrString
+)
+
+// declaredAttrString rules on one selection against a declared element type.
+//
+// Exactly one attribute step is accepted. Nothing here walks deeper: a second
+// step asks about the type of an attribute of an attribute, where optional()
+// defaults, collection conversions and nested object types all apply again,
+// and answering it would mean re-deriving prepareFinalInputVariableValue
+// rather than reading one line of the declaration. A deeper selection is
+// undecided, which costs a resolution and claims nothing.
+//
+// A MAP element type is deliberately not accepted either, even though its
+// element type is as readable as an object attribute's: a map declares no
+// attribute names, so nothing here could ever answer declAttrMissing for one,
+// and a rule that can only ever say "string" would let a key the module does
+// not have look present. Object types are the shape this exists for and the
+// only one it rules on.
+func declaredAttrString(ty cty.Type, rest []hcl.Traverser) declAttrVerdict {
+	if len(rest) != 1 || !ty.IsObjectType() {
+		return declAttrUnknown
+	}
+	name, ok := stepKeyString(rest[0])
+	if !ok {
+		return declAttrUnknown
+	}
+	if !ty.HasAttribute(name) {
+		return declAttrMissing
+	}
+	if at := ty.AttributeType(name); at == cty.String || at == cty.DynamicPseudoType {
+		return declAttrString
+	}
+	return declAttrUnknown
 }
 
 // eachValueSelector decomposes an identity argument that reads one attribute
@@ -173,7 +327,7 @@ func (r *resolver) eachValueSelect(trav hcl.Traversal, scope instScope, ident co
 // have it" is a different outcome for it than for the three-argument form, and
 // this function would flatten the two.
 func (r *resolver) eachValueSelector(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]hcl.Traverser, bool) {
-	if scope.eachValueExpr == nil {
+	if scope.eachValueExpr == nil && scope.eachValueDeferred == nil {
 		return nil, false
 	}
 	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() {
@@ -283,6 +437,16 @@ func (r *resolver) resolveLookupCall(call *hclsyntax.FunctionCallExpr, scope ins
 func (r *resolver) eachValueSoleElement(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
 	b := scope.eachValueExpr
 	if b == nil || b.expr == nil {
+		return nil, false, false
+	}
+	if b.declTy != cty.NilType {
+		// A binding that crossed a declared type carries no promise about a
+		// COLLECTION it holds: `list(string)` given a tuple, or an attribute
+		// the type declares as a set, both reshape what the module sees, and
+		// the one-element rule is a claim about that shape. Only the
+		// string-typed single attribute [declaredAttrString] admits survives
+		// the hop, and a string is not a collection, so there is nothing here
+		// for this to narrow.
 		return nil, false, false
 	}
 	steps, stepsOK := r.eachValueSelector(expr, scope, ident)

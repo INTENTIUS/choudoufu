@@ -374,16 +374,22 @@ gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 a
 # the estate is still 2 of 5. Neither remaining one is specific to
 # autoscaling, and neither is in issue #353's scope:
 #
-#   1. "Non-static identity argument" on
+#   1. FIXED (GitHub issue #354). "Non-static identity argument" on
 #      module.complete.aws_autoscaling_traffic_source_attachment.this["ex-alb"].identifier
 #      (main.tf:1102, `identifier = each.value.traffic_source_identifier`,
-#      which reaches module.complete_alb's target-group ARN). This is #346's
-#      wall - an identity argument reading another managed resource's
-#      non-identity Computed attribute - one spelling further out than the
-#      corpus-vpc-complete/corpus-rds-complete-postgres/corpus-ecs-fargate
-#      form. #346 is unresolved by maintainer decision and needs a design
-#      pass, not code.
-#   2. "Ambiguous list-valued identity argument" on
+#      which reaches module.complete_alb's target-group ARN) stood here until
+#      #354's layered binding: the for_each element's converted VALUE is
+#      still the binding, and the caller's own expression for it is now kept
+#      beside it for the attributes of that value that came back unknown.
+#      The argument resolves PARENT_DERIVED to
+#      asg-fixed,elbv2,${module.alb.aws_lb_target_group.this["ex_asg"].arn}
+#      in the reduced fixture
+#      internal/live/identity/testdata/module-output-whole-resource, and its
+#      diagnostic is asserted ABSENT in stage 3 below. Measured offline over
+#      this estate: 5 refusals across 230 sites with 48 instances resolved ->
+#      4 across 229 with 49.
+#   2. STILL STANDING, and now the only identity refusal left:
+#      "Ambiguous list-valued identity argument" on
 #      module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids,
 #      which "has 0 elements" - the Component.SoleElement refusal, whose own
 #      registry text (internal/live/identity/refusals.go) already states
@@ -400,6 +406,13 @@ rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 
 plan_into() { ( cd "$ADOPTED" && "$TOFU" live-plan -input=false -no-color ); }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
+# GitHub issue #354, asserted here rather than only in a unit test: the
+# traffic-source attachment's identity argument must contribute NO diagnostic
+# at all. Checked before the exit-code assertion below so that a regression
+# names itself rather than arriving as "live-plan exited 1" among the
+# Component.SoleElement refusal that is still expected.
+! grep -qF 'aws_autoscaling_traffic_source_attachment' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|traffic_source_attachment'; fail "#354's root cause is back on aws_autoscaling_traffic_source_attachment - it must contribute no diagnostic at all"; }
 [ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "live-plan wrote a state file"
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
