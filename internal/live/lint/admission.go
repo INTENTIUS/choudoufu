@@ -46,6 +46,15 @@ import (
 // fallback only ever admits a type the table refuses, so a caller with no
 // schemas gets exactly the table's answer minus the veto, and a caller with
 // schemas gets that plus whatever the schemas additionally justify.
+//
+// [notImportableVetoed] below is REDUNDANT with the fallback and is kept
+// deliberately, so read this before deleting it as dead: the issue #331 veto
+// now lives inside [identity.SynthesizeTypeIdentity] itself, because lint is
+// not the only route to admission and the other routes reach the fallback
+// without passing through this function. Both lines therefore consult one
+// rule, [identity.NotImportable] - they cannot disagree, and the one here is
+// what keeps this function's own verdict readable in the order the comments
+// above describe.
 func admitted(resourceType string, schemas map[string]providers.Schema, signal *identity.ConfigSignal) bool {
 	if _, ok := admittedTypesV0[resourceType]; ok {
 		return true
@@ -98,19 +107,19 @@ func markerlessVetoed(resourceType string) bool {
 // [identity.NotImportableTypes] is tools/survey-gen's own probe of that
 // question, not an inference from something else.
 //
-// Same table-wins-over-veto ordering [markerlessVetoed] uses, and for the
-// same reason: a ratified row is a batch's explicit decision, and this
-// predicate must not contradict one still standing in the table. Retracting
-// a wrongly-admitted ratified row (issue #331 found two:
-// aws_iot_ca_certificate, aws_lightsail_domain) is tools/row-gen -emit's job -
-// see notimportable.go's own doc comment for why the veto has to reach the
-// table as well as the schema fallback, not one or the other.
+// It delegates rather than reading the roster, which is the difference
+// between this predicate and [markerlessVetoed] beside it. The veto lives in
+// [identity.NotImportable] because lint is not the only route to admission -
+// internal/live/identity's own resolver and internal/live/liveimport's
+// ratify both reach the schema fallback without ever calling this function -
+// and a rule stated once in the layer all three share cannot be half-applied
+// the way three copies of it were. Table-wins-over-veto comes with it: see
+// [identity.NotImportable], which applies the same ordering [markerlessVetoed]
+// does here, over [identity.DefaultTable] rather than over admittedTypesV0.
+// The two tables differ only in the RECORD_ADMITTED rows, and lint has
+// already refused those, by class, well before this line.
 func notImportableVetoed(resourceType string) bool {
-	if _, ok := admittedTypesV0[resourceType]; ok {
-		return false
-	}
-	_, vetoed := identity.NotImportableTypes[resourceType]
-	return vetoed
+	return identity.NotImportable(resourceType)
 }
 
 // markerlessLocatedSupportExists is the load-bearing claim of the located

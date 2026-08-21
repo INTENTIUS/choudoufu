@@ -25,6 +25,12 @@ import (
 // Naming a type here would be a test naming a type, which is allowed; not
 // naming one is better, because this test then keeps holding whatever the
 // veto's membership becomes.
+//
+// It picks the first name the located predicate actually admits rather than
+// simply the first name, because membership in identity.MarkerlessTypes is
+// no longer sufficient: issue #331's veto refuses seven of them outright and
+// the credential exclusion refuses more, and a caller handed one of those
+// would be measuring the wrong refusal.
 func aLocatableType(t *testing.T) string {
 	t.Helper()
 	names := make([]string, 0, len(identity.MarkerlessTypes))
@@ -35,7 +41,13 @@ func aLocatableType(t *testing.T) string {
 		t.Fatal("identity.MarkerlessTypes is empty; every assertion below would be vacuous")
 	}
 	sort.Strings(names)
-	return names[0]
+	for _, name := range names {
+		if identity.LocatedType(name, locatableSchemas(name)) {
+			return name
+		}
+	}
+	t.Fatal("no markerless type is admitted as record-located even with a clean schema, so the located mechanism reaches nothing and every assertion below would be vacuous")
+	return ""
 }
 
 // locatableSchemas is the one-entry schema map that admits typeName as
