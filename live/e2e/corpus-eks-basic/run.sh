@@ -17,41 +17,58 @@ set -uo pipefail
 #                     awareness. PASSES, but not for free - see "Deltas"
 #                     below. 54 resources, genuinely unmarked.
 #   2. MIGRATE        choudoufu live-import -approve against that state.
-#                     PASSES (re-verified 2026-08-19 against current main;
-#                     originally recorded PARTIAL/fail by an agent whose
-#                     worktree predated cec3c4b9b1's live-import
-#                     child-module fix - issue #59's root-module-only scope
-#                     is CLOSED). All 54 resource instances across the root
-#                     module, module.vpc and module.eks are now considered:
-#                     25 are eligible (VERIFIED/DRIFTED) and get stamped, 27
-#                     are untaggable by design (no `tags` argument in the
-#                     provider schema - ASGs, launch configurations, IAM
-#                     role policy attachments, security group rules,
-#                     routes, route table associations, random_pet/
-#                     random_string), and 2 are a genuine unadmitted-type
-#                     gap (kubernetes_config_map, local_file - see stage 3).
+#                     PASSES (re-verified 2026-08-20 against current main
+#                     with issue #326's fix merged; originally recorded
+#                     PARTIAL/fail by an agent whose worktree predated
+#                     cec3c4b9b1's live-import child-module fix - issue
+#                     #59's root-module-only scope is CLOSED). All 54
+#                     resource instances across the root module, module.vpc
+#                     and module.eks are considered: 18 VERIFIED + 7 DRIFTED
+#                     = 25 eligible and stamped, 28 UNTAGGABLE by design (no
+#                     `tags` argument in the provider schema - ASGs, launch
+#                     configurations, IAM role policy attachments, security
+#                     group rules, routes, route table associations,
+#                     random_pet/random_string, local_file), and 1 MISSING -
+#                     kubernetes_config_map.aws_auth. #326's fix (merged
+#                     852f52073f/a990112e26, 2026-08-20) admitted this type,
+#                     so live-import no longer refuses it outright; it now
+#                     genuinely attempts to verify the live object and
+#                     reports, precisely, WHY it cannot: "Provider ...
+#                     kubernetes could not be used ... Dynamic value in
+#                     static context: Unable to use
+#                     data.aws_eks_cluster_auth.cluster / data.aws_eks_
+#                     cluster.cluster in static context, which is required
+#                     by provider.kubernetes." This is a different, real,
+#                     narrower wall than #326's - the kubernetes provider
+#                     block is itself configured from another provider's
+#                     live output (the EKS cluster's endpoint/token), which
+#                     live-import's no-state, no-apply verification pass
+#                     cannot evaluate. Stock OpenTofu is never asked this
+#                     question (it resolves the same data sources during a
+#                     real plan/apply, which always has other resources'
+#                     already-applied state to read) - DEFER-caliber, same
+#                     family as #313's own out-of-scope live-value-through-
+#                     provider-config boundary, not attempted here. Not
+#                     stamped either way (kubernetes_config_map carries no
+#                     AWS tags), so the net stamped count is unchanged by
+#                     #326 - what changed is the REASON, from "we don't
+#                     know this type" to "we know it, and we know precisely
+#                     why we can't verify it yet."
 #   3. TEST PLAN      choudoufu live-plan against the full 54-resource
 #                     config. REFUSES OUTRIGHT. Not "empty" and not "N to
 #                     add" - admission itself stops the run before any plan
-#                     is rendered. Re-verified 2026-08-19: the refusal wall
-#                     is far smaller than originally recorded, now that
-#                     migrate covers the whole module tree - the 4
-#                     "default_*" adopter types and 3 VPN-gateway types
-#                     that used to read as unadmitted are gone entirely
-#                     (they are admitted and stamp cleanly in stage 2; this
-#                     example's VPC either doesn't declare
-#                     aws_default_vpc/VPN-gateway resources or they
-#                     provably resolve to zero instances). What's real and
-#                     current, asserted below by rule and by resource:
-#                       - unadmitted-type (1 site): kubernetes_config_map.
-#                         aws_auth - the kubernetes provider (not AWS), no
-#                         marker carrier or discovery mechanism exists for
-#                         it at all yet, even though its identity
-#                         (metadata.name/namespace) is fully client-named
-#                         and statically knowable from configuration. Real
-#                         gap, needing new provider-transport plumbing this
-#                         codebase has no precedent for - filed as #326
-#                         rather than fixed here.
+#                     is rendered. Re-verified 2026-08-20 with #326's fix
+#                     merged: the unadmitted-type refusal on kubernetes_
+#                     config_map.aws_auth is CONFIRMED GONE - zero
+#                     occurrences of "Rule: unadmitted-type." and zero
+#                     mentions of "kubernetes" anywhere in live-plan's
+#                     output. The type's identity (metadata.name/namespace,
+#                     fully client-named and statically knowable) now
+#                     resolves cleanly at plan time, same as the
+#                     association family. What's real and current, asserted
+#                     below by rule and by resource - unchanged by #326,
+#                     since neither of these families ever depended on
+#                     kubernetes_config_map's admission state:
 #                       - logical-resource (4 sites): random_string.suffix,
 #                         null_resource.wait_for_cluster, random_pet.workers
 #                         are RECORD_ADMITTED and correctly refused only
@@ -183,6 +200,10 @@ set -uo pipefail
 #   BREAK        set to 1 to corrupt an expected count/rule before the
 #                stage-2 and stage-3 assertions, proving each is
 #                load-bearing rather than a check that always passes.
+#   DUMP_PLAN    path to write live-plan's full raw output to, for by-hand
+#                re-verification of stage 3's exact refusal wall shape.
+#   DUMP_IMPORT  path to write live-import's full raw output to, same
+#                reason, for stage 2.
 #
 # Exit codes: 0 when the script's OWN measurement completed faithfully -
 # which includes stage 3's refusal being real and correctly itemized, since
@@ -558,19 +579,28 @@ tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-tofu-init.l
 
 IMPORT_OUT="$(tofu_run "$ADOPTED_REL" live-import -state="/work/$PLAIN_REL/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)" || {
   printf '%s\n' "$IMPORT_OUT" | tail -60; fail "live-import -approve failed"; }
+if [ -n "${DUMP_IMPORT:-}" ]; then printf '%s\n' "$IMPORT_OUT" > "$DUMP_IMPORT"; fi
 
 # Issue #59's root-module-only scope is GONE as of cec3c4b9b1 (landed
 # 2026-08-18, re-verified against this estate 2026-08-19): live-import now
 # walks module.vpc and module.eks too, and considers all 54 resource
-# instances rather than stopping at the root module's 4. Of those 54: 25
-# are eligible (VERIFIED/DRIFTED) and get stamped, 27 are untaggable by
+# instances rather than stopping at the root module's 4. Of those 54: 18
+# VERIFIED + 7 DRIFTED = 25 eligible and stamped, 28 are UNTAGGABLE by
 # design (no `tags` argument in the provider schema - autoscaling groups,
 # launch configurations, IAM role policy attachments, security group
-# rules, routes, route table associations, random_pet/random_string), and
-# 2 are a genuine unadmitted-type gap (kubernetes_config_map, local_file -
-# see stage 3 below).
+# rules, routes, route table associations, random_pet/random_string,
+# local_file), and 1 is MISSING - kubernetes_config_map.aws_auth. Re-
+# verified 2026-08-20 with issue #326's fix merged: the net eligible/
+# stamped/skipped totals below are UNCHANGED from before #326 (kubernetes_
+# config_map carries no AWS tags either way, so it was never going to be
+# stamped) - what changed is that live-import now genuinely attempts to
+# verify it instead of refusing it outright as unadmitted, and reports a
+# precise, different reason (the kubernetes provider's own config depends
+# on live data.aws_eks_cluster/data.aws_eks_cluster_auth values live-
+# import's no-state verification pass cannot evaluate - see stage 3 below).
 EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
 EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 29 skipped."
+EXPECT_MISSING_K8S='kubernetes_config_map.*could not be used'
 if [ "${BREAK:-}" = "1" ]; then
   EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
   log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"
@@ -584,7 +614,8 @@ grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
   grep -E 'resource\(s\) newly stamped' <<< "$IMPORT_OUT"
   fail "did not find \"$EXPECT_STAMPED\" in live-import's own output"
 }
-log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed)"
+grep -qE "$EXPECT_MISSING_K8S" <<< "$IMPORT_OUT" || fail "kubernetes_config_map.aws_auth no longer reports as MISSING/could-not-be-used in live-import's output - issue #326's fix (or the kubernetes-provider-config wall it exposed) has changed shape; re-check by hand"
+log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
 
 MARKED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
@@ -595,6 +626,7 @@ log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
 log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
+if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 [ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan exited 0 - the refusal wall this script expects did not fire. Either issue #59 shipped root+nested support, or new admission rows changed what refuses here - re-check by hand before trusting this script's stage 4/5 skip."; }
 
 # No associative arrays: /bin/bash on macOS is still 3.2 (no `declare -A`
@@ -606,16 +638,15 @@ PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLA
 # aws_default_network_acl are all admitted and stamp cleanly in stage 2 now
 # that module.vpc is in scope, and this example declares no
 # aws_default_vpc/VPN-gateway resources with any live instance.
-# kubernetes_config_map is the one real remaining unadmitted-type site -
-# see the header comment and the filed issue.
-UNADMITTED_SITES='kubernetes_config_map\.aws_auth'
+# kubernetes_config_map.aws_auth is CONFIRMED GONE from the refusal wall
+# as of issue #326's fix (merged 852f52073f/a990112e26, 2026-08-20): its
+# identity resolves cleanly at plan time, so neither "Rule: unadmitted-
+# type." nor the string "kubernetes" appears anywhere in live-plan's
+# output any more. Asserted below as a negative control, with BREAK=1
+# flipping the expectation (proving the check is load-bearing, not
+# vacuously true because the rule never fired for any reason).
 LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
-if [ "${BREAK:-}" = "1" ]; then
-  UNADMITTED_SITES='this-resource-type-does-not-exist-anywhere'
-  log "  BREAK=1: expecting the unadmitted-type rule to fire on a resource"
-  log "           name that cannot appear in the output. This step must fail."
-fi
 
 assert_rule_fires() {
   local rule="$1" sites="$2"
@@ -627,9 +658,27 @@ assert_rule_fires() {
   log "  Rule: ${rule}. fires $count time(s), including the expected resource(s)"
 }
 
-assert_rule_fires "unadmitted-type" "$UNADMITTED_SITES"
+if [ "${BREAK:-}" = "1" ]; then
+  log "  BREAK=1: expecting \"Rule: unadmitted-type.\" to still fire on"
+  log "           kubernetes_config_map (issue #326's own fix, deliberately"
+  log "           treated as absent). This step must fail."
+  grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" \
+    || fail "BREAK=1 correctly detected: no unadmitted-type refusal fired anywhere - #326's fix holds (this failure is the expected, load-bearing one)"
+else
+  grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" \
+    && { grep -E 'Rule: unadmitted-type\.' <<< "$PLAN_OUT"; fail "unadmitted-type fired unexpectedly - #326's fix may have regressed, or a new type lost its identity row"; }
+  grep -qi 'kubernetes' <<< "$PLAN_OUT" \
+    && { grep -i 'kubernetes' <<< "$PLAN_OUT"; fail "\"kubernetes\" still appears in live-plan's output - #326 not confirmed fixed"; }
+  log "  Confirmed: no \"Rule: unadmitted-type.\" refusal and no mention of"
+  log "             kubernetes anywhere in live-plan's output - issue #326's"
+  log "             fix holds for kubernetes_config_map.aws_auth"
+fi
+
 assert_rule_fires "logical-resource" "$LOGICAL_SITES"
 assert_rule_fires "count-index" "$COUNTINDEX_SITES"
+ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
+[ "$ERROR_COUNT" = "8" ] || fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 8 (4 logical-resource + 4 count-index) - the refusal wall's shape has changed"
+log "  exactly 8 Error diagnostics total (4 logical-resource + 4 count-index), matching the expected shape"
 
 log ""
 log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 refuses outright ==="
@@ -641,17 +690,20 @@ log ""
 log "  STAGE 1  PASS  54/54 resources, genuinely cold, genuinely unmarked."
 log "  STAGE 2  PASS  25 of 54 resource instances stamped across the root"
 log "           module, module.vpc and module.eks (issue #59's"
-log "           root-module-only scope is closed); the other 29 are 27"
-log "           legitimately untaggable-by-design plus 2 unadmitted-type"
-log "           (kubernetes_config_map #326, local_file #314 - see stage 3)."
-log "  STAGE 3  REFUSES  1 unadmitted-type site (kubernetes_config_map.aws_auth,"
-log "           a non-AWS provider with no marker carrier yet - filed as #326),"
-log "           4 logical-resource sites (3 correctly refused pending a"
-log "           record_store declaration, #73 as designed; 1 - local_file -"
-log "           is #314's already-tracked, narrower gap), and 4"
-log "           correctly-conservative count-index refusals. Asserted by"
-log "           rule and by resource above, with BREAK=1 proving neither"
-log "           check is vacuous."
+log "           root-module-only scope is closed); the other 29 are 28"
+log "           legitimately untaggable-by-design plus 1 MISSING -"
+log "           kubernetes_config_map.aws_auth, admitted since #326 but"
+log "           its own provider config can't be statically verified yet"
+log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
+log "  STAGE 3  REFUSES  4 logical-resource sites (3 correctly refused"
+log "           pending a record_store declaration, #73 as designed; 1 -"
+log "           local_file - is #314's already-tracked, narrower gap), and"
+log "           4 correctly-conservative count-index refusals. Issue #326's"
+log "           own unadmitted-type site (kubernetes_config_map.aws_auth)"
+log "           is CONFIRMED GONE - asserted as a negative control above."
+log "           Asserted by rule and by resource, with BREAK=1 proving"
+log "           neither the negative control nor the positive checks are"
+log "           vacuous."
 log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"
