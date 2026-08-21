@@ -8,6 +8,7 @@
 // result. live/GAUNTLET.md, rendered by this tool, is the contract.
 //
 //	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
+//	go run ./tools/gauntlet next [-n N] [-json]    # the next unit(s) of work, deterministically
 //	go run ./tools/gauntlet run [-set core] [name] # run crossing scripts, record verdicts, render
 //	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
 //	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
@@ -50,6 +51,8 @@ func main() {
 			fatal(fmt.Errorf("snapshot needs a version"))
 		}
 		fatalIf(cmdSnapshot(root, os.Args[2]))
+	case "next":
+		fatalIf(cmdNext(root, os.Args[2:]))
 	case "check":
 		stale, err := StaleFiles(root)
 		fatalIf(err)
@@ -65,7 +68,44 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | check")
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | next [-n N] [-set core|all] [-json] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | check")
+}
+
+// cmdNext prints the next unit(s) of work, deterministically, from the
+// committed artifact. See next.go for the ordering.
+func cmdNext(root string, args []string) error {
+	fs := flag.NewFlagSet("next", flag.ContinueOnError)
+	n := fs.Int("n", 1, "how many units to print")
+	set := fs.String("set", "all", "core or all; core first either way")
+	asJSON := fs.Bool("json", false, "print JSON, one unit per line")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		return err
+	}
+	units := NextUnits(a, *set)
+	if len(units) == 0 {
+		fmt.Println("nothing to do: every estate in the set is clear")
+		return nil
+	}
+	if *n < len(units) {
+		units = units[:*n]
+	}
+	for i, u := range units {
+		if *asJSON {
+			b, _ := json.Marshal(u)
+			fmt.Println(string(b))
+			continue
+		}
+		if i > 0 {
+			fmt.Println()
+		}
+		r, _ := a.Result(u.Estate)
+		fmt.Print(FormatUnit(u, r))
+	}
+	return nil
 }
 
 func fatal(err error) {

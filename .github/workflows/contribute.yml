@@ -1,0 +1,66 @@
+name: Contribute
+
+# Runs one gauntlet worker under YOUR key, from YOUR fork. There is no hosted
+# path: dispatch this in your fork with an ANTHROPIC_API_KEY secret set, and
+# it picks the next unit (`go run ./tools/gauntlet next`), runs Claude Code
+# headless under .claude/agents/gauntlet-worker.md, pushes the branch to your
+# fork, and opens a pull request against INTENTIUS/choudoufu when a
+# CONTRIBUTE_TOKEN secret (a token with pull-request write on your fork and
+# read on upstream) is present, or prints the compare URL when it is not.
+# Nothing here needs upstream secrets, and nothing merges.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_usd:
+        description: "dollar ceiling for this run"
+        default: "25"
+      unit:
+        description: "unit id (<estate>/<stage>) to take instead of the next one"
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  worker:
+    if: github.repository != 'INTENTIUS/choudoufu'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code and just
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          sudo apt-get update -qq && sudo apt-get install -y -qq just
+      - name: Materialise the corpus
+        run: go run ./tools/corpus-fetch
+      - name: Run one worker
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.CONTRIBUTE_TOKEN || secrets.GITHUB_TOKEN }}
+          CONTRIBUTE_UNIT: ${{ github.event.inputs.unit }}
+          CONTRIBUTE_REMOTE: origin
+        run: |
+          git config user.name "gauntlet-worker"
+          git config user.email "gauntlet-worker@users.noreply.github.com"
+          git branch -f main HEAD
+          just contribute "${{ github.event.inputs.max_usd }}"
+      - name: If no upstream token, say how to open the pull request
+        if: always() && !secrets.CONTRIBUTE_TOKEN
+        run: |
+          echo "No CONTRIBUTE_TOKEN secret: the branch was pushed to this fork. Open the pull request at"
+          echo "https://github.com/INTENTIUS/choudoufu/compare/main...${{ github.repository_owner }}:$(git branch --show-current)"

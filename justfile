@@ -1296,3 +1296,9 @@ gauntlet-add name url ref lane source:
 # Snapshot the artifact for a release: live/history/<version>.json.
 gauntlet-snapshot version:
     env -u PWD go run ./tools/gauntlet snapshot {{version}}
+
+# One gauntlet worker run under your own key: picks the next unit, makes a
+# worktree, runs Claude Code headless under .claude/agents/gauntlet-worker.md,
+# opens a pull request. Never merges. `just contribute 10` caps spend at $10.
+contribute max_usd="25":
+    bash scripts/contribute.sh {{max_usd}}

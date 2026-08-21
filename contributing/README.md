@@ -11,7 +11,7 @@ at the repository root.
 | File | What it is |
 |---|---|
 | [`../HANDOFF.md`](../HANDOFF.md) | One page: the promise, the default, the foundation, the safety rule, the engine, the loop. Read this first. |
-| [`../live/GAUNTLET.md`](../live/GAUNTLET.md) | The test suite that decides the promise: stages, the protocol a crossing script speaks, how to add an estate, the artifact. Rendered by `tools/gauntlet`. |
+| [`../live/GAUNTLET.md`](../live/GAUNTLET.md) | The test suite that decides the promise: stages, the protocol a crossing script speaks, how to add an estate, the artifact. Rendered by `tools/gauntlet`. `just contribute` runs one unit of it under your own key and opens a pull request. |
 | [`DEVELOPING.md`](DEVELOPING.md) | Building, testing, and the local loop. |
 | [`LIVE-TABLES.md`](LIVE-TABLES.md) | Adding a resource type to the admission table. |
 | [`FAQ.md`](FAQ.md) | Questions that come up while working on this. |
