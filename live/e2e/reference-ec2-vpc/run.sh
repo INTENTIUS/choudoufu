@@ -61,10 +61,12 @@ set -uo pipefail
 #                live/floci-image.
 #   BREAK        set to 1 to run two negative controls instead of the real
 #                checks, proving both are load-bearing rather than a grep
-#                that always matches: (1) before the greenfield convergence
-#                check, the expected empty-plan assertion is skipped in
-#                favor of confirming the plan is NOT empty; (2) before the
-#                drift-and-reconverge check, a SECOND live object (the
+#                that always matches: (1) before the greenfield "no local
+#                record store" replan, the instance's Name tag is tampered
+#                out of band via the AWS CLI, and the expected empty-plan
+#                assertion must then correctly fail to hold (it is skipped
+#                in favor of confirming the plan is NOT empty); (2) before
+#                the drift-and-reconverge check, a SECOND live object (the
 #                security group's Name tag) is also tampered out of band,
 #                and the single-object assertion must then correctly fail
 #                to hold (it is skipped in favor of confirming more than
@@ -282,12 +284,17 @@ log "  No changes."
 
 log "=== A4. delete the local record store; plan a third time ==="
 rm -rf "$GREEN/.tofu-records"
+if [ "${BREAK:-}" = "1" ]; then
+  aws --endpoint-url "$ENDPOINT" --region "$REGION" ec2 create-tags \
+    --resources "$INSTANCE_ID" --tags Key=Name,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK=1: tampered $INSTANCE_ID's Name tag out of band - the plan below must NOT come back empty"
+fi
 PLAN2_OUT="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; PLAN2_RC=$?
 [ "$PLAN2_RC" -eq 0 ] || { printf '%s\n' "$PLAN2_OUT" | tail -30; fail "the third plan (no local record store) exited $PLAN2_RC"; }
 if [ "${BREAK:-}" = "1" ]; then
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN2_OUT" \
     && fail "BREAK=1 set, but the plan still came back empty - this step is not load-bearing"
-  log "  BREAK=1: forcing a mismatch check instead of the real one - the empty-plan assertion below is skipped"
+  log "  BREAK=1: the plan correctly proposes fixing the tampered tag - the empty-plan assertion below is skipped"
 else
   grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN2_OUT" \
     || { grep -E '^  #' <<< "$PLAN2_OUT"; fail "the third plan is not empty with no local record store - the objects are not being found by their tags alone"; }
