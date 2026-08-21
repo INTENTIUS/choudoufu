@@ -198,9 +198,9 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 11
+          "not_run": 10
         },
         "test_plan": {
           "pass": 15,
@@ -275,9 +275,9 @@
           "not_run": 24
         },
         "test_apply": {
-          "pass": 13,
+          "pass": 14,
           "fail": 0,
-          "not_run": 11
+          "not_run": 10
         },
         "test_plan": {
           "pass": 14,
@@ -762,20 +762,20 @@
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
+        "test_apply": "pass",
         "test_plan": "pass"
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8095eba176437f1483a5d7e8fe2c6cf3733a5a89",
-        "date": "2026-08-21T19:55:35Z",
+        "commit": "a485d4f7df4c4128903905a908958d6cbd524c36",
+        "date": "2026-08-21T20:29:36Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "8 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "not yet written - same reason",
+          "drift_reconverge": "not yet written",
           "migrate": "3 stamped, 4 recorded, 0 failed, 1 skipped",
-          "test_apply": "not yet written - stage 3 only just started passing in this run",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 3; markers and record store intact",
           "test_plan": "no resource change proposed"
         }
       },
