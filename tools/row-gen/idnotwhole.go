@@ -17,7 +17,7 @@ import (
 // compositeimport.go computes the verdict and writes it as a REPORT
 // (live/composite-import-roster.json) over the markerless population, for a
 // reader. internal/live/identity needs the same verdict as a FACT it can
-// consult at run time, because [identity.LocatedIdentityComponents] is where
+// consult at run time, because [identity.LocatedIdentityPlanFor] is where
 // recording the wrong string actually happens. So the rule is written once,
 // in classifyCompositeImport, and rendered twice.
 //
@@ -110,7 +110,7 @@ const idNotWholeDoc = `// IDNotProvenWholeTypes is every provider resource type 
 // proves the exported ` + "`id`" + ` attribute holds that whole string.
 //
 // It is issue #337's verdict, in the form the record-located mechanism can
-// act on. [LocatedIdentityComponents] records a type's ` + "`id`" + ` and hands that
+// act on. [LocatedIdentityPlanFor] records a type's ` + "`id`" + ` and hands that
 // string back to import on the next run, which is correct only when ` + "`id`" + ` IS
 // the import string. For a type here nothing says it is, so the mechanism
 // refuses rather than recording a possible fragment - a recorded fragment is

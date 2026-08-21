@@ -305,6 +305,17 @@ func equivalent(a, b cty.Value) bool {
 	if b.IsNull() && zeroish(a) {
 		return true
 	}
+	if a.IsNull() || b.IsNull() {
+		// One side is null and the other is not the zero form of its type,
+		// so they say different things. Return here rather than falling
+		// through: the collection arms below call LengthInt, ElementIterator
+		// and GetAttr, every one of which panics on a null value, and a
+		// panic reaches the operator as an OpenTofu crash report. Found by
+		// live/e2e/corpus-autoscaling-complete, whose second live-import
+		// against an already-stamped estate crashed in the "ratify" pass on
+		// a null map(string) read back opposite a populated one.
+		return false
+	}
 	if !a.IsKnown() || !b.IsKnown() || !a.Type().Equals(b.Type()) {
 		return false
 	}

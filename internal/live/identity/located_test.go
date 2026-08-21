@@ -348,19 +348,24 @@ func TestLocatedTypePopulation(t *testing.T) {
 		t.Fatalf("acquiring hashicorp/aws schemas: %s", err)
 	}
 
-	var located, composite, credential, noID, unprovenID []string
+	var located, composite, composed, credential, noID, unprovenID []string
 	for name := range MarkerlessTypes {
 		schema, ok := schemas[name]
 		if !ok || schema.Block == nil {
 			continue
 		}
 		_, unproven := IDNotProvenWholeTypes[name]
-		components, recordable := LocatedIdentityComponents(name, schema)
+		plan, recordable := LocatedIdentityPlanFor(name, schema)
 		switch {
 		case credentialMaterial(schema.Block):
 			credential = append(credential, name)
-		case recordable && len(components) > 0:
+		case recordable && plan.Composite():
 			composite = append(composite, name)
+		case recordable && plan.Composed():
+			// Issue #337's second route: no wire identity schema, but the
+			// page names every segment of its own composite import and
+			// every one of them resolved against this schema.
+			composed = append(composed, name)
 		case unproven:
 			unprovenID = append(unprovenID, name)
 		case !hasLocatedImportID(schema.Block):
@@ -382,9 +387,11 @@ func TestLocatedTypePopulation(t *testing.T) {
 		}
 	}
 	sort.Strings(credential)
-	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d credential=%d unprovenID=%d noID=%d",
-		len(MarkerlessTypes), len(located), len(composite), len(credential), len(unprovenID), len(noID))
+	sort.Strings(composed)
+	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d located(composed string)=%d credential=%d unprovenID=%d noID=%d",
+		len(MarkerlessTypes), len(located), len(composite), len(composed), len(credential), len(unprovenID), len(noID))
 	t.Logf("credential material: %v", credential)
+	t.Logf("composed from the documented grammar (#337): %v", composed)
 
 	// The requirement, against the real schema rather than a fixture.
 	for typeName := range credentialFixtures {

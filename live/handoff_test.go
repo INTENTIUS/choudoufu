@@ -335,7 +335,14 @@ func addPathTokens(root, s string, seen map[string]bool) {
 // an entry outlives its file by exactly one commit.
 var notYetCreated = map[string]string{}
 
-var justCall = regexp.MustCompile(`\bjust ([a-z][a-z0-9-]*)`)
+// justCall matches a recipe citation, which the playbook always writes in
+// backticks. The leading backtick is load-bearing rather than decoration:
+// "just" is an ordinary English adverb, and without it this pattern read the
+// sentence "three of them needed a genuinely different assertion, not just a
+// longer one" as an instruction to run a recipe called "a". The closing
+// backtick is deliberately not required, so a citation carrying an argument
+// (`just estate-plan-from <sweep>`) still yields its recipe name.
+var justCall = regexp.MustCompile("`just ([a-z][a-z0-9-]*)")
 
 func handoffCitedRecipes(text string) []string {
 	seen := map[string]bool{}
