@@ -274,9 +274,51 @@ set -uo pipefail
 # corpus-mastino-dns and corpus-evoteum-modules, the two crossings closest
 # to 5 of 5, both declare ZERO root-level outputs.
 #
+# THE SIXTH BLOCKER IS NOW DOWN TO ONE OUTPUT LINE. #348 (evaluate the root
+# output blocks at all) and #349's zero-instance half took 23 down to 2, and
+# #349's second half - a data-source read driven by root-output demand rather
+# than by identity demand - took 2 down to 1. Measured 2026-08-21 with this
+# identical script run twice against floci, only TOFU_BIN swapped:
+#
+#   860c29e129 (before)   + lambda_function_arn_static, + local_filename
+#   with the fix          + local_filename
+#
+# lambda_function_arn_static reads data.aws_partition.current.partition,
+# data.aws_region.current.region and data.aws_caller_identity.current.
+# account_id (module.lambda_function's main.tf:1-3) - three no-count AWS data
+# sources that stock OpenTofu reads synchronously on every plan and that
+# choudoufu never read, because nothing demanded them: the pre-resolution
+# data-read phase derives its demand by probing IDENTITY resolution, and no
+# identity in this estate reads them. internal/live/dataread now has a second
+# demand class for what root outputs reach, read best-effort through the same
+# provider instances the projection already uses, and the values are seeded
+# into the state internal/live/projection's ApplyRootOutputValues evaluates
+# against. The output does not merely have a value now: it is gone from the
+# diff entirely rather than rendering "~ old -> new", so the plan graph
+# computed the same value independently and the two sides cancel.
+#
+# local_filename is the one line left, and it stays. It reaches
+# data.external.archive_prepare (package.tf:7), whose read RUNS package.py on
+# the machine running the plan. Everything else about that block is readable
+# - count = 1, static arguments, no provider configuration to evaluate - and
+# what stops it is deliberately not any of those: the root-output read class
+# is confined to providers this configuration manages live objects through
+# (dataread.LiveProviders), and hashicorp/external serves no managed resource
+# type at all, in this or any configuration. A plan that ran a local program
+# would stop being a pure preview, which is the same invariant that keeps
+# provisioners to apply only. So this estate's stage 3 is still BLOCKED, on
+# one honest line rather than two, and the estate stays at 2 of 5.
+#
 # Stages 4 and 5 remain to be written below, following
-# live/e2e/corpus-mastino-dns/run.sh's shape, once #348 lands and stage 3
-# has a real empty plan to build them on.
+# live/e2e/corpus-mastino-dns/run.sh's shape, once stage 3 has a real empty
+# plan to build them on.
+#
+# Measured again on this estate, 2026-08-21, against floci:
+#   STAGE 1 (cold deploy)  PASS
+#   STAGE 2 (migrate)      PASS - 3 stamped, 4 recorded, 0 failed, 1 skipped
+#   STAGE 3 (test plan)    BLOCKED, on one output line: "+ local_filename".
+#                          Zero diagnostics, zero resource-level changes.
+#   STAGES 4 and 5         NOT REACHED, and not yet written.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -695,13 +737,16 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN
     log "  lex00/floci#83 IS FIXED: there is no resource-level action block at"
     log "  all (no "OpenTofu will perform the following actions"), which is"
     log "  what step 3b's control already showed against stock terraform. What"
-    log "  remains is issue #348 - a choudoufu-side gap, not floci's: live-plan"
-    log "  never evaluates the root module's own 'output' blocks against the"
-    log "  prior resource state it reconstructs from markers, so"
-    log "  GetRootOutputValues always returns empty and every declared output"
-    log "  renders as newly created on every single run, regardless of"
-    log "  whether the underlying resources changed. This example's own 23"
-    log "  outputs are exactly what show up below."
+    log "  remains is an OUTPUT-only diff, and it is down to one line. #348"
+    log "  (evaluate the root outputs at all) and #349 (see through"
+    log "  zero-instance blocks, then read what the outputs reach) took this"
+    log "  estate from 23 output lines to 2 to 1. The one left is"
+    log "  local_filename, which reaches data.external.archive_prepare -"
+    log "  whose read runs package.py locally. That read is refused on"
+    log "  purpose: the root-output read class only ever talks to providers"
+    log "  this configuration manages live objects through, so a plan stays a"
+    log "  pure preview. Whatever the diff below actually says is what this"
+    log "  run measured; the sentence above is what it said when written."
   elif [ -z "$CHOUDOUFU_DRIFTED" ]; then
     log "  Every resource in this plan is one stock terraform's OWN replan proposes"
     log "  too (step 3b's control), so nothing here is choudoufu's."

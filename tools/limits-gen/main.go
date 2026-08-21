@@ -65,6 +65,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/docsref"
 	"github.com/intentius/choudoufu/internal/live/lint"
@@ -191,7 +192,11 @@ func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 //     GitHub issue #214);
 //   - discovery, whose refusal ID is the diagnostic Summary and whose
 //     [discovery.SeverityForRefusal] is the same call the diagnostic itself
-//     is built from - five of its refusals are warnings.
+//     is built from - five of its refusals are warnings;
+//   - dataread, which serves two demand classes with opposite contracts
+//     ([dataread.StopsTheRun]): an identity demand it cannot meet refuses
+//     the run, and a root-output demand it cannot meet costs one output its
+//     prior value and nothing else.
 //
 // This function said "error" for every discovery refusal until that second
 // case existed, which put four warnings in the table as blockers: an
@@ -210,6 +215,10 @@ func severityLabel(r check.Refusal) string {
 		}
 	case check.LayerDiscovery:
 		if discovery.SeverityForRefusal(r.ID) == discovery.SeverityWarning {
+			return "warning"
+		}
+	case check.LayerDataread:
+		if !dataread.StopsTheRun(r.ID) {
 			return "warning"
 		}
 	}
@@ -265,10 +274,12 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
 		"error in this table - it is the interesting end of it, and a set "+
 		"assembled by watching output could never contain one. **Severity** "+
-		"is `error` (fatal, stops the run) unless marked `warning`. Two "+
+		"is `error` (fatal, stops the run) unless marked `warning`. Three "+
 		"layers can declare `warning` today: a lint rule (GitHub issue "+
-		"#214's `state-backend`) and a discovery refusal, whose severity is "+
-		"read from the same call the diagnostic is built from. A `warning` "+
+		"#214's `state-backend`), a discovery refusal, whose severity is "+
+		"read from the same call the diagnostic is built from, and a "+
+		"dataread refusal belonging to the root-output demand class, which "+
+		"costs one output its prior value rather than the run. A `warning` "+
 		"does not stop the run - it says this run saw less than the whole "+
 		"picture, or found something outside its own coverage - so it is not "+
 		"a blocker and should not be ranked as one.\n", len(catalog))
