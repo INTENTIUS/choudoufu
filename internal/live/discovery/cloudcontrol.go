@@ -112,7 +112,8 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 	}
 
 	for _, desc := range descs {
-		tags, taggable, refined := cloudControlTags(ctx, req, cfnType, desc)
+		tags, read, refined := cloudControlTags(ctx, req, cfnType, desc)
+		taggable := read == ccTagsPresent
 		if refined {
 			scan.Refined++
 			log.Printf("[DEBUG] stateless/discovery: %s identifier %q carried no Tags in its Cloud Control listing; refined with GetResource", typeName, desc.Identifier)
@@ -159,13 +160,73 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 		}
 
 		if !taggable {
+			// Issue #355. A Cloud Control Properties map answers "which tags
+			// does this object carry", never "can this type carry tags at
+			// all": Cloud Control omits a property with no value, so an
+			// object with zero tags arrives with no Tags key, byte-identical
+			// to what a type with no Tags property in its schema would send.
+			// The CFN registry answers the second question on its own -
+			// live/registry.json's tagging.taggable, the same fact
+			// [scanTypeCloudControl]'s own sweep guard already reads a few
+			// lines up - so the two cases are told apart from the registry
+			// rather than from the wire.
+			//
+			// Measured against floci at cdd50ec0: an untagged
+			// AWS::EC2::DHCPOptions (and the account's default set, which is
+			// only ever an instance of that shape) lists with no Tags key,
+			// while a tagged one of the same type lists with Tags populated -
+			// so absence here is a statement about the object, not the type.
+			// Its native-list twin has always been ordinary: an untagged
+			// object comes back with tags = {} and lands in Unclaimed.
+			if regTaggable, known := req.Roster.TaggableKnown(cfnType); known && read == ccTagsAbsent {
+				if regTaggable {
+					// The registry says this type carries Tags, and this
+					// object was read successfully without any. It is
+					// untagged - the "tagged with nothing" [ccPropertiesTags]
+					// already reports for a Tags key holding an empty list,
+					// reached by the other spelling of the same fact.
+					tags, taggable = map[string]string{}, true
+				} else {
+					// The registry says no object of this type can carry a
+					// tag, so none could ever carry a marker. That is issue
+					// #322's ruling for the native leg ([markerCapable]),
+					// reached here through the registry instead of the
+					// provider schema: the decl.unreadable increment above
+					// already feeds [unreadableMarkerProblem]'s per-address
+					// WARNING at bind time, and escalating to an ERROR that
+					// aborts the whole plan over an address this run already
+					// reports gracefully is what #322 rejected.
+					continue
+				}
+			}
+		}
+
+		if !taggable {
+			// What is left is the case this refusal was written for: the
+			// object could not be read at all - GetResource errored or came
+			// back empty, and the UnsupportedOperation re-list did not rescue
+			// it either. The answer is unknown rather than "untagged", and
+			// guessing is what live/MARKERS.md forbids.
+			//
+			// The second sentence's branch is #168's residual, and it cannot
+			// fire today: reaching this function at all means
+			// [Roster.EnumerationSource] found live/registry.json's own row
+			// for cfnType saying its list handler needs no input, so a
+			// registry row provably exists and known above is always true.
+			// TestCloudControlNoRegistryRowNeverReachesThisLeg pins that. It
+			// stays because "the artifact said nothing" must never be turned
+			// into a claim about the resource if the two facts ever decouple.
+			why := "and refining it with GetResource found none either, so its ownership markers cannot be read"
+			if read == ccTagsAbsent {
+				why = fmt.Sprintf("and live/registry.json has no row for %s, so nothing says whether that absence is a fact about this object or about the type - see internal/live/registry's TaggableKnown", cfnType)
+			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,
 				TypeName: typeName,
 				LiveIDs:  liveIDs(importID),
 				Detail: fmt.Sprintf(
-					"Cloud Control listed a %s (Cloud Control type %s) with no Tags in its Properties, and refining it with GetResource found none either, so its ownership markers cannot be read.",
-					typeName, cfnType),
+					"Cloud Control listed a %s (Cloud Control type %s) with no Tags in its Properties, %s.",
+					typeName, cfnType, why),
 			}))
 			continue
 		}
@@ -290,27 +351,53 @@ func scanTypeCloudControl(ctx context.Context, req Request, decl *declared, type
 // ([cloudcontrol.GetResourceByIdentity]).
 //
 // refined reports whether the second path was taken, so the caller can
-// count and log the cost rather than hide it. taggable is false when
-// neither the listing nor the refinement produced a Tags property at all -
-// [markers.TagsOf]'s "this object has no tags attribute" case, translated
-// to Cloud Control's Properties map.
-func cloudControlTags(ctx context.Context, req Request, cfnType string, desc cloudcontrol.ResourceDescription) (tags map[string]string, taggable, refined bool) {
+// count and log the cost rather than hide it.
+//
+// read is the part issue #355 split out of a plain "taggable" bool. That bool
+// collapsed two facts a caller has to tell apart: an object this run could not
+// read AT ALL, and an object it read cleanly whose Properties simply carry no
+// Tags key. Only the first is the "ownership markers cannot be read" the
+// caller's [ProblemNoTags] refusal describes; the second is what Cloud Control
+// sends for every untagged object of every type, because a CFN Properties map
+// omits a property with no value.
+func cloudControlTags(ctx context.Context, req Request, cfnType string, desc cloudcontrol.ResourceDescription) (tags map[string]string, read ccTagRead, refined bool) {
 	if t, ok := ccPropertiesTags(desc.Properties); ok {
-		return t, true, false
+		return t, ccTagsPresent, false
 	}
 
 	full, err := cloudcontrol.GetResourceByIdentity(ctx, req.CloudControl, cfnType, desc.Identifier)
 	if err != nil || full == nil {
 		// A refinement that failed or came back empty is reported as
-		// untaggable rather than retried or guessed at: the caller's
+		// unreadable rather than retried or guessed at: the caller's
 		// ProblemNoTags path says so to an operator, which is the same
 		// honesty [markers.TagsOf] gives a native-path resource whose
 		// object came back with no tags attribute at all.
-		return nil, false, true
+		return nil, ccTagsUnreadable, true
 	}
-	t, ok := ccPropertiesTags(full.Properties)
-	return t, ok, true
+	if t, ok := ccPropertiesTags(full.Properties); ok {
+		return t, ccTagsPresent, true
+	}
+	return nil, ccTagsAbsent, true
 }
+
+// ccTagRead is what one Cloud Control read established about an object's tags.
+// See [cloudControlTags] for why the middle value exists at all.
+type ccTagRead int
+
+const (
+	// ccTagsPresent: the object's Properties carried a Tags key, and tags is
+	// what it said - including the empty list, a real "tagged with nothing".
+	ccTagsPresent ccTagRead = iota
+	// ccTagsAbsent: the object was read successfully and its Properties carry
+	// no Tags key. Whether that is a fact about the object (untagged) or about
+	// the type (no Tags property at all) is not answerable from the wire; the
+	// CFN registry's own tagging.taggable answers it.
+	ccTagsAbsent
+	// ccTagsUnreadable: the object could not be read at all - the listing sent
+	// no Tags and the GetResource refinement errored or came back empty. This
+	// is the genuine "ownership markers cannot be read".
+	ccTagsUnreadable
+)
 
 // ccPropertiesTags reads a CFN Tags property out of a Cloud Control
 // Properties map, in the shape Cloud Control actually sends it: a JSON

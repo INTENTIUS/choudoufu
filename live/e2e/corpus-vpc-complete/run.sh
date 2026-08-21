@@ -79,11 +79,11 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt an expected identity string and a
 #                 drift assertion, proving both are load-bearing.
 #
-# WHERE THIS ESTATE STANDS, 2026-08-20, verified by a real run against
-# ghcr.io/lex00/floci@sha256:dc246b1e (lex00/floci#71's fix): stages 1 and 2
-# PASS. Stage 1 cold-deploys all 62 resources ("Apply complete! Resources: 62
-# added"); stage 2 stamps 40 of them, skips 22 as untaggable, fails none, and
-# all three sampled identities read back through the AWS CLI by value.
+# WHERE THIS ESTATE STANDS, re-verified 2026-08-21 by a real run against
+# ghcr.io/lex00/floci@sha256:cdd50ec0: stages 1 and 2 PASS. Stage 1
+# cold-deploys all 62 resources ("Apply complete! Resources: 62 added");
+# stage 2 stamps 40 of them, skips 22 as untaggable, fails none, and all
+# three sampled identities read back through the AWS CLI by value.
 #
 # Stage 1 was blocked for two prior sessions on two successive floci gaps in
 # the same resource, both now fixed upstream: lex00/floci#70 (Create/
@@ -93,18 +93,51 @@ set -uo pipefail
 # provider's unconditional ListTagsForResource on every
 # aws_elasticache_subnet_group read 400'd).
 #
-# KNOWN, NOT PAPERED OVER: stage 3 fails on exactly one diagnostic, filed as
-# choudoufu #346. The estate's own example passes [module.vpc.vpc_cidr_block]
-# - i.e. aws_vpc.this[0].cidr_block, a NON-identity attribute of another
-# managed resource - into aws_security_group_rule's identity-bearing
-# cidr_blocks. The diagnostic surfaces at the lookup() on the module's line
-# 116, but lookup() is a red herring: a static-valued lookup() resolves fine,
-# and the same map written with a direct each.value.cidr_blocks refuses
-# identically. #346 carries the three-variant check that establishes that.
-# This script is not routed around it (no -target, no resource removed from
-# the example): it runs the real module and reports the real result, per this
-# goal's own standing rule that a partial, accurate failure is worth more
-# than a green run that does not hold up.
+# KNOWN, NOT PAPERED OVER: stage 3 still fails, and the reason has moved
+# twice. choudoufu #346 (an identity-resolution refusal) and choudoufu #355
+# (discovery aborting on the account's untagged default DHCP options set) are
+# both fixed and neither diagnostic appears in a run any more. As of
+# 2026-08-21, against ghcr.io/lex00/floci@sha256:cdd50ec0, live-plan exits 0
+# and renders a full plan - and what stage 3's empty-plan assertion catches is
+# three things behind those two, none of them a choudoufu defect:
+#
+#   1. The first live-plan after live-import proposes adding tofu-slot to 31
+#      objects. That is deliberate product behavior, not drift:
+#      live/e2e/corpus-iam-policy/run.sh's "THE TOFU-SLOT FINDING" has the
+#      whole mechanism (a slot is minted from a counter over the live set,
+#      which live-import's one-state-file view cannot compute), and three
+#      other crossing scripts fold a convergence apply into their stage 2.
+#      This one does not, because it had never reached stage 3 to notice.
+#   2. That convergence apply cannot run here yet: floci answers
+#      "UnsupportedOperation: Operation ModifyVpcEndpoint is not supported"
+#      for each of the four interface endpoints. 26 of the 31 slots do land.
+#      Filed with the two below as lex00/floci#97.
+#   3. The replan after that reads "Plan: 3 to add, 5 to change, 3 to
+#      destroy", and all three replacements are floci read fidelity rather
+#      than drift: DescribeNatGateways returns neither allocation_id nor
+#      subnet_id, DescribeVpnGateways returns an availability_zone the
+#      configuration never set, and DescribeVpcEndpoints reads policy,
+#      route_table_ids, subnet_ids and cidr_blocks back empty.
+#
+# So the convergence apply is NOT folded into stage 2 here the way
+# corpus-iam-policy and corpus-dynamodb-table-basic fold theirs: doing that
+# today would turn a genuinely passing stage 2 into a failing one over
+# ModifyVpcEndpoint, which would report this estate as worse than it is. It
+# goes in once floci serves that call.
+#
+# Nothing here is routed around (no -target, no resource removed from the
+# example): the script runs the real module and reports the real result, per
+# this goal's own standing rule that a partial, accurate failure is worth
+# more than a green run that does not hold up.
+#
+# ALSO ESTABLISHED, 2026-08-21: the "39 objects carry tofu-estate after
+# migration" line below disagrees with the "40 stamped" line above it, and
+# the 40 is the right number. The missing object is
+# aws_redshift_subnet_group.redshift[0] - it carries both markers, readable
+# through `aws redshift describe-cluster-subnet-groups`, but floci's
+# resourcegroupstaggingapi does not index Redshift resources, so the
+# get-resources count this script logs cannot see it. A floci gap in the
+# reporting line, not a stamping gap - lex00/floci#97 carries it too.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC_MODULE="$ROOT/.corpus/vpc"
