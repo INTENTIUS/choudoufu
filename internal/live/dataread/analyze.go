@@ -60,6 +60,17 @@ type Options struct {
 	// Nil is the default and means every block is in scope, which is every
 	// untargeted run and every offline caller. See [identity.Scope].
 	Scope identity.Scope
+
+	// ProviderManagedTypes is which managed resource types each provider's
+	// own schema declares, keyed by provider - the cross-check half of
+	// [LiveProviders]' derivation, and the reason a `required_providers`
+	// entry cannot vote a provider into the live set on the strength of a
+	// type that provider does not serve.
+	//
+	// Nil, or a provider absent from it, means "this run has no schema for
+	// that provider" and skips the cross-check for it rather than refusing
+	// on it. See [LiveProviders].
+	ProviderManagedTypes map[addrs.Provider]map[string]bool
 }
 
 // Source is one data resource block the analysis classified: demanded by an
@@ -106,6 +117,17 @@ type Source struct {
 	// provider, and no managed-resource dependency.
 	Eligible bool
 
+	// OutOfScope marks a source this run's -target / -exclude leaves out of
+	// the plan graph (GitHub issue #352). It is ineligible, and it is the one
+	// kind of ineligible source that never stops a run even under [Read]'s
+	// otherwise-fatal contract: a block the plan will not act on is not a
+	// hole in the identity map, it is a block outside this run entirely, and
+	// refusing over one would turn every -target run into a refusal of the
+	// configuration's untargeted half. Reading it anyway is the thing that
+	// would be wrong - it puts a prior value in front of a diff whose other
+	// side the plan never computes.
+	OutOfScope bool
+
 	// PerInstance reports that at least one of this block's own arguments -
 	// directly, or inside a nested block - reads this same block's own
 	// count.index or each.key/each.value. That is ordinary per-block
@@ -151,6 +173,14 @@ type SourceDep struct {
 }
 
 func (d SourceDep) key() string { return sourceKey(d.Module, d.Resource) }
+
+// crossStack reports that this source is one of the two separately-ruled
+// cross-stack read classes, #179's stages 2 and 3. Both are read through a
+// provider no estate manages objects through, and both are nonetheless
+// deliberate remote, read-only classes of this phase - see
+// [ReadableProviders] for why [LiveProviders]' boundary does not apply to
+// them.
+func (s *Source) crossStack() bool { return s != nil && (s.TfeOutputs || s.RemoteState) }
 
 // Analysis is [Analyze]'s result: every demanded data source, classified,
 // with the readable ones in an order that reads dependencies first.
@@ -449,6 +479,15 @@ func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
 			break
 		}
 	}
+	// The identity class draws [LiveProviders]' boundary too, and it drew
+	// nothing until an adversarial audit found this - the older and by far
+	// the wider-reaching of the two read paths - completely unconfined. What
+	// differs between the classes is the cost, not the line: a source
+	// excluded here is ineligible, and [Read]'s existing fatal contract turns
+	// that into a named refusal naming the data source and the provider.
+	// Refusing to resolve an identity built on a local-execution data source
+	// is strictly better than running that program during a plan.
+	an.confineToBoundary(cfg, opts)
 	return a
 }
 
@@ -606,6 +645,35 @@ func (an *analyzer) classify(module addrs.Module, res addrs.Resource, neededBy s
 	}
 
 	src := &Source{Module: module, Resource: res, Config: rc, NeededBy: neededBy}
+
+	// GitHub issue #352's -target scope, checked HERE rather than over each
+	// entry point's demand roots, for [analyzer.confineToBoundary]'
+	// exact reason: this function recurses, and a source demanded only as
+	// another source's dependency never passes through a check over the
+	// roots. A -target run therefore still read an out-of-scope data source
+	// that an in-scope one depended on.
+	//
+	// A block the plan graph does not contain is one the plan will not read,
+	// so reading it here would put a value in front of a diff whose other
+	// side cannot match it - the wrong-prior-value shape, one carrier over
+	// from "a wrong marker outranks a missing one". The dependent's own
+	// classification then refuses through ordinary dependency propagation,
+	// below, which is right: a read that cannot happen cannot be depended on.
+	//
+	// [tofu.Context.TargetedResources], which is where the scope comes from,
+	// keeps a targeted resource's dependencies transitively and over the same
+	// reference edges demand follows here, so an in-scope identity's own data
+	// source is in scope by construction.
+	if an.scope != nil && !an.scope(addrs.ConfigResource{Module: module, Resource: res}) {
+		src.OutOfScope = true
+		src.ReasonSummary = SummaryOutOfScope
+		src.ReasonDetail = fmt.Sprintf(
+			"%s's value is needed by %s, but this run's -target or -exclude leaves %s out of the plan graph, so the plan will not read it either and a pre-plan read of it would put a value in front of a diff whose other side cannot match it.",
+			res.String(), neededBy, res.String())
+		an.analysis.sources[key] = src
+		an.analysis.order = append(an.analysis.order, src)
+		return src
+	}
 	if configs.IsRemoteState(res.Type) {
 		// Stage 3: terraform_remote_state goes through the same eligibility
 		// pipeline a same-stack source does, below - credentials assumed

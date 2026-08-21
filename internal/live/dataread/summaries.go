@@ -61,6 +61,13 @@ const (
 	// identity needs is one the run must have or refuse.
 	SummaryProviderNotLive = "Data source provider manages no live object here"
 
+	// SummaryOutOfScope is GitHub issue #352's targeting boundary: the data
+	// source is outside the set of blocks this run's -target or -exclude
+	// leaves in the plan graph, so the plan will not read it and neither
+	// does this phase. Never fatal for either demand class - see
+	// [Source.OutOfScope].
+	SummaryOutOfScope = "Data source outside this run's -target scope"
+
 	// SummaryEligibleRead is not a refusal: it is live-check's finding for
 	// a site the phase will resolve at plan time with a read. It lives in
 	// this registry so the corpus and the generated documentation can name
