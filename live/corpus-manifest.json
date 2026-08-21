@@ -317,6 +317,16 @@
       }
     },
     {
+      "glob": ".corpus/sqs/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/sqs",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-sqs.git",
+        "tag": "v5.2.2",
+        "commit": "dd73a96c0155bc324dda5256f3e7a9ea2c710195"
+      }
+    },
+    {
       "glob": ".corpus/lambda/examples/*",
       "origin": "terraform-aws-modules",
       "fetch": {
