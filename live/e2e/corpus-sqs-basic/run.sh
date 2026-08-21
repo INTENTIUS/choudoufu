@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# STATUS AS COMMITTED (2026-08-20): UNVERIFIED past "floci healthy". The
-# corpus pin (live/corpus-manifest.json, terraform-aws-sqs v5.2.2) is real
-# and `just corpus-fetch` materializes it. The reduction below (see THE
-# REDUCTION) was run for real and its DELTA lines print correctly against
-# the fetched files. Stage 1's `terraform init` was in flight, not yet
-# past `terraform apply`, when this session was asked to wrap up - so
-# every resource count, queue URL, and tofu-address string below this
-# point is DERIVED from reading the terraform-aws-sqs module source
-# (main.tf's naming locals), not confirmed against a real `terraform
-# apply` + AWS CLI read. Treat every assertion past STAGE 1's `terraform
-# apply` line as a hypothesis the next run must confirm or correct before
-# any stage is recorded as pass in live/corpus-crossing-manifest.json - no
-# entry was added there for exactly this reason. Rerun with:
-#   bash live/e2e/corpus-sqs-basic/run.sh
-# and fix whichever assertion the real output disagrees with first (most
-# likely candidates: the FIFO DLQ name derivation, or the exact
-# `Tags."tofu-address"` JMESPath quoting for `aws sqs list-queue-tags`).
+# STATUS (2026-08-20): VERIFIED. All five stages were run for real against
+# floci ghcr.io/lex00/floci@sha256:8a882bcc (live/floci-image's pin) and every
+# count, queue URL and tofu-address string below is now read off that run's
+# output rather than derived from the module source.
+#
+# WHAT THE FIRST REAL RUN CORRECTED. The version committed on 2026-08-20 had
+# every assertion past stage 1's `terraform apply` DERIVED from reading
+# terraform-aws-sqs's naming locals. Three of those derivations were right and
+# one was wrong:
+#   RIGHT  all four queue names and URLs, the FIFO DLQ's "-dlq.fifo" suffix
+#          included, and all four rendered tofu-address strings.
+#   WRONG  the resource count. The estate creates SIX managed resources, not
+#          five: `create_dlq = true` makes the module emit an
+#          aws_sqs_queue_redrive_ALLOW_policy on the DLQ alongside the
+#          aws_sqs_queue_redrive_policy on the source queue. Reading the
+#          naming locals found the second resource and missed the first.
+#          Every count in this script was corrected from that run: 6 added at
+#          stage 1, "4 of 6 eligible" at stage 2 (the two redrive resources
+#          are untaggable), 4 stamped and 2 skipped.
 #
 # terraform-aws-modules/terraform-aws-sqs's "complete" example
 # (.corpus/sqs/examples/complete, pinned to v5.2.2), crossed through
@@ -54,26 +56,46 @@ set -uo pipefail
 # below, so a moved corpus pin fails loudly rather than silently deploying
 # a different shape than this script documents).
 #
-# THE RESOURCE SHAPE (5 resources, exercising two AWS resource types):
+# THE RESOURCE SHAPE (6 resources, exercising THREE AWS resource types -
+# measured off `terraform state list` on the first real run, not derived):
 #   aws_sqs_queue x4          default_sqs, fifo_sqs (standard), fifo_sqs's
 #                              own DLQ, unencrypted_sqs - all taggable,
 #                              server-assigned-if-absent identity
 #                              (live/identity/table_generated.go's
 #                              aws_sqs_queue row: the queue URL rebuilt from
 #                              region + account + name).
-#   aws_sqs_queue_redrive_policy x1   fifo_sqs's redrive policy binding its
-#                              queue to its own DLQ. UNTAGGABLE (no ARN of
-#                              its own) and absent from the generated
-#                              identity table - live/survey-full.json
-#                              classifies it "client-named", admission
-#                              "schema": every required-for-import identity
-#                              attribute (queue_url) is a required argument,
-#                              so the provider's own identity schema settles
-#                              it (see HANDOFF's "Provider identity schemas
-#                              are plumbed and load-bearing"). This script is
-#                              a real, live test of that schema-fallback path
-#                              for a genuinely popular resource type, not a
-#                              type this repo has crossed live before.
+#   aws_sqs_queue_redrive_policy x1        on the SOURCE queue (ex-complete
+#                              .fifo), naming the DLQ as its target.
+#   aws_sqs_queue_redrive_allow_policy x1  on the DLQ (ex-complete-dlq.fifo),
+#                              naming the source queue as permitted. The
+#                              module emits this one whenever create_dlq is
+#                              true; the derived sketch missed it.
+#
+# Both redrive types are UNTAGGABLE (neither has a tags argument in the
+# provider schema) and NEITHER has a row in the generated identity table.
+# live/survey-full.json classifies both identically - path "client-named",
+# admission "schema", `required_for_import: [queue_url]` - because their one
+# required-for-import identity attribute is a required argument, so the
+# provider's own identity schema settles them (HANDOFF's "Provider identity
+# schemas are plumbed and load-bearing"). This script is a real, live test of
+# that schema-fallback path on two popular types this repo had not crossed
+# live before, and stage 2 asserts BOTH resolved live ids by value rather
+# than trusting that the run merely did not error.
+#
+# THE INVARIANT THIS ESTATE EXERCISES. "A migrated estate is tagged, plus
+# derived-from-tagged. There is no third bucket." Four tagged queues, and two
+# redrive resources whose entire identity IS a tagged queue's URL. That is
+# why 4 of 6 eligible is the right answer here and not a shortfall: the two
+# skipped resources are derivable from parents that carry markers, and stage
+# 3's empty plan is what proves the derivation holds with no state file.
+#
+# THE IMPORT-TIME DRIFT, expected and not a defect. live-import reports the
+# two FIFO queues as DRIFTED rather than VERIFIED, on redrive_policy and
+# redrive_allow_policy respectively (cold state has "", live has the JSON).
+# That is the module's own design: the queue resource does not manage those
+# attributes, the separate redrive resources do, so the live object carries a
+# value the queue's state row never recorded. DRIFTED is still eligible for
+# stamping, the convergence apply reconciles it, and stage 3's plan is empty.
 #
 # All four aws_sqs_queue resources declare `count = var.create ? 1 : 0`
 # (module default), the same shape corpus-iam-policy's "THE TOFU-SLOT
@@ -88,7 +110,9 @@ set -uo pipefail
 #   1. COLD DEPLOY   plain `terraform apply` (real HashiCorp terraform, not
 #                     choudoufu), no live block anywhere.
 #   2. MIGRATE        `choudoufu live-import -approve` against the cold
-#                     state, then one ordinary `choudoufu apply` to converge
+#                     state (4 of 6 eligible; the two redrive resources are
+#                     untaggable and resolve by provider identity schema),
+#                     then one ordinary `choudoufu apply` to converge
 #                     tofu-slot on the four count-based queues.
 #   3. TEST PLAN      delete the state file, `choudoufu live-plan`, assert
 #                     the plan proposes no resource action and re-assert the
@@ -127,12 +151,27 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt one expected identity string ahead of
-#                stage 3's assertion (the fifo_sqs queue's escaped address,
-#                same shape and resource type, the wrong module) AND to
-#                tamper a second, unrelated queue's tag ahead of stage 5's
-#                drift assertion - proving both are load-bearing rather than
-#                a grep/count that always matches.
+#   BREAK        corrupt one assertion on purpose, to prove it is load-bearing
+#                rather than a grep that always matches. Each value corrupts a
+#                DIFFERENT assertion, and each must make this script exit
+#                non-zero at that assertion:
+#                  schema    swap the two expected redrive queue URLs at stage
+#                            2, so each untabled type is expected to resolve
+#                            to the OTHER queue. Same two types, same two real
+#                            URLs, wrong pairing - the one thing a "did it
+#                            error?" check cannot catch.
+#                  identity  expect the fifo queue's tofu-address to name a
+#                            different module at stage 3. Same shape, same
+#                            resource type, a module that was never created.
+#                  drift     tamper a second, unrelated queue's tag before
+#                            stage 5's mutation, so the plan must propose
+#                            fixing two objects where the assertion demands
+#                            exactly one.
+#                  1         alias for `schema`.
+#                They are separate values rather than one flag because the
+#                first corruption reached exits the script: a single BREAK=1
+#                that set all three would leave the later two unreachable, and
+#                an unreachable check proves nothing. Run all three.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -161,6 +200,14 @@ trap cleanup EXIT
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+
+# Which single assertion BREAK corrupts (see the header's env-override notes).
+BREAK_AT="${BREAK:-}"
+[ "$BREAK_AT" = "1" ] && BREAK_AT="schema"
+case "$BREAK_AT" in
+  ""|schema|identity|drift) ;;
+  *) fail "BREAK must be one of: schema, identity, drift (1 is an alias for schema)" ;;
+esac
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -229,14 +276,49 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 1: cold deploy (terraform apply, the real reduced example + delta) ==="
+# The shared plugin cache, the same way corpus-lambda-simple's and
+# corpus-alb-complete's crossings use it. Without it every run re-downloads
+# hashicorp/aws (several hundred megabytes) from the registry twice - once for
+# terraform, once for choudoufu's own registry.opentofu.org copy - which on a
+# machine running more than one crossing at a time takes longer than the rest
+# of this script put together and makes the estate look hung. Measured on the
+# first real run of this script: 21 minutes into `terraform init` only 48MB of
+# the provider had arrived, and the init then died on a transient DNS failure
+# before ever reaching `terraform apply`. It changes nothing about what is
+# measured; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
 COLD_OUT="$(cd "$EST" && terraform apply -input=false -auto-approve -no-color 2>&1)"; COLD_RC=$?
 [ "$COLD_RC" -eq 0 ] || { printf '%s\n' "$COLD_OUT" | tail -40; fail "the cold apply failed"; }
-grep -qE 'Apply complete! Resources: 5 added' <<< "$COLD_OUT" \
-  || { grep -E 'Apply complete' <<< "$COLD_OUT"; fail "the cold apply did not create exactly 5 resources"; }
+grep -qE 'Apply complete! Resources: 6 added' <<< "$COLD_OUT" \
+  || { grep -E 'Apply complete' <<< "$COLD_OUT"; fail "the cold apply did not create exactly 6 resources"; }
 log "  $(grep -E 'Apply complete' <<< "$COLD_OUT")"
 [ -f "$EST/terraform.tfstate" ] || fail "plain terraform left no state file to migrate from"
+
+# The exact managed shape, read off terraform's own state rather than off this
+# script's reading of the module. A corpus pin that adds or drops a resource
+# fails here, by name, instead of silently crossing a different estate - which
+# is precisely how the derived version of this script came to expect five
+# resources when the module builds six.
+# Both sides go through the same LC_ALL=C sort: '.' and '_' collate
+# differently under a UTF-8 locale, so comparing a hand-ordered list against a
+# locale-sorted one fails on ordering alone even when the shape is identical.
+WANT_SHAPE="$(LC_ALL=C sort <<'EOF'
+module.default_sqs.aws_sqs_queue.this[0]
+module.fifo_sqs.aws_sqs_queue.dlq[0]
+module.fifo_sqs.aws_sqs_queue.this[0]
+module.fifo_sqs.aws_sqs_queue_redrive_allow_policy.dlq[0]
+module.fifo_sqs.aws_sqs_queue_redrive_policy.dlq[0]
+module.unencrypted_sqs.aws_sqs_queue.this[0]
+EOF
+)"
+GOT_SHAPE="$(cd "$EST" && terraform state list 2>/dev/null | grep -v '\.data\.\|^data\.' | LC_ALL=C sort)"
+[ "$GOT_SHAPE" = "$WANT_SHAPE" ] || {
+  printf 'want:\n%s\ngot:\n%s\n' "$WANT_SHAPE" "$GOT_SHAPE"
+  fail "the cold estate's managed resource shape is not the six resources this script documents - the corpus pin has moved"; }
+log "  managed shape confirmed: 4 aws_sqs_queue + 1 redrive_policy + 1 redrive_allow_policy"
 
 # local.name = "ex-${basename(path.cwd)}" - path.cwd is $EST, whose basename
 # is "complete" (the upstream directory name, preserved by the copy above).
@@ -289,16 +371,43 @@ rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 
 IMPORT_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -no-color 2>&1)"; IMPORT_RC=$?
 [ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -40; fail "live-import (dry run) failed"; }
-grep -qF "5 of 5 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
-  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 5 of 5 resources as eligible - the corpus pin or the fix under test has moved"; }
+grep -qF "4 of 6 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not report exactly 4 of 6 resources as eligible - the corpus pin or the fix under test has moved"; }
 grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
-log "  dry run: 5 of 5 eligible; nothing written yet"
+
+# THE SCHEMA-FALLBACK ASSERTION, the reason this estate was sourced. Neither
+# redrive type has a row in live/identity/table_generated.go. Both must still
+# resolve a live id, from the provider's own identity schema (queue_url), and
+# both must resolve to the RIGHT queue - which is not the same queue for the
+# two of them: the redrive policy hangs off the SOURCE queue and the redrive
+# allow policy off the DLQ. Asserting the rendered id by value is the whole
+# point; a run that merely did not error would pass with them swapped.
+WANT_REDRIVE_URL="$FIFO_QUEUE_URL"
+WANT_ALLOW_URL="$FIFO_DLQ_URL"
+if [ "$BREAK_AT" = "schema" ]; then
+  WANT_REDRIVE_URL="$FIFO_DLQ_URL"
+  WANT_ALLOW_URL="$FIFO_QUEUE_URL"
+  log "  BREAK=schema: the two expected redrive URLs are swapped - both are real"
+  log "                queues in this estate and both types really do resolve,"
+  log "                so only a by-value check catches the wrong pairing. This"
+  log "                step must fail."
+fi
+REDRIVE_LINE="$(grep -F 'module.fifo_sqs.aws_sqs_queue_redrive_policy.dlq[0]' <<< "$IMPORT_OUT" | grep -F 'live id:' | head -1)"
+grep -qF "live id: $WANT_REDRIVE_URL" <<< "$REDRIVE_LINE" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "aws_sqs_queue_redrive_policy did not resolve to $WANT_REDRIVE_URL via the provider identity schema; got: ${REDRIVE_LINE:-<no live id line at all>}"; }
+ALLOW_LINE="$(grep -F 'module.fifo_sqs.aws_sqs_queue_redrive_allow_policy.dlq[0]' <<< "$IMPORT_OUT" | grep -F 'live id:' | head -1)"
+grep -qF "live id: $WANT_ALLOW_URL" <<< "$ALLOW_LINE" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "aws_sqs_queue_redrive_allow_policy did not resolve to $WANT_ALLOW_URL via the provider identity schema; got: ${ALLOW_LINE:-<no live id line at all>}"; }
+log "  schema fallback resolved both untabled types by value:"
+log "    aws_sqs_queue_redrive_policy       -> $FIFO_QUEUE_URL (the source queue)"
+log "    aws_sqs_queue_redrive_allow_policy -> $FIFO_DLQ_URL (the DLQ)"
+log "  dry run: 4 of 6 eligible (2 untaggable, derived from tagged parents); nothing written yet"
 
 APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "5 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 5 of 5 resources cleanly"; }
-log "  5 stamped"
+grep -qF "4 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 4 of 6 resources cleanly with 2 skipped"; }
+log "  4 stamped, 2 skipped as untaggable"
 
 WANT_DEFAULT_ADDR="module.default_sqs.aws_sqs_queue.this:0"
 WANT_FIFO_ADDR="module.fifo_sqs.aws_sqs_queue.this:0"
@@ -322,7 +431,8 @@ log "    $UNENCRYPTED_QUEUE_URL -> tofu-address=$GOT_UNENCRYPTED_ADDR"
 
 # The tofu-slot convergence apply (see this script's header). All four
 # aws_sqs_queue resources declare count = var.create ? 1 : 0, so all four
-# need it. The redrive policy is untaggable and carries no slot.
+# need it. Both redrive resources are untaggable and carry no slot, which is
+# why this is 4 changed and not 6.
 CONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
 [ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the tofu-slot convergence apply failed"; }
 grep -qE 'Resources: 0 added, 4 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
@@ -352,9 +462,9 @@ grep -qE '^Foreign resources: (none|nothing was swept)' <<< "$PLAN_OUT" \
 log "  no resource change proposed; nothing foreign"
 
 WANT_FIFO_ADDR2="$WANT_FIFO_ADDR"
-if [ "${BREAK:-}" = "1" ]; then
+if [ "$BREAK_AT" = "identity" ]; then
   WANT_FIFO_ADDR2="module.fifo_sqs_disabled.aws_sqs_queue.this:0"
-  log "  BREAK=1: expecting tofu-address=$WANT_FIFO_ADDR2 on the fifo queue -"
+  log "  BREAK=identity: expecting tofu-address=$WANT_FIFO_ADDR2 on the fifo queue -"
   log "           the SAME shape and the SAME resource type, just the wrong"
   log "           (and in fact never-created) module. This step must fail."
 fi
@@ -396,9 +506,9 @@ log ""
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
-if [ "${BREAK:-}" = "1" ]; then
+if [ "$BREAK_AT" = "drift" ]; then
   awsl sqs tag-queue --queue-url "$UNENCRYPTED_QUEUE_URL" --tags Example=tampered-by-BREAK
-  log "  BREAK=1: also tampered $UNENCRYPTED_QUEUE_URL's Example tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
+  log "  BREAK=drift: also tampered $UNENCRYPTED_QUEUE_URL's Example tag - stage 5 must now see TWO drifted objects and fail the single-object assertion"
 fi
 
 awsl sqs tag-queue --queue-url "$DEFAULT_QUEUE_URL" --tags Example=tampered-out-of-band
@@ -411,34 +521,40 @@ DRIFT_PLAN_OUT="$(plan_into 2>&1)"; DRIFT_PLAN_RC=$?
 
 CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
 N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
-if [ "${BREAK:-}" = "1" ]; then
-  [ "$N_CHANGED" = "1" ] && fail "BREAK=1 set (two objects tampered), but the plan proposes fixing only 1 - this assertion is not load-bearing"
-  log "  BREAK=1: the plan proposes fixing $N_CHANGED objects, correctly more than one - the single-object assertion below is skipped"
-else
-  [ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
-  printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$WANT_FIFO_ADDR_BRACKET" && fail "the plan proposes changing $WANT_FIFO_ADDR_BRACKET, which was never touched"
-  log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
+# No BREAK special-case here on purpose. Under BREAK=drift two objects really
+# have been tampered, so this ordinary assertion is the one that must fail -
+# that IS the demonstration that it is load-bearing. An inverted branch that
+# accepted "more than one, so skip the check" would exit 0 on a corrupted run
+# and prove nothing.
+[ "$N_CHANGED" = "1" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+printf '%s\n' "$CHANGED_ADDRS" | grep -qF "$WANT_FIFO_ADDR_BRACKET" && fail "the plan proposes changing $WANT_FIFO_ADDR_BRACKET, which was never touched"
+log "  the plan proposes fixing exactly one object: $(printf '%s' "$CHANGED_ADDRS")"
 
-  RECONVERGE_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
-  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -40; fail "the reconverge apply failed"; }
-  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
-    || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
-  FIXED_VALUE="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query 'Tags.Example' --output text)"
-  [ "$FIXED_VALUE" = "$NAME" ] || fail "$DEFAULT_QUEUE_URL's Example tag is \"$FIXED_VALUE\" after reconverging, not \"$NAME\""
-  log "  reconverged: $DEFAULT_QUEUE_URL's Example tag is back to \"$NAME\""
+RECONVERGE_APPLY="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+[ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_APPLY" | tail -40; fail "the reconverge apply failed"; }
+grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_APPLY" \
+  || { grep -E 'Apply complete' <<< "$RECONVERGE_APPLY"; fail "the reconverge apply did not change exactly 1 resource"; }
+FIXED_VALUE="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query 'Tags.Example' --output text)"
+[ "$FIXED_VALUE" = "$NAME" ] || fail "$DEFAULT_QUEUE_URL's Example tag is \"$FIXED_VALUE\" after reconverging, not \"$NAME\""
+log "  reconverged: $DEFAULT_QUEUE_URL's Example tag is back to \"$NAME\""
 
-  log ""
-  log "STAGE 5 (drift and reconverge): PASS"
-  log ""
+log ""
+log "STAGE 5 (drift and reconverge): PASS"
+log ""
 
-  log "=== PASS ==="
-  log ""
-  log "A terraform-aws-modules EXAMPLE (reduced per this script's header) -"
-  log "the SQS queueing surface, new to this corpus - crossed through all"
-  log "five stages: cold deploy with plain terraform, choudoufu live-import"
-  log "adoption plus the tofu-slot convergence apply it requires, an empty"
-  log "replan with the state file deleted and rendered identities checked"
-  log "against SQS's own answer (including the untaggable, schema-admitted"
-  log "aws_sqs_queue_redrive_policy resource), a genuine no-op apply, and"
-  log "drift on one queue reconverging without touching the others."
-fi
+log "=== PASS ==="
+log ""
+log "A terraform-aws-modules EXAMPLE (reduced per this script's header) -"
+log "the SQS queueing surface, new to this corpus - crossed through all"
+log "five stages: cold deploy with plain terraform, choudoufu live-import"
+log "adoption plus the tofu-slot convergence apply it requires, an empty"
+log "replan with the state file deleted and rendered identities checked"
+log "against SQS's own answer, a genuine no-op apply, and drift on one"
+log "queue reconverging without touching the others."
+log ""
+log "Six managed resources: four tagged queues, plus"
+log "aws_sqs_queue_redrive_policy and aws_sqs_queue_redrive_allow_policy -"
+log "two untaggable types with no row in the generated identity table, both"
+log "resolved to the right queue URL by the provider's own identity schema"
+log "and asserted by value above. Tagged, plus derived-from-tagged; no"
+log "third bucket."
