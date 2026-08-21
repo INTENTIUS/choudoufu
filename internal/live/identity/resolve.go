@@ -1921,6 +1921,21 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 				// specific complaint about the same expression.
 				r.diags = r.diags[:preRetry]
 			}
+
+			// #354: the same retry for the other way an identity argument
+			// arrives at a known value with an unknown inside it - a for_each
+			// element the declared-type conversion produced, one of whose
+			// attributes reads something the static scope cannot answer.
+			// stringValueIn has just refused the unknown; the element's own
+			// expression for that one attribute is still in hand, and
+			// resolving it structurally is what turns the refusal into a
+			// formula. See [resolver.eachValueDeferredParts], which declines
+			// unless it reaches a resolution of its own.
+			if parts, ok := r.eachValueDeferredParts(expr, scope, ident); ok {
+				r.diags = r.diags[:mark]
+				r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+				return parts, true
+			}
 			return nil, false
 		}
 
@@ -3215,6 +3230,22 @@ type expansion struct {
 	// value proved keeps its old binding and its old behaviour exactly.
 	eachValueExprs map[addrs.InstanceKey]elemBinding
 
+	// eachValueDeferred is #354: the element's own expression kept BESIDE a
+	// bound value rather than instead of it, for a key whose value is an
+	// object the declared-type conversion produced with unknown attributes in
+	// it ([convertedElems]).
+	//
+	// eachValueExprs and this are not two spellings of one thing. That one
+	// replaces a value nothing could evaluate; this one supplements a value
+	// that IS bound and IS what the module sees, for the attributes of it
+	// that came back unknown. The difference is visible in
+	// [resolver.isSymbolic], which sees eachValueExprs' binding and routes
+	// the whole argument down the symbolic path, and does not see this one at
+	// all - so an argument reading a KNOWN attribute of the bound value
+	// resolves exactly as it did before, and only one that evaluated to an
+	// unknown ever consults this.
+	eachValueDeferred map[addrs.InstanceKey]elemBinding
+
 	// eachParent is set when for_each iterates over another managed
 	// resource: each.value is then that resource's instance with the same
 	// key, which is a symbolic reference rather than a value.
@@ -3305,6 +3336,13 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key)}
 		if v, ok := e.eachValues[key]; ok {
 			sc.repetition.EachValue = v
+			// #354: the value is the binding, and where it is an object the
+			// declared-type conversion produced, some of its attributes may be
+			// unknown. The element's own expression rides alongside for those,
+			// and for nothing else - see [expansion.eachValueDeferred].
+			if b, ok := e.eachValueDeferred[key]; ok && b.expr != nil {
+				sc.eachValueDeferred = &b
+			}
 			break
 		}
 		// #260: no proven value, but the element's own expression is in
@@ -3318,6 +3356,12 @@ func (e *expansion) scope(key addrs.InstanceKey) instScope {
 		}
 	case e.eachValues != nil:
 		sc.repetition = instances.RepetitionData{EachKey: keyValue(key), EachValue: e.eachValues[key]}
+		// #354, the tolerant-retry route: the value is the binding and the
+		// element's own expression rides beside it for the unknowns inside
+		// that value. Empty for every expansion built any other way.
+		if b, ok := e.eachValueDeferred[key]; ok && b.expr != nil {
+			sc.eachValueDeferred = &b
+		}
 	case e.eachParent != nil:
 		// each.value is symbolic here, so only each.key has a value; a
 		// reference to each.value is handled structurally instead.
@@ -3348,6 +3392,17 @@ type instScope struct {
 	//
 	// A pointer, not a value: elemBinding carries an instScope of its own.
 	eachValueExpr *elemBinding
+
+	// eachValueDeferred is #354's layered binding: a value IS bound in
+	// repetition.EachValue and this carries the element's own expression
+	// beside it, for the attributes of that value that came back unknown.
+	//
+	// Deliberately invisible to [resolver.isSymbolic], unlike eachValueExpr:
+	// an argument reading this element resolves through the ordinary
+	// evaluation first and reaches this only where that evaluation produced
+	// an unknown, so nothing that resolves today can be re-routed by it. See
+	// [resolver.eachValueDeferredParts].
+	eachValueDeferred *elemBinding
 
 	// managedFrom is [expansion.managedFrom] carried down to the instance,
 	// so that an identity argument reading each.* can say where its unknown
@@ -3671,6 +3726,9 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 
 	ident := r.moduleIdentifier(addr.String()+" for_each", expr.Range())
 	mark := len(r.diags)
+	// #354: element expressions collected alongside a tolerantly-retried
+	// VALUE, empty for every other route through this function. See below.
+	var deferredExprs map[string]elemBinding
 	val, ok := r.evalStatic(expr, instScope{}, ident)
 	if !ok {
 		// #178's key-set fix: an object constructor's key set is knowable
@@ -3717,6 +3775,21 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 						exp.eachValues = make(map[addrs.InstanceKey]cty.Value)
 					}
 					exp.eachValues[k] = b.val
+					if b.expr != nil {
+						// #354: a value AND an expression, which
+						// [convertedElems] now produces for an element the
+						// declared type converted to an object with unknown
+						// attributes in it. The value is the binding - it is
+						// what the module sees - and the expression is kept
+						// beside it for the attributes of that value that came
+						// back unknown, and for nothing else. See
+						// [expansion.deferred] and
+						// [resolver.eachValueDeferredParts].
+						if exp.eachValueDeferred == nil {
+							exp.eachValueDeferred = make(map[addrs.InstanceKey]elemBinding)
+						}
+						exp.eachValueDeferred[k] = b
+					}
 				case b.expr != nil:
 					if exp.eachValueExprs == nil {
 						exp.eachValueExprs = make(map[addrs.InstanceKey]elemBinding)
@@ -3747,6 +3820,14 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 		}
 		r.diags = r.diags[:mark]
 		val = retried
+		// #354: the retry's value is the binding, exactly as it has always
+		// been. Beside it, the element EXPRESSIONS the same source can still
+		// be chased for, so an identity argument that reads one of the
+		// unknowns inside that value has somewhere else to look. Nothing
+		// here changes a key or a value. See
+		// [resolver.elementExprBindings] and
+		// [resolver.eachValueDeferredParts].
+		deferredExprs = r.elementExprBindings(expr, ident)
 	}
 	if !forEachKeysKnown(val) || val.IsNull() {
 		r.errorf(expr.Range(), "Non-static for_each expression",
@@ -3782,6 +3863,12 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 			k := addrs.StringKey(name)
 			exp.keys = append(exp.keys, k)
 			exp.eachValues[k] = elems[name]
+			if b, ok := deferredExprs[name]; ok && b.expr != nil {
+				if exp.eachValueDeferred == nil {
+					exp.eachValueDeferred = make(map[addrs.InstanceKey]elemBinding)
+				}
+				exp.eachValueDeferred[k] = b
+			}
 		}
 		return r.checkedForEachKeys(rc, exp)
 

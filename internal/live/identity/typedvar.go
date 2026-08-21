@@ -334,11 +334,39 @@ func convertedElems(conv cty.Value, keys []cty.Value, elems []elemBinding) ([]ct
 		// conversion that produced a null produced nothing an instance's
 		// each.value can be read from.
 		if v.ContainsMarked() || v.IsNull() || !v.IsWhollyKnown() {
-			if b, ok := preservedExpr(ty, k, origByName); ok {
-				outVals = append(outVals, b)
-				continue
+			b, _ := preservedExpr(ty, k, origByName)
+			// #354: an OBJECT the conversion produced is bound even though it
+			// is not wholly known, and this is the one place in this file
+			// where an unproven value is not simply dropped.
+			//
+			// It is safe for the reason nothing else here is: the value is
+			// the CONVERTED one, so its attribute set is the declared type's
+			// attribute set exactly - optional() defaults applied, attributes
+			// the type does not declare dropped - which is what the module
+			// sees and what stock OpenTofu's own each.value holds. The hazard
+			// eachvalue.go's doc rules out is a PARTIAL object, where an
+			// attribute that is present and merely unresolvable looks absent
+			// and try() falls back over it. A converted object is not partial:
+			// every attribute the type declares is there, unknown where its
+			// value is unknown, and an unknown is not an error, so try() does
+			// not catch it and no fallback is taken over one.
+			//
+			// What that buys is per-attribute rather than per-element:
+			// `each.value.suffix` reads "std" off the type's own default while
+			// `each.value.name` beside it stays unknown, where before one
+			// unreadable leaf left the whole element unbound. The unknown half
+			// is then answered by the preserved expression - see
+			// [resolver.eachValueDeferredParts], which is consulted only for
+			// exactly those unknowns.
+			//
+			// Restricted to an object because that attribute-set argument is
+			// what makes it safe. A map declares no attribute names, so a
+			// converted map says nothing about which keys the module has, and
+			// a primitive or a collection has no attributes to read at all.
+			if !v.ContainsMarked() && !v.IsNull() && v.Type().IsObjectType() {
+				b.val = v
 			}
-			outVals = append(outVals, elemBinding{})
+			outVals = append(outVals, b)
 			continue
 		}
 		// Value only: the conversion is what the module sees, and the
@@ -390,8 +418,45 @@ func preservedExpr(ty cty.Type, k cty.Value, origByName map[string]elemBinding) 
 	default:
 		return elemBinding{}, false
 	}
-	if elemTy != cty.String && elemTy != cty.DynamicPseudoType {
-		return elemBinding{}, false
+	switch {
+	case elemTy == cty.String || elemTy == cty.DynamicPseudoType:
+		// The whole element is a string inside the module, so a bare
+		// each.value resolves to it and no declared type has to be carried:
+		// there is nothing left below this point for one to convert.
+		return elemBinding{expr: orig.expr, scope: orig.scope, modInst: orig.modInst}, true
+
+	case elemTy.IsObjectType():
+		if orig.declTy != cty.NilType && !orig.declTy.Equals(elemTy) {
+			// A SECOND typed hop over the same element, with a different type
+			// at each. The value the innermost module sees is
+			// convert(convert(raw, outer), inner), and the two conversions
+			// compose into something neither declaration states on its own -
+			// a number-typed attribute one hop out and a string-typed one in
+			// here turns the caller's "007" into "7". Only an unchanged type
+			// composes to the identity function, so anything else drops the
+			// expression exactly as an unreadable conversion does.
+			return elemBinding{}, false
+		}
+		// The element is an OBJECT inside the module, which is the shape a
+		// module publishes whenever it takes a map of settings blocks -
+		// terraform-aws-modules/autoscaling's own
+		// `map(object({ traffic_source_identifier = string, ... }))` is the
+		// case this exists for, and the same declaration appears on nearly
+		// every "map of definitions to create" argument those modules take.
+		//
+		// The conversion is not the identity function on the element as a
+		// whole - optional() supplies attributes the caller's constructor
+		// never wrote, and a non-string attribute type converts what the
+		// caller wrote - so the expression may NOT stand in for the element.
+		// What it can still do is answer for ONE attribute whose declared
+		// type this carries alongside it, which is what declTy is for and
+		// what [resolver.eachValueSelect] gates on: it accepts a selection
+		// only where the type at the selected step is a string, and it
+		// answers "the element does not have this attribute" from the
+		// declared type rather than from the caller's constructor, because
+		// the constructor stopped being evidence of that the moment a
+		// declared type applied.
+		return elemBinding{expr: orig.expr, scope: orig.scope, modInst: orig.modInst, declTy: elemTy}, true
 	}
-	return elemBinding{expr: orig.expr, scope: orig.scope, modInst: orig.modInst}, true
+	return elemBinding{}, false
 }
