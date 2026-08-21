@@ -2065,3 +2065,58 @@ func TestStatelessStampGaps_trustedKeyedModuleIsNotAGap(t *testing.T) {
 		}
 	})
 }
+
+// TestLivePlan_targetScopesTheStatelessPipeline is GitHub issue #352, at the
+// level the report was written from: the whole live-plan pipeline, over a
+// configuration holding one resource whose identity this fork cannot resolve.
+//
+// Untargeted, the run refuses on that resource - the first subtest is the
+// behaviour that must not change, and it is also the mutation check on the
+// second, because a fixture that had stopped refusing would let the targeted
+// run pass for no reason at all.
+//
+// Targeted at the OTHER resource, the run succeeds, because stock OpenTofu's
+// plan graph drops the unresolvable one before anything evaluates it and the
+// passes in front of the plan now agree. Before the fix, identity resolution,
+// the data-read phase, discovery and stamping all walked the whole
+// configuration regardless of -target, so this exited 1 with the identity
+// refusal below while a plain "tofu plan" over the same -target set exited 0.
+func TestLivePlan_targetScopesTheStatelessPipeline(t *testing.T) {
+	run := func(t *testing.T, args ...string) (int, *terminal.TestOutput) {
+		t.Helper()
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-plan-target-scope"), td)
+		t.Chdir(td)
+
+		cloud := newStatelessTestCloud()
+		cloud.putMarked("aws_s3_bucket", "tofu-stateless-unit-data", "stateless-unit", "aws_s3_bucket.data", map[string]string{
+			"id": "tofu-stateless-unit-data", "bucket": "tofu-stateless-unit-data",
+		})
+		c, done := newLivePlanCommand(t, cloud)
+		code := c.Run(append([]string{"-no-color", "-estate=stateless-unit"}, args...))
+		return code, done(t)
+	}
+
+	t.Run("untargeted still refuses", func(t *testing.T) {
+		code, output := run(t)
+		if code != 1 {
+			t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+		}
+		if !strings.Contains(output.Stderr(), "Identity argument not set") {
+			t.Errorf("an untargeted run no longer refuses the unresolvable resource, so the targeted case below proves nothing:\n%s", output.Stderr())
+		}
+	})
+
+	t.Run("targeted proceeds", func(t *testing.T) {
+		code, output := run(t, "-target=aws_s3_bucket.data")
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+		}
+		if strings.Contains(output.Stderr(), "Identity argument not set") {
+			t.Errorf("a targeted run still refused on a resource outside its own target set:\n%s", output.Stderr())
+		}
+		if strings.Contains(output.Stdout(), "aws_iam_group.orphaned") {
+			t.Errorf("the untargeted resource reached the plan:\n%s", output.Stdout())
+		}
+	})
+}

@@ -115,6 +115,19 @@ type Context struct {
 	// those instance keys come from the parent block's own expansion and are
 	// configuration data that needs no read - see [resolver.managedCovered].
 	ManagedResults map[string]cty.Value
+
+	// Scope is which resource blocks this run's -target / -exclude
+	// filtering leaves in the plan graph (GitHub issue #352). Nil is the
+	// default and means all of them, which is every untargeted run and
+	// every caller that has no graph to ask.
+	//
+	// A block outside it is still resolved, and still contributes its
+	// resolution when it resolves - the marker sweep's declared-address set
+	// is built from these resolutions and must stay complete - but its
+	// refusals are dropped rather than raised, because stock OpenTofu
+	// removed that block from the graph before anything evaluated it. See
+	// [Scope] and [resolver.walkOutOfScope].
+	Scope Scope
 }
 
 // ResolveWith is [Resolve] told everything the caller knows that the
@@ -240,6 +253,15 @@ func (r *resolver) warnUnsweepableTypes() {
 func (r *resolver) walkModule(cfg *configs.Config, modInst addrs.ModuleInstance, result *Result) {
 	r.enterModuleAt(cfg, modInst)
 	for _, rc := range sortedResources(cfg.Module.ManagedResources) {
+		// GitHub issue #352: a -target / -exclude run evaluates only what
+		// the plan graph still holds. A block the graph dropped is resolved
+		// anyway - its address still has to be declared, or the marker sweep
+		// reads its live objects as orphans - but it cannot refuse the run.
+		// See [resolver.walkOutOfScope].
+		if !r.inScope(rc) {
+			r.walkOutOfScope(rc, result)
+			continue
+		}
 		exp, ok := r.expansionFor(rc)
 		if !ok {
 			continue
@@ -674,6 +696,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		rootCfg:     cfg,
 		cloud:       rctx.Cloud,
 		schemas:     rctx.Schemas,
+		scope:       rctx.Scope,
 		recordStore: recordStoreConfiguredIn(cfg),
 		dataIndex:   dataIndex,
 		// Measured on the index rather than on len(rctx.ManagedResults) so
@@ -752,6 +775,10 @@ type resolver struct {
 	// schemas are the provider's resource type schemas when the caller had
 	// them, and nil when it did not. See [Context.Schemas].
 	schemas map[string]providers.Schema
+
+	// scope is which resource blocks -target / -exclude leaves in the plan
+	// graph, and nil when the run is untargeted. See [Context.Scope].
+	scope Scope
 
 	// recordStore is whether the root module's live block declares a
 	// record_store, which is what admits [ClassRecordLocated] (issue #270)

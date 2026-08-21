@@ -181,7 +181,12 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// for the same reason the resolution below matches a plan's: a rename
 	// computed over different data values than the plan's would rewrite a
 	// marker the plan then disputes.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	//
+	// The nil scope is live-mv having no -target flag to honor (issue #352):
+	// a rename is about the whole configuration's identity map, and scoping
+	// it to a subset would rewrite a marker against a map the next full plan
+	// disagrees with.
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, nil)
 	diags = diags.Append(drDiags)
 	if drDiags.HasErrors() {
 		return nil, diags
@@ -192,7 +197,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// differently from a plan would rewrite a marker a plan then disputes.
 	// Through the same helper a plan uses, second pass and all: see
 	// [statelessResolve].
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, nil)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal for the same reason it is fatal in a plan: an identity map
