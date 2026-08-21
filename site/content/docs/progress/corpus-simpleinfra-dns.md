@@ -16,11 +16,11 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 
 | Stage | Verdict | Detail |
 |---|---|---|
-| Cold deploy | pass |  |
-| Migrate | pass |  |
-| Replan from nothing | pass |  |
-| No-op apply | pass |  |
-| Drift and reconverge | pass |  |
+| Cold deploy | pass | 35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate |
+| Migrate | pass | 7 stamped, 7 distinct hosted zones, one per module call |
+| Replan from nothing | pass | no resource change proposed, nothing foreign; all 35 rendered identities name a live hosted zone or record set |
+| No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); 7 zones / 28 records unchanged, all 7 markers unmoved |
+| Drift and reconverge | pass | one untaggable record drifted, exactly module.rustconf_com.aws_route53_record.cname["2016"] proposed and applied, TTL reconverged to 300, 28 records and the parent marker intact |
 | Rename (planned) | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
@@ -31,8 +31,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Greenfield apply (planned) | not run |  |
 | Strict profile (planned) | not run |  |
 
-Verdicts were recorded from this estate's crossing script by hand before the
-script spoke the gauntlet protocol; the next run that does will replace them.
+Last run at commit `a9cc85b345` on 2026-08-21T19:47:27Z, exit code 0.
 
 35 instances: 7 aws_route53_zone TAGGABLE (7 markers, each verified against the domain that module call declares - a fact the marker does not supply), 28 aws_route53_record UNTAGGABLE and re-derived from their tagged parent zone. Found and corrected a census error in issue #274's own thread first: live/e2e/repeated-module/run.sh has targeted this same directory since #280 but never runs live-import (grep -c live-import -> 0), applies with the live block already declared so genuinely unmarked infrastructure never exists, and has no drift stage - it is not a five-stage crossing despite being counted as one, though it does cover stages 3/4 well. Cold-deployed by real Terraform v1.15.8 (35/0/0), 7 stamped + 28 skipped by live-import -approve, state deleted, live-plan empty with all 35 rendered identities checked as strings against Route 53's own answer, no-op apply 0/0/0 with all 7 markers unmoved. Stage 5 drifts an UNTAGGABLE object out of band - a record set's TTL 300 -> 60 via change-resource-record-sets - which no other crossing's drift stage does: with no state file and no tag on the object, the drift is only visible if the derived-from-tagged identity re-derived correctly. Plan proposes exactly module.rustconf_com.aws_route53_record.cname["2016"] and nothing else; apply 0 added/1 changed/0 destroyed; TTL read back as 300. Three of team-members-access's four deltas recur (#268 mandatory backend edit, #269 provider version skew ~> 5.64 -> = 6.59.0, an emulator provider override), asserted; the fourth (five seeded data-source reads) does not - 0 data blocks anywhere, asserted. One delta deliberately absent: the four trailing-dot record names (#281) are unchanged, asserted at count 4. BREAK=1 exits 1 at stage 2c on the corrupted marker; BREAK_STAGE5=1 exercises a real hole found on adversarial re-read - the first stage-5 assertion counted only will-be-updated addresses, so a destroy or create alongside the expected update would have passed silently under BREAK_STAGE5 (which skips the apply that would eventually have caught it) - fixed by asserting the plan's own totals line first, mutation-checked (clean run reads exactly '0 to add, 1 to change, 0 to destroy', BREAK_STAGE5=1 reads '0 to add, 2 to change, 0 to destroy'). Zero choudoufu defects found. A reusable methodology finding: any crossing whose cold deploy uses real Terraform (not tofu) cannot use corpus-giantswarm-crossplane's lock-file-seeding fix for the 320s uncached-init tax, because terraform and choudoufu resolve providers from different registries (terraform.io vs opentofu.org) so neither's lock file satisfies the other - measured here, plain terraform init >600s (timed out), -plugin-dir=<cache> 0.35s. -plugin-dir is strictly better than lock-seeding for tofu-cold-deployed estates too. justfile gained demo-corpus-simpleinfra-dns (port 4741); live/corpus-manifest.json gained the pin. Verified 2026-08-19 at 07b72f9977, 145s.
 
