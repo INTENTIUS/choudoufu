@@ -6,8 +6,10 @@ set -uo pipefail
 # aws_cloudfront_origin_request_policy, "discovery binds a live object by
 # that name rather than by an ownership tag" - live/survey-full.json's
 # "unique-name" path), against .corpus/govuk-infrastructure's own cloudfront
-# deployment: 16 instances, written by GOV.UK and not for us. It passes
-# live-check with zero refused sites.
+# deployment: 16 instances, written by GOV.UK and not for us. It used to
+# pass live-check with zero refused sites; since 2026-08-20 it carries
+# exactly one, aws_iam_policy_attachment, and step 3 pins it by count and by
+# name - see that step's own note.
 #
 # It does NOT cross, in two separate ways this script pins rather than
 # hides:
@@ -35,46 +37,46 @@ set -uo pipefail
 #           pin is GONE - no "cannot list" error anywhere, and the aliased
 #           aws.global pass's own "Incomplete sweep for undeclared resources"
 #           warnings no longer name it, exactly as they would if it were
-#           still unlistable. The estate now fails earlier, on three
-#           unrelated causes at once:
+#           still unlistable.
 #
-#             aws_cloudwatch_log_delivery_destination (2 instances) and
-#             aws_cloudwatch_log_delivery_source (2 instances) - a FLOCI GAP,
-#             not a choudoufu defect. Reading either back 400s with
-#             "UnsupportedOperation: Operation Get{DeliveryDestination,
-#             DeliverySource} is not supported" - floci never implemented
-#             these two CloudWatch Logs calls. That is a different SHAPE of
-#             failure than issue #297's fix folds into ordinary absence:
-#             #297 matches a not-found-shaped diagnostic ("couldn't find
-#             resource", ResourceNotFoundException) and treats it as "not
-#             created yet"; UnsupportedOperation says the operation itself
-#             does not exist in the emulator, and #297 correctly leaves that
-#             alone rather than silently swallowing it. Filed as
-#             lex00/floci#79.
+#           RE-MEASURED 2026-08-21 (issue #331), and the estate now stops
+#           SOONER than every earlier version of this comment describes: at
+#           PLAN time, with a single refusal, before floci is asked for
+#           anything at all. What this step now pins is that one refusal, by
+#           count and by name:
 #
 #             aws_iam_policy_attachment (1 instance, basic_lambda_attach) -
-#             a REAL, PERMANENT PROVIDER BOUNDARY, not a choudoufu gap.
-#             "resource aws_iam_policy_attachment doesn't support import" is
-#             internal/legacy/helper/schema/provider.go:384's own hard stop
-#             for a resource with a nil Importer - the same code path stock
-#             OpenTofu's `terraform import` would hit for this type. The
-#             provider's own docs confirm it: v6.59.0's
-#             iam_policy_attachment.html.markdown carries no Import section
-#             at all. choudoufu currently admits the type anyway, through
-#             internal/live/lint/admission.go's schema fallback, because the
-#             provider's WIRE identity schema declares an import identity
-#             (policy_arn) that the resource's actual Importer does not back -
-#             live/identity-sources.json's identity_schema_wire_only already
-#             flags this exact mismatch, for this type and five others
-#             (aws_acm_certificate_validation,
-#             aws_acmpca_certificate_authority_certificate,
-#             aws_codegurureviewer_repository_association,
-#             aws_inspector_resource_group,
-#             aws_shield_application_layer_automatic_response). That is a
-#             genuine finding about admission trusting a wire-only identity
-#             schema it cannot verify against the resource's real Importer -
-#             not acted on here, because it is a design question spanning
-#             several types and not a contained fix. Reported on issue #300.
+#             refused as unadmitted-type, a REAL PROVIDER BOUNDARY reported
+#             at the right moment rather than a choudoufu gap. The provider
+#             has no Importer for this type at all: helper/schema's
+#             ImportState answers "resource ... doesn't support import" for a
+#             nil Importer, which is the same hard stop stock OpenTofu's
+#             `terraform import` hits, and v6.59.0's
+#             iam_policy_attachment.html.markdown carries no Import section.
+#
+#             This script used to assert the string "aws_iam_policy_attachment
+#             doesn't support import" in the APPLY output, because choudoufu
+#             admitted the type on the strength of its wire identity schema
+#             (policy_arn) and only discovered the missing Importer when
+#             internal/live/projection actually called ImportResourceState -
+#             a plan refusal traded for an apply refusal, which this fork is
+#             not allowed to do. Issue #331 closed that: tools/survey-gen
+#             probes ImportResourceState for every type, tools/row-gen emits
+#             identity.NotImportableTypes from the result, and every
+#             admission route now consults identity.NotImportable. So that
+#             string can no longer appear anywhere - the refusal arrives
+#             before the projection exists to raise it.
+#
+#             The two floci gaps this comment used to pin alongside it -
+#             aws_cloudwatch_log_delivery_destination and
+#             aws_cloudwatch_log_delivery_source (2 instances each), whose
+#             reads 400 with "UnsupportedOperation: Operation
+#             Get{DeliveryDestination,DeliverySource} is not supported",
+#             lex00/floci#79 - are NOT closed and NOT asserted here any more.
+#             They are apply-time failures and this estate no longer reaches
+#             apply. Step 3 asserts their absence for that reason, so that a
+#             regression putting the estate back past the plan gate is caught
+#             here rather than read as progress.
 #
 #   STEP 5  a REAL fix, found by this script's first run today. Before it,
 #           EVERY unique-name type failed its very first apply,
@@ -127,6 +129,10 @@ set -uo pipefail
 # Needs Docker, the AWS CLI, and .corpus populated (`just corpus-fetch`).
 #
 # Env overrides:
+#   BREAK=1      corrupts STEP 3's expected unadmitted-type count (1 -> 2).
+#                That step must then fail. It is scoped to step 3 because
+#                that is the only step here asserting a count; the rest
+#                assert the presence or absence of a named diagnostic.
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
 #   FLOCI_PORT   host port for the emulator (default 4694, clear of every
 #                other live/e2e script's default as of this writing).
@@ -274,20 +280,52 @@ fi
 grep -q 'cannot list aws_wafv2_web_acl' <<< "$APPLY_FULL" \
   && fail "the aws_wafv2_web_acl listability gap fired again. It was verified CLOSED on 2026-08-19 (issue #300) - no 'cannot list' error, and the aliased aws.global pass's own undeclared-resource sweep no longer named the type. Something has regressed; read the errors above and re-stale this script's header comment to match."
 
-# Where it stops instead: three unrelated causes at once, none of them about
-# provider configurations or wafv2 listability. See this script's header for
-# the full account of each (issue #300).
-grep -q 'reading CloudWatch Logs Delivery Destination' <<< "$APPLY_FULL" \
-  && grep -q 'reading CloudWatch Logs Delivery Source' <<< "$APPLY_FULL" \
-  && grep -q "aws_iam_policy_attachment doesn't support import" <<< "$APPLY_FULL" \
-  || { grep -E '^Error|^│' <<< "$APPLY_FULL" | head -20
-       fail "the full estate failed, but not on the three causes this script now pins (the CloudWatch Logs Delivery Destination/Source floci gap, lex00/floci#79, and aws_iam_policy_attachment's real lack of provider Import support). Something else about the corpus pin or this fork has moved - read the errors above."; }
-log "  it stops earlier now, and on three unrelated causes: floci has never"
-log "  implemented CloudWatch Logs' GetDeliveryDestination/GetDeliverySource"
-log "  (lex00/floci#79, not a not-found shape #297 should fold), and"
-log "  aws_iam_policy_attachment has no real provider Import support (a"
-log "  permanent boundary stock OpenTofu would hit too)."
-log "  This estate is still NOT crossed.                        (#300)"
+# Where it stops instead: ONE plan-time refusal, before any resource is
+# touched. See this script's header for the full account (issue #331).
+#
+# The count is asserted, not just the presence: an estate that grows a second
+# refused type has moved, and a script that only greps for one name would
+# report the same "as expected" either way.
+WANT_UNADMITTED_N=1
+WANT_UNADMITTED_TYPE="aws_iam_policy_attachment"
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_UNADMITTED_N=2
+  log "  BREAK=1: expecting 2 unadmitted-type sites where the estate has 1."
+  log "           Wrong. This step must fail."
+fi
+
+log "  all distinct Error: lines from this apply:"
+grep -E '^Error:' <<< "$APPLY_FULL" | sort | uniq -c | sed 's/^/    /'
+UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$APPLY_FULL")"
+[ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] \
+  || { printf '%s\n' "$APPLY_FULL" | head -40
+       fail "expected $WANT_UNADMITTED_N unadmitted-type site(s) in this estate, got $UNADMITTED_N - read the output above"; }
+grep -qE "resource \"$WANT_UNADMITTED_TYPE\"" <<< "$APPLY_FULL" \
+  || { printf '%s\n' "$APPLY_FULL" | head -40
+       fail "the one unadmitted-type refusal is not about $WANT_UNADMITTED_TYPE. That type has no Importer in the pinned provider release and identity.NotImportableTypes is derived from a probe of exactly that; if it is no longer refused here, either the probe has gone stale or a route stopped consulting the veto (issue #331)."; }
+
+# The refusal has to arrive at PLAN time, which is the whole of issue #331's
+# fix: before it, this same type was admitted, applied, and only then failed
+# on ImportResourceState - a plan refusal traded for an apply refusal, with
+# a real object already created. Two absences say the gate held, and both are
+# asserted rather than assumed.
+# internal/live/projection's own summary for a failed ImportResourceState,
+# and NOT the provider's "doesn't support import" sentence: the refusal
+# asserted above quotes that sentence in its own explanation, so grepping
+# for it would match the very message proving the gate held.
+grep -q 'Cannot import for projection' <<< "$APPLY_FULL" \
+  && { printf '%s\n' "$APPLY_FULL" | head -40
+       fail "the projection still reached ImportResourceState for a type with no Importer. That is the exact trade issue #331 closed: the refusal must arrive at plan time, before anything is created."; }
+grep -q 'reading CloudWatch Logs Delivery' <<< "$APPLY_FULL" \
+  && { printf '%s\n' "$APPLY_FULL" | head -40
+       fail "the estate reached apply and hit the CloudWatch Logs Delivery floci gap (lex00/floci#79). That gap is real and still open, but it is unreachable while the plan gate refuses this estate - so reaching it means the refusal above did not stop the run, and this script's account of where the estate stops is wrong."; }
+
+log "  it stops at PLAN time now, on one refusal: $WANT_UNADMITTED_TYPE has"
+log "  no Importer in the pinned provider release, so no admission route"
+log "  will take it (issue #331). Nothing was created, and the two floci"
+log "  CloudWatch Logs Delivery gaps (lex00/floci#79) are real, still open,"
+log "  and no longer reachable from here."
+log "  This estate is still NOT crossed.                        (#331)"
 
 # ── 4. the unique-name mechanism, isolated ──────────────────────────────────
 # The two resources in this estate that exercise the leg #274 asked this
@@ -400,8 +438,12 @@ log "the shape AWS's own CloudFront-plus-WAF guidance produces - and that"
 log "was a hard refusal before any resource was touched. Issue #283 lifted"
 log "it: the estate now runs one scoped discovery pass per configuration."
 log "aws_wafv2_web_acl's old listability gap is gone too (re-verified"
-log "2026-08-19, #300); the estate now stops further in still, on a floci"
-log "gap (CloudWatch Logs Delivery Destination/Source, lex00/floci#79) and a"
-log "real provider boundary (aws_iam_policy_attachment has no Import"
-log "support at all). This script measures the estate as GOV.UK wrote it,"
-log "not a version restructured to fit around any of these bounds."
+log "2026-08-19, #300). Where it stops now is EARLIER, not further in: one"
+log "plan-time refusal of aws_iam_policy_attachment, a type the pinned"
+log "provider has no Importer for at all (#331). That used to be an"
+log "apply-time failure after the object was created; it is a plan refusal"
+log "now, which is the direction this fork is required to move in. The"
+log "CloudWatch Logs Delivery floci gap (lex00/floci#79) is still open and"
+log "simply not reachable from here any more. This script measures the"
+log "estate as GOV.UK wrote it, not a version restructured to fit around"
+log "any of these bounds."
