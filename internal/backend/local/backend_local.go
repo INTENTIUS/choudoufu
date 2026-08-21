@@ -254,7 +254,10 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		// as newly created on every stateless plan or apply regardless of
 		// whether the underlying resources changed. See
 		// [projection.ApplyRootOutputValues].
-		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.Stateless.RootOutputData())
+		// GitHub issue #349's remaining half rides in the last argument: what
+		// the estate remembers each output was, for the ones evaluation
+		// cannot reach at all. See rootoutput.go.
+		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.Stateless.RootOutputData(), b.Stateless.RecordedRootOutputs())
 		diags = diags.Append(outputDiags)
 		if outputDiags.HasErrors() {
 			return nil, nil, diags

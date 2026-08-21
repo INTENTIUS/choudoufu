@@ -447,6 +447,16 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// crossing's stage 3 reads.
 		ProvisionedStore: projection.NewProvisionedStore(hintStore, estate),
 	})
+	// Issue #349. Same store again, sixth namespace, and unreachable today
+	// for the same structural reason ProvisionedStore is: hintStore is
+	// opened only when the root module's live block declares a record_store,
+	// and a configuration with a live block is delegated to PlanCommand
+	// before it ever reaches here. Read and wired anyway rather than left
+	// out, so that the day that delegation stops covering some shape, this
+	// path answers about root outputs the same way the other one does
+	// instead of quietly regressing every estate that reaches it to "every
+	// output is new".
+	recordedRootOutputs := projection.ReadRootOutputValues(ctx, projection.NewRootOutputStore(hintStore, estate), config)
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are
 	// still open - the output evaluation itself happens after the plan
@@ -547,7 +557,9 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// changed. See [projection.ApplyRootOutputValues]. rootOutputData is
 	// issue #349's second half: the data sources those outputs reach, read
 	// live a few steps above while the projection's providers were open.
-	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables, rootOutputData))
+	// recordedRootOutputs is #349's remaining half: what the estate
+	// remembers each output was, for the ones evaluation cannot reach.
+	diags = diags.Append(projection.ApplyRootOutputValues(ctx, tfCtx, config, projResult.State, variables, rootOutputData, recordedRootOutputs))
 	if diags.HasErrors() {
 		return 1, false, diags
 	}

@@ -61,13 +61,21 @@ import (
 // exactly like the zero-instance husks. Empty or nil is the ordinary case
 // and costs nothing.
 //
+// recorded is GitHub issue #349's remaining half: what this estate REMEMBERS
+// each root output's value to be, read from the "tofu-outputs" namespace by
+// [ReadRootOutputValues] and written there by the migration and by every
+// apply's write-back. It is consulted only for an output the evaluation below
+// could not answer at all, which is what bounds its blast radius to
+// one-directional - see rootoutput.go's "soundness rule" section. Empty or
+// nil is the ordinary case and costs nothing.
+//
 // This function does not report. It returns diagnostics because it is called
 // where diagnostics are collected, and in practice it returns none: an
 // output it cannot evaluate is left unset and nothing is raised about it.
 // The reason is written out at the eval call below, and it is load-bearing
 // rather than tidiness - a pre-plan probe over a deliberately partial state
 // must never be the thing that refuses an estate.
-func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues, dataValues map[string]cty.Value) tfdiags.Diagnostics {
+func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues, dataValues map[string]cty.Value, recorded map[string]cty.Value) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if core == nil || config == nil || config.Module == nil || len(config.Module.Outputs) == 0 || state == nil {
 		return diags
@@ -93,14 +101,21 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// exact risk GitHub issue #349's scoping named for the data-source half
 	// of this, and it was already live for the evaluation half.
 	scope, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
-	if scope == nil {
-		return diags
-	}
 
 	root := state.RootModule()
 	for name, output := range config.Module.Outputs {
+		if scope == nil {
+			// The whole evaluation graph would not build. Nothing is
+			// evaluable this run, but what the estate REMEMBERS is still
+			// readable, so fall through to it rather than returning: an
+			// estate that cannot build an eval graph is exactly the one that
+			// gains most from a value it does not have to compute.
+			applyRecordedRootOutput(root, name, output, recorded)
+			continue
+		}
 		val, valDiags := scope.EvalExpr(ctx, output.Expr, cty.DynamicPseudoType)
 		if valDiags.HasErrors() {
+			applyRecordedRootOutput(root, name, output, recorded)
 			continue
 		}
 		// A not-wholly-known value means this output reads a resource that
@@ -119,6 +134,7 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		// which is also the right answer: an output whose resource is
 		// itself about to be created cannot be a no-op.
 		if !val.IsWhollyKnown() {
+			applyRecordedRootOutput(root, name, output, recorded)
 			continue
 		}
 		// Marks come off before the value is stored, and this is a crash fix
@@ -155,6 +171,36 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
 	}
 	return diags
+}
+
+// applyRecordedRootOutput is the fallback under every "continue" in
+// [ApplyRootOutputValues]'s loop: this output could not be evaluated against
+// the projection, so use what the estate remembers it was.
+//
+// Reaching here is the ONLY way a recorded value is ever used, and that is
+// the whole soundness argument (rootoutput.go, "the soundness rule"): a value
+// the evaluation produced is never replaced, so this can only add a prior
+// value where there was none. A "+ name = value" line becomes either nothing,
+// when the remembered value equals what the plan recomputes, or
+// "~ name = old -> new", when they differ - which is a real change and is
+// what stock renders for it too.
+//
+// Marks are taken off for the same crash reason the evaluated path takes them
+// off, even though nothing this package writes to the store carries any: a
+// marked "before" panics NodeApplyableOutput.setValue.
+//
+// A value that is not wholly known is not stored; the check is here for that
+// same node's assumption rather than for a case with a name.
+func applyRecordedRootOutput(root *states.Module, name string, output *configs.Output, recorded map[string]cty.Value) {
+	if root == nil || output == nil || len(recorded) == 0 {
+		return
+	}
+	val, ok := recorded[name]
+	if !ok || val == cty.NilVal || !val.IsWhollyKnown() {
+		return
+	}
+	val, _ = val.UnmarkDeep()
+	root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
 }
 
 // withZeroInstanceBlocks returns the state [ApplyRootOutputValues]

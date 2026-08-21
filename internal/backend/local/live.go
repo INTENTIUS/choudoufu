@@ -84,6 +84,21 @@ type StatelessRun interface {
 	// PriorState has returned without errors.
 	RootOutputData() map[string]cty.Value
 
+	// RecordedRootOutputs is what the estate REMEMBERS each root output's
+	// value to be - the value it settled on at the last apply, or at the
+	// migration that brought it over from a stock state file - keyed by
+	// output name, or nil when the run has no record store or nothing is
+	// recorded.
+	//
+	// It is [projection.ApplyRootOutputValues]'s fallback for an output that
+	// cannot be evaluated against the projection at all, which is what a
+	// stock state file's own stored output values are to `tofu plan`. A
+	// method here for [StatelessRun.RootOutputData]'s reason: the store is
+	// opened inside PriorState and the values are used a moment later, in
+	// the caller's own step. Called at most once per operation, always after
+	// PriorState has returned without errors.
+	RecordedRootOutputs() map[string]cty.Value
+
 	// WriteBack is GitHub issue #73's third leg: after a successful apply,
 	// persist every record-backed resource instance's new state to the
 	// record store PriorState read from, and delete the record for any
