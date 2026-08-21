@@ -1,0 +1,337 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+// gauntlet runs choudoufu's real-estate test suite against stock OpenTofu
+// and renders everything the project says about its own progress from the
+// result. live/GAUNTLET.md, rendered by this tool, is the contract.
+//
+//	go run ./tools/gauntlet render                 # regenerate artifact, spec, site pages
+//	go run ./tools/gauntlet run [-set core] [name] # run crossing scripts, record verdicts, render
+//	go run ./tools/gauntlet add <name> <url> <ref> -lane <lane> -source "..." [-core -reason "..."]
+//	go run ./tools/gauntlet import-legacy          # one-time seed from live/corpus-crossing-manifest.json
+//	go run ./tools/gauntlet snapshot <version>     # copy the artifact to live/history/<version>.json
+//	go run ./tools/gauntlet check                  # exit 1 if a rendered file is stale
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+	root, err := repoRoot()
+	if err != nil {
+		fatal(err)
+	}
+	switch os.Args[1] {
+	case "render":
+		fatalIf(cmdRender(root))
+	case "run":
+		fatalIf(cmdRun(root, os.Args[2:]))
+	case "add":
+		fatalIf(cmdAdd(root, os.Args[2:]))
+	case "import-legacy":
+		fatalIf(cmdImportLegacy(root))
+	case "snapshot":
+		if len(os.Args) < 3 {
+			fatal(fmt.Errorf("snapshot needs a version"))
+		}
+		fatalIf(cmdSnapshot(root, os.Args[2]))
+	case "check":
+		stale, err := StaleFiles(root)
+		fatalIf(err)
+		if len(stale) > 0 {
+			fmt.Fprintf(os.Stderr, "stale rendered files (run `go run ./tools/gauntlet render`):\n  %s\n", strings.Join(stale, "\n  "))
+			os.Exit(1)
+		}
+		fmt.Println("rendered files are current")
+	default:
+		usage()
+		os.Exit(2)
+	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: gauntlet render | run [-set core|all] [-env K=V]... [name...] | add <name> <url> <ref> -lane <lane> -source <text> [-core -reason <text>] | import-legacy | snapshot <version> | check")
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "gauntlet:", err)
+	os.Exit(1)
+}
+
+func fatalIf(err error) {
+	if err != nil {
+		fatal(err)
+	}
+}
+
+// repoRoot finds the checkout root from the working directory.
+func repoRoot() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("not in a git checkout: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func headCommit(root string) string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func emulatorPin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "floci-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// loadAll loads manifest and artifact and rebuilds the derived parts.
+func loadAll(root string, now time.Time) (*Manifest, *Artifact, error) {
+	m, err := LoadManifest(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	a.Rebuild(m, headCommit(root), emulatorPin(root), now)
+	return m, a, nil
+}
+
+func cmdRender(root string) error {
+	m, a, err := loadAll(root, time.Now())
+	if err != nil {
+		return err
+	}
+	// Rendering does not bump the generated stamp or commit unless verdicts
+	// changed; keep whatever the artifact carried so `render` is idempotent.
+	if prev, err := LoadArtifact(root); err == nil && prev.Generated != "" {
+		a.Generated = prev.Generated
+		a.Commit = prev.Commit
+		if prev.Emulator != "" {
+			a.Emulator = prev.Emulator
+		}
+	}
+	written, err := Render(root, m, a)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("rendered %d files\n", len(written))
+	return nil
+}
+
+func cmdRun(root string, args []string) error {
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	set := fs.String("set", "all", "which set to run when no names are given: core or all")
+	var envs multiFlag
+	fs.Var(&envs, "env", "KEY=VALUE passed to every script (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	now := time.Now()
+	m, a, err := loadAll(root, now)
+	if err != nil {
+		return err
+	}
+	commit := headCommit(root)
+	failures, err := RunEstates(root, m, a, RunOptions{Names: fs.Args(), Set: *set, Env: envs, Stdout: os.Stdout}, commit)
+	if err != nil {
+		return err
+	}
+	a.Rebuild(m, commit, emulatorPin(root), now)
+	if _, err := Render(root, m, a); err != nil {
+		return err
+	}
+	core, all := a.Sets["core"], a.Sets["all"]
+	fmt.Printf("core %d of %d clear, all %d of %d clear, %d script(s) exited non-zero\n", core.Clear, core.Estates, all.Clear, all.Estates, failures)
+	if failures > 0 {
+		os.Exit(1)
+	}
+	return nil
+}
+
+type multiFlag []string
+
+func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(s string) error { *m = append(*m, s); return nil }
+
+func cmdAdd(root string, args []string) error {
+	fs := flag.NewFlagSet("add", flag.ContinueOnError)
+	lane := fs.String("lane", "", "one of "+strings.Join(KnownLanes, ", "))
+	source := fs.String("source", "", "one-line description: repository, path, version")
+	core := fs.Bool("core", false, "put the estate in the core set (needs -reason)")
+	reason := fs.String("reason", "", "why this estate belongs in the core set")
+	script := fs.String("script", "", "script path, default live/e2e/<name>/run.sh")
+	// Positional args first: name url ref.
+	var pos []string
+	var flags []string
+	for i := 0; i < len(args); i++ {
+		if strings.HasPrefix(args[i], "-") {
+			flags = append(flags, args[i:]...)
+			break
+		}
+		pos = append(pos, args[i])
+	}
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+	if len(pos) < 1 {
+		return fmt.Errorf("add needs at least <name>; <url> <ref> unless -lane reference")
+	}
+	e := Estate{Name: pos[0], Lane: *lane, Source: *source, Reason: *reason, Script: *script, Set: SetGrowing}
+	if len(pos) > 1 {
+		e.URL = pos[1]
+	}
+	if len(pos) > 2 {
+		e.Pin = pos[2]
+	}
+	if *core {
+		e.Set = SetCore
+	}
+	if e.Source == "" {
+		e.Source = fmt.Sprintf("%s at %s", e.URL, e.Pin)
+	}
+	m, err := LoadManifest(root)
+	if err != nil {
+		return err
+	}
+	if err := AddEstate(root, m, e); err != nil {
+		return err
+	}
+	fmt.Printf("added %s; fill in %s, then `go run ./tools/gauntlet run %s`\n", e.Name, e.ScriptPath(), e.Name)
+	return cmdRender(root)
+}
+
+// cmdImportLegacy seeds the artifact from live/corpus-crossing-manifest.json,
+// the hand-recorded ledger the gauntlet replaces. Run once; afterwards the
+// runner is the only writer of verdicts. Entries already carrying the
+// gauntlet protocol are left alone.
+func cmdImportLegacy(root string) error {
+	b, err := os.ReadFile(filepath.Join(root, "live", "corpus-crossing-manifest.json"))
+	if err != nil {
+		return err
+	}
+	var legacy struct {
+		Estates []struct {
+			Dir    string            `json:"dir"`
+			Stages map[string]string `json:"stages"`
+			Notes  string            `json:"notes"`
+		} `json:"estates"`
+	}
+	if err := json.Unmarshal(b, &legacy); err != nil {
+		return err
+	}
+	now := time.Now()
+	m, a, err := loadAll(root, now)
+	if err != nil {
+		return err
+	}
+	imported := 0
+	for _, e := range m.Estates {
+		r, _ := a.Result(e.Name)
+		if r.Protocol == ProtocolGauntlet {
+			continue
+		}
+		for _, l := range legacy.Estates {
+			if filepath.Base(l.Dir) != e.Name {
+				continue
+			}
+			r.Name = e.Name
+			r.Stages = map[string]string{}
+			for id, v := range l.Stages {
+				r.Stages[id] = v
+			}
+			r.Notes = l.Notes
+			r.Protocol = ProtocolLegacy
+			a.SetResult(r)
+			imported++
+		}
+	}
+	a.Rebuild(m, headCommit(root), emulatorPin(root), now)
+	if _, err := Render(root, m, a); err != nil {
+		return err
+	}
+	fmt.Printf("imported %d legacy verdict sets\n", imported)
+	return nil
+}
+
+func cmdSnapshot(root, version string) error {
+	src := filepath.Join(root, ArtifactPath)
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(root, "live", "history")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	dst := filepath.Join(dir, version+".json")
+	if err := os.WriteFile(dst, b, 0o644); err != nil {
+		return err
+	}
+	fmt.Printf("wrote %s\n", dst)
+	return nil
+}
+
+// StaleFiles renders into a temp dir and returns the rendered files whose
+// committed copy differs. The test and `check` share it.
+func StaleFiles(root string) ([]string, error) {
+	m, err := LoadManifest(root)
+	if err != nil {
+		return nil, err
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		return nil, err
+	}
+	// Rebuild with the committed stamp so the comparison is about content.
+	a.Rebuild(m, a.Commit, a.Emulator, time.Time{})
+	if prev, err := LoadArtifact(root); err == nil {
+		a.Generated = prev.Generated
+	}
+	tmp, err := os.MkdirTemp("", "gauntlet-render-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmp)
+	// Estate pages are pruned by reading the target dir; mirror the committed
+	// one so pruning logic runs the same way.
+	written, err := Render(tmp, m, a)
+	if err != nil {
+		return nil, err
+	}
+	var stale []string
+	for _, rel := range written {
+		want, err := os.ReadFile(filepath.Join(tmp, rel))
+		if err != nil {
+			return nil, err
+		}
+		got, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil || !bytes.Equal(want, got) {
+			stale = append(stale, rel)
+		}
+	}
+	return stale, nil
+}

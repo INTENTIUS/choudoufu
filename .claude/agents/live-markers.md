@@ -8,30 +8,22 @@ You are working on choudoufu. Read this before your first tool call.
 ## What the product is
 
 choudoufu is an OpenTofu fork that runs a user's **existing** OpenTofu
-configuration against live cloud resources, using cloud tags as ownership
-markers instead of a state file.
+configuration against live cloud resources, with cloud tags as the
+authoritative ownership markers and a small per-instance record for what the
+cloud cannot hold, instead of a state file.
 
-**The goal: people's existing OpenTofu should work under live markers, with
-extremely narrow exceptions.** Onboarding them from regular OpenTofu is the
-product. Judge your work against that, not against any internal tidiness.
+**The promise: if OpenTofu runs an estate, choudoufu runs it too.** Migration
+from a stock state file is lossless, a greenfield apply is equivalent, day-2
+operations behave like stock's. `HANDOFF.md` is the one-page statement of the
+promise, the compatible-by-default rule, the record foundation, the safety
+rule ("never write a wrong marker; drop to the record rung, never refuse the
+estate") and the engine (stock is the oracle; `live/GAUNTLET.md` is the test).
+Read it before this file; this file is the operational detail underneath it.
 
-**Type parity is the bar (maintainer ruling, 2026-08-15): choudoufu must
-support every resource type stock OpenTofu supports.** A type in
-`tools/row-gen/rejected.json`, a needs-hand-separator or evidence-only
-bucket, an unadmitted cfn-unmodeled type, or plan-and-create-only
-schema-fallback support is DEBT carrying an obligation to build the missing
-vocabulary or extraction - never an acceptable residue. When a ledger entry
-records why a type could not be admitted, that is the work's address, not
-its conclusion. The one sanctioned exclusion is credential material
-(aws_iam_access_key, aws_iot_certificate, aws_ivs_playback_key_pair,
-aws_appstream_directory_config - client-supplied or minted secret material
-that would persist in config or state). Do not offer "leave it rejected" as
-an option.
-
-The invariant is "no state ops" (issue #73). Identity moves to cloud tags,
-receipts move to per-estate cloud records (`record_store`), and what remains in
-the state file is effects only — `null_resource`, `terraform_data`, `time_*`,
-non-secret `random_*` — through the stock provider lifecycle, as upstream.
+Every type stock supports is admitted; what varies per instance is its rung
+(tag-governable, derived from configuration, record-only), and that is a
+metric, not a gate. Credential material is the one class the compatible
+default still treats differently, and only through the documented toggle.
 
 ## The invariant, and the confusion it prevents
 

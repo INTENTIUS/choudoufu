@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -52,6 +54,11 @@ jobs:
       # this list honest; add a package here, or exclude it by name there.
       - name: Fast test tier
         run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: 'latest'
+          extended: true
       - name: Docs site build
-        working-directory: site
-        run: go run . -out public/
+        run: |
+          cp live/iam-reference.json site/data/iamref.json
+          (cd site && hugo --minify --quiet)

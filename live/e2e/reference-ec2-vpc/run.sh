@@ -89,7 +89,19 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 
 # ── 0. tools ─────────────────────────────────────────────────────────────
 log "=== 0. tools ==="
@@ -231,6 +243,7 @@ EOF
 
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AWS_ENDPOINT_URL="$ENDPOINT"
 
+CURRENT_STAGE=greenfield
 log "=== A1. init and apply: 5 resources from nothing ==="
 ( cd "$GREEN" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$GREEN" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "greenfield init failed"; }
@@ -281,6 +294,9 @@ fi
 # PART B: COLD ADOPTION
 # ══════════════════════════════════════════════════════════════════════════
 
+gauntlet_stage greenfield not_run "Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet"
+CURRENT_STAGE=""
+
 log "=== B0. a second floci on :$FLOCI_ADOPT_PORT, standing in for infra nobody marked ==="
 docker run -d --rm -p "${FLOCI_ADOPT_PORT}:4566" --name "$FLOCI_ADOPT_NAME" "$FLOCI_IMAGE" >/dev/null \
   || fail "docker run for $FLOCI_ADOPT_NAME failed"
@@ -307,6 +323,7 @@ EOF
 
 export AWS_ENDPOINT_URL="$ADOPT_ENDPOINT"
 
+CURRENT_STAGE=cold_deploy
 log "=== B1. plain terraform stands the estate up, no choudoufu involved ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 ( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "plain terraform init failed"
@@ -325,6 +342,8 @@ UNMARKED_TAGS="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 des
   --query "length(Tags)" --output text)"
 [ "$UNMARKED_TAGS" = "0" ] || fail "the plain-terraform instance already carries a tofu-address tag before migration - this test proves nothing"
 log "  confirmed unmarked: $PLAIN_INSTANCE_ID carries no tofu-address tag"
+gauntlet_stage cold_deploy pass "5 resources from plain terraform, a real terraform.tfstate, zero markers"
+CURRENT_STAGE=migrate
 
 mkdir -p "$ADOPTED"
 {
@@ -366,6 +385,8 @@ APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfs
 grep -qF "5 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 5 resources cleanly"; }
 log "  5 stamped"
+gauntlet_stage migrate pass "5 of 5 verified, 5 stamped, 0 skipped"
+CURRENT_STAGE=test_plan
 
 log "=== B4. and the adopted config plans empty ==="
 ADOPT_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; ADOPT_PLAN_RC=$?
@@ -373,6 +394,9 @@ ADOPT_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; A
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$ADOPT_PLAN_OUT" \
   || { grep -E '^  #' <<< "$ADOPT_PLAN_OUT"; fail "the post-adoption plan is not empty"; }
 log "  No changes. The infra terraform created, unmarked, is now under live markers with an empty plan."
+gauntlet_stage test_plan pass "post-adoption plan is empty; markers read back through the AWS CLI in part A"
+gauntlet_stage test_apply not_run "this script has no no-op apply after the empty plan yet"
+CURRENT_STAGE=drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # PART C: DRIFT AND RECONVERGE
@@ -434,7 +458,10 @@ else
   [ "$FIXED_VALUE" = "ec2-reference-instance" ] \
     || fail "the instance's Name tag is \"$FIXED_VALUE\" after reconverging, not ec2-reference-instance"
   log "  reconverged: $PLAIN_INSTANCE_ID's Name tag is back to \"ec2-reference-instance\", read via the AWS CLI"
+  gauntlet_stage drift_reconverge pass "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured"
 fi
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== PASS ==="

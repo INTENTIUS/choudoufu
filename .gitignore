@@ -128,3 +128,8 @@ site/public/
 # the 53 fixture files upstream tracks under internal/command/testdata and
 # friends, which are deliberate inputs to backend and configload tests.
 /live/e2e/estates/*/.terraform
+
+# tools/gauntlet: the binary (same rule as every tools/ subdirectory above)
+# and the per-estate run logs it captures.
+/gauntlet
+/live/gauntlet/logs/

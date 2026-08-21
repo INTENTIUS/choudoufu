@@ -27,7 +27,8 @@ ci:
     echo "==> fast test tier"
     env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/
     echo "==> docs site build"
-    (cd site && go run . -out public/)
+    cp live/iam-reference.json site/data/iamref.json
+    (cd site && hugo --minify --quiet)
     echo "==> CI steps passed"
 
 # Check whether background subagents (dispatched via the Agent tool) are
@@ -1056,25 +1057,22 @@ demo-corpus-mastino-dns:
 demo-corpus-leynos-monitoring:
     bash live/e2e/corpus-leynos-monitoring/run.sh
 
-# Build the docs site into site/public/. Wipes the directory first, so a
-# page removed from the generator stops being served instead of lingering.
+# Build the docs site into site/public/. Copies the build-time data inputs
+# (site/data/gauntlet.json is committed by tools/gauntlet; iamref.json is
+# not, so it's refreshed from live/iam-reference.json here) then runs Hugo.
 #
 # Build the docs site into site/public/.
 site:
+    cp live/iam-reference.json site/data/iamref.json
     rm -rf site/public
-    cd site && go run . -out public/
+    cd site && hugo --minify
 
-# Build the docs site and open it. `just site-serve 8001` picks another port,
-# which is what you want when a second checkout or worktree is already serving.
-#
-# Build the docs site and serve it locally.
-site-serve port="8000": site
-    @echo "choudoufu docs: http://127.0.0.1:{{port}}/  (serving $(pwd)/site/public)"
-    @if lsof -nP -iTCP:{{port}} -sTCP:LISTEN >/dev/null 2>&1; then \
-        echo "port {{port}} is already in use - run: just site-serve 8001" >&2; exit 1; \
-    fi
-    @( sleep 1; command -v open >/dev/null 2>&1 && open "http://127.0.0.1:{{port}}/" ) &
-    python3 -m http.server {{port}} --bind 127.0.0.1 --directory site/public
+# Build the docs site and serve it locally with live reload. `just
+# site-serve 8001` picks another port, which is what you want when a second
+# checkout or worktree is already serving.
+site-serve port="8000":
+    cp live/iam-reference.json site/data/iamref.json
+    cd site && hugo server --bind 127.0.0.1 --port {{port}} --openBrowser
 
 # Lint exactly as upstream CI would (golangci-lint, both GOOS passes)
 lint:
@@ -1270,3 +1268,31 @@ harness:
 # Will this configuration work under live markers? (#114) DIR defaults to "."
 live-check dir=".":
     go run ./cmd/choudoufu live-check {{dir}}
+
+# ── The gauntlet ─────────────────────────────────────────────────────────
+# live/GAUNTLET.md is the contract; tools/gauntlet renders it. The runner
+# executes crossing scripts against the pinned emulator side by side with
+# stock, records each stage's verdict into live/gauntlet.json, and regenerates
+# the spec and the site's progress pages. `just gauntlet` is what CI runs
+# nightly; `just gauntlet-run <name>` is one estate.
+
+# Run the core set (Docker, the AWS CLI and a stock terraform on PATH).
+gauntlet:
+    env -u PWD go run ./tools/gauntlet run -set core
+
+# Run one or more estates by name.
+gauntlet-run +names:
+    env -u PWD go run ./tools/gauntlet run {{names}}
+
+# Regenerate the artifact, live/GAUNTLET.md and the site's progress pages.
+gauntlet-render:
+    env -u PWD go run ./tools/gauntlet render
+
+# Add an estate: writes the manifest entry and a script stub, then renders.
+# Example: just gauntlet-add corpus-vpc-minimal https://github.com/x/y v1.2.3 terraform-popular "x/y examples/minimal (tag v1.2.3)"
+gauntlet-add name url ref lane source:
+    env -u PWD go run ./tools/gauntlet add {{name}} {{url}} {{ref}} -lane {{lane}} -source "{{source}}"
+
+# Snapshot the artifact for a release: live/history/<version>.json.
+gauntlet-snapshot version:
+    env -u PWD go run ./tools/gauntlet snapshot {{version}}

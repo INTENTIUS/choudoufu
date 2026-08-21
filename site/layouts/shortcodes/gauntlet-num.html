@@ -1,0 +1,31 @@
+{{- /*
+  Prints one numeric field out of site/data/gauntlet.json, addressed by a
+  dotted path, e.g. {{< gauntlet-num "sets.core.clear" >}}. Lets prose quote
+  a figure from the gauntlet data without typing it by hand.
+
+  Missing data or a bad path renders "?" rather than failing the build,
+  since the gauntlet data file is a build input this shortcode does not
+  control.
+*/ -}}
+{{- $path := .Get 0 -}}
+{{- $data := hugo.Data.gauntlet -}}
+{{- if not $data -}}
+?
+{{- else -}}
+  {{- $val := $data -}}
+  {{- $ok := true -}}
+  {{- range split $path "." -}}
+    {{- if $ok -}}
+      {{- if reflect.IsMap $val -}}
+        {{- if isset $val . -}}
+          {{- $val = index $val . -}}
+        {{- else -}}
+          {{- $ok = false -}}
+        {{- end -}}
+      {{- else -}}
+        {{- $ok = false -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if $ok -}}{{ $val }}{{- else -}}?{{- end -}}
+{{- end -}}
