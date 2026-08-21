@@ -85,7 +85,10 @@ numbers on the site, core estates clear and all estates clear, are read from
    one. New estates enter with `go run ./tools/gauntlet add` (see
    `live/GAUNTLET.md`). `just contribute` runs one unit unattended under
    your own key, in a worktree, and opens the PR; that is also what
-   contributors run from their forks.
+   contributors run from their forks. `.claude/agents/gauntlet-orchestrator.md`
+   is the brief for a session that keeps the loop running unattended: pick,
+   spawn, verify, merge on green, and the short list of things to stop and
+   ask about.
 2. `go run ./tools/gauntlet run <name>`; read the verdict lines, not the exit
    code.
 3. Every difference from stock gets its row from the table above. Fix
