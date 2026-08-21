@@ -168,12 +168,15 @@ type idPart struct {
 // exports; idPartSourceOwnID names a segment that is the resource's own
 // identifier, stated in plain prose on the resource's own page ("IPSet ID"
 // on aws_guardduty_ipset's) - both are server-provided values no
-// configuration argument supplies. The other two values ("argument",
-// "unknown") are only ever tested for indirectly, so they carry no
-// constant here.
+// configuration argument supplies. idPartSourceArgument is the third: a
+// segment the page's Argument Reference names, i.e. a value the
+// configuration supplies rather than the server. The remaining value
+// ("unknown") is only ever tested for indirectly, so it carries no constant
+// here.
 const (
 	idPartSourceAttribute = "attribute"
 	idPartSourceOwnID     = "own-id"
+	idPartSourceArgument  = "argument"
 )
 
 // docNamesServerSegment reports whether the grammar row's per-segment

@@ -206,7 +206,7 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 
 // emitFileOrder is the generated files' write order, and the key set
 // buildEmitFiles' returned map always has exactly.
-var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel, idNotWholeTableRel}
+var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, markerlessTableRel, discoverableFallbackTableRel, contentMatchTableRel, idNotWholeTableRel, docImportIDTableRel}
 
 // buildEmitFiles is -emit's pure computation, split out from runEmit so tests
 // can exercise it without writing to the checkout: given a fresh classifyAll
@@ -320,6 +320,16 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", idNotWholeTableRel, err)
 	}
 
+	// #337's other half: the same population, read forwards. Where the page
+	// names the composite's segments one token at a time, the whole string
+	// can be composed instead of refused - see docimportid.go. Derived from
+	// the same scraped grammar and, like the refusal above, deliberately not
+	// from the roster this call rewrites.
+	docImportIDSrc, err := renderDocImportIDFile(docImportIDRoster(grammar))
+	if err != nil {
+		return nil, emitPartition{}, emitPartition{}, fmt.Errorf("rendering %s: %w", docImportIDTableRel, err)
+	}
+
 	// GitHub issue #289's roster. Computed over the ratified rows about to
 	// ship (types, the map buildEmitFiles is already building for
 	// renderIdentityFile) rather than over ratified itself, for the same
@@ -340,6 +350,7 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 		discoverableFallbackTableRel: discoverableFallbackSrc,
 		contentMatchTableRel:         contentMatchSrc,
 		idNotWholeTableRel:           idNotWholeSrc,
+		docImportIDTableRel:          docImportIDSrc,
 	}, identityPart, lintPart, nil
 }
 

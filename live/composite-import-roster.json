@@ -7,7 +7,8 @@
     "of_those_with_a_wire_identity_schema": 17,
     "residue_with_no_wire_identity_schema": 42,
     "of_residue_id_proven_whole": 7,
-    "of_residue_unproven": 35
+    "of_residue_unproven": 35,
+    "of_unproven_composed_from_the_documented_grammar": 14
   },
   "types": [
     {
@@ -16,7 +17,8 @@
       "import_separator": "/",
       "import_id_example": "12345abcde/example",
       "id_attribute_description": "Authorizer identifier.",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "restapiid/authorizerid"
     },
     {
       "type": "aws_api_gateway_deployment",
@@ -24,7 +26,8 @@
       "import_separator": "/",
       "import_id_example": "aabbccddee/1122334",
       "id_attribute_description": "ID of the deployment",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "restapiid/deploymentid"
     },
     {
       "type": "aws_api_gateway_documentation_part",
@@ -32,7 +35,8 @@
       "import_separator": "/",
       "import_id_example": "5i4e1ko720/3oyy3t",
       "id_attribute_description": "Unique ID of the Documentation Part",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "restapiid/docpartid"
     },
     {
       "type": "aws_api_gateway_request_validator",
@@ -40,7 +44,8 @@
       "import_separator": "/",
       "import_id_example": "12345abcde/67890fghij",
       "id_attribute_description": "Unique ID of the request validator",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "restapiid/requestvalidatorid"
     },
     {
       "type": "aws_apigatewayv2_api_mapping",
@@ -120,7 +125,8 @@
       "import_separator": ",",
       "import_id_example": "gzos6bteufdunffzzifiowisoe,243685a0-9347-4a1a-89c1-9b57dea01e31",
       "id_attribute_description": "Combined ID of the Source API Association and Merge API.",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "associationid,mergedapiid"
     },
     {
       "type": "aws_bedrock_guardrail_version",
@@ -149,7 +155,8 @@
       "verdict": "unproven",
       "import_separator": ",",
       "import_id_example": "us-west-2_rSss9Zltr,06c6ae7b-1e66-46d2-87a9-1203ea3307bd",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "userpoolid,managedloginbrandingid"
     },
     {
       "type": "aws_cognito_user_pool_client",
@@ -188,7 +195,8 @@
       "import_separator": ":",
       "import_id_example": "tmf-0fbb93ddf38198f64:tmfr-05a458f06445d0aee",
       "id_attribute_description": "Name of the traffic mirror filter rule.",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "trafficmirrorfilterid:id"
     },
     {
       "type": "aws_emr_instance_fleet",
@@ -219,7 +227,8 @@
       "verdict": "unproven",
       "import_separator": ",",
       "import_id_example": "g-abc12345,1",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "workspaceid,serviceaccountid"
     },
     {
       "type": "aws_iam_service_specific_credential",
@@ -241,7 +250,8 @@
       "verdict": "unproven",
       "import_separator": "/",
       "import_id_example": "d-0000000000/00000000-0000-0000-0000-000000000000",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "identitystoreid/membershipid"
     },
     {
       "type": "aws_kms_grant",
@@ -264,7 +274,8 @@
       "import_separator": "/",
       "import_id_example": "01a52019-d16f-422a-ae72-c306d2b6df7e/1",
       "id_attribute_description": "ID of the traffic policy.",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "id/version"
     },
     {
       "type": "aws_route53domains_delegation_signer_record",
@@ -309,28 +320,32 @@
       "verdict": "unproven",
       "import_separator": ":",
       "import_id_example": "policy-store-id-12345678:identity-source-id-12345678",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "policystoreid:identitysourceid"
     },
     {
       "type": "aws_verifiedpermissions_policy",
       "verdict": "unproven",
       "import_separator": ",",
       "import_id_example": "policy-id-12345678,policy-store-id-12345678",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "policyid,policystoreid"
     },
     {
       "type": "aws_verifiedpermissions_policy_template",
       "verdict": "unproven",
       "import_separator": ":",
       "import_id_example": "policyStoreId:policyTemplateId",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "policystoreid:policytemplateid"
     },
     {
       "type": "aws_wafv2_api_key",
       "verdict": "unproven",
       "import_separator": ",",
       "import_id_example": "a1b2c3d4-5678-90ab-cdef-EXAMPLE11111,REGIONAL",
-      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds"
+      "reason": "the page's Attribute Reference documents no `id` attribute, so no source describes what the exported id holds",
+      "documented_grammar": "apikey,scope"
     }
   ]
 }

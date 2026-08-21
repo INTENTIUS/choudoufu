@@ -50,11 +50,11 @@ func compositeIdentitySchema() providers.Schema {
 	}
 }
 
-// TestLocatedIdentityComponentsClassifiesByTheProvidersOwnIdentitySchema is
+// TestLocatedIdentityPlanClassifiesByTheProvidersOwnIdentitySchema is
 // the derivation, one shape per case. No case names a provider resource
 // type, because the rule reads none: it reads a block and an identity
 // schema.
-func TestLocatedIdentityComponentsClassifiesByTheProvidersOwnIdentitySchema(t *testing.T) {
+func TestLocatedIdentityPlanClassifiesByTheProvidersOwnIdentitySchema(t *testing.T) {
 	stringAttr := func(names ...string) map[string]*configschema.Attribute {
 		out := make(map[string]*configschema.Attribute, len(names))
 		for _, n := range names {
@@ -160,12 +160,16 @@ func TestLocatedIdentityComponentsClassifiesByTheProvidersOwnIdentitySchema(t *t
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, recordable := LocatedIdentityComponents(tc.resourceType, tc.schema)
+			got, recordable := LocatedIdentityPlanFor(tc.resourceType, tc.schema)
 			if recordable != tc.wantRecordable {
 				t.Errorf("recordable = %v, want %v.\n%s", recordable, tc.wantRecordable, tc.why)
 			}
-			if !reflect.DeepEqual(got, tc.wantComponents) {
-				t.Errorf("components = %v, want %v.\n%s", got, tc.wantComponents, tc.why)
+			if !reflect.DeepEqual(got.Components, tc.wantComponents) {
+				t.Errorf("components = %v, want %v.\n%s", got.Components, tc.wantComponents, tc.why)
+			}
+			if got.Composed() {
+				t.Errorf("plan carries a documented import-string grammar (%v joined by %q), but no case here names a type the scrape describes.\n%s",
+					got.ImportIDParts, got.ImportIDSeparator, tc.why)
 			}
 		})
 	}

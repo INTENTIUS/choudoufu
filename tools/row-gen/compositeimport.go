@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
@@ -34,12 +35,12 @@ import (
 // attributes are unordered - no separator and no component order is ever
 // guessed.
 //
-// This file is about the types that gate cannot see. Measured at
-// f78db6c375, of [identity.MarkerlessTypes]' 140 types 43 document a
-// composite import (a non-null separator in live/import-grammar.json) and 27
-// of those carry no wire identity schema at all. For those 27 the schema
-// says nothing, today's rule records `id`, and whether that is the whole
-// string or a fragment was simply unknown.
+// This file is about the types that gate cannot see. Measured at 56481a4bbf,
+// of [identity.MarkerlessTypes]' 158 types 59 document a composite import (a
+// non-null separator in live/import-grammar.json) and 42 of those carry no
+// wire identity schema at all. For those 42 the schema says nothing, the
+// bare-`id` rule records `id`, and whether that is the whole string or a
+// fragment was simply unknown.
 //
 // # What settles it, and why it is sound
 //
@@ -57,22 +58,27 @@ import (
 // need one. "Is `id` the whole import string" is a yes/no question, and a
 // yes needs no grammar.
 //
-// Everything else is UNPROVEN and stays that way. Seven of the 27 carry an
-// `id` bullet whose own words describe a single value under a composite
-// import ("The EMR Instance ID", "ID of the traffic policy") - the exact
-// leaf shape #329 exists to refuse - and thirteen carry no `id` bullet at
-// all. This file does not promote either group to a verdict: a description
-// that fails to state a composite is weak evidence of a leaf, not proof of
-// one, and the roster records the reason rather than inventing a class.
+// Everything else is UNPROVEN and stays that way. A type whose `id` bullet
+// describes a single value under a composite import ("The EMR Instance ID",
+// "ID of the traffic policy") is the exact leaf shape #329 exists to refuse,
+// and a type with no `id` bullet at all says nothing either way. This file
+// does not promote either group to a verdict: a description that fails to
+// state a composite is weak evidence of a leaf, not proof of one, and the
+// roster records the reason rather than inventing a class.
 //
-// # What this is not
+// # Where the verdict goes, and what the other half of #337 does with it
 //
-// It is a classification and an artifact, not an admission change. Nothing
-// here is wired into [identity.LocatedType], and doing so is a separate,
-// sequenced step (#309): moving the 22 unproven types from a silent wrong
-// record to an honest refusal is the right direction, and it is a support
-// change worth landing on its own evidence rather than as a side effect of
-// building the evidence.
+// idnotwhole.go renders the same rule as [identity.IDNotProvenWholeTypes],
+// which the record-located mechanism refuses. That closed the wrong-record
+// half of this issue and left the types themselves stuck.
+//
+// docimportid.go is the other half and reads the same pages FORWARDS: where
+// the Import section names every segment of its composite with a single
+// token, the whole string can be composed from the applied object instead of
+// refused. Such a type is still unproven here - nothing new proves `id` is
+// the whole string, and nothing needs to, because `id` is no longer what gets
+// recorded. [compositeImportEntry.DocumentedGrammar] is where the report says
+// so, and it is what splits "unproven" into refused and composed.
 //
 // It names no resource type, here or in anything it reads.
 
@@ -126,6 +132,12 @@ type compositeImportTotals struct {
 	// Whole and Unproven split Residue.
 	Whole    int `json:"of_residue_id_proven_whole"`
 	Unproven int `json:"of_residue_unproven"`
+
+	// ComposedFromGrammar is how many of Unproven the Import section
+	// nonetheless describes well enough to compose the whole string from -
+	// issue #337's second route. These are admitted rather than refused;
+	// the rest of Unproven is refused.
+	ComposedFromGrammar int `json:"of_unproven_composed_from_the_documented_grammar"`
 }
 
 // compositeImportEntry is one type's verdict and the evidence for it.
@@ -150,6 +162,20 @@ type compositeImportEntry struct {
 
 	// Reason is why an unproven type is unproven. Empty on a whole verdict.
 	Reason string `json:"reason,omitempty"`
+
+	// DocumentedGrammar is the import string this type's own Import section
+	// spells out, segment by segment: the reduced segment names joined by
+	// the documented separator ("restapiid/authorizerid"). Present only on
+	// an unproven entry, because that is the only population
+	// [docImportIDRoster] admits.
+	//
+	// An unproven entry WITH a grammar is not refused at run time: issue
+	// #337's second route composes the whole string out of the applied
+	// object rather than recording a possibly-fragmentary `id`. An unproven
+	// entry WITHOUT one still is. So this field is the split between the
+	// two halves of the same verdict, and Summary.ComposedFromGrammar
+	// counts it.
+	DocumentedGrammar string `json:"documented_grammar,omitempty"`
 }
 
 // runCompositeImport builds the roster and writes it.
@@ -182,7 +208,8 @@ func runCompositeImport(out, errOut *os.File) error {
 	fmt.Fprintf(errOut, "row-gen: wrote %s\n", compositeImportArtifactPath)
 	fmt.Fprintf(out, "markerless=%d composite-import=%d with-wire-identity-schema=%d residue=%d\n",
 		art.Summary.Markerless, art.Summary.CompositeImport, art.Summary.WireIdentitySchema, art.Summary.Residue)
-	fmt.Fprintf(out, "of the residue: id proven whole=%d, unproven=%d\n", art.Summary.Whole, art.Summary.Unproven)
+	fmt.Fprintf(out, "of the residue: id proven whole=%d, unproven=%d (of which %d composed from the documented grammar, #337)\n",
+		art.Summary.Whole, art.Summary.Unproven, art.Summary.ComposedFromGrammar)
 	return nil
 }
 
@@ -224,13 +251,30 @@ func buildCompositeImportArtifact(markerless map[string]struct{}, survey map[str
 			continue
 		}
 		art.Summary.Residue++
-		art.Types = append(art.Types, classifyCompositeImport(t, g))
+		e := classifyCompositeImport(t, g)
+		if e.Verdict != compositeVerdictWhole {
+			// The same reading identity.DocumentedImportIDs is emitted from,
+			// applied here so the report says which half of "unproven" a
+			// type lands in. See docimportid.go.
+			if parts, ok := docImportIDParts(g); ok {
+				names := make([]string, len(parts))
+				for i, p := range parts {
+					names[i] = p.Name
+				}
+				e.DocumentedGrammar = strings.Join(names, *g.Separator)
+			}
+		}
+		art.Types = append(art.Types, e)
 	}
 	for _, e := range art.Types {
-		if e.Verdict == compositeVerdictWhole {
+		switch {
+		case e.Verdict == compositeVerdictWhole:
 			art.Summary.Whole++
-		} else {
+		default:
 			art.Summary.Unproven++
+			if e.DocumentedGrammar != "" {
+				art.Summary.ComposedFromGrammar++
+			}
 		}
 	}
 	return art

@@ -169,7 +169,7 @@ func TestCompositeImportRosterIsDisjointFromWhat329Answers(t *testing.T) {
 	for _, e := range art.Types {
 		if entry, ok := survey[e.Type]; ok && entry.Identity != nil {
 			t.Errorf("%s is in the roster and also carries a wire identity schema (%v); "+
-				"identity.LocatedIdentityComponents reads that schema and this roster must not offer a second answer for the same type",
+				"identity.LocatedIdentityPlanFor reads that schema and this roster must not offer a second answer for the same type",
 				e.Type, entry.Identity.RequiredForImport)
 		}
 		if _, ok := identity.MarkerlessTypes[e.Type]; !ok {

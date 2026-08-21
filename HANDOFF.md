@@ -1266,10 +1266,10 @@ emitted by `tools/row-gen/idnotwhole.go` from the same
 **every** row in `live/import-grammar.json` (317 types) and not over
 `MarkerlessTypes`, on purpose: `-emit` rewrites `MarkerlessTypes` in the same
 run, so a set derived from it would be derived from the previous run's answer
-- #263's failure mode with a different name. `LocatedIdentityComponents` now
+- #263's failure mode with a different name. `LocatedIdentityPlanFor` now
 takes the resource type and refuses a member in its bare-`id` fallback; the
 wire-schema composite branch still wins where it applies, pinned by
-`TestLocatedIdentityComponentsPrefersTheWireSchemaOverTheDocs`.
+`TestLocatedIdentityPlanPrefersTheWireSchemaOverTheDocs`.
 
 **Measured against real hashicorp/aws 6.59.0 schemas** (`CHOUDOUFU_LIVE_SCHEMAS=1
 go test -run TestLocatedTypePopulation`, 288s): of the 158, **97 located by
@@ -1308,6 +1308,65 @@ reach them. Differentiating it needs `LocatedType` to return a reason rather
 than a bool, which touches every markerless type's refusal text and is its own
 change. `aws_cognito_user_pool_client`, #309's own motivating type, is refused
 twice over: `client_secret` is Sensitive, and its `id` is unproven.
+
+### 1a2. `#337` closed: the refusal became an admission for 18 types
+
+#309 landed #337's refusal half - `IDNotProvenWholeTypes`, which stops a
+possibly-fragmentary `id` being recorded. A refusal is honest and it is not a
+fix, and the types stayed stuck. The other half now reads the same pages
+forwards.
+
+`tools/row-gen/docimportid.go` emits
+`internal/live/identity/docimportid_generated.go`'s `DocumentedImportIDs`:
+every scraped row whose Import section documents a composite AND names every
+segment with a single token, as the reduced segment names in the documented
+order with the documented separator. **155 of the 1699 rows**, derived over
+the whole grammar rather than over `MarkerlessTypes` for `idnotwhole.go`'s own
+reason (`-emit` rewrites that set in the same run). The order comes from
+`importdocs-gen`'s `IDParts`, which already refuses unless the names it read
+account for **every** segment of the documented example - so a partial reading
+never becomes an order, which is the distinction from the flattening #105
+forbids.
+
+`LocatedIdentityPlanFor` (was `LocatedIdentityComponents`; it returns a
+three-shape `LocatedIdentityPlan` now) consults the grammar **only inside the
+branch `IDNotProvenWholeTypes` was already refusing**. So the route can turn a
+refusal into an admission and can do nothing else - nothing that resolves
+today can resolve differently, asserted from outside by
+`TestDocumentedImportIDRouteOnlyReachesRefusedTypes`.
+
+**Measured against real hashicorp/aws 6.59.0 schemas** at `56481a4bbf` plus
+this change (`CHOUDOUFU_LIVE_SCHEMAS=1 go test -run TestLocatedTypePopulation`,
+11s warm): `markerless=158 located(string id)=97 located(composite object)=8
+located(composed string)=18 credential=11 unprovenID=21 noID=3`.
+**Mutation-checked**: with `DocumentedImportIDs` emptied, the same run gives
+`composed=0 unprovenID=39` and every other bucket byte-identical, so the
+delta is exactly **39 -> 21 refused, 18 newly record-located** and nothing
+else moved.
+
+All 18 resolved orders were read back against the doc cache one page at a
+time and every one matches its documented import string. Five of them infer
+one segment as `id` (the four `aws_api_gateway_*` and
+`aws_verifiedpermissions_identity_source`) - #329's own scouting is the
+evidence that those are leaf-`id` types; the other 13 resolve every segment to
+its own named attribute and infer nothing.
+
+**The one residual risk, stated rather than buried.** If a page understates
+what `id` holds - the bullet says "leaf" and the provider actually sets the
+whole composite - the composition doubles a prefix.
+`LocatedComposedImportID` refuses any segment whose value contains the
+separator, which catches exactly that at write-back. That is a hard error at
+apply rather than a wrong record, which is the safe direction but is still an
+apply-time failure where the mechanism prefers a plan-time refusal. Closing it
+needs a per-type corroboration the scrape does not have today.
+
+**No estate-crossing impact**, computed not assumed: none of the 18 appears
+anywhere in `live/corpus-crossing-manifest.json`, and the only `.tf` files
+declaring a `record_store` are `live/e2e/record-store` (effects only) and
+`live/e2e/record-located` (`aws_cloudfront_public_key`, `aws_ecr_registry_policy`,
+`aws_vpc`). Real end-to-end validation of a composed identity is therefore
+still open, the same item #309 left open, and it needs a floci-supported type
+from the 18.
 
 ### 1b. `#316` fixed: the rename-withholding guard now fires for module-qualified addresses
 

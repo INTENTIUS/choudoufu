@@ -37,7 +37,7 @@ import (
 // whose "id" is that string, so a type carrying a top-level string "id" is
 // exactly a type that can be re-found from one. A type without one may
 // still be importable by an identity OBJECT; that is what
-// [LocatedIdentityComponents] answers, and a located record now carries the
+// [LocatedIdentityPlanFor] answers, and a located record now carries the
 // object when the provider's own identity schema says the string is not the
 // whole identity. Measured against hashicorp/aws 6.59.0, thirteen of the 145
 // markerless types carry no top-level string id, of which eleven reach this
@@ -93,7 +93,7 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 //     provider serves no identity schema and its own documentation describes
 //     a composite import string it does not corroborate `id` as, the type is
 //     refused instead ([IDNotProvenWholeTypes]). See
-//     [LocatedIdentityComponents]. Admitting a type whose identity could
+//     [LocatedIdentityPlanFor]. Admitting a type whose identity could
 //     never be recorded would trade a plan refusal for an apply-time
 //     failure, which is the trade this whole mechanism is forbidden to make,
 //     and recording only PART of a composite identity is the same trade
@@ -128,7 +128,7 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 	if credentialMaterial(schema.Block) {
 		return false
 	}
-	_, recordable := LocatedIdentityComponents(resourceType, schema)
+	_, recordable := LocatedIdentityPlanFor(resourceType, schema)
 	return recordable
 }
 
@@ -139,14 +139,51 @@ func hasLocatedImportID(b *configschema.Block) bool {
 	return ok && a != nil && a.Type == cty.String
 }
 
-// LocatedIdentityComponents answers the question [locatedImportIDAttr]'s own
+// LocatedIdentityPlan is what a located record must carry for one type: which
+// of the three shapes its identity takes, and the attributes to read it out
+// of the applied object with.
+//
+// Exactly one shape applies, and the zero value is the third: a plan with no
+// Components and no ImportIDParts means the type's whole identity is the
+// string [locatedImportIDAttr], which is what every record written before
+// composite identities existed looks like.
+//
+// It is a struct rather than three return values for [LocatedRecord]'s own
+// reason: two independently written branches extending the same call by
+// position is a merge git resolves silently and wrongly, and a wrongly
+// resolved merge here is a wrong identity.
+type LocatedIdentityPlan struct {
+	// Components is the provider's own identity OBJECT, one attribute per
+	// component, UNORDERED - which is what an identity object is. Set only
+	// where the provider serves a wire identity schema requiring
+	// [locatedImportIDAttr] plus at least one other attribute (issue
+	// #329). Nothing joins these into a string; see
+	// [LocatedIdentityPlanFor].
+	Components []string
+
+	// ImportIDParts are the attributes whose values compose the documented
+	// import STRING, in the documented order, joined by ImportIDSeparator.
+	// Set only where [DocumentedImportIDs] carries a grammar for the type
+	// and every segment of it resolves against the schema (issue #337).
+	ImportIDParts     []string
+	ImportIDSeparator string
+}
+
+// Composite reports whether p carries the provider's identity object.
+func (p LocatedIdentityPlan) Composite() bool { return len(p.Components) > 0 }
+
+// Composed reports whether p carries a documented import-string grammar.
+func (p LocatedIdentityPlan) Composed() bool { return len(p.ImportIDParts) > 0 }
+
+// LocatedIdentityPlanFor answers the question [locatedImportIDAttr]'s own
 // doc comment used to answer by assumption: what IS this type's identity,
 // and can a located record hold the whole of it?
 //
-// components is the attribute-per-component identity a located record must
-// carry, or nil when the type's whole identity is the string
-// [locatedImportIDAttr] and a record of that string alone is complete.
-// recordable is false when the identity is composite and this mechanism
+// The plan is the attribute-per-component identity a located record must
+// carry, the ordered attributes its documented import string composes from,
+// or neither - in which case the type's whole identity is the string
+// [locatedImportIDAttr] and a record of that string alone is complete. The
+// second return is false when the identity is composite and this mechanism
 // cannot record it, which is a refusal rather than a partial record.
 //
 // # The defect this exists to close
@@ -203,10 +240,35 @@ func hasLocatedImportID(b *configschema.Block) bool {
 // symmetric errors: the first is visible immediately and the second arrives
 // on the next run as an import of half a string.
 //
+// # The third source, which turns that refusal into an admission
+//
+// A refusal is honest and it is not a fix. Where the same page that documents
+// the composite import goes on to NAME its segments one token at a time,
+// [DocumentedImportIDs] carries that grammar and
+// [resolveDocumentedImportID] resolves it against this very schema. The
+// record then holds the whole documented string, composed from the applied
+// object's own attributes in the documented order - issue #337.
+//
+// That route is consulted ONLY inside the refusal it replaces, which is what
+// makes it safe to add: it cannot reach a type the bare-`id` rule admits, so
+// nothing that resolves today can be made to stop or to resolve differently.
+// Its own refusals leave [IDNotProvenWholeTypes]' refusal exactly where it
+// was.
+//
+// # Which source wins when two of them speak
+//
+// The wire identity schema, always, and it is checked first. The generator
+// excludes a type with a wire identity schema from [DocumentedImportIDs]'
+// population, so the two normally cannot both apply; where a provider release
+// adds an identity schema the pinned scrape has not seen, the schema the
+// RUNNING provider serves is the authority and the scrape is the stale
+// account. Ordering the branches this way means version skew resolves towards
+// the wire rather than towards a documentation snapshot.
+//
 // It names no resource type, here or anywhere it reads.
-func LocatedIdentityComponents(resourceType string, schema providers.Schema) (components []string, recordable bool) {
+func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan LocatedIdentityPlan, recordable bool) {
 	if schema.Block == nil {
-		return nil, false
+		return LocatedIdentityPlan{}, false
 	}
 	required, _ := identityAttrs(schema.IdentitySchema)
 	if !compositeIdentity(required) {
@@ -215,9 +277,12 @@ func LocatedIdentityComponents(resourceType string, schema providers.Schema) (co
 		// records - so the string is all there is to go on, and the
 		// question becomes whether the documentation says it is enough.
 		if _, unproven := IDNotProvenWholeTypes[resourceType]; unproven {
-			return nil, false
+			if parts, sep, ok := resolveDocumentedImportID(resourceType, schema.Block); ok {
+				return LocatedIdentityPlan{ImportIDParts: parts, ImportIDSeparator: sep}, true
+			}
+			return LocatedIdentityPlan{}, false
 		}
-		return nil, hasLocatedImportID(schema.Block)
+		return LocatedIdentityPlan{}, hasLocatedImportID(schema.Block)
 	}
 	for _, name := range required {
 		a := schema.Block.Attributes[name]
@@ -225,10 +290,10 @@ func LocatedIdentityComponents(resourceType string, schema providers.Schema) (co
 			// A component the applied object does not carry as a top-level
 			// string cannot be read back out of it, so the record would be
 			// incomplete. Refusing is the whole point of this function.
-			return nil, false
+			return LocatedIdentityPlan{}, false
 		}
 	}
-	return required, true
+	return LocatedIdentityPlan{Components: required}, true
 }
 
 // compositeIdentity reports whether required - a type's required identity
@@ -342,7 +407,7 @@ func LocatedImportID(obj cty.Value) (string, bool) {
 // LocatedIdentity reads the whole identity of an applied record-located
 // object, component by component, for writing back to the store.
 //
-// components is [LocatedIdentityComponents]'s first return. A nil or empty
+// components is [LocatedIdentityPlan.Components]. A nil or empty
 // components yields a nil map and ok == true: the type's identity is the
 // string [LocatedImportID] reads and there is no object to record, which is
 // the answer for every type the located mechanism admitted before composite
