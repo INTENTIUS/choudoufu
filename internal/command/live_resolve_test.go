@@ -117,7 +117,7 @@ func TestStatelessResolveSecondPassClassifiesTheACMShape(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 	prov := &certPlanningProvider{known: true}
 
-	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("refused with the certificate's planned values in hand: %s", diags.Err())
 	}
@@ -149,7 +149,7 @@ func TestStatelessResolveAsksTheProviderOnce(t *testing.T) {
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 	prov := &certPlanningProvider{known: true}
 
-	if _, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil); diags.HasErrors() {
+	if _, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil); diags.HasErrors() {
 		t.Fatalf("statelessResolve: %s", diags.Err())
 	}
 	if prov.configures != 1 {
@@ -172,7 +172,7 @@ func TestStatelessResolveNeverConfiguresAProviderWithNothingToGain(t *testing.T)
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-no-demand"))
 	prov := &certPlanningProvider{known: true}
 
-	_, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	_, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if !diags.HasErrors() {
 		t.Fatal("a bucket named with uuid() was resolved; an identity that changes every run cannot say which object a block owns")
 	}
@@ -193,14 +193,14 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondIsNoBetter(t *testing.T) 
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm"))
 
 	useless := &certPlanningProvider{known: false}
-	_, withProvider := statelessResolve(t.Context(), cfg, useless.seam(), nil, nil)
+	_, withProvider := statelessResolve(t.Context(), cfg, useless.seam(), nil, nil, nil)
 	if useless.plans != 1 {
 		t.Fatalf("the provider was asked to plan %d times; this test is not exercising the second pass at all", useless.plans)
 	}
 
 	// The same configuration with no provider at all, which is exactly a
 	// first pass and nothing else.
-	_, firstOnly := statelessResolve(t.Context(), cfg, nil, nil, nil)
+	_, firstOnly := statelessResolve(t.Context(), cfg, nil, nil, nil, nil)
 
 	if !withProvider.HasErrors() {
 		t.Fatal("a second pass whose planned value settles nothing produced a clean resolution")
@@ -234,7 +234,7 @@ func TestStatelessResolveKeepsTheFirstPassWhenTheSecondDowngradesAnInstance(t *t
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-downgrade"))
 	prov := &certPlanningProvider{known: true}
 
-	kept, keptDiags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	kept, keptDiags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if prov.plans == 0 {
 		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
 	}
@@ -277,7 +277,7 @@ func TestStatelessResolveAcceptsTheSecondPassOnceTheDirectFormulaSurvives(t *tes
 	cfg := statelessTestLoadConfig(t, filepath.Join("testdata", "live-resolve-acm-direct-fixed"))
 	prov := &certPlanningProvider{known: true}
 
-	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil)
+	result, diags := statelessResolve(t.Context(), cfg, prov.seam(), nil, nil, nil)
 	if prov.plans == 0 {
 		t.Fatal("the provider was never asked to plan; this test is not exercising the second pass at all")
 	}

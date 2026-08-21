@@ -122,13 +122,22 @@ func AnalyzeRootOutputs(ctx context.Context, cfg *configs.Config, opts Options) 
 	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil || len(cfg.Module.Outputs) == 0 {
 		return a
 	}
-	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, visiting: make(map[string]bool)}
+	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, scope: opts.Scope, visiting: make(map[string]bool)}
 	if a.projectManaged {
 		an.proj = newManagedProjector(ctx, cfg, false)
 	}
 
 	for _, want := range rootOutputDataDemand(cfg) {
 		if _, seen := a.sources[sourceKey(want.module, want.resource)]; seen {
+			continue
+		}
+		if an.scope != nil && !an.scope(addrs.ConfigResource{Module: want.module, Resource: want.resource}) {
+			// GitHub issue #352: a -target or -exclude run's plan graph does
+			// not contain this block, so the plan will not read it either
+			// and the output it feeds evaluates against its absence. Reading
+			// it here would put a value in front of the diff that the plan's
+			// own side cannot match - the wrong-prior-value shape, one
+			// carrier over from "a wrong marker outranks a missing one".
 			continue
 		}
 		an.classify(want.module, want.resource, want.neededBy)
