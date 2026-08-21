@@ -320,6 +320,18 @@ set -uo pipefail
 #                          Zero diagnostics, zero resource-level changes.
 #   STAGES 4 and 5         NOT REACHED, and not yet written.
 #
+# RE-CROSSED for real, 2026-08-21, against floci cdd50ec0, after the
+# data-read safety audit widened the phase's provider boundary to cover the
+# IDENTITY read class as well as the root-output one. Byte-identical result:
+# stage 1 PASS, stage 2 PASS (3 stamped, 4 recorded), stage 3 BLOCKED on the
+# same single "+ local_filename" line with zero diagnostics and zero
+# resource-level changes. The widening does not touch this estate, and the
+# reason is worth knowing rather than guessing at: nothing here demands
+# data.external.archive_prepare for an IDENTITY. local_file.archive_plan's
+# filename reads it, but local_file is record-backed and the migrate seeded
+# its record, so the identity class never asks. The one output line is the
+# root-output class refusing it, exactly as before.
+#
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
 # Needs Docker, the AWS CLI, and python3 (the module's package.py builds the
@@ -586,7 +598,7 @@ APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -est
 # 1 skipped: aws_iam_role_policy.logs, genuinely untaggable and genuinely
 #   derived from its tagged parent - the one resource here that needs neither
 #   carrier.
-grep -qF "3 resource(s) newly stamped, 0 already stamped, 4 newly recorded, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
+grep -qF "3 resource(s) newly stamped, 0 already stamped, 4 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp 3 and record 4 of 8 resources cleanly"; }
 log "  3 stamped, 4 recorded"
 

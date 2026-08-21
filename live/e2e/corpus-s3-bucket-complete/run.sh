@@ -489,7 +489,7 @@ log "  6 of 30 verified against the live system (the four buckets, the IAM role,
 log "=== STAGE 2b: -approve ==="
 APPROVE_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" live-import -state="$PLAIN/examples/complete/terraform.tfstate" -estate="$ESTATE_NAME" -approve 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "6 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 24 skipped" <<< "$APPROVE_OUT" \
+grep -qF "6 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 24 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 6 resources cleanly (24 skipped: the untaggable, parent-derived S3 sub-resources plus random_pet)"; }
 log "  6 stamped"
 

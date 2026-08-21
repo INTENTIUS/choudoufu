@@ -1752,12 +1752,44 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 // The common case - a configuration whose identities need no data source -
 // takes the analysis's probe and nothing else: no provider configured, no
 // network call, no behavior change.
-func statelessDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
-	analysis := dataread.Analyze(ctx, config, dataread.Options{Schemas: resourceSchemas, Scope: scope})
+//
+// # The provider boundary, and why this path has one now
+//
+// This call site handed the read phase the UNRESTRICTED provider seam until
+// an adversarial audit on 2026-08-21. The root-output class one function
+// down had had [liveProviderReads] since the class was built, and the
+// reasoning written down for leaving this one alone was that identity's
+// contract is fatal, so confining it would turn a read into a refusal.
+//
+// That reasoning had the sign backwards. HANDOFF.md's "a wrong marker
+// outranks a missing one" says a refusal is the better of the two outcomes,
+// and the thing being refused here is running an arbitrary local program -
+// data "external"'s whole contract - to work out where to write a marker,
+// before discovery, before lint, before anything in the run could stop it.
+// This is also the path with the reach: live/LIMITATIONS.md counts the
+// identity read class in the thousands of sites, against the root-output
+// class's handful.
+//
+// So both classes now pass through the same seam, built from the same
+// derivation ([dataread.ReadableProviders]), and the analysis draws the same
+// line a second time ([dataread.Options.ProviderManagedTypes]). What still
+// differs between them is only what an excluded source COSTS: here it is
+// [dataread.Read]'s existing fatal refusal, naming the data source and the
+// provider; there it is one output rendering as "+".
+func statelessDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
+	managedTypes := provs.managedTypesByProvider(ctx)
+	analysis := dataread.Analyze(ctx, config, dataread.Options{
+		Schemas:              resourceSchemas,
+		Scope:                scope,
+		ProviderManagedTypes: managedTypes,
+	})
 	if analysis.Empty() {
 		return nil, nil
 	}
-	return dataread.Read(ctx, config, analysis, provs)
+	return dataread.Read(ctx, config, analysis, liveProviderReads{
+		inner: provs,
+		live:  dataread.ReadableProviders(config, analysis, managedTypes),
+	})
 }
 
 // statelessRootOutputDataReads is the same phase's SECOND demand class,
@@ -1773,8 +1805,9 @@ func statelessDataReads(ctx context.Context, config *configs.Config, provs *stat
 // stop a run: the worst case is the one an operator already had, an output
 // showing "+".
 //
-// The provider seam it hands the read phase is deliberately NOT the
-// unrestricted one the identity class uses. See [liveProviderReads].
+// The provider seam it hands the read phase is [liveProviderReads], the same
+// one the identity class above uses since the boundary was widened to cover
+// both.
 //
 // Cost: one ReadDataSource per data BLOCK a root output reaches, shared
 // across that block's instances, and none at all for a configuration whose
@@ -1782,25 +1815,71 @@ func statelessDataReads(ctx context.Context, config *configs.Config, provs *stat
 // ratchet (live/plan-budget.json) measures, since tools/estate-gen's
 // generated estates declare no root outputs.
 //
-// scope is GitHub issue #352's targeting scope, and it applies here for the
-// reason it applies to the identity class: a block the plan graph does not
-// contain is one the plan will not read, so reading it would put a prior
-// value in front of a diff whose other side cannot match it.
-func statelessRootOutputDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
-	analysis := dataread.AnalyzeRootOutputs(ctx, config, dataread.Options{Schemas: resourceSchemas, Scope: scope})
+// # Known limitation: the same data source is read twice per run
+//
+// This pre-plan read and the plan graph's own read of the same data block are
+// two separate ReadDataSource calls to the provider. For an ordinary data
+// source that costs one extra remote GET. For a data source whose read has a
+// SIDE EFFECT - data.vault_aws_access_credentials mints a fresh STS
+// credential per call is the clearest example - it means two credentials get
+// minted where an operator running stock OpenTofu would see one.
+//
+// It is not cheaply avoidable, and the reason is upstream rather than here.
+// internal/tofu's planDataSource sets priorVal to cty.NullVal
+// unconditionally: the plan graph never consults prior state for a data
+// source, so there is no value to seed and no cache to prime. Suppressing the
+// second read would mean changing stock OpenTofu's own data-source planning,
+// which is exactly what HANDOFF.md's "parity is the bar" rules out - and the
+// failure mode of getting it wrong is a plan rendered against a stale read.
+//
+// Nor can the phase avoid it by declining to read side-effecting sources:
+// nothing in a provider schema says a data source has a side effect, so the
+// only way to know is a hand-list of type names, which the standing bar
+// ("everything must be derived") refuses and which would buy exactly the
+// types someone thought of.
+//
+// The identity read class has had the same property since #179 and for the
+// same reason; this is a note about both, written here because this is the
+// class that widened the population it applies to.
+func statelessRootOutputDataReads(ctx context.Context, config *configs.Config, provs livePlanProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
+	managedTypes := provs.managedTypesByProvider(ctx)
+	analysis := dataread.AnalyzeRootOutputs(ctx, config, dataread.Options{
+		Schemas:              resourceSchemas,
+		Scope:                scope,
+		ProviderManagedTypes: managedTypes,
+	})
 	if analysis.Empty() {
 		return nil, nil
 	}
 	return dataread.ReadForOutputs(ctx, config, analysis, liveProviderReads{
 		inner: provs,
-		live:  dataread.LiveProviders(config),
+		live:  dataread.ReadableProviders(config, analysis, managedTypes),
 	})
 }
 
-// liveProviderReads is the structural half of the root-output read class's
-// safety boundary: a [dataread.Providers] seam that can only ever hand back
-// a provider this configuration manages live objects through
-// ([dataread.LiveProviders]).
+// livePlanProviders is what both read classes need from the command layer's
+// provider pool: a configured provider per provider configuration, plus which
+// managed resource types each provider's own schema declares.
+//
+// It is an interface rather than [*statelessProviders] for the reason
+// [statelessResolve] takes one: the whole hazard these two functions carry is
+// WHICH provider answers, and a test that cannot substitute one cannot see
+// that. Before this existed, the two seams had no command-layer test at all
+// and a revert of the confinement below would have gone unnoticed by CI.
+type livePlanProviders interface {
+	dataread.Providers
+
+	// managedTypesByProvider feeds [dataread.Options.ProviderManagedTypes]
+	// and [dataread.LiveProviders]. Unexported so the interface stays this
+	// package's own seam rather than a general one.
+	managedTypesByProvider(ctx context.Context) map[addrs.Provider]map[string]bool
+}
+
+// liveProviderReads is the structural half of the data-read phase's safety
+// boundary: a [dataread.Providers] seam that can only ever hand back a
+// provider this configuration manages live objects through
+// ([dataread.LiveProviders]), or one of the two separately-ruled cross-stack
+// read classes' own providers ([dataread.ReadableProviders]).
 //
 // The analysis draws the same line, and this draws it again at the one point
 // where it becomes a real process doing a real thing. That redundancy is the
@@ -1811,6 +1890,12 @@ func statelessRootOutputDataReads(ctx context.Context, config *configs.Config, p
 // running the plan. A boundary that exists only as a classification is one
 // refactor away from being bypassed by a caller that constructs an analysis
 // some other way; a boundary that also owns the provider handle cannot be.
+//
+// Both demand classes pass through it. The identity class did not until an
+// adversarial audit found it unconfined - see [statelessDataReads] - which is
+// the reason the redundancy paragraph above is not decoration: the
+// classification half of the boundary had been correct all along for a class
+// whose call site did not use it.
 type liveProviderReads struct {
 	inner dataread.Providers
 	live  map[addrs.Provider]bool
@@ -1819,7 +1904,7 @@ type liveProviderReads struct {
 func (p liveProviderReads) ConfiguredProvider(ctx context.Context, addr addrs.AbsProviderConfig) (providers.Interface, error) {
 	if !p.live[addr.Provider] {
 		return nil, fmt.Errorf(
-			"%s manages no live object in this configuration, so the root-output data-read phase will not configure it: this phase reads only the remote APIs this run is already reading the estate through",
+			"%s manages no live object in this configuration, so the pre-plan data-read phase will not configure it: this phase reads only the remote APIs this run is already reading the estate through",
 			addr.Provider)
 	}
 	return p.inner.ConfiguredProvider(ctx, addr)
@@ -2138,6 +2223,47 @@ func (p *statelessProviders) resourceSchemas(ctx context.Context) map[string]pro
 	return out
 }
 
+// managedTypesByProvider is which managed resource types each provider this
+// configuration requires actually declares, attributed to the provider that
+// declares it - which is the one thing [statelessProviders.resourceSchemas]'
+// merged map cannot say, since it drops the provider and drops a name two
+// providers both serve.
+//
+// It feeds [dataread.LiveProviders]' third half. That boundary asks "does
+// this estate manage live objects through this provider", answers it from
+// the configuration's own managed resource blocks, and resolves each block to
+// a provider through [configs.Module.ProviderForLocalConfig] - which returns
+// whatever source address a `required_providers` entry bound the local name
+// to, checking nothing. Without this map, a configuration could bind the
+// local name "aws" to hashicorp/external, declare an aws_ resource under it,
+// and vote the local-execution provider into the set on the strength of a
+// type it does not serve.
+//
+// It costs nothing beyond what resourceSchemas already spent: the same
+// GetProviderSchema calls, memoized by the provider manager.
+//
+// A provider whose schema will not load is ABSENT from the result rather than
+// present and empty, and [dataread.LiveProviders] reads that as "no evidence
+// either way" and skips the cross-check for it. Empty would read as "declares
+// nothing", which would silently un-live every provider whose plugin failed
+// to start and turn a plugin problem into a wall of data-read refusals.
+func (p *statelessProviders) managedTypesByProvider(ctx context.Context) map[addrs.Provider]map[string]bool {
+	out := make(map[addrs.Provider]map[string]bool)
+	for _, addr := range p.config.ProviderTypes() {
+		schema, diags := p.mgr.GetProviderSchema(ctx, addr)
+		if diags.HasErrors() {
+			log.Printf("[TRACE] live: no schemas from %s for the data-read provider boundary: %s", addr, diags.Err())
+			continue
+		}
+		types := make(map[string]bool, len(schema.ResourceTypes))
+		for name := range schema.ResourceTypes {
+			types[name] = true
+		}
+		out[addr] = types
+	}
+	return out
+}
+
 // region is the region a list call for one provider configuration should go
 // to: whatever the provider block sets, or the region the environment
 // supplies, which is how the estate fixture configures itself. An empty
@@ -2148,7 +2274,26 @@ func (p *statelessProviders) region(addr addrs.AbsProviderConfig) string {
 	val, ok := p.configVals[providerCacheKey(addr)]
 	p.mu.Unlock()
 
-	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
+	// ContainsMarked, not IsMarked, and before anything reads inside the
+	// value: the mark lands on the ATTRIBUTE rather than on the object the
+	// provider block decodes to, and AsString below panics rather than errors
+	// on a marked receiver.
+	//
+	// The value cached here comes from StaticEvaluator.DecodeBlock over the
+	// provider block (see providerConfigValue), and DecodeBlock has no guard
+	// refusing a sensitive value the way DecodeExpression does - so
+	// `provider "aws" { region = var.region }` for a `sensitive = true`
+	// region arrives marked, and this used to panic the whole command. The
+	// RPC leg of the same value is already safe: internal/plugins/provider.go
+	// unmarks before ConfigureProvider. This is the non-RPC leg of the same
+	// defect, and it sits in the one tree internal/live/marksafe does not
+	// scan.
+	//
+	// Refused rather than unmarked, unlike the seams that put a value to a
+	// provider: this answer becomes an operator-facing hint string, and a
+	// secret does not belong in one. Falling through to the environment is
+	// what an unset region already does.
+	if ok && val != cty.NilVal && !val.ContainsMarked() && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
 		region := val.GetAttr("region")
 		if !region.IsNull() && region.IsKnown() && region.Type() == cty.String && region.AsString() != "" {
 			return region.AsString()
@@ -2172,7 +2317,16 @@ func (p *statelessProviders) endpointURL(addr addrs.AbsProviderConfig) string {
 	val, ok := p.configVals[addr.String()]
 	p.mu.Unlock()
 
-	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("endpoints") {
+	// ContainsMarked for the reason [statelessProviders.region] states above,
+	// and for one more: IsWhollyKnown and ElementIterator just below both
+	// iterate, and both panic on a marked receiver. Unreachable today only
+	// because this lookup misses the cache - it reads addr.String() while
+	// ConfiguredProvider writes providerCacheKey(addr), so the endpoint hint
+	// always falls through to the environment. That key mismatch is a real
+	// defect and is deliberately NOT fixed here, because fixing it is what
+	// would make this branch live; the guard goes in first so that whoever
+	// fixes the key does not inherit a panic with it.
+	if ok && val != cty.NilVal && !val.ContainsMarked() && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("endpoints") {
 		endpoints := val.GetAttr("endpoints")
 		if !endpoints.IsNull() && endpoints.IsWhollyKnown() && endpoints.CanIterateElements() {
 			for it := endpoints.ElementIterator(); it.Next(); {

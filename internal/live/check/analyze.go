@@ -43,6 +43,26 @@ type Context struct {
 	// end says so.
 	Schemas map[string]providers.Schema
 
+	// ProviderManagedTypes is which managed resource types each provider's
+	// own schema declares, attributed to the provider - which [Schemas],
+	// merged and provider-less by construction, cannot say.
+	//
+	// It exists so that this instrument and a real live-plan draw the
+	// data-read phase's provider boundary in the same place. That boundary
+	// (see [dataread.LiveProviders]) refuses a data source whose provider
+	// serves no managed resource type at all - hashicorp/external, whose
+	// read runs a program named by its own arguments, is the shape it is
+	// there for - and it can only be evaluated by a caller that has the
+	// per-provider schemas. Without this, live-check reports such a site as
+	// "Resolves at plan time via a data-source read" for a plan that then
+	// refuses it, which is the polarity this package works hardest to avoid.
+	//
+	// Nil is supported and means today's answer: the boundary fails open,
+	// exactly as it does for any provider a run has no schema for. The two
+	// corpus instruments (tools/refusal-probe, tools/corpus-gen) leave it
+	// nil today, so their count for that refusal is a floor.
+	ProviderManagedTypes map[addrs.Provider]map[string]bool
+
 	// ManagedResults are values a caller obtained from the provider for
 	// resources whose computed attributes the configuration references -
 	// [projection.PlanInstances] produces them, keyed by resource address.
@@ -267,7 +287,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	var dataAnalysis *dataread.Analysis
 	analysis := func() *dataread.Analysis {
 		if dataAnalysis == nil {
-			dataAnalysis = dataread.Analyze(ctx, cfg, dataread.Options{Schemas: actx.Schemas})
+			dataAnalysis = dataread.Analyze(ctx, cfg, dataread.Options{Schemas: actx.Schemas, ProviderManagedTypes: actx.ProviderManagedTypes})
 		}
 		return dataAnalysis
 	}

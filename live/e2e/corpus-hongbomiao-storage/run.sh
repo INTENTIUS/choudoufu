@@ -306,7 +306,7 @@ log "  3 of 4 verified against the live system; nothing written yet"
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "3 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
+grep -qF "3 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 3 of 4 resources cleanly"; }
 log "  3 stamped"
 

@@ -1784,7 +1784,54 @@ func configuredTagsSeed(ctx context.Context, eval *configs.StaticEvaluator, modP
 	if !configVal.Type().HasAttribute("tags") {
 		return cty.NilVal, false
 	}
-	tagsVal := configVal.GetAttr("tags")
+	// Unmarked here, unconditionally, and BEFORE anything else reads the
+	// value.
+	//
+	// The seed goes straight into ReadResourceRequest.PriorState by way of
+	// [withSeededTags] and [importAndRead], and cty's msgpack encoder refuses
+	// a marked value outright ("value has marks, so it cannot be serialized").
+	// Unlike [planOne]'s own decode, which loses one resource when that
+	// happens, this one loses the ESTATE: the refusal arrives as a
+	// ReadResource error diagnostic, importAndRead turns it into a "Cannot
+	// read for projection" error and statusFailed, and an error in b.diags
+	// fails BuildWith - so `live-plan` refuses for every resource, not just
+	// the tagged one. The gate above is [markers.Taggable] plus a "tags_all"
+	// attribute, which nearly every AWS type satisfies, so any estate writing
+	// `tags = { Owner = var.owner }` for a `sensitive = true` owner hits it.
+	//
+	// The mark arrives in two places and one unmark closes both.
+	// `tags = { Owner = var.owner }` leaves it on the map's ELEMENT, because
+	// an object constructor does not hoist its elements' marks;
+	// `tags = var.tags` marks the CONTAINER. Neither was caught: IsNull is
+	// indifferent to a mark, and cty's own IsWhollyKnown unmarks before it
+	// recurses (cty/value.go:83), so both cleared every test below and
+	// travelled on.
+	//
+	// Unmarked rather than refused, and that is the semantic claim rather than
+	// the convenient one: this seed exists to tell the provider's own
+	// ReadResource which raw tags the configuration declares explicitly, as
+	// opposed to which arrived through the provider's default_tags (see this
+	// function's doc comment and GitHub issue #287 item 8). It stands in for
+	// what a persisted state file's PriorState.tags would have shown - and a
+	// state file records that value in the clear too, with its sensitivity
+	// carried alongside as a path rather than inside the value. So the
+	// plaintext is what the provider is owed, and it is a value this same
+	// provider is told in the clear on any apply that writes the tag.
+	//
+	// Nothing sensitive is retained from here. The seed is written into the
+	// import stub only for the duration of the ReadResource call; what the
+	// projection persists is that call's own ANSWER, marked from the schema by
+	// importAndRead's own schema.Block.ValueMarks. Carrying the configuration's
+	// marks onto the seed instead would put them on the stub rather than on
+	// what comes back, which is why the paths are dropped here rather than
+	// combined back in the way [remarkPlanned] does for a value that IS
+	// returned to a caller.
+	//
+	// Found by the audit of #343/#344's fix to builder.normalizeIdentityAttrs,
+	// which is the same defect two call sites over; pinned by
+	// TestConfiguredTagsSeedUnmarksASensitiveTagValue and
+	// TestProjectionSurvivesASensitiveTagValue.
+	tagsVal, _ := configVal.GetAttr("tags").UnmarkDeep()
 	if tagsVal.IsNull() || !tagsVal.IsWhollyKnown() {
 		return cty.NilVal, false
 	}

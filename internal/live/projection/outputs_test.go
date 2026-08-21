@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -320,5 +321,104 @@ func TestApplyRootOutputValuesSeedsLiveDataValues(t *testing.T) {
 	// make.
 	if state.Resource(addrs.Resource{Mode: addrs.DataResourceMode, Type: "stub_lookup", Name: "current"}.Absolute(addrs.RootModuleInstance)) != nil {
 		t.Errorf("data.stub_lookup.current was written into the caller's state; the seeded value belongs to the evaluation copy only")
+	}
+}
+
+// TestApplyRootOutputValuesUnmarksBeforeStoring is the audit's second
+// finding, and it is a crash fix.
+//
+// The evaluator marks a value that reaches a sensitive schema attribute. A
+// real state file's output values never carry marks - they do not survive
+// serialization - and internal/tofu/node_output.go's setValue relies on that,
+// saying so in its own comment before it evaluates
+// unmarkedVal.Equals(before).True() against whatever it read out of state.
+// cty.Value.Equals propagates its operands' marks onto its result and True()
+// asserts unmarked, so a marked "before" PANICS the plan.
+//
+// This has been reachable since #348 for any root output reaching a sensitive
+// MANAGED attribute; widening the pre-plan read class to data sources made it
+// common rather than made it possible.
+//
+// Both legs matter. The stored value must be unmarked, and a real plan over
+// that state must reach a NoOp for the output rather than dying - the second
+// is the one that would have caught it, since the first can be satisfied by
+// unmarking somewhere that does not reach this store.
+func TestApplyRootOutputValuesUnmarksBeforeStoring(t *testing.T) {
+	cfg := loadConfig(t, "testdata/output-eval-sensitive")
+
+	stubSchema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"names":    {Type: cty.List(cty.String), Optional: true},
+			"id":       {Type: cty.String, Computed: true},
+			"password": {Type: cty.String, Computed: true, Sensitive: true},
+		},
+	}}
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{"stub_cert": stubSchema},
+		},
+	}
+	core, ctxDiags := tofu.NewContext(&tofu.ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("stub"): func() (providers.Interface, error) { return mock, nil },
+		}, nil),
+	})
+	if ctxDiags.HasErrors() {
+		t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
+	}
+
+	state := states.NewState()
+	state.RootModule().SetResourceInstanceCurrent(
+		addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "stub_cert", Name: "cert"}.Instance(addrs.NoKey),
+		&states.ResourceInstanceObjectSrc{
+			AttrsJSON: []byte(`{"id":"cert-123","names":["example.com"],"password":"hunter2"}`),
+			Status:    states.ObjectReady,
+		},
+		addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")},
+		addrs.NoKey,
+	)
+
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+	}
+
+	ov, ok := state.RootModule().OutputValues["cert_password"]
+	if !ok {
+		t.Fatalf("cert_password was not set; the fixture no longer exercises a sensitive attribute reaching a root output")
+	}
+	if ov.Value.IsMarked() {
+		t.Errorf("the stored prior output value carries cty marks; a real state file's never does, and node_output.go panics comparing against one")
+	}
+	if !ov.Value.RawEquals(cty.StringVal("hunter2")) {
+		t.Errorf("cert_password = %#v, want an unmarked \"hunter2\" - unmarking must not change the value", ov.Value)
+	}
+	if !ov.Sensitive {
+		t.Errorf("cert_password lost its sensitivity; the bool is what carries it once the mark is gone")
+	}
+
+	// The leg that would actually have caught this: plan against the state
+	// the function just wrote. Before the unmark this panicked inside
+	// NodeApplyableOutput.setValue.
+	mock.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{PlannedState: req.ProposedNewState}
+	}
+	mock.ReadResourceFn = func(req providers.ReadResourceRequest) providers.ReadResourceResponse {
+		return providers.ReadResourceResponse{NewState: req.PriorState}
+	}
+	plan, planDiags := core.Plan(t.Context(), cfg, state, &tofu.PlanOpts{Mode: plans.NormalMode, SkipRefresh: true})
+	if planDiags.HasErrors() {
+		t.Fatalf("plan over the state ApplyRootOutputValues wrote: %s", planDiags.Err())
+	}
+	var change *plans.OutputChangeSrc
+	for _, oc := range plan.Changes.Outputs {
+		if oc.Addr.OutputValue.Name == "cert_password" {
+			change = oc
+		}
+	}
+	if change == nil {
+		t.Fatalf("the plan carries no change for cert_password; changes: %d", len(plan.Changes.Outputs))
+	}
+	if change.Action != plans.NoOp {
+		t.Errorf("cert_password planned as %s, want NoOp - nothing about it moved, and the prior value is exactly what the plan recomputes", change.Action)
 	}
 }

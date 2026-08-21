@@ -51,6 +51,7 @@ func renderStampSummary(t *testing.T) string {
 		{"STAMPED", 2},
 		{"ALREADY_STAMPED", 3},
 		{"RECORDED", 5},
+		{"SENSITIVITY_RECORDED", 17},
 		{"ALREADY_RECORDED", 7},
 		{"FAILED", 11},
 		{"SKIPPED", 13},
@@ -102,7 +103,7 @@ func summaryColumnLabels(line string) []string {
 // and after side by side, which is the message whoever changes the view
 // needs - the script sweep below then says which scripts it costs.
 func TestApproveSummaryLineIsPinned(t *testing.T) {
-	const want = "2 resource(s) newly stamped, 3 already stamped, 5 newly recorded, 7 already recorded, 11 failed, 13 skipped."
+	const want = "2 resource(s) newly stamped, 3 already stamped, 5 newly recorded, 17 re-recorded for sensitivity only, 7 already recorded, 11 failed, 13 skipped."
 	if got := renderStampSummary(t); got != want {
 		t.Errorf("live-import -approve's summary line has changed.\n got: %s\nwant: %s\n\n"+
 			"If the change is intended, update this pin AND every live/e2e/*/run.sh that\n"+
@@ -165,5 +166,34 @@ func TestCrossingScriptsAssertTheCurrentSummaryLine(t *testing.T) {
 	if checked < 20 {
 		t.Errorf("only %d script line(s) assert the whole summary line; at least 20 did when this guard was written - "+
 			"if assertions were deliberately removed, lower this floor and say why", checked)
+	}
+}
+
+// TestASensitivityRewriteIsNotCountedAsNewlyRecorded is #344's report half at
+// the seam an operator reads. The row-level Detail already said the right
+// thing before this - "the record store already held this exact object ...
+// rewrote it to carry [its sensitivity]" - while the line underneath added it
+// to "N newly recorded", because the view buckets by Outcome and the outcome
+// was RECORDED. A re-migration of fifty long-standing records therefore
+// announced fifty newly recorded resources with fifty rows beneath it each
+// saying otherwise.
+//
+// [TestApproveSummaryLineIsPinned] above pins the whole line by value; this
+// asserts the one property that pin exists to protect, in the terms of the
+// defect, so a future rewording that reintroduces the miscount fails with a
+// sentence rather than with a string diff.
+func TestASensitivityRewriteIsNotCountedAsNewlyRecorded(t *testing.T) {
+	line := renderStampSummary(t)
+
+	if !strings.Contains(line, "5 newly recorded") {
+		t.Errorf("the summary does not say \"5 newly recorded\"; five records here are new:\n  %s", line)
+	}
+	if strings.Contains(line, "22 newly recorded") {
+		t.Errorf("the summary folds the 17 sensitivity-only rewrites into \"newly recorded\", which tells an "+
+			"operator that a store holding those values for weeks was just seeded:\n  %s", line)
+	}
+	if !strings.Contains(line, "17 re-recorded for sensitivity only") {
+		t.Errorf("the summary does not count the sensitivity rewrites in their own term, so the 17 writes "+
+			"this run really made are invisible:\n  %s", line)
 	}
 }

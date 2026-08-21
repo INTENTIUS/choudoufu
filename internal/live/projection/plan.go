@@ -233,14 +233,48 @@ func planOne(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.M
 	// argument that is not statically evaluable simply arrives unknown and
 	// the provider says what it can.
 
+	// Unmarked before it crosses the plugin channel, and the paths kept so
+	// the answer can be re-marked on the way back - the same unmark/re-mark
+	// pair upstream's own plan performs around this identical call
+	// (internal/tofu/node_resource_abstract_instance.go's
+	// unmarkedConfigVal/unmarkedPaths, then
+	// combinePathValueMarks(unmarkedPaths, schema.Block.ValueMarks(...))).
+	//
+	// It is load-bearing rather than tidy. StaticEvaluator.DecodeBlock,
+	// unlike its DecodeExpression sibling, has no sensitive-value guard, and
+	// internal/configs/static_scope.go marks a `sensitive = true` input
+	// variable on the way in - so a block reading one decodes to a MARKED
+	// configVal, cty's msgpack encoder refuses a marked value outright
+	// ("value has marks, so it cannot be serialized"), and the refusal
+	// arrives as an ordinary provider diagnostic, which the error branch
+	// below reads as "the provider declined" and drops the resource from the
+	// result. Silently: this pass never fails its caller, so the only
+	// evidence was a TRACE line, and any resource whose identity derived from
+	// that block then refused to resolve and was proposed for CREATION beside
+	// a live object that already existed. Found by the audit of #343/#344's
+	// fix to builder.normalizeIdentityAttrs, which is the same defect one
+	// call site over; pinned by TestPlanOneAsksTheProviderWithAnUnmarkedValue
+	// and TestPlanInstancesSurvivesASensitiveVariable.
+	//
+	// The marks go back on the ANSWER rather than being discarded, because
+	// the answer is what a caller feeds to identity resolution, and
+	// internal/live/identity refuses a marked value as an identity component
+	// on purpose (a component becomes a cloud tag in plaintext). Dropping
+	// them here would convert this silent omission into a silent leak, which
+	// is the worse of the two. The schema's own Sensitive attributes are
+	// combined in for the same reason [importAndRead] applies them to a
+	// concrete read: a value off the wire carries no marks, and both seams
+	// feed the same ManagedResults index.
+	unmarkedConfigVal, configPaths := configVal.UnmarkDeepWithPaths()
+
 	prior := cty.NullVal(schema.Block.ImpliedType())
-	proposed := objchange.ProposedNew(schema.Block, prior, configVal)
+	proposed := objchange.ProposedNew(schema.Block, prior, unmarkedConfigVal)
 
 	resp := prov.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 		TypeName:         res.Type,
 		PriorState:       prior,
 		ProposedNewState: proposed,
-		Config:           configVal,
+		Config:           unmarkedConfigVal,
 		// A null of the dynamic pseudo-type rather than the zero cty.Value:
 		// the plugin client marshals ProviderMeta whenever the provider
 		// declares a provider_meta schema, and a value with no type at all
@@ -254,7 +288,36 @@ func planOne(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.M
 	if resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull() {
 		return cty.NilVal, false
 	}
-	return resp.PlannedState, true
+	return remarkPlanned(resp.PlannedState, schema.Block, configPaths), true
+}
+
+// remarkPlanned puts back onto a provider's answer the sensitivity the
+// question was stripped of, plus whatever the schema declares sensitive on
+// its own.
+//
+// It is upstream's own two-source composition
+// (combinePathValueMarks(unmarkedPaths, schema.Block.ValueMarks(...)) at the
+// end of node_resource_abstract_instance.go's plan), stated once so that
+// every caller in this package that unmarks for an RPC re-marks the same
+// way. A path in configPaths that names nothing in the planned value simply
+// matches nothing: cty.Value.MarkWithPaths is a transform walk, not a
+// lookup.
+func remarkPlanned(planned cty.Value, block *configschema.Block, configPaths []cty.PathValueMarks) cty.Value {
+	if planned == cty.NilVal || planned.IsNull() {
+		return planned
+	}
+	var schemaPaths []cty.PathValueMarks
+	if block != nil {
+		// ValueMarks descends with GetAttr and ElementIterator, both of
+		// which panic on a marked receiver. planned came off the wire, so it
+		// carries no marks - and this call is made before any are added.
+		schemaPaths = block.ValueMarks(planned, nil, nil)
+	}
+	combined := combineValueMarks(configPaths, schemaPaths)
+	if len(combined) == 0 {
+		return planned
+	}
+	return planned.MarkWithPaths(combined)
 }
 
 // ProviderConfigValue statically evaluates a configuration's own DEFAULT
