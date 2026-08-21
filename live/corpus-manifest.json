@@ -367,6 +367,16 @@
       }
     },
     {
+      "glob": ".corpus/dynamodb-table/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/dynamodb-table",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-dynamodb-table.git",
+        "tag": "v5.5.1",
+        "commit": "02b2d66ad2396389381c8dbe3423682114ed5350"
+      }
+    },
+    {
       "glob": ".corpus/simpleinfra/terraform/*",
       "origin": "published deployment",
       "fetch": {
