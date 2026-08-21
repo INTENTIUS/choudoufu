@@ -253,7 +253,19 @@ var identityGoldenPin = map[string]int{
 	// provisioner is not an identity argument and contributes nothing to a
 	// marker - so a MODIFIED row here would have meant the fix reached
 	// somewhere it has no business reaching. No pre-existing row moved.
-	"CONCRETE": 781,
+	// 790, up from 781 (issue #346, an identity argument reading a sibling's
+	// non-identity Computed attribute through a module output): nine ADDED
+	// rows, all in the new fixture
+	// internal/live/identity/testdata/module-output-sibling-computed. Six of
+	// them are the one-element-list narrowing this golden CAN see with no
+	// schemas - the endpoints_literal_list and endpoints_output_list calls'
+	// aws_security_group_rule.this/.dotted, plus every call's
+	// .absent instance, which takes lookup()'s third argument because the
+	// element provably lacks the key. The rows that need a provider schema -
+	// the deferred read of aws_vpc.this[0].cidr_block - are absent here
+	// rather than wrong, exactly as TestConcreteParentAttributeNeedsSchemas
+	// records for the same branch. No pre-existing row moved.
+	"CONCRETE": 790,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -390,7 +402,16 @@ var identityGoldenPin = map[string]int{
 	// carries (module.queues.aws_sqs_queue.doi/.stray, two rows above). Not
 	// a moved row - no pre-existing CONCRETE/NEEDS_DISCOVERY row's rendered
 	// value changed; see the digest below.
-	"NEEDS_DISCOVERY": 660,
+	// 663, up from 660 (issue #346): three ADDED rows, all bare aws_vpc in
+	// the new module-output-sibling-computed fixture - aws_vpc.root and
+	// module.vpc.aws_vpc.this[0] from the fixture root, and aws_vpc.this[0]
+	// again with the child directory swept as a root of its own. Server-
+	// assigned like every other bare aws_vpc in this golden, and incidental
+	// to the change: the fixture needs a real managed resource in the root
+	// module to make an element expression unevaluable as a value, which is
+	// what binds each.value as an EXPRESSION and puts the argument on the
+	// route the issue is about.
+	"NEEDS_DISCOVERY": 663,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -676,7 +697,17 @@ var identityGoldenPin = map[string]int{
 // identity argument, so admitting one must not move any existing marker,
 // and the fix also writes a new kind of record - a MODIFIED row would have
 // meant that record had somehow reached identity resolution.
-const identityGoldenPinBodyDigest = "bd6bc91a533d94301ba6a3b6b253beb09edb9497086edde3314af28181e58386"
+//
+// 2026-08-21 (issue #346): digest moved because twelve more rows were ADDED,
+// every one of them from the single new fixture directory
+// internal/live/identity/testdata/module-output-sibling-computed (and its two
+// child module directories swept as roots of their own). TestIdentityGolden's
+// own diff, read before this line was edited, reported "0 identities changed,
+// 12 added, 0 removed" over 515 directories. The zero is the load-bearing half:
+// #346 widens which parent classes a non-identity attribute may be deferred
+// to, and adds a narrowing rule for one-element lists on the each.value route,
+// and neither may change a marker any existing fixture already renders.
+const identityGoldenPinBodyDigest = "a6df4368705c9ffd7e160b6d168d786785d08727cb5fce0d69fbeb83484715c5"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1088,8 +1119,17 @@ const identityGoldenPinBodyDigest = "bd6bc91a533d94301ba6a3b6b253beb09edb9497086
 // five aws_s3_bucket instances, each rendering the client-named bucket it
 // declares. Its provisioner blocks contribute nothing to any identity,
 // which is the point: a provisioner is an effect, not an identity argument.
+//
+// 2026-08-21 (issue #346): instances 1577 -> 1589 and dirs 511 -> 515. 0
+// changed, 12 added, 0 removed. Four new directories - the fixture root
+// internal/live/identity/testdata/module-output-sibling-computed, its two
+// child modules swept as roots of their own, and
+// internal/live/identity/testdata/synthesized-parent-attr, which contributes
+// no row at all (its parent's entry is synthesized rather than ratified, which
+// is precisely the condition #346 did not relax, and its child therefore stays
+// refused).
 const (
-	identityGoldenPinInstances = 1577
+	identityGoldenPinInstances = 1589
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1170,7 +1210,11 @@ const (
 	// before and after regenerating - only the header's "dirs=" line moved,
 	// and TestIdentityGolden itself reported "differs but no instance's
 	// identity did".
-	identityGoldenPinDirs = 517
+	//
+	// Then 517 -> 521 dirs and 1577 -> 1589 instances for GitHub issue #346:
+	// four new directories, twelve added rows, nothing modified. See
+	// identityGoldenPinInstances' own comment directly above.
+	identityGoldenPinDirs = 521
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

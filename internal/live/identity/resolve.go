@@ -1359,16 +1359,35 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			addTo(comp.identityAttrFor(attr.Name), got)
 			continue
 		}
-		if comp.SoleElement {
-			narrowed, ok := r.soleElementExpr(expr, scope, attr, ident)
-			if !ok {
-				fail(sibBefore, attr.Name)
-				continue
-			}
-			expr = narrowed
-		}
 		diagMark := len(r.diags)
-		got, ok := r.resolveExpr(expr, scope, ident)
+		var got []Part
+		var ok, resolvedHere bool
+		if comp.SoleElement {
+			// GitHub issue #346: on the each.value-as-an-EXPRESSION route the
+			// list construct is in the element, not in the argument, so the
+			// one-element rule has to be applied one selection in - and it
+			// resolves there too, because the narrowed expression belongs to
+			// the caller's module rather than to this one, which is why this
+			// returns parts instead of an expression the way the syntactic
+			// narrowing below does. Not applicable to any other shape, which
+			// falls through to that narrowing exactly as it always has. The
+			// failure path is deliberately shared with resolveExpr's below,
+			// so [Component.OmitIfAbsent] and [Component.Literal] mean the
+			// same thing on both routes. See [resolver.eachValueSoleElement].
+			if g, gotOK, applicable := r.eachValueSoleElement(expr, scope, attr, ident); applicable {
+				got, ok, resolvedHere = g, gotOK, true
+			} else {
+				narrowed, narrowOK := r.soleElementExpr(expr, scope, attr, ident)
+				if !narrowOK {
+					fail(sibBefore, attr.Name)
+					continue
+				}
+				expr = narrowed
+			}
+		}
+		if !resolvedHere {
+			got, ok = r.resolveExpr(expr, scope, ident)
+		}
 		if !ok {
 			// [Component.OmitIfAbsent]'s omission is not only syntactic. A
 			// for_each-driven module's ordinary way to say "this instance
@@ -2013,6 +2032,14 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveCoalesceCall(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// lookup(each.value, "key", fallback) over an element bound as an
+		// expression, resolved to whichever of the two the language selects -
+		// see [resolver.resolveLookupCall]. Same not-applicable contract as
+		// above; a lookup whose own value evaluates never reaches here at all,
+		// because the non-symbolic branch above took it.
+		if parts, ok, applicable := r.resolveLookupCall(e, scope, ident); applicable {
+			return parts, ok
+		}
 	case *hclsyntax.IndexExpr:
 		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N is not a
 		// literal (count.index, a local) - see splat.go's
@@ -2417,10 +2444,42 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		// [resolver.siblingLiteralExpr]'s Computed boundary should mean
 		// once the value comes from the live object rather than from
 		// configuration.
+		//
+		// A NEEDS-DISCOVERY parent ([ClassNeedsDiscovery]) joins the
+		// concrete case on the same argument, one phase EARLIER in the same
+		// pipeline, and this is GitHub issue #346's second half. Its
+		// identity is not in the configuration, so marker discovery finds
+		// it: internal/command/live_plan.go replaces the resolution list
+		// with discovery's own (merged = disco.Resolutions), in which every
+		// discovered instance is CONCRETE. builder.run then materializes
+		// every concrete resolution - import, then ReadResource - before it
+		// renders a single formula, so by the time this promise is read the
+		// parent's whole provider object is in b.live exactly as it is for
+		// a parent that was concrete from the start, and
+		// builder.renderFormula's lookup takes an arbitrary attribute off
+		// it with attrString.
+		//
+		// A parent discovery does NOT find stays needs-discovery, is
+		// omitted by builder.run, and renderFormula's own parent check then
+		// omits this child with ReasonParentUnavailable. That is the same
+		// outcome a ParentRef to an identity attribute of an undiscovered
+		// parent already has today (the tail of this function makes one for
+		// every needs-discovery parent whose attribute IS an identity
+		// attribute), and it is a missing marker rather than a wrong one:
+		// the plan proposes creating the child rather than binding it to
+		// something it guessed.
+		//
+		// Nothing here reads anything, and nothing here changes when
+		// discovery runs relative to resolution. See
+		// [projection.ReadInstances]'s own note on the classifyOrphans
+		// hazard: that hazard belongs to a design that makes a FIRST
+		// resolution pass non-fatal so a second one can read live values,
+		// and this is not one - the refusal it replaces is decided inside a
+		// single ordinary pass, before discovery has run at all.
 		_, ratifiedRow := LookupType(parent.Resource.Resource.Type)
-		if (parentRes.Class == ClassRecordBacked ||
-			(parentRes.Class == ClassConcrete && ratifiedRow)) &&
-			r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
+		deferrable := parentRes.Class == ClassRecordBacked ||
+			((parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow)
+		if deferrable && r.stringAttrInSchema(parent.Resource.Resource.Type, attrName) {
 			return []Part{{Parent: &ParentRef{Instance: parent, Attr: attrName}}}, true
 		}
 
@@ -2436,12 +2495,12 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 			detail += fmt.Sprintf("%s keeps its whole object in this estate's record store, so any attribute its schema declares can be read - but its schema declares no string-valued %q.", parent.Resource.Resource.Type, attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
-		case parentRes.Class == ClassConcrete && ratifiedRow && r.schemas == nil:
-			detail += fmt.Sprintf("%s resolves to a known object that is read live before this identity is rendered, so any attribute of it can be read - but no provider schemas were available to this run to confirm that %q is one of them.", parent.String(), attrName)
+		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow && r.schemas == nil:
+			detail += fmt.Sprintf("%s resolves to an object that is read live before this identity is rendered, so any attribute of it can be read - but no provider schemas were available to this run to confirm that %q is one of them.", parent.String(), attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
-		case parentRes.Class == ClassConcrete && ratifiedRow:
-			detail += fmt.Sprintf("%s resolves to a known object that is read live before this identity is rendered, so any attribute its schema declares can be read - but %s's schema declares no string-valued %q.", parent.String(), parent.Resource.Resource.Type, attrName)
+		case (parentRes.Class == ClassConcrete || parentRes.Class == ClassNeedsDiscovery) && ratifiedRow:
+			detail += fmt.Sprintf("%s resolves to an object that is read live before this identity is rendered, so any attribute its schema declares can be read - but %s's schema declares no string-valued %q.", parent.String(), parent.Resource.Resource.Type, attrName)
 			r.errorf(rng, "Not an identity attribute", "%s", detail)
 			return nil, false
 		}
