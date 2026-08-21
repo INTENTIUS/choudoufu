@@ -40,8 +40,12 @@ set -uo pipefail
 #
 # Six real defects this estate found on first contact with a cloud. Four
 # are fixed (three landed ahead of this script on this same branch; the
-# fourth, #306, fixed and re-verified 2026-08-18 - see below). One is
-# worked around, not fixed (DELTA 3's random_pet migration). The sixth -
+# fourth, #306, fixed and re-verified 2026-08-18 - see below). One, #340,
+# is fixed for the record-store half (random_pet's value now migrates
+# generically) but DELTA 3 stays, pending the separate, unverified
+# question of whether the config can read that value back for an
+# identity-bearing argument on a stateless replan without it - see below.
+# The sixth -
 # the acl/website_configuration gap, which the original investigation
 # attributed to #306 too but is actually a separate mechanism (see below) -
 # is genuinely structural rather than quick-fixable, so this script scopes
@@ -74,20 +78,31 @@ set -uo pipefail
 #     (fix/s3-accelerate-configuration, PR #53) and re-pinned in
 #     live/floci-image.
 #
-#   CHOUDOUFU DEFECT (worked around with DELTA 3, not fixed). The module
-#     names all four of its real buckets from one shared
-#     `resource "random_pet" "this"`, an extremely common idiom for
-#     uniquifying a bucket name. `choudoufu live-import` only ever verifies
-#     and stamps TAGGABLE resources (internal/live/liveimport/ratify.go's
-#     `ratifyOne`); random_pet has no tags argument at all, so it is neither
-#     stamped nor - live-import never writes any state, tagged or not -
-#     migrated into the estate's record_store. A later `live-plan` finding
-#     no record would mint a FRESH pet name, and every bucket name the
-#     config computes from it would stop matching the buckets actually
-#     tagged live. DELTA 3 pins the already-applied pet value as a literal,
-#     standing in for what live-import migrating RECORD_ADMITTED
-#     (untaggable, effects-only) resource values into the record store
-#     would do generically.
+#   CHOUDOUFU DEFECT (HALF FIXED 2026-08-20 - issue #340, closed; DELTA 3
+#     still kept, see below). The module names all four of its real buckets
+#     from one shared `resource "random_pet" "this"`, an extremely common
+#     idiom for uniquifying a bucket name. This originally read: "choudoufu
+#     live-import only ever verifies and stamps TAGGABLE resources, so
+#     random_pet is neither stamped nor migrated into the estate's
+#     record_store" - #340 fixed exactly that generically
+#     (internal/live/liveimport/stamp.go's recordOne, for every
+#     RecordBacked type, not just this one): `-approve` now seeds the
+#     estate's record store from the state's own random_pet.this object as
+#     part of an ordinary migrate (STAMPED/RECORDED/SKIPPED counts below
+#     reflect this - 1 newly recorded, 23 skipped, not 0/24 as this script
+#     asserted before this pass). Re-verified live this pass: the
+#     migrate-stage log below shows "RECORDED (1) ... random_pet.this ...
+#     Wrote the state's own object into this estate's record store."
+#     DELTA 3 is still kept, not because that half is unfixed, but because
+#     the OTHER half - whether the estate's own config can then read that
+#     recorded value back to compute module.s3_bucket's bucket-name
+#     argument (`"s3-bucket-${random_pet.this.id}"`) on a stateless replan,
+#     with no DELTA-3 literal standing in for it - was tried in this pass
+#     and hit a distinct failure at the stage 2c residue-classification
+#     plan ("no plan summary line") not root-caused here; see issue #336
+#     (closed, but for a narrower coalesce()-shaped cause than this
+#     estate's plain interpolation) for the closest prior art. Removing
+#     DELTA 3 is a separate, unverified unit, not this one.
 #
 #   CHOUDOUFU DEFECT (FIXED, 2026-08-18 - issue #306, closed). Marker loss:
 #   a stamped resource's tofu-address/tofu-estate tags could be silently
@@ -504,9 +519,9 @@ log "  6 of 30 verified against the live system (the four buckets, the IAM role,
 log "=== STAGE 2b: -approve ==="
 APPROVE_OUT="$(cd "$ESTATE/examples/complete" && "$TOFU" live-import -state="$PLAIN/examples/complete/terraform.tfstate" -estate="$ESTATE_NAME" -approve 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "6 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 24 skipped" <<< "$APPROVE_OUT" \
-  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 6 resources cleanly (24 skipped: the untaggable, parent-derived S3 sub-resources plus random_pet)"; }
-log "  6 stamped"
+grep -qF "6 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 23 skipped" <<< "$APPROVE_OUT" \
+  || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 6 resources and record random_pet cleanly (23 skipped: the untaggable, parent-derived S3 sub-resources; 1 recorded: random_pet, issue #340)"; }
+log "  6 stamped, 1 recorded (random_pet, issue #340)"
 
 for b in "${BUCKETS[@]}"; do
   ADDR="$(awsl s3api get-bucket-tagging --bucket "$b" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text 2>/dev/null)"
@@ -545,7 +560,7 @@ for b in "${BUCKETS[@]}"; do
   [ "$EST" = "$ESTATE_NAME" ] || fail "bucket $b lost its tofu-estate marker during the residue-classification apply (got \"$EST\") - this is issue #306, which the header says is fixed and re-verified; if this fires, the fix has regressed or the pinned floci image has moved backward"
 done
 log "  all four buckets' markers survived the classification apply"
-gauntlet_stage migrate pass "6 of 30 stamped (24 skipped, untaggable), 0 failed; markers survived the residue-classification apply"
+gauntlet_stage migrate pass "6 of 30 stamped, 1 recorded (random_pet, issue #340), 23 skipped (untaggable), 0 failed; markers survived the residue-classification apply"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - no state file, live-plan, empty, and the identities
@@ -716,7 +731,9 @@ log ""
 log "Six real defects found on first contact with a cloud. Four fixed (two"
 log "admission gaps, ratified and merged into the schema-based fallback; a"
 log "floci routing bug, PR #53; marker loss on apply, issue #306, fixed in"
-log "lex00/floci and re-verified here with DELTA 6 reverted). One worked"
-log "around, not fixed: random_pet migration via DELTA 3. One genuinely"
+log "lex00/floci and re-verified here with DELTA 6 reverted). One, #340,"
+log "fixed for the record-store half (random_pet now migrates generically"
+log "into the record store); DELTA 3 stays, pending its own separate"
+log "verification - see the header comment above. One genuinely"
 log "structural, not fixed, scoped out rather than worked around: the"
 log "canned acl/website_configuration gap - see the header comment above."
