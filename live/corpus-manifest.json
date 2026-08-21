@@ -496,6 +496,15 @@
         "repo": "https://github.com/evoteum/tofu-modules.git",
         "commit": "7e8764035c50d1cb2a6ac04636a9f85ba6708d39"
       }
+    },
+    {
+      "glob": ".corpus/leynos-df12-www",
+      "origin": "published deployment",
+      "fetch": {
+        "dir": ".corpus/leynos-df12-www",
+        "repo": "https://github.com/leynos/df12-www.git",
+        "commit": "e59eabba112b2a4c731123f26845a20f0ae0d938"
+      }
     }
   ],
   "_module_sources_comment": [
