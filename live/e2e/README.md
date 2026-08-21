@@ -466,6 +466,91 @@ answered for the CFN type, which LocalStack answers generically.
 recorded `implemented` on that evidence and both return `UnsupportedOperation`
 from the API the AWS provider actually calls.
 
+## The shared plugin cache
+
+Every `live/e2e/corpus-*/run.sh` and `reference-*/run.sh` script builds a
+scratch estate in its own `mktemp` directory and runs `init` against it at
+least twice — a cold-deploy copy and a migrated/adopted copy, sometimes more.
+Left alone, each of those directories re-downloads the whole provider (the
+AWS provider is several hundred megabytes) on every `init`, which on a
+machine running more than one crossing at a time is most of the script's
+wall time.
+
+The fix is the pair of env vars below, exported together, near the top of
+the script, before the first `init`:
+
+```sh
+export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
+```
+
+`TF_PLUGIN_CACHE_DIR` alone is not enough (#339). It makes `init` reuse an
+already-downloaded provider binary, but the cache directory records no
+checksums, and a directory with no `.terraform.lock.hcl` of its own
+re-downloads and re-verifies the whole package purely to compute them —
+even when the exact version is already sitting in the cache. The install log
+admits it in one breath: `Installing hashicorp/aws v6.x.x to the shared
+cache directory...` immediately followed by `Using hashicorp/aws v6.x.x from
+the shared cache directory`. #339's own measurement, on the machine and
+network it was filed from: 320s per redundant `init`. Re-measured at
+`56481a4bbf` with this fix applied and pulled back out again (a throwaway
+instrumented copy of `corpus-giantswarm-crossplane/run.sh`, not committed),
+same estate, same warm cache, this machine and network: stage 1's `tofu
+init` 6s, stage 2's `choudoufu init` 17s, full five-stage run 104.84s
+wall-clock. The absolute seconds vary with network conditions between the
+two measurements; the signature (`Installing ... Using ...` in the same
+breath, on a cache that already had the version) is what's diagnostic, and
+it reproduced.
+
+`TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE` is the CLI's own
+accommodation for exactly this
+(`internal/command/cliconfig/cliconfig.go`'s
+`PluginCacheMayBreakDependencyLockFile`, plumbed through to the provider
+installer's `allowSkippingInstallWithoutHashes`). With it set, an `init`
+that finds the package already in the global cache trusts it outright
+instead of re-fetching and re-verifying it, and records only the current
+platform's checksum in the lock file it writes. Same instrumented
+`corpus-giantswarm-crossplane` run, same machine, this fix applied: stage 1
+`tofu init` 1s, stage 2 `choudoufu init` 2s, full five-stage run 55.87s —
+roughly half the unmitigated run's wall time, and both inits dropped, not
+only the second one a hand-seeded lock file would have reached. A second,
+isolated check against a plain scratch directory (not this estate) requiring
+`hashicorp/aws` 6.61.0 against the same warm cache: `choudoufu` 11.30s →
+1.45s. The `terraform`-binary equivalent is below.
+
+That trade — the lock file this produces carries only one platform's
+checksum, so it is not portable to a different OS/architecture — costs
+nothing here: every directory in these scripts is a throwaway `mktemp` copy,
+never committed, never read by anything running on a second platform. It is
+a real trade for a project's real `.terraform.lock.hcl`, which is why this
+is not the default and has to be opted into.
+
+**It is not OpenTofu-only.** Real HashiCorp `terraform` honors the same env
+var (confirmed against Terraform v1.15.8: 8.30s without it, 0.59s with it,
+same warm cache, same provider version) — so it fixes *both* sides of a
+script that cold-deploys with real `terraform` and migrates with
+`choudoufu`/`tofu`, unlike a copied `.terraform.lock.hcl`, which cannot cross
+the registry boundary (`corpus-hongbomiao-labelbox` runs `terraform init`
+against `registry.terraform.io` and `tofu init` against
+`registry.opentofu.org` — a lock file from one names the wrong provider
+source for the other). The env var needs no such coordination: each `init`
+consults the shared cache under its own registry-keyed path independently,
+so it is safe to export unconditionally near the top of a script regardless
+of which binaries that script goes on to run.
+
+The one case this does not cover: `corpus-simpleinfra-dns` uses the shared
+cache directory as a `-plugin-dir` filesystem *mirror* instead, for reasons
+specific to that script (see its own header) — a mirror is already
+authoritative, so `init` never re-verifies at all (measured there at
+0.35s/0.48s). That is a different, also-valid technique for the same
+problem; it is not what most scripts here need.
+
+**Still true regardless:** this removes the *redundant* download, not the
+*first* one. A directory that is the very first `init` anywhere against a
+cold cache still pays the real download cost once — there is no way around
+fetching a provider nobody's machine has yet.
+
 ## The corpus-crossing harness
 
 `live/e2e/corpus-crossing/run.sh` runs somebody else's production

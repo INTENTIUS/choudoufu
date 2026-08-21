@@ -279,9 +279,19 @@ REGION="eu-west-1"
 # download; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
 # The two copies cannot share a .terraform.lock.hcl the way an
 # OpenTofu-native crossing's can - stage 1's registry is
-# registry.terraform.io and the estate's is registry.opentofu.org - so this
-# is the only half of that saving available here.
+# registry.terraform.io and the estate's is registry.opentofu.org - so a
+# lock-file copy between them would name the wrong provider source for one
+# side.
+#
+# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE sidesteps that limit
+# entirely - real terraform and choudoufu both honor it, and each init
+# consults the shared cache under its own registry-keyed path independently,
+# so both halves of this crossing benefit, not just one. Without it, init in
+# a directory with no .terraform.lock.hcl re-downloads the whole provider
+# purely to compute checksums, even when the cache already holds that exact
+# version (see live/e2e/README.md, "The shared plugin cache" for the measured numbers).
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 BLOCKS=54
 INSTANCES=63
