@@ -83,11 +83,19 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	}
 }
 
-// TestWorkerBriefCitationsResolve: every repo path the worker brief names
-// exists, so an unattended worker never follows a dead reference.
+// TestWorkerBriefCitationsResolve: every repo path the worker and
+// orchestrator briefs name exists, so an unattended agent never follows a
+// dead reference.
 func TestWorkerBriefCitationsResolve(t *testing.T) {
 	root := testRoot(t)
-	b, err := os.ReadFile(filepath.Join(root, WorkerBriefPath))
+	for _, brief := range []string{WorkerBriefPath, OrchestratorBriefPath} {
+		t.Run(filepath.Base(brief), func(t *testing.T) { checkBriefCitations(t, root, brief) })
+	}
+}
+
+func checkBriefCitations(t *testing.T, root, brief string) {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(root, brief))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,15 +108,19 @@ func TestWorkerBriefCitationsResolve(t *testing.T) {
 		}
 		seen++
 		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
-			t.Errorf("%s cites %s, which does not exist", WorkerBriefPath, p)
+			t.Errorf("%s cites %s, which does not exist", brief, p)
 		}
 	}
 	if seen < 6 {
 		t.Fatalf("found only %d citations in the brief; the extraction is broken", seen)
 	}
-	for _, must := range []string{"never merge", "[gauntlet:", "four-row", "not_run"} {
+	musts := []string{"never merge", "[gauntlet:", "four-row", "not_run"}
+	if brief == OrchestratorBriefPath {
+		musts = []string{"stop and ask", "merge on green", "[gauntlet:", "render"}
+	}
+	for _, must := range musts {
 		if !strings.Contains(strings.ToLower(string(b)), strings.ToLower(must)) {
-			t.Errorf("brief no longer says %q", must)
+			t.Errorf("%s no longer says %q", brief, must)
 		}
 	}
 	for _, p := range []string{"scripts/contribute.sh", ".github/workflows/contribute.yml", ".github/workflows/automerge-artifact.yml"} {

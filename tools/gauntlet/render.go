@@ -23,6 +23,8 @@ const (
 	SiteAddPage      = "site/content/docs/progress/add-an-estate.md"
 	SiteContribPage  = "site/content/docs/progress/contribute.md"
 	WorkerBriefPath  = ".claude/agents/gauntlet-worker.md"
+	// OrchestratorBriefPath is the brief for whoever keeps the loop running.
+	OrchestratorBriefPath = ".claude/agents/gauntlet-orchestrator.md"
 )
 
 // Render writes every generated file into root. It returns the list of
