@@ -1,0 +1,368 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package main
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+)
+
+func testRoot(t *testing.T) string {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Skip("not in a git checkout")
+	}
+	return root
+}
+
+// TestStagesAreWellFormed: unique IDs, contiguous order from 1, every prose
+// field present, status in the known set, and at least one active stage so
+// "clear" can never be vacuously true.
+func TestStagesAreWellFormed(t *testing.T) {
+	stages := Stages()
+	seen := map[string]bool{}
+	active := 0
+	for i, s := range stages {
+		if s.Order != i+1 {
+			t.Errorf("stage %q has order %d, want %d (orders must be contiguous from 1)", s.ID, s.Order, i+1)
+		}
+		if seen[s.ID] {
+			t.Errorf("stage id %q repeated", s.ID)
+		}
+		seen[s.ID] = true
+		if s.ID == "" || strings.ContainsAny(s.ID, " -") {
+			t.Errorf("stage id %q must be a bare snake_case token", s.ID)
+		}
+		for name, v := range map[string]string{"Title": s.Title, "Proves": s.Proves, "Oracle": s.Oracle, "Break": s.Break} {
+			if strings.TrimSpace(v) == "" {
+				t.Errorf("stage %q: %s is empty", s.ID, name)
+			}
+		}
+		switch s.Status {
+		case StatusActive:
+			active++
+		case StatusPlanned:
+		default:
+			t.Errorf("stage %q: status %q is not active or planned", s.ID, s.Status)
+		}
+	}
+	if active == 0 {
+		t.Fatal("no active stage; clear would be vacuous")
+	}
+}
+
+// TestManifestIsCanonical: the committed manifest validates, is byte-identical
+// to its canonical encoding, and every entry's script exists and is
+// executable.
+func TestManifestIsCanonical(t *testing.T) {
+	root := testRoot(t)
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := m.Canonical()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(root, ManifestPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(want, got) {
+		t.Errorf("%s is not canonical; run `go run ./tools/gauntlet render`", ManifestPath)
+	}
+	for _, e := range m.Estates {
+		p := filepath.Join(root, e.ScriptPath())
+		st, err := os.Stat(p)
+		if err != nil {
+			t.Errorf("estate %q: script %s: %v", e.Name, e.ScriptPath(), err)
+			continue
+		}
+		if st.Mode()&0o111 == 0 {
+			t.Errorf("estate %q: script %s is not executable", e.Name, e.ScriptPath())
+		}
+	}
+}
+
+// TestArtifactAgreesWithManifest: every estate in the manifest has a row and
+// vice versa, clear is computed per the active-stage rule, and the set
+// summaries add up.
+func TestArtifactAgreesWithManifest(t *testing.T) {
+	root := testRoot(t)
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := LoadArtifact(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Schema != 1 {
+		t.Errorf("artifact schema %d, want 1", a.Schema)
+	}
+	names := map[string]bool{}
+	for _, e := range m.Estates {
+		names[e.Name] = true
+		r, ok := a.Result(e.Name)
+		if !ok {
+			t.Errorf("%s has no row for %q; run `go run ./tools/gauntlet render`", ArtifactPath, e.Name)
+			continue
+		}
+		if r.Clear != isClear(r.Stages) {
+			t.Errorf("%q: clear=%v but stages say %v", e.Name, r.Clear, isClear(r.Stages))
+		}
+		if r.Set != e.Set || r.Lane != e.Lane {
+			t.Errorf("%q: artifact set/lane %s/%s differ from manifest %s/%s", e.Name, r.Set, r.Lane, e.Set, e.Lane)
+		}
+		for id := range r.Stages {
+			if _, ok := StageByID(id); !ok {
+				t.Errorf("%q: artifact carries unknown stage %q", e.Name, id)
+			}
+		}
+		switch r.Protocol {
+		case ProtocolGauntlet, ProtocolLegacy:
+		default:
+			t.Errorf("%q: protocol %q unknown", e.Name, r.Protocol)
+		}
+	}
+	for _, r := range a.Estates {
+		if !names[r.Name] {
+			t.Errorf("%s has a row for %q which is not in the manifest", ArtifactPath, r.Name)
+		}
+	}
+	for key := range SetLabels {
+		sum, ok := a.Sets[key]
+		if !ok {
+			t.Errorf("artifact has no set %q", key)
+			continue
+		}
+		n, clear := 0, 0
+		for _, r := range a.Estates {
+			if key == "core" && r.Set != SetCore {
+				continue
+			}
+			n++
+			if r.Clear {
+				clear++
+			}
+		}
+		if sum.Estates != n || sum.Clear != clear {
+			t.Errorf("set %q: summary %d/%d, recomputed %d/%d", key, sum.Clear, sum.Estates, clear, n)
+		}
+	}
+}
+
+// TestRenderedDocsAreCurrent: a fresh render equals the committed files.
+func TestRenderedDocsAreCurrent(t *testing.T) {
+	root := testRoot(t)
+	stale, err := StaleFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stale) > 0 {
+		t.Errorf("rendered files are stale; run `go run ./tools/gauntlet render`:\n  %s", strings.Join(stale, "\n  "))
+	}
+}
+
+// TestProtocolParser: the grammar round-trips, including a detail with
+// spaces and an equals sign, and malformed lines are errors.
+func TestProtocolParser(t *testing.T) {
+	in := strings.Join([]string{
+		"some other output",
+		"GAUNTLET protocol=1",
+		"GAUNTLET stage=cold_deploy verdict=pass",
+		"GAUNTLET stage=migrate verdict=pass detail=68 added, 41 stamped, 27 skipped",
+		"GAUNTLET stage=test_plan verdict=fail detail=Non-static identity argument: x=y",
+		"GAUNTLET stage=test_apply verdict=not_run",
+		"=== PASS ===",
+	}, "\n")
+	res, err := ParseProtocol(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Spoken {
+		t.Error("protocol line not recognised")
+	}
+	want := map[string]string{"cold_deploy": "pass", "migrate": "pass", "test_plan": "fail", "test_apply": "not_run"}
+	for id, v := range want {
+		if res.Stages[id] != v {
+			t.Errorf("stage %s = %q, want %q", id, res.Stages[id], v)
+		}
+	}
+	if res.Detail["test_plan"] != "Non-static identity argument: x=y" {
+		t.Errorf("detail lost: %q", res.Detail["test_plan"])
+	}
+	if res.Detail["migrate"] != "68 added, 41 stamped, 27 skipped" {
+		t.Errorf("detail lost: %q", res.Detail["migrate"])
+	}
+	if len(res.Unknown) != 0 {
+		t.Errorf("unexpected unknown stages %v", res.Unknown)
+	}
+
+	for _, bad := range []string{
+		"GAUNTLET stage=cold_deploy verdict=maybe",
+		"GAUNTLET verdict=pass",
+		"GAUNTLET protocol=2",
+	} {
+		if _, err := ParseProtocol(strings.NewReader(bad)); err == nil {
+			t.Errorf("%q parsed without error", bad)
+		}
+	}
+	res, err = ParseProtocol(strings.NewReader("GAUNTLET protocol=1\nGAUNTLET stage=no_such verdict=pass\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Unknown) != 1 || res.Unknown[0] != "no_such" {
+		t.Errorf("unknown stage not reported: %v", res.Unknown)
+	}
+}
+
+// TestClearNeedsEveryActiveStage: the definition of the headline number.
+func TestClearNeedsEveryActiveStage(t *testing.T) {
+	all := map[string]string{}
+	for _, s := range Stages() {
+		all[s.ID] = VerdictPass
+	}
+	if !isClear(all) {
+		t.Fatal("all pass should be clear")
+	}
+	for _, s := range ActiveStages() {
+		cp := map[string]string{}
+		for k, v := range all {
+			cp[k] = v
+		}
+		cp[s.ID] = VerdictNotRun
+		if isClear(cp) {
+			t.Errorf("not_run on active stage %q should not be clear", s.ID)
+		}
+	}
+	for _, s := range Stages() {
+		if s.Status == StatusActive {
+			continue
+		}
+		cp := map[string]string{}
+		for k, v := range all {
+			cp[k] = v
+		}
+		cp[s.ID] = VerdictFail
+		if !isClear(cp) {
+			t.Errorf("fail on planned stage %q must not affect clear", s.ID)
+		}
+	}
+}
+
+// TestRebuildIsDeterministic: two rebuilds of the same inputs give the same
+// bytes, and a manifest entry with no verdicts appears with every stage
+// not_run.
+func TestRebuildIsDeterministic(t *testing.T) {
+	m := &Manifest{Estates: []Estate{
+		{Name: "b", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
+		{Name: "a", Source: "s", URL: "u", Pin: "p", Lane: "published-deployment", Set: SetGrowing},
+	}}
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	a := &Artifact{}
+	now := time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
+	a.Rebuild(m, "abc", "img", now)
+	b1, _ := a.Canonical()
+	a.Rebuild(m, "abc", "img", now)
+	b2, _ := a.Canonical()
+	if !bytes.Equal(b1, b2) {
+		t.Error("rebuild is not deterministic")
+	}
+	if a.Estates[0].Name != "a" || a.Estates[1].Name != "b" {
+		t.Errorf("estates not sorted: %v", []string{a.Estates[0].Name, a.Estates[1].Name})
+	}
+	for _, r := range a.Estates {
+		for _, s := range Stages() {
+			if r.Stages[s.ID] != VerdictNotRun {
+				t.Errorf("%s/%s = %q, want not_run", r.Name, s.ID, r.Stages[s.ID])
+			}
+		}
+	}
+	if a.Sets["core"].Estates != 1 || a.Sets["all"].Estates != 2 {
+		t.Errorf("set sizes core=%d all=%d", a.Sets["core"].Estates, a.Sets["all"].Estates)
+	}
+}
+
+// TestLegacyScriptsOnlyGoDown: the count of crossing scripts that do not
+// source live/e2e/lib/gauntlet.sh is a burndown. Lower the bound when you
+// convert one; never raise it.
+func TestLegacyScriptsOnlyGoDown(t *testing.T) {
+	const bound = 24 // measured 2026-08-21: every script but reference-ec2-vpc was legacy at the gauntlet's introduction
+	root := testRoot(t)
+	m, err := LoadManifest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy []string
+	for _, e := range m.Estates {
+		b, err := os.ReadFile(filepath.Join(root, e.ScriptPath()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), "live/e2e/lib/gauntlet.sh") {
+			legacy = append(legacy, e.Name)
+		}
+	}
+	sort.Strings(legacy)
+	if len(legacy) > bound {
+		t.Errorf("%d scripts do not speak the gauntlet protocol, bound is %d: %v", len(legacy), bound, legacy)
+	}
+	if len(legacy) < bound {
+		t.Errorf("only %d legacy scripts remain; lower the bound in this test to %d", len(legacy), len(legacy))
+	}
+}
+
+// TestScriptStubSpeaksProtocol: the stub `add` writes parses as a script that
+// reports every stage not_run.
+func TestScriptStubSpeaksProtocol(t *testing.T) {
+	stub := scriptStub(Estate{Name: "x", Source: "s", URL: "u", Pin: "p", Lane: "terraform-popular", Set: SetGrowing})
+	if !strings.Contains(stub, "live/e2e/lib/gauntlet.sh") {
+		t.Error("stub does not source the protocol library")
+	}
+	for _, s := range Stages() {
+		if !strings.Contains(stub, "gauntlet_stage "+s.ID+" not_run") {
+			t.Errorf("stub does not report stage %s", s.ID)
+		}
+	}
+}
+
+// TestProtocolLibraryMatchesParser: the shell library's output parses, for
+// every verdict the parser accepts, with and without a detail.
+func TestProtocolLibraryMatchesParser(t *testing.T) {
+	root := testRoot(t)
+	lib := filepath.Join(root, "live", "e2e", "lib", "gauntlet.sh")
+	if _, err := os.Stat(lib); err != nil {
+		t.Fatal(err)
+	}
+	script := "source " + lib + "\ngauntlet_begin\ngauntlet_stage cold_deploy pass\ngauntlet_stage migrate fail 'a detail, with = sign'\ngauntlet_stage test_plan not_run\ngauntlet_end\n"
+	out, err := runBash(script)
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	res, err := ParseProtocol(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("parse: %v\n%s", err, out)
+	}
+	if !res.Spoken || res.Stages["cold_deploy"] != "pass" || res.Stages["migrate"] != "fail" || res.Stages["test_plan"] != "not_run" {
+		t.Errorf("unexpected parse: %+v\n%s", res, out)
+	}
+	if res.Detail["migrate"] != "a detail, with = sign" {
+		t.Errorf("detail: %q", res.Detail["migrate"])
+	}
+	// An unknown verdict must make the library exit non-zero.
+	if _, err := runBash("source " + lib + "\ngauntlet_begin\ngauntlet_stage x maybe\n"); err == nil {
+		t.Error("library accepted verdict 'maybe'")
+	}
+}

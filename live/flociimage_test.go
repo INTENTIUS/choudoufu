@@ -44,6 +44,7 @@ import (
 var flociImageFields = map[string]string{
 	"plan-budget.json":       "measured_against",
 	"cohort-acceptance.json": "image",
+	"gauntlet.json":          "emulator",
 }
 
 // staleFlociMeasurements are artifacts knowingly measured against an older

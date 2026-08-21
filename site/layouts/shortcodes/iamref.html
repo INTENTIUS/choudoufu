@@ -1,0 +1,58 @@
+{{- /*
+  Renders a table (or a count) from site/data/iamref.json, a build-time copy
+  of live/iam-reference.json (see the `site` justfile recipe). That artifact
+  is AWS's own Service Authorization Reference, resolved by
+  tools/iamref-gen: which services list aws:ResourceTag as a condition key
+  on their tagging action, and on how many of their actions.
+
+  Usage:
+    {{< iamref field="named" >}}          full table, services AWS names the key for, by actions naming it desc
+    {{< iamref field="unnamed" >}}        table of services the reference says nothing about, by action count desc
+    {{< iamref field="named-count" >}}    count of rows in the "named" table
+    {{< iamref field="services-count" >}} total AWS services in the reference
+
+  Missing data renders one line rather than failing the build.
+*/ -}}
+{{- $field := .Get "field" | default "named" -}}
+{{- $data := hugo.Data.iamref -}}
+{{- if not $data -}}
+<p class="iamref-missing">No IAM reference data yet. Run <code>just site</code>, which copies <code>live/iam-reference.json</code> into <code>site/data/iamref.json</code> before building.</p>
+{{- else -}}
+  {{- $seen := slice -}}
+  {{- $filtered := slice -}}
+  {{- range $data.rows -}}
+    {{- $total := .actions_total -}}
+    {{- if and $total (gt $total 0) -}}
+      {{- $prefix := .iam_prefix -}}
+      {{- if not (in $seen $prefix) -}}
+        {{- $seen = $seen | append $prefix -}}
+        {{- $filtered = $filtered | append . -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $named := sort (where $filtered "actions_listing_resource_tag" "!=" nil) "actions_listing_resource_tag" "desc" -}}
+  {{- $unnamed := sort (where $filtered "actions_listing_resource_tag" "==" nil) "actions_total" "desc" -}}
+  {{- if eq $field "named" -}}
+<table>
+<thead><tr><th>Service</th><th>IAM prefix</th><th>Actions naming it</th><th>Of total</th></tr></thead>
+<tbody>
+{{ range $named }}<tr><td>{{ or .service .iam_prefix }}</td><td><code>{{ .iam_prefix }}</code></td><td>{{ .actions_listing_resource_tag }}</td><td>{{ .actions_total }}</td></tr>
+{{ end }}</tbody>
+</table>
+  {{- else if eq $field "unnamed" -}}
+<table>
+<thead><tr><th>Service</th><th>IAM prefix</th><th>Actions</th></tr></thead>
+<tbody>
+{{ range $unnamed }}<tr><td>{{ or .service .iam_prefix }}</td><td><code>{{ .iam_prefix }}</code></td><td>{{ .actions_total }}</td></tr>
+{{ end }}</tbody>
+</table>
+  {{- else if eq $field "named-count" -}}
+{{ len $named }}
+  {{- else if eq $field "unnamed-count" -}}
+{{ len $unnamed }}
+  {{- else if eq $field "services-count" -}}
+{{ $data.counts.services }}
+  {{- else if eq $field "resolved-count" -}}
+{{ $data.counts.resolved }}
+  {{- end -}}
+{{- end -}}

@@ -1,0 +1,87 @@
+{{- /*
+  Renders the two gauntlet progress bars (core estates, all estates) from
+  site/data/gauntlet.json. See tools/gauntlet for the schema and the
+  generator that writes the file.
+
+  If the data file is missing, this prints one line and nothing else — a
+  missing artifact must never look like a silent zero.
+*/ -}}
+{{- $data := hugo.Data.gauntlet -}}
+{{- if not $data -}}
+<p class="gauntlet-missing">No gauntlet data yet</p>
+{{- else -}}
+<style>
+.gauntlet-bars { margin: var(--space-16) 0; }
+.gauntlet-bar-block { margin-bottom: var(--space-16); }
+.gauntlet-bar-label { font-weight: 600; }
+.gauntlet-bar-count { color: var(--body-font-color); font-size: var(--font-size-smaller); margin: var(--space-4) 0; }
+.gauntlet-bar-track {
+  width: 100%;
+  height: 0.75rem;
+  border-radius: var(--border-radius);
+  background: var(--gray-200);
+  overflow: hidden;
+}
+.gauntlet-bar-fill {
+  height: 100%;
+  background: var(--color-accent-success, var(--color-link));
+  border-radius: var(--border-radius);
+}
+.gauntlet-bar-stages {
+  list-style: none;
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  font-size: var(--font-size-smaller);
+  color: var(--gray-500);
+}
+.gauntlet-bar-stages li { margin: var(--space-4) 0; }
+.gauntlet-meta { color: var(--gray-500); font-size: var(--font-size-smallest); }
+</style>
+<div class="gauntlet-bars">
+  {{- $activeStages := where $data.stages "status" "active" -}}
+  {{- range $setKey := slice "core" "growing" "all" -}}
+    {{- with index $data.sets $setKey -}}
+      {{- $set := . -}}
+      {{- /* "all"/"growing" used as the whole-corpus bucket has no
+             estate literally tagged with that name — it is every
+             estate, not a partition. A partition key (like "core")
+             does have estates tagged with it, so filter normally. */ -}}
+      {{- $estates := $data.estates -}}
+      {{- if ne $setKey "all" -}}
+        {{- $matched := where $data.estates "set" $setKey -}}
+        {{- if gt (len $matched) 0 -}}{{- $estates = $matched -}}{{- end -}}
+      {{- end -}}
+      {{- $n := $set.estates -}}
+      {{- $k := $set.clear -}}
+      {{- $pct := 0.0 -}}
+      {{- if gt $n 0 -}}{{- $pct = mul (div $k $n) 100 -}}{{- end -}}
+      <div class="gauntlet-bar-block">
+        <div class="gauntlet-bar-label">{{ $set.label }}</div>
+        <div class="gauntlet-bar-count">{{ $k }} of {{ $n }} estates behave like OpenTofu</div>
+        <div class="gauntlet-bar-track">
+          <div class="gauntlet-bar-fill" style="width:{{ printf "%.1f" $pct }}%"></div>
+        </div>
+        <ul class="gauntlet-bar-stages">
+          {{- range $activeStages -}}
+            {{- $stageID := .id -}}
+            {{- $pass := 0 -}}
+            {{- $fail := 0 -}}
+            {{- $notrun := 0 -}}
+            {{- range $estates -}}
+              {{- $st := index .stages $stageID -}}
+              {{- if eq $st "pass" -}}{{- $pass = add $pass 1 -}}
+              {{- else if eq $st "fail" -}}{{- $fail = add $fail 1 -}}
+              {{- else -}}{{- $notrun = add $notrun 1 -}}
+              {{- end -}}
+            {{- end -}}
+            <li>{{ .title }}: {{ $pass }} pass, {{ $fail }} fail, {{ $notrun }} not run</li>
+          {{- end -}}
+        </ul>
+      </div>
+    {{- end -}}
+  {{- end -}}
+  {{- with $data.commit -}}
+  <p class="gauntlet-meta">As of commit {{ . }}{{ with $data.generated }}, generated {{ . }}{{ end }}.</p>
+  {{- end -}}
+</div>
+{{- end -}}

@@ -32,7 +32,7 @@ Adoption is a tag you write. A rename is a tag you rewrite.
 
 The name is stinky tofu, fermented and famously an acquired taste, a fit for
 an OpenTofu counterpart whose state is allowed to be stale. The
-[FAQ](https://intentius.io/choudoufu/faq.html) has the longer answer.
+[FAQ](https://intentius.io/choudoufu/docs/use/faq/) has the longer answer.
 
 Built on OpenTofu (fork point
 [`03743ce6e8`](https://github.com/opentofu/opentofu/commit/03743ce6e8)). The
@@ -57,7 +57,7 @@ choudoufu live-check
 ```
 
 in your configuration directory for a verdict on your own code, with no cloud
-credentials. [Will my config work?](https://intentius.io/choudoufu/compatibility.html)
+credentials. [Will my config work?](https://intentius.io/choudoufu/docs/use/compatibility/)
 covers the same ground, and [`live/LIMITATIONS.md`](live/LIMITATIONS.md) has
 every limit with its reasoning.
 
@@ -118,11 +118,11 @@ Expand-Archive choudoufu_*_windows_amd64.zip .   # unpacks .\choudoufu.exe
 **You have an estate already.** Adoption is a deliberate tag write. Until a
 resource's markers are on it, it is not yours, and applying too early creates
 a duplicate beside the real thing.
-[Migrate an existing estate](https://intentius.io/choudoufu/migrate.html) has
+[Migrate an existing estate](https://intentius.io/choudoufu/docs/use/migrate/) has
 the steps, which types adopt automatically, and which need a hand-written tag.
 
 **You are starting fresh.** A greenfield estate is a `live` block and an
-apply. [Start a new estate](https://intentius.io/choudoufu/start.html) walks
+apply. [Start a new estate](https://intentius.io/choudoufu/docs/use/start/) walks
 it end to end.
 
 ## Building and testing

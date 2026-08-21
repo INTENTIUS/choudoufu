@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 276" width="720" height="276"
+     role="img" aria-labelledby="p-title p-desc">
+  <title id="p-title">Where identity, values and effects live, and who writes each</title>
+  <desc id="p-desc">Three things persist between runs. Identity lives as two
+  tags on the resource, written by the apply itself. Values live in a record
+  store backed by Parameter Store, S3 or a directory, written by choudoufu.
+  Effects live as a receipt, by convention also a Parameter Store parameter,
+  but declared and written by you. Your IAM governs all three.</desc>
+
+  <style>
+    .ink   { fill: #241f16; }
+    .muted { fill: #6b5f4e; }
+    .card  { fill: #f7f3e6; }
+    .dim   { fill: #ebe4d2; }
+    .rule  { stroke: #ded5c0; }
+    .olive { stroke: #7d8a52; }
+    text   { font-family: Georgia, "Iowan Old Style", serif; }
+    .h  { font-size: 15px; font-weight: 700; }
+    .l  { font-size: 12.5px; }
+    .s  { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+  </style>
+  <defs>
+    <marker id="p" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
+            orient="auto-start-reverse">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#7d8a52"/>
+    </marker>
+  </defs>
+
+  <!-- ── identity ───────────────────────────────────────────────────── -->
+  <g>
+    <text x="14" y="22" class="s ink">Identity</text>
+    <text x="14" y="42" class="l muted">which live resource</text>
+
+    <path d="M 100 56 V 82" class="olive" stroke-width="1.6" fill="none" marker-end="url(#p)"/>
+
+    <rect x="14" y="90" width="212" height="94" rx="7" class="card"/>
+    <rect x="14" y="90" width="212" height="94" rx="7" fill="none" class="rule"/>
+    <text x="32" y="118" class="h ink">Two tags</text>
+    <text x="32" y="136" class="h ink">on the resource</text>
+    <text x="32" y="162" class="l muted">any cloud tool can list</text>
+    <text x="32" y="176" class="l muted">what an estate holds</text>
+
+    <rect x="14" y="192" width="212" height="32" rx="6" class="dim"/>
+    <text x="32" y="213" class="l ink">the apply writes it</text>
+  </g>
+
+  <!-- ── values ─────────────────────────────────────────────────────── -->
+  <g>
+    <text x="254" y="22" class="s ink">Values</text>
+    <text x="254" y="42" class="l muted">what AWS cannot hold</text>
+
+    <path d="M 340 56 V 82" class="olive" stroke-width="1.6" fill="none" marker-end="url(#p)"/>
+
+    <rect x="254" y="90" width="212" height="94" rx="7" class="card"/>
+    <rect x="254" y="90" width="212" height="94" rx="7" fill="none" class="rule"/>
+    <text x="272" y="118" class="h ink">A record store</text>
+    <text x="272" y="144" class="l muted">Parameter Store, S3,</text>
+    <text x="272" y="160" class="l muted">or a local directory</text>
+    <text x="272" y="176" class="l muted">one small record each</text>
+
+    <rect x="254" y="192" width="212" height="32" rx="6" class="dim"/>
+    <text x="272" y="213" class="l ink">choudoufu writes it</text>
+  </g>
+
+  <!-- ── effects ────────────────────────────────────────────────────── -->
+  <g>
+    <text x="494" y="22" class="s ink">Effects</text>
+    <text x="494" y="42" class="l muted">what leaves no trace</text>
+
+    <path d="M 580 56 V 82" class="olive" stroke-width="1.6" fill="none" marker-end="url(#p)"/>
+
+    <rect x="494" y="90" width="212" height="94" rx="7" class="card"/>
+    <rect x="494" y="90" width="212" height="94" rx="7" fill="none" class="rule"/>
+    <text x="512" y="118" class="h ink">A receipt</text>
+    <text x="512" y="144" class="l muted">also a Parameter Store</text>
+    <text x="512" y="160" class="l muted">parameter, but one you</text>
+    <text x="512" y="176" class="l muted">declare in your config</text>
+
+    <rect x="494" y="192" width="212" height="32" rx="6" class="dim"/>
+    <text x="512" y="213" class="l ink">you write it</text>
+  </g>
+
+  <line x1="14" y1="242" x2="706" y2="242" class="rule" stroke-dasharray="3 4"/>
+  <text x="360" y="264" class="s muted" text-anchor="middle">your IAM governs all three, per resource</text>
+</svg>

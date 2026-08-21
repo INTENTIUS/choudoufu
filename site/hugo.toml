@@ -1,0 +1,21 @@
+baseURL = "https://intentius.io/choudoufu/"
+title = "choudoufu"
+theme = "hugo-book"
+enableGitInfo = false
+
+[params]
+  BookTheme = "auto"
+  BookSection = "docs"
+  BookToC = true
+  BookRepo = "https://github.com/INTENTIUS/choudoufu"
+  BookEditPath = ""
+  BookDateFormat = "2006-01-02"
+  BookSearch = true
+  BookFavicon = "favicon.ico"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.tableOfContents]
+  startLevel = 2
+  endLevel = 3

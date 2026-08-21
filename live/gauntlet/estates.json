@@ -1,0 +1,242 @@
+{
+  "_comment": [
+    "The gauntlet's estates: the real OpenTofu and Terraform configurations",
+    "choudoufu is measured against, each run through every active stage in",
+    "tools/gauntlet/stages.go side by side with stock OpenTofu.",
+    "",
+    "To add one: `go run ./tools/gauntlet add <name> <url> <ref> -lane <lane>`",
+    "writes an entry here and a script stub at live/e2e/<name>/run.sh; fill",
+    "in the stub, run `go run ./tools/gauntlet run <name>`, and commit the",
+    "entry, the script, and the regenerated artifact and docs. live/GAUNTLET.md",
+    "is the full contract and is rendered from the same tool.",
+    "",
+    "set is core or growing. Core is the pinned population the first headline",
+    "bar reads and can reach 100%; it needs a reason. Every estate is in the",
+    "second bar. Keep the list sorted by name; `go run ./tools/gauntlet render`",
+    "rewrites this file canonically and TestManifestIsCanonical holds it."
+  ],
+  "estates": [
+    {
+      "name": "corpus-alb-complete",
+      "source": "terraform-aws-modules/terraform-aws-alb examples/complete-alb (tag v9.9.0), its flagship application-load-balancer example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-alb.git",
+      "pin": "v9.9.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-autoscaling-complete",
+      "source": "terraform-aws-modules/terraform-aws-autoscaling examples/complete (tag v9.3.0), its only/flagship example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-autoscaling.git",
+      "pin": "v9.3.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-dynamodb-table-basic",
+      "source": "terraform-aws-modules/terraform-aws-dynamodb-table, examples/basic (tag v5.5.1, commit 02b2d66ad2396389381c8dbe3423682114ed5350)",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-dynamodb-table.git",
+      "pin": "v5.5.1",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-ecs-fargate",
+      "source": "terraform-aws-modules/terraform-aws-ecs examples/fargate (tag v7.6.0), its Fargate flagship example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-ecs.git",
+      "pin": "v7.6.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-eks-basic",
+      "source": "terraform-aws-modules/terraform-aws-eks examples/basic (tag v9.0.0)",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+      "pin": "v9.0.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-evoteum-modules",
+      "source": "evoteum/tofu-modules, the aws/networking and aws/dynamodb modules (pinned by commit 7e8764035c50d1cb2a6ac04636a9f85ba6708d39; no tags published)",
+      "url": "https://github.com/evoteum/tofu-modules.git",
+      "pin": "7e8764035c50d1cb2a6ac04636a9f85ba6708d39",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-giantswarm-crossplane",
+      "source": "giantswarm/giantswarm-aws-account-prerequisites, the crossplane/ module (pinned tag v8.2.2, commit f1a7d8d51086824a97749b1a8a13327c6f081f72)",
+      "url": "https://github.com/giantswarm/giantswarm-aws-account-prerequisites.git",
+      "pin": "v8.2.2",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-hongbomiao-harbor",
+      "source": "hongbo-miao/hongbomiao.com, a third disjoint slice: environments/production/aws/kubernetes/main.tofu's self-contained Harbor section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox and corpus-hongbomiao-storage)",
+      "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
+      "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-hongbomiao-labelbox",
+      "source": "hongbo-miao/hongbomiao.com, the \"Labelbox\" section of infrastructure/opentofu/aws/general/main.tofu (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, no tag)",
+      "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
+      "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-hongbomiao-storage",
+      "source": "hongbo-miao/hongbomiao.com, a second disjoint slice: environments/production/aws/storage/main.tofu's remote-state-free bootstrap section (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, same pin as corpus-hongbomiao-labelbox)",
+      "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
+      "pin": "3f69ab9c37211e163bbd4434bad39780b6d4b92b",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-iam-policy",
+      "source": "terraform-aws-modules/terraform-aws-iam examples/iam-policy",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-iam.git",
+      "pin": "v6.8.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-iam-read-only-policy",
+      "source": "terraform-aws-modules/terraform-aws-iam examples/iam-read-only-policy",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-iam.git",
+      "pin": "v6.8.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-lambda-simple",
+      "source": "terraform-aws-modules/terraform-aws-lambda examples/simple (tag v8.8.1)",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-lambda.git",
+      "pin": "v8.8.1",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-leynos-monitoring",
+      "source": "leynos/df12-www, the modules/monitoring module (pinned by commit alone - no tags published - e59eabba112b2a4c731123f26845a20f0ae0d938)",
+      "url": "https://github.com/leynos/df12-www.git",
+      "pin": "e59eabba112b2a4c731123f26845a20f0ae0d938",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-mastino-dns",
+      "source": "datacite/mastino, global/dns - DataCite's own global DNS root module (.corpus/mastino/global/dns)",
+      "url": "https://github.com/datacite/mastino.git",
+      "pin": "4d8c1f1bebd91e73195017ce44a243002e9e36e5",
+      "lane": "published-deployment",
+      "set": "growing"
+    },
+    {
+      "name": "corpus-overture-tiles",
+      "source": "OvertureMaps/terraform-aws-overture-tiles (Overture Maps Foundation), pinned by tag AND commit (v1.2.0, 3f44cebc297db8626705e99784f412b4a2c4eda1) - the first OpenTofu-native lane entry with a real tagged release to pin against",
+      "url": "https://github.com/OvertureMaps/terraform-aws-overture-tiles.git",
+      "pin": "v1.2.0",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-rds-complete-postgres",
+      "source": "terraform-aws-modules/terraform-aws-rds examples/complete-postgres (tag v7.2.1)",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-rds.git",
+      "pin": "v7.2.1",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-s3-bucket-complete",
+      "source": "terraform-aws-modules/terraform-aws-s3-bucket examples/complete (tag v5.9.1), its flagship example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-s3-bucket.git",
+      "pin": "v5.9.1",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-security-group-complete",
+      "source": "terraform-aws-modules/terraform-aws-security-group examples/complete (tag v6.0.0), its flagship example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-security-group.git",
+      "pin": "v6.0.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-simpleinfra-dns",
+      "source": "rust-lang/simpleinfra, terraform/dns (live/corpus-manifest.json) - the Rust project's production DNS for seven domains it owns, crates.io included",
+      "url": "https://github.com/rust-lang/simpleinfra.git",
+      "pin": "1f7f2e775a5bb567bc96b0f246f2e4656302b70c",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-sqs-basic",
+      "source": "terraform-aws-modules/terraform-aws-sqs examples/complete (tag v5.2.2, commit dd73a96c0155bc324dda5256f3e7a9ea2c710195), reduced to four self-contained module calls per the script's header",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-sqs.git",
+      "pin": "v5.2.2",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-sumaform-aws",
+      "source": "uyuni-project/sumaform (github.com/uyuni-project/sumaform, 79 stars, pinned by commit not tag), module.server slice of its AWS backend",
+      "url": "https://github.com/uyuni-project/sumaform.git",
+      "pin": "c8a590801d0c7f60d9667f03391455a897900078",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "corpus-vpc-complete",
+      "source": "terraform-aws-modules/terraform-aws-vpc examples/complete (tag v6.6.1), its flagship example",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-vpc.git",
+      "pin": "v6.6.1",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-xancloud-iac",
+      "source": "XanCloud/xancloud-iac, blueprints/landing-zone-basic (an AWS landing-zone accelerator: VPC + CloudTrail + account-level IAM baseline), pinned by tag v0.2.0 and commit 7bc78ff79df4f914921cf04fd9728d09526c93bd",
+      "url": "https://github.com/XanCloud/xancloud-iac.git",
+      "pin": "v0.2.0",
+      "lane": "opentofu-native",
+      "set": "core",
+      "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "reference-ec2-vpc",
+      "source": "hand-written reference project: the plainest getting-started shape (VPC/subnet/SG/IGW/EC2)",
+      "lane": "reference",
+      "set": "core",
+      "reason": "the plainest hand-written reference shape, kept in this repository"
+    }
+  ]
+}
