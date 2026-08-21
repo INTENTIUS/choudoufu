@@ -270,9 +270,9 @@ if [ "$APPROVE_RC" -ne 0 ]; then
   printf '%s\n' "$APPROVE_OUT" | tail -80
   fail "live-import -approve failed"
 fi
-grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT" \
+grep -qE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve did not stamp cleanly"; }
-log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT")"
+log "  $(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, [0-9]+ skipped' <<< "$APPROVE_OUT")"
 
 # ── the ASG's own identity, read out of live-import's UNTAGGABLE listing ──
 # An aws_autoscaling_group carries NO ownership marker, and that is the

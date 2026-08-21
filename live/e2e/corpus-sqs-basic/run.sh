@@ -413,7 +413,7 @@ log "  dry run: 4 of 6 eligible (2 untaggable, derived from tagged parents); not
 
 APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
-grep -qF "4 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
+grep -qF "4 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 4 of 6 resources cleanly with 2 skipped"; }
 log "  4 stamped, 2 skipped as untaggable"
 

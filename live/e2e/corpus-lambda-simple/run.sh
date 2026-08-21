@@ -586,7 +586,7 @@ APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$WORK/cold.tfstate" -est
 # 1 skipped: aws_iam_role_policy.logs, genuinely untaggable and genuinely
 #   derived from its tagged parent - the one resource here that needs neither
 #   carrier.
-grep -qF "3 resource(s) newly stamped, 0 already stamped, 4 newly recorded, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
+grep -qF "3 resource(s) newly stamped, 0 already stamped, 4 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp 3 and record 4 of 8 resources cleanly"; }
 log "  3 stamped, 4 recorded"
 

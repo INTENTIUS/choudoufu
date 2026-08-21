@@ -1139,7 +1139,20 @@ const (
 	// #353: one new fixture root, live/e2e/provisioner-taint, contributing
 	// five aws_s3_bucket instances. See identityGoldenPinInstances' own
 	// comment directly above.
-	identityGoldenPinDirs = 511
+	//
+	// Then 511 -> 513 dirs for the two call sites that put a MARKED value to
+	// a provider RPC: internal/live/projection/testdata/plan-sensitive, whose
+	// resource takes an argument from a `sensitive = true` variable, and
+	// .../testdata/tags-sensitive, whose two resources take a TAG VALUE from
+	// one - on the map's element and on the container respectively, the two
+	// places the mark lands. Same reason as every entry above: stub_db and
+	// stub_bucket are not admitted types, so neither directory contributes a
+	// row. identityGoldenPinInstances and identityGoldenPinBodyDigest are
+	// both unchanged, confirmed by diffing testdata/identity-golden.txt
+	// before and after regenerating - only the header's "dirs=" line moved,
+	// and TestIdentityGolden itself reported "differs but no instance's
+	// identity did".
+	identityGoldenPinDirs = 513
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

@@ -126,13 +126,33 @@ func (v *StatelessImportHuman) Ratification(rep StatelessImportReport) {
 	v.view.streams.Print(b.String())
 }
 
+// statelessImportOutcomeOrder is the order outcome groups print in: what was
+// written first, then what was already so, then what was not attempted. An
+// outcome missing from this list renders nowhere at all, so a resource
+// carrying it vanishes from the report rather than printing oddly -
+// TestEveryStampOutcomePrintsAHeadline holds the list and the headline map
+// against each other for that reason.
+var statelessImportOutcomeOrder = []string{
+	"STAMPED", "ALREADY_STAMPED", "RECORDED", "SENSITIVITY_RECORDED", "ALREADY_RECORDED", "FAILED", "SKIPPED",
+}
+
+// statelessImportOutcomeHeadline explains each outcome group once, above the
+// group, rather than once per row.
+//
+// SENSITIVITY_RECORDED is a separate group from RECORDED on purpose, and the
+// distinction is a count rather than a wording: a re-migrated estate's
+// long-standing records are rewritten to carry the sensitivity a newer
+// choudoufu persists, and calling that "newly recorded" tells an operator
+// that fifty resources were just seeded into a store that has held them for
+// weeks. See liveimport.OutcomeSensitivityRecorded.
 var statelessImportOutcomeHeadline = map[string]string{
-	"STAMPED":          "stamped",
-	"ALREADY_STAMPED":  "already carried this estate's markers; no write made",
-	"RECORDED":         "record-backed: its value was seeded into the estate's record store, which is where such a resource's identity lives",
-	"ALREADY_RECORDED": "record-backed, and the record store already held exactly this object; no write made",
-	"SKIPPED":          "not attempted (see the ratification report above)",
-	"FAILED":           "a write was attempted and refused, or failed",
+	"STAMPED":              "stamped",
+	"ALREADY_STAMPED":      "already carried this estate's markers; no write made",
+	"RECORDED":             "record-backed: its value was seeded into the estate's record store, which is where such a resource's identity lives",
+	"SENSITIVITY_RECORDED": "record-backed, and the record store already held this exact value; the record was rewritten to carry which of its attributes are sensitive, and nothing else changed",
+	"ALREADY_RECORDED":     "record-backed, and the record store already held exactly this object; no write made",
+	"SKIPPED":              "not attempted (see the ratification report above)",
+	"FAILED":               "a write was attempted and refused, or failed",
 }
 
 func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
@@ -145,7 +165,7 @@ func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 		byOutcome[o.Outcome] = append(byOutcome[o.Outcome], o)
 	}
 
-	for _, outcome := range []string{"STAMPED", "ALREADY_STAMPED", "RECORDED", "ALREADY_RECORDED", "FAILED", "SKIPPED"} {
+	for _, outcome := range statelessImportOutcomeOrder {
 		outcomes := byOutcome[outcome]
 		if len(outcomes) == 0 {
 			continue
@@ -160,8 +180,12 @@ func (v *StatelessImportHuman) Stamped(rep StatelessImportStamped) {
 
 	stamped := len(byOutcome["STAMPED"])
 	failed := len(byOutcome["FAILED"])
-	fmt.Fprintf(&b, "%d resource(s) newly stamped, %d already stamped, %d newly recorded, %d already recorded, %d failed, %d skipped.\n",
-		stamped, len(byOutcome["ALREADY_STAMPED"]), len(byOutcome["RECORDED"]), len(byOutcome["ALREADY_RECORDED"]), failed, len(byOutcome["SKIPPED"]))
+	// "newly recorded" counts RECORDED alone. A SENSITIVITY_RECORDED record
+	// was already there and is counted in its own term, because the whole
+	// point of the distinction is that a re-migration of an estate that has
+	// been recorded for weeks must not print that number as new work.
+	fmt.Fprintf(&b, "%d resource(s) newly stamped, %d already stamped, %d newly recorded, %d re-recorded for sensitivity only, %d already recorded, %d failed, %d skipped.\n",
+		stamped, len(byOutcome["ALREADY_STAMPED"]), len(byOutcome["RECORDED"]), len(byOutcome["SENSITIVITY_RECORDED"]), len(byOutcome["ALREADY_RECORDED"]), failed, len(byOutcome["SKIPPED"]))
 	b.WriteString("The tfstate file was not touched: it was read once, at the start of this run, and never opened again.\n")
 	if failed > 0 {
 		b.WriteString("Nothing about a FAILED resource's live tags was changed; it is exactly as it was before this run. Re-running live-import is safe: STAMPED and ALREADY_STAMPED resources are no-ops the second time.\n")

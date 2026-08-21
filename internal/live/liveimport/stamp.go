@@ -46,6 +46,23 @@ const (
 	// it from scratch.
 	OutcomeRecorded Outcome = "RECORDED"
 
+	// OutcomeSensitivityRecorded means the record store already held this
+	// exact object, written before this fork persisted which of an object's
+	// attributes are sensitive, and Approve rewrote it to carry them. The
+	// value, the private bytes and the status are unchanged; only the
+	// recorded sensitivity moved. [projection.SeedMarksAdded] is the case.
+	//
+	// It is its own outcome rather than a [OutcomeRecorded] with different
+	// Detail text, which is GitHub issue #344's own stated reason for
+	// SeedRecordForInstance returning a [projection.SeedResult] instead of a
+	// bool: the report counts by outcome, so folding the upgrade into
+	// RECORDED makes a re-migration of fifty long-standing records print
+	// "50 resource(s) newly recorded" - the exact miscount the enumeration
+	// was introduced to end, left in place because only the per-row Detail
+	// was changed. Pinned by
+	// TestSensitivityUpgradeIsNotCountedAsNewlyRecorded.
+	OutcomeSensitivityRecorded Outcome = "SENSITIVITY_RECORDED"
+
 	// OutcomeAlreadyRecorded means the record store already held exactly
 	// this object for this address. A no-op, on purpose, and the same
 	// idempotence [OutcomeAlreadyStamped] gives the tag write: a second
@@ -197,11 +214,13 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The record store could not be seeded for this %s: %s. Nothing was written, and the first live-plan after this migration will propose creating it.", rec.typeName, err)
 	case seeded == projection.SeedMarksAdded:
-		// GitHub issue #344's case. Reported as recorded because the store
-		// really was written, and said differently from a fresh record
-		// because an operator re-migrating an estate is entitled to know
-		// that the value was already there and only its sensitivity moved.
-		out.Outcome = OutcomeRecorded
+		// GitHub issue #344's case, and its own outcome rather than a
+		// RECORDED with different Detail: the report the operator reads
+		// counts by Outcome and prints those counts in one summary line, so
+		// an upgrade filed under RECORDED is counted as a newly recorded
+		// resource no matter what the row beside it says. A store write, and
+		// not a new record.
+		out.Outcome = OutcomeSensitivityRecorded
 		out.Detail = "The record store already held this exact object, recorded before choudoufu persisted which of its attributes are sensitive; rewrote it to carry them. The value itself is unchanged."
 	case seeded.Wrote():
 		out.Outcome = OutcomeRecorded
