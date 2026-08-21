@@ -100,10 +100,23 @@ set -uo pipefail
 # `apply` does, since it recomputes the full diff, not just the tofu-slot
 # tag) then hangs and fails for real: `waiting for update AWS DynamoDB Table:
 # GSI (TitleIndex): couldn't find resource (21 retries)`. Filed as
-# https://github.com/lex00/floci/issues/91 with both reproductions. Stage 2
-# (migrate) therefore still does not complete, for a different, now-real
-# reason than before - test plan/test apply/drift-reconverge remain
-# unreached, and this script does not claim otherwise.
+# https://github.com/lex00/floci/issues/91 with both reproductions.
+#
+# UPDATE 2026-08-21 (later the same day): lex00/floci#91 is fixed (build
+# 8539609c, PR lex00/floci#92, published digest sha256:8f1fc4a500a3553e3626
+# 89cdcb6c5e31784bbaa7ad914de22bdd1c088a785f5, tag 8539609; live/floci-image
+# re-pinned to it). Re-run clean end to end against the new pin: all FIVE
+# stages now PASS. The tofu-slot convergence apply that used to hang on the
+# GSI replace now completes (`Apply complete! Resources: 0 added, 0 changed,
+# 1 destroyed` - the destroyed resource is the synthetic tofu-slot
+# placeholder for the module's own zero-instance branch, not the table,
+# reconfirmed live immediately after); test plan reports an empty diff and
+# the correct rendered identity re-read directly from DynamoDB; test apply
+# is a genuine no-op; drift-and-reconverge tampers the table's Terraform tag
+# out of band, gets a plan that proposes fixing exactly that one object, and
+# reconverges it. live/corpus-crossing-manifest.json records the full
+# 5/5 pass. terraform-aws-dynamodb-table (35.6M registry downloads) is now
+# a real estate crossed clean at full parity.
 #
 #   bash live/e2e/corpus-dynamodb-table-basic/run.sh
 #
