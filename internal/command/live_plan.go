@@ -2274,7 +2274,26 @@ func (p *statelessProviders) region(addr addrs.AbsProviderConfig) string {
 	val, ok := p.configVals[providerCacheKey(addr)]
 	p.mu.Unlock()
 
-	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
+	// ContainsMarked, not IsMarked, and before anything reads inside the
+	// value: the mark lands on the ATTRIBUTE rather than on the object the
+	// provider block decodes to, and AsString below panics rather than errors
+	// on a marked receiver.
+	//
+	// The value cached here comes from StaticEvaluator.DecodeBlock over the
+	// provider block (see providerConfigValue), and DecodeBlock has no guard
+	// refusing a sensitive value the way DecodeExpression does - so
+	// `provider "aws" { region = var.region }` for a `sensitive = true`
+	// region arrives marked, and this used to panic the whole command. The
+	// RPC leg of the same value is already safe: internal/plugins/provider.go
+	// unmarks before ConfigureProvider. This is the non-RPC leg of the same
+	// defect, and it sits in the one tree internal/live/marksafe does not
+	// scan.
+	//
+	// Refused rather than unmarked, unlike the seams that put a value to a
+	// provider: this answer becomes an operator-facing hint string, and a
+	// secret does not belong in one. Falling through to the environment is
+	// what an unset region already does.
+	if ok && val != cty.NilVal && !val.ContainsMarked() && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("region") {
 		region := val.GetAttr("region")
 		if !region.IsNull() && region.IsKnown() && region.Type() == cty.String && region.AsString() != "" {
 			return region.AsString()
@@ -2298,7 +2317,16 @@ func (p *statelessProviders) endpointURL(addr addrs.AbsProviderConfig) string {
 	val, ok := p.configVals[addr.String()]
 	p.mu.Unlock()
 
-	if ok && val != cty.NilVal && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("endpoints") {
+	// ContainsMarked for the reason [statelessProviders.region] states above,
+	// and for one more: IsWhollyKnown and ElementIterator just below both
+	// iterate, and both panic on a marked receiver. Unreachable today only
+	// because this lookup misses the cache - it reads addr.String() while
+	// ConfiguredProvider writes providerCacheKey(addr), so the endpoint hint
+	// always falls through to the environment. That key mismatch is a real
+	// defect and is deliberately NOT fixed here, because fixing it is what
+	// would make this branch live; the guard goes in first so that whoever
+	// fixes the key does not inherit a panic with it.
+	if ok && val != cty.NilVal && !val.ContainsMarked() && !val.IsNull() && val.Type().IsObjectType() && val.Type().HasAttribute("endpoints") {
 		endpoints := val.GetAttr("endpoints")
 		if !endpoints.IsNull() && endpoints.IsWhollyKnown() && endpoints.CanIterateElements() {
 			for it := endpoints.ElementIterator(); it.Next(); {

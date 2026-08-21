@@ -6,12 +6,15 @@
 package command
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -266,4 +269,73 @@ func (c *importCloud) provider() providers.Interface {
 	}
 
 	return p
+}
+
+// TestEveryStampOutcomeIsRenderedWithAHeadline holds the pair of lists behind
+// live-import -approve's report against liveimport's own Outcome constants.
+//
+// One list decides which outcome groups render and in what order; the other
+// carries each group's one-line explanation. An outcome missing from the
+// first renders NOWHERE - the resource vanishes from the report rather than
+// printing oddly, so an operator is never told it was touched - and one
+// missing from the second prints as a bare code with nothing after the dash.
+//
+// Neither list can see [liveimport.Outcome]: internal/command/views takes
+// outcomes as plain strings on purpose, so nothing over there can notice a
+// new constant. Nor can live/summary_line_guard_test.go, where the rest of
+// this seam's guards live - liveimport reaches internal/live/discovery, which
+// imports package live, so importing it from there is a cycle. This package
+// is the one place both are in scope AND `just ci`'s fast tier runs
+// (./internal/command/, the package itself).
+//
+// The constants are referenced rather than spelled, so renaming one breaks
+// the build here instead of quietly weakening the check.
+func TestEveryStampOutcomeIsRenderedWithAHeadline(t *testing.T) {
+	all := []liveimport.Outcome{
+		liveimport.OutcomeStamped,
+		liveimport.OutcomeAlreadyStamped,
+		liveimport.OutcomeRecorded,
+		liveimport.OutcomeSensitivityRecorded,
+		liveimport.OutcomeAlreadyRecorded,
+		liveimport.OutcomeSkipped,
+		liveimport.OutcomeFailed,
+	}
+
+	rep := &liveimport.StampReport{Estate: "guard-estate"}
+	for i, outcome := range all {
+		rep.Outcomes = append(rep.Outcomes, liveimport.StampOutcome{
+			Addr: addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "aws_vpc", Name: fmt.Sprintf("guard%d", i)}.
+				Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+			TypeName: "aws_vpc",
+			Outcome:  outcome,
+			Detail:   "guard fixture",
+		})
+	}
+
+	streams, done := terminal.StreamsForTesting(t)
+	views.NewStatelessImport(views.NewView(streams)).Stamped(liveImportStampReport(rep))
+	out := done(t).Stdout()
+
+	for i, outcome := range all {
+		if !strings.Contains(out, fmt.Sprintf("aws_vpc.guard%d", i)) {
+			t.Errorf("a resource whose outcome is %s does not appear in the -approve report at all. The view "+
+				"renders only the outcomes its order list names, so this one is dropped silently.\n%s", outcome, out)
+			continue
+		}
+		// The group heading is "<OUTCOME> (n) - <headline>:". An outcome with
+		// no headline still prints a heading, with nothing after the dash.
+		head := fmt.Sprintf("%s (1) - ", outcome)
+		idx := strings.Index(out, head)
+		if idx < 0 {
+			t.Errorf("%s renders no group heading of its own:\n%s", outcome, out)
+			continue
+		}
+		rest := out[idx+len(head):]
+		if end := strings.IndexByte(rest, '\n'); end >= 0 {
+			rest = rest[:end]
+		}
+		if strings.TrimSuffix(strings.TrimSpace(rest), ":") == "" {
+			t.Errorf("%s's group heading carries no explanation, so it prints as a bare code", outcome)
+		}
+	}
 }

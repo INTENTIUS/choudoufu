@@ -267,7 +267,7 @@ fi
 # 0 here because this estate declares no record_store and reaches no record-backed
 # type; asserting them anyway is how a change that starts routing an ordinary AWS
 # type through that path fails here rather than passing quietly.
-grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
+grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -30
        fail "live-import -approve did not stamp exactly $TAGGABLE of $INSTANCES cleanly"; }
 log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"

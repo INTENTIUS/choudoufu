@@ -363,7 +363,7 @@ log "  5 of 5 verified against the live system; nothing written yet"
 log "=== B3. -approve: stamp the markers ==="
 APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE" -approve 2>&1)" || {
   printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve failed"; }
-grep -qF "5 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
+grep -qF "5 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not stamp exactly 5 resources cleanly"; }
 log "  5 stamped"
 

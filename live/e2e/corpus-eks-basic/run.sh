@@ -599,7 +599,7 @@ if [ -n "${DUMP_IMPORT:-}" ]; then printf '%s\n' "$IMPORT_OUT" > "$DUMP_IMPORT";
 # on live data.aws_eks_cluster/data.aws_eks_cluster_auth values live-
 # import's no-state verification pass cannot evaluate - see stage 3 below).
 EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
-EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 29 skipped."
+EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 29 skipped."
 EXPECT_MISSING_K8S='kubernetes_config_map.*could not be used'
 if [ "${BREAK:-}" = "1" ]; then
   EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"

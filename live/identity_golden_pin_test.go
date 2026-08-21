@@ -1152,12 +1152,25 @@ const (
 	// above: external, test_thing and stub_cert are not admitted types, and
 	// the one aws_cloudwatch_log_group pair in identity-local-execution
 	// resolves no instance without schemas, so none of the four contributes
-	// a row. identityGoldenPinInstances and identityGoldenPinBodyDigest are
+	// a row. identityGoldenPinInstances and identityGoldenPinBodyDigest are both
+	// unchanged, confirmed by diffing testdata/identity-golden.txt before and
+	// after regenerating - only the header's "dirs=" line moved, and
+	// TestIdentityGolden itself reported "differs but no instance's identity
+	// did".
+	//
+	// Then 515 -> 517 dirs for the two call sites that put a MARKED value to
+	// a provider RPC: internal/live/projection/testdata/plan-sensitive, whose
+	// resource takes an argument from a `sensitive = true` variable, and
+	// .../testdata/tags-sensitive, whose two resources take a TAG VALUE from
+	// one - on the map's element and on the container respectively, the two
+	// places the mark lands. Same reason as every entry above: stub_db and
+	// stub_bucket are not admitted types, so neither directory contributes a
+	// row. identityGoldenPinInstances and identityGoldenPinBodyDigest are
 	// both unchanged, confirmed by diffing testdata/identity-golden.txt
 	// before and after regenerating - only the header's "dirs=" line moved,
 	// and TestIdentityGolden itself reported "differs but no instance's
 	// identity did".
-	identityGoldenPinDirs = 515
+	identityGoldenPinDirs = 517
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

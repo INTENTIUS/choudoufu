@@ -613,7 +613,7 @@ APPROVE_OUT="$(cd "$EST" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate
 # columns; this estate has no record-backed resource, so both read 0, and
 # asserting them is how a future change that starts routing an ordinary AWS
 # type through that path fails here rather than passing quietly.
-grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
+grep -qF "$TAGGABLE resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, $UNTAGGABLE skipped" <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT" | tail -20; fail "live-import -approve did not stamp exactly $TAGGABLE of $INSTANCES cleanly"; }
 log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"
 
