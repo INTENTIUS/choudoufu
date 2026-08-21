@@ -52,28 +52,44 @@ set -uo pipefail
 # never edited to remove it - DELTA discipline below confirms byte-
 # identical.
 #
-# UPDATE 2026-08-21: `-target` scopes cold deploy and the final core plan
-# fine, but does NOT scope choudoufu's stateless live-plan identity
-# resolution/discovery/stamping passes at all - confirmed by reading
-# internal/command/live_plan.go: args.Operation.Targets is threaded only
-# into the final tfCtx.Plan() call, after statelessResolve/
-# statelessDataReads/statelessDiscover/statelessStamp have already walked
-# the entire configs.Config. Those passes hit aws_budgets_budget's own
-# identity requirement (account_id has no value anywhere in this module,
-# by design - AWS defaults it to the caller's account) and refuse hard with
-# "Identity argument not set", even though the resource was never targeted.
-# Confirmed NOT a floci or choudoufu-admission question: a plain
+# UPDATE 2026-08-21 (a): `-target` scoped cold deploy and the final core
+# plan fine, but did NOT scope choudoufu's stateless live-plan identity
+# resolution/discovery/stamping passes at all: args.Operation.Targets was
+# threaded only into the final tfCtx.Plan() call, after statelessResolve/
+# statelessDataReads/statelessDiscover/statelessStamp had already walked the
+# entire configs.Config. Those passes hit aws_budgets_budget's own identity
+# requirement (account_id has no value anywhere in this module, by design -
+# AWS defaults it to the caller's account) and refused hard with "Identity
+# argument not set", even though the resource was never targeted. Confirmed
+# NOT a floci or choudoufu-admission question at the time: a plain
 # `tofu plan -target=<the same 3 resources>` against the identical
-# unmodified module succeeds cleanly (Plan: 3 to add) - stock prunes the
+# unmodified module succeeded cleanly (Plan: 3 to add) - stock prunes the
 # untargeted resource out of the graph before anything ever evaluates it.
-# This is a real, new, generalizable choudoufu parity defect (HANDOFF.md
-# label 2, "OpenTofu succeeds, choudoufu refuses"), filed as
-# https://github.com/INTENTIUS/choudoufu/issues/352, and it is what stage 3
-# below now fails on - not lex00/floci#88, which is fixed and is why stage 2
-# clears for the first time this session. Not fixed here: the fix threads
-# Targets through several stateless functions with real dependency-chain
-# and count/for_each-expansion implications, which is its own piece of
-# careful work.
+# HANDOFF.md label 2, "OpenTofu succeeds, choudoufu refuses". Filed as
+# https://github.com/INTENTIUS/choudoufu/issues/352 and FIXED there: the
+# stateless pipeline now reads which resource blocks survive -target /
+# -exclude off the plan graph's own TargetingTransformer
+# (tofu.Context.TargetedResources) and hands that scope to resolution and
+# the data-read phase, so a block the graph dropped can no longer refuse the
+# run. Re-crossed for real after the fix: stage 3 gets past this wall
+# entirely - live-plan exits 0, resolves, discovers, stamps and renders a
+# plan over the targeted set.
+#
+# UPDATE 2026-08-21 (b): stage 3 still does not come back EMPTY, on a wall
+# one layer further in and a different label entirely. Both alarms render
+# `- datapoints_to_alarm = 1 -> null`, an argument this module's config
+# never sets. Stock reproduces it identically: `tofu plan` in the stage-1
+# plain directory, against the same live objects with no choudoufu in the
+# process, proposes the same line for the same two alarms, and an ISOLATED
+# minimal reproduction (one alarm, one directory, stock OpenTofu v1.12.5 +
+# hashicorp/aws v5.100.0 against this same floci pin) does not converge
+# either: apply writes datapoints_to_alarm = 1 into state, floci's
+# DescribeAlarms returns no DatapointsToAlarm key at all, and every later
+# plan wants to remove it. hashicorp/aws 6.x converges cleanly on the same
+# image, so it is specific to the 5.x line this module's own `~> 5.0`
+# constraint resolves to. HANDOFF.md label 1, "OpenTofu fails here too" -
+# PARITY, an emulator gap and not this fork's defect. Filed as
+# https://github.com/lex00/floci/issues/93.
 #
 # THE OTHER SCOPING DECISION, avoided rather than made: modules/monitoring/
 # terraform.tofu pins `aws ~> 5.0`, real and unedited, incompatible with the

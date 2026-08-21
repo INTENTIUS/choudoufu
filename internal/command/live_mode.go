@@ -172,6 +172,12 @@ func statelessBegin(
 		lib:      local.ContextOpts.Plugins,
 		mgr:      mgr,
 		view:     views.NewStatelessPlan(view),
+		// GitHub issue #352. The operation carries the run's -target and
+		// -exclude addresses; PriorState is where they turn into a scope,
+		// because that is where the core context that can answer what the
+		// plan graph keeps is finally in hand.
+		targets:  opReq.Targets,
+		excludes: opReq.Excludes,
 	}
 	if testStatelessRunner != nil {
 		testStatelessRunner(runner)
@@ -302,6 +308,14 @@ type statelessRunner struct {
 	mgr  *projection.Manager
 	view views.StatelessPlan
 
+	// targets and excludes are this operation's -target and -exclude
+	// addresses (GitHub issue #352), copied out of the backend operation at
+	// [statelessBegin] because the runner never sees it again. Both empty
+	// for an untargeted run, which is what makes the scope below nil and the
+	// whole pipeline byte-identical to what it was.
+	targets  []addrs.Targetable
+	excludes []addrs.Targetable
+
 	// recordStore, recordKeyPrefix and recordVersions are GitHub issue #73's
 	// write-back state, all set by PriorState once the estate name and the
 	// live block's record_store (if any) are settled. recordStore is nil
@@ -397,6 +411,16 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	if estateDiags.HasErrors() {
 		return nil, diags
 	}
+	// GitHub issue #352's targeting scope, nil unless this run passed
+	// -target or -exclude, and read off the same core context that will
+	// build the real plan graph a moment from now. See
+	// [statelessTargetScope].
+	scope, scopeDiags := statelessTargetScope(ctx, core, config, r.targets, r.excludes)
+	diags = diags.Append(scopeDiags)
+	if scopeDiags.HasErrors() {
+		return nil, diags
+	}
+
 	provs := newStatelessProviders(config, r.lib)
 
 	// Read once and handed to both the subset check and resolution below, so
@@ -489,7 +513,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// data-source values that identity resolution demands are read now,
 	// from the same configured provider instances the projection uses.
 	// Fatal when a demanded source cannot be read; free when none is.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, scope)
 	diags = diags.Append(drDiags)
 	if drDiags.HasErrors() {
 		diags = diags.Append(provs.close(ctx))
@@ -502,7 +526,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// See [identity.SynthesizeTypeIdentity].
 	// The same two-pass resolution live-plan runs, through the same helper:
 	// see [statelessResolve].
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
