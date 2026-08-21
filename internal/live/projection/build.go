@@ -670,7 +670,28 @@ func (b *builder) normalizeIdentityAttrs(ctx context.Context, provider providers
 	}
 
 	priorNull := cty.NullVal(schema.Block.ImpliedType())
-	cfgVal := configValue(schema.Block, obj.Value)
+	// Unmarked before it is put to the provider, and the unmark is the whole
+	// of the proof that this call can be made at all. importAndRead marks
+	// obj.Value from the schema, so for every type with a Sensitive attribute
+	// - 61 of the 905 admitted types, by live/wo-sweep.json against
+	// hashicorp/aws 6.59.0 - the value reaching here carries marks, and cty's
+	// msgpack encoder refuses a marked value outright ("value has marks, so
+	// it cannot be serialized"). The refusal arrives as an ordinary provider
+	// diagnostic, which the error branch below turns into "left as
+	// ReadResource returned them" - so GitHub issue #281's normalization was
+	// silently off for every one of those types, with nothing but a TRACE
+	// line to say so. It failed closed rather than wrongly, which is why it
+	// was invisible; found while scouting #343, pinned by
+	// TestNormalizeIdentityAttrsAsksTheProviderWithAnUnmarkedValue.
+	//
+	// Sending the unmarked value leaks nothing: it is the object this same
+	// provider returned from its own ReadResource a few lines earlier. The
+	// marks are re-derived from the schema, never from this round trip, and
+	// the RESULT is filtered separately - a planned value that comes back
+	// marked, and a candidate whose live value is marked, are both skipped
+	// below.
+	unmarkedObj, _ := obj.Value.UnmarkDeep()
+	cfgVal := configValue(schema.Block, unmarkedObj)
 	proposed := objchange.ProposedNew(schema.Block, priorNull, cfgVal)
 	planResp := provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 		TypeName:         typeName,
@@ -1268,6 +1289,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		obj.Dependencies = b.dependencies(rc, modPath, schema)
 	}
 
+	// obj.Value already carries the schema's own sensitivity here, applied by
+	// [importAndRead] to the provider's wire answer - which is GitHub issue
+	// #343's whole subject, and the reason that issue closed as a misreading
+	// of this function rather than as a fix. Nothing between there and here
+	// removes a mark: fillResidueFor's candidate filter refuses a Sensitive
+	// attribute outright, and the ownership check only reads. Encode turns
+	// the marks into AttrSensitivePaths, which under SkipRefresh is the whole
+	// of what the plan's "before" side gets.
 	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), uint64(schema.IdentitySchemaVersion))
 	if err != nil {
 		detail := fmt.Sprintf("The object read for %s could not be encoded into the projection: %s.", addr, err)
@@ -1423,6 +1452,17 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 	if len(sensitive) > 0 {
 		converted = converted.MarkWithPaths(sensitive)
 	}
+	// The schema's own sensitivity goes on top of the record's, which is what
+	// GitHub issue #343 turned out to be about once the concrete-cloud half
+	// was found already answered by importAndRead. The record remembers what
+	// was sensitive when it was WRITTEN; the plan's "after" side is marked
+	// from the schema as it is TODAY. A record written before this fork
+	// persisted paths at all - or before the provider marked an attribute
+	// sensitive - carries strictly fewer paths than today's schema implies,
+	// and the difference is a perpetual sensitivity-only diff exactly like
+	// the concrete-cloud one would be. Composing both sources is what
+	// upstream's refresh does; the record is this path's priorPaths.
+	converted = markSchemaSensitive(converted, schema.Block)
 
 	// status came out of the record itself (decodeRecordPayload), not a
 	// hardcoded states.ObjectReady: a tainted object has to stay tainted
@@ -1922,6 +1962,19 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 	// because that is where the plan renderer looks for it. Marks that
 	// come from configuration are not applied here: they need an
 	// evaluation context, and a projection is built before one exists.
+	//
+	// This line is the concrete-cloud half of what a skipped refresh owes the
+	// plan, and it is the same call upstream's own refresh ends with
+	// (internal/tofu/node_resource_abstract_instance.go's
+	// combinePathValueMarks(priorPaths, schema.Block.ValueMarks(...)) - there
+	// is no priorPaths here, because newVal came off the wire, where the
+	// plugin protocol has nowhere to put a mark). GitHub issue #343 read this
+	// as missing, having looked at builder.materialize's encode rather than at
+	// what fills the object it encodes; the issue closed on that finding
+	// rather than on a change, and
+	// TestMaterializeMarksASensitiveAttributeFromTheSchema is the test that
+	// was genuinely missing. Deleting this line turns that test red, which is
+	// how the reading was settled.
 	if pvms := schema.Block.ValueMarks(newVal, nil, nil); len(pvms) > 0 {
 		newVal = newVal.MarkWithPaths(pvms)
 	}

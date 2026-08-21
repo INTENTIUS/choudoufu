@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -34,12 +35,22 @@ import (
 // sensitive attribute proposed a perpetual sensitivity-only in-place update
 // that OpenTofu's own renderer annotated "The value is unchanged".
 //
-// This fixes the RECORD-BACKED half only. builder.materialize, one path
-// over, builds its object from the provider's own unmarked wire answer and
-// applies no schema.Block.ValueMarks before encoding it, so a concrete cloud
-// object with a Sensitive attribute has the identical perpetual diff. That
-// is GitHub issue #343, and it is separate because it changes what b.live
-// means for identity composition, not only what is persisted.
+// The CONCRETE-CLOUD path answers the same question in one line inside
+// [importAndRead], where the provider's unmarked wire answer is marked from
+// the schema the moment it arrives. GitHub issue #343 was filed on the
+// reading that builder.materialize applied no schema marks; it applies them
+// through importAndRead, and the issue closed on that finding. What was
+// genuinely missing was a test, and
+// TestMaterializeMarksASensitiveAttributeFromTheSchema is it.
+//
+// What is left for [markSchemaSensitive], at the bottom of this file, is the
+// case where BOTH sources exist and have to be composed: a record carries the
+// sensitivity it was written with, the schema carries the sensitivity of
+// today, and the two are not the same set for a record written before an
+// attribute became sensitive - or before this fork persisted paths at all.
+// Composing them is what upstream's own refresh does
+// (combinePathValueMarks(priorPaths, schema.Block.ValueMarks(...))); the
+// record is that path's priorPaths.
 //
 // The encoding is deliberately the state file's own
 // (internal/states/statefile/version4.go's marshalPaths/unmarshalPaths):
@@ -193,4 +204,106 @@ func unmarshalSensitivePaths(raw json.RawMessage) ([]cty.Path, error) {
 		paths = append(paths, path)
 	}
 	return paths, nil
+}
+
+// markSchemaSensitive returns val carrying the sensitivity marks a real
+// refresh would have put on it, derived from the provider's own schema and
+// from nothing else.
+//
+// It is one call because upstream makes it one call: `refresh` ends with
+//
+//	marks := combinePathValueMarks(priorPaths, schema.Block.ValueMarks(ret.Value, nil, nil))
+//
+// (internal/tofu/node_resource_abstract_instance.go). `live-plan` runs the
+// plan graph with SkipRefresh, so that line is never reached, and the
+// projection is standing in for the refresh it deliberately skips - which
+// means it owes the plan the same two sources of marks: whatever paths the
+// value already carries, and whatever the schema says is Sensitive.
+//
+// The caller that needs both sources is builder.materializeRecord: the paths
+// come out of the record and the schema is read fresh, and a record written
+// before an attribute was Sensitive carries strictly fewer. The concrete
+// path has no second source - a value off the wire carries no marks - so it
+// marks in place inside [importAndRead] instead of calling this.
+//
+// Deriving it from the schema is the whole point. Every Sensitive attribute
+// of every type is reached, including ones inside nested blocks and nested
+// object attributes, because [configschema.Block.ValueMarks] descends them -
+// and no provider type name appears anywhere in the control flow.
+//
+// The subject argument is nil, exactly as upstream's refresh passes it, so
+// deprecation marks are NOT added. A deprecation mark carries a diagnostic
+// the plan raises against a configuration; putting one on prior state read
+// back out of the cloud would raise it against an argument nobody wrote.
+//
+// The unmark-first is not defensive tidying. [configschema.Block.ValueMarks]
+// descends with GetAttr and ElementIterator, both of which panic on a marked
+// receiver, so the schema walk has to run on a provably unmarked value -
+// which UnmarkDeepWithPaths is what produces. The paths it strips are then
+// combined back in rather than dropped, because a value reaching here can
+// already carry marks that did not come from the schema (residue filled from
+// a record, for one), and losing those would be the same defect in the other
+// direction.
+func markSchemaSensitive(val cty.Value, block *configschema.Block) cty.Value {
+	if val == cty.NilVal || block == nil {
+		return val
+	}
+	unmarked, priorPaths := val.UnmarkDeepWithPaths()
+	schemaPaths := block.ValueMarks(unmarked, nil, nil)
+	if len(schemaPaths) == 0 {
+		// Nothing in this type's schema is sensitive, so the value is
+		// returned exactly as it came in - marks, sharing and all. The
+		// overwhelmingly common case, and the one where doing nothing is
+		// visibly doing nothing.
+		return val
+	}
+	combined := combineValueMarks(priorPaths, schemaPaths)
+	return unmarked.MarkWithPaths(combined)
+}
+
+// combineValueMarks is internal/tofu's own combinePathValueMarks, which is
+// unexported there and is the exact operation upstream's refresh performs on
+// these two lists. Two marks at the same path merge into one entry rather
+// than producing two, so that a value the record store already marked
+// Sensitive and the schema also marks Sensitive comes out with one mark and
+// one path, not a duplicate pair that [states.ResourceInstanceObject.Encode]
+// would then write twice into AttrSensitivePaths.
+//
+// Reproduced rather than imported for sensitivepaths.go's own stated reason:
+// this fork does not widen an upstream package's API for its own use.
+// [TestCombineValueMarksMergesOnePathOnce] is the check that the
+// reproduction still has the property it was reproduced for.
+func combineValueMarks(a, b []cty.PathValueMarks) []cty.PathValueMarks {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+	combined := make([]cty.PathValueMarks, 0, len(a)+len(b))
+	combined = append(combined, a...)
+	for _, add := range b {
+		merged := false
+		for i, existing := range combined {
+			if !add.Path.Equals(existing.Path) {
+				continue
+			}
+			// Copy before mutating: the receiver's ValueMarks map can be
+			// shared with the value the caller still holds.
+			dupe := make(cty.ValueMarks, len(existing.Marks)+len(add.Marks))
+			for k, v := range existing.Marks {
+				dupe[k] = v
+			}
+			for k, v := range add.Marks {
+				dupe[k] = v
+			}
+			combined[i] = cty.PathValueMarks{Path: existing.Path, Marks: dupe}
+			merged = true
+			break
+		}
+		if !merged {
+			combined = append(combined, add)
+		}
+	}
+	return combined
 }

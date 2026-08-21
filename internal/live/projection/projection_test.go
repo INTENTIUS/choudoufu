@@ -953,6 +953,16 @@ var fakeUntaggable = map[string]bool{
 	"aws_lb_target_group_attachment": true,
 }
 
+// fakeSensitive is the caricature's version of a second fact about the real
+// provider, and it is measured rather than invented: live/wo-sweep.json,
+// generated against hashicorp/aws 6.59.0, records aws_ssm_parameter.value as
+// optional, computed and Sensitive. It is the founding case of GitHub issue
+// #343 - a Sensitive attribute a provider's own Read gives back - so the fake
+// cloud has to model it or the whole suite is blind to the class.
+var fakeSensitive = map[string][]string{
+	"aws_ssm_parameter": {"value"},
+}
+
 func fakeSchemas() map[string]providers.Schema {
 	out := make(map[string]providers.Schema, len(fakeAttrs))
 	for typeName, names := range fakeAttrs {
@@ -960,8 +970,12 @@ func fakeSchemas() map[string]providers.Schema {
 		if !fakeUntaggable[typeName] {
 			attrs["tags"] = &configschema.Attribute{Type: cty.Map(cty.String), Optional: true}
 		}
+		sensitive := make(map[string]bool, len(fakeSensitive[typeName]))
+		for _, n := range fakeSensitive[typeName] {
+			sensitive[n] = true
+		}
 		for _, n := range names {
-			attrs[n] = &configschema.Attribute{Type: cty.String, Optional: true, Computed: true}
+			attrs[n] = &configschema.Attribute{Type: cty.String, Optional: true, Computed: true, Sensitive: sensitive[n]}
 		}
 		out[typeName] = providers.Schema{
 			Version: 0,
