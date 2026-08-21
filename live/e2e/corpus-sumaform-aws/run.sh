@@ -188,7 +188,18 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -415,6 +426,7 @@ log "  key pair $KEY_NAME imported (never actually used for SSH - provision=fals
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu/terraform, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain $TF_COLD, two-phase - see header) ==="
 ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color >/dev/null 2>&1 ) \
   || { ( cd "$PLAIN" && "$TF_COLD" init -input=false -no-color 2>&1 | tail -30 ); fail "plain init failed"; }
@@ -456,6 +468,8 @@ log "  confirmed unmarked: $INSTANCE_ID carries no tofu-address tag"
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "11 managed resource instances, genuinely cold, genuinely unmarked"
+CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -519,6 +533,8 @@ fi
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "9 stamped, 0 failed, 2 skipped"
+CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - real, structural refusal (see this script's header)
@@ -544,5 +560,10 @@ log "STAGE 3 (test plan): BLOCKED (real, structural - see header). Stages 4-5 un
 log "nothing runs yet for them to exercise. Stopping here rather than forcing a plan"
 log "this script cannot honestly call empty."
 log ""
+gauntlet_stage test_plan fail "3 known refusals: 1 connection block + 2 ignore_changes[tags]"
+gauntlet_stage test_apply not_run "stage 3 blocks structurally; stages 4-5 unwritten"
+gauntlet_stage drift_reconverge not_run "stage 3 blocks structurally; stages 4-5 unwritten"
+CURRENT_STAGE=""
 log "=== PARTIAL: stages 1 and 2 verified for real; stage 3 blocked as described above ==="
 exit 1
+gauntlet_end

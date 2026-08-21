@@ -198,8 +198,20 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # Which single assertion BREAK corrupts (see the header's env-override notes).
 BREAK_AT="${BREAK:-}"
@@ -275,6 +287,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real reduced example + delta) ==="
 # The shared plugin cache, the same way corpus-lambda-simple's and
 # corpus-alb-complete's crossings use it. Without it every run re-downloads
@@ -361,6 +374,7 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE before migration"
 cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
 
 log ""
+gauntlet_stage cold_deploy pass "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration"
 log "STAGE 1 (cold deploy): PASS"
 log ""
 
@@ -368,6 +382,7 @@ log ""
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot (see the header's TOFU-SLOT note)
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
@@ -449,6 +464,7 @@ log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written on all
 [ ! -f "$EST/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
 
 log ""
+gauntlet_stage migrate pass "4 of 6 eligible (2 untaggable redrive types resolved by provider identity schema), 4 stamped, 0 failed, 2 skipped; tofu-slot converged on 4 queues"
 log "STAGE 2 (migrate): PASS"
 log ""
 
@@ -456,6 +472,7 @@ log ""
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: test plan (live-plan empty, identities re-checked) ==="
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -483,12 +500,14 @@ GOT_DEFAULT_ADDR2="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" -
 log "  identity re-check (read via the AWS CLI, after the state file has never existed this run): both unchanged"
 
 log ""
+gauntlet_stage test_plan pass "no resource change proposed, no foreign resources; fifo and default queue tofu-address re-checked against SQS"
 log "STAGE 3 (test plan): PASS"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -507,12 +526,14 @@ AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
 log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 
 log ""
+gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); $BEFORE_N objects before, $AFTER_N after, no state file"
 log "STAGE 4 (test apply): PASS"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 if [ "$BREAK_AT" = "drift" ]; then
   awsl sqs tag-queue --queue-url "$UNENCRYPTED_QUEUE_URL" --tags Example=tampered-by-BREAK
@@ -547,8 +568,12 @@ FIXED_VALUE="$(awsl sqs list-queue-tags --queue-url "$DEFAULT_QUEUE_URL" --query
 log "  reconverged: $DEFAULT_QUEUE_URL's Example tag is back to \"$NAME\""
 
 log ""
+gauntlet_stage drift_reconverge pass "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"$NAME\""
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
+
+CURRENT_STAGE=""
+gauntlet_end
 
 log "=== PASS ==="
 log ""

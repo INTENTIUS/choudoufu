@@ -310,7 +310,18 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # copy_tree DEST - the security-group module root (incl. every preset
@@ -326,6 +337,8 @@ copy_tree() {
          "$dest/security-group/examples/complete/terraform.tfstate" \
          "$dest/security-group/examples/complete/terraform.tfstate.backup"
 }
+
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -351,6 +364,7 @@ copy_tree "$PLAIN"
 PLAIN_EST="$PLAIN/security-group/examples/complete"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
+CURRENT_STAGE=cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, 67 real resources ==="
 
@@ -414,6 +428,8 @@ log "  confirmed unmarked: $MAIN_SG_ID carries no tofu-address tag"
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "$INSTANCES resources (DELTA 2, lex00/floci#57)"
+CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -501,6 +517,8 @@ log "  confirmed independently through the AWS CLI, never through choudoufu's ow
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "$ELIGIBLE of $INSTANCES stamped"
+CURRENT_STAGE=test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -817,8 +835,13 @@ log "default route tables' import identities are asserted BY VALUE against"
 log "AWS. What is left is a defect in the AWS provider itself, reachable only"
 log "now that the plan imports all 67 resources and diffs them"
 log ""
+gauntlet_stage test_plan fail "BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is an AWS-provider bug; see header"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
+gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
+gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== SUMMARY (partial pass, reported honestly) ==="

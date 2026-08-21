@@ -165,8 +165,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -225,6 +237,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
 ( cd "$EX" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EX" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -264,12 +277,14 @@ cp "$EX/terraform.tfstate" "$WORK/cold.tfstate"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 # 2026-08-21 fix: the original regex assumed required_providers held ONLY
 # the aws entry (immediately followed by required_providers's own closing
@@ -339,12 +354,14 @@ log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot convergence)"
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped.*' <<< "$APPROVE_OUT" | head -1); $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot convergence)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identity re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: test plan (live-plan empty, identity re-checked) ==="
 [ ! -f "$EX/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -371,11 +388,13 @@ log "  identity re-check (read via the AWS CLI, after the state file has never e
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -395,11 +414,13 @@ log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file ei
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object out of band) ==="
 if [ "${BREAK:-}" = "1" ]; then
   awsl dynamodb tag-resource --resource-arn "$TABLE_ARN" --tags Key=Environment,Value=tampered-by-BREAK
@@ -433,7 +454,11 @@ else
 
   log ""
   log "STAGE 5 (drift and reconverge): PASS"
+  gauntlet_stage drift_reconverge pass "one object tampered ($TABLE_ARN's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
   log ""
+
+  CURRENT_STAGE=""
+  gauntlet_end
 
   log "=== PASS ==="
   log ""

@@ -243,7 +243,18 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # copy_tree DEST - the alb module root plus examples/complete-alb,
@@ -277,6 +288,8 @@ apply_deltas() {
   grep -q '= 6.59.0' "$est/versions.tf" || fail "the provider version pin did not match versions.tf - the corpus pin has moved"
 }
 
+gauntlet_begin
+
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
 command -v docker >/dev/null 2>&1 || fail "docker is not on PATH"
@@ -303,6 +316,7 @@ PLAIN_EST="$PLAIN/alb/examples/complete-alb"
 apply_deltas "$PLAIN_EST"
 log "  estate copied out of .corpus into $PLAIN_EST"
 
+CURRENT_STAGE=cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, $INSTANCES real resources ==="
 
@@ -377,6 +391,8 @@ log "  confirmed unmarked: $LB_ARN carries no tofu-address tag"
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "$INSTANCES resources, once for real (floci fixes #58, #61, #62)"
+CURRENT_STAGE=migrate
 
 # ── 2. migrate: choudoufu live-import against the plain state file ─────────
 log "=== 2. migrate: choudoufu live-import ==="
@@ -453,6 +469,8 @@ log "  confirmed independently through the AWS CLI, never through choudoufu's ow
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "$STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed on floci#65"
+CURRENT_STAGE=test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
 log "=== 3. test plan: real live-plan against the really-migrated estate ==="
@@ -497,8 +515,13 @@ log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site), the same type"
 log "stage 2 already named as UNADMITTED_TYPE; #305's 3 sites are no longer"
 log "part of this wall"
 log ""
+gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, see header); #305's trio is fixed and no longer a stage-3 wall here"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
+gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
+gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== SUMMARY (partial pass, reported honestly) ==="

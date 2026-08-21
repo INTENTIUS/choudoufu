@@ -224,7 +224,18 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -388,6 +399,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -413,6 +425,8 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "26 resources, genuinely cold, genuinely unmarked"
+CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - partial: floci's own Batch-tagging bug blocks 3 of 26
@@ -500,6 +514,8 @@ fi
 log ""
 log "STAGE 2 (migrate): PASS - 16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE"
 log ""
+gauntlet_stage migrate pass "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE"
+CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - #345 FIXED: live-plan no longer crashes. It produces
@@ -579,6 +595,8 @@ log "STAGE 3 (test plan): FAIL by this repo's own convention (first plan must be
 log "  empty) - but the #345 wall (no plan at all) is GONE, and every line above"
 log "  traces to an already-tracked or by-design cause, none of them new."
 log ""
+gauntlet_stage test_plan fail "Plan: 1 to add, 7 to change, 0 to destroy - #249 OAC gap and tofu-slot migration-visibility tag, non-empty by design"
+CURRENT_STAGE=""
 
 # ── informational only, NOT a scored stage: does the estate actually
 # converge? Verifies #345's own header claim - applying once should cement
@@ -603,7 +621,12 @@ if [ "$APPLY_RC" -eq 0 ]; then
   fi
 fi
 
+gauntlet_stage test_apply not_run "not scored until test_plan is itself empty; convergence checked informationally only"
+gauntlet_stage drift_reconverge not_run "not scored until test_plan is itself empty; convergence checked informationally only"
+CURRENT_STAGE=""
+gauntlet_end
+
 log ""
-log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 FAIL (deterministic, non-empty," 
+log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 FAIL (deterministic, non-empty,"
 log "=== every line already-tracked or by-design); stages 4-5 NOT_RUN in the scored"
 log "=== sense (convergence verified informationally above) ==="

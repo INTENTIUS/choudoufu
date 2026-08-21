@@ -299,7 +299,7 @@ func TestRebuildIsDeterministic(t *testing.T) {
 // source live/e2e/lib/gauntlet.sh is a burndown. Lower the bound when you
 // convert one; never raise it.
 func TestLegacyScriptsOnlyGoDown(t *testing.T) {
-	const bound = 24 // measured 2026-08-21: every script but reference-ec2-vpc was legacy at the gauntlet's introduction
+	const bound = 0 // measured 2026-08-21 at 24, then converted in one pass to 0: every crossing script now speaks the protocol
 	root := testRoot(t)
 	m, err := LoadManifest(root)
 	if err != nil {

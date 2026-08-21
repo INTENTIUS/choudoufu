@@ -206,8 +206,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools ─────────────────────────────────────────────────────────────
 log "=== 0. tools ==="
@@ -340,6 +352,7 @@ log "  healthy"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no live block, no choudoufu at all
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain terraform, unmodified estate) ==="
 provider_patch "$PLAIN"
 version_pin "$PLAIN" ""
@@ -390,10 +403,12 @@ if grep -qF 'tofu-address' <<< "$UNMARKED"; then
   fail "the plain-terraform bucket already carries a tofu-address tag before migration - this test proves nothing"
 fi
 log "  confirmed unmarked: s3-bucket-$PET carries no tofu-address tag (${UNMARKED:0:40}...)"
+gauntlet_stage cold_deploy pass "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 provider_patch "$ESTATE"
 
@@ -530,10 +545,12 @@ for b in "${BUCKETS[@]}"; do
   [ "$EST" = "$ESTATE_NAME" ] || fail "bucket $b lost its tofu-estate marker during the residue-classification apply (got \"$EST\") - this is issue #306, which the header says is fixed and re-verified; if this fires, the fix has regressed or the pinned floci image has moved backward"
 done
 log "  all four buckets' markers survived the classification apply"
+gauntlet_stage migrate pass "6 of 30 stamped (24 skipped, untaggable), 0 failed; markers survived the residue-classification apply"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - no state file, live-plan, empty, and the identities
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 plan_into "$WORK/plan1.log" || { grep -vE '^[0-9]{4}-' "$WORK/plan1.log" | tail -40; fail "live-plan exited non-zero"; }
 [ ! -f "$ESTATE/examples/complete/terraform.tfstate" ] || fail "live-plan wrote a state file"
@@ -619,10 +636,12 @@ if [ "${BREAK:-}" = "1" ]; then
   # the control being dead code nothing ever runs.
   fail "BREAK=1: treating the negative control above as the run's own result, to prove this script's exit code is not vacuously 0"
 fi
+gauntlet_stage test_plan pass "no resource action proposed; $RAW_N_IDS rendered identity occurrences ($N_IDS distinct), all naming known roots"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - the empty plan applies as a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: apply the empty plan ==="
 BEFORE="$(awsl s3api list-buckets --query 'length(Buckets)' --output text)"
 rm -f "$ESTATE/examples/complete/terraform.tfstate" "$ESTATE/examples/complete/terraform.tfstate.backup"
@@ -633,10 +652,12 @@ grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY4" \
 AFTER="$(awsl s3api list-buckets --query 'length(Buckets)' --output text)"
 [ "$BEFORE" = "$AFTER" ] || fail "bucket count moved from $BEFORE to $AFTER across a no-op apply"
 log "  $(grep -E 'Apply complete|No changes' <<< "$APPLY4" | head -1); bucket count unchanged at $BEFORE"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); bucket count unchanged at $BEFORE"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift one object out of band, replan, reconverge ==="
 # The configuration declares acceleration_status = "Suspended" for
 # s3-bucket-$PET (aws_s3_bucket_accelerate_configuration, admitted by this
@@ -676,6 +697,9 @@ if grep -qE '^  # .+ will be (created|updated|destroyed)' "$WORK/plan-final-notr
   fail "the final plan proposes a resource change"
 fi
 log "  final plan: no resource action proposed"
+gauntlet_stage drift_reconverge pass "accelerate config drifted to Enabled, exactly 1 change proposed and applied, reconverged to Suspended, final plan empty"
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== PASS ==="
