@@ -2255,11 +2255,13 @@ remote-exec:provisioner
 null-resource:logical-resource
 terraform-data:logical-resource
 local-file:logical-resource
+local-sensitive-file:logical-resource
 random-password:logical-resource
 time-sleep:logical-resource
 moved-block:moved-block
 child-module:child-module
 unadmitted-type:unadmitted-type
+markerless-type:markerless-type
 count-index-in-tag:count-index
 foreach-invalid-key:for-each-key
 overlong-address:overlong-address
