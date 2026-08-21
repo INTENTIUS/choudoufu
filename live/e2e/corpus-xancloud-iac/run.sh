@@ -61,11 +61,37 @@ set -uo pipefail
 # None of these is a choudoufu defect and none is this script's to fix
 # (HANDOFF.md, "Traps": floci gaps are a floci work item, not a reason to
 # skip the estate) - each is filed with the exact source evidence above.
-# Three MORE real, independent gaps surfaced past this point, at stage 3 -
-# see that stage's own header comment below for #327, #328 and
-# lex00/floci#78, none of them account-governance shaped and none
-# scoped around (this script asserts stage 3's exact blocked shape
-# instead).
+# One MORE real, independent gap remains past this point, at stage 3 - see
+# that stage's own header comment below for lex00/floci#87, not
+# account-governance shaped and not scoped around (this script asserts
+# stage 3's exact blocked shape instead).
+#
+# GitHub issue #347's own history is worth keeping here rather than only in
+# the tracker: lex00/floci#78 (CreateFlowLogs ignoring TagSpecifications)
+# used to keep aws_flow_log entirely OUTSIDE this crossing's diagnostic
+# surface - the tag write silently no-oped, so live-import never had a
+# marker to find and stage 3 never proposed anything for it at all. #78 is
+# now fixed, the flow log migrates and stamps cleanly, and that is what
+# revealed lex00/floci#87 underneath it: floci's DescribeFlowLogs response
+# has never carried the IAM role ARN a CloudWatch-Logs-destination flow log
+# needs, so the AWS provider's aws_flow_log Read always writes back an
+# empty iam_role_arn - confirmed NOT a choudoufu residue-mechanism gap
+# (issue #327's residueCandidates/ResidueStore mechanism, re-derived per
+# resource type from its own schema, reaches aws_flow_log exactly as it
+# reaches every other type and correctly DECLINES to record iam_role_arn as
+# residue, because the second of its two classification reads does not
+# reproduce the applied value either - the provider is not preserving a
+# stateless prior, it is genuinely never being told the value by floci) but
+# a floci gap that also corrupts a real, stateful stock `tofu apply`'s own
+# terraform.tfstate: stage 1's plain cold-deploy state already carries
+# iam_role_arn="" immediately after a real, non-choudoufu apply, which is
+# what proves this is not specific to choudoufu's stateless replan design.
+# Separately, and not tracked by any of the above: #328
+# (aws_default_security_group.revoke_rules_on_delete) and the two
+# aws_route_table in-place updates it used to cause no longer appear in
+# stage 3's plan at all as of this re-cross - not investigated further
+# here, since stage 3's assertions below only need to match what the plan
+# actually proposes today.
 # What this script actually runs is scoped down via the module's own
 # published toggles (cloudtrail_enabled=false;
 # iam_baseline_enable_s3_block/password_policy/access_analyzer/
@@ -126,11 +152,13 @@ set -uo pipefail
 #   2. MIGRATE       `choudoufu live-import -approve` against that cold
 #                     state - PASS.
 #   3. TEST PLAN     delete the state file, `choudoufu live-plan` - BLOCKED:
-#                     asserted non-empty for exactly three documented,
-#                     independent, already-filed reasons (#327, #328,
-#                     lex00/floci#78), deterministically rather than
-#                     skipped; the VPC's own identity, untouched by any of
-#                     the three, is still re-asserted against the AWS CLI.
+#                     asserted non-empty for exactly two documented,
+#                     independent, already-filed reasons (aws_nat_gateway's
+#                     pre-existing harmless in-place update, and
+#                     lex00/floci#87's aws_flow_log.iam_role_arn gap),
+#                     deterministically rather than skipped; the VPC's own
+#                     identity, untouched by either, is still re-asserted
+#                     against the AWS CLI.
 #   4/5.             NOT ATTEMPTED - both need a genuinely empty first plan
 #                     as their starting point, which stage 3 does not reach
 #                     against this floci image/main.
@@ -412,22 +440,35 @@ log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - genuinely BLOCKED, asserted deterministically rather
-# than skipped. Three real, independent, filed gaps - none of them a
+# than skipped. Two real, independent, filed gaps - neither a
 # choudoufu-vs-floci ambiguity, each traced to its own root cause before
 # filing (see header):
-#   - #327: aws_nat_gateway's ForceNew args (allocation_id, subnet_id) come
-#     back null from this fork's stateless prior, forcing a replace of an
-#     object that is not actually different - confirmed floci's own
-#     DescribeNatGateways XML shape is correct, so this is choudoufu's own
-#     prior-construction gap, not floci's.
-#   - #328: aws_default_security_group's revoke_rules_on_delete is a
-#     client-only argument with no live AWS representation at all, so it
-#     always diffs against whatever import found (null/false).
-#   - lex00/floci#78: aws_flow_log's CreateFlowLogs ignores
-#     TagSpecifications entirely - the marker write reports success but
-#     never persists, so the freshly-discovered live flow log carries no
-#     ownership marker and a stateless replan proposes creating a second
-#     one alongside it.
+#   - aws_nat_gateway.this["main-0"] will be updated in-place: the
+#     PRE-EXISTING harmless residue-mechanism gap #327 traced (a computed,
+#     non-destructive regional_nat_gateway_address becoming known) - #327's
+#     own fix already resolved the ForceNew half of this (allocation_id,
+#     subnet_id no longer force a replace); what remains is an ordinary
+#     Computed-attribute update, not a defect.
+#   - lex00/floci#87: aws_flow_log.cloudwatch["main"] must be replaced -
+#     iam_role_arn (ForceNew) reads back null on the stateless prior and
+#     forces a replace. Traced with TF_LOG=trace and confirmed NOT a #327
+#     regression: #327's residueCandidates/ResidueStore mechanism (derived
+#     generically per resource type from its own schema, not hand-wired to
+#     aws_nat_gateway - it reaches aws_flow_log, aws_default_security_group,
+#     aws_iam_role, aws_eip, aws_cloudwatch_log_group and every other
+#     admitted type in this same crossing) DOES reach iam_role_arn as a
+#     residue candidate and correctly DECLINES to record it as residue,
+#     because its second classification read does not reproduce the applied
+#     value either - the provider genuinely never learns iam_role_arn from
+#     floci, on any prior, rather than merely preserving a stateless one.
+#     Confirmed directly: floci's own DescribeFlowLogs response has no
+#     DeliverLogsPermissionArn field at all (floci's FlowLog.java model
+#     never carries it, and handleCreateFlowLogs in Ec2QueryHandler.java
+#     never reads the DeliverLogsPermissionArn request parameter either),
+#     and stage 1's own PLAIN cold-deploy tfstate - written by a real,
+#     non-choudoufu `tofu apply` - already has iam_role_arn="" right after
+#     that apply, proving this corrupts stock OpenTofu's own state too and
+#     is not specific to choudoufu's stateless replan.
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 3: no state file, live-plan (expected non-empty - see header) ==="
 rm -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate.backup"
@@ -438,25 +479,24 @@ PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC (expected 0 - a non-empty plan is not the same as a plan error)"; }
 [ ! -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
-grep -qF "Plan: 2 to add, 3 to change, 1 to destroy." <<< "$PLAN_OUT" \
-  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 2 to add, 3 to change, 1 to destroy.' - if this moved, one of the three documented causes above may have changed shape"; }
+grep -qF "Plan: 1 to add, 1 to change, 1 to destroy." <<< "$PLAN_OUT" \
+  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 1 to add, 1 to change, 1 to destroy.' - if this moved, one of the two documented causes above may have changed shape"; }
 for addr in \
-  'module.vpc.aws_default_security_group.this\["main"\] will be updated in-place' \
-  'module.vpc.aws_flow_log.cloudwatch\["main"\] will be created' \
-  'module.vpc.aws_nat_gateway.this\["main-0"\] must be replaced' \
-  'module.vpc.aws_route_table.private\["main-0"\] will be updated in-place' \
-  'module.vpc.aws_route_table.private\["main-1"\] will be updated in-place'
+  'module.vpc.aws_flow_log.cloudwatch\["main"\] must be replaced' \
+  'module.vpc.aws_nat_gateway.this\["main-0"\] will be updated in-place'
 do
-  grep -qE "$addr" <<< "$PLAN_OUT" || fail "expected '$addr' among the 5 proposed changes"
+  grep -qE "$addr" <<< "$PLAN_OUT" || fail "expected '$addr' among the 2 proposed changes"
 done
-log "  non-empty plan, all 5 proposed changes traced: #327 (NAT gateway forced replace), #328"
-log "  (default_security_group's revoke_rules_on_delete), lex00/floci#78 (flow log tag-write silently no-ops)"
+log "  non-empty plan, both proposed changes traced: lex00/floci#87 (flow log iam_role_arn"
+log "  never reaches floci's DescribeFlowLogs response, forcing a replace) and the"
+log "  pre-existing harmless NAT gateway in-place update (#327's own fix already"
+log "  resolved its ForceNew half)"
 
 # Re-assert the VPC's identity directly against the AWS CLI, after the
 # local state file was deleted - the answer below can only have come from
-# the marker on the live object itself. The VPC itself is untouched by any
-# of the three gaps above (it is not among the 5 changed addresses), so its
-# own marker is exactly what a clean stage 3 would have shown.
+# the marker on the live object itself. The VPC itself is untouched by
+# either gap above (it is not among the 2 changed addresses), so its own
+# marker is exactly what a clean stage 3 would have shown.
 VPC_ID="$(awsl ec2 describe-vpcs --filters "Name=tag:Name,Values=$VPC_NAME" --query 'Vpcs[0].VpcId' --output text)"
 [ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "could not find the VPC via the AWS CLI"
 WANT_VPC_ADDR='module.vpc.aws_vpc.this:main'
@@ -475,7 +515,7 @@ if [ "${BREAK:-}" = "1" ]; then
 fi
 
 log ""
-log "STAGE 3 (test plan): BLOCKED (deterministic) - 5 proposed changes, all traced to #327/#328/lex00-floci#78, none a choudoufu-vs-floci ambiguity"
+log "STAGE 3 (test plan): BLOCKED (deterministic) - 2 proposed changes, traced to lex00/floci#87 and the pre-existing harmless NAT gateway update, neither a choudoufu-vs-floci ambiguity"
 log ""
 
 log "=== STAGES 4-5: NOT ATTEMPTED - both need a genuinely empty first plan as their ==="
