@@ -145,7 +145,13 @@ TARGETS=(-target=module.monitoring.aws_cloudwatch_metric_alarm.s3_requests_spike
          -target=module.monitoring.aws_cloudwatch_metric_alarm.cf_requests_spike
          -target=module.monitoring.aws_cloudwatch_dashboard.site)
 
+# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
+# cache alone does not - without it, init in a directory with no
+# .terraform.lock.hcl re-downloads the whole provider purely to compute
+# checksums, even when the cache already holds that exact version (see
+# live/e2e/README.md, "The shared plugin cache" for the measured numbers).
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {

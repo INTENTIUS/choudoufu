@@ -164,7 +164,23 @@ EXTRA_POLICY_NAME="extra-tagging"
 # into its own scratch directory. Point them all at OpenTofu's own conventional
 # shared plugin cache so only the first one can ever pay for a download; an
 # operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
+#
+# #339: the shared cache records no checksums, so an init in a directory with
+# no .terraform.lock.hcl re-downloads the whole package purely to compute
+# them, even when the cache already holds that exact version - measured at
+# 320s per init on this estate, twice over. TF_PLUGIN_CACHE_MAY_BREAK_
+# DEPENDENCY_LOCK_FILE is OpenTofu's own CLI-config accommodation for exactly
+# this (internal/command/cliconfig/cliconfig.go's PluginCacheMayBreakDependency
+# LockFile, plumbed to the installer's allowSkippingInstallWithoutHashes):
+# with a package already in the global cache, init trusts it instead of
+# re-fetching and re-verifying it, and records only the local platform's
+# checksum. That is the accepted trade-off for this harness - every directory
+# here is a throwaway mktemp copy, never committed, never run on a second
+# platform - and it fixes every init in this script generically, not just
+# the second one, unlike a per-directory lock-file copy (see #339 for that
+# earlier, narrower fix and why this replaces it).
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
 cleanup() {
@@ -325,24 +341,14 @@ log ""
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 2: choudoufu live-import ==="
 
-# Hand the estate the lock file stage 1's own init just wrote, before running
-# its init. This is not a shortcut around the estate's init - that still runs
-# below, against the same configuration, and still has to succeed. It is a
-# fix for a real and expensive property of the provider installer: the shared
-# plugin cache records no checksums, so an init in a directory with no
-# .terraform.lock.hcl re-downloads the whole ~600MB AWS provider purely to
-# compute them, even when the cache already holds that exact version. Measured
-# on this estate: 320s per init without the lock file, twice over, which is
-# most of this script's wall time and put a full run past a ten-minute cap.
-# The two directories declare identical provider requirements - they differ
-# only by the estate's own `live` block - so the lock file stage 1 produced is
-# the one the estate's init would have produced for itself. Same reasoning the
-# control stage's own reuse_init carried before #334 retired it.
-if [ -f "$PLAIN/.terraform.lock.hcl" ]; then
-  cp "$PLAIN/.terraform.lock.hcl" "$ESTATE/.terraform.lock.hcl" \
-    || fail "could not seed the estate's provider lock file from stage 1's"
-  log "  seeded the estate's .terraform.lock.hcl from stage 1's init (checksums only; the estate still runs its own init below)"
-fi
+# #339's fix: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, exported near
+# the top of this script alongside TF_PLUGIN_CACHE_DIR, replaces the
+# lock-file-copy this stage used to do by hand (see #339's history for the
+# per-directory hack it retires). That copy only fixed THIS directory pair,
+# in THIS script - the env var fixes the same defect for every init in every
+# script sharing the cache, including a cold script's very first init against
+# an already-warm cache. The estate's own init still runs below, against its
+# own configuration, and still has to succeed.
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
 

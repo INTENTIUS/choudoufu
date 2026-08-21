@@ -407,7 +407,15 @@ log "=== 3. cold init and apply: plain terraform, 8 resources from nothing ==="
 # megabytes) from the registry, which on a machine running more than one
 # crossing at a time takes longer than the rest of this script put together
 # and makes the estate look hung. It changes nothing about what is measured.
+#
+# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
+# cache alone does not - without it, init in a directory with no
+# .terraform.lock.hcl re-downloads the whole provider purely to compute
+# checksums, even when the cache already holds that exact version. Real
+# terraform and choudoufu both honor it (see live/e2e/README.md, "The shared
+# plugin cache" for the measured numbers).
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "cold terraform init failed"; }

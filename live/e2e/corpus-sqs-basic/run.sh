@@ -286,7 +286,15 @@ log "=== STAGE 1: cold deploy (terraform apply, the real reduced example + delta
 # the provider had arrived, and the init then died on a transient DNS failure
 # before ever reaching `terraform apply`. It changes nothing about what is
 # measured; an operator who already exports TF_PLUGIN_CACHE_DIR keeps theirs.
+#
+# #339: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE closes the gap a warm
+# cache alone does not - without it, init in a directory with no
+# .terraform.lock.hcl re-downloads the whole provider purely to compute
+# checksums, even when the cache already holds that exact version. Real
+# terraform and choudoufu both honor it (see live/e2e/README.md, "The shared
+# plugin cache" for the measured numbers).
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }

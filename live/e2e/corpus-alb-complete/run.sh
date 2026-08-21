@@ -340,7 +340,17 @@ curl -fsSL -o "$PLAIN_EST/$PKG_FILE" "$PKG_URL" || fail "could not prefetch the 
 log "  DELTA 3  Lambda deployment zip prefetched to $PKG_FILE       (module-example quirk, not floci/choudoufu)"
 
 log "=== 1c. terraform init + apply ==="
+# #339: the shared cache records no checksums, so init in a directory with no
+# .terraform.lock.hcl re-downloads the whole provider purely to compute them,
+# even when the cache already holds that exact version. TF_PLUGIN_CACHE_MAY_
+# BREAK_DEPENDENCY_LOCK_FILE is real terraform's and OpenTofu's own CLI-config
+# accommodation for this - both binaries below honor it, so it fixes it for
+# each init independently, not just when a lock file happens to already
+# exist. Every directory here is a throwaway mktemp copy, never committed,
+# never run on a second platform, so the trade-off (only this platform's
+# checksum gets recorded) costs nothing.
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"
+export TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE=1
 mkdir -p "$TF_PLUGIN_CACHE_DIR"
 ( cd "$PLAIN_EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN_EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "plain terraform init failed"; }
