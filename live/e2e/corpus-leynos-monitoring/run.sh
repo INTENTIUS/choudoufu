@@ -268,8 +268,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -405,6 +417,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module, targeted - see header) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -424,10 +437,12 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 if [ -f "$PLAIN/.terraform.lock.hcl" ]; then
   cp "$PLAIN/.terraform.lock.hcl" "$ESTATE/.terraform.lock.hcl" \
@@ -481,10 +496,12 @@ fi
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -520,10 +537,12 @@ log "  identity re-check: both alarms' tofu-address unchanged; the dashboard, re
 log ""
 log "STAGE 3 (test plan): PASS"
 log ""
+gauntlet_stage test_plan pass "no resource change proposed; both alarms' tofu-address unchanged, dashboard body re-derived and matches distribution_id"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -546,10 +565,12 @@ log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file ei
 log ""
 log "STAGE 4 (test apply): PASS"
 log ""
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at $BEFORE_N, no state file"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one alarm's alarm_description out of band) ==="
 
 # alarm_description is a real, config-declared ARGUMENT of the alarm
@@ -656,6 +677,9 @@ fi
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
 log ""
+gauntlet_stage drift_reconverge pass "S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description"
+CURRENT_STAGE=""
+gauntlet_end
 
 log "=== PASS: all five stages, real, against leynos/df12-www's own unmodified ==="
 log "=== modules/monitoring, .tofu extension throughout, aws_budgets_budget    ==="

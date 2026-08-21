@@ -251,7 +251,18 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 terraform_run() {
@@ -548,6 +559,7 @@ export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
 # ── 3. STAGE 1: cold deploy, real terraform, zero choudoufu awareness ──────
+CURRENT_STAGE=cold_deploy
 log "=== 3. STAGE 1 - cold deploy: real terraform apply, no live block ==="
 terraform_run init -input=false -no-color > /tmp/eks-basic-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-init.log; fail "terraform init failed"; }
@@ -571,8 +583,10 @@ MARKED="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-ad
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
 [ "$MARKED" = "0" ] || fail "expected 0 objects carrying a tofu-address tag before migration, got $MARKED - this test proves nothing"
 log "  cluster $CLUSTER_NAME is ACTIVE, confirmed unmarked via the AWS CLI directly ($MARKED tofu-address tags)"
+gauntlet_stage cold_deploy pass "54 resources, genuinely cold, genuinely unmarked"
 
 # ── 4. STAGE 2: migrate ─────────────────────────────────────────────────────
+CURRENT_STAGE=migrate
 log "=== 4. STAGE 2 - migrate: choudoufu live-import against the cold state ==="
 tofu_run "$ADOPTED_REL" init -input=false -no-color > /tmp/eks-basic-tofu-init.log 2>&1 || {
   tail -40 /tmp/eks-basic-tofu-init.log; fail "choudoufu init failed"; }
@@ -621,8 +635,10 @@ MARKED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=t
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
 [ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
 log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
+gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
+CURRENT_STAGE=test_plan
 log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ==="
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
@@ -679,6 +695,12 @@ assert_rule_fires "count-index" "$COUNTINDEX_SITES"
 ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
 [ "$ERROR_COUNT" = "8" ] || fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 8 (4 logical-resource + 4 count-index) - the refusal wall's shape has changed"
 log "  exactly 8 Error diagnostics total (4 logical-resource + 4 count-index), matching the expected shape"
+
+gauntlet_stage test_plan fail "4 logical-resource + 4 count-index refusals, 8 Error diagnostics total"
+gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
+gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== PASS/FAIL: stages 1-2 pass in full; stage 3 refuses outright ==="

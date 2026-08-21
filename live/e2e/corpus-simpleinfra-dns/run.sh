@@ -202,8 +202,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -390,6 +402,7 @@ record_count() {
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain terraform apply, the estate as rust-lang wrote it) ==="
 ( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && terraform init -input=false -no-color -plugin-dir="$MIRROR" 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -427,6 +440,8 @@ log "  confirmed unmarked: 0 of $ZONES zones carry tofu-estate before migration"
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "$INSTANCES instances ($Z zones, $R records) from plain terraform, 0 of $ZONES zones carry tofu-estate"
+CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - live-import against the cold state
@@ -502,6 +517,8 @@ fi
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "$ZONES stamped, $ZONES distinct hosted zones, one per module call"
+CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities by value
@@ -591,6 +608,8 @@ log "  the untaggable $DRIFT_ADDR rendered \"$WANT_DRIFT_ID\" - its zone compone
 log ""
 log "STAGE 3 (test plan): PASS"
 log ""
+gauntlet_stage test_plan pass "no resource change proposed, nothing foreign; all $INSTANCES rendered identities name a live hosted zone or record set"
+CURRENT_STAGE=test_apply
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
@@ -624,6 +643,8 @@ log "  genuine no-op: $BEFORE_Z zones / $BEFORE_R records before and after, no s
 log ""
 log "STAGE 4 (test apply): PASS"
 log ""
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_Z zones / $BEFORE_R records unchanged, all $ZONES markers unmoved"
+CURRENT_STAGE=drift_reconverge
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one UNTAGGABLE record out of band
@@ -702,7 +723,10 @@ else
   [ "$STILL" = "$DRIFT_ZONE_MARKER" ] \
     || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
   log "  reconverged: TTL is back to $WANT_TTL, $RECORDS record sets still there, the parent zone's marker intact - all read via the AWS CLI"
+  gauntlet_stage drift_reconverge pass "one untaggable record drifted, exactly $DRIFT_ADDR proposed and applied, TTL reconverged to $WANT_TTL, $RECORDS records and the parent marker intact"
 fi
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"

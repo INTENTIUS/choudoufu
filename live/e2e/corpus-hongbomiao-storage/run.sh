@@ -116,8 +116,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -266,6 +278,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified modules) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -284,11 +297,13 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE_NAME before migration"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
@@ -340,11 +355,13 @@ fi
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "3 of 4 stamped (2 buckets, KMS key), 1 UNTAGGABLE (KMS alias); bucket $PROD_BUCKET_NAME -> tofu-address=$GOT_PROD_ADDR, bucket $IOT_BUCKET_NAME -> tofu-address=$GOT_IOT_ADDR, key $KMS_KEY_ID -> tofu-address=$GOT_KMS_ADDR"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -379,11 +396,13 @@ log "  identity re-check: both buckets' and the key's tofu-address unchanged; th
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "empty plan; identity re-check: both buckets' and the key's tofu-address unchanged, KMS alias still points at the same key"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -403,11 +422,13 @@ log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file ei
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK:-}" = "1" ]; then
@@ -459,7 +480,11 @@ fi
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+gauntlet_stage drift_reconverge pass "the plan proposed fixing $N_CHANGED object(s) after the out-of-band tag mutation: $CHANGED_ADDRS"
 log ""
+
+CURRENT_STAGE=""
+gauntlet_end
 
 log "=== PASS: all five stages, real, against hongbo-miao/hongbomiao.com's own ==="
 log "=== unmodified storage-environment leaf modules, .tofu extension throughout ==="

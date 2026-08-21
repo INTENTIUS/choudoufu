@@ -329,8 +329,20 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ══════════════════════════════════════════════════════════════════════════
 # 0. tools and corpus
@@ -544,6 +556,7 @@ log "  DELTA 4  tfvars for the estate's 20 undefaulted variables  (onboarding)"
 # STAGE 1: COLD DEPLOY - plain terraform apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
 log ""
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (stock terraform, no choudoufu anywhere) ==="
 ( cd "$PLAIN" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -586,11 +599,13 @@ log "  confirmed unmarked: no zone carries a tofu-address before migration"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "$INSTANCES resources from stock terraform; 4 live zones confirmed unmarked"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state
 # ══════════════════════════════════════════════════════════════════════════
 log ""
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "the estate copy's init failed"; }
@@ -670,11 +685,13 @@ log "  and DataCite's own tags survived the marker write: Environment=production
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "$TAGGABLE of $INSTANCES stamped, $UNTAGGABLE skipped as untaggable, 0 failed; $RESIDUE_WANT residue records written, DataCite's own tags survived"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan empty, identities by VALUE
 # ══════════════════════════════════════════════════════════════════════════
 log ""
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan, and the rendered identities ==="
 rm -f "$EST/terraform.tfstate" "$EST/terraform.tfstate.backup"
 [ ! -f "$EST/terraform.tfstate" ] || fail "the state file is still there"
@@ -805,11 +822,13 @@ OWN_N="$(grep -c 'allow_overwrite = true' "$SRC/main.tf")"
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "plan empty across 63 instances, no state file; $FILL_RECORDS record sets and $FILL_ZONES zones filled residue from the store"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
 log ""
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object counts unchanged) ==="
 
 record_count() {
@@ -866,6 +885,7 @@ log "  all 4 markers unmoved, all $RESIDUE_WANT residue records intact"
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_Z zones / $BEFORE_R record sets unchanged, all 4 markers unmoved, all $RESIDUE_WANT residue records intact"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one UNTAGGABLE, RESIDUE-CARRYING
@@ -883,6 +903,7 @@ log "STAGE 4 (test apply): PASS"
 #     real drift, and this plan would come back empty. It is the one failure
 #     mode a residue mechanism can introduce, and this is where it shows.
 log ""
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (one untaggable, residue-carrying record) ==="
 
 upsert_ttl() { # upsert_ttl <zone> <name> <ttl>
@@ -954,10 +975,13 @@ else
     || fail "the parent zone's tofu-address is \"$STILL\" after the reconverge apply - the marker did not survive"
   log "  reconverged: TTL back to $WANT_TTL, $AFTER_R record sets still there, the parent"
   log "  zone's marker intact - all read through the AWS CLI"
+  gauntlet_stage drift_reconverge pass "one untaggable record drifted, exactly $CHANGED_ADDRS/ttl proposed and applied, reconverged to $WANT_TTL, marker intact"
 fi
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+CURRENT_STAGE=""
+gauntlet_end
 
 log ""
 log "=== PASS: all five stages, against DataCite's own global DNS estate ==="

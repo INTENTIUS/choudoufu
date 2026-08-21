@@ -223,8 +223,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # marker_filter <marker>: a --filters argument matching tofu-address exactly,
 # in the CLI's JSON form rather than its Name=,Values= shorthand. The
@@ -407,6 +419,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real modules) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -444,11 +457,13 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "10 resources added (1 vpc, 3 subnets, 1 igw, 1 route table, 3 associations, 1 dynamodb table); confirmed unmarked"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 ( cd "$ESTATE" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$ESTATE" && "$TOFU" init -input=false -no-color 2>&1 | tail -30 ); fail "estate init failed"; }
@@ -539,11 +554,13 @@ fi
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "7 of 10 verified and stamped, 0 failed, 3 correctly UNTAGGABLE; markers read back via the AWS CLI"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -582,11 +599,13 @@ log "  identity re-check: VPC and table markers unchanged; all three untaggable 
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "no changes; VPC and table markers unchanged, all three untaggable associations resolved by their composite identity"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -606,11 +625,13 @@ log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file ei
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at $BEFORE_N, no state file"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK_STAGE5:-}" = "1" ]; then
@@ -656,6 +677,9 @@ fi
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+gauntlet_stage drift_reconverge pass "VPC Name tag tampered out of band, exactly 1 object proposed and reconverged, marker survived the incremental tag update"
+CURRENT_STAGE=""
+gauntlet_end
 log ""
 
 log "=== PASS: all five stages, real, against evoteum/tofu-modules' own    ==="

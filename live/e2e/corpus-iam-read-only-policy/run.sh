@@ -114,8 +114,20 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -167,6 +179,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (terraform apply, the real unmodified example + delta) ==="
 ( cd "$EST" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$EST" && terraform init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -200,12 +213,14 @@ cp "$EST/terraform.tfstate" "$WORK/cold.tfstate"
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
@@ -245,12 +260,14 @@ log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written)"
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "1 of 1 stamped; $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written)"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted (already true), live-plan empty,
 # identity re-asserted
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: test plan (live-plan empty, identity re-checked) ==="
 [ ! -f "$EST/terraform.tfstate" ] || fail "a state file exists ahead of stage 3"
 
@@ -279,11 +296,13 @@ log "  identity re-check (read via the AWS CLI, after the state file has never e
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
@@ -303,6 +322,7 @@ log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file ei
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -310,6 +330,7 @@ log ""
 # fix is proposed against the right address (see the header comment on why
 # this differs from corpus-iam-policy's two-object BREAK control)
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate the one object out of band) ==="
 awsl iam tag-policy --policy-arn "$POLICY_ARN" --tags Key=Example,Value=tampered-out-of-band
 DRIFTED_VALUE="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='Example'].Value | [0]" --output text)"
@@ -349,7 +370,11 @@ log "  reconverged: $POLICY_ARN's Example tag is back to \"ex-iam-read-only-poli
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+gauntlet_stage drift_reconverge pass "one object tampered ($POLICY_ARN's Example tag), plan proposed fixing exactly $CHANGED_ADDRS, apply changed 1 and reconverged the tag"
 log ""
+
+CURRENT_STAGE=""
+gauntlet_end
 
 log "=== PASS ==="
 log ""

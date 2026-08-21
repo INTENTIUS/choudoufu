@@ -377,7 +377,18 @@ cleanup() {
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -416,6 +427,7 @@ rm -rf "$EST/.terraform" "$EST/.terraform.lock.hcl"
 log "  module + example + fixtures copied out of .corpus into $WORK"
 
 # ── 1. the one delta - emulator flags, no live block yet ───────────────────
+CURRENT_STAGE=cold_deploy
 log "=== 1. cold deploy: plain terraform, no live block, no choudoufu ==="
 command -v terraform >/dev/null 2>&1 || fail "the terraform binary is not on PATH - needed to build unmarked reference infra"
 perl -0pi -e 's/(provider "aws" \{\n  region = "eu-west-1"\n)(.*?\n)(\}\n)/$1  access_key                  = "test"\n  secret_key                  = "test"\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n$2$3/s' "$EST/main.tf"
@@ -560,6 +572,8 @@ log "  prior state to diff an output against at all."
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "8 resources, genuinely cold, genuinely unmarked"
+CURRENT_STAGE=migrate
 
 # ── STAGE 2: MIGRATE ─────────────────────────────────────────────────────
 log "=== 4. add the live block (record_store, for the estate's random_pet/"
@@ -643,6 +657,8 @@ log "  all three module-nested markers verified directly against IAM/Lambda/Logs
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "3 stamped, 4 recorded, 0 failed, 1 skipped"
+CURRENT_STAGE=test_plan
 
 # ── STAGE 3: TEST PLAN ──────────────────────────────────────────────────────
 log "=== 8. delete the state file, choudoufu live-plan ==="
@@ -696,6 +712,10 @@ if [ "$PLAN_RC" -ne 0 ]; then
   log "STAGE 5 (drift and reconverge): NOT REACHED"
   log ""
   log "Stages 1 and 2 are real, verified passes - see above."
+  gauntlet_stage test_plan fail "BLOCKED for real, at $BLOCKERS diagnostics"
+  gauntlet_stage test_apply not_run "STAGE 4 NOT REACHED"
+  gauntlet_stage drift_reconverge not_run "STAGE 5 NOT REACHED"
+  CURRENT_STAGE=""
   exit 1
 fi
 
@@ -788,6 +808,10 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN
   log "STAGE 4 (test apply): NOT REACHED"
   log "STAGE 5 (drift and reconverge): NOT REACHED"
   log ""
+  gauntlet_stage test_plan fail "live-plan raises no diagnostics and proposes zero resource changes, but the plan is not empty"
+  gauntlet_stage test_apply not_run "STAGE 4 NOT REACHED"
+  gauntlet_stage drift_reconverge not_run "STAGE 5 NOT REACHED"
+  CURRENT_STAGE=""
   fail "live-plan is not empty"
 }
 
@@ -799,5 +823,10 @@ log "  no resource change proposed"
 log ""
 log "STAGE 3 (test plan): PASS"
 log ""
+gauntlet_stage test_plan pass "no resource change proposed"
 log "STAGE 4 (test apply): NOT YET WRITTEN - stage 3 only just started passing in this run"
 log "STAGE 5 (drift and reconverge): NOT YET WRITTEN - same reason"
+gauntlet_stage test_apply not_run "not yet written - stage 3 only just started passing in this run"
+gauntlet_stage drift_reconverge not_run "not yet written - same reason"
+CURRENT_STAGE=""
+gauntlet_end

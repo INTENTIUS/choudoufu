@@ -215,7 +215,18 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
+gauntlet_begin
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -403,6 +414,7 @@ export TF_VAR_iam_baseline_enable_imdsv2_default=false
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified blueprint) ==="
 ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN/blueprints/landing-zone-basic" && tofu init -input=false -no-color 2>&1 | tail -40 ); fail "stage 1 init failed"; }
@@ -422,6 +434,8 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
+gauntlet_stage cold_deploy pass "28 resources, genuinely cold, genuinely unmarked"
+CURRENT_STAGE=migrate
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
@@ -446,6 +460,8 @@ grep -E 'newly stamped' <<< "$APPROVE_OUT" | sed 's/^/    /'
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
+gauntlet_stage migrate pass "live-import -approve completed cleanly against the cold state"
+CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - genuinely BLOCKED, asserted deterministically rather
@@ -511,6 +527,11 @@ fi
 log ""
 log "STAGE 3 (test plan): BLOCKED (deterministic) - 1 proposed change, the pre-existing harmless NAT gateway update (#327); lex00/floci#87 is fixed and no longer appears"
 log ""
+gauntlet_stage test_plan fail "1 proposed change - the pre-existing harmless NAT gateway update (#327)"
 
 log "=== STAGES 4-5: NOT ATTEMPTED - both need a genuinely empty first plan as their ==="
 log "=== starting point, which stage 3 does not reach against this floci image/main  ==="
+gauntlet_stage test_apply not_run "needs a genuinely empty first plan as its starting point, which stage 3 does not reach"
+gauntlet_stage drift_reconverge not_run "needs a genuinely empty first plan as its starting point, which stage 3 does not reach"
+CURRENT_STAGE=""
+gauntlet_end

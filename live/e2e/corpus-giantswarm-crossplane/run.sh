@@ -190,8 +190,20 @@ cleanup() {
 [ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
-fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+
+# The gauntlet protocol (live/GAUNTLET.md): each stage reports its verdict on
+# stdout so tools/gauntlet records it. CURRENT_STAGE names the stage a
+# failure belongs to; fail() reports it before exiting.
+# shellcheck source=live/e2e/lib/gauntlet.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/gauntlet.sh"
+CURRENT_STAGE=""
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi
+  exit 1
+}
 awsl() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
 log "=== 0. tools and corpus ==="
@@ -307,6 +319,7 @@ export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION" AW
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain tofu apply, no live block, no choudoufu
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=cold_deploy
 log "=== STAGE 1: cold deploy (plain tofu apply, the real unmodified module) ==="
 ( cd "$PLAIN" && tofu init -input=false -no-color >/dev/null 2>&1 ) || {
   ( cd "$PLAIN" && tofu init -input=false -no-color 2>&1 | tail -30 ); fail "stage 1 init failed"; }
@@ -334,11 +347,13 @@ log "  confirmed unmarked: 0 objects carry tofu-estate=$ESTATE_NAME before migra
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
+gauntlet_stage cold_deploy pass "6 resource instances added, 0 already tofu-estate-marked before migration"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=migrate
 log "=== STAGE 2: choudoufu live-import ==="
 
 # #339's fix: TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE, exported near
@@ -424,11 +439,13 @@ fi
 
 log ""
 log "STAGE 2 (migrate): PASS"
+gauntlet_stage migrate pass "2 of 6 stamped (role, managed policy), 4 untaggable skipped, module's own tags survived the stamp"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, EMPTY + identities by value
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
@@ -488,11 +505,13 @@ log "    aws_iam_role_policy_attachments_exclusive -> role_name=$ROLE_NAME, atta
 
 log ""
 log "STAGE 3 (test plan): PASS"
+gauntlet_stage test_plan pass "live-plan empty, role/policy tofu-address unchanged, both *_exclusive resources re-derived by value"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
 BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
@@ -525,11 +544,13 @@ log "  both exclusive sets unchanged across the apply - neither enforcer touched
 
 log ""
 log "STAGE 4 (test apply): PASS"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at $BEFORE_N, both exclusive sets unchanged"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 5: DRIFT AND RECONVERGE - mutate one object, replan, assert one fix
 # ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
 log "=== STAGE 5: drift and reconverge (mutate one object's tag out of band) ==="
 
 if [ "${BREAK_STAGE5:-}" = "1" ]; then
@@ -572,7 +593,10 @@ fi
 
 log ""
 log "STAGE 5 (drift and reconverge): PASS"
+gauntlet_stage drift_reconverge pass "role's installation tag tampered, exactly the IAM role proposed and reconciled, apply changed 1, tag reads back as configured"
 log ""
+CURRENT_STAGE=""
+gauntlet_end
 
 log "=== PASS: all five stages, real, against giantswarm/giantswarm-aws-account- ==="
 log "=== prerequisites v8.2.2's own unmodified crossplane/ module, .tofu         ==="
