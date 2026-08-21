@@ -174,6 +174,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	// projection.RecordKey, and a migration is the only thing that can seed
 	// it for an estate that has never been applied by choudoufu.
 	var residueStore *projection.ResidueStore
+	var rootOutputStore *projection.RootOutputStore
 	var recordStore staterecord.Store
 	var recordKeyPrefix string
 	if recordStoreCfg != nil {
@@ -187,6 +188,15 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		residueStore = projection.NewResidueStore(store, args.Estate)
 		recordStore = store
 		recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate)
+		// GitHub issue #349: the same store again, sixth namespace, and
+		// taking the ESTATE rather than recordKeyPrefix for the located,
+		// residue and provisioned namespaces' exact reason - a key_prefix
+		// override must not be able to move one of these keys under the
+		// record root, where orphan discovery's listing would find it and
+		// the plan would propose destroying whatever it names. An output
+		// names nothing at all, so that would be a destroy proposal for a
+		// resource that never existed.
+		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
 	}
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
@@ -196,6 +206,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		ResidueStore:    residueStore,
 		RecordStore:     recordStore,
 		RecordKeyPrefix: recordKeyPrefix,
+		RootOutputStore: rootOutputStore,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags

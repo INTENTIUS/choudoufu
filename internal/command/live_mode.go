@@ -371,6 +371,20 @@ type statelessRunner struct {
 	// outputs reach no data source, which is nearly all of them.
 	rootOutputData map[string]cty.Value
 
+	// rootOutputStore is GitHub issue #349's sixth namespace in the record
+	// store: what this estate remembers each root output's value to be. Set
+	// wherever the record store itself is opened, nil for a run with no
+	// record_store block. Written by the apply's write-back; read by
+	// PriorState into recordedRootOutputs.
+	rootOutputStore *projection.RootOutputStore
+
+	// recordedRootOutputs is what rootOutputStore held for the outputs this
+	// configuration declares, read by PriorState and handed to the caller
+	// through [statelessRunner.RecordedRootOutputs] at the one moment root
+	// outputs are evaluated. Carried on the runner for rootOutputData's
+	// reason: it is read where the store is open and used a step later.
+	recordedRootOutputs map[string]cty.Value
+
 	// priorStateCalls counts how many times PriorState has run for this
 	// runner. GitHub issue #80's pin: one runner serves one operation (see
 	// this type's own doc comment), and backend_local.go's localRunDirect
@@ -395,6 +409,11 @@ func (r *statelessRunner) StateMgr() statemgr.Full {
 // RootOutputData implements [backendLocal.StatelessRun].
 func (r *statelessRunner) RootOutputData() map[string]cty.Value {
 	return r.rootOutputData
+}
+
+// RecordedRootOutputs implements [backendLocal.StatelessRun].
+func (r *statelessRunner) RecordedRootOutputs() map[string]cty.Value {
+	return r.recordedRootOutputs
 }
 
 // PriorStateCalls returns how many times PriorState has run on this runner.
@@ -516,6 +535,19 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		// record root, where orphan discovery's listing would find it and
 		// the plan would propose destroying whatever it names.
 		r.provisionedStore = projection.NewProvisionedStore(store, estate)
+		// Issue #349's root-output namespace rides the same store, sixth and
+		// last, and takes the ESTATE for the same reason the three above it
+		// do: a key_prefix override must not be able to move one of these
+		// keys under the record root, where orphan discovery's listing would
+		// find it and the plan would propose destroying whatever it names.
+		// An output names no live object at all, so that would be a destroy
+		// proposal for something that never existed.
+		//
+		// Read immediately, while the estate name is settled and the store
+		// is open: [projection.ApplyRootOutputValues] runs several steps
+		// later, from the backend, and needs the values then.
+		r.rootOutputStore = projection.NewRootOutputStore(store, estate)
+		r.recordedRootOutputs = projection.ReadRootOutputValues(ctx, r.rootOutputStore, config)
 		r.liveConfig = config
 		// Guided discovery's hint (issue #109) rides the same store: from
 		// the apply's final persist onward, the estate's type roster and a
@@ -741,6 +773,10 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 		ProvisionedStore:    r.provisionedStore,
 		ProvisionedVersions: r.provisionedVersions,
 		Config:              r.liveConfig,
+
+		// Issue #349's half. The apply just settled these values, and this
+		// is the moment stock writes them into its state file.
+		RootOutputStore: r.rootOutputStore,
 	}))
 
 	if provs != nil {

@@ -297,17 +297,41 @@ set -uo pipefail
 # diff entirely rather than rendering "~ old -> new", so the plan graph
 # computed the same value independently and the two sides cancel.
 #
-# local_filename is the one line left, and it stays. It reaches
-# data.external.archive_prepare (package.tf:7), whose read RUNS package.py on
-# the machine running the plan. Everything else about that block is readable
-# - count = 1, static arguments, no provider configuration to evaluate - and
-# what stops it is deliberately not any of those: the root-output read class
-# is confined to providers this configuration manages live objects through
-# (dataread.LiveProviders), and hashicorp/external serves no managed resource
-# type at all, in this or any configuration. A plan that ran a local program
-# would stop being a pure preview, which is the same invariant that keeps
-# provisioners to apply only. So this estate's stage 3 is still BLOCKED, on
-# one honest line rather than two, and the estate stays at 2 of 5.
+# local_filename was the one line left, and the paragraph that used to stand
+# here said it stayed. It no longer does. Keeping the reasoning, because the
+# half of it that held is what shaped the fix:
+#
+# It reaches data.external.archive_prepare (package.tf:7), whose read RUNS
+# package.py on the machine running the plan. Everything else about that
+# block is readable - count = 1, static arguments, no provider configuration
+# to evaluate - and what stops it is deliberately not any of those: the
+# root-output read class is confined to providers this configuration manages
+# live objects through (dataread.LiveProviders), and hashicorp/external
+# serves no managed resource type at all, in this or any configuration. That
+# confinement is still in force and is still right. A plan that ran a local
+# program would stop being a pure preview, which is the same invariant that
+# keeps provisioners to apply only.
+#
+# What was wrong was the conclusion drawn from it - that the line therefore
+# had to stay. Reading the value earlier was never the only way to have it.
+# Stock does not compute an output's prior value at all: it REMEMBERS the one
+# the last apply settled on, out of its own state file. A migration reads
+# that state file, and until #349's last rung, dropped every output value in
+# it on the floor - a hole in HANDOFF.md's "migration from a stock state file
+# is lossless" exactly the size of the estate's outputs.
+#
+# So the carrier is the record store, sixth namespace, "tofu-outputs/<estate>"
+# (internal/live/projection/rootoutput.go). live-import writes what the stock
+# state held; an apply's write-back keeps it current;
+# projection.ApplyRootOutputValues consults it ONLY for an output it could
+# not evaluate at all, which is what bounds the change - a remembered value
+# can add a prior value where there was none, and can never displace one the
+# projection computed. Step 6 below asserts the carried value against the
+# cold stock state BY VALUE, because an empty plan is convergence and
+# convergence is never evidence a value is right.
+#
+# With that, stage 3's output diff is empty for the first time and this
+# estate's plan is genuinely empty end to end.
 #
 # Stages 4 and 5 remain to be written below, following
 # live/e2e/corpus-mastino-dns/run.sh's shape, once stage 3 has a real empty
@@ -331,6 +355,26 @@ set -uo pipefail
 # filename reads it, but local_file is record-backed and the migrate seeded
 # its record, so the identity class never asks. The one output line is the
 # root-output class refusing it, exactly as before.
+#
+# RE-CROSSED for real, 2026-08-21, against floci cdd50ec0, after #349's last
+# rung (the "tofu-outputs" record namespace) landed. This is the run that
+# moved the estate:
+#   STAGE 1 (cold deploy)  PASS - 8 resources, genuinely cold and unmarked
+#   STAGE 2 (migrate)      PASS - 3 stamped, 4 recorded, 0 failed, 1 skipped,
+#                          and local_filename's remembered value asserted by
+#                          value against the cold stock state:
+#                          builds/b982f072d0f3e8eba2708ddda345f11fcb6ae4d4ecdfa3be269021f62bde988a.zip
+#   STAGE 3 (test plan)    PASS - "No changes. Your infrastructure matches
+#                          the configuration." Zero diagnostics, zero
+#                          resource changes, zero output lines.
+#   STAGES 4 and 5         NOT REACHED, and still not written - stage 3 only
+#                          started passing in this run, which is the whole of
+#                          why the estate is not yet clear.
+#
+# The measurement was taken twice with the identical harness and only the
+# binary swapped: at 8095eba176 the plan carries "+ local_filename = ..." and
+# test_plan reads fail; with the fix the "Changes to Outputs:" block is gone
+# entirely and test_plan reads pass.
 #
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
@@ -625,6 +669,66 @@ grep -Rqs -- "$PET" "$RECORDS_DIR" \
   || { find "$RECORDS_DIR" -type f | head -20; fail "the record store does not contain random_pet.this's generated id ($PET) anywhere - #340 has regressed"; }
 log "  record store carries random_pet.this = $PET"
 
+# Issue #349's remaining half, asserted BY VALUE against stock's own answer.
+#
+# A stock state file holds every root output's value; until this existed, a
+# migration dropped all of them, and stage 3 below then rendered every output
+# choudoufu could not recompute as newly created. The last one it could not
+# recompute was local_filename, whose value is
+# try(data.external.archive_prepare[0].result.filename, null) - the name of a
+# deployment package, derived from a hash package.py computes by running.
+# Nothing evaluates that offline, so the only honest source for it is the
+# value the last apply settled on, which is exactly what stock reads out of
+# its state file.
+#
+# The assertion is deliberately not "a record exists" and not "the plan is
+# empty". An empty plan is convergence, and HANDOFF.md says convergence is
+# never evidence a value is right: a prior output value that happened to
+# equal what the plan recomputes would cancel whether it was read across
+# correctly or invented. So the recorded value is compared, by value, against
+# what the COLD STOCK STATE holds for the same output - the oracle, taken
+# before choudoufu touched anything.
+OUTPUTS_DIR="$RECORDS_DIR/tofu-outputs/$ESTATE"
+[ -d "$OUTPUTS_DIR" ] || { find "$RECORDS_DIR" -type d | head -20; fail "live-import -approve carried no root output values across (#349): $OUTPUTS_DIR does not exist"; }
+# bG9jYWxfZmlsZW5hbWU is base64url("local_filename"), the key scheme in
+# internal/live/projection/rootoutput.go's RootOutputKey.
+LOCAL_FILENAME_RECORD="$OUTPUTS_DIR/bG9jYWxfZmlsZW5hbWU"
+[ -f "$LOCAL_FILENAME_RECORD" ] || { find "$OUTPUTS_DIR" -type f | head -30; fail "no record was written for the root output local_filename"; }
+STOCK_LOCAL_FILENAME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["outputs"]["local_filename"]["value"])' "$WORK/cold.tfstate")"
+# The payload's "value" is the cty value ctyjson-encoded, which for a string
+# output is a JSON string - so json.load decodes it in one step. "type" beside
+# it is the value's own cty type, which is what lets the record be read back
+# with no schema and no configuration in hand.
+RECORDED_LOCAL_FILENAME="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["value"])' "$LOCAL_FILENAME_RECORD")"
+[ -n "$STOCK_LOCAL_FILENAME" ] || fail "the cold stock state holds no local_filename output - the corpus pin has moved"
+[ "$RECORDED_LOCAL_FILENAME" = "$STOCK_LOCAL_FILENAME" ] \
+  || fail "the migrated record for the root output local_filename is $RECORDED_LOCAL_FILENAME, but stock's own state says $STOCK_LOCAL_FILENAME - the value carried across is WRONG, which is worse than not carrying it"
+log "  root output local_filename carried across by value: $RECORDED_LOCAL_FILENAME (identical to stock's own state)"
+# The sensitive half of the same rule, asserted by ABSENCE. A sensitive
+# output's value is deliberately NOT written - see WriteRootOutputValues for
+# why the strict answer is taken until HANDOFF's "no secrets stored by the
+# tool" toggle reaches that namespace. This example declares no sensitive
+# output today, so the check reads zero of them and passes trivially; it is
+# here as a standing guard, driven off whatever the STOCK STATE flags rather
+# than off a name written down here, so the day the module or this example
+# grows one it is already covered.
+python3 - "$WORK/cold.tfstate" "$OUTPUTS_DIR" <<'PY' || fail "a sensitive root output's value was written into the record store"
+import base64, json, os, sys
+state = json.load(open(sys.argv[1]))
+outdir = sys.argv[2]
+bad = []
+for name, ov in state.get("outputs", {}).items():
+    if not ov.get("sensitive"):
+        continue
+    key = base64.urlsafe_b64encode(name.encode()).decode().rstrip("=")
+    if os.path.exists(os.path.join(outdir, key)):
+        bad.append(name)
+if bad:
+    print("sensitive outputs with a record:", bad)
+    sys.exit(1)
+PY
+log "  no record written for any output the stock state flags sensitive"
+
 log "=== 7. the markers, read through the AWS CLI directly - never through choudoufu ==="
 WANT_LAMBDA_ADDR="module.lambda_function.aws_lambda_function.this:0"
 WANT_ROLE_ADDR="module.lambda_function.aws_iam_role.lambda:0"
@@ -769,16 +873,15 @@ grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN
     log "  lex00/floci#83 IS FIXED: there is no resource-level action block at"
     log "  all (no "OpenTofu will perform the following actions"), which is"
     log "  what step 3b's control already showed against stock terraform. What"
-    log "  remains is an OUTPUT-only diff, and it is down to one line. #348"
-    log "  (evaluate the root outputs at all) and #349 (see through"
-    log "  zero-instance blocks, then read what the outputs reach) took this"
-    log "  estate from 23 output lines to 2 to 1. The one left is"
-    log "  local_filename, which reaches data.external.archive_prepare -"
-    log "  whose read runs package.py locally. That read is refused on"
-    log "  purpose: the root-output read class only ever talks to providers"
-    log "  this configuration manages live objects through, so a plan stays a"
-    log "  pure preview. Whatever the diff below actually says is what this"
-    log "  run measured; the sentence above is what it said when written."
+    log "  remains is an OUTPUT-only diff. This estate went 23 output lines to"
+    log "  2 to 1 to 0 across three rungs: #348 evaluated the root outputs at"
+    log "  all; #349's first two rungs saw through zero-instance blocks and"
+    log "  read the data sources the outputs reach; #349's last rung carried"
+    log "  the stock state file's own output values across at migrate time and"
+    log "  keeps them current at write-back, which is the only honest source"
+    log "  for an output like local_filename whose value exists only because"
+    log "  package.py was run. If a line is showing here again, the question"
+    log "  to ask first is which of those four is not doing its job for it."
   elif [ -z "$CHOUDOUFU_DRIFTED" ]; then
     log "  Every resource in this plan is one stock terraform's OWN replan proposes"
     log "  too (step 3b's control), so nothing here is choudoufu's."
