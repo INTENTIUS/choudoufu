@@ -207,7 +207,16 @@ var credentialFixtures = map[string][]string{
 // refusal came from the credential rule rather than from the type happening
 // to fail one of the other two conditions - which is exactly the way a
 // guard comes to pass while measuring nothing.
+//
+// A fixture the issue #331 veto ALSO refuses cannot carry the counterfactual
+// half, because with two conditions firing nothing can attribute the refusal
+// to either - so that half is skipped for such a type and reported, rather
+// than being softened into an assertion that passes for the wrong reason.
+// aws_iot_certificate became such a type when the veto arrived; the loop
+// below fails outright if that ever becomes true of every fixture, since the
+// two-directional proof would then exist nowhere.
 func TestCredentialMaterialExcludesTheSanctionedTypes(t *testing.T) {
+	var counterfactuals int
 	for typeName, sensitive := range credentialFixtures {
 		if _, ok := MarkerlessTypes[typeName]; !ok {
 			t.Errorf("%s is no longer in MarkerlessTypes, so the credential exclusion is no longer what keeps it out of the located population. Find out what does.", typeName)
@@ -222,6 +231,11 @@ func TestCredentialMaterialExcludesTheSanctionedTypes(t *testing.T) {
 			t.Errorf("LocatedType(%q) = true. This type is credential material and the run-time predicate must exclude it: %v are sensitive in its schema.", typeName, sensitive)
 		}
 
+		if NotImportable(typeName) {
+			t.Logf("%s is also refused by the not-importable veto (issue #331), so the counterfactual below cannot attribute a refusal to the credential rule and is skipped for it", typeName)
+			continue
+		}
+
 		// The counterfactual. Same type, same everything, sensitivity
 		// removed.
 		clean := map[string]*configschema.Attribute{}
@@ -229,8 +243,13 @@ func TestCredentialMaterialExcludesTheSanctionedTypes(t *testing.T) {
 			clean[name] = &configschema.Attribute{Type: cty.String, Computed: true}
 		}
 		if !LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(clean)}) {
-			t.Errorf("LocatedType(%q) is false even with no sensitive attribute, so the refusal above proves nothing about the credential rule - the type is failing one of the other two conditions and this test is measuring itself.", typeName)
+			t.Errorf("LocatedType(%q) is false even with no sensitive attribute, so the refusal above proves nothing about the credential rule - the type is failing one of the other conditions and this test is measuring itself.", typeName)
+			continue
 		}
+		counterfactuals++
+	}
+	if counterfactuals == 0 {
+		t.Error("every credential fixture is refused by some other condition too, so nothing here proves the credential rule refuses anything. Add a fixture the other conditions admit.")
 	}
 }
 
@@ -348,7 +367,7 @@ func TestLocatedTypePopulation(t *testing.T) {
 		t.Fatalf("acquiring hashicorp/aws schemas: %s", err)
 	}
 
-	var located, composite, composed, credential, noID, unprovenID []string
+	var located, composite, composed, credential, noID, unprovenID, notImportable []string
 	for name := range MarkerlessTypes {
 		schema, ok := schemas[name]
 		if !ok || schema.Block == nil {
@@ -357,6 +376,12 @@ func TestLocatedTypePopulation(t *testing.T) {
 		_, unproven := IDNotProvenWholeTypes[name]
 		plan, recordable := LocatedIdentityPlanFor(name, schema)
 		switch {
+		case NotImportable(name):
+			// Condition 0 (issue #331). These are the types the other
+			// conditions would have admitted - a clean schema, a recordable
+			// id - and the provider will not import back, so the record
+			// would be written and never usable.
+			notImportable = append(notImportable, name)
 		case credentialMaterial(schema.Block):
 			credential = append(credential, name)
 		case recordable && plan.Composite():
@@ -380,18 +405,20 @@ func TestLocatedTypePopulation(t *testing.T) {
 		// composite branch between #329 and #309 and passed anyway,
 		// because no markerless type happened to be composite AND without
 		// a top-level string id at the same time.
-		want := !credentialMaterial(schema.Block) && recordable
+		want := !NotImportable(name) && !credentialMaterial(schema.Block) && recordable
 		if LocatedType(name, schemas) != want {
-			t.Errorf("LocatedType(%q) disagrees with its own three conditions (credential=%v recordable=%v)",
-				name, credentialMaterial(schema.Block), recordable)
+			t.Errorf("LocatedType(%q) disagrees with its own four conditions (notImportable=%v credential=%v recordable=%v)",
+				name, NotImportable(name), credentialMaterial(schema.Block), recordable)
 		}
 	}
 	sort.Strings(credential)
 	sort.Strings(composed)
-	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d located(composed string)=%d credential=%d unprovenID=%d noID=%d",
-		len(MarkerlessTypes), len(located), len(composite), len(composed), len(credential), len(unprovenID), len(noID))
+	sort.Strings(notImportable)
+	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d located(composed string)=%d credential=%d unprovenID=%d noID=%d notImportable=%d",
+		len(MarkerlessTypes), len(located), len(composite), len(composed), len(credential), len(unprovenID), len(noID), len(notImportable))
 	t.Logf("credential material: %v", credential)
 	t.Logf("composed from the documented grammar (#337): %v", composed)
+	t.Logf("refused by the not-importable veto (#331): %v", notImportable)
 
 	// The requirement, against the real schema rather than a fixture.
 	for typeName := range credentialFixtures {

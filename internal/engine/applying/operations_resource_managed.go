@@ -364,12 +364,8 @@ func (ops *execOperations) ManagedApply(
 
 	var state *states.ResourceInstanceObjectFull
 	if !resp.NewState.IsNull() {
-		status := states.ObjectTainted
-		if !diags.HasErrors() {
-			status = states.ObjectReady
-		}
 		state = &states.ResourceInstanceObjectFull{
-			Status:               status,
+			Status:               appliedObjectStatus(plan, diags.HasErrors()),
 			Value:                resp.NewState,
 			Private:              resp.Private,
 			ProviderInstanceAddr: providerConfigAddr,
@@ -523,6 +519,45 @@ func (ops *execOperations) ManagedChangeAddr(
 		return nil, diags
 	}
 	return currentObj.WithNewAddr(newAddr), diags
+}
+
+// appliedObjectStatus decides whether the object an apply just produced is
+// ready or tainted, and it answers the same way internal/tofu's maybeTainted
+// (node_resource_apply_instance.go) answers for the old runtime: an error
+// taints a CREATE and leaves anything else alone.
+//
+// The reason is stock's own, quoted from that function because it is the
+// whole argument: "errors during updates will often not change the remote
+// object at all. If there _were_ changes prior to the error, it's the
+// provider's responsibility to record the effect of those changes in the
+// object value it returned." A create that errors, by contrast, leaves an
+// object in an undefined state, which is what tainting is for.
+//
+// This used to taint on ANY error here, which is a divergence that matters
+// more in this fork than it would upstream. A tainted object drives
+// internal/live/projection's issue #353 record: a failed UPDATE on a
+// resource that happens to declare a create-time provisioner would have
+// persisted a taint record, and every later plan would then propose
+// destroying and re-creating a live resource whose update merely needed
+// retrying. Stock never proposes that, and "match stock and go no further"
+// is the bar.
+//
+// A create is recognized the way [exec.ManagedResourceObjectFinalPlan]
+// documents it: a null prior state, which is also how a replacement's
+// create leg arrives, since the graph splits a replace into two final plans
+// and gives the create leg a null prior. There is no Action field on a
+// final plan to consult instead, deliberately - see that type's own comment
+// on why it carries no identity of its own.
+func appliedObjectStatus(plan *exec.ManagedResourceObjectFinalPlan, failed bool) states.ObjectStatus {
+	if !failed {
+		return states.ObjectReady
+	}
+	if prior := plan.PriorStateVal; prior != cty.NilVal && !prior.IsNull() {
+		// An update, or a destroy leg that errored with an object still
+		// present. Stock leaves the status alone here.
+		return states.ObjectReady
+	}
+	return states.ObjectTainted
 }
 
 // markedAppliedValue re-applies to a provider's post-apply object the marks

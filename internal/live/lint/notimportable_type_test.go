@@ -18,14 +18,18 @@ import (
 // its own is exactly the case that makes the ordering load-bearing. Behind
 // the fallback the veto would be a no-op for such a type - the schema
 // fallback has no way to know ImportResourceState fails, and never asks.
+//
+// The control is measured BEFORE the roster is injected into, which is not a
+// stylistic choice: the veto now lives inside the fallback itself
+// ([identity.NotImportable], consulted by synthesizeTypeIdentity), so asking
+// the fallback about an already-vetoed type would return the veto's own
+// answer and the control would prove nothing.
 func TestNotImportableVetoRunsBeforeTheSchemaFallback(t *testing.T) {
 	const vetoed = "aws_thing"
 
 	if _, already := identity.NotImportableTypes[vetoed]; already {
 		t.Fatalf("%s is on the real roster; this test injects it and would not be proving anything", vetoed)
 	}
-	identity.NotImportableTypes[vetoed] = struct{}{}
-	t.Cleanup(func() { delete(identity.NotImportableTypes, vetoed) })
 
 	cfg := loadConfigDir(t, "testdata/schema-admitted")
 	signal, diags := identity.ScanConfig(t.Context(), cfg)
@@ -34,16 +38,28 @@ func TestNotImportableVetoRunsBeforeTheSchemaFallback(t *testing.T) {
 	}
 	schemas := thingSchema()
 
-	// The control: without the veto this exact call admits the type - see
+	// The control, taken while the type is still off the roster: without the
+	// veto this exact call admits the type - see
 	// TestCheckWithSchemaAdmitsTypeOutsideTable. That is why a veto behind
 	// the fallback would be invisible to this test.
 	if _, ok := identity.SynthesizeTypeIdentity(vetoed, schemas, signal); !ok {
 		t.Fatalf("the schema fallback no longer admits %s, so this test cannot tell the two orderings apart", vetoed)
 	}
 
+	identity.NotImportableTypes[vetoed] = struct{}{}
+	t.Cleanup(func() { delete(identity.NotImportableTypes, vetoed) })
+
 	if admitted(vetoed, schemas, signal) {
 		t.Errorf("admitted(%s) consulted the schema fallback before the not-importable veto: a type with no classic "+
 			"Importer would come back admitted on schema evidence the veto exists to override", vetoed)
+	}
+	// And the fallback itself, which is what the other admission routes ask
+	// and lint does not: identity.Resolve's lookupType and
+	// liveimport.admittedByProviderSchema both reach admission through this
+	// one call with no veto of their own.
+	if _, ok := identity.SynthesizeTypeIdentity(vetoed, schemas, signal); ok {
+		t.Errorf("identity.SynthesizeTypeIdentity(%s) admits a vetoed type, so every admission route that is not lint "+
+			"bypasses the veto - which is exactly the gap issue #331's first fix left open", vetoed)
 	}
 }
 

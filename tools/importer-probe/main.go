@@ -120,8 +120,17 @@ func sweep(ctx context.Context, p *tfplugin.GRPCProvider, schema providers.GetPr
 		}
 		_, inTable := identity.DefaultTable[t]
 		_, vetoed := identity.MarkerlessTypes[t]
+		// notimportable is printed in its own column, and it has to be,
+		// because synth below now includes it: identity.NotImportable is
+		// consulted inside the schema fallback so that no admission route
+		// can miss it. Without this column the sweep would look like a
+		// measurement and be a mirror - every NO_IMPORTER row would read
+		// synth=false whether the schemas justify one or not, and a reader
+		// checking whether anything is still wrongly admitted would be
+		// reading the roster's own answer back.
+		notImportable := identity.NotImportable(t)
 		_, synth := identity.SynthesizeTypeIdentity(t, schema.ResourceTypes, nil)
-		fmt.Fprintf(f, "%s\t%s\tin_table=%v\tmarkerless=%v\tsynth=%v\t%s\n", verdict, t, inTable, vetoed, synth, msg)
+		fmt.Fprintf(f, "%s\t%s\tin_table=%v\tmarkerless=%v\tnotimportable=%v\tsynth=%v\t%s\n", verdict, t, inTable, vetoed, notImportable, synth, msg)
 		if err := f.Sync(); err != nil {
 			return err
 		}
