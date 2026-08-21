@@ -191,6 +191,38 @@ The corollary catches people out: **refusing is not automatically the safe
 answer.** Before landing a new refusal, run the same configuration through
 stock and say what it did.
 
+**A wall is not "parity" by default, and every wall reported needs one of
+three labels stated first, before any other detail.** This was gotten wrong
+in conversation on 2026-08-20 - a wall was described as choudoufu "inventing
+a capability nobody needs," when it was actually an ordinary case the
+decision matrix below already names. The three labels:
+
+1. **"OpenTofu fails here too."** Not a defect. Confirm stock refuses the
+   identical configuration and stop - this is the `PARITY` row in the
+   decision matrix.
+2. **"OpenTofu succeeds, choudoufu refuses."** A real parity defect by the
+   rule two paragraphs up. Always worth fixing.
+3. **"OpenTofu was never asked this question."** The wall needs choudoufu to
+   derive, with no human in the loop, something stock OpenTofu only ever
+   gets from a human typing a pre-known answer into `terraform import` -
+   composite import-ID component order with no wire identity schema is the
+   worked example (`#309`'s Cognito wall: the provider's own Go code knows
+   the order, it is simply never published as a schema, so a human reading
+   the docs and typing the right string is doing the derivation stock
+   "solves" this with). There is nothing to run through stock for
+   comparison, because stock never attempts the autonomous case at all. This
+   is not "parity absent" and it is not invented, out-of-scope work either -
+   it is the decision matrix's `DEFER` row ("not knowable at plan time at
+   all - read it, record it, or order around it"), same family as `#313`'s
+   live-read precedent: try the finite set of candidate answers against the
+   provider's own real API and let the provider's own logic - the one thing
+   that actually knows the answer - decide, instead of guessing from
+   ambiguous prose.
+
+Label 3 is real, buildable product work, not scope creep beyond parity - it
+serves choudoufu's own promise (adopt with no human and no state file), which
+was never a promise stock OpenTofu made or was measured against.
+
 ### A wrong marker outranks a missing one
 
 A refusal is visible and annoying. A fabricated or misdirected marker is
