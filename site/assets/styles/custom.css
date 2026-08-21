@@ -1,0 +1,77 @@
+/* choudoufu docs: the fermentation palette the diagrams were drawn for.
+   Deep olive ground, cream content card, brass accents. --base matches the
+   background rect baked into docs/images/choudoufu.svg and the .card fill in
+   site/assets/diagram-*.svg, so the art blends into the page. Overrides
+   hugo-book's theme tokens; BookTheme is pinned to light in hugo.toml so the
+   SVGs always sit on the ground they were drawn for. */
+
+:root,
+:root[data-theme="light"],
+:root[data-theme="auto"] {
+  --base: #4a5334;
+  --base-deep: #3a4128;
+  --card: #f7f3e6;
+  --card-dim: #ebe4d2;
+  --ink: #241f16;
+  --ink-strong: #14110b;
+  --link-on-base: #f0c9a4;
+  --olive-deep: #c9d3a8;
+  --muted: #6b5f4e;
+
+  --body-background: var(--base);
+  --body-font-color: var(--ink);
+  --color-link: #8a5220;
+  --color-visited-link: #8a5220;
+  --gray-100: var(--card-dim);
+  --gray-200: #ded5c0;
+  --gray-500: var(--muted);
+  --color-accent-default: #93a06b;
+  --color-accent-note: #93a06b;
+  --color-accent-tip: #7d8a52;
+  --color-accent-important: #8a5220;
+  --color-accent-warning: #c98a3d;
+  --color-accent-caution: #b5573f;
+}
+
+body {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  line-height: 1.6;
+}
+
+/* The content is a cream card on the olive ground. */
+.book-page {
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 0.35rem;
+  margin: 1rem 1rem 3rem;
+  padding: 2rem 2.25rem;
+  box-shadow: 0 1px 0 var(--base-deep);
+}
+@media screen and (max-width: 56rem) {
+  .book-page { margin: 0; border-radius: 0; }
+}
+.book-page h1, .book-page h2, .book-page h3 {
+  color: var(--ink-strong);
+  font-family: "Fraunces", "Iowan Old Style", Georgia, serif;
+}
+.book-page a { color: var(--color-link); }
+.book-page code, .book-page pre { background: var(--card-dim); }
+.book-page table th { background: var(--card-dim); }
+.book-page hr { border-color: #ded5c0; }
+
+/* Sidebar and table of contents sit on the olive ground. */
+.book-menu, .book-toc, .book-header, .book-footer {
+  color: var(--card);
+}
+.book-menu a, .book-toc a, .book-header a { color: var(--olive-deep); }
+.book-menu a:hover, .book-toc a:hover, .book-header a:hover { color: var(--link-on-base); }
+.book-menu a.active { color: var(--card); }
+.book-menu .book-brand a { color: var(--card); font-family: "Fraunces", Georgia, serif; }
+.book-menu input.book-search { background: var(--base-deep); color: var(--card); border-color: var(--base-deep); }
+.book-menu input.book-search::placeholder { color: var(--olive-deep); }
+.book-menu .book-icon, .book-toc .book-icon, .book-header .book-icon { filter: brightness(0) invert(0.92); }
+.book-footer a { color: var(--link-on-base); }
+
+/* Gauntlet bars on the card. */
+.gauntlet-bar-track { background: var(--card-dim); }
+.gauntlet-bar-fill { background: #7d8a52; }
