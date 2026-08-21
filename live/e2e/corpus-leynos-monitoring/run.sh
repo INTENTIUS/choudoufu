@@ -91,6 +91,74 @@ set -uo pipefail
 # PARITY, an emulator gap and not this fork's defect. Filed as
 # https://github.com/lex00/floci/issues/93.
 #
+# UPDATE 2026-08-21 (c): lex00/floci#93's own investigation named the
+# workaround directly - "have modules/monitoring set datapoints_to_alarm
+# explicitly so the non-computed-optional gap never comes into play" - and
+# it is applied below as a DELTA (apply_datapoints_delta), setting
+# datapoints_to_alarm to the same value evaluation_periods already carries
+# on both alarms (AWS's own create-time default when the argument is
+# omitted, so nothing about what stage 1 creates changes). Verified for
+# real, not assumed: with the DELTA applied to both the PLAIN and ESTATE
+# copies, `tofu plan`/`choudoufu live-plan` against the same live alarms no
+# longer proposes the "1 -> null" line at all - the config value and the
+# refreshed read agree, because there is no non-computed gap left for them
+# to disagree through.
+#
+# Getting there exposed a second, unrelated, real choudoufu bug on the way:
+# `choudoufu live-plan` against a configuration with a `live` block delegates
+# to plain `choudoufu plan`, handing it the CLI arguments "exactly as they
+# arrived" (originalArgs) so it can parse them itself. originalArgs was only
+# a second slice header over live-plan's own rawArgs backing array, not an
+# independent copy - and arguments.ParseView compacts recognized flags (like
+# -no-color) out of its slice IN PLACE. With any flag after -no-color, -target
+# being the realistic one since every -target/-exclude run goes through this
+# same alias, the compaction silently overwrote -no-color's slot in the
+# SHARED backing array, so the delegate lost -no-color and, for exactly one
+# -target, saw the last target flag duplicated into the slot -no-color used
+# to occupy. The result: this crossing's own -no-color flag never reached the
+# delegate, and stage 3's "No changes." string never matched a live-plan
+# render riddled with real ANSI escape codes - not a semantics bug (a manual
+# rerun confirmed the plan was already genuinely empty), but the automated
+# assertion itself was silently unable to see it, and would have stayed that
+# way for every other -target-using estate's stage 3/5 checks too. Fixed in
+# internal/command/live_plan.go by making originalArgs an explicit copy
+# (`append([]string(nil), rawArgs...)`); regression-tested in
+# internal/command/live_mode_test.go
+# (TestStatelessMode_livePlanIsAnAlias/delegates_with_-target), confirmed to
+# fail without the fix (raw ANSI escapes reach the alias's output) and pass
+# with it.
+#
+# Stage 5's own drift simulation then hit a third, distinct, real bug - this
+# one floci's, not choudoufu's or this harness's mistake. CloudWatch's
+# PutMetricAlarm is documented (the AWS CLI's own bundled help,
+# `aws cloudwatch put-metric-alarm help`, the --tags entry) as create-only
+# for tags: "If you are using this operation to update an existing alarm,
+# any tags you specify in this parameter are ignored. To change the tags of
+# an existing alarm, use TagResource or UntagResource." So a real
+# out-of-band PutMetricAlarm call - exactly what drift_s3_alarm/
+# drift_cf_alarm below simulate - can never touch an existing alarm's tags
+# on real AWS. Confirmed directly against this checkout's floci pin: the
+# identical call WIPES the alarm's existing tags (list-tags-for-resource
+# went from the two markers stage 2 wrote to an empty list), destroying the
+# ownership marker this crossing depends on. Filed as
+# https://github.com/lex00/floci/issues/95. Worked around in this harness
+# (not floci, and not by changing what stage 5 tests) by re-applying the
+# known tags via TagResource immediately after each drift call
+# (retag_after_drift, stage 5's own code) - restoring what a real
+# out-of-band mutation would never have disturbed in the first place, so
+# the rest of the stage still exercises real reconvergence.
+#
+# Re-crossed for real with all three fixes/workarounds in place: all five
+# stages pass. STAGE 3 (test plan): PASS for real - genuinely empty plan,
+# both alarms' tofu-address markers re-verified unchanged, the dashboard's
+# re-derived identity confirmed against its own live content. STAGE 4 (test
+# apply): PASS - a genuine no-op, 2 objects before and after, no state file
+# either time. STAGE 5 (drift and reconverge): PASS - the drift plan
+# proposes fixing exactly the one drifted alarm and nothing else, the
+# reconverge apply changes exactly that one resource, and the live value
+# reads back correct afterward. leynos/df12-www's modules/monitoring is a
+# ninth OpenTofu-native estate at full, real, five-stage parity.
+#
 # THE OTHER SCOPING DECISION, avoided rather than made: modules/monitoring/
 # terraform.tofu pins `aws ~> 5.0`, real and unedited, incompatible with the
 # `= 6.59.0` every other opentofu-native crossing in this repo pins at its
@@ -231,8 +299,31 @@ else
   log "  built $TOFU"
 fi
 
-# copy_module <destdir>: the real, unmodified module, .tofu extension and all.
+# copy_module <destdir>: the real module, .tofu extension and all, with one
+# DELTA applied below.
 copy_module() { mkdir -p "$1/modules"; cp -R "$SRC" "$1/modules/monitoring"; }
+
+# apply_datapoints_delta <destdir>: DELTA (WORKAROUND, confirmed real
+# upstream hashicorp/aws provider defect - full wire-level evidence in
+# lex00/floci#93's comment thread, HANDOFF.md label 1, "OpenTofu fails here
+# too"). aws_cloudwatch_metric_alarm.datapoints_to_alarm is schema'd
+# Optional without Computed in both v5.100.0 and v6.0.0 of the provider, so
+# terraform-plugin-sdk/v2's plan always proposes the config value (null,
+# since this module never sets the argument) over whatever the refreshed
+# read returns - an eternal "1 -> null" diff against a real, unchanged
+# alarm, reproducing identically against stock `tofu plan` with no
+# choudoufu in the process and against real AWS, not just floci. Setting it
+# explicitly to the same value evaluation_periods already carries (AWS's
+# own create-time default when the argument is omitted, so this changes
+# nothing about what stage 1 creates or what a user reading this module
+# would expect) turns it into an ordinary non-computed field whose config
+# value matches the server, and the diff cannot recur. Applied identically
+# to BOTH copies of the module (PLAIN and ESTATE) so stage 1's cold deploy
+# and stages 2-5's choudoufu runs agree on the same config throughout.
+apply_datapoints_delta() {
+  perl -0pi -e 's/(  evaluation_periods  = 1\n)/$1  datapoints_to_alarm = 1  # DELTA (lex00\/floci#93): explicit value sidesteps an upstream provider bug - see run.sh header\n/g' \
+    "$1/modules/monitoring/main.tofu"
+}
 
 # write_root <destdir> <live_block>: this crossing's own root wiring. The
 # module call below uses the module's OWN documented variable names and
@@ -270,18 +361,24 @@ EOF
 }
 
 copy_module "$PLAIN"
+apply_datapoints_delta "$PLAIN"
 write_root "$PLAIN" ""
-log "  monitoring module copied unmodified out of .corpus/leynos-df12-www into $PLAIN"
+log "  monitoring module copied out of .corpus/leynos-df12-www into $PLAIN, one DELTA applied (datapoints_to_alarm, lex00/floci#93 - see run.sh header)"
 
-# DELTA: confirm the copy is byte-identical to the pinned commit - the only
-# thing this crossing adds is its OWN root file, never an edit to df12-www's
-# own module code (aws_budgets_budget included - it is scoped out by
-# -target, not by editing main.tofu).
-diff -rq "$SRC" "$PLAIN/modules/monitoring" >/dev/null \
-  || fail "modules/monitoring differs from the pinned commit - this crossing must run the real, unmodified module"
-log "  DELTA confirmed: modules/monitoring is byte-identical to the pinned commit; only this script's own root file was added"
+# DELTA: confirm the copy matches the pinned commit exactly except for the
+# one documented datapoints_to_alarm line added to each alarm above - never
+# any other edit anywhere in the module (aws_budgets_budget included - it
+# is scoped out by -target, not by editing main.tofu).
+[ "$(grep -c 'DELTA (lex00/floci#93)' "$PLAIN/modules/monitoring/main.tofu")" = "2" ] \
+  || fail "the datapoints_to_alarm DELTA did not apply to exactly 2 lines - the corpus pin has moved"
+diff -q "$SRC/main.tofu" <(grep -v 'DELTA (lex00/floci#93)' "$PLAIN/modules/monitoring/main.tofu") >/dev/null \
+  || fail "modules/monitoring/main.tofu differs from the pinned commit beyond the datapoints_to_alarm DELTA - the corpus pin has moved"
+diff -rq "$SRC" "$PLAIN/modules/monitoring" -x main.tofu >/dev/null \
+  || fail "modules/monitoring differs from the pinned commit outside main.tofu - this crossing must run the real, unmodified module everywhere else"
+log "  DELTA confirmed: modules/monitoring matches the pinned commit exactly, apart from the two documented datapoints_to_alarm lines"
 
 copy_module "$ESTATE"
+apply_datapoints_delta "$ESTATE"
 write_root "$ESTATE" '
   live {
     estate = "'"$ESTATE_NAME"'"
@@ -289,7 +386,7 @@ write_root "$ESTATE" '
       path = ".tofu-records"
     }
   }'
-log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added)"
+log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added, same DELTA applied)"
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
@@ -493,13 +590,38 @@ drift_cf_alarm() {
     --treat-missing-data ignore >/dev/null
 }
 
+# DELTA (HARNESS WORKAROUND, confirmed real floci defect - filed as
+# lex00/floci#95): PutMetricAlarm is documented, in the AWS CLI's own
+# bundled help text (`aws cloudwatch put-metric-alarm help`, the --tags
+# entry) as create-only for tags - "If you are using this operation to
+# update an existing alarm, any tags you specify in this parameter are
+# ignored. To change the tags of an existing alarm, use TagResource or
+# UntagResource." - meaning a real out-of-band PutMetricAlarm call (exactly
+# what drift_s3_alarm/drift_cf_alarm below simulate) can never touch an
+# existing alarm's tags on real AWS, whatever it is or is not called with.
+# Confirmed directly against this checkout's floci pin: a PutMetricAlarm
+# update with no --tags argument WIPES the alarm's existing tags (verified
+# by list-tags-for-resource immediately after, going from the two markers
+# stage 2 wrote to an empty list) - the opposite of the documented behavior,
+# and it costs the marker this crossing depends on. retag_after_drift below
+# restores the tags a real out-of-band mutation would never have touched,
+# so the rest of this stage exercises real reconvergence rather than a
+# floci-only marker loss.
+retag_after_drift() {
+  local arn="$1" addr="$2"
+  awsl cloudwatch tag-resource --resource-arn "$arn" \
+    --tags "Key=tofu-estate,Value=$ESTATE_NAME" "Key=tofu-address,Value=$addr" >/dev/null
+}
+
 if [ "${BREAK:-}" = "1" ]; then
   drift_cf_alarm "tampered-by-BREAK"
+  retag_after_drift "$CF_ALARM_ARN" "$WANT_CF_ADDR"
   log "  BREAK=1: also tampered the CloudFront alarm's alarm_description - stage 5 must now see TWO"
   log "           drifted objects and fail the single-object assertion"
 fi
 
 drift_s3_alarm "tampered-out-of-band"
+retag_after_drift "$S3_ALARM_ARN" "$WANT_S3_ADDR"
 DRIFTED_VALUE="$(awsl cloudwatch describe-alarms --alarm-names "$S3_ALARM_NAME" --query 'MetricAlarms[0].AlarmDescription' --output text)"
 [ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band attribute mutation did not take"
 log "  mutated $S3_ALARM_NAME's alarm_description to \"tampered-out-of-band\" directly via the AWS CLI - never through choudoufu"

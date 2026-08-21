@@ -130,8 +130,16 @@ func (c *LivePlanCommand) Run(rawArgs []string) int {
 	ctx := c.CommandContext()
 
 	// Kept for the alias below, which hands the plan command the arguments
-	// exactly as they arrived so that it can parse them itself.
-	originalArgs := rawArgs
+	// exactly as they arrived so that it can parse them itself. This must be
+	// an independent copy, not just a second slice header over the same
+	// backing array: arguments.ParseView compacts recognized flags (like
+	// -no-color) out of its argument slice IN PLACE, and without a copy here
+	// that compaction silently overwrites originalArgs's later elements too
+	// (observed concretely as -target runs reaching the plan-command alias
+	// with -no-color gone from originalArgs and the last -target duplicated
+	// into the slot -no-color used to occupy - a real, narrow bug, not a
+	// hypothetical one).
+	originalArgs := append([]string(nil), rawArgs...)
 
 	common, rawArgs := arguments.ParseView(rawArgs)
 	c.View.Configure(common)

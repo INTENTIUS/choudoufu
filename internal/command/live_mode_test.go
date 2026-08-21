@@ -186,6 +186,43 @@ func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
 		assertNoStateArtifacts(t, td)
 	})
 
+	// The delegate above passes -no-color with no other flag, which never
+	// exercised the actual hazard: arguments.ParseView compacts recognized
+	// flags out of its argument slice IN PLACE, and live-plan's own
+	// originalArgs (kept so the plan-command alias can parse the arguments
+	// itself) used to be a second slice header over that SAME backing
+	// array rather than an independent copy. With any flag after -no-color
+	// - -target being the realistic one, since every -target/-exclude run
+	// goes through this alias too - the compaction silently overwrote
+	// -no-color's slot with the following flag, so the delegate lost
+	// -no-color entirely and, for a single -target, saw it twice. Confirmed
+	// concretely against a real build before the fix: colored ANSI escapes
+	// throughout live-plan's output despite -no-color, for any run that
+	// combined a live block with -target.
+	t.Run("delegates with -target: -no-color survives, no duplicated flag", func(t *testing.T) {
+		td := t.TempDir()
+		testCopyDir(t, testFixturePath("live-block"), td)
+		t.Chdir(td)
+
+		cloud := liveBlockCloud()
+		view, done := testView(t)
+		c := &LivePlanCommand{Meta: liveBlockMeta(view, cloud)}
+
+		code := c.Run([]string{"-no-color", "-target=aws_s3_bucket.data"})
+		output := done(t)
+		if code != 0 {
+			t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, output.Stdout(), output.Stderr())
+		}
+		combined := output.Stdout() + output.Stderr()
+		if strings.ContainsRune(combined, '\x1b') {
+			t.Errorf("-no-color did not reach the plan-command alias - output carries raw ANSI escapes:\n%s", combined)
+		}
+		if !strings.Contains(combined, "No changes.") {
+			t.Errorf("the alias did not run the pipeline:\n%s", combined)
+		}
+		assertNoStateArtifacts(t, td)
+	})
+
 	t.Run("refuses -estate", func(t *testing.T) {
 		td := t.TempDir()
 		testCopyDir(t, testFixturePath("live-block"), td)
