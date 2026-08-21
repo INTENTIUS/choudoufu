@@ -80,8 +80,12 @@ numbers on the site, core estates clear and all estates clear, are read from
 
 ## The loop
 
-1. Pick the next estate: a core estate closest to clear, else the next most
-   popular real one (`go run ./tools/gauntlet add`, see `live/GAUNTLET.md`).
+1. `go run ./tools/gauntlet next` names the unit: the core estate closest to
+   clear and the first active stage it does not pass, else the next growing
+   one. New estates enter with `go run ./tools/gauntlet add` (see
+   `live/GAUNTLET.md`). `just contribute` runs one unit unattended under
+   your own key, in a worktree, and opens the PR; that is also what
+   contributors run from their forks.
 2. `go run ./tools/gauntlet run <name>`; read the verdict lines, not the exit
    code.
 3. Every difference from stock gets its row from the table above. Fix

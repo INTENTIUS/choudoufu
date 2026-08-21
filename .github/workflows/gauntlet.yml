@@ -86,3 +86,5 @@ jobs:
             site/data/gauntlet.json
             site/content/docs/progress/
           delete-branch: true
+      # The PR changes only the artifact and rendered docs, so
+      # automerge-artifact.yml enables auto-merge on it once CI is green.

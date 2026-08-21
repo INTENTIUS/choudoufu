@@ -21,6 +21,8 @@ const (
 	SiteProgressDir  = "site/content/docs/progress"
 	SiteProgressPage = "site/content/docs/progress/_index.md"
 	SiteAddPage      = "site/content/docs/progress/add-an-estate.md"
+	SiteContribPage  = "site/content/docs/progress/contribute.md"
+	WorkerBriefPath  = ".claude/agents/gauntlet-worker.md"
 )
 
 // Render writes every generated file into root. It returns the list of
@@ -67,12 +69,15 @@ func Render(root string, m *Manifest, a *Artifact) ([]string, error) {
 	if err := write(SiteAddPage, renderAddPage(m)); err != nil {
 		return nil, err
 	}
+	if err := write(SiteContribPage, renderContributePage()); err != nil {
+		return nil, err
+	}
 	// Remove estate pages that no longer have an estate, then write each.
 	dir := filepath.Join(root, SiteProgressDir)
 	entries, _ := os.ReadDir(dir)
 	for _, ent := range entries {
 		name := ent.Name()
-		if name == "_index.md" || name == "add-an-estate.md" || !strings.HasSuffix(name, ".md") {
+		if name == "_index.md" || name == "add-an-estate.md" || name == "contribute.md" || !strings.HasSuffix(name, ".md") {
 			continue
 		}
 		if _, ok := a.Result(strings.TrimSuffix(name, ".md")); !ok {
@@ -195,6 +200,9 @@ func renderSpec(m *Manifest, a *Artifact) string {
 		w("| `%s` | %s | %s | %s |", e.Name, e.Lane, mdCell(e.Pin), mdCell(e.Reason))
 	}
 	w("")
+	w("## Contributing compute")
+	w("")
+	w("%s", contributeProse())
 	w("## The artifact")
 	w("")
 	w("`%s` carries `schema`, `commit`, `emulator`, `generated`, the `stages`", ArtifactPath)
@@ -452,4 +460,50 @@ func firstSentence(s string) string {
 		return s[:i+1]
 	}
 	return s
+}
+
+// contributeProse is the "contribute compute" text, shared by the spec and
+// the site page so the two never disagree.
+func contributeProse() string {
+	return strings.TrimSpace(`
+Anyone can move the bars by spending tokens rather than time. The loop is
+deterministic, so it needs no coordinator:
+
+` + "```" + `
+go run ./tools/gauntlet next        # the next unit: an estate and the first active stage it does not pass
+just contribute [max-usd]           # one worker run on that unit, in a fresh worktree, with your own key
+` + "```" + `
+
+` + "`just contribute`" + ` runs Claude Code headless under the brief in
+` + "`" + WorkerBriefPath + "`" + `, which does exactly one unit: run the estate, classify every
+difference from stock with the four-row table in HANDOFF.md, fix it generically,
+re-run, render, and open a pull request whose title carries the unit ID. It
+never merges. The same thing runs on GitHub Actions from your fork:
+` + "`.github/workflows/contribute.yml`" + ` is ` + "`workflow_dispatch`" + `, reads your fork's
+` + "`ANTHROPIC_API_KEY`" + ` secret, and opens the pull request against this repository when
+a ` + "`CONTRIBUTE_TOKEN`" + ` with pull-request scope is present, or prints the compare URL
+when it is not. There is no hosted path; every worker runs under the key of
+whoever started it.
+
+Two contributors picking the same unit is expected. The worker checks for an
+open pull request carrying the unit ID before starting and takes the next unit
+if one exists. A pull request that changes only the artifact and the rendered
+docs (a re-run that moved verdicts) is merged automatically once CI passes
+(` + "`.github/workflows/automerge-artifact.yml`" + `); anything that changes code waits for a
+maintainer.
+
+Providers are lanes. A GCP or Azure estate enters the same manifest with its
+own lane, runs the same stages against its own emulator, and ` + "`next`" + ` picks it up
+like any other; an emulator gap is a unit in the emulator's repository.
+`)
+}
+
+// renderContributePage is the site copy of "Contributing compute".
+func renderContributePage() string {
+	var b strings.Builder
+	b.WriteString(frontMatter("Contribute compute", 45))
+	b.WriteString(generatedBanner + "\n\n")
+	b.WriteString(contributeProse())
+	b.WriteString("\n")
+	return b.String()
 }
