@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/check"
@@ -120,16 +121,22 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 	}
 
 	var schemas map[string]providers.Schema
+	// managedTypes is the same read, attributed per provider rather than
+	// merged: it is what lets this instrument draw the data-read phase's
+	// provider boundary where a real live-plan draws it. See
+	// [check.Context.ProviderManagedTypes].
+	var managedTypes map[addrs.Provider]map[string]bool
 	if coreOpts, err := c.contextOpts(ctx); err == nil {
 		provs := newStatelessProviders(load.Config, coreOpts.Plugins)
 		schemas = provs.resourceSchemas(ctx)
+		managedTypes = provs.managedTypesByProvider(ctx)
 		// A close failure is not this command's news: it read schemas and
 		// is done with the plugins. A provider that would not launch
 		// already shows up as absent schemas, which the report states.
 		_ = provs.close(ctx)
 	}
 
-	report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
+	report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas, ProviderManagedTypes: managedTypes})
 	report.Load = load
 	// After Analyze, not inside it: the static evaluator is lazy, so most
 	// variables are first read during identity resolution and the unset set
