@@ -52,6 +52,29 @@ set -uo pipefail
 # never edited to remove it - DELTA discipline below confirms byte-
 # identical.
 #
+# UPDATE 2026-08-21: `-target` scopes cold deploy and the final core plan
+# fine, but does NOT scope choudoufu's stateless live-plan identity
+# resolution/discovery/stamping passes at all - confirmed by reading
+# internal/command/live_plan.go: args.Operation.Targets is threaded only
+# into the final tfCtx.Plan() call, after statelessResolve/
+# statelessDataReads/statelessDiscover/statelessStamp have already walked
+# the entire configs.Config. Those passes hit aws_budgets_budget's own
+# identity requirement (account_id has no value anywhere in this module,
+# by design - AWS defaults it to the caller's account) and refuse hard with
+# "Identity argument not set", even though the resource was never targeted.
+# Confirmed NOT a floci or choudoufu-admission question: a plain
+# `tofu plan -target=<the same 3 resources>` against the identical
+# unmodified module succeeds cleanly (Plan: 3 to add) - stock prunes the
+# untargeted resource out of the graph before anything ever evaluates it.
+# This is a real, new, generalizable choudoufu parity defect (HANDOFF.md
+# label 2, "OpenTofu succeeds, choudoufu refuses"), filed as
+# https://github.com/INTENTIUS/choudoufu/issues/352, and it is what stage 3
+# below now fails on - not lex00/floci#88, which is fixed and is why stage 2
+# clears for the first time this session. Not fixed here: the fix threads
+# Targets through several stateless functions with real dependency-chain
+# and count/for_each-expansion implications, which is its own piece of
+# careful work.
+#
 # THE OTHER SCOPING DECISION, avoided rather than made: modules/monitoring/
 # terraform.tofu pins `aws ~> 5.0`, real and unedited, incompatible with the
 # `= 6.59.0` every other opentofu-native crossing in this repo pins at its

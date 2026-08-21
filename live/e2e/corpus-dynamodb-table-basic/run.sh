@@ -81,6 +81,30 @@ set -uo pipefail
 # Out of scope to fix here; tracked at lex00/floci#86, not folded into this
 # estate's own product debt (#314 above).
 #
+# UPDATE 2026-08-21: lex00/floci#86 is fixed (build e61a987, both PutWarmPool
+# and the ResourcePolicy trio implemented). Stage 1 now clears for real:
+# `Apply complete! Resources: 3 added, 0 changed, 0 destroyed.` The estate's
+# wall moves past cold deploy into MIGRATE's own tofu-slot convergence apply
+# (see the TOFU-SLOT FINDING elsewhere in this repo, corpus-iam-policy's
+# header) - a NEW, confirmed floci gap, not a choudoufu one: floci's
+# `DescribeTable` never returns a GSI's `OnDemandThroughput` (confirmed via
+# `aws dynamodb describe-table`, direct, no choudoufu), so the AWS provider's
+# own Read always drops it from state, and the very next plan against this
+# module's config - which declares an explicit `on_demand_throughput` on its
+# one GSI - proposes replacing the GSI in place on a table that has not
+# drifted at all. Reproduced with PLAIN stock `terraform plan` against the
+# identical cold-deploy state and the same live floci table, zero choudoufu
+# code touched: `Plan: 0 to add, 1 to change, 1 to destroy`. HANDOFF.md label
+# 1, "OpenTofu fails here too" - PARITY, not a choudoufu defect. Applying
+# that GSI-replace plan (which the tofu-slot convergence apply's ordinary
+# `apply` does, since it recomputes the full diff, not just the tofu-slot
+# tag) then hangs and fails for real: `waiting for update AWS DynamoDB Table:
+# GSI (TitleIndex): couldn't find resource (21 retries)`. Filed as
+# https://github.com/lex00/floci/issues/91 with both reproductions. Stage 2
+# (migrate) therefore still does not complete, for a different, now-real
+# reason than before - test plan/test apply/drift-reconverge remain
+# unreached, and this script does not claim otherwise.
+#
 #   bash live/e2e/corpus-dynamodb-table-basic/run.sh
 #
 # Needs Docker, the AWS CLI, and the real `terraform` binary on PATH for
@@ -122,7 +146,10 @@ cleanup() {
   docker rm -f "$FLOCI_NAME" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
-trap cleanup EXIT
+# 2026-08-21 fix: the header documents DEBUG_KEEP but the trap never
+# actually checked it - it always ran. Matched to every other corpus-*
+# script's guard.
+[ -n "${DEBUG_KEEP:-}" ] || trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -231,7 +258,18 @@ log ""
 # ordinary apply to converge tofu-slot
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
-perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = "= 6\.59\.0"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}/' "$EX/versions.tf"
+# 2026-08-21 fix: the original regex assumed required_providers held ONLY
+# the aws entry (immediately followed by required_providers's own closing
+# brace, then the terraform block's). This example's versions.tf also
+# declares a `random` provider inside required_providers - present at the
+# same commit this crossing pins (v5.5.1, 02b2d66a; not a corpus pin drift,
+# confirmed by inspecting .corpus/dynamodb-table/examples/basic/versions.tf
+# directly), so the old anchor never matched anything and the script never
+# actually got this far before (stage 1 was blocked by lex00/floci#86 until
+# now). Anchored on the true end of the file instead - the terraform
+# block's own final closing brace - which is shape-independent of whatever
+# required_providers holds.
+perl -0777pi -e 's/\}\n\z/\n  live {\n    estate = "'"$ESTATE"'"\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }\n}\n/' "$EX/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EX/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
 
 # THE RANDOM_PET GAP (see header): pin the already-applied pet value as a
@@ -252,10 +290,22 @@ rm -f "$EX/terraform.tfstate" "$EX/terraform.tfstate.backup"
 
 IMPORT_OUT="$(cd "$EX" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -no-color 2>&1)"; IMPORT_RC=$?
 [ "$IMPORT_RC" -eq 0 ] || { printf '%s\n' "$IMPORT_OUT" | tail -40; fail "live-import (dry run) failed"; }
-grep -qF "2 of 2 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
-  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 2 of 2 taggable resources as eligible (the table + the resource policy is untaggable/parent-derived - see below) - the corpus pin or the fix under test has moved"; }
+# 2026-08-21 fix: this was written speculatively before stage 1 ever cleared
+# (it was blocked on lex00/floci#86), and got the eligible count wrong -
+# "2 of 2" assumed the resource policy was taggable. Run for real, it is
+# not: aws_dynamodb_resource_policy has no `tags` argument in the provider's
+# schema at all (genuinely UNTAGGABLE, not a choudoufu gap), and
+# random_pet.this is a record-backed value with no live object to tag
+# (seeded into the record store instead - the same DELTA 3 shape this
+# script's own header describes). So exactly 1 of the 3 resource instances
+# (the table) is eligible for stamping; the other 2 are UNTAGGABLE for two
+# different, both legitimate, reasons.
+grep -qF "1 of 3 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 1 of 3 resource instances as eligible (the table alone - the resource policy is untaggable, random_pet is record-backed) - the corpus pin or the fix under test has moved"; }
+grep -qF "UNTAGGABLE (2)" <<< "$IMPORT_OUT" \
+  || { printf '%s\n' "$IMPORT_OUT"; fail "expected exactly 2 UNTAGGABLE resource instances (the resource policy and random_pet.this)"; }
 grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
-log "  dry run: 2 of 2 eligible; nothing written yet"
+log "  dry run: 1 of 3 eligible (the table); 2 UNTAGGABLE (resource policy has no tags argument; random_pet is record-backed); nothing written yet"
 
 APPROVE_OUT="$(cd "$EX" && "$TOFU" live-import -state="$WORK/cold.tfstate" -estate="$ESTATE" -approve -no-color 2>&1)"; APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -40; fail "live-import -approve failed"; }
