@@ -402,6 +402,36 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // for. aws_lambda_function.vpc_config is the case that would want it; on
 // the crossing that ran for issue #275 it is also a floci gap, so nothing
 // yet demands it. A block-shaped residue is its own piece of work.
+//
+// # Required, Optional and Computed are not asked here
+//
+// An earlier version of this filter also required the attribute to be
+// Required or Optional, on the reasoning that a purely Computed attribute
+// "cannot be set in configuration, so there is nothing to remember". The
+// corpus-xancloud-iac crossing refuted that: aws_nat_gateway's
+// regional_nat_gateway_address is Computed only (AWS populates it for
+// regional NAT gateways, which this one is not, so the live value is an
+// empty set - confirmed directly against the emulator's own
+// DescribeNatGateways response), yet the provider's Read does not
+// re-derive it from a bare identity-only prior - it leaves whatever the
+// prior held, which [identityOnly] set to null, and OpenTofu's plan then
+// marks a null Computed attribute "known after apply" forever. That is
+// exactly the shape [classifyResidue] exists to catch; only the schema
+// population was too narrow to let it try. There IS something to remember
+// for a Computed attribute: the value the last successful read produced,
+// which is exactly what "the value the apply produced" (this file's own
+// framing, above) already means for an attribute nothing ever sets.
+//
+// Safety does not come from this population restriction and never did: it
+// comes from [classifyResidue]'s two-read discriminator (a candidate is
+// only ever recorded when read A proves the provider does not source it
+// from the remote AND read B proves the provider merely preserves the
+// prior) and from [fillResidue]'s own rule that a record may only ever
+// fill a read that currently carries no information. A Required attribute
+// cannot be Computed at the same time (the protocol forbids the
+// combination) and reaches here harmlessly; the identity stays excluded by
+// [residueIdentityAttrs] regardless of Required/Optional/Computed, which is
+// why removing this restriction does not reopen the identity question.
 func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil
@@ -414,9 +444,6 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 	var out []string
 	for name, attr := range schema.Block.Attributes {
 		if attr == nil || identityAttrs[name] {
-			continue
-		}
-		if !attr.Required && !attr.Optional {
 			continue
 		}
 		if attr.Sensitive || attr.WriteOnly {
@@ -976,6 +1003,14 @@ func identityOnly(obj cty.Value, identityAttrs map[string]bool) (cty.Value, erro
 // converted. Converting would be guessing at what an older provider version
 // meant, and a wrong prior-state value produces an empty plan that is
 // wrong.
+//
+// This switch no longer asks whether schemaAttr is Required or Optional,
+// symmetrically with [residueCandidates] dropping the same question: a
+// record for a purely Computed attribute (aws_nat_gateway's
+// regional_nat_gateway_address is the case that found this) is exactly as
+// safe to fill as one for an Optional+Computed attribute, because the
+// safety is the "current read carries no information" test two lines
+// above, not the schema's Required/Optional/Computed shape.
 func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value) (cty.Value, int) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || block == nil || len(attrs) == 0 {
 		return obj, 0
@@ -990,7 +1025,6 @@ func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.
 		switch {
 		case !recorded, !carriesNoInformation(cur), schemaAttr == nil,
 			schemaAttr.Sensitive, schemaAttr.WriteOnly,
-			!schemaAttr.Required && !schemaAttr.Optional,
 			rec.IsNull(), !rec.IsWhollyKnown(), rec.IsMarked(),
 			!rec.Type().Equals(ty):
 			out[name] = cur

@@ -66,10 +66,38 @@ set -uo pipefail
 # RESOLVED 2026-08-21 (lex00/floci#96, squash-merged as 17c7f7ef, published
 # sha256:cdd50ec0...): CreateFlowLogs/DescribeFlowLogs now carry
 # DeliverLogsPermissionArn, so aws_flow_log.iam_role_arn round-trips and the
-# force-replace this stage used to assert is gone. Only the pre-existing,
-# harmless #327 NAT-gateway residual remains (see stage 3's own header below)
-# - stage 3 is narrower than before but still not empty, so stages 4-5 are
-# still not attempted.
+# force-replace this stage used to assert is gone. What remained after that
+# was the pre-existing #327 NAT-gateway residual - a single in-place update
+# to aws_nat_gateway.this["main-0"], "+ regional_nat_gateway_address =
+# (known after apply)". RESOLVED 2026-08-21 (choudoufu, not floci):
+# regional_nat_gateway_address is Computed only (this NAT gateway is not a
+# "regional" one - connectivity_type is plain "public", confirmed directly
+# against floci's own DescribeNatGateways response for this object, which
+# carries no such field at all), and internal/live/projection's residue
+# mechanism (issue #275/#327) used to refuse to consider a purely Computed
+# attribute a residue candidate at all ("it cannot be set in configuration,
+# so there is nothing to remember"). That reasoning undercounted a real
+# case: the provider's Read does not re-derive this attribute from a bare
+# identity-only prior, it leaves whatever the prior held (null, from
+# [identityOnly]), and OpenTofu's plan marks a null Computed attribute
+# "known after apply" forever - exactly the shape residue.go's own
+# classifyResidue exists to catch, just for a Computed-only attribute
+# rather than an Optional+Computed one. Fixed generically in
+# internal/live/projection/residue.go: residueCandidates and fillResidue no
+# longer ask whether an attribute is Required or Optional, only whether it
+# is the identity, sensitive, write-only, or NestedType-shaped - safety
+# comes from classifyResidue's own two-read discriminator (a candidate is
+# only ever recorded when the provider provably does not source it from
+# the remote), not from that schema-shape filter. Re-crossed for real: the
+# NAT gateway residue (regional_nat_gateway_address = an empty set, the
+# genuine live value) is now recorded during migrate's live-import
+# -approve, filled back into the stateless prior on the first live-plan,
+# and stage 3's plan is empty. Every `aws_*` type whose schema carries a
+# purely Computed, non-identity, non-sensitive, non-write-only, non-nested
+# attribute the provider's Read does not re-derive from a bare prior is
+# reached by this same fix - see the PR for the corpus-wide candidate
+# count. Stages 4-5 are attempted next, in a later unit: this is the first
+# run where stage 3 passes at all.
 #
 # GitHub issue #347's own history is worth keeping here rather than only in
 # the tracker: lex00/floci#78 (CreateFlowLogs ignoring TagSpecifications)
@@ -464,43 +492,28 @@ gauntlet_stage migrate pass "live-import -approve completed cleanly against the 
 CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGE 3: TEST PLAN - genuinely BLOCKED, asserted deterministically rather
-# than skipped. One real, pre-existing, filed gap remains - not a
-# choudoufu-vs-floci ambiguity, traced to its own root cause before filing
-# (see header):
-#   - aws_nat_gateway.this["main-0"] will be updated in-place: the
-#     PRE-EXISTING harmless residue-mechanism gap #327 traced (a computed,
-#     non-destructive regional_nat_gateway_address becoming known) - #327's
-#     own fix already resolved the ForceNew half of this (allocation_id,
-#     subnet_id no longer force a replace); what remains is an ordinary
-#     Computed-attribute update, not a defect.
-#   RESOLVED as of this re-cross: lex00/floci#87 (aws_flow_log.cloudwatch
-#   ["main"] must be replaced - iam_role_arn (ForceNew) used to read back
-#   null on the stateless prior and force a replace) is FIXED by
-#   lex00/floci#96 (CreateFlowLogs/DescribeFlowLogs now carry
-#   DeliverLogsPermissionArn). Re-crossed for real against
-#   sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9:
-#   aws_flow_log no longer appears anywhere in stage 3's plan.
+# STAGE 3: TEST PLAN - now genuinely empty. Both real gaps that used to
+# reach this point are resolved (see header): lex00/floci#87 (fixed by
+# lex00/floci#96) and the #327 NAT-gateway residual (fixed in this repo -
+# residueCandidates/fillResidue no longer exclude a purely Computed
+# attribute by schema shape alone).
 # ══════════════════════════════════════════════════════════════════════════
-log "=== STAGE 3: no state file, live-plan (expected non-empty - see header) ==="
+log "=== STAGE 3: no state file, live-plan (expected empty) ==="
 rm -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate.backup"
 [ ! -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "the state file is still there"
 
 plan_into() { ( cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" live-plan -input=false -no-color ); }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC (expected 0 - a non-empty plan is not the same as a plan error)"; }
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
-grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$PLAN_OUT" \
-  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 0 to add, 1 to change, 0 to destroy.' - if this moved, the documented cause above may have changed shape"; }
-grep -qE 'module.vpc.aws_nat_gateway.this\["main-0"\] will be updated in-place' <<< "$PLAN_OUT" \
-  || fail "expected 'module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place' as the sole proposed change"
-grep -qE 'aws_flow_log' <<< "$PLAN_OUT" \
-  && fail "aws_flow_log appears in the plan again - lex00/floci#87 may have regressed"
-log "  non-empty plan, the sole proposed change traced: the pre-existing harmless NAT"
-log "  gateway in-place update (#327's own fix already resolved its ForceNew half)."
-log "  lex00/floci#87's aws_flow_log.iam_role_arn gap is FIXED (lex00/floci#96) and no"
-log "  longer appears in this plan at all."
+grep -qF "No changes. Your infrastructure matches the configuration." <<< "$PLAN_OUT" \
+  || { grep -E '^  #' <<< "$PLAN_OUT"; fail "expected an empty plan ('No changes. Your infrastructure matches the configuration.') - if this moved, the documented cause above may have changed shape"; }
+grep -qE '^  # .*aws_nat_gateway' <<< "$PLAN_OUT" \
+  && fail "aws_nat_gateway has a proposed change again - the regional_nat_gateway_address residue fix may have regressed"
+grep -qE '^  # .*aws_flow_log' <<< "$PLAN_OUT" \
+  && fail "aws_flow_log has a proposed change again - lex00/floci#87 may have regressed"
+log "  empty plan: no resource change proposed."
 
 # Re-assert the VPC's identity directly against the AWS CLI, after the
 # local state file was deleted - the answer below can only have come from
@@ -525,13 +538,12 @@ if [ "${BREAK:-}" = "1" ]; then
 fi
 
 log ""
-log "STAGE 3 (test plan): BLOCKED (deterministic) - 1 proposed change, the pre-existing harmless NAT gateway update (#327); lex00/floci#87 is fixed and no longer appears"
+log "STAGE 3 (test plan): PASS"
 log ""
-gauntlet_stage test_plan fail "1 proposed change - the pre-existing harmless NAT gateway update (#327)"
+gauntlet_stage test_plan pass "no resource change proposed"
 
-log "=== STAGES 4-5: NOT ATTEMPTED - both need a genuinely empty first plan as their ==="
-log "=== starting point, which stage 3 does not reach against this floci image/main  ==="
-gauntlet_stage test_apply not_run "needs a genuinely empty first plan as its starting point, which stage 3 does not reach"
-gauntlet_stage drift_reconverge not_run "needs a genuinely empty first plan as its starting point, which stage 3 does not reach"
+log "=== STAGES 4-5: NOT YET WRITTEN - stage 3 only just started passing in this run ==="
+gauntlet_stage test_apply not_run "not yet written - stage 3 only just started passing in this run"
+gauntlet_stage drift_reconverge not_run "not yet written - same reason"
 CURRENT_STAGE=""
 gauntlet_end
