@@ -175,7 +175,7 @@ func TestAdmissionEvidenceAgainstProviderSchemas(t *testing.T) {
 	}
 
 	// The live schemas, and the strict client-named judgment over them.
-	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
+	schemas, _, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
 	if err != nil {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}

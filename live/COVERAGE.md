@@ -26,11 +26,11 @@ them moves. The prose on this page quotes none of the numbers.
 | Layer | Count | What stands between it and support |
 | ----- | ----- | ---------------------------------- |
 | Round-trip proven against the emulator | 4 of 31 cohorts | Nothing. Applied, state deleted, replanned empty (`live/cohort-acceptance.json`). |
-| Admitted (the shipped table) | 1040 types | Nothing at lint. Runtime support varies by type; see the layers below. |
+| Admitted (the shipped table) | 1038 types | Nothing at lint. Runtime support varies by type; see the layers below. |
 | Pastable proposals (server-assigned 574, client-named 476, composite 152, assembled 33) | 1235 types | A ratification batch: paste, fixture, test. |
 | Needs a hand separator | 77 types | One one-character import-separator decision each. |
-| Evidence-only | 314 types | An identity-argument name no current evidence source states. |
-| Fold-children | 73 types | Nothing of their own; identity is the parent's. |
+| Evidence-only | 315 types | An identity-argument name no current evidence source states. |
+| Fold-children | 72 types | Nothing of their own; identity is the parent's. |
 | Classified in total | 1699 of 1699 provider types | The layers above partition this set. |
 | Of those, with no CloudFormation model | 310 cfn-unmodeled, 116 tf-only, 0 deprecated-service, 13 unclassified | Classified from the provider's own import documentation alone, not from the CFN registry. See `live/LIMITATIONS.md`'s exclusion cohorts. |<!-- survey-gen:end coverage-layers -->
 
@@ -38,7 +38,7 @@ them moves. The prose on this page quotes none of the numbers.
 
 The admission table is the entire subset of resource types live markers can
 manage. It holds <!-- survey-gen:begin contract-count -->
-1040<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
+1038<!-- survey-gen:end contract-count --> types: <!-- survey-gen:begin contract-types -->
   `aws_accessanalyzer_analyzer`, `aws_accessanalyzer_archive_rule`,
   `aws_acm_certificate`, `aws_acmpca_certificate_authority`,
   `aws_acmpca_certificate_authority_certificate`, `aws_acmpca_policy`,
@@ -295,10 +295,9 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_inspector_resource_group`, `aws_instance`, `aws_internet_gateway`,
   `aws_internet_gateway_attachment`, `aws_internetmonitor_monitor`,
   `aws_invoicing_invoice_unit`, `aws_iot_authorizer`, `aws_iot_billing_group`,
-  `aws_iot_ca_certificate`, `aws_iot_domain_configuration`,
-  `aws_iot_event_configurations`, `aws_iot_policy`,
-  `aws_iot_provisioning_template`, `aws_iot_role_alias`, `aws_iot_thing`,
-  `aws_iot_thing_group`, `aws_iot_thing_group_membership`,
+  `aws_iot_domain_configuration`, `aws_iot_event_configurations`,
+  `aws_iot_policy`, `aws_iot_provisioning_template`, `aws_iot_role_alias`,
+  `aws_iot_thing`, `aws_iot_thing_group`, `aws_iot_thing_group_membership`,
   `aws_iot_thing_type`, `aws_iot_topic_rule`, `aws_ivs_channel`,
   `aws_ivs_recording_configuration`, `aws_ivschat_logging_configuration`,
   `aws_ivschat_room`, `aws_kendra_data_source`, `aws_kendra_faq`,
@@ -323,7 +322,7 @@ manage. It holds <!-- survey-gen:begin contract-count -->
   `aws_licensemanager_association`, `aws_lightsail_bucket`,
   `aws_lightsail_bucket_resource_access`, `aws_lightsail_certificate`,
   `aws_lightsail_container_service`, `aws_lightsail_database`,
-  `aws_lightsail_disk`, `aws_lightsail_distribution`, `aws_lightsail_domain`,
+  `aws_lightsail_disk`, `aws_lightsail_distribution`,
   `aws_lightsail_domain_entry`, `aws_lightsail_instance`, `aws_lightsail_lb`,
   `aws_lightsail_lb_attachment`, `aws_lightsail_lb_certificate`,
   `aws_lightsail_lb_certificate_attachment`, `aws_lightsail_static_ip`,

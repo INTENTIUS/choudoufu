@@ -39,9 +39,18 @@ type surveyEntry struct {
 // found again without reading its identity from configuration, the other
 // being live/registry.json's CloudFormation list handler joined through
 // live/mapping.json.
+//
+// Importable is survey-gen's ImportResourceState probe (issue #331): whether
+// the provider reports a classic Importer for the type at all, independently
+// of whether a resource identity schema exists or the type is taggable.
+// notimportable.go is the one rule that consults it - a wire identity schema
+// or a taggable-based marker path can both be real and the type can still
+// have no Importer behind it, which fails a live-import before either
+// mechanism ever runs.
 type surveySignals struct {
 	Taggable     bool `json:"taggable"`
 	ListResource bool `json:"list_resource"`
+	Importable   bool `json:"importable"`
 }
 
 // surveyIdentity is the identity half of a survey entry: the provider's own

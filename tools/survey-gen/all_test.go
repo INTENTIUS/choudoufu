@@ -70,7 +70,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 	}
 	curatedRoster := []string{"aws_curated_one", "aws_curated_two"}
 
-	curated := buildSurvey(schemas, curatedRoster, testServiceOf, noEnumeration)
+	curated := buildSurvey(schemas, curatedRoster, testServiceOf, noEnumeration, nil)
 	if curated.Counts.Types != 2 {
 		t.Fatalf("curated survey has %d types, want 2", curated.Counts.Types)
 	}
@@ -80,7 +80,7 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 		}
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration, nil)
 	if full.Counts.Types != 3 {
 		t.Fatalf("full survey has %d types, want 3", full.Counts.Types)
 	}
@@ -100,6 +100,41 @@ func TestBuildSurveyAllRosterSupersedesCurated(t *testing.T) {
 		if !reflect.DeepEqual(cr, fr) {
 			t.Errorf("%s classifies differently under -all:\n  curated: %+v\n  full:    %+v", cr.Type, cr, fr)
 		}
+	}
+}
+
+// TestBuildSurveyImportableSignal is issue #331's own field: buildSurvey
+// records exactly what the importable map says for each type, a type absent
+// from the map reads as not importable (schemas.go's probe always covers
+// every ResourceTypes key, so absence here would mean the probe never ran
+// for it), and the signal never leaks onto a type it was not measured for.
+func TestBuildSurveyImportableSignal(t *testing.T) {
+	schemas := providers.GetProviderSchemaResponse{
+		ResourceTypes: map[string]providers.Schema{
+			"aws_has_importer": fakeAllSchema(true),
+			"aws_no_importer":  fakeAllSchema(true),
+			"aws_unmeasured":   fakeAllSchema(true),
+		},
+	}
+	importable := map[string]bool{
+		"aws_has_importer": true,
+		"aws_no_importer":  false,
+	}
+
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, noEnumeration, importable)
+	rows := map[string]Row{}
+	for _, r := range full.Types {
+		rows[r.Type] = r
+	}
+
+	if !rows["aws_has_importer"].Signals.Importable {
+		t.Errorf("aws_has_importer: Signals.Importable = false, want true")
+	}
+	if rows["aws_no_importer"].Signals.Importable {
+		t.Errorf("aws_no_importer: Signals.Importable = true, want false")
+	}
+	if rows["aws_unmeasured"].Signals.Importable {
+		t.Errorf("aws_unmeasured: Signals.Importable = true for a type absent from the probe map, want false")
 	}
 }
 
@@ -124,14 +159,14 @@ func TestWriteSurveysCuratedBytesIndependentOfAll(t *testing.T) {
 	}
 
 	var log bytes.Buffer
-	if err := writeSurveys(rootWithout, schemas, roster, false, false, "", &log); err != nil {
+	if err := writeSurveys(rootWithout, schemas, nil, roster, false, false, "", &log); err != nil {
 		t.Fatalf("writeSurveys without -all: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(rootWithout, surveyFullJSONRel)); !os.IsNotExist(err) {
 		t.Errorf("writeSurveys without -all must not write %s (stat err: %v)", surveyFullJSONRel, err)
 	}
 
-	if err := writeSurveys(rootWith, schemas, roster, true, false, "", &log); err != nil {
+	if err := writeSurveys(rootWith, schemas, nil, roster, true, false, "", &log); err != nil {
 		t.Fatalf("writeSurveys with -all: %v", err)
 	}
 
@@ -185,10 +220,10 @@ func TestWriteSurveysAcceptStampsHeader(t *testing.T) {
 
 	var log bytes.Buffer
 	const today = "2026-08-12"
-	if err := writeSurveys(rootAccepted, schemas, roster, true, true, today, &log); err != nil {
+	if err := writeSurveys(rootAccepted, schemas, nil, roster, true, true, today, &log); err != nil {
 		t.Fatalf("writeSurveys with -accept: %v", err)
 	}
-	if err := writeSurveys(rootUnaccepted, schemas, roster, true, false, "", &log); err != nil {
+	if err := writeSurveys(rootUnaccepted, schemas, nil, roster, true, false, "", &log); err != nil {
 		t.Fatalf("writeSurveys without -accept: %v", err)
 	}
 

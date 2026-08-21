@@ -41,12 +41,12 @@ func TestSurveyJSONMatchesProviderSchemas(t *testing.T) {
 		t.Fatalf("reading the roster from %s: %v", surveyMDRel, err)
 	}
 
-	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
+	schemas, importable, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
 	if err != nil {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}
 
-	got, err := buildSurvey(schemas, rosterTypes(roster), testServiceOf, testEnumeration).marshal()
+	got, err := buildSurvey(schemas, rosterTypes(roster), testServiceOf, testEnumeration, importable).marshal()
 	if err != nil {
 		t.Fatalf("marshaling the regenerated survey: %v", err)
 	}
@@ -128,12 +128,12 @@ func TestSurveyFullJSONMatchesProviderSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
+	schemas, importable, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
 	if err != nil {
 		t.Fatalf("acquiring the provider schemas: %v", err)
 	}
 
-	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, testEnumeration)
+	full := buildSurvey(schemas, allResourceTypeNames(schemas), testServiceOf, testEnumeration, importable)
 	full.GeneratedBy = "tools/survey-gen (go run ./tools/survey-gen -all)"
 	got, err := full.marshal()
 	if err != nil {
