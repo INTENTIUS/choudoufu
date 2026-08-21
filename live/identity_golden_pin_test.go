@@ -235,7 +235,17 @@ var identityGoldenPin = map[string]int{
 	// the record-backed parent contribute no row here, because a
 	// PARENT_DERIVED identity renders empty in this sweep. No pre-existing
 	// row moved.
-	"CONCRETE": 775,
+	// 776, up from 775 (issue #326, kubernetes_config_map's ratified row):
+	// one ADDED row, internal/live/identity/testdata/kubernetes-config-map's
+	// kubernetes_config_map.present, rendering the real, current
+	// hashicorp/kubernetes provider's own documented import example shape
+	// verbatim (NAMESPACE/NAME, read out of the required metadata block via
+	// identity.Component.Block). The fixture's one adversarial sibling
+	// (no_namespace, metadata.namespace absent) contributes no row - the
+	// half that has to hold, since namespace is Optional in the provider's
+	// own schema and a resolver that defaulted it would fabricate an
+	// identity the configuration never stated. No pre-existing row moved.
+	"CONCRETE": 776,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -639,7 +649,16 @@ var identityGoldenPin = map[string]int{
 // identity row where it had none, and gives lint a class that admits it under
 // a record_store, and neither of those can move an existing resource's
 // rendered identity - a MODIFIED row here would have meant it had.
-const identityGoldenPinBodyDigest = "f810e2e3ed824846a905fa75d2906ed2b1537775d074a6bf5a6379eef2c41b86"
+// 2026-08-20 (issue #326, kubernetes_config_map's ratified row): body digest
+// moved because one more row was ADDED,
+// internal/live/identity/testdata/kubernetes-config-map's
+// kubernetes_config_map.present (see the CONCRETE class comment above and
+// identityGoldenPinInstances' own comment below). TestIdentityGolden's own
+// diff, read before this line was edited, reported "0 identities changed, 1
+// added, 0 removed" - the load-bearing zero, since this is the first row
+// any Kubernetes-provider type has ever contributed to this golden and a
+// MODIFIED or REMOVED row here would have meant an existing marker moved.
+const identityGoldenPinBodyDigest = "5f6b53c201f5a6674e299b175312cd6ec638bc2f53c131c5f1a5a84c0fb85b68"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1032,8 +1051,20 @@ const identityGoldenPinBodyDigest = "f810e2e3ed824846a905fa75d2906ed2b1537775d07
 // instance line at all, because all three of its children still refuse -
 // that directory being absent from the golden is the adversarial half
 // holding.
+// 2026-08-20 (issue #326, kubernetes_config_map's ratified row): instances
+// 1571 -> 1572 and dirs 503 -> 504. 0 changed, 1 added, 0 removed - the zero
+// changed is the load-bearing half, since nothing about admitting this type
+// touches how any existing resource's identity renders.
+//
+// One new fixture root, internal/live/identity/testdata/kubernetes-config-map,
+// contributing exactly one instance: kubernetes_config_map.present, CONCRETE,
+// rendering the real provider's own documented NAMESPACE/NAME import example
+// shape verbatim. Its adversarial sibling (no_namespace, metadata.namespace
+// absent) contributes no row at all - the half that has to hold, the same
+// "wrong marker outranks a missing one" discipline every other addition
+// above holds to.
 const (
-	identityGoldenPinInstances = 1571
+	identityGoldenPinInstances = 1572
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1056,7 +1087,16 @@ const (
 	// testdata/identity-golden.txt before and after regenerating: only the
 	// header's "dirs=" line moved, and TestIdentityGolden itself reported
 	// "differs but no instance's identity did".
-	identityGoldenPinDirs = 506
+	//
+	// Then 506 -> 507 dirs and 1571 -> 1572 instances for GitHub issue #326
+	// (merged after #348/#349), kubernetes_config_map's ratified row: one
+	// new fixture root, internal/live/identity/testdata/kubernetes-config-map,
+	// contributing exactly one instance (kubernetes_config_map.present,
+	// CONCRETE, rendering the provider's own documented NAMESPACE/NAME
+	// import example verbatim). Its adversarial sibling (no_namespace,
+	// metadata.namespace absent) contributes no row at all. 0 existing
+	// instances changed, 1 added, 0 removed.
+	identityGoldenPinDirs = 507
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

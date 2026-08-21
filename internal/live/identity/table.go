@@ -46,6 +46,23 @@ type TypeIdentity struct {
 	// this. [SynthesizeTypeIdentity] never produces it.
 	RecordBacked bool
 
+	// NonAWSProvider is true when this type is a real, live object - unlike
+	// RecordBacked - but belongs to a provider other than AWS, so
+	// live/survey-full.json (CloudFormation-registry-backed, and by
+	// construction carrying only the AWS provider's roster) has no row for
+	// it and never will. Issue #326 is the first time the admission table
+	// crossed that line: the four hand-ratified Kubernetes-provider rows
+	// (kubernetes_cluster_role_binding, kubernetes_config_map,
+	// kubernetes_namespace, kubernetes_storage_class). Unlike RecordBacked,
+	// this says nothing about how the type resolves or classifies - it
+	// exists only so live/admission_coverage_test.go's
+	// TestAdmittedTableNamesOnlyTypesTheProviderServes can ask the row
+	// itself which provider-roster artifact backs it, rather than falling
+	// back to a hand-maintained exemption list that would go stale the way
+	// its own doc comment forbids. tools/row-gen never sets it; only a
+	// ratified.json row can.
+	NonAWSProvider bool
+
 	// Components build the import identity by concatenation, in order.
 	// Required unless ServerAssigned or RecordBacked.
 	Components []Component

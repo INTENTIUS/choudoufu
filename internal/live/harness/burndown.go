@@ -385,7 +385,7 @@ func rowgenAnnotationRulings() Entry {
 		Claim: "tools/row-gen/annotations.json is a list of named extractor gaps that only ever shrinks. " +
 			"With unruled mismatches held at zero, nothing else stops the ledger growing, because adding " +
 			"a ruling is always easier than fixing an extractor.",
-		Bound:      147,
+		Bound:      151,
 		Direction:  AtMost,
 		Measured:   AnnotationsJSON,
 		Against:    ConvergenceJSON,
@@ -557,6 +557,26 @@ func rowgenAnnotationRulings() Entry {
 				"resolveArgName matching a flattened prose segment against a nested block's own leaf " +
 				"attribute name, plus a fold-child composite rule proposing a Block-bearing Component. " +
 				"146 + 1 = 147.",
+			"151 on 2026-08-20 (issue #326): the same reviewed upward bump, four newly admitted types " +
+				"and the first non-AWS ones this ledger has ever carried. kubernetes_config_map, " +
+				"kubernetes_namespace, kubernetes_storage_class and kubernetes_cluster_role_binding are " +
+				"hand-ratified from the real, current hashicorp/kubernetes provider docs (the offline " +
+				"cache has no Kubernetes provider data), reusing the Block-field mechanism #310 built for " +
+				"aws_autoscaling_traffic_source_attachment to read metadata.name (all four) and " +
+				"metadata.namespace (kubernetes_config_map only) out of each type's required metadata " +
+				"block. This is not the ledger's usual shape: every prior ruling names a type classify.go " +
+				"reaches but disagrees with; these four have no fresh proposal to disagree with at all, " +
+				"because classifyAll only ever iterates live/mapping.json, which is entirely AWS's own " +
+				"CloudFormation-backed evidence and carries zero rows for any kubernetes_* type - a true " +
+				"not_in_mapped_set case, counted by row-gen -convergence's summary.not_in_mapped_set " +
+				"(15 to 19) rather than compared and mismatched. kubernetes_config_map is the type " +
+				"issue #326 named directly: corpus-eks-basic's test_plan stage was blocked because this " +
+				"type had no marker-carrying identity row, so its resources could never resolve an " +
+				"identity for the stamp layer to write to. Each ruling's exit names the same missing " +
+				"generator capability: classify.go has no second evidence source to propose a non-AWS " +
+				"provider type from at all, so the ruling retires only once row-gen gains one (a " +
+				"Kubernetes-provider import-grammar scrape analogous to importdocs-gen's AWS one). " +
+				"147 + 4 = 151.",
 		},
 		Measure: func(r *Repo) (Reading, error) {
 			a, err := r.Annotations()

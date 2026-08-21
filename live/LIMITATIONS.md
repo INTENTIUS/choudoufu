@@ -3451,7 +3451,9 @@ Multi-configuration behavior is pinned by `internal/live/discovery`'s
 `aws_workspacesweb_trust_store_association`,
 `aws_workspacesweb_user_access_logging_settings_association`,
 `aws_workspacesweb_user_settings_association`, `aws_xray_encryption_config`,
-`aws_xray_resource_policy` and `aws_xray_trace_segment_destination`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
+`aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
+`kubernetes_cluster_role_binding`, `kubernetes_config_map`,
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-admitted --> carry no tags, so a marker-based sweep
 has nothing to search on for any of them. Their identity is built from
 their own configuration, which is a problem the moment a resource block is
 removed rather than destroyed: with no marker to search on and no
@@ -3785,7 +3787,9 @@ per-type reasoning as it stands.
 `aws_vpc_security_group_rules_exclusive`, `aws_vpclattice_auth_policy`,
 `aws_vpclattice_resource_policy`, `aws_wafv2_web_acl_logging_configuration`,
 `aws_workmail_domain`, `aws_xray_encryption_config`,
-`aws_xray_resource_policy` and `aws_xray_trace_segment_destination`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
+`aws_xray_resource_policy`, `aws_xray_trace_segment_destination`,
+`kubernetes_cluster_role_binding`, `kubernetes_config_map`,
+`kubernetes_namespace` and `kubernetes_storage_class`<!-- survey-gen:end untaggable-residue --> are neither taggable nor
 parent-readable: the three ECR registry types are account-level singletons
 with no admitted parent resource to read at all, and the dashboard, the
 KMS alias and the Lambda layer version are each client-named on their own
