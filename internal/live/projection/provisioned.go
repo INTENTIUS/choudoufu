@@ -8,6 +8,7 @@ package projection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -59,15 +60,40 @@ import (
 // with no List of any kind, and internal/configs' validateRecordStoreKeyPrefix
 // refuses an operator key_prefix override rooted here.
 //
-// # At-most-once, deliberately
+// # At-most-once, deliberately, and the window is wider than stock's
 //
 // The record is written by [writeBackProvisioned] AFTER the apply, from the
-// final state, never speculatively before the create. A crash between the
-// provider's create and write-back loses the bit - and that is the same
-// window stock itself has between the create and its own state write. The
-// stronger at-least-once shape (write "pending" before the create, delete
-// it on success) was considered and rejected for issue #353's decision 2:
-// match stock and go no further.
+// final state, never speculatively before the create. The stronger
+// at-least-once shape (write "pending" before the create, delete it on
+// success) was considered and rejected for issue #353's decision 2: match
+// stock and go no further. That decision stands.
+//
+// What does not stand is the sentence this comment used to carry, that a
+// crash loses "the same window stock itself has between the create and its
+// own state write". Stock's window is milliseconds; this one is the rest of
+// the apply. Anyone reasoning about crash safety from the old sentence was
+// reasoning from a false premise, so the real shape, measured against the
+// code rather than assumed:
+//
+//   - Stock persists CONTINUOUSLY. internal/backend/local's StateHook
+//     writes on every PostStateUpdate as the graph walks, and
+//     [backendLocal.Local.opWait] force-persists the moment an interrupt
+//     arrives. A stock apply killed partway through has already written
+//     the taint for a resource that finished minutes earlier.
+//   - This runs ONCE. backend_apply.go calls WriteBack after
+//     lr.Core.Apply has returned for the WHOLE graph. Everything a long
+//     multi-resource apply does after the failing provisioner sits inside
+//     the exposure, not milliseconds of it.
+//   - Two paths skip it outright rather than merely racing it: a forceful
+//     cancel (a second interrupt, opWait returning canceled) returns
+//     before the call is reached, and a statemgr.WriteAndPersist failure
+//     returns before it too.
+//
+// Losing the bit costs a later plan that reads a half-provisioned object as
+// healthy, which is the defect issue #353 is about. Closing the window means
+// writing before the create runs, and that is the at-least-once shape
+// decision 2 rejected. Accepting it and saying how wide it is are compatible;
+// accepting it and understating it are not.
 
 // provisionedNamespaceRoot is the literal segment every provisioner-taint
 // key lives under. It is a different literal from [recordNamespaceRoot]
@@ -248,19 +274,66 @@ func (s *ProvisionedStore) Put(ctx context.Context, addr addrs.AbsResourceInstan
 //
 // Deleting this record is not deleting anything in the cloud, and cannot
 // be: it is a note that a command failed, and the object it describes is
-// created and destroyed by the ordinary apply through the provider. The
-// reverse case - a key with no configuration behind it, which is what an
-// operator removing the provisioner block while a taint stood would leave -
-// deliberately reaches nothing, because nothing enumerates this namespace.
-// Such a key is inert: it costs a few bytes, is never read again (the read
-// side only consults the store for an instance whose configuration still
-// declares a create-time provisioner), and is overwritten if the block ever
-// comes back and fails again.
+// created and destroyed by the ordinary apply through the provider.
+//
+// The reverse case - a key with no configuration behind it, which is what
+// an operator removing the provisioner block while a taint stood leaves -
+// is not swept, because nothing enumerates this namespace. It sits inert
+// for as long as the block declares no create-time provisioner, since
+// [declaresCreateProvisioners] gates the read as well as the write, and it
+// applies again the moment the block comes back. Stock behaves the same
+// way with its own tainted bit: editing the provisioner block does not
+// clear it, and the next plan still forces a replace.
+//
+// An earlier version of this comment went on to say such a key "is never
+// read again" and "is overwritten if the block ever comes back and fails
+// again". Both halves were wrong, and the second was wrong in the direction
+// that destroys a live resource. The block coming back and SUCCEEDING is
+// the ordinary case, not the edge case, and it used to leave the record
+// standing, so every plan afterwards proposed replacing a healthy object
+// and named a provisioner failure that had already been fixed.
+// [writeBackProvisioned] now clears from the CONFIGURATION rather than from
+// whatever this run's plan happened to read; see its comment for why that
+// is the only gate that closes the case.
 func (s *ProvisionedStore) Delete(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string) error {
 	if s == nil {
 		return nil
 	}
 	return s.store.Delete(ctx, ProvisionedKey(s.estate, addr), expectedVersion)
+}
+
+// currentVersion reports the version the store holds for addr's key right
+// now, "" when the key does not exist - the same convention
+// [staterecord.Store.PutIfVersion] and [staterecord.Store.Delete] use for
+// "nothing is there".
+//
+// It exists because a conditional write needs a version and this run's plan
+// may never have read the key. [builder.applyProvisionedTaint] only reads
+// for an instance the projection actually materialized, and the two cases
+// [writeBackProvisioned] has to clean up after are exactly the ones where
+// it did not: the provider reported the object ABSENT (build.go's
+// statusAbsent returns before the taint is consulted), or the resource
+// block was gone from the configuration.
+//
+// It deliberately does not decode the payload, and so cannot fail the way
+// [ProvisionedStore.Get] fails on a record that names another address or an
+// unknown format version. The caller is about to overwrite or delete the
+// key on the strength of what the FINAL STATE says about the instance, and
+// what the bytes at the key say has no bearing on that: a payload too
+// broken to read is still a payload that must not be left behind to force a
+// replacement of a healthy object.
+func (s *ProvisionedStore) currentVersion(ctx context.Context, addr addrs.AbsResourceInstance) (string, error) {
+	if s == nil {
+		return "", nil
+	}
+	_, version, exists, err := s.store.Get(ctx, ProvisionedKey(s.estate, addr))
+	if err != nil {
+		return "", fmt.Errorf("reading the provisioner record for %s: %w", addr, err)
+	}
+	if !exists {
+		return "", nil
+	}
+	return version, nil
 }
 
 // declaresCreateProvisioners reports whether cfg declares at least one
@@ -387,7 +460,7 @@ const SummaryProvisionedUnreadable = "Provisioner record could not be read"
 // next plan reads a fully-marked, live, unprovisioned object back as
 // healthy. A silent under-run, and one no verdict-level check can see.
 //
-// # Both directions, and why the delete side is bounded
+// # Both directions, and why BOTH are gated on the configuration
 //
 // The write side is gated on the CONFIGURATION declaring a create-time
 // provisioner, not merely on the object being tainted. That is
@@ -398,25 +471,67 @@ const SummaryProvisionedUnreadable = "Provisioner record could not be read"
 // plan) that issue #353 did not scope and did not measure. One question at
 // a time.
 //
-// The delete side walks req.ProvisionedVersions - the records this run's
-// own plan actually read - rather than every instance in the final state.
-// Only a key this run has seen can be conditionally deleted at all (a
-// Delete needs the version), and issuing a blind Delete per instance per
-// apply would be a store round trip for every resource in the estate to
-// remove something that is almost never there. A record for an address
-// this run never planned is left inert, exactly as located.go and
-// residue.go leave theirs, because sweeping it would need the enumeration
-// this whole design refuses to build.
+// The clear side is gated on the same question, and that is a FIX. It used
+// to walk req.ProvisionedVersions instead - the records this run's own plan
+// happened to read - on the assumption that a plan always reads the record
+// for any instance that has one. It does not, and there are two ordinary
+// ways it does not:
 //
-// # Failure is a warning here, unlike on the read side
+//   - The provider reports the object ABSENT. build.go's statusAbsent
+//     branch returns from materialize before applyProvisionedTaint is ever
+//     reached, so nothing is read and nothing is recorded in
+//     ProvisionedVersions.
+//   - The resource block is not in the configuration, so
+//     resourceDeclaresCreateProvisioners is false on a nil block and the
+//     read is skipped for the gate's own reason.
 //
-// A record that cannot be WRITTEN means the next plan will not know the
-// provisioner failed - which is bad, and is said out loud - but the apply
-// has already happened and the live system has already changed. Turning
-// that into a run-stopping error would report a failure for work that
-// succeeded, and would do it after the fact. The read side stops the run
-// because it runs BEFORE anything changes and has a safe answer available;
-// this side does not.
+// Which produces this, reproduced end to end in
+// TestStaleTaintDoesNotSurviveAHealthyRecreate: an apply fails on the
+// provisioner and the record is written, correctly. The operator deletes
+// the half-built object by hand, which is the natural response. The next
+// apply reads it as absent, creates it, and the provisioner SUCCEEDS. The
+// old code took the healthy branch and did not delete, and the versions
+// loop had nothing in it to delete, so the record survived a successful
+// provision. Every plan after that read a live, healthy, correctly
+// provisioned object PLUS a stale record, called it tainted, and said "must
+// be replaced" - destroying a healthy resource carrying real data, and
+// naming a provisioner failure that had already been fixed as the reason.
+// That is a wrong marker rather than a missing one, which HANDOFF.md ranks
+// as the worse of the two for exactly this reason.
+//
+// So the clear side now walks the final state under the same gate as the
+// write side, and asks the store for the key's current version when this
+// run's plan has none ([ProvisionedStore.currentVersion]). The round trip
+// that argument avoided is one Get per PROVISIONER-BEARING instance per
+// apply, not one per resource in the estate: the gate that makes the write
+// side cheap makes the clear side cheap in the same breath, and an estate
+// with no provisioners anywhere still pays nothing at all.
+//
+// A key whose instance declares no create-time provisioner is still left
+// inert, exactly as located.go and residue.go leave theirs. See
+// [ProvisionedStore.Delete] for why that case is parity rather than a leak.
+//
+// # Failure is an ERROR here, matching the record-backed half
+//
+// This side used to raise a warning where [writeBackConflictDiag] raises an
+// error for the identical *staterecord.VersionConflictError, and the
+// argument for the difference was that the apply had already succeeded so a
+// run-stopping error would report a failure for work that succeeded. That
+// argument does not survive looking at what each failure costs:
+//
+//   - A taint that cannot be WRITTEN is a lost bit, and the run it happens
+//     in has already failed anyway - a create-time provisioner failed,
+//     which is what put the object in this state. There is no successful
+//     work to misreport.
+//   - A stale record that cannot be CLEARED is the wrong-marker case above.
+//     It does not lose information, it fabricates it, and what it
+//     fabricates gets a healthy live resource destroyed on the next plan.
+//
+// Both are the silent-under-run this namespace exists to prevent, one by
+// omission and one by invention, and a warning at the tail of a long apply
+// is exactly the kind of thing that gets scrolled past. Loud and one
+// deletion away from fixed beats silent and invisible, which is the same
+// sentence [ProvisionedStore.Get] already justifies the read side with.
 func writeBackProvisioned(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
@@ -424,7 +539,7 @@ func writeBackProvisioned(ctx context.Context, req WriteBackRequest) tfdiags.Dia
 		return diags
 	}
 
-	seen := make(map[string]bool, len(req.ProvisionedVersions))
+	settled := make(map[string]bool, len(req.ProvisionedVersions))
 
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
@@ -456,33 +571,58 @@ func writeBackProvisioned(ctx context.Context, req WriteBackRequest) tfdiags.Dia
 			if ri == nil || ri.Current == nil {
 				continue
 			}
-			if ri.Current.Status != states.ObjectTainted {
-				// Healthy. Any record this run read for it is stale and is
-				// deleted by the loop below, which is what makes a
-				// SUCCEEDING provisioner clear a previous failure's record
-				// rather than leaving the resource replacing itself
-				// forever.
+
+			// From here on this instance's record is this loop's
+			// responsibility whichever way it goes, so the versions loop
+			// below must not touch it again.
+			settled[addr.String()] = true
+
+			version, err := provisionedVersionFor(ctx, req, addr)
+			if err != nil {
+				diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryProvisionedNotRecorded, fmt.Sprintf(
+					"The provisioner record for %s could not be read to settle it after this apply: %s. Whether the next plan re-runs the create-time provisioner on this resource, or proposes replacing it for a failure that is already fixed, now depends on whatever the store still holds. Fix the store and re-plan.",
+					addr, err,
+				)))
 				continue
 			}
 
-			seen[addr.String()] = true
-			if _, err := req.ProvisionedStore.Put(ctx, addr, priorVersion(req.ProvisionedVersions, addr)); err != nil {
-				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryProvisionedNotRecorded, fmt.Sprintf(
-					"A create-time provisioner failed on %s and that could not be recorded: %s. The live object exists and carries this estate's ownership marker, but the next plan will read it back as healthy and will not re-run the provisioner. Taint it by hand, or destroy and re-create it, to have the provisioner run again.",
-					addr, err,
+			if ri.Current.Status == states.ObjectTainted {
+				if _, err := req.ProvisionedStore.Put(ctx, addr, version); err != nil {
+					diags = diags.Append(provisionedWriteDiag(addr, err, fmt.Sprintf(
+						"A create-time provisioner failed on %s and that could not be recorded: %%s. The live object exists and carries this estate's ownership marker, but the next plan will read it back as healthy and will not re-run the provisioner. Taint it by hand, or destroy and re-create it, to have the provisioner run again.",
+						addr,
+					)))
+				}
+				continue
+			}
+
+			// Healthy, and that is the whole of the question: this run
+			// finished with a live object whose create-time provisioner did
+			// not fail, so no record for it can be warranted, whether this
+			// run's plan read one or not.
+			if version == "" {
+				continue
+			}
+			if err := req.ProvisionedStore.Delete(ctx, addr, version); err != nil {
+				diags = diags.Append(provisionedWriteDiag(addr, err, fmt.Sprintf(
+					"The provisioner record for %s, whose create-time provisioner this run ran successfully, could not be deleted: %%s. The resource is healthy; the stale record will make the next plan propose destroying and replacing it, and will name a provisioner failure that has already been fixed as the reason. Delete the key from the record store to stop that.",
+					addr,
 				)))
 			}
 		}
 	}
 
+	// Whatever this run's plan read that the final state no longer has at
+	// all: the ordinary destroy, where there is no instance left for the
+	// loop above to reach.
 	for _, rv := range req.ProvisionedVersions {
-		if seen[rv.Addr.String()] {
+		if settled[rv.Addr.String()] {
 			continue
 		}
 		if err := req.ProvisionedStore.Delete(ctx, rv.Addr, rv.Version); err != nil {
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryProvisionedNotRecorded, fmt.Sprintf(
-				"The provisioner record for %s, whose create-time provisioner this run re-ran, could not be deleted: %s. The resource is fine; the stale record will make the next plan propose replacing it again. Delete the key from the record store to stop that.",
-				rv.Addr, err,
+			diags = diags.Append(provisionedWriteDiag(rv.Addr, err, fmt.Sprintf(
+				"The provisioner record for %s, which this run destroyed, could not be deleted: %%s. Nothing is left for it to describe; the stale record will make the next plan that re-creates this address propose replacing it immediately. Delete the key from the record store to stop that.",
+				rv.Addr,
 			)))
 		}
 	}
@@ -490,7 +630,43 @@ func writeBackProvisioned(ctx context.Context, req WriteBackRequest) tfdiags.Dia
 	return diags
 }
 
-// SummaryProvisionedNotRecorded is the summary of the warning
+// provisionedVersionFor is the version a conditional Put or Delete for addr
+// has to be made against: the one this run's plan read, when it read one,
+// and otherwise whatever the store holds right now.
+//
+// The second half is the whole of Finding 1's fix. priorVersion returns ""
+// both for "this run read no record" and for "there is no record", and the
+// two are not the same thing: a Delete against "" is a documented no-op
+// when the key is absent, but a CONFLICT when the key is there, so a blind
+// Delete would have reported the stale record rather than removing it.
+func provisionedVersionFor(ctx context.Context, req WriteBackRequest, addr addrs.AbsResourceInstance) (string, error) {
+	if v := priorVersion(req.ProvisionedVersions, addr); v != "" {
+		return v, nil
+	}
+	return req.ProvisionedStore.currentVersion(ctx, addr)
+}
+
+// provisionedWriteDiag turns a failed taint write or clear into a
+// run-stopping error, naming both versions when the store rejected a
+// conditional write because another run got there first - the same
+// naming-both-sides discipline [writeBackConflictDiag] uses for the
+// record-backed half, and now the same severity.
+//
+// detailFmt carries exactly one %s, for the error itself, so each caller
+// can say what was being settled and what the operator is left with.
+func provisionedWriteDiag(addr addrs.AbsResourceInstance, err error, detailFmt string) tfdiags.Diagnostics {
+	detail := fmt.Sprintf(detailFmt, err)
+	var vErr *staterecord.VersionConflictError
+	if errors.As(err, &vErr) {
+		detail += fmt.Sprintf(
+			"\n\nAnother writer changed this record between this run's plan and apply: this run expected version %s and the store now holds version %s. Nothing was overwritten.",
+			displayVersion(vErr.ExpectedVersion), displayVersion(vErr.ActualVersion),
+		)
+	}
+	return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, SummaryProvisionedNotRecorded, detail))
+}
+
+// SummaryProvisionedNotRecorded is the summary of the error
 // [writeBackProvisioned] raises when an apply could not record, or could not
 // clear, a create-time provisioner's outcome. Named for
 // [SummaryLocatedNoStore]'s reason.

@@ -37,6 +37,16 @@ set -euo pipefail
 #      provisioner's content and never re-runs one because its command
 #      changed; a hash-and-diff design (explicitly rejected in issue #353)
 #      would propose a replacement here.
+#   4. Steps 13 to 16 walk the other direction, which is the one that
+#      destroys a live resource when it is wrong: the operator deletes the
+#      half-built object BY HAND (through the AWS CLI, not through
+#      choudoufu, which is the natural response to a half-built object), the
+#      next apply re-creates it and the provisioner SUCCEEDS. The record has
+#      to be gone afterwards. It was not, until the fix these steps pin: the
+#      plan that re-created the object read it as ABSENT and so never read
+#      the record, and write-back only cleared records the plan had read. A
+#      healthy bucket was then proposed for destruction on every plan, with
+#      an already-fixed provisioner failure given as the reason.
 #
 #   bash live/e2e/provisioner-taint/run.sh
 #
@@ -388,5 +398,74 @@ grep -qw pt-e2e-app <<< "$LIVE" && fail "pt-e2e-app is still live after being de
 N="$(count_taint_records)"
 [ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "$N taint record(s) survived the instance being destroyed; the key would outlive everything it describes"; }
 log "  1 destroyed, tofu-provisioned namespace empty"
+
+# ── 13-16. the operator deletes the half-built object by hand ───────────────
+# The severe follow-on defect, walked the way an operator walks it.
+#
+# Steps 5 and 6 cleared the record through a REPLACE, where the plan read the
+# record on its way to proposing the replacement, so write-back held a
+# version for it. That is the easy path and it was the only one covered.
+# Deleting the object out of band takes the other path: the next plan reads
+# ABSENCE, returns from materialize before the taint record is ever
+# consulted, and proposes a plain create. Write-back then has no version for
+# a record that is very much still there.
+#
+# Until the fix, that record survived a completely successful provision, and
+# every plan afterwards said "is tainted, so it must be replaced" about a
+# live, healthy bucket. Step 16 is the assertion that would have failed.
+log "=== 13. re-create app with a failing provisioner, ready to be deleted by hand ==="
+set +e
+APPLY8="$(tofu_apply -var app_command='exit 3' -var app_marker=run-4 -var shrink_count=1 2>&1)"
+APPLY8_RC=$?
+set -e
+[ "$APPLY8_RC" != "0" ] || { tail -20 <<< "$APPLY8"; fail "the re-create apply succeeded; its provisioner runs 'exit 3'"; }
+[ -f "$APP_REC" ] || { find "$PROVISIONED" -type f | sort; fail "the create-time failure wrote no taint record"; }
+[ "$(count_taint_records)" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "expected exactly 1 taint record after the failure"; }
+log "  half-built bucket is live and marked, one taint record stands"
+
+log "=== 14. delete the half-built bucket out of band; the plan must propose a plain CREATE ==="
+awsl s3api delete-bucket --bucket pt-e2e-app >/dev/null \
+  || fail "deleting pt-e2e-app out of band failed"
+LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n' | sort | tr '\n' ' ')"
+grep -qw pt-e2e-app <<< "$LIVE" && fail "pt-e2e-app is still live after being deleted out of band; live buckets are: $LIVE"
+set +e
+PLAN4="$(tofu_plan -var app_command='exit 3' -var app_marker=run-4 -var shrink_count=1 2>&1)"
+PLAN4_RC=$?
+set -e
+[ "$PLAN4_RC" = "2" ] \
+  || { grep -vE '^(Warning|.*tagging\.go|.*ARN join table)' <<< "$PLAN4" | tail -30; fail "the plan after the out-of-band delete exited $PLAN4_RC, want 2 (changes proposed)"; }
+grep -qF 'Plan: 1 to add, 0 to change, 0 to destroy.' <<< "$PLAN4" \
+  || { grep -E '^Plan:' <<< "$PLAN4"; fail "the plan does not propose exactly one plain create for the deleted bucket"; }
+grep -qF 'is tainted, so it must be replaced' <<< "$PLAN4" \
+  && { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN4"; fail "the plan proposes a REPLACE for an object that does not exist; there is nothing to destroy"; }
+# The mechanism of the bug, asserted rather than assumed: this plan did not
+# consult the record at all, so nothing about it can clear the record later.
+[ "$(count_taint_records)" = "1" ] || { find "$PROVISIONED" -type f | sort; fail "the plan changed the store; a plan must never write"; }
+log "  1 to add, 0 to destroy, and the taint record is untouched: this plan never read it"
+
+log "=== 15. the re-create succeeds, and the stale record must go with the failure it described ==="
+set +e
+APPLY9="$(tofu_apply -var app_command='exit 0' -var app_marker=run-5 -var shrink_count=1 2>&1)"
+APPLY9_RC=$?
+set -e
+[ "$APPLY9_RC" = "0" ] || { tail -30 <<< "$APPLY9"; fail "the re-create apply failed"; }
+grep -qF 'Apply complete! Resources: 1 added, 0 changed, 0 destroyed.' <<< "$APPLY9" \
+  || { grep -E 'Apply complete' <<< "$APPLY9"; fail "the re-create apply did not add exactly one resource"; }
+[ "$(tail -n1 "$RUNLOG")" = "run-5" ] \
+  || { cat "$RUNLOG"; fail "the provisioner did not run on the re-created bucket, so 'it succeeded this time' is not established"; }
+N="$(count_taint_records)"
+[ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "the taint record survived a successful provision on a re-created object ($N left). The record describes a failure that has been fixed, and the next plan will destroy a healthy bucket because of it."; }
+log "  the provisioner ran and succeeded, and the record it would have outlived is gone"
+
+log "=== 16. the plan after that: a healthy bucket, and nothing proposed ==="
+set +e
+PLAN5="$(tofu_plan -var app_command='exit 0' -var app_marker=run-5 -var shrink_count=1 2>&1)"
+PLAN5_RC=$?
+set -e
+grep -qF 'is tainted, so it must be replaced' <<< "$PLAN5" \
+  && { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN5"; fail "a live, healthy, freshly provisioned bucket is proposed for replacement, and the reason given is a provisioner failure that was fixed an apply ago. This is the defect these four steps exist for."; }
+[ "$PLAN5_RC" = "0" ] && grep -qF 'No changes.' <<< "$PLAN5" \
+  || { grep -E '^  # aws_s3_bucket|^Plan:' <<< "$PLAN5"; fail "the plan after a clean re-create proposed changes (exit $PLAN5_RC)"; }
+log "  no changes"
 
 log "=== PASS ==="
