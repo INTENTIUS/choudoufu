@@ -9,6 +9,13 @@ name: Gauntlet
 #
 # Needs Docker (the emulator image), the AWS CLI, a stock terraform binary
 # for the cold deploy, and the corpus materialised by tools/corpus-fetch.
+#
+# Opening the pull request needs a GAUNTLET_PR_TOKEN secret (a fine-grained
+# PAT with contents:write and pull-requests:write on this repo): this repo's
+# org blocks the built-in GITHUB_TOKEN from creating pull requests at all,
+# so without it this step fails every run and the verdicts have to be PRed
+# by hand. Falls back to GITHUB_TOKEN if the secret isn't set, which will
+# hit that same org restriction.
 
 on:
   schedule:
@@ -72,6 +79,7 @@ jobs:
       - name: Open a pull request with the new verdicts
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.GAUNTLET_PR_TOKEN || secrets.GITHUB_TOKEN }}
           branch: gauntlet/nightly
           title: "gauntlet: nightly verdicts"
           commit-message: "gauntlet: nightly verdicts"
