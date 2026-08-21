@@ -98,11 +98,13 @@ func TestClassifyResidueSeparatesFilenameFromDescription(t *testing.T) {
 	applied := lambdaApplied()
 
 	candidates := residueCandidates(schema, applied)
-	// function_name is in the set: required, settable, non-null. That it is
-	// a candidate and not residue is exactly the point - candidacy is a
-	// filter and the provider is what decides. id and arn are never
-	// candidates.
-	wantCandidates := []string{"description", "filename", "function_name", "publish", "source_code_hash"}
+	// function_name is in the set: required, settable, non-null. arn is in
+	// the set too: purely Computed, which residueCandidates no longer
+	// excludes on its own (see its doc comment) - only id is never a
+	// candidate. That any of these is a candidate and not necessarily
+	// residue is exactly the point - candidacy is a filter and the
+	// provider is what decides.
+	wantCandidates := []string{"arn", "description", "filename", "function_name", "publish", "source_code_hash"}
 	if !reflect.DeepEqual(candidates, wantCandidates) {
 		t.Fatalf("residueCandidates = %v, want %v", candidates, wantCandidates)
 	}
@@ -331,9 +333,14 @@ func TestClassifyResidueFailsClosed(t *testing.T) {
 // cold replan and never converge. Parity is the bar.
 //
 // What bounds it is the candidate filter, not a size limit: no identity, no
-// secrets, no write-only attributes, no computed-only attributes, and
-// nothing the provider answers for. A record that grows is a provider that
-// reads nothing, which is a fact about that provider.
+// secrets, no write-only attributes, and nothing the provider answers for.
+// A record that grows is a provider that reads nothing, which is a fact
+// about that provider. "arn" is Computed only in [lambdaLikeSchema] and
+// [residueCandidates] no longer excludes an attribute for that reason alone
+// (see its own doc comment) - a provider that manages nothing does not
+// derive arn from the remote either, so it is exactly as much residue as
+// every other candidate here, and this test now expects it recorded rather
+// than treating it as a second stand-in for the identity.
 func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	schema := lambdaLikeSchema()
 	applied := lambdaApplied()
@@ -347,10 +354,8 @@ func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	if !reflect.DeepEqual(sortedNames(got), candidates) {
 		t.Fatalf("classified %v, want every candidate %v", sortedNames(got), candidates)
 	}
-	for _, name := range []string{"id", "arn"} {
-		if _, bad := got[name]; bad {
-			t.Errorf("%q was recorded even from an echo provider. The candidate filter, not the classifier, is what keeps the identity out.", name)
-		}
+	if _, bad := got["id"]; bad {
+		t.Error("\"id\" was recorded even from an echo provider. The candidate filter, not the classifier, is what keeps the identity out.")
 	}
 }
 
@@ -401,11 +406,24 @@ func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("a computed-only attribute is never a candidate", func(t *testing.T) {
+	t.Run("a computed-only attribute is a candidate", func(t *testing.T) {
+		// Reversed 2026-08-21 (corpus-xancloud-iac): this used to assert the
+		// opposite, on the reasoning that a purely Computed attribute "cannot
+		// be set in configuration, so there is nothing to remember". That
+		// reasoning was wrong for aws_nat_gateway.regional_nat_gateway_address,
+		// which is Computed only and whose provider does not re-derive it
+		// from a bare identity-only prior - see [residueCandidates]'s own doc
+		// comment. "arn" (also Computed only in lambdaLikeSchema) now reaches
+		// the candidate set; whether it is ever actually RECORDED is
+		// [classifyResidue]'s question, not this filter's.
+		found := false
 		for _, name := range residueCandidates(base, lambdaApplied()) {
 			if name == "arn" {
-				t.Fatal("arn reached the candidate set; it cannot be set in configuration, so there is nothing to remember")
+				found = true
 			}
+		}
+		if !found {
+			t.Fatal("arn did not reach the candidate set; a purely Computed attribute must still be considered, since safety comes from classifyResidue's two-read discriminator and not from this schema-shape filter")
 		}
 	})
 }
@@ -468,18 +486,21 @@ func TestFillResidueRefusesAMismatchedType(t *testing.T) {
 	}
 }
 
-// TestFillResidueRefusesASensitiveOrUnsettableTarget is the fill side of the
+// TestFillResidueRefusesASensitiveOrWriteOnlyTarget is the fill side of the
 // candidate filter, and it exists because the two are separated in time. A
 // record written months ago against a schema where filename was ordinary
-// must not be applied after a provider release marks it sensitive.
-func TestFillResidueRefusesASensitiveOrUnsettableTarget(t *testing.T) {
+// must not be applied after a provider release marks it sensitive or
+// write-only - both are hard, protocol-level rules unrelated to whether the
+// attribute happens to be Computed, which [fillResidue] no longer asks (see
+// its own doc comment and [TestFillResidueFillsAComputedOnlyAttribute]
+// below, which used to be a third case here expecting the opposite).
+func TestFillResidueRefusesASensitiveOrWriteOnlyTarget(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		attr *configschema.Attribute
 	}{
 		{"sensitive now", &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}},
 		{"write-only now", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}},
-		{"computed-only now", &configschema.Attribute{Type: cty.String, Computed: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := lambdaLikeSchema()
@@ -498,6 +519,34 @@ func TestFillResidueRefusesASensitiveOrUnsettableTarget(t *testing.T) {
 				t.Fatalf("filled filename from a record even though the current schema says %s", tc.name)
 			}
 		})
+	}
+}
+
+// TestFillResidueFillsAComputedOnlyAttribute is aws_nat_gateway's
+// regional_nat_gateway_address case reduced to [fillResidue] alone: a
+// purely Computed attribute (never Required, never Optional) whose current
+// read carries no information gets filled from its record exactly like an
+// Optional+Computed one would. Reversed 2026-08-21 from the opposite
+// expectation - see [TestFillResidueRefusesASensitiveOrWriteOnlyTarget]'s
+// doc comment for why the old assumption undercounted a real defect.
+func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
+	s := lambdaLikeSchema()
+	s.Block.Attributes["filename"] = &configschema.Attribute{Type: cty.String, Computed: true}
+	read := cty.ObjectVal(map[string]cty.Value{
+		"id":               cty.StringVal("x"),
+		"function_name":    cty.StringVal("x"),
+		"filename":         cty.NullVal(cty.String),
+		"source_code_hash": cty.NullVal(cty.String),
+		"publish":          cty.NullVal(cty.Bool),
+		"description":      cty.NullVal(cty.String),
+		"arn":              cty.NullVal(cty.String),
+	})
+	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")})
+	if n != 1 {
+		t.Fatalf("filled %d attributes, want 1 - a Computed-only attribute whose read carries no information must be fillable from its record", n)
+	}
+	if got.GetAttr("filename").AsString() != "a.zip" {
+		t.Fatal("filename was not filled from the record")
 	}
 }
 

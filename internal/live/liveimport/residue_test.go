@@ -29,9 +29,18 @@ import (
 
 // residueSchema is a minimal taggable schema with one Optional argument
 // (subnet_id) shaped like a ForceNew argument, and one attribute
-// (computed_only) that is neither Required nor Optional - [residueCandidates]
-// excludes it by construction, so it stands in for the class this fix
-// deliberately leaves alone.
+// (computed_only) that is neither Required nor Optional.
+// [projection.residueCandidates] (unqualified here because this package
+// cannot import an unexported name; see its own doc comment) no longer
+// excludes computed_only by schema shape alone - a purely Computed
+// attribute can be exactly as residue-shaped as an Optional+Computed one,
+// which is what corpus-xancloud-iac's aws_nat_gateway.regional_nat_gateway_address
+// turned out to be. What still keeps computed_only out of this test's
+// residue is [preserveFromPriorProvider] answering it FRESH from both
+// reads regardless of prior, which classifyResidue's own two-read
+// discriminator correctly reads as "the provider manages this" - the same
+// test "tags" already exercises. computed_only stands in for a genuinely
+// provider-derived Computed attribute, not for the whole class.
 func residueSchema() providers.Schema {
 	return providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"id":            {Type: cty.String, Computed: true},
@@ -141,7 +150,7 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 		t.Errorf("residue subnet_id = %#v, want %#v", got, cty.StringVal("subnet-real"))
 	}
 	if _, ok := attrs["computed_only"]; ok {
-		t.Errorf("computed_only was recorded as residue; it is neither Required nor Optional and [residueCandidates] must never let it through - a Computed-only attribute can genuinely drift out of band, and residue would mask that")
+		t.Errorf("computed_only was recorded as residue; preserveFromPriorProvider answers it fresh from the remote on both reads, so classifyResidue's discriminator must have judged it provider-managed regardless of it being Computed-only")
 	}
 	if _, ok := attrs["tags"]; ok {
 		t.Errorf("tags was recorded as residue; the provider always answers it fresh in this fixture, so classifyResidue must not have judged it residue-shaped")
