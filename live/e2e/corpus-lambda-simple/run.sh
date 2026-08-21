@@ -320,6 +320,18 @@ set -uo pipefail
 #                          Zero diagnostics, zero resource-level changes.
 #   STAGES 4 and 5         NOT REACHED, and not yet written.
 #
+# RE-CROSSED for real, 2026-08-21, against floci cdd50ec0, after the
+# data-read safety audit widened the phase's provider boundary to cover the
+# IDENTITY read class as well as the root-output one. Byte-identical result:
+# stage 1 PASS, stage 2 PASS (3 stamped, 4 recorded), stage 3 BLOCKED on the
+# same single "+ local_filename" line with zero diagnostics and zero
+# resource-level changes. The widening does not touch this estate, and the
+# reason is worth knowing rather than guessing at: nothing here demands
+# data.external.archive_prepare for an IDENTITY. local_file.archive_plan's
+# filename reads it, but local_file is record-backed and the migrate seeded
+# its record, so the identity class never asks. The one output line is the
+# root-output class refusing it, exactly as before.
+#
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
 # Needs Docker, the AWS CLI, and python3 (the module's package.py builds the

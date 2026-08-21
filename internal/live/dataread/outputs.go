@@ -187,7 +187,7 @@ func LiveProviders(cfg *configs.Config, declared map[addrs.Provider]map[string]b
 // Boundary answers, for one run and one demand class, whether the read phase
 // may configure a given provider. It is the whole of the two-tier rule
 // described above, in one object, so the classification half
-// ([analyzer.confineToLiveProviders]) and the structural half (the command
+// ([analyzer.confineToBoundary]) and the structural half (the command
 // layer's provider seam) cannot draw the line two different ways.
 //
 // The zero value allows everything; use [NewBoundary].
@@ -311,8 +311,8 @@ func (b Boundary) servesLiveObjects(provider addrs.Provider) bool {
 
 // AnalyzeRootOutputs derives which data sources the configuration's
 // root-level `output` blocks reach and classifies each one, offline, exactly
-// as [Analyze] classifies an identity-demanded source - plus the boundary
-// [LiveProviders] draws.
+// as [Analyze] classifies an identity-demanded source, under the same
+// provider [Boundary] at its stricter tier - see [LiveProviders].
 //
 // The result is an [Analysis] like any other, so [ReadForOutputs] can read it
 // with the same machinery, in the same dependency order. Nothing here is
@@ -359,6 +359,12 @@ func AnalyzeRootOutputs(ctx context.Context, cfg *configs.Config, opts Options) 
 // DEPENDENCY the boundary just excluded cannot be read either, and its own
 // classification was decided before the exclusion existed.
 func (an *analyzer) confineToBoundary(cfg *configs.Config, opts Options) {
+	if len(an.analysis.order) == 0 {
+		// The common case, and it must stay free: a configuration whose
+		// identities demand no data source pays nothing for a boundary with
+		// nothing to confine. [LiveProviders] walks the whole module tree.
+		return
+	}
 	b := NewBoundary(cfg, opts.ProviderManagedTypes, an.analysis.scoped)
 	for _, src := range an.analysis.order {
 		if !src.Eligible {
@@ -394,7 +400,7 @@ func (an *analyzer) notLiveDetail(src *Source, provider addrs.Provider) string {
 }
 
 // propagateIneligibility re-runs classification's own dependency propagation
-// after [analyzer.confineToLiveProviders] has changed answers underneath it.
+// after [analyzer.confineToBoundary] has changed answers underneath it.
 // A source classified eligible before its dependency was excluded must not
 // stay eligible: the read phase reads in dependency order, and a dependent
 // whose dependency was never read has nothing to evaluate its arguments
