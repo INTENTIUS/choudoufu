@@ -254,7 +254,7 @@ func (b *Local) localRunDirect(ctx context.Context, stopCtx context.Context, op 
 		// as newly created on every stateless plan or apply regardless of
 		// whether the underlying resources changed. See
 		// [projection.ApplyRootOutputValues].
-		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables)
+		outputDiags := projection.ApplyRootOutputValues(ctx, tfCtx, config, projected, variables, b.Stateless.RootOutputData())
 		diags = diags.Append(outputDiags)
 		if outputDiags.HasErrors() {
 			return nil, nil, diags

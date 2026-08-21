@@ -51,6 +51,16 @@ const (
 	// things that exist.
 	SummaryReadFailed = "Data source read failed"
 
+	// SummaryProviderNotLive is the root-output read class's own boundary
+	// (see [LiveProviders]): the data source is readable by every other rule
+	// this phase draws, but its provider manages no live object in this
+	// configuration, so this run is not already reading the live system
+	// through it. Scoped, never fatal - it costs one root output its prior
+	// value and nothing else. It is raised only for an output-demanded
+	// source; identity demand does not draw this line, because a source
+	// identity needs is one the run must have or refuse.
+	SummaryProviderNotLive = "Data source provider manages no live object here"
+
 	// SummaryEligibleRead is not a refusal: it is live-check's finding for
 	// a site the phase will resolve at plan time with a read. It lives in
 	// this registry so the corpus and the generated documentation can name

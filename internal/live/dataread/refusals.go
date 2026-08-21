@@ -58,9 +58,44 @@ var refusals = []Refusal{
 		What:    "The provider returned an error for a pre-resolution data-source read, quoted verbatim. Fatal for the run: resolution built on a missing value would plan to create things that exist.",
 	},
 	{
+		Summary: SummaryProviderNotLive,
+		What:    "A data source a root output's value reaches belongs to a provider this configuration manages no live object through, so a pre-plan read of it would not be one more read of an API the projection already reads. The read is skipped and the output shows its planned value as new; nothing else in the run is affected.",
+	},
+	{
 		Summary: SummaryEligibleRead,
 		What:    "Not a refusal: live-check's finding for a data-source reference in an identity-bearing position that a live-plan resolves by reading the data source before resolution. No edit to the configuration is needed, but the read itself has not been performed - it can still fail at plan time.",
 	},
+}
+
+// StopsTheRun reports whether a refusal under this Summary can stop a run.
+//
+// The two demand classes this package serves have opposite contracts, and
+// the registry alone cannot say which one a Summary belongs to. An identity
+// demand that cannot be met refuses the run, because resolution built on a
+// missing value plans to create objects that already exist. A ROOT OUTPUT
+// demand that cannot be met costs exactly one output its prior value; the
+// plan renders it as newly created and everything else proceeds. See
+// [ReadForOutputs].
+//
+// It exists because tools/limits-gen labels a refusal `error` unless the
+// raising layer says otherwise, and lint and discovery were the only two
+// layers with anything to say. A scoped refusal rendered as a blocker in
+// live/LIMITATIONS.md would be read as something that stops a run, which is
+// the same mistake that once put five discovery warnings in that table as
+// blockers.
+func StopsTheRun(summary string) bool {
+	switch summary {
+	case SummaryProviderNotLive:
+		// Raised only for a root-output demand, and in fact never raised as
+		// a diagnostic at all: the source is skipped in silence and the
+		// plan's own "+ name = ..." line is the report.
+		return false
+	case SummaryEligibleRead:
+		// Not a refusal at all - live-check's "this resolves at plan time"
+		// finding.
+		return false
+	}
+	return true
 }
 
 // Refusals returns every refusal this package can produce, sorted by

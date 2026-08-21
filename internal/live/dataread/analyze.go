@@ -154,7 +154,22 @@ type Analysis struct {
 	// own option, so the read phase can never project where the analysis
 	// did not, nor refuse where the analysis promised.
 	projectManaged bool
+
+	// scoped records that this analysis's demand is SCOPED rather than
+	// fatal: a source it cannot read costs the one value that wanted it and
+	// nothing else. [AnalyzeRootOutputs] sets it and [Analyze] does not, and
+	// the read phase reads it off the analysis rather than taking its own
+	// flag, for [Analysis.projectManaged]'s exact reason - the contract a
+	// source was classified under and the contract it is read under must be
+	// the same one. See outputs.go's header for why the two demand classes
+	// have opposite contracts.
+	scoped bool
 }
+
+// Scoped reports that this analysis's demand is scoped rather than fatal -
+// see [Analysis.scoped]. Exported so a test can assert which contract an
+// analysis carries without reaching into the struct.
+func (a *Analysis) Scoped() bool { return a != nil && a.scoped }
 
 // Empty reports that identity resolution demands no data sources at all,
 // which is every configuration that worked before this phase existed: the

@@ -58,27 +58,66 @@ type Providers interface {
 // phase exists to explain. A failed read refuses fatally too, for the rule
 // resolution already applies to identity holes.
 //
+// That fatality is right for identity and only for identity. The
+// root-output demand class has the opposite contract and its own entry
+// point, [ReadForOutputs]; handing a scoped analysis to this function is
+// refused rather than honored.
+//
 // Values are never cached: a stale hint elsewhere costs a re-read, but a
 // stale value here becomes a wrong marker. Every run reads live.
 func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
+	return read(ctx, cfg, analysis, provs)
+}
+
+// ReadForOutputs performs the reads of a SCOPED analysis - one built by
+// [AnalyzeRootOutputs] - and is the read half of GitHub issue #349's
+// sub-problem 2.
+//
+// It differs from [Read] in what a problem costs, and in nothing else. The
+// same eligibility rules classified these sources, the same provider
+// instances answer them, the same dependency order reads them, and the
+// values come back in the same shape. But a source that is not eligible is
+// SKIPPED rather than refused, and a read that fails is skipped with a
+// warning rather than aborting the run: the only thing either can cost is
+// the prior value of the root output that wanted it, which then renders as
+// newly created in the plan - exactly what it rendered as before this class
+// existed.
+//
+// An ineligible source raises nothing at all. The plan's own "+ name = ..."
+// line is already the honest report that this output has no prior value, and
+// a per-source diagnostic on every run would say the same thing again, more
+// loudly, about a configuration that is not wrong.
+//
+// Which of the two contracts applies is read off the analysis
+// ([Analysis.Scoped]) and not off which of these two functions was called,
+// so a mismatch is not expressible: an analysis is read under the contract it
+// was classified under, whichever entry point a caller reaches for. The two
+// names exist so a call site says which class it is in.
+func ReadForOutputs(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
+	return read(ctx, cfg, analysis, provs)
+}
+
+func read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Providers) (map[string]cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	if analysis.Empty() {
 		return nil, nil
 	}
 
-	for _, src := range analysis.Demanded() {
-		if src.Eligible {
-			continue
+	if !analysis.Scoped() {
+		for _, src := range analysis.Demanded() {
+			if src.Eligible {
+				continue
+			}
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  src.ReasonSummary,
+				Detail:   src.ReasonDetail,
+				Subject:  src.Config.DeclRange.Ptr(),
+			})
 		}
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  src.ReasonSummary,
-			Detail:   src.ReasonDetail,
-			Subject:  src.Config.DeclRange.Ptr(),
-		})
-	}
-	if diags.HasErrors() {
-		return nil, diags
+		if diags.HasErrors() {
+			return nil, diags
+		}
 	}
 
 	r := &reader{
@@ -98,6 +137,26 @@ func Read(ctx context.Context, cfg *configs.Config, analysis *Analysis, provs Pr
 		r.proj = newManagedProjector(ctx, cfg, true)
 	}
 	for _, src := range analysis.Demanded() {
+		if analysis.Scoped() {
+			if !src.Eligible {
+				// Skipped in silence: see [ReadForOutputs].
+				continue
+			}
+			mark := len(r.diags)
+			if !r.readSource(src) {
+				// The failure belongs to this source alone. Its own
+				// diagnostics are kept, downgraded to warnings, so an
+				// operator can still see the provider's own words, and the
+				// remaining sources are read: a later one does not depend on
+				// this one unless the analysis said so, and if it does its
+				// own arguments will refuse to evaluate and it will be
+				// skipped by this same branch.
+				failed := make(tfdiags.Diagnostics, len(r.diags[mark:]))
+				copy(failed, r.diags[mark:])
+				r.diags = append(r.diags[:mark], tfdiags.OverrideAll(failed, tfdiags.Warning, nil)...)
+			}
+			continue
+		}
 		if !r.readSource(src) {
 			// Stop at the first failure rather than fanning a misconfigured
 			// provider's error across every remaining block: the run is

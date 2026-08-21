@@ -70,7 +70,7 @@ func TestApplyRootOutputValuesEvaluatesAgainstProjectedState(t *testing.T) {
 	// stub_cert.future is declared in the fixture but deliberately absent
 	// from state - it stands in for a resource about to be created.
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -109,7 +109,7 @@ func TestApplyRootOutputValuesNoOutputsIsANoOp(t *testing.T) {
 		t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
 	}
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -189,7 +189,7 @@ func TestApplyRootOutputValuesSeesThroughZeroInstanceBlocks(t *testing.T) {
 
 	before := state.DeepCopy()
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, variables)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, variables, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -240,5 +240,85 @@ func TestApplyRootOutputValuesSeesThroughZeroInstanceBlocks(t *testing.T) {
 	}
 	if len(extra) > 0 {
 		t.Errorf("ApplyRootOutputValues added resources to the caller's state: %v - the husks belong to the evaluation copy only", extra)
+	}
+}
+
+// TestApplyRootOutputValuesSeedsLiveDataValues is GitHub issue #349's
+// sub-problem 2 at the evaluation layer: a root output whose value is built
+// from a data source nobody read gets the provider's own answer, because
+// [dataread.ReadForOutputs] read it and the value was seeded into the
+// evaluation's copy of state.
+//
+// The same test carries the blast-radius control. The fixture's second
+// output cannot be evaluated at all against this state - it indexes a block
+// with no instances, with no try() to recover - and a real plan's own graph
+// reports that itself, from the node that owns the output, a moment later.
+// This function must therefore leave it unset and raise NOTHING, because a
+// pre-plan probe failing on one output is not a reason to refuse an estate.
+// That was the exact shape of the risk #349's scoping named: a widened
+// demand under a fatal contract turns "one output shows +" into "live-plan
+// refuses the whole estate".
+func TestApplyRootOutputValuesSeedsLiveDataValues(t *testing.T) {
+	cfg := loadConfig(t, "testdata/output-eval-data")
+
+	stubSchema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"names": {Type: cty.List(cty.String), Optional: true},
+			"id":    {Type: cty.String, Computed: true},
+		},
+	}}
+	lookupSchema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"name": {Type: cty.String, Optional: true},
+			"id":   {Type: cty.String, Computed: true},
+		},
+	}}
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{"stub_cert": stubSchema},
+			DataSources:   map[string]providers.Schema{"stub_lookup": lookupSchema},
+		},
+	}
+
+	core, ctxDiags := tofu.NewContext(&tofu.ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("stub"): func() (providers.Interface, error) { return mock, nil },
+		}, nil),
+	})
+	if ctxDiags.HasErrors() {
+		t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
+	}
+
+	state := states.NewState()
+	dataValues := map[string]cty.Value{
+		"data.stub_lookup.current": cty.ObjectVal(map[string]cty.Value{
+			"name": cty.StringVal("here"),
+			"id":   cty.StringVal("lookup-1"),
+		}),
+	}
+
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, dataValues)
+	if diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues raised errors: %s - nothing about one unevaluable output may fail a run", diags.Err())
+	}
+
+	got := state.RootModule().OutputValues
+	ov, ok := got["static_arn"]
+	if !ok {
+		t.Fatalf("static_arn was not set - the live data-source value did not reach the evaluation, which is #349's symptom exactly")
+	}
+	if want := cty.StringVal("arn:lookup-1"); !ov.Value.RawEquals(want) {
+		t.Errorf("static_arn = %#v, want %#v", ov.Value, want)
+	}
+	if _, ok := got["boom"]; ok {
+		t.Errorf("boom was set even though its expression does not evaluate against this state")
+	}
+
+	// The seed is an evaluation device, exactly like the zero-instance
+	// husks: the plan runs against the caller's own state a moment later,
+	// and a data source appearing in it would be a claim the plan did not
+	// make.
+	if state.Resource(addrs.Resource{Mode: addrs.DataResourceMode, Type: "stub_lookup", Name: "current"}.Absolute(addrs.RootModuleInstance)) != nil {
+		t.Errorf("data.stub_lookup.current was written into the caller's state; the seeded value belongs to the evaluation copy only")
 	}
 }

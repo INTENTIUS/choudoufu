@@ -52,14 +52,47 @@ import (
 // same values a real plan would evaluate it with, or its "prior" value
 // would not match what the plan computes for "planned", and every run
 // would show a spurious diff instead of none.
-func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues) tfdiags.Diagnostics {
+//
+// dataValues is GitHub issue #349's sub-problem 2: the values
+// [dataread.ReadForOutputs] read live for the data sources these outputs
+// reach, keyed by absolute resource instance address, in the same shape
+// identity.Context.DataResults uses. They are seeded into the evaluation's
+// own copy of state (see [withOutputEvalSeeds]) and never into the caller's,
+// exactly like the zero-instance husks. Empty or nil is the ordinary case
+// and costs nothing.
+//
+// This function does not report. It returns diagnostics because it is called
+// where diagnostics are collected, and in practice it returns none: an
+// output it cannot evaluate is left unset and nothing is raised about it.
+// The reason is written out at the eval call below, and it is load-bearing
+// rather than tidiness - a pre-plan probe over a deliberately partial state
+// must never be the thing that refuses an estate.
+func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, variables tofu.InputValues, dataValues map[string]cty.Value) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if core == nil || config == nil || config.Module == nil || len(config.Module.Outputs) == 0 || state == nil {
 		return diags
 	}
 
-	scope, evalDiags := core.Eval(ctx, config, withZeroInstanceBlocks(ctx, config, state), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
-	diags = diags.Append(evalDiags)
+	// The probe's own diagnostics are discarded, all of them, and this is
+	// the blast-radius rule for the whole function: an expression that will
+	// not evaluate against the projection costs THAT output its prior value
+	// and nothing else. Nothing here may fail a run.
+	//
+	// The projection is a partial state by construction - it carries what
+	// the live system could be read for and nothing about a resource that
+	// does not exist yet - so an expression can fail here that a real plan
+	// evaluates without complaint. And everything this evaluation could
+	// legitimately say, the plan says for itself a moment later and says
+	// better: the plan graph evaluates every one of these same output
+	// expressions again, for the "after" side of the same diff, against its
+	// own fully expanded graph, from the node that owns the output
+	// (internal/tofu/node_output.go). Raising it here as well would report a
+	// real problem twice and an artifact of partiality once - and, before
+	// this was written down, would refuse a whole estate over one output
+	// whose absence renders as an ordinary "+ name = ..." line. That is the
+	// exact risk GitHub issue #349's scoping named for the data-source half
+	// of this, and it was already live for the evaluation half.
+	scope, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
 	if scope == nil {
 		return diags
 	}
@@ -67,7 +100,6 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	root := state.RootModule()
 	for name, output := range config.Module.Outputs {
 		val, valDiags := scope.EvalExpr(ctx, output.Expr, cty.DynamicPseudoType)
-		diags = diags.Append(valDiags)
 		if valDiags.HasErrors() {
 			continue
 		}
@@ -139,6 +171,82 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 // be evaluated would turn an unknown output into a confidently wrong one,
 // and a wrong value that renders as a clean diff is worse than the honest
 // "+" it replaces.
+// withOutputEvalSeeds returns the state [ApplyRootOutputValues] evaluates
+// against: the projection, plus the two kinds of seed the evaluation needs
+// and the plan must not see - the zero-instance husks of
+// [withZeroInstanceBlocks], and the live data-source values of
+// [seedDataValues]. It copies at most once, and returns the caller's own
+// state untouched when there is nothing to seed.
+func withOutputEvalSeeds(ctx context.Context, core *tofu.Context, config *configs.Config, state *states.State, dataValues map[string]cty.Value) *states.State {
+	seeded := withZeroInstanceBlocks(ctx, config, state)
+	if len(dataValues) == 0 {
+		return seeded
+	}
+	if seeded == state {
+		seeded = state.DeepCopy()
+	}
+	seedDataValues(ctx, core, config, seeded, dataValues)
+	return seeded
+}
+
+// seedDataValues writes one data resource instance object into seeded for
+// every value [dataread.ReadForOutputs] read, so that a root output
+// referencing data.t.n resolves from the provider's own answer instead of
+// from cty.DynamicVal.
+//
+// This is the same device as the husks one file over, with a real value in
+// it: internal/tofu/evaluate.go's GetResource answers a whole-resource
+// reference out of the state the walk was handed, and it does that for a
+// data resource exactly as it does for a managed one. A data source absent
+// from state answers unknown on the eval walk, which is what left
+// corpus-lambda-simple's lambda_function_arn_static rendering as newly
+// created on every run even though the three data sources behind it - a
+// partition, a region and a caller identity - had been readable all along.
+//
+// Everything here is best-effort and silent by design, because this whole
+// path is: a value that cannot be placed leaves its output with no prior
+// value, which is what the output had before this existed. Refusing a run
+// over one is precisely the blast radius #349's scoping warned against, so
+// an unparseable address, a data block no longer in the configuration, a
+// provider whose schema will not load and a value that will not encode
+// against that schema are each skipped, not raised.
+func seedDataValues(ctx context.Context, core *tofu.Context, config *configs.Config, seeded *states.State, dataValues map[string]cty.Value) {
+	schemas, schemaDiags := core.Schemas(ctx, config, seeded)
+	if schemaDiags.HasErrors() || schemas == nil {
+		return
+	}
+	for addrStr, val := range dataValues {
+		addr, parseDiags := addrs.ParseAbsResourceInstanceStr(addrStr)
+		if parseDiags.HasErrors() || addr.Resource.Resource.Mode != addrs.DataResourceMode {
+			continue
+		}
+		node := config.Descendent(addr.Module.Module())
+		if node == nil || node.Module == nil {
+			continue
+		}
+		rc := node.Module.DataResources[addr.Resource.Resource.String()]
+		if rc == nil {
+			continue
+		}
+		pcAddr := rc.ProviderConfigAddr()
+		provider := addrs.AbsProviderConfig{
+			Module:   addrs.RootModule,
+			Provider: node.Module.ProviderForLocalConfig(pcAddr),
+			Alias:    pcAddr.Alias,
+		}
+		schema, version := schemas.ResourceTypeConfig(provider.Provider, addrs.DataResourceMode, addr.Resource.Resource.Type)
+		if schema == nil || schema.Block == nil {
+			continue
+		}
+		obj := &states.ResourceInstanceObject{Value: val, Status: states.ObjectReady}
+		src, err := obj.Encode(schema.Block.ImpliedType(), version, 0)
+		if err != nil {
+			continue
+		}
+		seeded.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, provider, addrs.NoKey)
+	}
+}
+
 func withZeroInstanceBlocks(ctx context.Context, config *configs.Config, state *states.State) *states.State {
 	blocks := identity.ZeroInstanceBlocks(ctx, config)
 	if len(blocks) == 0 {
