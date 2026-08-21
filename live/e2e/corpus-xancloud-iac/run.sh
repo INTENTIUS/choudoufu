@@ -96,8 +96,10 @@ set -uo pipefail
 # purely Computed, non-identity, non-sensitive, non-write-only, non-nested
 # attribute the provider's Read does not re-derive from a bare prior is
 # reached by this same fix - see the PR for the corpus-wide candidate
-# count. Stages 4-5 are attempted next, in a later unit: this is the first
-# run where stage 3 passes at all.
+# count. Stage 4 is attempted next, in this same later unit: applying the
+# empty plan is a genuine no-op and the tofu-estate-tagged object count is
+# unchanged before and after. Stage 5 (drift and reconverge) is not yet
+# written.
 #
 # GitHub issue #347's own history is worth keeping here rather than only in
 # the tracker: lex00/floci#78 (CreateFlowLogs ignoring TagSpecifications)
@@ -187,18 +189,19 @@ set -uo pipefail
 #                     PASS.
 #   2. MIGRATE       `choudoufu live-import -approve` against that cold
 #                     state - PASS.
-#   3. TEST PLAN     delete the state file, `choudoufu live-plan` - BLOCKED:
-#                     asserted non-empty for exactly one documented,
-#                     pre-existing, already-filed reason (aws_nat_gateway's
-#                     harmless in-place update, #327's own still-open
-#                     residual), deterministically rather than skipped;
-#                     lex00/floci#87's aws_flow_log.iam_role_arn gap is now
-#                     FIXED (lex00/floci#96) and no longer appears in this
-#                     plan at all. The VPC's own identity, untouched by
-#                     either, is still re-asserted against the AWS CLI.
-#   4/5.             NOT ATTEMPTED - both need a genuinely empty first plan
-#                     as their starting point, which stage 3 does not reach
-#                     against this floci image/main.
+#   3. TEST PLAN     delete the state file, `choudoufu live-plan` - PASS as of
+#                     the residue-mechanism fix above: both prior gaps
+#                     (lex00/floci#87's aws_flow_log.iam_role_arn, and the
+#                     #327 aws_nat_gateway.regional_nat_gateway_address
+#                     residual) are resolved, the plan is genuinely empty,
+#                     and the VPC's own identity is re-asserted against the
+#                     AWS CLI after the state file is deleted.
+#   4. TEST APPLY    apply the empty plan from stage 3 - PASS: a genuine
+#                     no-op (0 added, 0 changed, 0 destroyed), and the
+#                     tofu-estate-tagged object count (resourcegroupstagging
+#                     api) is identical before and after.
+#   5.               NOT ATTEMPTED - drift and reconverge is not yet written
+#                     for this estate.
 #
 #   bash live/e2e/corpus-xancloud-iac/run.sh
 #
@@ -541,9 +544,38 @@ log ""
 log "STAGE 3 (test plan): PASS"
 log ""
 gauntlet_stage test_plan pass "no resource change proposed"
+CURRENT_STAGE=test_apply
 
-log "=== STAGES 4-5: NOT YET WRITTEN - stage 3 only just started passing in this run ==="
-gauntlet_stage test_apply not_run "not yet written - stage 3 only just started passing in this run"
-gauntlet_stage drift_reconverge not_run "not yet written - same reason"
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan, assert a genuine no-op. The
+# tagged-object count (resourcegroupstaggingapi, tofu-estate=$ESTATE_NAME) is
+# read before and after; a no-op that left the count unchanged is the whole
+# proof (live/GAUNTLET.md, stage 4's oracle).
+# ══════════════════════════════════════════════════════════════════════════
+log "=== STAGE 4: test apply (apply the empty plan; object count unchanged) ==="
+BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$BEFORE_N" != "0" ] || fail "0 objects carry tofu-estate=$ESTATE_NAME before the no-op apply - the tag query itself is broken"
+
+APPLY2_OUT="$(cd "$ESTATE/blueprints/landing-zone-basic" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY2_RC=$?
+[ "$APPLY2_RC" -eq 0 ] || { printf '%s\n' "$APPLY2_OUT" | tail -60; fail "the no-op apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$APPLY2_OUT" \
+  || { grep -E 'Apply complete' <<< "$APPLY2_OUT"; fail "the apply of the empty plan was not a genuine no-op"; }
+
+AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+  --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
+  --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$ESTATE/blueprints/landing-zone-basic/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
+log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file either time"
+
+log ""
+log "STAGE 4 (test apply): PASS"
+log ""
+gauntlet_stage test_apply pass "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N"
+
+log "=== STAGE 5: NOT YET WRITTEN - stage 4 only just started passing in this run ==="
+gauntlet_stage drift_reconverge not_run "not yet written - stage 4 only just started passing in this run"
 CURRENT_STAGE=""
 gauntlet_end
