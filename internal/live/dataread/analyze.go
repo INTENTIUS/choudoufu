@@ -48,6 +48,18 @@ type Options struct {
 	// package's tests can assert both sides of the rule from one fixture.
 	// See managedproj.go for what is and is not projected.
 	SkipManagedProjection bool
+
+	// Scope is which resource blocks a -target / -exclude run leaves in the
+	// plan graph (GitHub issue #352), handed straight to the resolution
+	// probe below. Demand is read off that probe's own refusals, so a data
+	// source demanded only by a resource the run is not acting on is never
+	// classified here and never read - which is what stock OpenTofu does
+	// with it too, since targeting removes the demander and the data source
+	// it pulled in together.
+	//
+	// Nil is the default and means every block is in scope, which is every
+	// untargeted run and every offline caller. See [identity.Scope].
+	Scope identity.Scope
 }
 
 // Source is one data resource block the analysis classified: demanded by an
@@ -275,6 +287,16 @@ func (an *analyzer) walkModulesForForEach(cfg *configs.Config) {
 		if rc.ForEach == nil {
 			continue
 		}
+		// GitHub issue #352. This scan is the one demand path that does not
+		// run through the resolution probe, so the probe's own scope filter
+		// cannot reach it: a for_each map-value reference never surfaces as
+		// a diagnostic at all (see this function's caller). Filtered here
+		// instead, on the same rule and against the same set, so a block the
+		// plan graph dropped does not pull a data source into the read phase
+		// on its own.
+		if an.scope != nil && !an.scope(addrs.ConfigResource{Module: cfg.Path, Resource: rc.Addr()}) {
+			continue
+		}
 		for _, res := range an.forEachDataRefs(mod, rc.ForEach, 0) {
 			// The block's own for_each over its own data source's
 			// nonexistent-instance shape (for_each = data.x.y ranging over
@@ -373,7 +395,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
 	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil {
 		return a
 	}
-	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, visiting: make(map[string]bool)}
+	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, scope: opts.Scope, visiting: make(map[string]bool)}
 	if a.projectManaged {
 		an.proj = newManagedProjector(ctx, cfg, false)
 	}
@@ -397,6 +419,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, opts Options) *Analysis {
 		_, diags := identity.ResolveWith(ctx, cfg, identity.Context{
 			Schemas:     an.schemas,
 			DataResults: placeholders,
+			Scope:       an.scope,
 		})
 		fresh := false
 		for _, root := range an.demandRoots(diags) {
@@ -419,6 +442,7 @@ type analyzer struct {
 	cfg      *configs.Config
 	analysis *Analysis
 	schemas  map[string]providers.Schema
+	scope    identity.Scope
 	visiting map[string]bool
 
 	// proj is #193's managed-argument projector in its coverage-only mode,

@@ -42,6 +42,7 @@ import (
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -257,6 +258,25 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	coreOpts.Hooks = view.Hooks()
 	coreOpts.Encryption = enc
 
+	// Built here rather than just before the plan, where it used to be,
+	// because the targeting scope below is read off the plan graph and the
+	// plan graph is this object's to build. Constructing it starts nothing:
+	// provider processes are launched lazily, when a schema is first asked
+	// for, so an untargeted run pays exactly what it paid before.
+	tfCtx, ctxDiags := tofu.NewContext(coreOpts)
+	diags = diags.Append(ctxDiags)
+	if ctxDiags.HasErrors() {
+		return 1, false, diags
+	}
+
+	// GitHub issue #352's targeting scope, and nil unless this run passed
+	// -target or -exclude. See [statelessTargetScope].
+	scope, scopeDiags := statelessTargetScope(ctx, tfCtx, config, args.Operation.Targets, args.Operation.Excludes)
+	diags = diags.Append(scopeDiags)
+	if scopeDiags.HasErrors() {
+		return 1, false, diags
+	}
+
 	provs := newStatelessProviders(config, coreOpts.Plugins)
 
 	// Read once and handed to both the subset check and resolution below, so
@@ -293,7 +313,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// instances the projection uses, so resolution works from the
 	// provider's own answer rather than refusing it as dynamic. Free when
 	// nothing is demanded, fatal when a demanded source cannot be read.
-	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas)
+	dataResults, drDiags := statelessDataReads(ctx, config, provs, resourceSchemas, scope)
 	diags = diags.Append(drDiags)
 	if drDiags.HasErrors() {
 		diags = diags.Append(provs.close(ctx))
@@ -309,7 +329,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	//
 	// A first pass that refuses is no longer fatal on its own: see
 	// [statelessResolve] for the second pass and the bound on it.
-	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults)
+	resolutions, idDiags := statelessResolve(ctx, config, provs, resourceSchemas, dataResults, scope)
 	diags = diags.Append(idDiags)
 	if idDiags.HasErrors() {
 		// Fatal on purpose. An identity map with holes in it produces a
@@ -455,12 +475,6 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	variables, parseDiags := backend.ParseVariableValues(rawVariables, config.Module.Variables)
 	diags = diags.Append(parseDiags)
 	if diags.HasErrors() {
-		return 1, false, diags
-	}
-
-	tfCtx, ctxDiags := tofu.NewContext(coreOpts)
-	diags = diags.Append(ctxDiags)
-	if ctxDiags.HasErrors() {
 		return 1, false, diags
 	}
 
@@ -1703,12 +1717,57 @@ func livePlanRejectUnsupported(args *arguments.Plan) tfdiags.Diagnostics {
 // The common case - a configuration whose identities need no data source -
 // takes the analysis's probe and nothing else: no provider configured, no
 // network call, no behavior change.
-func statelessDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema) (map[string]cty.Value, tfdiags.Diagnostics) {
-	analysis := dataread.Analyze(ctx, config, dataread.Options{Schemas: resourceSchemas})
+func statelessDataReads(ctx context.Context, config *configs.Config, provs *statelessProviders, resourceSchemas map[string]providers.Schema, scope identity.Scope) (map[string]cty.Value, tfdiags.Diagnostics) {
+	analysis := dataread.Analyze(ctx, config, dataread.Options{Schemas: resourceSchemas, Scope: scope})
 	if analysis.Empty() {
 		return nil, nil
 	}
 	return dataread.Read(ctx, config, analysis, provs)
+}
+
+// statelessTargetScope is GitHub issue #352: which resource blocks a
+// -target or -exclude run still evaluates, for the passes that run in front
+// of the plan and so have no graph of their own to prune.
+//
+// It is nil - and costs nothing at all - for a run that passed neither flag,
+// which is every run this fork has made until now and every run of an estate
+// that does not scope itself.
+//
+// For a run that did pass one, the answer comes from the plan graph, through
+// [tofu.Context.TargetedResources], rather than from a rule this package
+// works out for itself. Targeting includes a targeted resource's
+// dependencies, transitively, over the same reference edges the graph is
+// built from; re-deriving that here would be a second set of targeting
+// semantics, and the failure mode when two such sets drift is a projection
+// missing a resource the plan does act on, which plans a create over
+// something that already exists.
+//
+// The state passed to the graph build is empty on purpose. This asks which
+// CONFIGURATION blocks survive, and the projection that would fill a state in
+// is three passes further down - it is the thing this scope exists to let run
+// at all.
+func statelessTargetScope(ctx context.Context, tfCtx *tofu.Context, config *configs.Config, targets, excludes []addrs.Targetable) (identity.Scope, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if len(targets) == 0 && len(excludes) == 0 {
+		return nil, diags
+	}
+
+	kept, graphDiags := tfCtx.TargetedResources(ctx, config, states.NewState(), &tofu.PlanOpts{
+		Mode:        plans.NormalMode,
+		SkipRefresh: true,
+		Targets:     targets,
+		Excludes:    excludes,
+	})
+	diags = diags.Append(graphDiags)
+	if graphDiags.HasErrors() {
+		return nil, diags
+	}
+	log.Printf("[TRACE] live: -target/-exclude leaves %d resource block(s) in the plan graph", len(kept))
+
+	return func(addr addrs.ConfigResource) bool {
+		_, ok := kept[addr.String()]
+		return ok
+	}, diags
 }
 
 // statelessResolve is the identity resolution every stateless command runs -
@@ -1759,10 +1818,13 @@ func statelessDataReads(ctx context.Context, config *configs.Config, provs *stat
 // provs is the interface rather than [*statelessProviders] on purpose: the
 // second pass's whole hazard is which provider answers, and a test that
 // cannot substitute one cannot see that.
-func statelessResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value) (*identity.Result, tfdiags.Diagnostics) {
+func statelessResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value, scope identity.Scope) (*identity.Result, tfdiags.Diagnostics) {
 	ictx := identity.Context{
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
+		// GitHub issue #352, and nil for an untargeted run. See
+		// [statelessTargetScope] and [identity.Scope].
+		Scope: scope,
 	}
 	first, firstDiags := identity.ResolveWith(ctx, config, ictx)
 	if !firstDiags.HasErrors() {
