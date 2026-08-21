@@ -8,7 +8,7 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=504 instances=1571
+# shape: dirs=506 instances=1571
 # shape: class CONCRETE=775
 # shape: class NEEDS_DISCOVERY=660
 # shape: class PARENT_DERIVED=115

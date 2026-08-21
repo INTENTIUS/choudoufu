@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -57,7 +58,7 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		return diags
 	}
 
-	scope, evalDiags := core.Eval(ctx, config, state, addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
+	scope, evalDiags := core.Eval(ctx, config, withZeroInstanceBlocks(ctx, config, state), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
 	diags = diags.Append(evalDiags)
 	if scope == nil {
 		return diags
@@ -91,4 +92,68 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
 	}
 	return diags
+}
+
+// withZeroInstanceBlocks returns the state [ApplyRootOutputValues]
+// evaluates against: the projection, plus an empty resource husk for every
+// block that provably produces no instances this run. It is GitHub issue
+// #349's fix, and it never modifies the state it is given - the plan runs
+// against that one a moment later, and a husk is bookkeeping for an
+// evaluation, not a fact about the estate.
+//
+// # What a husk buys
+//
+// internal/tofu/evaluate.go's GetResource decides what a whole-resource
+// reference is worth by looking the resource up in the state it was handed.
+// A resource that is ABSENT falls into the "walk that has not expanded the
+// configuration" branch, which answers cty.DynamicVal for anything
+// count-gated or for_each-gated: honest, because on that branch "no
+// instances" and "not read yet" genuinely are the same observation. A
+// resource that is PRESENT with no instances takes the far end of the same
+// function instead, where count answers cty.EmptyTupleVal and for_each
+// answers cty.EmptyObjectVal - a real, empty collection.
+//
+// That difference is the whole of #349. Indexing an empty tuple is an HCL
+// error, and try() recovers from errors, so
+// `try(aws_lambda_layer_version.this[0].arn, "")` finally reaches the ""
+// that a real plan reaches - a real plan's own graph having expanded the
+// configuration and known all along that instance 0 does not exist.
+// Indexing an unknown is not an error, so before this the same expression
+// stayed unknown, the output was left unset, and it rendered as newly
+// created on every run.
+//
+// # Why this is not the evaluator's fix to make
+//
+// The alternative was to teach GetResource's own fallback branch to consult
+// count and for_each. That branch is stock OpenTofu, shared with `tofu
+// console` and the validate walk, and its DynamicVal is correct for both:
+// neither has expanded anything. Seeding the husks here changes what
+// choudoufu's own output evaluation is told and leaves every stock walk
+// answering exactly as upstream does.
+//
+// # The soundness rule
+//
+// Only a block whose expansion RESOLVED, to no keys, gets a husk.
+// [identity.ZeroInstanceBlocks] holds that line and its doc says why a
+// looser reading is unsafe here: a husk for a block whose count could not
+// be evaluated would turn an unknown output into a confidently wrong one,
+// and a wrong value that renders as a clean diff is worse than the honest
+// "+" it replaces.
+func withZeroInstanceBlocks(ctx context.Context, config *configs.Config, state *states.State) *states.State {
+	blocks := identity.ZeroInstanceBlocks(ctx, config)
+	if len(blocks) == 0 {
+		return state
+	}
+	seeded := state.DeepCopy()
+	for _, block := range blocks {
+		if seeded.Resource(block.Addr) != nil {
+			// The projection already knows this address. It should not be
+			// possible for a block with no instances, but if some other
+			// pass ever puts one there, that pass's answer is the one built
+			// from live reads and this one must not overwrite it.
+			continue
+		}
+		seeded.EnsureModule(block.Addr.Module).SetResourceProvider(block.Addr.Resource, block.Provider)
+	}
+	return seeded
 }
