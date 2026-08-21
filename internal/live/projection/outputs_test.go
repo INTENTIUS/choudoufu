@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -71,7 +72,7 @@ func TestApplyRootOutputValuesEvaluatesAgainstProjectedState(t *testing.T) {
 	// stub_cert.future is declared in the fixture but deliberately absent
 	// from state - it stands in for a resource about to be created.
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -110,7 +111,7 @@ func TestApplyRootOutputValuesNoOutputsIsANoOp(t *testing.T) {
 		t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
 	}
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -190,7 +191,7 @@ func TestApplyRootOutputValuesSeesThroughZeroInstanceBlocks(t *testing.T) {
 
 	before := state.DeepCopy()
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, variables, nil)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, variables, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
@@ -298,7 +299,7 @@ func TestApplyRootOutputValuesSeedsLiveDataValues(t *testing.T) {
 		}),
 	}
 
-	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, dataValues)
+	diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, dataValues, nil)
 	if diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues raised errors: %s - nothing about one unevaluable output may fail a run", diags.Err())
 	}
@@ -378,7 +379,7 @@ func TestApplyRootOutputValuesUnmarksBeforeStoring(t *testing.T) {
 		addrs.NoKey,
 	)
 
-	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil); diags.HasErrors() {
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, nil); diags.HasErrors() {
 		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
 	}
 
@@ -420,5 +421,162 @@ func TestApplyRootOutputValuesUnmarksBeforeStoring(t *testing.T) {
 	}
 	if change.Action != plans.NoOp {
 		t.Errorf("cert_password planned as %s, want NoOp - nothing about it moved, and the prior value is exactly what the plan recomputes", change.Action)
+	}
+}
+
+// applyRootOutputEvalFixture is the shared setup for the two recorded-value
+// tests below: the testdata/output-eval fixture, a provider with the stub
+// schema, and a state carrying stub_cert.cert but not stub_cert.future - so
+// cert_id evaluates and future_id cannot.
+func applyRootOutputEvalFixture(t *testing.T) (*tofu.Context, *configs.Config, *states.State) {
+	t.Helper()
+	cfg := loadConfig(t, "testdata/output-eval")
+
+	stubSchema := providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"names": {Type: cty.List(cty.String), Optional: true},
+			"id":    {Type: cty.String, Computed: true},
+		},
+	}}
+	mock := &tofu.MockProvider{
+		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{"stub_cert": stubSchema},
+		},
+	}
+	core, ctxDiags := tofu.NewContext(&tofu.ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("stub"): func() (providers.Interface, error) { return mock, nil },
+		}, nil),
+	})
+	if ctxDiags.HasErrors() {
+		t.Fatalf("tofu.NewContext: %s", ctxDiags.Err())
+	}
+
+	state := states.NewState()
+	state.RootModule().SetResourceInstanceCurrent(
+		addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "stub_cert", Name: "cert"}.Instance(addrs.NoKey),
+		&states.ResourceInstanceObjectSrc{
+			AttrsJSON: []byte(`{"id":"cert-123","names":["example.com"]}`),
+			Status:    states.ObjectReady,
+		},
+		addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")},
+		addrs.NoKey,
+	)
+	return core, cfg, state
+}
+
+// TestApplyRootOutputValuesFallsBackToTheRecordedValue is GitHub issue
+// #349's remaining half at unit level: an output the projection cannot
+// evaluate at all takes the value the estate REMEMBERS it settled on, which
+// is exactly what `tofu plan` reads out of a stock state file for the same
+// output.
+//
+// future_id reads stub_cert.future, which this state carries no instance
+// for, so the evaluation leaves it unset - that is the negative half of
+// TestApplyRootOutputValuesEvaluatesAgainstProjectedState, unchanged. With a
+// recorded value in hand it must come back as THAT value, by value, and
+// carry the output block's own sensitivity rather than anything the record
+// says.
+func TestApplyRootOutputValuesFallsBackToTheRecordedValue(t *testing.T) {
+	core, cfg, state := applyRootOutputEvalFixture(t)
+
+	recorded := map[string]cty.Value{
+		"future_id": cty.StringVal("future-from-the-last-apply"),
+	}
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+	}
+
+	ov, ok := state.RootModule().OutputValues["future_id"]
+	if !ok {
+		t.Fatalf("future_id was not set even though the estate remembers a value for it")
+	}
+	if !ov.Value.RawEquals(cty.StringVal("future-from-the-last-apply")) {
+		t.Errorf("future_id = %#v, want the recorded value by value", ov.Value)
+	}
+	if ov.Value.IsMarked() {
+		t.Errorf("the recorded value was stored marked; node_output.go panics comparing a marked before")
+	}
+	if ov.Sensitive {
+		t.Errorf("future_id was stored sensitive; sensitivity comes from the output block, which does not declare it")
+	}
+	// Without a record, the same output must still come back unset - the
+	// fallback may not invent one.
+	core2, cfg2, bare := applyRootOutputEvalFixture(t)
+	if diags := ApplyRootOutputValues(t.Context(), core2, cfg2, bare, nil, nil, nil); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues (no records): %s", diags.Err())
+	}
+	if _, ok := bare.RootModule().OutputValues["future_id"]; ok {
+		t.Errorf("future_id was set with no recorded value at all")
+	}
+}
+
+// TestApplyRootOutputValuesRecordNeverOverridesAnEvaluatedOutput is the
+// soundness pin for the fallback, and it is the load-bearing one.
+//
+// The whole safety argument for using a remembered value (rootoutput.go, "the
+// soundness rule") is that it is ONE-DIRECTIONAL: it can only supply a prior
+// value where the evaluation produced none, so it can only ever turn a
+// "+ name = value" line into nothing or into "~ old -> new". If a record
+// could override an evaluated value, a stale one would put a confidently
+// wrong "before" in front of the diff, and a wrong before that happens to
+// equal the after renders a real change as clean - HANDOFF.md's "a wrong
+// marker outranks a missing one", one carrier over.
+//
+// So this feeds a deliberately WRONG record for every output the fixture can
+// evaluate and asserts each one keeps the value the projection produced.
+func TestApplyRootOutputValuesRecordNeverOverridesAnEvaluatedOutput(t *testing.T) {
+	core, cfg, state := applyRootOutputEvalFixture(t)
+
+	recorded := map[string]cty.Value{
+		"cert_id":     cty.StringVal("WRONG-cert-id"),
+		"cert_label":  cty.StringVal("WRONG-cert-label"),
+		"cert_secret": cty.StringVal("WRONG-cert-secret"),
+	}
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+	}
+
+	got := state.RootModule().OutputValues
+	for name, want := range map[string]cty.Value{
+		"cert_id":     cty.StringVal("cert-123"),
+		"cert_label":  cty.StringVal("cert-cert-123"),
+		"cert_secret": cty.StringVal("cert-123"),
+	} {
+		ov, ok := got[name]
+		if !ok {
+			t.Fatalf("output %q was not set", name)
+		}
+		if !ov.Value.RawEquals(want) {
+			t.Errorf("output %q = %#v, want %#v - a remembered value must never displace one the projection evaluated", name, ov.Value, want)
+		}
+	}
+}
+
+// TestApplyRootOutputValuesIgnoresAnUnusableRecordedValue pins the two shapes
+// the fallback refuses to store, both for the reason the evaluated path
+// refuses them: [Module.SetOutputValue] with a not-wholly-known value gives
+// the real plan graph's NodeApplyableOutput.setValue a "before" it assumes
+// cannot exist, and it panics rather than handling it.
+func TestApplyRootOutputValuesIgnoresAnUnusableRecordedValue(t *testing.T) {
+	core, cfg, state := applyRootOutputEvalFixture(t)
+
+	recorded := map[string]cty.Value{
+		"future_id": cty.UnknownVal(cty.String),
+	}
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+	}
+	if ov, ok := state.RootModule().OutputValues["future_id"]; ok {
+		t.Errorf("future_id was set to %#v from an unknown recorded value; it must be left unset", ov.Value)
+	}
+
+	core, cfg, state = applyRootOutputEvalFixture(t)
+	recorded = map[string]cty.Value{"future_id": cty.NilVal}
+	if diags := ApplyRootOutputValues(t.Context(), core, cfg, state, nil, nil, recorded); diags.HasErrors() {
+		t.Fatalf("ApplyRootOutputValues: %s", diags.Err())
+	}
+	if _, ok := state.RootModule().OutputValues["future_id"]; ok {
+		t.Errorf("future_id was set from a nil recorded value")
 	}
 }

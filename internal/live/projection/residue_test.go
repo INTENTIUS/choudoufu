@@ -807,12 +807,25 @@ func TestNoSentinelValueExists(t *testing.T) {
 }
 
 // TestResidueNamespaceRootsAreDisjoint states the whole set in one place, so
-// that adding a SIXTH root has to come here and say which of the others it
+// that adding another root has to come here and say which of the others it
 // must stay clear of. The roots are compared at the segment level, which is
 // the level both SSM parameter names and S3 key prefixes are hierarchical
 // at.
+//
+// The list is also the set internal/configs' validateRecordStoreKeyPrefix
+// refuses a key_prefix override rooted at, which is the other direction of
+// the same disjointness: this test holds the defaults apart, and that check
+// stops an operator moving one on top of another.
 func TestResidueNamespaceRootsAreDisjoint(t *testing.T) {
-	roots := []string{recordNamespaceRoot, hintNamespaceRoot, locatedNamespaceRoot, residueNamespaceRoot, "tofu-receipts"}
+	roots := []string{
+		recordNamespaceRoot,
+		hintNamespaceRoot,
+		locatedNamespaceRoot,
+		residueNamespaceRoot,
+		provisionedNamespaceRoot,
+		rootOutputNamespaceRoot,
+		"tofu-receipts",
+	}
 	sort.Strings(roots)
 	for i, a := range roots {
 		for j, b := range roots {

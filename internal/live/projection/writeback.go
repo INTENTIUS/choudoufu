@@ -118,6 +118,22 @@ type WriteBackRequest struct {
 	// delete side still runs, because it walks the versions this run's
 	// plan read rather than the configuration.
 	Config *configs.Config
+
+	// RootOutputStore is where GitHub issue #349's remaining half persists:
+	// the value each root-level `output` block settled on, so the next
+	// stateless plan has the "before" side stock reads out of its state
+	// file. Nil makes that half of [WriteBack] a no-op, the same way a nil
+	// Store does for the record-backed half. See rootoutput.go.
+	//
+	// It needs no *Versions companion. The other three namespaces read their
+	// keys at plan time and write conditionally on what they read, because
+	// what they hold is an identity and losing a race on one would put a
+	// stale identity in front of the next run. This one reads its expected
+	// version immediately before the write instead - see
+	// [WriteRootOutputValues] - because losing the race is the correct
+	// outcome here: the winner wrote a value from a state at least as new
+	// as this one.
+	RootOutputStore *RootOutputStore
 }
 
 // WriteBack persists every record-backed resource instance's post-apply
@@ -142,6 +158,11 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 	diags = diags.Append(writeBackLocated(ctx, req))
 	diags = diags.Append(writeBackResidue(ctx, req))
 	diags = diags.Append(writeBackProvisioned(ctx, req))
+	// Issue #349's root output values. Deliberately outside the req.Store
+	// nil-check below: this namespace has its own store handle and an
+	// estate can perfectly well have one without a record-backed resource
+	// in it. It raises nothing - see [WriteRootOutputValues].
+	writeBackRootOutputs(ctx, req)
 
 	if req.Store == nil {
 		return diags

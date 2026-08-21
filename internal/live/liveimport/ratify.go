@@ -221,6 +221,23 @@ type Request struct {
 	// RecordKeyPrefix is the key namespace RecordStore's records live under.
 	// Ignored when RecordStore is nil.
 	RecordKeyPrefix string
+
+	// RootOutputStore is GitHub issue #349's root-output namespace, a sixth
+	// namespace in ordinarily the same store the other three views are
+	// layered over, opened by the same caller from the same record_store
+	// block.
+	//
+	// A migration is where an estate's remembered output values come from,
+	// and it is the only place they can come from for an estate that has
+	// never been applied by choudoufu: the stock state file this run is
+	// pointed at holds them, and nothing else on this side does. Nil - no
+	// live block, or a live block with no record_store - leaves every root
+	// output with no prior value, exactly as before, which renders as
+	// "+ name = ..." on the next stateless plan.
+	//
+	// Like the record and residue stores it is used by Approve and not by
+	// Ratify: writing is what Approve is for.
+	RootOutputStore *projection.RootOutputStore
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -244,6 +261,22 @@ type Ratification struct {
 
 	recordStore     staterecord.Store
 	recordKeyPrefix string
+
+	// rootOutputStore and rootOutputs are GitHub issue #349's migration
+	// half. A stock state file holds the value every root-level `output`
+	// block settled on at the last apply, and until this existed a migration
+	// dropped every one of them: HANDOFF.md's "migration from a stock state
+	// file is lossless" had a hole in it exactly the size of the estate's
+	// outputs, and the next stateless plan rendered all of them as newly
+	// created.
+	//
+	// rootOutputs is the whole state rather than the values, because
+	// [projection.WriteRootOutputValues] takes a state and reads the
+	// sensitivity flag off each [states.OutputValue] itself - and the state
+	// is the only place that flag exists here, there being no configuration
+	// in hand during a migration.
+	rootOutputStore *projection.RootOutputStore
+	rootOutputs     *states.State
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -283,6 +316,8 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		residueStore:    req.ResidueStore,
 		recordStore:     req.RecordStore,
 		recordKeyPrefix: req.RecordKeyPrefix,
+		rootOutputStore: req.RootOutputStore,
+		rootOutputs:     req.State,
 	}
 
 	for _, mod := range sortedModules(req.State) {
