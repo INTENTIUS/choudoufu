@@ -12,7 +12,7 @@ package identity
 // proves the exported `id` attribute holds that whole string.
 //
 // It is issue #337's verdict, in the form the record-located mechanism can
-// act on. [LocatedIdentityComponents] records a type's `id` and hands that
+// act on. [LocatedIdentityPlanFor] records a type's `id` and hands that
 // string back to import on the next run, which is correct only when `id` IS
 // the import string. For a type here nothing says it is, so the mechanism
 // refuses rather than recording a possible fragment - a recorded fragment is

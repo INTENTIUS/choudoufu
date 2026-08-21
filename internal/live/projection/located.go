@@ -246,18 +246,27 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 			// remembered, for the same reason LocatedType is above: one
 			// function answering one question is what keeps the set that
 			// gets written identical to the set that gets read.
-			components, recordable := identity.LocatedIdentityComponents(typeName, *schema)
+			plan, recordable := identity.LocatedIdentityPlanFor(typeName, *schema)
 			rec := LocatedRecord{}
 			if recordable {
-				if len(components) == 0 {
-					rec.ImportID, recordable = identity.LocatedImportID(obj.Value)
-				} else {
+				switch {
+				case plan.Composite():
 					// A composite identity is recorded as an OBJECT and with
 					// no string at all. "id" holds the bare leaf for such a
 					// type, so recording it as the import ID would store a
 					// fragment that reads back as a whole identity - the
 					// exact defect this branch exists to close.
-					rec.Components, recordable = identity.LocatedIdentity(obj.Value, components)
+					rec.Components, recordable = identity.LocatedIdentity(obj.Value, plan.Components)
+				case plan.Composed():
+					// The provider serves no identity object for this type,
+					// so there is no object to record - but its own Import
+					// section states the string's grammar, and issue #337's
+					// [identity.DocumentedImportIDs] resolved every segment
+					// against this very schema. The string composed here is
+					// the documented import ID, read rather than invented.
+					rec.ImportID, recordable = identity.LocatedComposedImportID(obj.Value, plan.ImportIDParts, plan.ImportIDSeparator)
+				default:
+					rec.ImportID, recordable = identity.LocatedImportID(obj.Value)
 				}
 			}
 			if !recordable || rec.Empty() {
@@ -375,7 +384,7 @@ type locatedPayload struct {
 	// sets "id" to the bare leaf and the import path expects the whole
 	// thing. It is one string per component, named as the provider's own
 	// identity schema names them, and it is what
-	// [identity.LocatedIdentityComponents] decides the shape of.
+	// [identity.LocatedIdentityPlanFor] decides the shape of.
 	//
 	// Empty for a type whose identity is the string, which is what every
 	// record written before composite identities existed looks like. That

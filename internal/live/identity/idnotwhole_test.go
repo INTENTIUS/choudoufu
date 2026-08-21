@@ -32,6 +32,13 @@ import (
 // aMarkerlessTypeIn returns one member of [MarkerlessTypes] that no ratified
 // row covers and that the doc-derived rule does (want=true) or does not
 // (want=false) refuse, chosen deterministically.
+//
+// A type issue #337's second route rescues is excluded from the want=true
+// half, and the exclusion is what keeps that half about the refusal it is
+// named for. Such a type is in [IDNotProvenWholeTypes] and is nonetheless
+// ADMITTED, by composing the string its own page spells out - a different
+// verdict reached for a different reason, which
+// [TestLocatedIdentityPlanPrefersTheWireSchemaOverTheDocs] is where to assert.
 func aMarkerlessTypeIn(t *testing.T, wantUnproven bool) string {
 	t.Helper()
 	var names []string
@@ -41,6 +48,9 @@ func aMarkerlessTypeIn(t *testing.T, wantUnproven bool) string {
 		}
 		_, unproven := IDNotProvenWholeTypes[name]
 		if unproven != wantUnproven {
+			continue
+		}
+		if _, described := DocumentedImportIDs[name]; wantUnproven && described {
 			continue
 		}
 		names = append(names, name)
@@ -84,54 +94,102 @@ func TestLocatedTypeRefusesAnUnprovenCompositeID(t *testing.T) {
 	}
 }
 
-// TestLocatedIdentityComponentsPrefersTheWireSchemaOverTheDocs pins the
-// order of the two sources, which is the thing most likely to be got wrong
-// by a later edit and the thing no aggregate would notice.
+// aMarkerlessTypeWithADocumentedGrammar returns one unratified member of
+// [MarkerlessTypes] that [IDNotProvenWholeTypes] refuses and
+// [DocumentedImportIDs] carries a grammar for - the population issue #337's
+// second route exists for - chosen deterministically.
+func aMarkerlessTypeWithADocumentedGrammar(t *testing.T) string {
+	t.Helper()
+	var names []string
+	for name := range MarkerlessTypes {
+		if _, ratified := LookupType(name); ratified {
+			continue
+		}
+		if _, unproven := IDNotProvenWholeTypes[name]; !unproven {
+			continue
+		}
+		if _, described := DocumentedImportIDs[name]; !described {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		t.Fatal("no unratified markerless type has both a refused `id` and a documented import grammar, " +
+			"so issue #337's second qualification route reaches nothing and every assertion on it is vacuous")
+	}
+	sort.Strings(names)
+	return names[0]
+}
+
+// TestLocatedIdentityPlanPrefersTheWireSchemaOverTheDocs pins the order of
+// the sources, which is the thing most likely to be got wrong by a later edit
+// and the thing no aggregate would notice.
 //
 // A type can be in [IDNotProvenWholeTypes] - its page documents a composite
 // import its `id` bullet does not corroborate - and ALSO carry a wire
 // identity schema requiring `id` plus a parent. When both are true, #329's
 // composite branch answers the question completely: the record carries the
-// identity OBJECT, component by component, and the undecidable string is
-// never consulted. Refusing such a type would withdraw a correct, fully
-// recordable identity on the strength of a documentation ambiguity that no
-// longer matters.
+// identity OBJECT, component by component, and the string is never consulted.
+// Refusing such a type, or composing a string for it out of a documentation
+// scrape, would set aside the stronger source for the weaker one.
 //
-// Measured at the commit that widened the veto: 9 markerless types are in
-// both sets, aws_api_gateway_resource among them - which is one of the 18
-// the widening admitted, so this is the branch that carries the widening's
-// only schema-backed gain.
-func TestLocatedIdentityComponentsPrefersTheWireSchemaOverTheDocs(t *testing.T) {
-	unproven := aMarkerlessTypeIn(t, true)
+// The subject is deliberately a type BOTH the refusal and issue #337's
+// documented-grammar route apply to, so the assertion separates three
+// verdicts and not two: with no wire schema the plan is the composed string,
+// with one it is the identity object, and neither run is a refusal.
+func TestLocatedIdentityPlanPrefersTheWireSchemaOverTheDocs(t *testing.T) {
+	subject := aMarkerlessTypeWithADocumentedGrammar(t)
+	grammar := DocumentedImportIDs[subject]
 
-	// The same type, once with no wire identity schema and once with a
-	// composite one. Nothing else differs.
+	// The same block for both runs, carrying a string attribute for every
+	// segment the page names plus the server-minted `id`. Nothing about the
+	// block differs between the two runs, so a difference in verdict is the
+	// identity schema and nothing else.
 	block := &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"id":          {Type: cty.String, Computed: true},
-		"rest_api_id": {Type: cty.String, Required: true},
+		"id": {Type: cty.String, Computed: true},
 	}}
+	identityAttrs := map[string]*configschema.Attribute{"id": {Type: cty.String, Required: true}}
+	for _, p := range grammar.Parts {
+		if p.Name == normalizeDocName("id") {
+			continue
+		}
+		block.Attributes[p.Name] = &configschema.Attribute{Type: cty.String, Required: true}
+		identityAttrs[p.Name] = &configschema.Attribute{Type: cty.String, Required: true}
+	}
 
-	if _, recordable := LocatedIdentityComponents(unproven, providers.Schema{Block: block}); recordable {
-		t.Errorf("%s: recordable = true with no wire identity schema. The docs are then the only source "+
-			"and they do not settle whether `id` is the whole import string.", unproven)
+	docsOnly, recordable := LocatedIdentityPlanFor(subject, providers.Schema{Block: block})
+	if !recordable {
+		t.Fatalf("%s: recordable = false with no wire identity schema, even though its own Import section "+
+			"names every segment and the block carries all of them. That is issue #337's second route "+
+			"failing to fire where it is the only source there is.", subject)
+	}
+	if !docsOnly.Composed() || docsOnly.Composite() {
+		t.Errorf("%s: plan with no wire identity schema = %+v; want the documented import-string grammar and "+
+			"no identity object - the provider serves none to record.", subject, docsOnly)
+	}
+	if docsOnly.ImportIDSeparator != grammar.Separator || len(docsOnly.ImportIDParts) != len(grammar.Parts) {
+		t.Errorf("%s: composed plan = %v joined by %q, want %d segments joined by %q",
+			subject, docsOnly.ImportIDParts, docsOnly.ImportIDSeparator, len(grammar.Parts), grammar.Separator)
 	}
 
 	withSchema := providers.Schema{Block: block, IdentitySchema: &configschema.Object{
-		Nesting: configschema.NestingSingle,
-		Attributes: map[string]*configschema.Attribute{
-			"id":          {Type: cty.String, Required: true},
-			"rest_api_id": {Type: cty.String, Required: true},
-		},
+		Nesting:    configschema.NestingSingle,
+		Attributes: identityAttrs,
 	}}
-	components, recordable := LocatedIdentityComponents(unproven, withSchema)
+	wire, recordable := LocatedIdentityPlanFor(subject, withSchema)
 	if !recordable {
 		t.Fatalf("%s: recordable = false even though the provider's own identity schema names every "+
 			"component and the block carries all of them as strings. The doc rule is overriding the "+
-			"stronger source.", unproven)
+			"stronger source.", subject)
 	}
-	want := []string{"id", "rest_api_id"}
-	if len(components) != len(want) || components[0] != want[0] || components[1] != want[1] {
-		t.Errorf("%s: components = %v, want %v - the whole identity, not the undecidable string", unproven, components, want)
+	if !wire.Composite() || wire.Composed() {
+		t.Errorf("%s: plan with a wire identity schema = %+v; want the identity OBJECT and no composed "+
+			"string. The wire schema is a fact the running provider states and the grammar is a scrape of "+
+			"a pinned documentation snapshot; under skew the running provider is the authority.", subject, wire)
+	}
+	if len(wire.Components) != len(identityAttrs) {
+		t.Errorf("%s: components = %v, want all %d identity attributes - the whole identity, not part of it",
+			subject, wire.Components, len(identityAttrs))
 	}
 }
 
