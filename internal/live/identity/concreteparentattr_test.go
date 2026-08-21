@@ -335,22 +335,43 @@ func TestConcreteParentAttributeNeedsSchemas(t *testing.T) {
 	}
 }
 
-// TestServerAssignedParentAttributeStillRefused is the exclusion, and the
-// one worth being explicit about. aws_instance.public_ip and
-// aws_api_gateway_rest_api.root_resource_id are genuine post-apply values;
-// they keep refusing, and they keep refusing for the right reason. Both
-// attributes are in the schema map this test supplies, so the refusal is
-// the parent's class - ServerAssigned rows never resolve CONCRETE, so their
-// objects are not in the projection before a formula renders - and not a
-// missing schema entry that a fuller schema map would quietly remove.
+// TestServerAssignedParentAttributeDefersToDiscovery is where GitHub issue
+// #346 moved this file's boundary, and the move is worth stating plainly
+// because this test asserted the opposite until #346 was decided.
+//
+// It read "still refused", and its reason was that "ServerAssigned rows never
+// resolve CONCRETE, so their objects are not in the projection before a
+// formula renders". The second half of that sentence is false on the path
+// live-plan actually takes. internal/command/live_plan.go runs marker
+// discovery between resolution and projection and then replaces the
+// resolution list with discovery's own (merged = disco.Resolutions), in which
+// every discovered instance has been rewritten [ClassConcrete] carrying its
+// live import ID (internal/live/discovery/result.go). builder.run materializes
+// those before it renders a single formula, so a needs-discovery parent's
+// whole live object IS in b.live by the time a promise to read one attribute
+// off it is read - by the identical mechanism, at the identical point, as for
+// a parent that was concrete from the start.
+//
+// So the two cases are now one rule, and what still refuses is what always
+// should have: an attribute the provider's schema does not declare
+// (TestConcreteParentUnknownAttributeStillRefused), a run with no schemas to
+// check against (TestConcreteParentAttributeNeedsSchemas), and a parent whose
+// entry [SynthesizeTypeIdentity] inferred rather than [DefaultTable] ratified
+// (TestSynthesizedParentAttributeStillRefused, below).
+//
+// What a parent discovery does NOT find costs is a missing marker, not a wrong
+// one: it stays needs-discovery, builder.run omits it, and
+// builder.renderFormula's own parent check then omits this child with
+// ReasonParentUnavailable, so the plan proposes creating the child rather than
+// binding it to anything guessed. That leg is pinned in
+// internal/live/projection's TestFormulaOverUndiscoveredParentIsOmitted.
 //
 // The child is aws_iam_group, not aws_cloudwatch_log_group as this fixture
 // read before GitHub issue #289: that type is taggable and enumerable, so
-// its own marker fallback would now answer this "Not an identity
-// attribute" refusal too, which is a different, correct behaviour this
-// test is not about. aws_iam_group carries no tags argument, so the
-// refusal below is the parent-class rule alone, ungated.
-func TestServerAssignedParentAttributeStillRefused(t *testing.T) {
+// its own marker fallback would answer this differently, which is a separate
+// and correct behaviour this test is not about. aws_iam_group carries no tags
+// argument, so what is exercised below is the parent-class rule alone.
+func TestServerAssignedParentAttributeDefersToDiscovery(t *testing.T) {
 	schemas := concreteParentTestSchemas()
 	for _, want := range []struct{ typeName, attr string }{
 		{"aws_instance", "public_ip"},
@@ -358,27 +379,56 @@ func TestServerAssignedParentAttributeStillRefused(t *testing.T) {
 	} {
 		r := &resolver{schemas: schemas}
 		if !r.stringAttrInSchema(want.typeName, want.attr) {
-			t.Fatalf("this test cannot see what it claims to: %s.%s is not in its schema map, so any refusal below is the schema's and not the class's", want.typeName, want.attr)
+			t.Fatalf("this test cannot see what it claims to: %s.%s is not in its schema map, so any verdict below is the schema's and not the class's", want.typeName, want.attr)
 		}
 	}
 
 	cfg := loadConfig(t, filepath.Join("testdata", "server-assigned-parent-attr"), nil)
 	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
-	if !diags.HasErrors() {
-		t.Fatal("a post-apply attribute of a server-assigned parent was accepted")
-	}
-	wantRefused := map[string]bool{
-		`aws_iam_group.by_ip`:   true,
-		`aws_iam_group.by_root`: true,
-	}
-	for _, res := range result.All() {
-		if wantRefused[res.Addr.String()] && res.Class == ClassParentDerived {
-			t.Errorf("%s resolved PARENT_DERIVED; a server-assigned parent's live object is not in the projection when a formula renders", res.Addr)
+	assertNoErrors(t, diags)
+
+	for _, want := range []struct{ addr, reads string }{
+		{`aws_iam_group.by_ip`, "aws_instance.web.public_ip"},
+		{`aws_iam_group.by_root`, "aws_api_gateway_rest_api.api.root_resource_id"},
+	} {
+		res := resolutionAt(t, result, want.addr)
+		if res.Class != ClassParentDerived {
+			t.Errorf("%s resolved %s, want PARENT_DERIVED deferring to its discovered parent", want.addr, res.Class)
+			continue
+		}
+		got := res.Formula.String()
+		if !strings.Contains(got, want.reads) {
+			t.Errorf("%s renders %q, which does not read %s", want.addr, got, want.reads)
 		}
 	}
-	if !hasDiag(diags, "Not an identity attribute", "public_ip") &&
-		!hasDiag(diags, "Unresolvable identity", "public_ip") {
-		t.Errorf("no refusal names public_ip:\n%s", renderDiags(diags))
+}
+
+// TestSynthesizedParentAttributeStillRefused is the condition #346 did NOT
+// relax, kept apart from the widening above so a reader can see it is still
+// load-bearing: a parent whose entry [SynthesizeTypeIdentity] inferred from
+// the provider's identity schema, rather than one [DefaultTable] ratified,
+// may not have a second value deferred to it. The classification this whole
+// branch rests on - the parent is discovered, imported and read before any
+// formula renders - is only as good as that inference, and deferring to it
+// stacks an inference on an inference.
+func TestSynthesizedParentAttributeStillRefused(t *testing.T) {
+	if _, ratified := LookupType("test_synth_parent"); ratified {
+		t.Fatal("test_synth_parent is in DefaultTable; this test can see nothing")
+	}
+	cfg := loadConfig(t, filepath.Join("testdata", "synthesized-parent-attr"), nil)
+
+	_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: fakeProviderSchemas(map[string]fakeType{
+		"test_synth_parent": {
+			args:     map[string]string{"name": "req", "endpoint": "comp"},
+			identity: map[string]string{"name": "req"},
+		},
+		"aws_iam_group": {args: map[string]string{"name": "req"}},
+	})})
+	if !diags.HasErrors() {
+		t.Fatal("an attribute of a parent whose entry was synthesized rather than ratified was accepted")
+	}
+	if !hasDiag(diags, "Not an identity attribute", "endpoint") {
+		t.Errorf("no refusal names endpoint:\n%s", renderDiags(diags))
 	}
 }
 

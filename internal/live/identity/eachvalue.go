@@ -155,6 +155,173 @@ func (r *resolver) eachValueSelect(trav hcl.Traversal, scope instScope, ident co
 	return nil, eachAttrUndecided
 }
 
+// eachValueSelector decomposes an identity argument that reads one attribute
+// out of the for_each element into the traversal steps to select with, or
+// reports false for any other shape.
+//
+// Two spellings reach the same place and this is where they meet, which is
+// GitHub issue #346's own headline finding restated as code: the estate that
+// found the wall writes `lookup(each.value, "cidr_blocks", null)` and the
+// hand-built reduction writes `each.value.cidr_blocks`, and they are the same
+// selection whenever the element HAS the attribute. lookup()'s third argument
+// only matters when it does not, which is [resolver.resolveLookupCall]'s
+// question rather than this one's - a caller that gets steps back here and
+// finds nothing under them falls back to the route it had.
+//
+// A two-argument lookup() is deliberately not accepted: it raises an error on
+// a missing key rather than returning a fallback, so "the element does not
+// have it" is a different outcome for it than for the three-argument form, and
+// this function would flatten the two.
+func (r *resolver) eachValueSelector(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) ([]hcl.Traverser, bool) {
+	if scope.eachValueExpr == nil {
+		return nil, false
+	}
+	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() {
+		if trav.RootName() != "each" || len(trav) < 2 || !isAttrStep(trav[1], "value") {
+			return nil, false
+		}
+		return append([]hcl.Traverser(nil), trav[2:]...), true
+	}
+
+	call, isCall := expr.(*hclsyntax.FunctionCallExpr)
+	if !isCall || call.Name != "lookup" || len(call.Args) != 3 || call.ExpandFinal {
+		return nil, false
+	}
+	trav, diags := hcl.AbsTraversalForExpr(call.Args[0])
+	if diags.HasErrors() || trav.RootName() != "each" || len(trav) < 2 || !isAttrStep(trav[1], "value") {
+		return nil, false
+	}
+	kv, keyDiags := r.evalPure(call.Args[1], scope, ident)
+	if keyDiags.HasErrors() {
+		return nil, false
+	}
+	ks, err := convert.Convert(kv, cty.String)
+	// IsMarked before AsString, which panics on a marked value.
+	if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
+		return nil, false
+	}
+	steps := append([]hcl.Traverser(nil), trav[2:]...)
+	return append(steps, hcl.TraverseAttr{Name: ks.AsString(), SrcRange: call.Args[1].Range()}), true
+}
+
+// resolveLookupCall resolves `lookup(each.value, "key", fallback)` to whichever
+// of the two the language would produce, for the same reason and by the same
+// rule [resolver.resolveFallbackChain] resolves try(): the selection is decided
+// by whether the element HAS the attribute, which [resolver.eachValueSelect]
+// answers three-valued, and the selected sub-expression is then handed back to
+// the ordinary machinery so every existing rule applies to it unchanged.
+//
+// GitHub issue #346 measured that a static-valued lookup() already resolves -
+// its own value evaluates, so [resolver.resolveExpr]'s non-symbolic branch
+// takes it and this is never reached. What did not resolve is a lookup over an
+// element bound as an EXPRESSION, which is every element the for_each source
+// could not be evaluated as a value, and that is the only case here.
+//
+// applicable is false for any other shape and for an undecidable one, leaving
+// the caller's own refusal standing - the same contract every other function
+// in [resolver.resolveExpr]'s function-call switch has.
+func (r *resolver) resolveLookupCall(call *hclsyntax.FunctionCallExpr, scope instScope, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	if call.Name != "lookup" || len(call.Args) != 3 {
+		return nil, false, false
+	}
+	steps, stepsOK := r.eachValueSelector(call, scope, ident)
+	if !stepsOK {
+		return nil, false, false
+	}
+	trav := hcl.Traversal{hcl.TraverseRoot{Name: "each"}, hcl.TraverseAttr{Name: "value"}}
+	trav = append(trav, steps...)
+
+	mark := len(r.diags)
+	got, presence := r.eachValueSelect(trav, scope, ident)
+	switch presence {
+	case eachAttrPresent:
+		return got, true, true
+	case eachAttrAbsent:
+		// The element provably lacks the key, so lookup() yields its third
+		// argument. The probe's own diagnostics are rolled back: the arm that
+		// did not win must not leave a refusal behind, exactly as
+		// [resolver.fallbackArmVerdict] rewinds around the same call.
+		r.diags = r.diags[:mark]
+		fallbackParts, fallbackOK := r.resolveExpr(call.Args[2], scope, ident)
+		return fallbackParts, fallbackOK, true
+	case eachAttrUnresolved:
+		// Present, and unresolvable. The selection's own diagnostic names the
+		// real obstacle and is already recorded; a second one on top of it
+		// would bury it. This is the branch #346's own estate lands on before
+		// the rest of that issue's fix, and it is why widening only this call
+		// would have changed the message and left the estate blocked.
+		return nil, false, true
+	}
+	r.diags = r.diags[:mark]
+	return nil, false, false
+}
+
+// eachValueSoleElement is [Component.SoleElement]'s narrowing for an argument
+// whose value comes out of a for_each element bound as an EXPRESSION.
+//
+// [resolver.soleElementExpr] narrows syntactically, over the expression the
+// argument was written with. On this route that expression is
+// `each.value.cidr_blocks` (or the lookup() spelling of it), which is not a
+// list construct, so nothing was narrowed and a one-element list arrived at
+// [resolver.stringValueIn] whole. The list construct is in the ELEMENT, one
+// selection away, so this selects that far and applies the identical
+// one-element rule there - see [resolver.selectStaticExpr].
+//
+// The element expression belongs to the module it was WRITTEN in, which is
+// [resolver.eachValueSelect]'s own hop and is re-entered here for the same
+// reason: the locals, variables and data results the element reads are the
+// calling module's, not this one's.
+//
+// applicable is false whenever this does not apply - the argument is not an
+// each.value selection, the element is not a shape [resolver.selectStaticExpr]
+// walks, or what it lands on is not a list construct at all. Every such case
+// falls through to the route the argument had before, unchanged and with no
+// diagnostic left behind. When applicable is true the verdict is exactly the
+// one the syntactic case enforces: exactly one element resolves, and zero or
+// more than one refuses with the same "Ambiguous list-valued identity
+// argument" the AWS API - not this configuration's list order - forces.
+func (r *resolver) eachValueSoleElement(expr hcl.Expression, scope instScope, attr *hcl.Attribute, ident configs.StaticIdentifier) (parts []Part, ok bool, applicable bool) {
+	b := scope.eachValueExpr
+	if b == nil || b.expr == nil {
+		return nil, false, false
+	}
+	steps, stepsOK := r.eachValueSelector(expr, scope, ident)
+	if !stepsOK || len(steps) == 0 {
+		// Zero steps is a bare each.value, which is the whole element and is
+		// not a selection this can narrow.
+		return nil, false, false
+	}
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(b.modInst) {
+		return nil, false, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	mark := len(r.diags)
+	leaf, leafOK := r.selectStaticExpr(b.expr, steps, b.scope, ident, 0)
+	if !leafOK {
+		r.diags = r.diags[:mark]
+		return nil, false, false
+	}
+	elems, diags := hcl.ExprList(leaf)
+	if diags.HasErrors() || elems == nil {
+		// Not a list construct: the argument is a plain scalar on this route
+		// and needs no narrowing at all.
+		r.diags = r.diags[:mark]
+		return nil, false, false
+	}
+	if len(elems) != 1 {
+		r.diags = r.diags[:mark]
+		r.errorf(attr.Range, "Ambiguous list-valued identity argument",
+			"%s has %d elements. This component's identity can only be built when %s carries exactly one value; the AWS API - not this configuration's list order - decides how more than one composes into the real object, so this package will not guess which one to use.",
+			ident.Subject, len(elems), attr.Name)
+		return nil, false, true
+	}
+	got, gotOK := r.resolveExpr(elems[0], b.scope, ident)
+	return got, gotOK, true
+}
+
 // eachValuePart is [resolver.resolveTraversal]'s each.value branch for an
 // expression-bound instance. Unlike [resolver.eachValueSelect] it does
 // record a diagnostic when it cannot answer, because a bare reference that

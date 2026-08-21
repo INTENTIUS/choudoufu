@@ -1247,6 +1247,85 @@ func (r *resolver) selectStatic(expr hcl.Expression, rest []hcl.Traverser, scope
 	return nil, false, false
 }
 
+// selectStaticExpr is [resolver.selectStatic]'s expression-shaped half: it
+// walks the same container shapes and returns the LEAF EXPRESSION the
+// traversal steps land on, instead of resolving that leaf into identity parts.
+//
+// It exists for GitHub issue #346's first half. A [Component.SoleElement]
+// argument is narrowed to its one element BEFORE anything resolves it
+// ([resolver.soleElementExpr]), and that narrowing is syntactic - hcl.ExprList
+// over a list construct. On the each.value route the argument's expression is
+// `each.value.cidr_blocks`, not a list construct, so nothing was ever narrowed
+// and a one-element list reached [resolver.stringValueIn] whole, refusing as
+// "Non-string identity argument: string required, but have tuple" - over a
+// list the configuration wrote out with exactly one member in it. The element
+// EXPRESSION is the thing that has the list construct in it, so the narrowing
+// has to happen there, which needs the selection to stop one step short of
+// resolving.
+//
+// Deliberately narrower than selectStatic in one way: a leaf that is itself a
+// local, var or module-output reference is NOT chased. selectStatic chases
+// those by handing them to [resolver.resolveNamed] / [resolver.resolveModuleOutput],
+// both of which resolve rather than select, and there is no expression to give
+// back at the end of that chase. A caller that gets false here falls back to
+// the route it had before, which resolves the reference the ordinary way.
+func (r *resolver) selectStaticExpr(expr hcl.Expression, rest []hcl.Traverser, scope instScope, ident configs.StaticIdentifier, depth int) (hcl.Expression, bool) {
+	if depth > maxStaticDecomposeDepth {
+		return nil, false
+	}
+	if paren, ok := expr.(*hclsyntax.ParenthesesExpr); ok {
+		return r.selectStaticExpr(paren.Expression, rest, scope, ident, depth+1)
+	}
+	if len(rest) == 0 {
+		return expr, true
+	}
+
+	step := rest[0]
+	switch e := expr.(type) {
+	case *hclsyntax.ObjectConsExpr:
+		key, ok := stepKeyString(step)
+		if !ok {
+			return nil, false
+		}
+		for _, item := range e.Items {
+			kv, diags := r.evalPure(item.KeyExpr, scope, ident)
+			if diags.HasErrors() {
+				continue
+			}
+			ks, err := convert.Convert(kv, cty.String)
+			// IsMarked before AsString, which panics on a marked value: the
+			// same guard [resolver.selectStatic] carries, for its reasons.
+			if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() || ks.AsString() != key {
+				continue
+			}
+			return r.selectStaticExpr(item.ValueExpr, rest[1:], scope, ident, depth+1)
+		}
+		return nil, false
+
+	case *hclsyntax.TupleConsExpr:
+		idx, ok := stepIndexInt(step)
+		if !ok || idx < 0 || idx >= len(e.Exprs) {
+			return nil, false
+		}
+		return r.selectStaticExpr(e.Exprs[idx], rest[1:], scope, ident, depth+1)
+
+	case *hclsyntax.FunctionCallExpr:
+		if e.Name != "merge" {
+			return nil, false
+		}
+		// Last argument wins on a duplicate key, matching merge()'s own
+		// precedence - [resolver.selectStatic]'s rule, for its reasons.
+		for i := len(e.Args) - 1; i >= 0; i-- {
+			if leaf, ok := r.selectStaticExpr(e.Args[i], rest, scope, ident, depth+1); ok {
+				return leaf, true
+			}
+		}
+		return nil, false
+	}
+
+	return nil, false
+}
+
 func stepKeyString(step hcl.Traverser) (string, bool) {
 	switch s := step.(type) {
 	case hcl.TraverseAttr:

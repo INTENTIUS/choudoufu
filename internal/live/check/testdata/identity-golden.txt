@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=511 instances=1577
-# shape: class CONCRETE=781
-# shape: class NEEDS_DISCOVERY=660
+# shape: dirs=515 instances=1589
+# shape: class CONCRETE=790
+# shape: class NEEDS_DISCOVERY=663
 # shape: class PARENT_DERIVED=115
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=bd6bc91a533d94301ba6a3b6b253beb09edb9497086edde3314af28181e58386
+# shape: body-sha256=a6df4368705c9ffd7e160b6d168d786785d08727cb5fce0d69fbeb83484715c5
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -383,6 +383,18 @@ internal/live/identity/testdata/module-output-in-call-arg/vpc	aws_vpc.this[0]	NE
 internal/live/identity/testdata/module-output-refused	module.shard["a"].aws_iam_role.this	CONCRETE	one	name=one
 internal/live/identity/testdata/module-output-refused	module.shard["b"].aws_iam_role.this	CONCRETE	two	name=two
 internal/live/identity/testdata/module-output-refused	module.single.aws_iam_role.this	CONCRETE	solo	name=solo
+internal/live/identity/testdata/module-output-sibling-computed	aws_vpc.root	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2443_2443_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2443,protocol=tcp,security_group_id=sg-fixed,to_port=2443,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_bare_computed.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2446_2446_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2446,protocol=tcp,security_group_id=sg-fixed,to_port=2446,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_literal_list.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2444_2444_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2444,protocol=tcp,security_group_id=sg-fixed,to_port=2444,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_literal_list.aws_security_group_rule.dotted["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_1444_1444_10.97.0.0/16	cidr_blocks=10.97.0.0/16,from_port=1444,protocol=tcp,security_group_id=sg-fixed,to_port=1444,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_literal_list.aws_security_group_rule.this["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_444_444_10.97.0.0/16	cidr_blocks=10.97.0.0/16,from_port=444,protocol=tcp,security_group_id=sg-fixed,to_port=444,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_output_list.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2445_2445_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2445,protocol=tcp,security_group_id=sg-fixed,to_port=2445,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_output_list.aws_security_group_rule.dotted["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_1445_1445_10.99.0.0/16	cidr_blocks=10.99.0.0/16,from_port=1445,protocol=tcp,security_group_id=sg-fixed,to_port=1445,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_output_list.aws_security_group_rule.this["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_445_445_10.99.0.0/16	cidr_blocks=10.99.0.0/16,from_port=445,protocol=tcp,security_group_id=sg-fixed,to_port=445,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.endpoints_two.aws_security_group_rule.absent["ingress_https"]	CONCRETE	sg-fixed_ingress_tcp_2447_2447_10.94.0.0/16	cidr_blocks=10.94.0.0/16,from_port=2447,protocol=tcp,security_group_id=sg-fixed,to_port=2447,type=ingress
+internal/live/identity/testdata/module-output-sibling-computed	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-sibling-computed/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-output/role	aws_iam_role.this	CONCRETE	worker	name=worker
 internal/live/identity/testdata/module-provider-region	aws_arczonalshift_autoshift_observer_notification_status.root	CONCRETE	us-east-1	
 internal/live/identity/testdata/module-provider-region	aws_sqs_queue.root	NEEDS_DISCOVERY		
