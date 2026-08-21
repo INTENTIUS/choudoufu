@@ -1042,7 +1042,21 @@ const (
 	// identityGoldenPinBodyDigest are both unchanged, confirmed by diffing
 	// testdata/identity-golden.txt before and after regenerating: only the
 	// header's "dirs=" line moved.
-	identityGoldenPinDirs = 504
+	//
+	// Then 504 -> 506 for GitHub issue #349's fix: two more fixture
+	// directories, internal/live/projection/testdata/output-eval-zero and
+	// its ./layer child, which pin withZeroInstanceBlocks - a root output
+	// reaching a provably-zero-instance block through count, through
+	// for_each, through a data source and through a module output, plus the
+	// negative control for a count that does not resolve. Same reason the
+	// #348 fixture contributed no rows: stub_cert and stub_lookup are not
+	// admitted types, and the zero-instance blocks have no instances to
+	// render an identity for either way. identityGoldenPinInstances and
+	// identityGoldenPinBodyDigest are both unchanged, confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating: only the
+	// header's "dirs=" line moved, and TestIdentityGolden itself reported
+	// "differs but no instance's identity did".
+	identityGoldenPinDirs = 506
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
