@@ -16,6 +16,10 @@ enableGitInfo = false
 [markup.goldmark.renderer]
   unsafe = true
 
+# Images in markdown resolve through layouts/_default/_markup/render-image.html,
+# which looks in site/assets first, so `![](diagram-pieces.svg)` works from any
+# page depth under the /choudoufu/ base.
+
 [markup.tableOfContents]
   startLevel = 2
   endLevel = 3
