@@ -62,7 +62,16 @@ var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd", "site"}
 // directory guarding a fork whose unit is the file. Adding a root is the
 // cheap half of the fix; the expensive half is noticing that a package can
 // be upstream's and still be somewhere the fork lives.
-var forkOwnedMixedRoots = []string{"internal/command"}
+//
+// internal/engine/applying is the second, added on issue #353's follow-up
+// pass and found the same way: an audit reverted the fork's own change
+// there - the create-time provisioner's `self` value keeping its sensitivity
+// marks - and the whole repository stayed green, because the package had no
+// test file at all and no tier ran it. It is upstream's package with two
+// fork-authored functions in it, which is internal/command's situation
+// exactly. 0.5 seconds, and the alternative is a fix nothing can catch
+// regressing.
+var forkOwnedMixedRoots = []string{"internal/command", "internal/engine/applying"}
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a

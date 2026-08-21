@@ -30,6 +30,12 @@ import (
 // The rule is the strict one, and it is narrower than [DerivableWith]'s on
 // purpose:
 //
+//   - The type must not be vetoed by [NotImportable]. That one is not a
+//     reading of the schemas at all; it is the answer to the question the
+//     schemas cannot be asked, which is whether ImportResourceState works.
+//     It sits here, in the fallback itself, so that every route reaching for
+//     the fallback gets it - see [NotImportable] for which routes those are
+//     and what went wrong while the check lived in only one of them.
 //   - The type has to be admitted by [derivableOne] over its own schema,
 //     either because every attribute that identifies an instance is a
 //     required argument ([AdmitSchema]) or because this configuration sets
@@ -92,6 +98,23 @@ func SynthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 // One function cannot drift from itself, so the refusal a caller reads is
 // now produced at the point the refusal happens, by the code that refuses.
 func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema, signal *ConfigSignal) (TypeIdentity, string) {
+	// Ahead of every schema reading below, and deliberately ahead of the
+	// "no schemas at all" answer too, because this one needs none: it is
+	// [NotImportable], the issue #331 veto, and it is here rather than at
+	// the call sites because this function IS the schema fallback every
+	// admission route reaches for. internal/live/lint's admitted() asks it,
+	// [resolver.lookupType] asks it, and internal/live/liveimport's
+	// admittedByProviderSchema asks it - the last two with no veto of their
+	// own until this line existed, which is how a type with no Importer
+	// reached a live-import and a resolution that lint had already refused.
+	//
+	// Refusing here also gives the refusal its own sentence for free: one
+	// function produces the entry or the reason, never both, so a reader of
+	// [SchemaRefusal] is told about the missing Importer instead of being
+	// sent after a schema that is in fact perfectly good.
+	if NotImportable(typeName) {
+		return TypeIdentity{}, fmt.Sprintf(" %s is refused for a reason no schema carries: %s.", typeName, NotImportableReason)
+	}
 	if len(schemas) == 0 {
 		return TypeIdentity{}, noSchemasRefusal
 	}
