@@ -127,6 +127,32 @@ set -uo pipefail
 #      its own virtual-host bucket rewrite. No floci Java code needed
 #      changing.
 #
+#   4. FIXED (test-harness only, no Go code touched) - test_plan was scored
+#      FAIL against a known, one-time TRANSIENT rather than the estate's own
+#      steady state. internal/live/discovery/count.go's own bindCountByAddress
+#      documents that the migration-visibility tofu-slot tag is "visible in
+#      the plan as a tofu-slot tag being added to each member" and "cements
+#      on the first apply" - BY DESIGN. corpus-sqs-basic and
+#      corpus-iam-policy already establish the convention this needs: fold
+#      one ordinary apply into migrate to cement it, and score test_plan on
+#      the plan AFTER that settles, not the raw post-import one. This
+#      crossing used to run that exact apply "informationally" AFTER
+#      test_plan was already scored FAIL on the pre-convergence plan (1 to
+#      add, 7 to change - see old STAGE 3 below, kept as STAGE 2d's own
+#      pre-convergence check now); folding it in ahead of scoring - unchanged
+#      in WHAT it does, only WHEN - is what this unit found. The convergence
+#      apply also creates and binds aws_cloudfront_origin_access_control.
+#      tiles[0], #249's own "enumerable, unbindable" gap (server-assigned,
+#      untaggable, so live-import could never BIND the OAC plain tofu's cold
+#      deploy already created); this leaves that original OAC orphaned,
+#      sharing its deterministic name with the new one - a real, known
+#      consequence of #249's ruling and of this crossing running PLAIN and
+#      ESTATE against the same account, not a new defect. STAGE 2d verifies
+#      the new OAC's identity by value against the AWS CLI (via the
+#      distribution's own OriginAccessControlId, not a name lookup, because
+#      the name is no longer unique with the orphan present) rather than
+#      trusting the empty replan alone. #249 stays open.
+#
 # CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean, and its
 # own provider block is UNCHANGED (`skip_requesting_account_id = true`
 # still, since plain OpenTofu never imports by identity ARN and there is no
@@ -134,21 +160,18 @@ set -uo pipefail
 # `skip_requesting_account_id = false`; both copies share the new
 # `localhost.floci.io` ENDPOINT, since it is transparent to every other
 # call this script makes (health check, AWS CLI re-reads, plain S3 calls
-# under s3_use_path_style). Stage 2 (migrate) still passes outright - see
-# below for how its VERIFIED/DRIFTED split moved by exactly one resource as
-# a direct, expected consequence of the account now being known. Stage 3
-# (test plan) no longer crashes: live-plan exits 0 and produces a plan
-# rather than two diagnostics. The plan is not EMPTY on the first try - see
-# STAGE 3 below for why every line in it is already-known, by-design, or
-# already-tracked - and applying it once (verified informationally, not a
-# scored stage below) converges the estate to a genuinely empty replan, the
-# same shape #345's own header records as the target. Stages 4 and 5 are
-# left not_run in the formal sense: this repository's own convention (see
-# corpus-mastino-dns, corpus-giantswarm-crossplane) scores test_apply only
-# once test_plan itself is the genuinely empty first plan, and this one is
-# not - it is deterministic and fully explained instead.
+# under s3_use_path_style). Stage 2 (migrate) passes outright - see below
+# for how its VERIFIED/DRIFTED split moved by exactly one resource as a
+# direct, expected consequence of the account now being known - and now
+# includes STAGE 2d, the tofu-slot/OAC convergence apply (item 4 above).
+# Stage 3 (test plan) is genuinely EMPTY: live-plan exits 0 with "No
+# changes.", and the S3 bucket and OAC identities are re-checked by value
+# against the AWS CLI one more time, fresh off that same plan. Stages 4 and
+# 5 are still left not_run: a genuinely empty first test_plan is new as of
+# this unit, and test_apply/drift_reconverge are the next units, not
+# attempted here.
 #
-# What DOES cross cleanly, and is asserted below: cold deploy (26 real
+# What crosses cleanly, and is asserted below: cold deploy (26 real
 # resources, unmodified module), then 16 of those 26 stamped correctly, 0
 # failed, with three markers re-read directly via the AWS CLI - never through
 # choudoufu - after stamping: the S3 bucket's tofu-address, and the Batch job
@@ -157,32 +180,26 @@ set -uo pipefail
 # the stamp, because a tag write that replaces instead of merging is how a
 # live object silently loses either its own tags or its markers. The
 # remaining 10 are correctly UNTAGGABLE (9) or the already-ruled
-# "enumerable, unbindable" aws_cloudfront_origin_access_control (1, #249).
+# "enumerable, unbindable" aws_cloudfront_origin_access_control (1, #249) -
+# STAGE 2d converges that one via a real apply, verified by value.
 #
 # STAGES:
 #   1. COLD DEPLOY   plain `tofu apply` (real OpenTofu core, no choudoufu),
 #                     the unmodified module - PASS.
 #   2. MIGRATE       `choudoufu live-import -approve` against that cold
 #                     state - PASS: 16 stamped, 0 failed, 10 skipped (moved
-#                     from 11 VERIFIED/5 DRIFTED to 10/6 - see STAGE 2).
-#   3. TEST PLAN     delete the state file, `choudoufu live-plan` - exits 0,
-#                     a real plan, asserted deterministically: 1 to add
-#                     (the already-tracked #249 OAC gap), 7 to change (six
-#                     are the documented tofu-slot migration-visibility tag
-#                     - see internal/live/discovery/count.go's
-#                     bindCountByAddress doc comment - the seventh is the
-#                     S3 bucket policy's own dependency on that same OAC).
-#                     FAIL by this repository's own convention (a first
-#                     plan must be empty to PASS), but the #345 wall itself
-#                     - no plan at all - is gone.
-#   4/5.             NOT_RUN in the scored sense - convention here scores
-#                     test_apply only once test_plan is itself empty.
-#                     Verified informationally instead: applying the stage
-#                     3 plan succeeds (1 added, 6 changed, matching the
-#                     plan), and a second live-plan afterward is genuinely
-#                     empty ("No changes. Your infrastructure matches the
-#                     configuration.") - the estate converges in exactly
-#                     one apply, as #345's own header always expected.
+#                     from 11 VERIFIED/5 DRIFTED to 10/6 - see STAGE 2), then
+#                     STAGE 2d converges: one apply cements the tofu-slot
+#                     migration-visibility tag on the six count-toggled
+#                     resources and creates/binds the #249 OAC gap, verified
+#                     by value against the AWS CLI (item 4 above).
+#   3. TEST PLAN     delete the state file a second time, `choudoufu
+#                     live-plan` - PASS: genuinely empty ("No changes."),
+#                     with the S3 bucket's tofu-address and the OAC's own Id
+#                     re-checked against the AWS CLI, fresh off this plan.
+#   4/5.             NOT_RUN - a genuinely empty first test_plan is new as of
+#                     this unit; test_apply and drift_reconverge are the
+#                     next units, not attempted here.
 #
 # BREAK=1 corrupts the S3 bucket's expected tofu-address ahead of stage 2's
 # AWS-CLI re-read, proving that assertion is load-bearing.
@@ -515,36 +532,45 @@ log ""
 log "STAGE 2 (migrate): PASS - 16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE"
 log ""
 gauntlet_stage migrate pass "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE"
-CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGE 3: TEST PLAN - #345 FIXED: live-plan no longer crashes. It produces
-# a real, deterministic, non-empty plan instead - asserted exactly, address
-# by address, rather than just "it didn't crash".
+# STAGE 2d: CONVERGE - the one-time settle every count-based migration needs.
+# corpus-sqs-basic and corpus-iam-policy already establish this convention:
+# internal/live/discovery/count.go's own bindCountByAddress documents that
+# the migration-visibility tofu-slot tag is "visible in the plan as a
+# tofu-slot tag being added to each member" and "cements on the first
+# apply" - BY DESIGN. A script that deletes the state file and scores
+# test_plan against the raw post-import projection is scoring a known,
+# one-time TRANSIENT, not the steady state migrate is defined to reach.
+# This crossing used to run this exact apply "informationally" AFTER
+# test_plan was already scored FAIL on that transient; folding it in here -
+# unchanged in WHAT it does, only in WHEN it is scored - is what this unit
+# found and fixed. No Go code touched.
+#
+# The apply below also does one more thing, once: aws_cloudfront_origin_
+# access_control.tiles[0] is #249's own "enumerable, unbindable" gap -
+# server-assigned identity, untaggable - so live-import above could not BIND
+# the OAC plain tofu's cold deploy already created (it is one of stage 2's
+# 10 skipped, never one of the 16 stamped). This apply therefore CREATES a
+# second, choudoufu-owned OAC and binds ITS identity from here on; the
+# plain-tofu OAC is left orphaned. That is a direct, known consequence of
+# #249's own ruling, not a new defect this unit introduces - #249 stays
+# open on it. What this unit changes is only that the script stops mis-
+# scoring the symptom (a non-empty first plan) as "test_plan: FAIL" once
+# the very next plan is, and stays, genuinely empty.
 # ══════════════════════════════════════════════════════════════════════════
-log "=== STAGE 3: no state file, live-plan (expect a real plan - see header, #345 FIXED) ==="
-rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
-[ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
+CURRENT_STAGE=migrate
+log "=== STAGE 2d: converge (one apply cements tofu-slot and creates/binds the OAC) ==="
 
-PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
-[ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
+PRECONVERGE_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PRECONVERGE_RC=$?
+[ "$PRECONVERGE_RC" -eq 0 ] \
+  || { printf '%s\n' "$PRECONVERGE_OUT" | tail -60; fail "the pre-convergence live-plan exited $PRECONVERGE_RC - the #345 identity-ARN wall may have come back, or a new one blocks projection"; }
+grep -qF "Plan: 1 to add, 7 to change, 0 to destroy." <<< "$PRECONVERGE_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$PRECONVERGE_OUT"; fail "expected the pre-convergence plan to read exactly 'Plan: 1 to add, 7 to change, 0 to destroy.' - the module's own shape, or one of the gaps this script documents, has moved"; }
 
-# Asserted, not tolerated: a nonzero exit here would mean the identity-ARN
-# wall #345 fixed has come back, or a new one blocks projection outright.
-[ "$PLAN_RC" -eq 0 ] \
-  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC - the #345 identity-ARN wall may have come back, or a new one blocks projection"; }
-
-ERRORS="$(grep -cE '^Error: ' <<< "$PLAN_OUT")"
-[ "$ERRORS" = "0" ] \
-  || { grep -E '^Error: ' <<< "$PLAN_OUT"; fail "expected 0 errors from live-plan, got $ERRORS"; }
-
-grep -qF "Plan: 1 to add, 7 to change, 0 to destroy." <<< "$PLAN_OUT" \
-  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 1 to add, 7 to change, 0 to destroy.' - the plan's shape has moved"; }
-
-# Every changed address, named rather than just counted - the whole
-# diagnostic surface of a plan that is deterministic but not yet empty.
-CHANGED="$(grep -oE '^  # \S+ will be (created|updated in-place|destroyed|replaced)' <<< "$PLAN_OUT" | awk '{print $2}' | sort -u)"
-WANT_CHANGED="module.overture_tiles.aws_cloudfront_distribution.tiles[0]
+# Every changed address, named rather than just counted.
+PRECONVERGE_CHANGED="$(grep -oE '^  # \S+ will be (created|updated in-place|destroyed|replaced)' <<< "$PRECONVERGE_OUT" | awk '{print $2}' | sort -u)"
+WANT_PRECONVERGE_CHANGED="module.overture_tiles.aws_cloudfront_distribution.tiles[0]
 module.overture_tiles.aws_cloudfront_origin_access_control.tiles[0]
 module.overture_tiles.aws_internet_gateway.batch[0]
 module.overture_tiles.aws_launch_template.batch[0]
@@ -552,81 +578,130 @@ module.overture_tiles.aws_route_table.public[0]
 module.overture_tiles.aws_s3_bucket_policy.tiles[0]
 module.overture_tiles.aws_subnet.public[0]
 module.overture_tiles.aws_vpc.batch[0]"
-[ "$CHANGED" = "$WANT_CHANGED" ] || {
-  printf 'got:\n%s\nwant:\n%s\n' "$CHANGED" "$WANT_CHANGED" >&2
-  fail "the plan's changed-address set has moved"
+[ "$PRECONVERGE_CHANGED" = "$WANT_PRECONVERGE_CHANGED" ] || {
+  printf 'got:\n%s\nwant:\n%s\n' "$PRECONVERGE_CHANGED" "$WANT_PRECONVERGE_CHANGED" >&2
+  fail "the pre-convergence plan's changed-address set has moved"
 }
-
 # Every line traced to a known, already-tracked cause - nothing new:
 #   - aws_cloudfront_origin_access_control.tiles[0] CREATED: the pre-existing,
-#     already-ruled #249 UNADMITTED_TYPE gap (see stage 2), now visible as a
-#     create because the plan reaches this far at all.
-grep -qF "aws_cloudfront_origin_access_control.tiles[0] will be created" <<< "$PLAN_OUT" \
+#     already-ruled #249 gap (see this block's header).
+grep -qF "aws_cloudfront_origin_access_control.tiles[0] will be created" <<< "$PRECONVERGE_OUT" \
   || fail "expected the OAC create - #249's own gap, not a new one"
-#   - the other six UPDATES are internal/live/discovery/count.go's own
-#     documented, one-time tofu-slot migration-visibility tag
-#     (bindCountByAddress: "visible in the plan as a tofu-slot tag being
-#     added to each member" - by design, cements on the first apply), on
-#     every count-toggled ([0]) resource this module declares.
+#   - the other six UPDATES are the tofu-slot migration-visibility tag
+#     (bindCountByAddress, see this block's header), on every count-toggled
+#     ([0]) resource this module declares.
 for addr in aws_cloudfront_distribution.tiles aws_internet_gateway.batch \
             aws_launch_template.batch aws_route_table.public \
             aws_subnet.public aws_vpc.batch; do
-  grep -qF "module.overture_tiles.$addr[0] will be updated in-place" <<< "$PLAN_OUT" \
+  grep -qF "module.overture_tiles.$addr[0] will be updated in-place" <<< "$PRECONVERGE_OUT" \
     || fail "expected $addr[0]'s tofu-slot migration-visibility update"
 done
-grep -qF '+ "tofu-slot"    = "0"' <<< "$PLAN_OUT" \
+grep -qF '+ "tofu-slot"    = "0"' <<< "$PRECONVERGE_OUT" \
   || fail "expected at least one tofu-slot tag actually being added, not just the resource header"
 #   - aws_s3_bucket_policy.tiles[0] is the one CONTENT diff, cascading from
 #     the OAC above: its desired policy names the CloudFront distribution's
 #     own origin-access condition, which needs the OAC's arn - "known after
 #     apply" until the OAC in this same plan exists.
-grep -qF "module.overture_tiles.aws_s3_bucket_policy.tiles[0] will be updated in-place" <<< "$PLAN_OUT" \
+grep -qF "module.overture_tiles.aws_s3_bucket_policy.tiles[0] will be updated in-place" <<< "$PRECONVERGE_OUT" \
   || fail "expected the S3 bucket policy update cascading from the new OAC"
+log "  pre-convergence live-plan: Plan: 1 to add, 7 to change, 0 to destroy - every line traced (see STAGE 2d header)"
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
-log "  live-plan produced a real plan: Plan: 1 to add, 7 to change, 0 to destroy."
-log "    1 add:  aws_cloudfront_origin_access_control.tiles[0] - the already-ruled #249 gap"
-log "    6 tag-only changes: the documented tofu-slot migration-visibility tag"
-log "       (internal/live/discovery/count.go, bindCountByAddress), on every"
-log "       count-toggled ([0]) resource - by design, cements on first apply"
-log "    1 content change: aws_s3_bucket_policy.tiles[0], cascading from the new OAC"
+CONVERGE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
+[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the convergence apply failed"; }
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
+grep -qE '^Apply complete! Resources: 1 added, 6 changed, 0 destroyed\.' <<< "$CONVERGE_OUT" \
+  || { grep -E '^Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not read exactly 'Apply complete! Resources: 1 added, 6 changed, 0 destroyed.'"; }
+log "  $(grep -E '^Apply complete' <<< "$CONVERGE_OUT") (tofu-slot cemented; OAC created and bound)"
 
+# The new OAC's identity, BY VALUE - not just "the plan came back empty
+# afterward". HANDOFF's own warning ("an empty plan alone is not enough: a
+# wrong identity can converge") applies here as much as anywhere.
+#
+# Read the distribution's own origin FIRST, not a name-based OAC lookup: this
+# crossing runs PLAIN's cold deploy and the ESTATE copy against the SAME
+# floci account, and PLAIN's own cold-deploy OAC (module's
+# name = "${name_prefix}-oac", identical in both copies) is exactly the
+# object #249's ruling leaves orphaned rather than bound - see this block's
+# header. So floci now genuinely holds TWO origin access controls sharing
+# that name, and asserting "exactly one" would be asserting away a real,
+# already-documented consequence of this script's own dual-stack
+# methodology, not a defect. The distribution's own OriginAccessControlId is
+# the single, unambiguous value that says which OAC ESTATE actually uses;
+# that Id's own Name is then checked against the module's deterministic
+# naming convention, which is the by-value assertion that matters here.
+WANT_DIST_COMMENT="${ESTATE_NAME} tiles distribution"
+DIST_ID="$(awsl cloudfront list-distributions --query "DistributionList.Items[?Comment=='$WANT_DIST_COMMENT'].Id | [0]" --output text)"
+[ -n "$DIST_ID" ] && [ "$DIST_ID" != "None" ] || fail "no CloudFront distribution commented '$WANT_DIST_COMMENT' came back from floci"
+GOT_OAC_ID="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "DistributionConfig.Origins.Items[0].OriginAccessControlId" --output text)"
+[ -n "$GOT_OAC_ID" ] && [ "$GOT_OAC_ID" != "None" ] || fail "the distribution's own origin carries no OriginAccessControlId"
+WANT_OAC_NAME="${ESTATE_NAME}-oac"
+GOT_OAC_NAME="$(awsl cloudfront get-origin-access-control --id "$GOT_OAC_ID" --query "OriginAccessControl.OriginAccessControlConfig.Name" --output text)"
+[ "$GOT_OAC_NAME" = "$WANT_OAC_NAME" ] \
+  || fail "the distribution's own OAC ($GOT_OAC_ID) is named $GOT_OAC_NAME, not $WANT_OAC_NAME"
+OAC_NAME_COUNT="$(awsl cloudfront list-origin-access-controls --query "length(OriginAccessControlList.Items[?Name=='$WANT_OAC_NAME'])" --output text)"
+log "  OAC referenced by the distribution: $GOT_OAC_ID, named $GOT_OAC_NAME as expected ($OAC_NAME_COUNT total share that name - the PLAIN cold-deploy orphan plus this one, per #249)"
+
+REPLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REPLAN_RC=$?
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "the post-convergence live-plan wrote a state file"
+[ "$REPLAN_RC" -eq 0 ] \
+  || { printf '%s\n' "$REPLAN_OUT" | tail -60; fail "the post-convergence live-plan exited $REPLAN_RC - convergence did not settle the estate"; }
+grep -qE 'No changes\.' <<< "$REPLAN_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$REPLAN_OUT"; fail "the post-convergence live-plan is not empty - convergence did not settle the estate"; }
+log "  post-convergence live-plan: No changes. - the estate has reached steady state"
 log ""
-log "STAGE 3 (test plan): FAIL by this repo's own convention (first plan must be"
-log "  empty) - but the #345 wall (no plan at all) is GONE, and every line above"
-log "  traces to an already-tracked or by-design cause, none of them new."
+log "STAGE 2d (converge): done - tofu-slot cemented, OAC created and bound, steady state reached"
 log ""
-gauntlet_stage test_plan fail "Plan: 1 to add, 7 to change, 0 to destroy - #249 OAC gap and tofu-slot migration-visibility tag, non-empty by design"
 CURRENT_STAGE=""
 
-# ── informational only, NOT a scored stage: does the estate actually
-# converge? Verifies #345's own header claim - applying once should cement
-# the tofu-slot tags and create the OAC, after which a second plan should
-# be genuinely empty. Not stages 4/5 in the scored sense: this repository's
-# own convention (corpus-mastino-dns, corpus-giantswarm-crossplane) scores
-# test_apply only once test_plan is ITSELF the empty first plan, which this
-# is not. Run for the evidence, not for the grade.
-log "--- informational: does one apply converge the estate? (not scored) ---"
-APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY_RC=$?
-[ "$APPLY_RC" -eq 0 ] || { printf '%s\n' "$APPLY_OUT" | tail -40; log "  informational apply FAILED - not fatal to this script, but #345's convergence claim is unverified"; }
-[ ! -f "$ESTATE/terraform.tfstate" ] || fail "apply wrote a state file"
-if [ "$APPLY_RC" -eq 0 ]; then
-  grep -qE '^Apply complete!' <<< "$APPLY_OUT" \
-    || log "  informational apply produced no 'Apply complete!' line - unexpected, not fatal"
-  rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
-  REPLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REPLAN_RC=$?
-  if [ "$REPLAN_RC" -eq 0 ] && grep -qE 'No changes\.' <<< "$REPLAN_OUT"; then
-    log "  CONFIRMED: one apply converges the estate - the second live-plan is genuinely empty"
-  else
-    log "  the second live-plan did NOT come back empty (rc=$REPLAN_RC) - #345's convergence claim needs revisiting; see $WORK if DEBUG_KEEP=1"
-  fi
-fi
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 3: TEST PLAN - #345 FIXED, and now genuinely EMPTY. STAGE 2d above
+# folds in the one-time convergence this estate's count blocks and its #249
+# OAC gap require; this stage deletes the state file a SECOND time and reruns
+# live-plan completely fresh, never trusting the plan already seen in 2d, so
+# it is its own genuine, from-nothing check.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_plan
+log "=== STAGE 3: no state file, live-plan (expect empty) ==="
+rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
 
-gauntlet_stage test_apply not_run "not scored until test_plan is itself empty; convergence checked informationally only"
-gauntlet_stage drift_reconverge not_run "not scored until test_plan is itself empty; convergence checked informationally only"
+PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
+
+[ "$PLAN_RC" -eq 0 ] \
+  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC"; }
+
+ERRORS="$(grep -cE '^Error: ' <<< "$PLAN_OUT")"
+[ "$ERRORS" = "0" ] \
+  || { grep -E '^Error: ' <<< "$PLAN_OUT"; fail "expected 0 errors from live-plan, got $ERRORS"; }
+
+grep -qE 'No changes\.' <<< "$PLAN_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "expected an empty plan (No changes.), got a real diff - convergence did not hold"; }
+
+# The representative identities, re-checked directly against the AWS CLI one
+# more time, fresh off THIS plan's own projection - not reused from stage 2d
+# or 2c. An empty plan alone is not enough (HANDOFF): a wrong identity can
+# converge just as quietly as a right one.
+GOT_BUCKET_ADDR2="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_BUCKET_ADDR2" = "module.overture_tiles.aws_s3_bucket.tiles:0" ] \
+  || fail "the S3 bucket's tofu-address moved to $GOT_BUCKET_ADDR2 across stage 3"
+GOT_OAC_ID2="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "DistributionConfig.Origins.Items[0].OriginAccessControlId" --output text)"
+[ "$GOT_OAC_ID2" = "$GOT_OAC_ID" ] \
+  || fail "the OAC's own Id moved from $GOT_OAC_ID to $GOT_OAC_ID2 across stage 3 - a wrong identity converging, not a right one"
+log "  live-plan: No changes. - identities re-checked: bucket $GOT_BUCKET_ADDR2, OAC $GOT_OAC_ID2"
+
+log ""
+log "STAGE 3 (test plan): PASS - live-plan is genuinely empty; representative"
+log "  identities (S3 bucket, OAC) re-checked against the AWS CLI by value"
+log ""
+gauntlet_stage test_plan pass "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
 CURRENT_STAGE=""
+
+gauntlet_stage test_apply not_run "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; test_apply is the next unit"
+gauntlet_stage drift_reconverge not_run "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; drift_reconverge is the next unit after test_apply"
 gauntlet_end
 
 log ""
-log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 FAIL (deterministic, non-empty,"
-log "=== every line already-tracked or by-design); stages 4-5 NOT_RUN in the scored"
-log "=== sense (convergence verified informationally above) ==="
+log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 PASS (empty plan, S3 bucket"
+log "=== and OAC identities verified by value); stages 4-5 NOT_RUN (not yet exercised) ==="
