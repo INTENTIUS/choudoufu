@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- brand background: same salmon as the docs site page background -->
-  <rect x="0" y="0" width="512" height="512" rx="64" fill="#fa8072"/>
+  <!-- brand background: same deep olive as the docs site page background.
+       Keep in step with the base token in site/static/style.css. -->
+  <rect x="0" y="0" width="512" height="512" rx="64" fill="#4a5334"/>
 
   <!-- shadow under plate -->
   <ellipse cx="256" cy="384" rx="168" ry="38" fill="#000000" opacity="0.08"/>
@@ -11,7 +12,7 @@
   <ellipse cx="256" cy="367" rx="122" ry="35" fill="#e0dacd"/>
 
   <!-- odor waves -->
-  <g fill="none" stroke="#93a06b" stroke-width="9" stroke-linecap="round" opacity="0.75">
+  <g fill="none" stroke="#fa8072" stroke-width="9" stroke-linecap="round" opacity="0.75">
     <path d="M 202 254 C 186 232 218 212 204 190 C 190 168 218 148 208 128"/>
     <path d="M 258 244 C 240 220 276 200 260 176 C 246 154 274 134 262 110"/>
     <path d="M 314 256 C 300 234 330 214 316 192 C 304 172 330 152 320 132"/>

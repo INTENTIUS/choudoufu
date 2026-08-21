@@ -1,5 +1,11 @@
 # Maintainers
 
+> **Fork note.** The lists below are OpenTofu's, retained from the fork point.
+> They govern the upstream project, not this repository. choudoufu is
+> maintained by INTENTIUS, and decisions about the live-marker path are made
+> here, as [`GOVERNANCE.md`](GOVERNANCE.md) describes. Do not route a
+> choudoufu question to anyone named below.
+
 ## Organization Maintainers
 
 | Name               | Email                       | GitHub          |

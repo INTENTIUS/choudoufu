@@ -1,16 +1,11 @@
 # Will my config work?
 
-Probably not without changes, and the reason is usually not the one people
-expect.
+Probably not without changes.
 
-Resource type coverage is rarely what stops a configuration, and `choudoufu
-live-check` below answers for your exact types. What stops configurations is
-how they are written and how they are run. A `for_each` over a data source, a
-`count.index` in a resource name, a `backend "s3"` block, or a CI pipeline
-that saves a plan file.
-
-This page lists what actually bounces. Read it before you spend an afternoon on
-a migration.
+What stops a configuration is how it is written and run, not which resource
+types it uses. A `for_each` over a data source, a `count.index` in a resource
+name, a `backend "s3"` block, or a CI pipeline that saves a plan file. Run
+`choudoufu live-check` for a verdict on your exact code.
 
 ## The one rule underneath most of it
 
@@ -20,12 +15,11 @@ over those.
 
 No data sources. No module outputs. No attributes of other resources.
 
-The reason is that markers have to be written before anything is created, and a
-marker has to say which configuration address a live resource belongs to. If
-the set of instances is not knowable until after a provider has been called,
-there is no marker to write.
+Markers are written before anything is created, and a marker names which
+configuration address a live resource belongs to. If the set of instances is
+unknowable until a provider has been called, there is no marker to write.
 
-Most of the refusals below are a consequence of that one rule.
+Most refusals below follow from that rule.
 
 ## Ask it directly
 
@@ -33,22 +27,20 @@ Most of the refusals below are a consequence of that one rule.
 choudoufu live-check ./
 ```
 
-Point it at any OpenTofu configuration. It needs no `live` block, makes no
-cloud calls, and does not care whether the directory has ever heard of this
-fork. It prints a verdict, then every refusal that fired with its site count,
-the types responsible, and what to do about each.
+Point it at any OpenTofu configuration. No `live` block, no cloud calls, no
+requirement that the directory has heard of this fork. It prints a verdict,
+then every refusal that fired with its site count, the types responsible, and
+what to do about each.
 
-Run `choudoufu init` in the directory first if you can. With provider schemas
-available it judges types from the provider's own identity schema as well as
-the built-in table, and admits more. Without them it says so and tells you the
-answer is pessimistic.
+Run `choudoufu init` first if you can. With provider schemas available it
+judges types from the provider's own identity schema as well as the built-in
+table, and admits more. Without them it says the answer is pessimistic.
 
-**It checks two of the five stages.** Lint and identity resolution run without a
+**It checks two of five stages.** Lint and identity resolution need no
 provider, which is what makes the command fast and credential-free. Marker
-stamping, discovery and projection need a cloud and are not checked, and the
-command says so every time. A clean result is necessary but not sufficient, so
-run a plan against a non-production account before believing a migration will
-work.
+stamping, discovery and projection need a cloud and go unchecked. A clean
+result is necessary, not sufficient. Run a plan against a non-production
+account before trusting a migration.
 
 ## Your provider
 
@@ -58,19 +50,18 @@ is refused. There is no second cloud on the roadmap
 
 ## Your resource types
 
-A type is admitted when its identity can be recovered from the live system,
-either from the admission table, from the provider's own identity schema, or
-from the way your configuration names it.
+A type is admitted when its identity recovers from the live system, through the
+admission table, the provider's own identity schema, or the way your
+configuration names it.
 
-Common types are largely covered, and the connective tissue that long was
-not - `aws_ecs_service`, `aws_lambda_permission`,
-`aws_cloudwatch_event_rule`, `aws_cloudwatch_event_target` - carries full
-table rows as of the 2026-08-15 ratification batch. The named gap that
-remains is API Gateway assembly: `aws_api_gateway_deployment` and
-`aws_api_gateway_resource` are not yet reachable through any of the three
-admission paths above.
+Common types are largely covered. The connective tissue that long was not,
+`aws_ecs_service`, `aws_lambda_permission`, `aws_cloudwatch_event_rule` and
+`aws_cloudwatch_event_target`, carries full table rows since the 2026-08-15
+ratification batch. API Gateway assembly is the named gap.
+`aws_api_gateway_deployment` and `aws_api_gateway_resource` reach none of the
+three admission paths.
 
-`live/LIMITATIONS.md` in the repository carries the current per-type detail.
+`live/LIMITATIONS.md` carries the per-type detail.
 
 ## How your configuration is written
 
@@ -89,22 +80,22 @@ This is the group that catches people.
 
 ### `for_each` keys
 
-An instance key becomes part of the `tofu-address` marker, so it has to survive
-being written to a tag and read back. The permitted set is letters, numbers,
-space, and `+ - = _ / @`.
+An instance key becomes part of the `tofu-address` marker, so it must survive
+being written to a tag and read back. Permitted are letters, numbers, space,
+and `+ - = _ / @`.
 
-`.` and `:` are excluded even though AWS allows them in a tag value, because
-the marker uses `.` to separate address segments and `:` to introduce an
-instance key. A key containing either produces a marker that cannot be split
-back into the address it came from.
+The marker uses `.` to separate address segments and `:` to introduce an
+instance key, so both are excluded even though AWS allows them in a tag value.
+A key containing either produces a marker that cannot be split back into its
+address.
 
-In practice that rules out keying on CIDR blocks, hostnames, ARNs, or anything
-dotted, which is a very common idiom.
+That rules out keying on CIDR blocks, hostnames, ARNs, or anything dotted, a
+very common idiom.
 
 ### Identity arguments
 
-For a type whose name in configuration is its identity, the argument carrying
-that name has the same static requirement.
+Where the name in configuration is the identity, that argument has the same
+static requirement.
 
 | Written like this | Why it stops |
 |---|---|
@@ -116,43 +107,40 @@ that name has the same static requirement.
 | `name = "app-${uuid()}"` | a different value on every evaluation |
 | reading `.arn` where the table expects `name` | that attribute is not part of the identity |
 
-The registry of these refusals, with a one-line description of each, is
-`internal/live/identity/refusals.go`. It is the same list the code enforces.
+`internal/live/identity/refusals.go` registers each refusal with a one-line
+description. It is the list the code enforces.
 
 ## Your modules
 
-A marker binds to a configuration address, and it stays correct for exactly as
-long as that address stays stable. That one test decides which module forms
-work.
+A marker binds to a configuration address and stays correct as long as that
+address stays stable. That one test decides which module forms work.
 
 **A plain `module "app" {}` call** with neither `count` nor `for_each` is
-traversed the same way the root module is. A resource inside it binds by its
-module-qualified address, `module.app.aws_x.y` or
-`module.a.module.b.aws_x.y` at any depth. Nothing extra is needed.
+traversed like the root module. A resource inside binds by its module-qualified
+address, `module.app.aws_x.y` or `module.a.module.b.aws_x.y` at any depth.
 
 **`for_each` on a module call** works when every key is evaluable from
-configuration alone. A key you chose does not move when a sibling is added or
-removed, so `module.app["prod"]` stays `module.app["prod"]` whatever happens to
-`module.app["staging"]`. Keys are held to the same marker-safe character and
-length rules as a resource's own `for_each` key, because the key becomes part
-of every address inside the module.
+configuration alone. A key you chose does not move when a sibling appears or
+goes, so `module.app["prod"]` survives whatever happens to
+`module.app["staging"]`. Keys follow the same marker-safe character and length
+rules as a resource's own `for_each` key, because the key becomes part of every
+address inside the module.
 
-**`count` on a module call is refused permanently.** Expansion by `count`
-renumbers every address inside the module on any insertion or removal above the
-changed index. Removing element zero turns `module.app[1]` into
-`module.app[0]`, silently pointing every marker beneath it at the wrong live
-resource. A marker records an address, not a position, so no future work closes
-this. Rewrite it as a keyed `for_each` over your own stable names, move the
-resources to the root module, or give the module its own estate.
+**`count` on a module call is refused permanently.** `count` renumbers every
+address inside the module on any insertion or removal above the changed index.
+Removing element zero turns `module.app[1]` into `module.app[0]`, silently
+pointing every marker beneath at the wrong live resource. A marker records an
+address, not a position, so no future work closes this. Rewrite as a keyed
+`for_each` over stable names, move the resources to the root module, or give
+the module its own estate.
 
 ### Resources inside a keyed module need hand-written markers
 
-Auto-stamping cannot reach a resource declared inside a `for_each`'d module,
-because the module's instances share one HCL body for the `tags` argument and
-no single literal address is correct for all of them. Rather than guess,
-choudoufu leaves such a resource alone when it already declares `tags`, and
-raises a must-stamp error when it declares none and its type needs discovery to
-be found again.
+Instances of a `for_each`'d module share one HCL body for `tags`, so no single
+literal address is correct for all of them and auto-stamping cannot reach
+inside. choudoufu leaves such a resource alone when it already declares `tags`,
+and raises a must-stamp error when it declares none and its type needs
+discovery.
 
 Thread the module's own `each.key` through and build the address from it.
 
@@ -188,64 +176,60 @@ proven against a live emulator.
 ### Crossing a module boundary
 
 A marker carries the full module-qualified address, escaped into a tag value
-per `live/MARKERS.md`, where `[` becomes `:` and `]` and `"` are dropped. `choudoufu
-live-mv` reads and writes those the same way it does a root address, so
-flattening a module into the root, moving a resource into a module, or renaming
-across two module instances are all ordinary renames. Only a step carrying a
-`count` key stays refused.
+per `live/MARKERS.md`, where `[` becomes `:` and `]` and `"` are dropped.
+`choudoufu live-mv` handles those like any root address, so flattening a module
+into the root, moving a resource into a module, and renaming across two module
+instances are ordinary renames. Only a step carrying a `count` key stays
+refused.
 
 `choudoufu live-import` is narrower. It ratifies root-module state entries only
-and reports the count of non-root module instances it saw and skipped. A
-module-tree estate adopts by planning with a `live` block added, the ordinary
-path on [Migrate an existing estate](migrate.html).
+and reports how many non-root module instances it skipped. A module-tree estate
+adopts by planning with a `live` block added, the ordinary path on
+[Migrate an existing estate](migrate.html).
 
 ## Your accounts and regions
 
-An estate can span more than one provider configuration. One `provider "aws"`
-block per account or region, each with its own `assume_role`, resources
-pinned to one with the `provider` meta-argument. That is admitted, and it is
-proven end to end against the emulator.
+An estate can span provider configurations. One `provider "aws"` block per
+account or region, each with its own `assume_role`, resources pinned with the
+`provider` meta-argument. Admitted, and proven end to end against the emulator.
 
-One thing is bounded. The resources that need marker discovery must all use a
-single provider configuration. The line runs through how a resource's
-identity is recovered, not through which account it sits in.
+One bound. Resources needing marker discovery must share a single provider
+configuration. The line runs through how identity is recovered, not through
+which account a resource sits in.
 
-**Client-named types span freely.** An S3 bucket named in your configuration,
-an IAM role, a CloudWatch log group. Their identity is already in your code,
-so nothing has to go looking for them, and any provider configuration can
-manage them.
+**Client-named types span freely.** An S3 bucket, an IAM role, a log group.
+Their identity is already in your code, so nothing goes looking for them and
+any provider configuration can manage them.
 
-**Server-assigned types have to share one.** A VPC, a subnet, a security
-group, a KMS key. AWS assigns their identity and choudoufu recovers it by
-reading markers back, so a list issued against the wrong account or region
-would report the estate as missing rather than as unreachable. Spanning
-configurations with these is refused, with an error naming the
-configurations involved.
+**Server-assigned types share one.** A VPC, a subnet, a security group, a KMS
+key. AWS assigns their identity and choudoufu recovers it by reading markers
+back, so a list issued against the wrong account or region reports the estate
+as missing rather than unreachable. Spanning configurations with these is
+refused, naming the configurations involved.
 
-Split the configuration so the discovery-needing resources share one
-provider configuration, and run them separately. `-target` does not help,
-because the check runs over the whole configuration during discovery, before
-any target filter applies.
+Split the configuration so discovery-needing resources share one provider
+configuration, and run them separately. `-target` does not help, because the
+check runs over the whole configuration during discovery, before any target
+filter applies.
 
-This is where the mode stands today rather than a permanent boundary. The
-multi-pass machinery already exists.
+This is where the mode stands today, not a permanent boundary. The multi-pass
+machinery already exists.
 
 Two consequences follow.
 
-A `providers = { aws = aws.other }` mapping on a module call is refused, and
-that one is permanent. Live mode does not read a module call's providers
-mapping, so the resources would be read, written and swept somewhere other
-than where you asked, with nothing in the plan to show it.
+A `providers = { aws = aws.other }` mapping on a module call is refused
+permanently. Live mode does not read that mapping, so resources would be read,
+written and swept somewhere other than where you asked, with nothing in the
+plan to show it.
 
-In an estate spanning provider configurations, an adoption hint's `--region`
-and `--endpoint-url` can name the wrong region for a resource found under a
-different configuration. What is wrong is the printed command, not the plan.
+Across provider configurations, an adoption hint's `--region` and
+`--endpoint-url` can name the wrong region for a resource found under a
+different configuration. The printed command is wrong, not the plan.
 Check the region before pasting it.
 
 ## How you run it
 
-A configuration can be entirely acceptable and still be refused by how it is
-invoked.
+An acceptable configuration can still be refused by how it is invoked.
 
 - `backend "s3" {}` and `cloud {}` are refused. There is no state to store.
 - Any workspace other than `default`, and `workspace new` / `workspace select`.
@@ -253,12 +237,9 @@ invoked.
   `state show`.
 - `import`, `refresh`, `taint`, `untaint`.
 - `-out` to save a plan, and `apply <planfile>`. **This is how most CI runs
-  Terraform**, so check it first. Ordinary `apply`
-  re-plans and re-confirms. The design that ties a reviewed plan to the apply
-  that follows is settled in
-  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC
-  (`rfc/20260814-plan-approval.md` in the repository), and it is not
-  implemented yet.
+  Terraform**, so check it first. Ordinary `apply` re-plans and re-confirms.
+  [#74](https://github.com/INTENTIUS/choudoufu/issues/74)'s RFC settles the
+  design for tying a reviewed plan to its apply. Not implemented yet.
 - `-json` and `-json-into`.
 - `-destroy` and `-refresh-only`.
 - `-state`, `-state-out`, `-backup`, `-generate-config-out`.
@@ -271,19 +252,17 @@ invoked.
   pattern instead.
 - `moved` blocks. Renaming is `choudoufu live-mv`.
 - `random_password`, `random_bytes` and every `tls_*` resource. Their output
-  is secret material that only the state file ever remembered. A micro-state
-  record that holds a secret would be a state file with extra steps, so these
-  are refused rather than recorded. Permanent.
+  is secret material only the state file ever remembered. A record holding a
+  secret would be a state file with extra steps. Permanent.
 - `local_file` and other `local_*` resources.
 - `module { count = ... }`. Permanent. A `for_each` on a module call works when
   its keys are static.
 
 ## Effects do work
 
-An older refusal message said these were unsupported. They are not.
-
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` are
-admitted as soon as the live configuration declares a `record_store`.
+admitted once the live configuration declares a `record_store`. An older
+refusal message called them unsupported. They are not.
 
 ```hcl
 # estate.chdf.hcl
@@ -293,54 +272,47 @@ record_store "ssm" {}
 ```
 
 The label picks the backend, one of `local`, `ssm` or `s3`. [Where things are
-stored](storage.html) has the arguments and how to choose.
-
-Without one they are refused. With one they run through the stock provider
-lifecycle exactly as upstream.
+stored](storage.html) has the arguments. Without one they are refused. With one
+they run the stock provider lifecycle exactly as upstream.
 
 ## Two hazards that are now refusals
 
-Both of these used to fail silently. Lint refuses them now, with a message
-naming the fix.
+Both used to fail silently. Lint now refuses them with a message naming the
+fix.
 
 **`lifecycle { ignore_changes = [tags] }` would defeat ownership markers.** The
 stamp pass adds `tofu-estate` and `tofu-address` to the resource's tags, and a
-plan that ignores tag changes discards the markers before they are ever
-written. The resource would never be marked, and the next plan would propose
-creating another one. Lint refuses `ignore_changes = all`,
-`ignore_changes = [tags]`, and any entry naming a marker key directly
-([#103](https://github.com/INTENTIUS/choudoufu/issues/103)). Ignoring a tag
-key of your own, such as `tags["Owner"]`, stays admitted.
+plan ignoring tag changes discards the markers before they are written. The
+resource would never be marked, and the next plan would propose another one.
+Lint refuses `ignore_changes = all`, `ignore_changes = [tags]`, and any entry
+naming a marker key ([#103](https://github.com/INTENTIUS/choudoufu/issues/103)).
+Ignoring a tag key of your own, such as `tags["Owner"]`, stays admitted.
 
 **A module call's `providers` mapping to an aliased configuration is refused.**
-Live mode plans a module's resources against the root configuration's default
-provider, so honouring `providers = { aws = aws.useast1 }` would take a design
-change, and until that lands an estate built that way would plan against the
-wrong account or region with no diagnostic. Lint refuses the aliased mapping
-instead ([#104](https://github.com/INTENTIUS/choudoufu/issues/104) has the
-reasoning). `providers = { aws = aws }` is admitted, since it names what live
-mode already does, and provider aliases at the root work correctly.
+Live mode plans a module's resources against the root default provider, so
+honouring `providers = { aws = aws.useast1 }` needs a design change. Until it
+lands, an estate built that way would plan against the wrong account with no
+diagnostic ([#104](https://github.com/INTENTIUS/choudoufu/issues/104)).
+`providers = { aws = aws }` is admitted, naming what live mode already does,
+and root-level provider aliases work correctly.
 
-A `provider` block declared *inside* a child module is the adjacent case,
-and it is refused too. The module's resources would be served by the root
-configuration's provider config instead, silently, so lint refuses the block
-by name. [#70](https://github.com/INTENTIUS/choudoufu/issues/70) has the
-measurement behind the ruling, that none of the ten most-installed shared AWS
-modules declares one, and that upstream itself calls the pattern legacy. Configure
-providers at the root and let modules receive them implicitly, which is the
-only proven pattern.
+A `provider` block inside a child module is refused too. Its resources would
+silently be served by the root provider config instead.
+[#70](https://github.com/INTENTIUS/choudoufu/issues/70) carries the
+measurement, that none of the ten most-installed shared AWS modules declares
+one and that upstream calls the pattern legacy. Configure providers at the root
+and let modules receive them implicitly.
 
 ## Editors and linters
 
-The `estate.chdf.hcl` sidecar file exists for exactly this concern
-([#72](https://github.com/INTENTIUS/choudoufu/issues/72)). It carries the
-live configuration in a file whose extension stock tooling never reads, so a
-repository adopting live markers through the sidecar keeps every `.tf` file
-free of non-standard syntax. Stock `terraform validate`, `tflint` and editors
-keep passing untouched.
+The `estate.chdf.hcl` sidecar exists for this concern
+([#72](https://github.com/INTENTIUS/choudoufu/issues/72)). It holds the live
+configuration in a file whose extension stock tooling never reads, so every
+`.tf` file stays free of non-standard syntax and stock `terraform validate`,
+`tflint` and editors keep passing.
 
-The in-`terraform` `live` block is the one form that costs you here. Stock
-Terraform and stock OpenTofu reject a configuration containing one.
+The in-`terraform` `live` block is the form that costs you. Stock Terraform and
+stock OpenTofu reject a configuration containing one.
 
 ```
 Error: Unsupported block type
@@ -351,46 +323,39 @@ Error: Unsupported block type
 Blocks of type "live" are not expected here.
 ```
 
-This is expected. `live` is this fork's addition to the `terraform` block's
-schema, and nothing signals it to a tool that never heard of it. Any tool that
-validates the `terraform` block against upstream's schema behaves the same way,
-which includes `tflint`, since it decodes HCL through OpenTofu's own
-configuration libraries. Tools that only tokenize HCL, including most syntax
-highlighters and formatters, are unaffected.
+Expected. `live` is this fork's addition to the `terraform` block schema and
+nothing signals it to a tool that never heard of it. Any tool validating
+against upstream's schema behaves the same way, `tflint` included, since it
+decodes HCL through OpenTofu's own libraries. Tools that only tokenize HCL,
+including most highlighters and formatters, are unaffected.
 
-Some teams prefer the configuration in one place and keep the in-block form
-anyway. The options then are running `choudoufu validate` in CI instead of
-stock `terraform validate`, or keeping the `live` block in a small root module
-that stock tooling has no reason to touch. Or move the block's content into
-the sidecar, which is one file and zero edited lines. Declaring both forms at
-once is an error.
+Teams keeping the in-block form have three options. Run `choudoufu validate`
+in CI instead of stock `terraform validate`, keep the `live` block in a small
+root module stock tooling never touches, or move its content into the sidecar,
+which is one file and zero edited lines. Declaring both forms at once is an
+error.
 
 ## Where this page's ordering comes from
 
 [`live/corpus-refusals.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/corpus-refusals.json)
-in the repository measures which refusals fire, and how often, across a corpus
-with two populations, the fixtures in this repository and the `examples/`
-root modules of `terraform-aws-modules` repositories pinned to exact commits.
-The per-refusal and per-population counts live in that artifact. This page
-deliberately does not copy them, because a copied count is stale the moment
-the corpus is re-run.
+measures which refusals fire and how often across the corpus. This page copies
+no count from it, because a copied count goes stale the moment the corpus
+re-runs.
 
 That measured ranking is why the static-evaluability rule leads this page.
-Several of the refusals that fire most often are that one rule, surfacing
-under different diagnostics.
+Several of the most frequent refusals are that one rule under different
+diagnostics.
 
 **Do not read the fixture or module-example populations as a compatibility
-rate.** Module `examples/` directories exist to demonstrate a module's full
-surface, so they lean much harder on variables, conditionals and `dynamic`
-blocks than a configuration describing one deployment, and they refuse
-almost across the board. For that reason those populations are marked as a
-ranking and the artifact carries no corpus-wide rate-like figure, which
-[#118](https://github.com/INTENTIUS/choudoufu/issues/118)
-settled. A population that can honestly carry a rate exists since
-[#147](https://github.com/INTENTIUS/choudoufu/issues/147):
-whole deployment root modules published by their operators, pinned by
-commit in the manifest, whose artifact row is marked `reads_as: rate`.
-This page quotes no number from it; the artifact is the record.
+rate.** Module `examples/` directories demonstrate a module's full surface, so
+they lean far harder on variables, conditionals and `dynamic` blocks than a
+configuration describing one deployment, and refuse almost across the board.
+Those populations are marked as a ranking, settled by
+[#118](https://github.com/INTENTIUS/choudoufu/issues/118). One population can
+honestly carry a rate since
+[#147](https://github.com/INTENTIUS/choudoufu/issues/147), whole deployment
+root modules published by their operators, pinned by commit, marked
+`reads_as: rate`.
 
 Run `choudoufu live-check` on your own configuration rather than inferring
-anything about it from the corpus.
+anything from the corpus.

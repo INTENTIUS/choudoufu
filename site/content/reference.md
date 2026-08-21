@@ -1,10 +1,10 @@
 # Reference
 
-The normative specifications live in the repository, next to the code and the
-tests that hold them to it. This page is the index into them.
+The normative specifications live in the repository beside the code and the
+tests holding them to it. This page indexes them.
 
-They are written for people integrating with choudoufu or working on it. If you
-are trying to get an estate running, the path pages are what you want.
+They are for people integrating with choudoufu or working on it. To get an
+estate running, use the path pages.
 
 ## Specifications
 
@@ -25,8 +25,8 @@ are trying to get an estate running, the path pages are what you want.
 ## The demo, which is also the test suite
 
 [`live/e2e/README.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md)
-documents the harness, covering what each step proves, the environment knobs,
-and what each exit code means.
+documents the harness, what each step proves, the environment knobs, and each
+exit code.
 
 ```
 bash live/e2e/run.sh --expect 5
@@ -34,8 +34,8 @@ bash live/e2e/run.sh --expect 5
 
 ## Commands
 
-`choudoufu <command> -help` is authoritative for flags. These are the
-live-specific commands.
+`choudoufu <command> -help` is authoritative for flags. The live-specific
+commands follow.
 
 | Command | What it does |
 |---|---|
@@ -46,10 +46,10 @@ live-specific commands.
 
 ## The live configuration
 
-Two places to write it, one dialect. The leading form is the sidecar file
-`estate.chdf.hcl` at the configuration root. Its body is the live
-configuration itself, and because the extension is not `.tf`, stock
-OpenTofu, Terraform, fmt and linters never parse it.
+Two places to write it, one dialect. The leading form is the sidecar
+`estate.chdf.hcl` at the configuration root. Its body is the live configuration
+itself, and since the extension is not `.tf`, stock OpenTofu, Terraform, fmt
+and linters never parse it.
 
 ```hcl
 # estate.chdf.hcl
@@ -60,10 +60,10 @@ record_store "ssm" {
 }
 ```
 
-The same content may instead live in a `live` block inside the `terraform`
-block. Both forms are fully supported, and both present at once is an error
-naming the file and the block. A `backend` or `cloud` block alongside
-either form is refused in the decoder, before any command runs.
+The same content may live in a `live` block inside `terraform`. Both forms are
+supported. Both present at once is an error naming the file and the block. A
+`backend` or `cloud` block alongside either is refused in the decoder, before
+any command runs.
 
 ### Arguments
 
@@ -72,17 +72,16 @@ either form is refused in the decoder, before any command runs.
 | `estate` | The estate this configuration owns, the value the `tofu-estate` marker carries. Deliberately a literal string, because a name assembled from variables could differ between plan and apply, and the estate name is an identity rather than a computed value. Optional. Omitted, the name derives from the markers this configuration stamps. |
 
 `snapshots` and `snapshot_path` are tombstones. The observational-snapshot
-subsystem they configured was removed, and setting either produces an
-error naming what replaced it (guided discovery's hint now rides the
-`record_store`).
+subsystem they configured was removed, and setting either errors with what
+replaced it. Guided discovery's hint now rides the `record_store`.
 
 ### `record_store` block
 
 One label picks the backend, `"local"`, `"ssm"`, or `"s3"`. It stores the
-values of logical resources (`null_resource`, `terraform_data`, `time_*`,
-non-secret `random_*`), and declaring it is also what admits those types.
-Writes are conditional rather than locked. The trade-offs per backend
-are in [Storage](storage.html).
+values of logical resources such as `null_resource`, `terraform_data`, `time_*`
+and non-secret `random_*`. Declaring it is what admits those types. Writes are
+conditional rather than locked. [Storage](storage.html) has the per-backend
+trade-offs.
 
 | Argument | Applies to | Meaning |
 |---|---|---|
@@ -94,9 +93,9 @@ are in [Storage](storage.html).
 ### `policy` block
 
 The ownership matrix. One verb per quadrant of declared-or-not against
-tagged-or-not, plus the marker key overrides and the delete guard. The
-verbs, defaults, and the reasoning live in
-[Day 2 operations](day2.html). These are the arguments.
+tagged-or-not, plus marker key overrides and the delete guard.
+[Day 2 operations](day2.html) has the verbs, defaults and reasoning. The
+arguments follow.
 
 | Argument | Meaning |
 |---|---|
@@ -104,17 +103,16 @@ verbs, defaults, and the reasoning live in
 | `tag_key`, `tag_value` | Override the marker tag names. |
 | `threshold` | Guard for a delete quadrant. The run refuses when more resources than this would be deleted. The decoder accepts any non-negative whole number, and lint refuses zero. |
 
-The `undeclared_untagged = "delete"` quadrant does account reconciliation, and
+The `undeclared_untagged = "delete"` quadrant reconciles a whole account and
 requires a nested `scope` block bounding what a sweep may touch, through
-`services`, `types`, and `regions`, each a list. The other quadrants'
-delete verbs (including `undeclared_tagged`'s, the default estate-scoped
-sweep) need none.
+`services`, `types` and `regions`, each a list. Other delete verbs need none,
+including `undeclared_tagged`'s default estate-scoped sweep.
 
 ## Permissions a run needs
 
-choudoufu makes very few AWS calls of its own. Resource reads, writes and lists
-go through the provider plugin, so those are the AWS provider's permissions,
-exactly as for any OpenTofu run. What follows is the fork's own surface.
+choudoufu makes few AWS calls of its own. Resource reads, writes and lists go
+through the provider plugin, so those are the AWS provider's permissions,
+exactly as any OpenTofu run. The fork's own surface follows.
 
 | Stage | Calls | Where |
 |---|---|---|
@@ -124,43 +122,43 @@ exactly as for any OpenTofu run. What follows is the fork's own surface.
 | Record store, `s3` | `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` | `internal/live/staterecord/s3.go` |
 | Record store, `local` | none | `internal/live/staterecord/local.go` |
 
-Each row names the file that makes the calls, because that list is short and
-fixed and a generated span for ten names would be more machinery than it saves.
-The tagging verbs below are not: they move with botocore and there are 205
-services of them, so they are generated.
+Each row names the file making the calls. That list is short and fixed, so a
+generated span for ten names would cost more machinery than it saves. The
+tagging verbs below move with botocore across 205 services, so they are
+generated.
 
 ## Marker stamping
 
-Writing an ownership marker means calling the tagging action for the resource's
-own service. The provider makes that call as part of the ordinary apply, so a
-role that can already create the resource can usually already tag it, but the
-actions are worth knowing when a policy is scoped tightly.
+Writing an ownership marker calls the tagging action for the resource's own
+service. The provider makes that call during the ordinary apply, so a role that
+can create the resource can usually already tag it. The actions matter when a
+policy is scoped tightly.
 
 <!-- tagverbs-gen:begin tag-verbs -->
 | Action | Services |
 |---|---|
-| `TagResource` | 136 — ARCRegionSwitch, AccessAnalyzer, Amplify, AppConfig, AppFlow, AppIntegrations and 130 more |
-| `AddTagsToResource` | 7 — DMS, DocDB, ElastiCache, Neptune, RDS, SSM and 1 more |
-| `AddTags` | 5 — DataPipeline, EMR, ElasticLoadBalancing, ElasticLoadBalancingV2, SageMaker |
-| `CreateTags` | 4 — EC2, MediaLive, Redshift, WorkSpaces |
-| `AddLFTagsToResource` | 1 — LakeFormation |
-| `ChangeTagsForResource` | 1 — Route53 |
-| `SetTagsForResource` | 1 — Inspector |
-| `Tag` | 1 — ResourceGroups |
-| `TagCertificateAuthority` | 1 — ACMPCA |
-| `TagQueue` | 1 — SQS |
+| `TagResource` | 136. ARCRegionSwitch, AccessAnalyzer, Amplify, AppConfig, AppFlow, AppIntegrations and 130 more |
+| `AddTagsToResource` | 7. DMS, DocDB, ElastiCache, Neptune, RDS, SSM and 1 more |
+| `AddTags` | 5. DataPipeline, EMR, ElasticLoadBalancing, ElasticLoadBalancingV2, SageMaker |
+| `CreateTags` | 4. EC2, MediaLive, Redshift, WorkSpaces |
+| `AddLFTagsToResource` | 1. LakeFormation |
+| `ChangeTagsForResource` | 1. Route53 |
+| `SetTagsForResource` | 1. Inspector |
+| `Tag` | 1. ResourceGroups |
+| `TagCertificateAuthority` | 1. ACMPCA |
+| `TagQueue` | 1. SQS |
 
-158 services carry an unambiguous tagging verb; 47 do not, and a run cannot stamp a marker on those.
+158 services carry an unambiguous tagging verb. 47 do not, and a run cannot stamp a marker on those.
 <!-- tagverbs-gen:end tag-verbs -->
 
-Whether a policy condition on those actions is actually evaluated is a separate
-question, and `live/iam-reference.json` answers it from AWS's own Service
-Authorization Reference. Read it the way that artifact documents: it is
-authoritative about the condition keys it names and not about the ones it
-omits, so a listed key is evidence the condition applies and an unlisted one is
-the absence of a statement rather than a statement of absence.
+Whether a policy condition on those actions is evaluated is a separate
+question. `live/iam-reference.json` answers it from AWS's own Service
+Authorization Reference. That artifact is authoritative about the condition
+keys it names and silent about the ones it omits. A listed key is evidence the
+condition applies. An unlisted one is an absent statement rather than a
+statement of absence.
 
 ## Everything else is OpenTofu
 
-The language, the CLI, providers and backends are all unmodified. Use
+The language, CLI, providers and backends are unmodified. Use
 [opentofu.org/docs](https://opentofu.org/docs/).

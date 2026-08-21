@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 236" width="720" height="236"
+     role="img" aria-labelledby="e-title e-desc">
+  <title id="e-title">A receipt makes an invisible effect visible in the plan</title>
+  <desc id="e-desc">An external effect such as a migration leaves nothing in the
+  cloud to read back. A receipt is an ordinary declared resource holding a hash
+  of the effect's input, so a change to that input appears as a diff in the plan
+  before apply runs the effect.</desc>
+
+  <style>
+    .ink   { fill: #241f16; }
+    .muted { fill: #6b5f4e; }
+    .card  { fill: #f7f3e6; }
+    .dim   { fill: #ebe4d2; }
+    .rule  { stroke: #ded5c0; }
+    .brass { stroke: #c98a3d; }
+    text   { font-family: Georgia, "Iowan Old Style", serif; }
+    .h    { font-size: 14px; font-weight: 700; }
+    .l    { font-size: 12.5px; }
+    .s    { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+  </style>
+  <defs>
+    <marker id="d" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7"
+            orient="auto-start-reverse">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#c98a3d"/>
+    </marker>
+  </defs>
+
+  <text x="16" y="24" class="s muted">Without a receipt</text>
+
+  <rect x="14" y="34" width="200" height="52" rx="6" class="dim"/>
+  <rect x="14" y="34" width="200" height="52" rx="6" fill="none" class="rule"/>
+  <text x="30" y="56" class="h ink">a migration runs</text>
+  <text x="30" y="76" class="l muted">outside every resource</text>
+
+  <path d="M 222 60 H 292" class="brass" stroke-width="1.6" fill="none" marker-end="url(#d)"/>
+
+  <rect x="300" y="34" width="406" height="52" rx="6" class="card"/>
+  <rect x="300" y="34" width="406" height="52" rx="6" fill="none" class="rule"/>
+  <text x="318" y="56" class="h ink">the cloud holds nothing to read back</text>
+  <text x="318" y="76" class="l muted">no plan can tell you whether it already happened</text>
+
+  <line x1="14" y1="112" x2="706" y2="112" class="rule" stroke-dasharray="3 4"/>
+
+  <text x="16" y="140" class="s muted">With a receipt</text>
+
+  <rect x="14" y="150" width="200" height="66" rx="6" class="card"/>
+  <rect x="14" y="150" width="200" height="66" rx="6" fill="none" class="rule"/>
+  <text x="30" y="172" class="h ink">you declare a receipt</text>
+  <text x="30" y="192" class="l muted">an ordinary resource</text>
+  <text x="30" y="209" class="mono ink">/tofu-receipts/&lt;estate&gt;</text>
+
+  <path d="M 222 182 H 292" class="brass" stroke-width="1.6" fill="none" marker-end="url(#d)"/>
+
+  <rect x="300" y="150" width="406" height="66" rx="6" class="card"/>
+  <rect x="300" y="150" width="406" height="66" rx="6" fill="none" class="rule"/>
+  <text x="318" y="172" class="h ink">its hash changes when the input changes</text>
+  <text x="318" y="192" class="l muted">so the diff appears in the plan, and a reviewer or</text>
+  <text x="318" y="209" class="l muted">a CI gate sees the effect coming before apply</text>
+</svg>

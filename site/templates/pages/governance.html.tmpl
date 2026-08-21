@@ -1,0 +1,229 @@
+{{define "governance"}}
+<h1>Scoping a role</h1>
+
+<p>Tag-based IAM scoping is a feature AWS already has. What it needs is tags
+that are reliably there, on everything, correct. That is what markers are.</p>
+
+<p>Every resource this fork creates carries <code>tofu-estate</code> and
+<code>tofu-address</code>, derived from its configuration address and written
+as part of the create call. Not a convention someone has to remember, not a
+<code>default_tags</code> block that drifts, and not something a resource can
+be created without.</p>
+
+<p>So the policies below are ordinary tag conditions. They work because the
+tags underneath them are guaranteed rather than hoped for.</p>
+
+<h2>The whole estate</h2>
+
+<p>Two statements, because creating and mutating are conditioned by different
+keys.</p>
+
+<pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "MutateOnlyThisEstate",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "CreateOnlyIntoThisEstate",
+      "Effect": "Allow",
+      "Action": ["ec2:RunInstances", "ec2:CreateTags"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    }
+  ]
+}</code></pre>
+
+<p><code>aws:ResourceTag</code> reads a tag off a resource that already exists,
+so it governs everything the estate acts on. It cannot govern a create, because
+no resource exists yet to carry the tag. What the creating principal supplies is
+<code>aws:RequestTag</code>, and conditioning on that is what makes the second
+statement a grant to create into this estate rather than a grant to create
+anything.</p>
+
+<p>The actions above are illustrative. A real grant names the actions your own
+types need.</p>
+
+<h2>Part of an estate</h2>
+
+<p>One substitution. Condition on <code>aws:ResourceTag/tofu-address</code>
+instead, and the grant covers named addresses rather than the whole estate.</p>
+
+<pre><code>"Condition": {
+  "StringLike": {"aws:ResourceTag/tofu-address": "aws_subnet.*"}
+}</code></pre>
+
+<p><code>aws:RequestTag/tofu-address</code> is the matching create grant, giving
+a principal the right to create one declared address and nothing else.</p>
+
+<p>Both keys are ordinary resource tags, which is the whole reason the
+substitution works. Nothing new is configured, and there is no second
+permission model to keep in step with your IAM.</p>
+
+<h2>Across estates</h2>
+
+<p>A role holding parts of several estates is one policy with several
+statements, or one statement whose condition names several values. No state
+file is shared, and no estate is split to make it possible.</p>
+
+<pre><code>"Condition": {
+  "StringEquals": {
+    "aws:ResourceTag/tofu-estate": ["prod-networking", "prod-data"]
+  }
+}</code></pre>
+
+<h2>Read without write</h2>
+
+<p>Listing what an estate contains is a tagging API call, so an auditor or an
+incident responder needs no <code>choudoufu</code> binary and no write access.</p>
+
+<pre><code>aws resourcegroupstaggingapi get-resources \
+  --tag-filters Key=tofu-estate,Values=prod-networking</code></pre>
+
+<p>Grant <code>tag:GetResources</code> plus the read actions for the services
+involved. The estate is legible to them and unchangeable by them.</p>
+
+<h2>Handover</h2>
+
+<p>Attach the policy to the receiving role and detach it from the sending one.
+Two IAM changes and no tag writes. Nothing about the resources changes, no
+state is exported, and the two roles never both hold it unless you want an
+overlap.</p>
+
+<p>The receiving team can list what it inherited before running anything.</p>
+
+<h2>Splitting an estate</h2>
+
+<p>Rewrite <code>tofu-estate</code> on the resources that are leaving, then copy
+the policy with the new estate name. The split is a tag write and a policy
+copy. Neither half moves.</p>
+
+<h2>Three things a file cannot do</h2>
+
+<p>The grants above have rough equivalents in splitting a configuration. These
+do not. They work because the permission unit is a cloud resource, so every IAM
+feature that applies to resources now applies to your infrastructure, and IAM
+has features a file has never had.</p>
+
+<ul class="case-links">
+  <li><a href="scope-blast-radius.html">The wrong config cannot reach
+  production</a>. A staging role is denied on anything belonging to another
+  estate, so the mistake fails at the cloud rather than at review.</li>
+  <li><a href="scope-abac.html">One policy for every team</a>. ABAC over the
+  estate tag, so onboarding a team costs a session tag rather than a
+  policy.</li>
+  <li><a href="scope-unowned.html">Nothing is created unowned</a>. Deny creates
+  carrying no estate tag, and ownership becomes a precondition of existing.</li>
+</ul>
+
+<h2>One configuration, many owners</h2>
+
+<p>This one has an equivalent today, and the equivalent is the problem. Two
+teams sharing a state file both need write on it, so the usual answer is two
+root modules with <code>remote_state</code> wired between them. Your repository
+layout ends up determined by your blast radius decisions and stays that way.</p>
+
+<p>Here the configuration stays one thing and the boundary is a policy. Each
+team's role is scoped to its own addresses, so an apply touches only what that
+team changed. Moving the boundary is an edit to a condition rather than a
+restructuring.</p>
+
+<p>Two things to hold. Reads stay open across the estate, because discovery has
+to see everything or a plan proposes duplicates. And if a team plans a change
+to something it does not own, the apply fails at that resource, which is the
+right answer but is worth knowing before it happens in front of someone.</p>
+
+<h2>Where the key is confirmed</h2>
+
+<p>{{len .Gov.Named}} of {{.Gov.Services}} services in AWS's Service
+Authorization Reference name <code>aws:ResourceTag</code> on their tagging
+action. That is a lower bound. The reference is authoritative about what it
+names and silent about what it omits, and AWS documents tag-based
+authorization for services it says nothing about, Lambda among them.</p>
+
+<table>
+  <thead><tr><th>Service</th><th>IAM prefix</th><th>Actions naming it</th><th>Of total</th></tr></thead>
+  <tbody>
+  {{range .Gov.Named}}<tr>
+    <td>{{.Name}}</td><td><code>{{.Prefix}}</code></td><td>{{.Tag}}</td><td>{{.Total}}</td>
+  </tr>{{end}}
+  </tbody>
+</table>
+
+<h3>Services with no verdict</h3>
+
+<p>The reference states nothing either way for these. Check them against AWS's
+own IAM documentation and test the policy. This is not a list of services where
+scoping fails.</p>
+
+<table>
+  <thead><tr><th>Service</th><th>IAM prefix</th><th>Actions</th></tr></thead>
+  <tbody>
+  {{range .Gov.Unnamed}}<tr>
+    <td>{{.Name}}</td><td><code>{{.Prefix}}</code></td><td>{{.Total}}</td>
+  </tr>{{end}}
+  </tbody>
+</table>
+
+<h2>Types that carry no tags</h2>
+
+<p>A marker needs somewhere to live, and a minority of admitted types take no
+<code>tags</code> argument at all. A condition on either marker key is
+unmatched on those, so a grant covering them is wider than its condition.</p>
+
+<p>Being identifiable without a tag and being governable by one are different
+properties, and an IAM condition needs the second.
+<a href="https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md">live/MARKERS.md</a>
+carries the generated count and the per-service breakdown.</p>
+
+<h2>Protecting the markers</h2>
+
+<p>The grants above rest on tags, so a stripped tag is a real hazard. Two AWS
+Organizations mechanisms sound like they cover it. One does not, and the other
+only partly.</p>
+
+<p><strong>Tag policies enforce values, not survival.</strong> A tag policy
+checks the value a tag is set to, when a tag is written, on types the feature
+supports. Nothing in it inspects a tag removal, and AWS says so directly. It
+cannot be configured to block a tag from being removed. Do not rely on one for
+this.</p>
+
+<p><strong>SCPs can block the untagging call</strong>, but only inside the
+organization, only in member accounts, and only where the condition key is
+honored. Denying the tag-removal actions for the marker keys, with an exception
+for whichever principal runs choudoufu, is the closest thing to a real
+backstop. MARKERS.md carries the policy.</p>
+
+<p>Even a correct SCP leaves gaps. The management account, a standalone
+account, a misused exemption, a service whose untag action does not honor
+<code>aws:TagKeys</code>, or a policy nobody wrote yet. Prevention cannot cover
+every case, so this fork does not rely on it alone. At plan time a create whose
+type matches an unowned live resource gains a
+<code>[POSSIBLE DUPLICATE]</code> warning naming that resource and the command
+that adopts it instead, sitting immediately above the plan diff. That is the
+guard which assumes the tags get stripped anyway.</p>
+
+<h2>What a run itself needs</h2>
+
+<p>choudoufu makes few AWS calls of its own. Resource reads, writes and lists go
+through the provider plugin, so those are the AWS provider's permissions,
+exactly as any OpenTofu run. <a href="reference.html">Reference</a> lists the
+fork's own call surface per stage, which is short and fixed.</p>
+
+<p>Marker stamping calls the tagging action for the resource's own service. A
+role that can create a resource can usually already tag it, which matters when a
+policy is scoped tightly.</p>
+
+<p>The rosters on this page are rendered from
+<code>live/iam-reference.json</code>, generated by <code>tools/iamref-gen</code>
+from AWS's published reference. That artifact is authoritative about the
+condition keys it names and silent about the ones it omits.</p>
+{{end}}
