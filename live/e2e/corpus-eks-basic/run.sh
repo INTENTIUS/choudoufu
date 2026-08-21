@@ -74,15 +74,26 @@ set -uo pipefail
 #                         are RECORD_ADMITTED and correctly refused only
 #                         because this configuration declares no
 #                         record_store, exactly as designed (#73) - declaring
-#                         one would admit them. local_file.kubeconfig is a
-#                         different, narrower case in the SAME rule's output:
-#                         its own diagnostic text does not offer the
-#                         record_store escape hatch at all ("nothing can
-#                         recover its value from the live system, because
-#                         there is no live system holding it") - this is
-#                         #314's already-tracked gap (local_file needs a
-#                         fourth LogicalClass, argument-derived identity),
-#                         not something a record_store declaration fixes.
+#                         one would admit them. local_file.kubeconfig is
+#                         EXTERNAL_ADMITTED in the SAME rule's output - #314
+#                         (closed) landed exactly the fourth LogicalClass its
+#                         own investigation called for, and re-verified here
+#                         2026-08-21 by reading the real diagnostic text: it
+#                         now offers the identical record_store escape hatch
+#                         as the other three ("Declare a record_store in the
+#                         live block and it is admitted ..."), so all 4
+#                         logical-resource sites are the same shape - refused
+#                         only for the absence of a record_store declaration,
+#                         which HANDOFF's compatible-by-default principle
+#                         says should eventually be implied when none is
+#                         given (tracked separately and much larger than this
+#                         estate: issue #365, "the strict-profile toggles in
+#                         the live configuration schema" - not attempted
+#                         here, since it is cross-cutting foundation work,
+#                         not a per-estate fix, and this script deliberately
+#                         does not paper over the estate by adding a
+#                         record_store itself (see the note above about not
+#                         hand-patching to dodge the wall).
 #                       - count-index (4 sites): aws_route_table_association.
 #                         public/private built from `element(some_resource
 #                         [*].id, count.index)` - the checker cannot
@@ -717,10 +728,12 @@ log "           legitimately untaggable-by-design plus 1 MISSING -"
 log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
 log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
-log "  STAGE 3  REFUSES  4 logical-resource sites (3 correctly refused"
-log "           pending a record_store declaration, #73 as designed; 1 -"
-log "           local_file - is #314's already-tracked, narrower gap), and"
-log "           4 correctly-conservative count-index refusals. Issue #326's"
+log "  STAGE 3  REFUSES  4 logical-resource sites, all correctly refused"
+log "           pending a record_store declaration, #73 as designed (#314,"
+log "           closed, landed local_file's own fourth LogicalClass -"
+log "           EXTERNAL_ADMITTED - so it is now the same shape as the"
+log "           other 3, not a distinct gap), and 4 correctly-conservative"
+log "           count-index refusals. Issue #326's"
 log "           own unadmitted-type site (kubernetes_config_map.aws_auth)"
 log "           is CONFIRMED GONE - asserted as a negative control above."
 log "           Asserted by rule and by resource, with BREAK=1 proving"
