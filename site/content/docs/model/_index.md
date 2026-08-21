@@ -6,18 +6,18 @@ bookCollapseSection: true
 
 # The three pieces
 
-Three things have to survive between runs. Which real resource an address
-refers to, values the cloud has nowhere to put, and the fact that an effect
-happened. Each one lives somewhere AWS already has, and your IAM governs each
-one per resource.
+Three things have to survive between runs: which live object each resource
+block owns, the values the cloud cannot hold, and whether an effect has
+already run. Each one lives somewhere AWS already has, and your IAM governs
+each one per resource.
 
 ![Where identity, values and effects live, and who writes each](diagram-pieces.svg)
 
 | The job | Where it goes | What reads it |
 |---|---|---|
-| [Which resource an address means]({{< relref "/docs/model/identity" >}}) | Two tags on the resource | Any cloud tool, and your IAM |
-| [Values AWS cannot hold]({{< relref "/docs/model/values" >}}) | A record store you declare | choudoufu only |
-| [Effects that read back as nothing]({{< relref "/docs/model/effects" >}}) | A receipt you declare | You, your reviewers, your responder |
+| [Identity: which live object a block owns]({{< relref "/docs/model/identity" >}}) | Two tags on the resource | Any cloud tool, and your IAM |
+| [Values: what the cloud cannot hold]({{< relref "/docs/model/values" >}}) | A record store you declare | choudoufu only |
+| [Effects: whether something already ran]({{< relref "/docs/model/effects" >}}) | A receipt you declare | You, your reviewers, your responder |
 
 Everything else on this site follows from those three rows.
 

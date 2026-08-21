@@ -1,0 +1,13 @@
+{{- /* Resolve markdown images against site/assets (global resources) first,
+       then page resources, then the site base URL, so a reference like
+       diagram-pieces.svg works from any page depth under /choudoufu/. */ -}}
+{{- $u := urls.Parse .Destination -}}
+{{- $src := .Destination -}}
+{{- if not $u.IsAbs -}}
+  {{- with or (resources.Get $u.Path) (.Page.Resources.Get $u.Path) -}}
+    {{- $src = .RelPermalink -}}
+  {{- else -}}
+    {{- $src = relURL $u.Path -}}
+  {{- end -}}
+{{- end -}}
+<img src="{{ $src }}" alt="{{ .PlainText }}"{{ with .Title }} title="{{ . }}"{{ end }} loading="lazy">
