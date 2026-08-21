@@ -26,8 +26,11 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/provisioners"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -1183,6 +1186,103 @@ func TestLivePlan_residueAttributeWarningIsWired(t *testing.T) {
 	}
 	if !strings.Contains(combined, "secret_policy_seed") {
 		t.Errorf("the warning does not name the attribute:\n%s", combined)
+	}
+}
+
+// TestLivePlan_provisionerTaintIsRead pins that the command pipeline
+// consults GitHub issue #353's tofu-provisioned namespace.
+//
+// This is the wiring guard, not the mechanism's own test - that lives in
+// internal/live/projection and in live/e2e/provisioner-taint. It exists
+// because internal/command builds projection.Options by hand, and an Options
+// field left off is invisible at this level: the report comes out clean and
+// says the estate matches its configuration while the object it describes is
+// live, marked and half-provisioned.
+//
+// Note which code path it actually covers, because the command name is
+// misleading. A configuration with a live block - which this fixture must
+// have, since record_store lives in it - is delegated by
+// LivePlanCommand.Run to PlanCommand, so the Options under test here are
+// internal/command/live_mode.go's, not live_plan.go's own. Mutation-checked
+// there: nilling live_mode.go's ProvisionedStore makes this test fail.
+// live_plan.go's own Options carries the field too, and its comment says
+// plainly that nothing reaches it today.
+//
+// The taint record is seeded by hand because a plan never applies and so
+// never writes one, and it is seeded through the real ProvisionedStore
+// rather than by writing a file, so the key and the payload are the ones the
+// production path would produce.
+func TestLivePlan_provisionerTaintIsRead(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-provisioner-taint"), td)
+	t.Chdir(td)
+
+	const estate = "provisioner-taint-unit"
+	cloud := newStatelessTestCloud()
+	cloud.putMarked("aws_s3_bucket", "tofu-provisioner-taint-bucket", estate, "aws_s3_bucket.app", map[string]string{
+		"id": "tofu-provisioner-taint-bucket", "bucket": "tofu-provisioner-taint-bucket",
+	})
+
+	// The healthy half first: with nothing recorded, the estate matches its
+	// configuration. Without this the assertion below could pass against an
+	// implementation that proposes a replacement for some other reason.
+	c, done := newLivePlanCommand(t, cloud)
+	withLocalExecProvisioner(c)
+	// No -estate flag: the live block names it, and live-plan refuses both
+	// at once.
+	code := c.Run([]string{"-no-color"})
+	cleanOut := done(t)
+	clean := cleanOut.Stdout() + cleanOut.Stderr()
+	if code != 0 {
+		t.Fatalf("exit code %d on the clean run, want 0:\n%s", code, clean)
+	}
+	if strings.Contains(clean, "must be replaced") {
+		t.Fatalf("the clean run already proposes a replacement, so the taint assertion below would prove nothing:\n%s", clean)
+	}
+
+	store, err := staterecord.NewLocalStore(filepath.Join(td, ".tofu-records"))
+	if err != nil {
+		t.Fatalf("opening the record store: %s", err)
+	}
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr("aws_s3_bucket.app")
+	if addrDiags.HasErrors() {
+		t.Fatalf("parsing the address: %s", addrDiags.Err())
+	}
+	if _, err := projection.NewProvisionedStore(store, estate).Put(t.Context(), addr, ""); err != nil {
+		t.Fatalf("seeding the taint record: %s", err)
+	}
+
+	c2, done2 := newLivePlanCommand(t, cloud)
+	withLocalExecProvisioner(c2)
+	code2 := c2.Run([]string{"-no-color"})
+	out2 := done2(t)
+	combined := out2.Stdout() + out2.Stderr()
+	if code2 != 0 {
+		t.Fatalf("exit code %d, want 0\nstderr:\n%s", code2, out2.Stderr())
+	}
+	if !strings.Contains(combined, "aws_s3_bucket.app is tainted, so it must be replaced") {
+		t.Errorf("live-plan does not report the tainted resource as needing replacement; issue #353's ProvisionedStore is not wired into live-plan's own projection.Options, so this report would call a half-provisioned object healthy:\n%s", combined)
+	}
+}
+
+// withLocalExecProvisioner gives a live-plan command a "local-exec"
+// provisioner to load a schema for. Schema loading is all it is ever asked
+// for here: live-plan never applies, so nothing in this file can run a
+// provisioner even by mistake - which is itself the plan-time-is-a-preview
+// invariant, held by construction rather than by assertion.
+func withLocalExecProvisioner(c *LivePlanCommand) {
+	c.Meta.testingOverrides.Provisioners = map[string]provisioners.Factory{
+		"local-exec": func() (provisioners.Interface, error) {
+			return &tofu.MockProvisioner{
+				GetSchemaResponse: provisioners.GetSchemaResponse{
+					Provisioner: &configschema.Block{
+						Attributes: map[string]*configschema.Attribute{
+							"command": {Type: cty.String, Optional: true},
+						},
+					},
+				},
+			}, nil
+		},
 	}
 }
 

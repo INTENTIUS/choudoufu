@@ -421,6 +421,23 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		// live-plan's report agree with what `plan` would show for the same
 		// estate, rather than listing an update the real plan does not have.
 		ResidueStore: projection.NewResidueStore(hintStore, estate),
+		// Issue #353. Same store again, fourth namespace, and unreachable
+		// today for the same structural reason the two lines above are:
+		// hintStore is opened only when the root module's live block
+		// declares a record_store, and a configuration WITH a live block
+		// never reaches this function at all - Run delegates it to
+		// PlanCommand, whose own projection.Options
+		// (internal/command/live_mode.go) is the one that carries these
+		// stores for real. What arrives here is the -estate form, which by
+		// definition has no live block and therefore no record_store.
+		//
+		// Kept rather than omitted, and stated rather than left to be
+		// rediscovered: the day that delegation stops covering some
+		// live-block shape, a missing store here would make this report
+		// call a live, marked, half-provisioned object healthy while the
+		// real plan proposed replacing it - and this report is what every
+		// crossing's stage 3 reads.
+		ProvisionedStore: projection.NewProvisionedStore(hintStore, estate),
 	})
 	// The provider processes started for the projection have done their job
 	// by this point; the plan below starts its own from the same library.
