@@ -376,6 +376,27 @@ set -uo pipefail
 # test_plan reads fail; with the fix the "Changes to Outputs:" block is gone
 # entirely and test_plan reads pass.
 #
+# STAGE 4 IS NOW WRITTEN, since stage 3 has a real empty plan to build it on.
+# It applies that empty plan and asserts a genuine no-op: "0 added, 0 changed,
+# 0 destroyed", no state file left behind, all three module-nested markers
+# read back unmoved, and the record store (random_pet.this's generated id,
+# the carried root output) still present - the same shape as
+# reference-ec2-vpc's and corpus-mastino-dns's own test_apply blocks.
+#
+# One real, non-choudoufu gap surfaced while writing it: floci's
+# resourcegroupstaggingapi GetResources does not index CloudWatch Logs log
+# groups. Queried directly against this estate it returns only the IAM role
+# and the Lambda function - 2 of the 3 tagged objects - even though the log
+# group's OWN tag API (logs:list-tags-for-resource, already used at stage 2's
+# marker check) reads its tags back correctly, and AWS's own GetResources
+# documents "logs:loggroup" as a supported resource type. Rather than assert
+# the object count through a cross-service search that gap would silently
+# under-report, the object count here is the sum of each of the three
+# objects' own tag reads - the same precedent as corpus-sumaform-aws routing
+# around an infra-emulation gap rather than around choudoufu's own policy.
+# Not filed as a floci issue by this change since it does not block the
+# stage; worth one if a later estate needs the cross-service search itself.
+#
 #   bash live/e2e/corpus-lambda-simple/run.sh
 #
 # Needs Docker, the AWS CLI, and python3 (the module's package.py builds the
@@ -391,11 +412,11 @@ set -uo pipefail
 #   BREAK        set to 1 to corrupt one expected identity string before the
 #                stage-2 tag assertions, proving they are load-bearing
 #                rather than a grep that always matches. It does not affect
-#                stage 3, which fails for the same real reason either way.
+#                stages 3 or 4.
 #
 # Exit codes: 0 on a real pass of every stage this script currently
-# exercises, non-zero on a real failure (including the current, documented
-# stage-3 block). Every assertion reads command output, an exit code, or the
+# exercises (stages 1 through 4; stage 5 is not yet written), non-zero on a
+# real failure. Every assertion reads command output, an exit code, or the
 # emulator's own answer through the AWS CLI, never choudoufu's own report of
 # itself.
 
@@ -927,9 +948,75 @@ log ""
 log "STAGE 3 (test plan): PASS"
 log ""
 gauntlet_stage test_plan pass "no resource change proposed"
-log "STAGE 4 (test apply): NOT YET WRITTEN - stage 3 only just started passing in this run"
-log "STAGE 5 (drift and reconverge): NOT YET WRITTEN - same reason"
-gauntlet_stage test_apply not_run "not yet written - stage 3 only just started passing in this run"
-gauntlet_stage drift_reconverge not_run "not yet written - same reason"
+CURRENT_STAGE=test_apply
+
+# ── STAGE 4: TEST APPLY ──────────────────────────────────────────────────────
+log "=== 9. test apply: apply the empty plan; tagged object count and markers unchanged ==="
+
+# floci's resourcegroupstaggingapi GetResources does not index CloudWatch Logs
+# log groups: queried directly against this same estate it returns only the
+# IAM role and the Lambda function, 2 of the 3 tagged objects, even though
+# each object's OWN service (logs:list-tags-for-resource, used at step 7
+# above and again below) reads its tags back correctly, and AWS's own
+# GetResources documents "logs:loggroup" as a supported resource type - an
+# emulator gap, not a real-AWS or choudoufu one. Rather than assert the
+# object count through a cross-service search that gap would silently
+# under-report (a wrong count is worse than an inconvenient one), this counts
+# the three module-nested resources stage 2 already verified are tagged, by
+# reading each object's own tag API directly - the same precedent as
+# corpus-sumaform-aws's routing around an infra-emulation gap rather than
+# around choudoufu's own policy.
+tagged_object_count() {
+  local n=0
+  [ "$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-estate"' --output text 2>/dev/null)" = "$ESTATE" ] && n=$((n + 1))
+  [ "$(awsl iam list-role-tags --role-name "$FN_NAME" --query "Tags[?Key=='tofu-estate'].Value | [0]" --output text 2>/dev/null)" = "$ESTATE" ] && n=$((n + 1))
+  local lg_estate
+  lg_estate="$(awsl logs list-tags-for-resource --resource-arn "$LOGGROUP_ARN" --query 'tags."tofu-estate"' --output text 2>/dev/null \
+    || awsl logs list-tags-log-group --log-group-name "/aws/lambda/${FN_NAME}" --query 'tags."tofu-estate"' --output text 2>/dev/null)"
+  [ "$lg_estate" = "$ESTATE" ] && n=$((n + 1))
+  printf '%s\n' "$n"
+}
+
+BEFORE_N="$(tagged_object_count)"
+[ "$BEFORE_N" = "3" ] || fail "expected 3 tagged objects (the module-nested IAM role, log group and function - aws_iam_role_policy.logs is untaggable and carries no tag) before the no-op apply, got $BEFORE_N"
+
+NOOP_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
+[ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$NOOP_APPLY_OUT" \
+  || { grep -E 'Apply complete|Plan: ' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
+
+AFTER_N="$(tagged_object_count)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "the tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
+
+# The markers did not move either - read directly through the AWS CLI, the
+# same three services stage 2 verified against, not through choudoufu's own
+# report of itself.
+GOT_LAMBDA_ADDR2="$(awsl lambda list-tags --resource "$LAMBDA_ARN" --query 'Tags."tofu-address"' --output text)"
+[ "$GOT_LAMBDA_ADDR2" = "module.lambda_function.aws_lambda_function.this:0" ] \
+  || fail "after the no-op apply, aws_lambda_function.this carries tofu-address=$GOT_LAMBDA_ADDR2, not module.lambda_function.aws_lambda_function.this:0"
+GOT_ROLE_ADDR2="$(awsl iam list-role-tags --role-name "$FN_NAME" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_ROLE_ADDR2" = "module.lambda_function.aws_iam_role.lambda:0" ] \
+  || fail "after the no-op apply, aws_iam_role.lambda carries tofu-address=$GOT_ROLE_ADDR2, not module.lambda_function.aws_iam_role.lambda:0"
+GOT_LOGGROUP_ADDR2="$(awsl logs list-tags-for-resource --resource-arn "$LOGGROUP_ARN" --query 'tags."tofu-address"' --output text 2>/dev/null \
+  || awsl logs list-tags-log-group --log-group-name "/aws/lambda/${FN_NAME}" --query 'tags."tofu-address"' --output text)"
+[ "$GOT_LOGGROUP_ADDR2" = "module.lambda_function.aws_cloudwatch_log_group.lambda:0" ] \
+  || fail "after the no-op apply, aws_cloudwatch_log_group.lambda carries tofu-address=$GOT_LOGGROUP_ADDR2, not module.lambda_function.aws_cloudwatch_log_group.lambda:0"
+
+# And the record store survived the apply, by value: random_pet.this's
+# generated id (every identity in this estate derives from it) and the
+# carried root output local_filename (#349) are both still there, not
+# dropped by write-back after a run with nothing to change.
+grep -Rqs -- "$PET" "$RECORDS_DIR" \
+  || fail "random_pet.this's generated id ($PET) is gone from the record store after the no-op apply"
+[ -f "$LOCAL_FILENAME_RECORD" ] || fail "the carried root output local_filename ($OUTPUTS_DIR) is gone from the record store after the no-op apply"
+
+log "  genuine no-op: $BEFORE_N objects before, $AFTER_N after, no state file, all 3 markers unmoved, record store intact"
+log ""
+log "STAGE 4 (test apply): PASS"
+log ""
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N; markers and record store intact"
+log "STAGE 5 (drift and reconverge): NOT YET WRITTEN"
+gauntlet_stage drift_reconverge not_run "not yet written"
 CURRENT_STAGE=""
 gauntlet_end
