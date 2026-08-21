@@ -138,6 +138,27 @@ set -uo pipefail
 # resourcegroupstaggingapi does not index Redshift resources, so the
 # get-resources count this script logs cannot see it. A floci gap in the
 # reporting line, not a stamping gap - lex00/floci#97 carries it too.
+#
+# A GAP IN THIS SCRIPT'S OWN CHECK, found and fixed re-verifying the above
+# 2026-08-21: stage 3's empty-plan assertion matched
+# `will be (created|updated|destroyed)` only. A live-plan header for a forced
+# replacement instead reads `must be replaced` - a fourth, distinct verb the
+# old pattern never matched. Confirmed live by attempting the tofu-slot
+# convergence apply directly (item 2 above): its own plan carries 34 changed
+# objects, not 31 - the three missing from the old grep are
+# aws_nat_gateway.this[0], aws_vpn_gateway.this[0] and
+# module.vpc_endpoints.aws_vpc_endpoint.this["s3"], all three "must be
+# replaced" per item 3 above's floci read-fidelity gaps. Today the stage
+# fails regardless, on the 31 "will be" lines the old pattern did catch, so
+# the verdict was never wrong - but the day tofu-slot lands or the
+# convergence apply folds into stage 2, the old pattern would have reported
+# this stage's plan EMPTY while three forced replacements still stood in it,
+# which is exactly the silent-false-pass the "empty plan alone is not enough"
+# oracle in live/GAUNTLET.md exists to catch. Fixed below to match both
+# verbs; the fifteen other corpus-* scripts sharing the same narrower
+# pattern (`grep -rl 'will be (created|updated|destroyed)' live/e2e/*/run.sh`)
+# were left untouched - out of this unit's one-estate scope, flagged for a
+# follow-up unit instead.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SRC_MODULE="$ROOT/.corpus/vpc"
@@ -378,8 +399,17 @@ plan_into() { ( cd "$ADOPTED" && "$TOFU" live-plan -input=false -no-color ); }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 [ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC"; }
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "live-plan wrote a state file"
-grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
-  && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
+# Four plan-header verbs mean a non-empty plan, not three: a forced
+# replacement reads "must be replaced", not "will be destroyed" - see this
+# script's header, "A GAP IN THIS SCRIPT'S OWN CHECK", for how the narrower
+# three-verb pattern could have reported a plan with live forced replacements
+# in it as EMPTY once the tofu-slot/floci gaps documented above are resolved.
+CHANGED_HEADERS="$(grep -E '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$PLAN_OUT")"
+if [ -n "$CHANGED_HEADERS" ]; then
+  printf '%s\n' "$CHANGED_HEADERS"
+  N_CHANGED="$(printf '%s\n' "$CHANGED_HEADERS" | grep -c .)"
+  fail "the plan is not empty: $N_CHANGED object(s) change, none a choudoufu defect - every one needs tofu-slot (deliberate; live-import cannot compute it from a single state file - see 'THE TOFU-SLOT FINDING', live/e2e/corpus-iam-policy/run.sh, and internal/live/stamp/doc.go) and the aws_nat_gateway/aws_vpn_gateway/aws_vpc_endpoint objects among them also trace to floci's own EC2 read/write fidelity gaps filed as lex00/floci#97 (ModifyVpcEndpoint unimplemented; NAT/VPN gateway and VPC endpoint reads incomplete)"
+fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
 # Re-assert the same three identities, not merely against the tags stage 2
