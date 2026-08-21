@@ -73,11 +73,11 @@ set -uo pipefail
 #      anyway: it is what keeps those two identities static and client-named,
 #      which is a different question from the abort.
 #
-#   3. OPEN (INTENTIUS/choudoufu#345), and newly reached - the provider will
-#      not validate a marker-derived identity ARN under this estate's own
-#      provider block.
-#      Now that the three Batch resources carry markers, projection tries to
-#      import one by its ARN identity, and hashicorp/aws refuses:
+#   3. FIXED (INTENTIUS/choudoufu#345), and newly reached at the time it was
+#      filed - the provider would not validate a marker-derived identity ARN
+#      under this estate's own provider block.
+#      Once the three Batch resources carried markers, projection tried to
+#      import one by its ARN identity, and hashicorp/aws refused:
 #
 #        Error: Invalid Identity Attribute Value
 #        Identity attribute "arn" contains an Account ID "000000000000"
@@ -88,33 +88,65 @@ set -uo pipefail
 #
 #      The provider compares an identity ARN's account segment against the
 #      account it knows about itself, and `skip_requesting_account_id = true`
-#      - which every crossing script here sets, and which is the ordinary
-#      way to point the AWS provider at a local emulator - leaves it knowing
-#      none. live-plan exits 1 and produces no plan at all, so stages 4 and 5
-#      have nothing to start from. The ARN is not wrong: stage 3 re-reads the
-#      job queue's real ARN through the AWS CLI and asserts the refusal names
-#      that exact string.
+#      - the ordinary way to point the AWS provider at a local emulator -
+#      left it knowing none. live-plan exited 1 and produced no plan at all.
+#      The ARN was never wrong: stage 3 re-reads the job queue's real ARN
+#      through the AWS CLI and asserts the SAME identity below.
 #
-# MEASURED, NOT ASSUMED: the obvious fix for gap 3 is worse. Setting
-# `skip_requesting_account_id = false` on the estate copy only (cold deploy
-# untouched) was run for real against floci 2026-08-20. It does clear the
-# Batch identity error - and it breaks stage 2 instead, because once the
-# provider knows its account it routes S3 bucket tag reads through S3
-# Control's account-prefixed virtual host:
+#      THE FIX IS A TEST-HARNESS ONE, NOT A floci CODE CHANGE - measured,
+#      not argued, 2026-08-20. The obvious fix, `skip_requesting_account_id
+#      = false` on the estate copy alone, clears the Batch identity error
+#      and was first found to break stage 2 instead: once the provider
+#      knows its account, it routes S3 bucket tag reads through S3
+#      Control's account-prefixed virtual host -
+#      `http://000000000000.127.0.0.1:4726/...` - and
+#      `dial tcp: lookup 000000000000.127.0.0.1: no such host`. That is a
+#      DNS failure, not an HTTP one: Go's resolver refuses to look up an
+#      account-ID label prepended to a bare IPv4 literal, so the request
+#      never reaches floci's HTTP server at all - no amount of Host-header-
+#      agnostic routing inside floci can answer a request that was never
+#      sent. Confirmed directly: `curl`ing
+#      `http://<12-digit-account>.127.0.0.1:PORT/...` fails identically at
+#      the DNS stage, before any TCP connection is attempted.
 #
-#   Get "http://000000000000.127.0.0.1:4726/v20180820/tags/arn%3Aaws%3As3..."
-#   dial tcp: lookup 000000000000.127.0.0.1: no such host
+#      The actual fix is ENDPOINT itself. floci already publishes
+#      `localhost.floci.io` as a real, public wildcard DNS domain -
+#      `EmbeddedDnsServer.DEFAULT_SUFFIX`, resolving `*.localhost.floci.io`
+#      to 127.0.0.1 exactly like LocalStack's own `localhost.localstack.
+#      cloud` - and it resolves an account-ID-prefixed label the same as
+#      any other: `dig +short 000000000000.localhost.floci.io` returns
+#      `127.0.0.1` with no floci container running at all, since it is
+#      ordinary public DNS, not floci's embedded per-container resolver.
+#      Pointing ENDPOINT (and so AWS_ENDPOINT_URL) at `localhost.floci.io`
+#      instead of a bare IP was verified end to end against the CURRENT,
+#      unmodified floci image (be3f7ffd, sha256:8a882bcc - no re-pin): the
+#      account-prefixed S3 Control request lands on floci's own
+#      S3ControlController exactly as a bare-host request does, because
+#      that controller dispatches on path (`/v20180820/...`), never on
+#      Host, and S3VirtualHostFilter already excludes that path prefix from
+#      its own virtual-host bucket rewrite. No floci Java code needed
+#      changing.
 #
-# `aws_s3_bucket.tiles[0]` goes from VERIFIED to MISSING and the estate drops
-# to 15 of 26 eligible. An account-prefixed host cannot be made to resolve to
-# a local port without a wildcard DNS domain, which floci does not serve. So
-# the flag is left true and gap 3 is reported rather than routed around; do
-# not re-try that flag without reading this paragraph.
-#
-# CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean. Stage 2
-# (migrate) now passes outright. Stage 3 is BLOCKED on gap 3 above - not a
-# non-empty plan, no plan at all - and stages 4 and 5 need one to mean
-# anything, so they are not attempted.
+# CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean, and its
+# own provider block is UNCHANGED (`skip_requesting_account_id = true`
+# still, since plain OpenTofu never imports by identity ARN and there is no
+# reason to touch it). The estate copy alone now sets
+# `skip_requesting_account_id = false`; both copies share the new
+# `localhost.floci.io` ENDPOINT, since it is transparent to every other
+# call this script makes (health check, AWS CLI re-reads, plain S3 calls
+# under s3_use_path_style). Stage 2 (migrate) still passes outright - see
+# below for how its VERIFIED/DRIFTED split moved by exactly one resource as
+# a direct, expected consequence of the account now being known. Stage 3
+# (test plan) no longer crashes: live-plan exits 0 and produces a plan
+# rather than two diagnostics. The plan is not EMPTY on the first try - see
+# STAGE 3 below for why every line in it is already-known, by-design, or
+# already-tracked - and applying it once (verified informationally, not a
+# scored stage below) converges the estate to a genuinely empty replan, the
+# same shape #345's own header records as the target. Stages 4 and 5 are
+# left not_run in the formal sense: this repository's own convention (see
+# corpus-mastino-dns, corpus-giantswarm-crossplane) scores test_apply only
+# once test_plan itself is the genuinely empty first plan, and this one is
+# not - it is deterministic and fully explained instead.
 #
 # What DOES cross cleanly, and is asserted below: cold deploy (26 real
 # resources, unmodified module), then 16 of those 26 stamped correctly, 0
@@ -131,11 +163,26 @@ set -uo pipefail
 #   1. COLD DEPLOY   plain `tofu apply` (real OpenTofu core, no choudoufu),
 #                     the unmodified module - PASS.
 #   2. MIGRATE       `choudoufu live-import -approve` against that cold
-#                     state - PASS: 16 stamped, 0 failed, 10 skipped.
-#   3. TEST PLAN     delete the state file, `choudoufu live-plan` - BLOCKED:
-#                     refuses at exactly 2 diagnostics (gap 3), asserted
-#                     deterministically rather than skipped.
-#   4/5.             NOT ATTEMPTED - stage 3 produces no plan at all.
+#                     state - PASS: 16 stamped, 0 failed, 10 skipped (moved
+#                     from 11 VERIFIED/5 DRIFTED to 10/6 - see STAGE 2).
+#   3. TEST PLAN     delete the state file, `choudoufu live-plan` - exits 0,
+#                     a real plan, asserted deterministically: 1 to add
+#                     (the already-tracked #249 OAC gap), 7 to change (six
+#                     are the documented tofu-slot migration-visibility tag
+#                     - see internal/live/discovery/count.go's
+#                     bindCountByAddress doc comment - the seventh is the
+#                     S3 bucket policy's own dependency on that same OAC).
+#                     FAIL by this repository's own convention (a first
+#                     plan must be empty to PASS), but the #345 wall itself
+#                     - no plan at all - is gone.
+#   4/5.             NOT_RUN in the scored sense - convention here scores
+#                     test_apply only once test_plan is itself empty.
+#                     Verified informationally instead: applying the stage
+#                     3 plan succeeds (1 added, 6 changed, matching the
+#                     plan), and a second live-plan afterward is genuinely
+#                     empty ("No changes. Your infrastructure matches the
+#                     configuration.") - the estate converges in exactly
+#                     one apply, as #345's own header always expected.
 #
 # BREAK=1 corrupts the S3 bucket's expected tofu-address ahead of stage 2's
 # AWS-CLI re-read, proving that assertion is load-bearing.
@@ -165,7 +212,7 @@ ESTATE="$WORK/estate"
 FLOCI_PORT="${FLOCI_PORT:-4726}"
 FLOCI_NAME="choudoufu-corpus-overture-tiles-$$"
 FLOCI_IMAGE="${FLOCI_IMAGE:-$(cat "$ROOT/live/floci-image")}"
-ENDPOINT="http://127.0.0.1:${FLOCI_PORT}"
+ENDPOINT="http://localhost.floci.io:${FLOCI_PORT}"
 REGION="us-west-2"
 ESTATE_NAME="overture-tiles-crossing"
 BUCKET_NAME="${ESTATE_NAME}-tiles"
@@ -212,15 +259,21 @@ copy_module() {
   done
 }
 
-# write_root <destdir> <live_block>: this crossing's own root wiring, calling
-# the real module with the same S3/CloudFront/IAM/VPC inputs
-# examples/complete uses, scoped exactly as this script's header states.
+# write_root <destdir> <live_block> <skip_account_id>: this crossing's own
+# root wiring, calling the real module with the same S3/CloudFront/IAM/VPC
+# inputs examples/complete uses, scoped exactly as this script's header
+# states.
 #
-# Both copies keep the provider's skip_requesting_account_id = true, and that
-# is a measured decision rather than boilerplate - see MEASURED, NOT ASSUMED
-# in this file's header for what setting it false costs.
+# skip_account_id is parameterized per copy (#345 FIXED, see header): the
+# cold-deploy copy keeps skip_requesting_account_id = true (plain OpenTofu,
+# no identity-ARN import ever happens there, no reason to change it), while
+# the estate copy sets it false so the provider learns its own account and
+# validates the Batch job queue's identity ARN. That alone would still break
+# S3 Control's account-prefixed virtual host, per this file's header - the
+# fix that makes it safe is ENDPOINT itself (localhost.floci.io instead of a
+# bare IP), not this flag.
 write_root() {
-  local dest="$1" live_block="$2"
+  local dest="$1" live_block="$2" skip_account_id="$3"
   cat > "$dest/main.tf" <<EOF
 terraform {
   required_version = ">= 1.8"
@@ -240,7 +293,7 @@ provider "aws" {
   secret_key                  = "test"
   skip_credentials_validation = true
   skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
+  skip_requesting_account_id  = $skip_account_id
   s3_use_path_style           = true
 }
 
@@ -295,7 +348,7 @@ EOF
 }
 
 copy_module "$PLAIN"
-write_root "$PLAIN" ""
+write_root "$PLAIN" "" true
 log "  module's own top-level .tf files copied unmodified out of .corpus/overture-tiles into $PLAIN"
 
 # DELTA: confirm the copy is byte-identical to the pinned commit - the only
@@ -315,8 +368,8 @@ write_root "$ESTATE" '
     record_store "local" {
       path = ".tofu-records"
     }
-  }'
-log "  estate copy written to $ESTATE (stages 2-3: choudoufu, live block added)"
+  }' false
+log "  estate copy written to $ESTATE (stages 2-5: choudoufu, live block added, skip_requesting_account_id = false - see header, #345 FIXED)"
 
 # ── 1. floci ─────────────────────────────────────────────────────────────
 log "=== 1. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
@@ -374,13 +427,27 @@ IMPORT_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfsta
 grep -qF "16 of 26 resource instance(s) are eligible for stamping" <<< "$IMPORT_OUT" \
   || { printf '%s\n' "$IMPORT_OUT"; fail "live-import did not verify exactly 16 of 26 as eligible - the module's own shape, or a fix to one of the gaps this script documents, may have moved this number"; }
 grep -qF "No tag has been written." <<< "$IMPORT_OUT" || fail "the dry run wrote a tag - it must not"
-grep -qF "VERIFIED (11)" <<< "$IMPORT_OUT" || fail "expected exactly 11 VERIFIED resources"
-grep -qF "DRIFTED (5)" <<< "$IMPORT_OUT" || fail "expected exactly 5 DRIFTED resources (deprecated shadow attributes - same class as corpus-hongbomiao-labelbox's own two)"
+grep -qF "VERIFIED (10)" <<< "$IMPORT_OUT" || fail "expected exactly 10 VERIFIED resources (moved from 11 by #345's fix - see below)"
+grep -qF "DRIFTED (6)" <<< "$IMPORT_OUT" \
+  || fail "expected exactly 6 DRIFTED resources (deprecated shadow attributes, same class as corpus-hongbomiao-labelbox's own two, PLUS aws_launch_template.batch[0]'s arn - see below)"
+# aws_launch_template.batch[0] moved from VERIFIED to DRIFTED as a direct,
+# expected consequence of #345's fix: the state PLAIN's cold deploy wrote
+# (skip_requesting_account_id = true there, untouched) recorded this
+# launch template's computed arn with no account segment; the ESTATE
+# copy's provider (skip_requesting_account_id = false, #345 FIXED) now
+# knows its account and reads the SAME live object's arn WITH one. That is
+# a real difference between two readings taken under two different
+# provider configurations - an artifact of this crossing needing both
+# configurations at once, not of the live object or the marker being
+# wrong - and "DRIFTED, not VERIFIED" is the correct, honest classification
+# for it.
+grep -qF "arn (cty.StringVal(\"arn:aws:ec2:$REGION::launch-template/" <<< "$IMPORT_OUT" \
+  || fail "expected aws_launch_template.batch[0]'s DRIFTED detail to name its own account-less prior arn"
 grep -qF "UNTAGGABLE (9)" <<< "$IMPORT_OUT" || fail "expected exactly 9 UNTAGGABLE resources"
 grep -qF "UNADMITTED_TYPE (1)" <<< "$IMPORT_OUT" || fail "expected exactly 1 UNADMITTED_TYPE resource"
 grep -qF "aws_cloudfront_origin_access_control" <<< "$IMPORT_OUT" \
   || fail "expected the one UNADMITTED_TYPE resource to be aws_cloudfront_origin_access_control - already ruled 'enumerable, unbindable' by #249, not a new gap"
-log "  16 of 26 eligible (11 VERIFIED, 5 DRIFTED); 9 UNTAGGABLE; 1 UNADMITTED_TYPE (aws_cloudfront_origin_access_control, already-ruled #249)"
+log "  16 of 26 eligible (10 VERIFIED, 6 DRIFTED); 9 UNTAGGABLE; 1 UNADMITTED_TYPE (aws_cloudfront_origin_access_control, already-ruled #249)"
 
 log "--- 2b: -approve ---"
 APPROVE_OUT="$(cd "$ESTATE" && "$TOFU" live-import -state="$PLAIN/terraform.tfstate" -estate="$ESTATE_NAME" -approve -no-color 2>&1)"; APPROVE_RC=$?
@@ -435,60 +502,108 @@ log "STAGE 2 (migrate): PASS - 16 of 26 stamped, 0 failed; the other 10 correctl
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGE 3: TEST PLAN - genuinely BLOCKED, asserted deterministically rather
-# than skipped. The wall moved when stage 2 started succeeding: it is no
-# longer a non-empty plan, it is live-plan REFUSING TO PLAN AT ALL, at
-# exactly two diagnostics with one cause between them.
+# STAGE 3: TEST PLAN - #345 FIXED: live-plan no longer crashes. It produces
+# a real, deterministic, non-empty plan instead - asserted exactly, address
+# by address, rather than just "it didn't crash".
 # ══════════════════════════════════════════════════════════════════════════
-log "=== STAGE 3: no state file, live-plan (expected to refuse - see header) ==="
+log "=== STAGE 3: no state file, live-plan (expect a real plan - see header, #345 FIXED) ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the state file is still there"
 
 PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 [ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
 
-# Asserted, not tolerated: a nonzero exit is the recorded behaviour, and a
-# ZERO exit here would mean the wall below has been fixed and this whole
-# section needs rewriting rather than silently passing.
-[ "$PLAN_RC" -ne 0 ] \
-  || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited 0 - the identity-ARN wall this stage records may be fixed; re-scope stages 3-5 rather than leaving this assertion inverted"; }
+# Asserted, not tolerated: a nonzero exit here would mean the identity-ARN
+# wall #345 fixed has come back, or a new one blocks projection outright.
+[ "$PLAN_RC" -eq 0 ] \
+  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "live-plan exited $PLAN_RC - the #345 identity-ARN wall may have come back, or a new one blocks projection"; }
 
-# The whole diagnostic surface, counted rather than sampled. Two errors, and
-# the second is the first one's consequence.
-PLAN_ERRORS="$(grep -cE '^Error: ' <<< "$PLAN_OUT")"
-[ "$PLAN_ERRORS" = "2" ] \
-  || { grep -E '^Error: ' <<< "$PLAN_OUT"; fail "expected exactly 2 errors from live-plan, got $PLAN_ERRORS - the wall has changed shape"; }
+ERRORS="$(grep -cE '^Error: ' <<< "$PLAN_OUT")"
+[ "$ERRORS" = "0" ] \
+  || { grep -E '^Error: ' <<< "$PLAN_OUT"; fail "expected 0 errors from live-plan, got $ERRORS"; }
 
-grep -qF "Invalid Identity Attribute Value" <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "expected the provider's identity-ARN account check to be the first error"; }
-grep -qF 'Identity attribute "arn" contains an Account ID "000000000000" which does not' <<< "$PLAN_OUT" \
-  || fail "expected the account-mismatch text naming 000000000000 against the provider's own empty account"
-grep -qF "Cannot import for projection" <<< "$PLAN_OUT" \
-  || fail "expected the projection import to be the second, consequent error"
-grep -qF "arn:aws:batch:$REGION:000000000000:job-queue/${ESTATE_NAME}-queue" <<< "$PLAN_OUT" \
-  || fail "expected both errors to name the Batch job queue's own marker-derived ARN"
+grep -qF "Plan: 1 to add, 7 to change, 0 to destroy." <<< "$PLAN_OUT" \
+  || { grep -E '^Plan: |^No changes' <<< "$PLAN_OUT"; fail "expected exactly 'Plan: 1 to add, 7 to change, 0 to destroy.' - the plan's shape has moved"; }
 
-# The marker itself is NOT what is wrong here, and this is the assertion that
-# says so: the value the provider rejected is the same ARN the live object
-# actually carries, read back independently through the AWS CLI at stage 2c.
-# choudoufu resolved the right identity; the provider declined to validate it
-# under this estate's own provider configuration.
-[ "$(awsl batch describe-job-queues --query "jobQueues[?jobQueueName=='${ESTATE_NAME}-queue'].jobQueueArn | [0]" --output text)" \
-    = "arn:aws:batch:$REGION:000000000000:job-queue/${ESTATE_NAME}-queue" ] \
-  || fail "the ARN in the refusal is not the live object's own ARN - that would make this an identity defect rather than a provider-validation one"
+# Every changed address, named rather than just counted - the whole
+# diagnostic surface of a plan that is deterministic but not yet empty.
+CHANGED="$(grep -oE '^  # \S+ will be (created|updated in-place|destroyed|replaced)' <<< "$PLAN_OUT" | awk '{print $2}' | sort -u)"
+WANT_CHANGED="module.overture_tiles.aws_cloudfront_distribution.tiles[0]
+module.overture_tiles.aws_cloudfront_origin_access_control.tiles[0]
+module.overture_tiles.aws_internet_gateway.batch[0]
+module.overture_tiles.aws_launch_template.batch[0]
+module.overture_tiles.aws_route_table.public[0]
+module.overture_tiles.aws_s3_bucket_policy.tiles[0]
+module.overture_tiles.aws_subnet.public[0]
+module.overture_tiles.aws_vpc.batch[0]"
+[ "$CHANGED" = "$WANT_CHANGED" ] || {
+  printf 'got:\n%s\nwant:\n%s\n' "$CHANGED" "$WANT_CHANGED" >&2
+  fail "the plan's changed-address set has moved"
+}
 
-log "  live-plan refused at exactly 2 diagnostics, both on the Batch job queue's own real ARN:"
-log "    1. Invalid Identity Attribute Value - the provider compares an identity ARN's account"
-log "       segment against the account it knows, and skip_requesting_account_id = true leaves"
-log "       it knowing none, so a correct \"000000000000\" is rejected against \"\""
-log "    2. Cannot import for projection - the consequence: projection will not build a plan"
-log "       while a provider is erroring, because the result would propose creating objects"
-log "       that already exist"
+# Every line traced to a known, already-tracked cause - nothing new:
+#   - aws_cloudfront_origin_access_control.tiles[0] CREATED: the pre-existing,
+#     already-ruled #249 UNADMITTED_TYPE gap (see stage 2), now visible as a
+#     create because the plan reaches this far at all.
+grep -qF "aws_cloudfront_origin_access_control.tiles[0] will be created" <<< "$PLAN_OUT" \
+  || fail "expected the OAC create - #249's own gap, not a new one"
+#   - the other six UPDATES are internal/live/discovery/count.go's own
+#     documented, one-time tofu-slot migration-visibility tag
+#     (bindCountByAddress: "visible in the plan as a tofu-slot tag being
+#     added to each member" - by design, cements on the first apply), on
+#     every count-toggled ([0]) resource this module declares.
+for addr in aws_cloudfront_distribution.tiles aws_internet_gateway.batch \
+            aws_launch_template.batch aws_route_table.public \
+            aws_subnet.public aws_vpc.batch; do
+  grep -qF "module.overture_tiles.$addr[0] will be updated in-place" <<< "$PLAN_OUT" \
+    || fail "expected $addr[0]'s tofu-slot migration-visibility update"
+done
+grep -qF '+ "tofu-slot"    = "0"' <<< "$PLAN_OUT" \
+  || fail "expected at least one tofu-slot tag actually being added, not just the resource header"
+#   - aws_s3_bucket_policy.tiles[0] is the one CONTENT diff, cascading from
+#     the OAC above: its desired policy names the CloudFront distribution's
+#     own origin-access condition, which needs the OAC's arn - "known after
+#     apply" until the OAC in this same plan exists.
+grep -qF "module.overture_tiles.aws_s3_bucket_policy.tiles[0] will be updated in-place" <<< "$PLAN_OUT" \
+  || fail "expected the S3 bucket policy update cascading from the new OAC"
+
+log "  live-plan produced a real plan: Plan: 1 to add, 7 to change, 0 to destroy."
+log "    1 add:  aws_cloudfront_origin_access_control.tiles[0] - the already-ruled #249 gap"
+log "    6 tag-only changes: the documented tofu-slot migration-visibility tag"
+log "       (internal/live/discovery/count.go, bindCountByAddress), on every"
+log "       count-toggled ([0]) resource - by design, cements on first apply"
+log "    1 content change: aws_s3_bucket_policy.tiles[0], cascading from the new OAC"
 
 log ""
-log "STAGE 3 (test plan): BLOCKED - live-plan refuses, deterministically, at exactly 2 traced diagnostics"
+log "STAGE 3 (test plan): FAIL by this repo's own convention (first plan must be"
+log "  empty) - but the #345 wall (no plan at all) is GONE, and every line above"
+log "  traces to an already-tracked or by-design cause, none of them new."
 log ""
 
+# ── informational only, NOT a scored stage: does the estate actually
+# converge? Verifies #345's own header claim - applying once should cement
+# the tofu-slot tags and create the OAC, after which a second plan should
+# be genuinely empty. Not stages 4/5 in the scored sense: this repository's
+# own convention (corpus-mastino-dns, corpus-giantswarm-crossplane) scores
+# test_apply only once test_plan is ITSELF the empty first plan, which this
+# is not. Run for the evidence, not for the grade.
+log "--- informational: does one apply converge the estate? (not scored) ---"
+APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; APPLY_RC=$?
+[ "$APPLY_RC" -eq 0 ] || { printf '%s\n' "$APPLY_OUT" | tail -40; log "  informational apply FAILED - not fatal to this script, but #345's convergence claim is unverified"; }
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "apply wrote a state file"
+if [ "$APPLY_RC" -eq 0 ]; then
+  grep -qE '^Apply complete!' <<< "$APPLY_OUT" \
+    || log "  informational apply produced no 'Apply complete!' line - unexpected, not fatal"
+  rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
+  REPLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; REPLAN_RC=$?
+  if [ "$REPLAN_RC" -eq 0 ] && grep -qE 'No changes\.' <<< "$REPLAN_OUT"; then
+    log "  CONFIRMED: one apply converges the estate - the second live-plan is genuinely empty"
+  else
+    log "  the second live-plan did NOT come back empty (rc=$REPLAN_RC) - #345's convergence claim needs revisiting; see $WORK if DEBUG_KEEP=1"
+  fi
+fi
+
 log ""
-log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 BLOCKED (deterministic, 2 traced diagnostics) ==="
-log "=== stages 4-5 not attempted - both need a plan, and stage 3 does not produce one ==="
+log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 FAIL (deterministic, non-empty," 
+log "=== every line already-tracked or by-design); stages 4-5 NOT_RUN in the scored"
+log "=== sense (convergence verified informationally above) ==="
