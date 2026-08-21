@@ -20,12 +20,12 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd site tools live internal/command)"
+    out="$(gofmt -l internal/live cmd site tools live internal/command internal/engine/applying)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/
+    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/engine/applying/
     echo "==> docs site build"
     (cd site && go run . -out public/)
     echo "==> CI steps passed"
@@ -107,10 +107,13 @@ demo-record-located:
 # fails, the object is live and fully marked, the next plan (with no state
 # file) proposes replacing it, and the provisioner really re-runs, counted
 # from the shell's own side effects rather than from a plan verdict. Also
-# pins the two things that must NOT happen: on_failure = continue records
-# nothing, and changing the provisioner's command text between runs changes
-# nothing. Needs Docker and the AWS CLI; runs on its own port (4742) so it
-# can run beside `just demo`.
+# pins the three things that must NOT happen: on_failure = continue records
+# nothing, changing the provisioner's command text between runs changes
+# nothing, and a record must not outlive the failure it describes - the
+# operator deletes the half-built object by hand, the next apply re-creates
+# it and the provisioner succeeds, and the plan after that has to be empty
+# rather than proposing to destroy a healthy bucket. Needs Docker and the
+# AWS CLI; runs on its own port (4742) so it can run beside `just demo`.
 demo-provisioner-taint:
     bash live/e2e/provisioner-taint/run.sh
 
