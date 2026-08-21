@@ -14827,5 +14827,67 @@
     ],
     "import_syntax": "REGION",
     "identity_attrs": []
+  },
+  "kubernetes_cluster_role_binding": {
+    "type": "kubernetes_cluster_role_binding",
+    "components": [
+      {
+        "attrs": [
+          "name"
+        ],
+        "block": "metadata",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAME"
+  },
+  "kubernetes_config_map": {
+    "type": "kubernetes_config_map",
+    "components": [
+      {
+        "attrs": [
+          "namespace"
+        ],
+        "block": "metadata",
+        "identity_attr": "*"
+      },
+      {
+        "literal": "/"
+      },
+      {
+        "attrs": [
+          "name"
+        ],
+        "block": "metadata",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAMESPACE/NAME"
+  },
+  "kubernetes_namespace": {
+    "type": "kubernetes_namespace",
+    "components": [
+      {
+        "attrs": [
+          "name"
+        ],
+        "block": "metadata",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAME"
+  },
+  "kubernetes_storage_class": {
+    "type": "kubernetes_storage_class",
+    "components": [
+      {
+        "attrs": [
+          "name"
+        ],
+        "block": "metadata",
+        "identity_attr": "*"
+      }
+    ],
+    "import_syntax": "NAME"
   }
 }
