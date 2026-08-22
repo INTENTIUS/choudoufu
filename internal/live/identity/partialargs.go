@@ -150,12 +150,48 @@ import (
 // resolved, and testdata/module-arg-hoisted pins the equivalence by rendering
 // the same identity from both spellings.
 //
-// What still refuses is the case the paragraph above rules out for its own
-// reasons: `merge(a, b)` written as the argument, where a leaf inside a or b
-// refuses. Rebuilding THAT means rebuilding a call, and the boundary is
-// deliberate rather than an oversight - see the same fixture's "merged"
-// module. `local.cfg.subnet` and `local.cfg["subnet"]` are out too: a step
-// into a rebuilt value is a different question from a rebuilt value, and
+// # One layer in: the scope itself (corpus-sumaform-aws)
+//
+// The rebuild reaches only what the caller wrote out AT the call. Two hops
+// of the same poisoning sit one layer further in, where there is no
+// constructor for anyone to rebuild, and both are ordinary in a real module
+// composition:
+//
+//	# backend_modules/aws/base, uyuni-project/sumaform
+//	locals {
+//	  configuration_output = merge({ region = local.region,
+//	                                 iam_instance_profile = aws_iam_instance_profile.p[0].name,
+//	                                 ami_info = { ubuntu2204 = { ami = data.aws_ami.u.image_id } } },
+//	                               module.network.configuration, ...)
+//	}
+//	output "configuration" { value = merge(local.configuration_output, { ... }) }
+//
+// A managed resource named inside a LOCAL of the module being read refuses
+// there, and a child module's output named in the middle of a larger
+// expression refuses there, and either one takes the whole merge - and with
+// it the key set the configuration states outright - down with it. Four
+// calls further down, `lookup(var.base_configuration, "route53_domain",
+// null)` decides a `count`, and the key set is the only thing it needs.
+//
+// [configs.StaticEvaluator.WithUnknownForRefusedReferences] is that layer:
+// the fallback evaluator below is built with it, so a refused resource
+// reference inside the parent's own locals becomes an unknown, and a module
+// call is answered by evaluating that child's outputs the same tolerant way
+// (tolerantmodule.go). The safety argument is unchanged and is the same one
+// in both places - the substitution is an unknown, never a guess, so a value
+// that comes back known did not depend on it, and every gate that turns a
+// value into a marker still demands a known one.
+//
+// Two consequences worth stating outright. `merge(a, b)` written as the
+// argument, where a leaf inside a or b refuses, now RESOLVES - not because a
+// call is rebuilt, which this still never does, but because the call is RUN
+// on a value whose refused leaf the scope substituted an unknown for, which
+// is what the paragraph above already described for a merge one call down.
+// testdata/module-arg-hoisted's "merged" module pins it, and its "derived"
+// resource - which reads the substituted member itself - pins that the
+// substitution did not become a marker. And `local.cfg.subnet` /
+// `local.cfg["subnet"]` are still out of the REBUILD: a step into a rebuilt
+// value is a different question from a rebuilt value, and
 // [resolver.selectStatic] is the path that already reads a step into a local
 // for the symbolic, one-argument-at-a-time case.
 //
@@ -254,6 +290,15 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 		// nil for the root module, and WithVariables ignores a nil, so
 		// the root's evaluator is left exactly as it is.
 		eval = eval.WithVariables(r.tolerantVariables(parentInst, nil))
+		// The same substitution, one layer in. Rebuilding a constructor
+		// reaches only the leaves the caller wrote out AT the call; a leaf
+		// that reads a LOCAL whose own expression names a managed
+		// resource, and a whole argument that is a child module's output,
+		// are both refused inside the parent's own scope before any of
+		// this sees them. See
+		// [configs.StaticEvaluator.WithUnknownForRefusedReferences] and
+		// tolerantmodule.go.
+		eval = eval.WithUnknownForRefusedReferences(r.moduleOutputsLookup(parentCfg, parentInst, 0))
 		fallback = eval
 		return fallback
 	}
@@ -378,12 +423,22 @@ func localExprs(cfg *configs.Config) func(string) (hcl.Expression, bool) {
 // resource directly still raises, still falls through to the rebuild, and
 // still ends at the caller's own refusal if that declines too.
 //
-// The value it returns therefore contains exactly one kind of invention: the
-// cty.DynamicVal an ancestor's [elementOrUnknown] put in place of a leaf the
-// static scope refused. Everything else is the caller's own configuration,
-// run through the caller's own functions. Every gate that turns a value into
-// a marker still demands a known one, so a substituted leaf that reaches one
-// is refused there exactly as it was before.
+// The value it returns therefore contains exactly one kind of invention: a
+// cty.DynamicVal in place of a leaf the static scope refused - put there by
+// an ancestor's [elementOrUnknown], or, since the evaluator handed in here
+// carries [configs.StaticEvaluator.WithUnknownForRefusedReferences], by the
+// scope itself for a resource reference inside one of the parent's own
+// locals. Everything else is the caller's own configuration, run through the
+// caller's own functions. Every gate that turns a value into a marker still
+// demands a known one, so a substituted leaf that reaches one is refused
+// there exactly as it was before.
+//
+// "No diagnostic at all" therefore says something narrower than it used to,
+// and deliberately so: it no longer means every reference was inside static
+// scope, it means every reference was either inside static scope or replaced
+// by an unknown that the value carries onward. A parse error, a type
+// mismatch, an undefined local or an unset variable still raises and still
+// falls through to the rebuild.
 func composedArgument(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier) (cty.Value, bool) {
 	val, diags := eval.Evaluate(ctx, expr, ident)
 	if diags.HasErrors() || val == cty.NilVal {

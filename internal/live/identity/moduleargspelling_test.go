@@ -51,6 +51,15 @@ func TestModuleArgumentSpellingIsNotIdentity(t *testing.T) {
 		{"module.hoisted.aws_iam_role.gated[0]", "hoisted-0"},
 		// A child module's whole output, named on its own.
 		{"module.output.aws_iam_role.gated[0]", "netout-0"},
+		// merge() of two literal objects, one of whose members reads a
+		// live subnet. This one moved with the tolerant static scope
+		// ([configs.StaticEvaluator.WithUnknownForRefusedReferences]): the
+		// call is still never REBUILT, it is RUN, on a value whose one
+		// refused leaf the scope substituted an unknown for, and merge's
+		// own answer to that is the one taken. "merged-0" is spelled only
+		// by reading the caller's own local through the function the
+		// caller wrote.
+		{"module.merged.aws_iam_role.gated[0]", "merged-0"},
 		// And the member of that output which is a literal in the child:
 		// real, so it resolves, where the caller's live subnet does not.
 		{"module.output.aws_iam_role.derived[0]", "derived-subnet-from-output"},
@@ -93,8 +102,8 @@ func TestModuleArgumentSpellingRefuses(t *testing.T) {
 	resolved := resolveModuleArgSpelling(t)
 
 	for _, tc := range []struct{ addr, why string }{
-		{"module.merged.aws_iam_role.gated[0]",
-			"the argument is merge() of two literal objects; rebuilding a CALL would mean this package deciding what merge() does to an unknown argument, which it does not do"},
+		{"module.merged.aws_iam_role.derived[0]",
+			"the name reads the one member of the merged local that is a live subnet ID; running merge() on a substituted leaf must leave that member unknown, not fill it in"},
 		{"module.secret.aws_iam_role.gated[0]",
 			"the child module's output is declared sensitive and a marker is written into a cloud tag in clear"},
 		{"module.dynamic.aws_iam_role.gated[0]",

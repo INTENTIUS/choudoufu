@@ -867,6 +867,16 @@ type resolver struct {
 	// are none", which is the common case and must not be re-derived.
 	scopeCtx map[string][]string
 
+	// Tolerant module-output memo, keyed by the child module INSTANCE whose
+	// outputs were evaluated. tolerantOutBusy is the same key set while an
+	// evaluation is in flight, which is what stops a module whose own
+	// argument reads a sibling module's output from re-entering itself
+	// through [resolver.moduleOutputsLookup]. A cty.NilVal entry means
+	// "asked, and this call cannot be answered", which must not be
+	// re-derived either. See tolerantmodule.go.
+	tolerantOut     map[string]cty.Value
+	tolerantOutBusy map[string]bool
+
 	// Expansion memo, keyed by the module instance and the resource address
 	// (no instance key) - two resource blocks with the same local address in
 	// different modules must not share an entry.

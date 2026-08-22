@@ -112,6 +112,99 @@ type StaticEvaluator struct {
 	// funcOverrides, when non-nil, replaces named entries of the scope's
 	// base function table. See [StaticEvaluator.WithFunctionOverrides].
 	funcOverrides map[string]function.Function
+
+	// unknownForRefused makes every scope this evaluator builds answer a
+	// resource or module-output reference with an unknown value instead of
+	// refusing it, and moduleOutputs is the closure that answers a module
+	// call by value where it can. Both are set together by
+	// [StaticEvaluator.WithUnknownForRefusedReferences].
+	unknownForRefused bool
+	moduleOutputs     StaticModuleOutputLookup
+}
+
+// StaticModuleOutputLookup answers a module-call reference with the object
+// of that call's own output values, or reports that it has none. The address
+// is the call as written in the module doing the referring
+// (`module.network` is addrs.ModuleCall{Name: "network"}); the value is the
+// whole call's, an object with one attribute per output, matching how the
+// plan-time evaluator shapes a module reference so that
+// `module.network.configuration` resolves by ordinary attribute access.
+//
+// It is consulted only by an evaluator built through
+// [StaticEvaluator.WithUnknownForRefusedReferences], and a false there is
+// not a refusal: the reference becomes unknown like any other the tolerant
+// scope cannot answer.
+type StaticModuleOutputLookup func(call addrs.ModuleCall) (cty.Value, bool)
+
+// WithUnknownForRefusedReferences returns a copy of the evaluator whose
+// scopes substitute an UNKNOWN value for a managed-resource, data-source or
+// module-output reference instead of refusing it, and which answer a module
+// call by value through outputs where outputs can.
+//
+// # What this is for
+//
+// Stock OpenTofu's plan-time evaluator has no strict/loose distinction to
+// make. A reference it cannot answer yet becomes an unknown and evaluation
+// continues, so an object with one apply-time leaf is a KNOWN object with an
+// unknown attribute, and everything the configuration derives from the parts
+// it did write down - a map's key set, a literal sibling, a conditional on a
+// literal flag - still has an answer. This fork's static evaluator refuses
+// the whole enclosing value instead, and that difference is choudoufu
+// refusing where stock proceeds rather than a fact about the configuration.
+//
+// [identity.resolver] already brought the two together for one shape, a
+// module-call ARGUMENT whose skeleton is literal and one of whose leaves is
+// not (internal/live/identity/partialargs.go). That rebuild works one
+// constructor element at a time and therefore reaches only what the caller
+// wrote out AT the call. The same poisoning happens one layer in - inside a
+// local value, and inside a module output's own expression - where there is
+// no constructor for a caller to rebuild, and this is the seam for it.
+//
+// # Why an unknown, and why that cannot widen what becomes a marker
+//
+// The substitution is an unknown, never a guess, so any value that comes
+// back KNOWN is independent of every reference that was substituted: it is
+// the configuration's own literals, run through the configuration's own
+// functions, exactly as stock would run them. A value that DID depend on a
+// substituted leaf comes back unknown, and every path in this fork that
+// turns a value into an identity demands a known one
+// ([identity.staticSubValue] requires IsWhollyKnown,
+// [identity.collectionKeyNames] rejects an unknown key, the resolver refuses
+// an unknown identity argument), so a substituted leaf cannot become a
+// marker. What can newly succeed is a count, a for_each key set, or an
+// identity component that reads only what the configuration states outright.
+//
+// # What it deliberately does not tolerate
+//
+// count.index, each.key, each.value and provider functions keep refusing
+// exactly as they did. Repetition is answered by
+// [StaticEvaluator.WithRepetitionData] from a caller that has established
+// WHICH instance it is asking about; substituting an unknown for it instead
+// would make an expansion that reads count.index appear answerable when
+// nothing has established the instance at all. A provider function's answer
+// comes from a provider that has not been started.
+//
+// This is opt-in and additive: an evaluator nobody calls this on refuses
+// every one of these references exactly as it always has.
+func (s *StaticEvaluator) WithUnknownForRefusedReferences(outputs StaticModuleOutputLookup) *StaticEvaluator {
+	if s == nil {
+		return s
+	}
+	dup := *s
+	dup.unknownForRefused = true
+	dup.moduleOutputs = outputs
+	return &dup
+}
+
+// moduleOutputsFor answers a module-call reference from the evaluator's
+// module-output lookup, when it has one that covers the call. It is the
+// single place both [staticScopeData.StaticValidateReferences] and
+// [staticScopeData.GetModule] consult, so the two can never disagree.
+func (s *StaticEvaluator) moduleOutputsFor(call addrs.ModuleCall) (cty.Value, bool) {
+	if s == nil || s.moduleOutputs == nil {
+		return cty.NilVal, false
+	}
+	return s.moduleOutputs(call)
 }
 
 // StaticDataLookup answers a data-resource reference with a value read ahead

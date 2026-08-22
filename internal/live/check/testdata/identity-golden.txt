@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=567 instances=1651
-# shape: class CONCRETE=799
-# shape: class NEEDS_DISCOVERY=700
-# shape: class PARENT_DERIVED=128
+# shape: dirs=571 instances=1660
+# shape: class CONCRETE=802
+# shape: class NEEDS_DISCOVERY=703
+# shape: class PARENT_DERIVED=131
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=845b541491d8ec3cb8669b3a47ef31fdf9260bd080fe1830d5f2e5f5250b5382
+# shape: body-sha256=f7c13a66a20560156efcd34085d6935a22fc0bf3cb1857fd220730bcd4d91f7a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -362,6 +362,8 @@ internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.d
 internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
 internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
 internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
+internal/live/identity/testdata/module-arg-hoisted	module.merged.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
+internal/live/identity/testdata/module-arg-hoisted	module.merged.aws_iam_role.gated[0]	CONCRETE	merged-0	name=merged-0
 internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.derived[0]	CONCRETE	derived-subnet-from-output	name=derived-subnet-from-output
 internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.gated[0]	CONCRETE	netout-0	name=netout-0
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
@@ -551,6 +553,13 @@ internal/live/identity/testdata/target-group-attachment-optional	aws_alb_target_
 internal/live/identity/testdata/target-group-attachment-optional	aws_lb_target_group_attachment.base	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080	port=8080,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0
 internal/live/identity/testdata/target-group-attachment-optional	aws_lb_target_group_attachment.with_az	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080,us-west-2a	availability_zone=us-west-2a,port=8080,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0
 internal/live/identity/testdata/target-group-attachment-optional	aws_lb_target_group_attachment.with_quic	CONCRETE	arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,i-0123456789abcdef0,8080,0x1a2b3c4d5e6f7a8b	port=8080,quic_server_id=0x1a2b3c4d5e6f7a8b,target_group_arn=arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/my-tg/abc123,target_id=i-0123456789abcdef0
+internal/live/identity/testdata/tolerant-module-output	aws_subnet.live	NEEDS_DISCOVERY		
+internal/live/identity/testdata/tolerant-module-output	module.base.aws_subnet.inner	NEEDS_DISCOVERY		
+internal/live/identity/testdata/tolerant-module-output	module.host.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.live.id}	name=derived-${aws_subnet.live.id}
+internal/live/identity/testdata/tolerant-module-output	module.host.aws_iam_role.gated[0]	CONCRETE	sumaform-default-0	name=sumaform-default-0
+internal/live/identity/testdata/tolerant-module-output	module.host.aws_iam_role.profiled[0]	PARENT_DERIVED	profiled-${module.base.aws_subnet.inner.id}	name=profiled-${module.base.aws_subnet.inner.id}
+internal/live/identity/testdata/tolerant-module-output	module.host.aws_iam_role.zoned[0]	CONCRETE	eu-west-1a-0	name=eu-west-1a-0
+internal/live/identity/testdata/tolerant-module-output/base	aws_subnet.inner	NEEDS_DISCOVERY		
 internal/live/identity/testdata/try-fallback-select	aws_route_table.primary[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/try-fallback-select	aws_route_table.solo	NEEDS_DISCOVERY		
 internal/live/identity/testdata/try-fallback-select	aws_route_table_association.bare_reference	PARENT_DERIVED	${aws_subnet.third.id}/${aws_route_table.solo.id}	

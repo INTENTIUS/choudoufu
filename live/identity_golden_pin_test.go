@@ -320,7 +320,11 @@ var identityGoldenPin = map[string]int{
 	// its own name. Nothing #378 changes about STAMPING can move a row in this
 	// sweep at all - it changes what is written into a tags argument, and this
 	// sweep renders identities, not tags. 0 changed, 1 added, 0 removed.
-	"CONCRETE": 799,
+	// 799 -> 802 for corpus-sumaform-aws's static count() wall: "merged-0",
+	// "sumaform-default-0" and "eu-west-1a-0", each spelled in a different
+	// file from the resource that renders it. See
+	// identityGoldenPinBodyDigest.
+	"CONCRETE": 802,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -516,7 +520,10 @@ var identityGoldenPin = map[string]int{
 	// count-index-sibling-select-collision. Incidental for the same reason
 	// as #375's and the corpus-rds-complete-postgres routing fix's: a
 	// selection needs real resources to select from.
-	"NEEDS_DISCOVERY": 700,
+	// 700 -> 703 for corpus-sumaform-aws's static count() wall: the three
+	// aws_subnet blocks the new fixture declares, which are
+	// server-assigned and resolve exactly as every other subnet does.
+	"NEEDS_DISCOVERY": 703,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -603,7 +610,11 @@ var identityGoldenPin = map[string]int{
 	// that is the SAME instance for all three and a subnet that differs, so
 	// the pairs are distinct; the last three are byte-identical, which is
 	// what a collapse looks like when it really is one.
-	"PARENT_DERIVED": 128,
+	// 128 -> 131 for corpus-sumaform-aws's static count() wall: the three
+	// resources whose names read a SUBSTITUTED member of the tolerated
+	// value. Their rows carry the reference unrendered, which is the
+	// adversarial half of that change.
+	"PARENT_DERIVED": 131,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -985,7 +996,37 @@ var identityGoldenPin = map[string]int{
 // so their row sets add - 564 + 3 dirs = 567, 1632 + 19 instances = 1651 -
 // confirmed by regenerating on the fully-merged tree rather than by adding
 // the two deltas by hand.
-const identityGoldenPinBodyDigest = "845b541491d8ec3cb8669b3a47ef31fdf9260bd080fe1830d5f2e5f5250b5382"
+//
+// 2026-08-22 (corpus-sumaform-aws's static count() wall): dirs 567 -> 571,
+// instances 1651 -> 1660, and the digest moved because rows were ADDED -
+// "0 identities changed, 9 added, 0 removed", read off the -update run's own
+// report and not inferred from the totals. The change is
+// [configs.StaticEvaluator.WithUnknownForRefusedReferences], a tolerant
+// static scope reached only through partialargs.go's own last-resort retry:
+// a managed-resource or data-source reference inside a LOCAL of the module
+// being read becomes an unknown instead of refusing the whole expression,
+// and a child module's OUTPUT is answered by evaluating that child's outputs
+// the same way. Nothing that already resolved could resolve differently -
+// the strict evaluation still runs first and its answer is still used
+// whenever it has one - and the zero changed rows are the evidence rather
+// than the argument.
+//
+// The nine added rows are two fixtures. Two are
+// internal/live/identity/testdata/module-arg-hoisted's "merged" module,
+// whose boundary this moved on purpose: merge() written as the argument now
+// resolves, because the call is RUN on a value with a substituted leaf
+// rather than rebuilt, and its sibling `derived` - which reads that very
+// leaf - stays PARENT_DERIVED with the reference unrendered, which is the
+// half that says nothing was guessed. Seven are the new
+// internal/live/identity/testdata/tolerant-module-output (four directories:
+// the fixture, base, host, net; three of them contribute rows). Read their
+// values: "sumaform-default-0" is spelled from the estate's own call
+// through two merges and a module output, "eu-west-1a-0" only from inside
+// module.net's output expression two calls away, and the two PARENT_DERIVED
+// rows carry `derived-${aws_subnet.live.id}` and
+// `profiled-${module.base.aws_subnet.inner.id}` unrendered - the substituted
+// members, refused exactly where they should be.
+const identityGoldenPinBodyDigest = "f7c13a66a20560156efcd34085d6935a22fc0bf3cb1857fd220730bcd4d91f7a"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1496,7 +1537,11 @@ const (
 	// identities changed, 19 added, 0 removed" over its own base of 563
 	// directories / 1629 instances, reconciled onto slice 3's +3 above by
 	// regenerating on the merged tree rather than by adding deltas by hand.
-	identityGoldenPinInstances = 1651
+	// Then 1651 -> 1660 for corpus-sumaform-aws's static count() wall: nine
+	// added rows, none changed, none removed. See
+	// identityGoldenPinBodyDigest's own note for which fixtures and what
+	// their rendered values are.
+	identityGoldenPinInstances = 1660
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1654,7 +1699,11 @@ const (
 	// configuration holding two of them is what checkCollisions correctly
 	// refuses. Measured as 560 -> 563 against this branch's own base and +3
 	// either way, reconciled the same way as the instance count above.
-	identityGoldenPinDirs = 567
+	// Then 567 -> 571 for corpus-sumaform-aws's static count() wall:
+	// internal/live/identity/testdata/tolerant-module-output and its three
+	// submodules (base, host, net) - one fixture, four directories, because
+	// the sweep enters each module directory that loads on its own.
+	identityGoldenPinDirs = 571
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
