@@ -86,6 +86,8 @@ var DocumentedImportIDs = map[string]DocumentedImportID{
 	"aws_cloudwatch_log_stream":                                             {Separator: ":", Parts: []DocumentedImportIDPart{{Name: "loggroupname", Argument: true}, {Name: "name", Argument: true}}},
 	"aws_cloudwatch_log_subscription_filter":                                {Separator: "|", Parts: []DocumentedImportIDPart{{Name: "loggroupname", Argument: true}, {Name: "name", Argument: true}}},
 	"aws_cognito_managed_login_branding":                                    {Separator: ",", Parts: []DocumentedImportIDPart{{Name: "userpoolid", Argument: true}, {Name: "managedloginbrandingid", Argument: false}}},
+	"aws_cognito_managed_user_pool_client":                                  {Separator: "/", Parts: []DocumentedImportIDPart{{Name: "userpoolid", Argument: true}, {Name: "id", Argument: false}}},
+	"aws_cognito_user_pool_client":                                          {Separator: "/", Parts: []DocumentedImportIDPart{{Name: "userpoolid", Argument: true}, {Name: "id", Argument: false}}},
 	"aws_cognito_user_pool_ui_customization":                                {Separator: ",", Parts: []DocumentedImportIDPart{{Name: "userpoolid", Argument: true}, {Name: "clientid", Argument: true}}},
 	"aws_config_aggregate_authorization":                                    {Separator: ":", Parts: []DocumentedImportIDPart{{Name: "accountid", Argument: true}, {Name: "authorizedawsregion", Argument: true}}},
 	"aws_connect_phone_number_contact_flow_association":                     {Separator: ",", Parts: []DocumentedImportIDPart{{Name: "phonenumberid", Argument: true}, {Name: "instanceid", Argument: true}, {Name: "contactflowid", Argument: true}}},

@@ -2,13 +2,13 @@
   "generated_by": "tools/row-gen -composite-import",
   "question": "for a markerless type with a documented composite import and no wire identity schema, is the exported `id` the whole import string (so a located record of it round-trips) or a bare leaf?",
   "summary": {
-    "markerless_types": 158,
-    "markerless_with_composite_import": 59,
+    "markerless_types": 159,
+    "markerless_with_composite_import": 60,
     "of_those_with_a_wire_identity_schema": 17,
-    "residue_with_no_wire_identity_schema": 42,
+    "residue_with_no_wire_identity_schema": 43,
     "of_residue_id_proven_whole": 7,
-    "of_residue_unproven": 35,
-    "of_unproven_composed_from_the_documented_grammar": 14
+    "of_residue_unproven": 36,
+    "of_unproven_composed_from_the_documented_grammar": 16
   },
   "types": [
     {
@@ -159,12 +159,22 @@
       "documented_grammar": "userpoolid,managedloginbrandingid"
     },
     {
+      "type": "aws_cognito_managed_user_pool_client",
+      "verdict": "unproven",
+      "import_separator": "/",
+      "import_id_example": "us-west-2_abc123/3ho4ek12345678909nh3fmhpko",
+      "id_attribute_description": "Unique identifier for the user pool client.",
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "userpoolid/id"
+    },
+    {
       "type": "aws_cognito_user_pool_client",
       "verdict": "unproven",
       "import_separator": "/",
       "import_id_example": "us-west-2_abc123/3ho4ek12345678909nh3fmhpko",
       "id_attribute_description": "ID of the user pool client.",
-      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import"
+      "reason": "the page's Attribute Reference documents `id` without stating a composite form, which is not evidence either way: it is equally the wording used for a bare server-minted leaf under a composite import",
+      "documented_grammar": "userpoolid/id"
     },
     {
       "type": "aws_connect_instance_storage_config",

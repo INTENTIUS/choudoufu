@@ -156,24 +156,38 @@ func TestStrictMarkersRecordFailsClosedWithNoSchemas(t *testing.T) {
 // TestStrictMarkersRefusesAnUnrecordableIdentity is the condition an
 // operator's choice may not skip.
 //
-// aws_cognito_user_pool_client is in identity.IDNotProvenWholeTypes: its
-// documented import string is composite and nothing corroborates that the
-// exported `id` is the whole of it. Recording `id` would store a fragment
-// that reads back as a whole identity, which is the defect
-// LocatedIdentityPlanFor exists to close, and no selection may reopen it.
+// aws_glue_partition is in identity.IDNotProvenWholeTypes and carries no
+// identity.DocumentedImportIDs grammar: its documented import string is
+// composite, nothing corroborates that the exported `id` is the whole of it,
+// and the page names one segment as the prose phrase "partition values"
+// rather than as a token - a shape tools/row-gen/docimportid.go refuses to
+// read by rule, so no widening of the scrape reaches it without withdrawing
+// that rule. Recording `id` would store a fragment that reads back as a
+// whole identity, which is the defect LocatedIdentityPlanFor exists to
+// close, and no selection may reopen it.
+//
+// The subject was aws_cognito_user_pool_client until 2026-08-22, when
+// tools/importdocs-gen learned to read its page's possessive-of import
+// sentence; a type with a grammar is recordable and is no longer an example
+// of this refusal.
 //
 // The fixture's schema is deliberately the most permissive one the type
 // could have - a top-level string `id`, a settable tags map, no identity
 // schema - so that the refusal is demonstrably coming from the documented-
 // import verdict rather than from a schema that happens to be thin.
 func TestStrictMarkersRefusesAnUnrecordableIdentity(t *testing.T) {
+	const typeName = "aws_glue_partition"
+	if _, described := identity.DocumentedImportIDs[typeName]; described {
+		t.Skipf("%s gained a documented import grammar, so a record can hold its whole identity; "+
+			"pick another member of identity.IDNotProvenWholeTypes that has none", typeName)
+	}
 	schemas := strictMarkersSchemas()
-	schemas["aws_cognito_user_pool_client"] = providers.Schema{Block: &configschema.Block{
+	schemas[typeName] = providers.Schema{Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
-			"id":           {Type: cty.String, Computed: true},
-			"user_pool_id": {Type: cty.String, Required: true},
-			"name":         {Type: cty.String, Optional: true},
-			"tags":         {Type: cty.Map(cty.String), Optional: true},
+			"id":            {Type: cty.String, Computed: true},
+			"database_name": {Type: cty.String, Required: true},
+			"table_name":    {Type: cty.String, Required: true},
+			"tags":          {Type: cty.Map(cty.String), Optional: true},
 		},
 	}}
 
