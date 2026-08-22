@@ -3407,8 +3407,24 @@ call's own `each.key` (`internal/configs`' static evaluator has no
 repetition data to evaluate one against). Such a resource is left alone
 with the `SkipModuleKeyed` reason (`MODULE_KEYED`): trusted as written when
 it already declares a `tags` argument, and the ordinary must-stamp error
-when it declares none and its type needs discovery to be found again. The
-operator writes the marker by hand instead, threading the module's own
+when it declares none and its type needs discovery to be found again.
+
+A `tags` argument is not by itself a marker, and for the resources that
+cannot survive the difference the trust is checked rather than assumed
+(issue #379). When a resource's type *needs discovery* - its instances can
+only ever be found by their ownership marker - the two marker keys have to
+be visible in the body as literal keys, in an object constructor or in an
+object a `merge()` takes, before this pass will call it hand-stamped. A
+`tags = var.tags`, which is what most published child modules write, is
+then the must-stamp error rather than a silent skip: the value may or may
+not carry a marker for the instance being applied, nothing in a shared body
+can tell which, and an instance of such a type applied unmarked can never
+be found again. Nothing changes for a resource that has another handle -
+an identity this configuration states outright, or a name AWS refuses to
+issue twice - which is most of them; its missing marker is issue #378, not
+a refusal.
+
+The operator writes the marker by hand instead, threading the module's own
 `each.key` through as a variable and interpolating it into the address -
 see "The keyed-module marker idiom" on the concept page
 (`site/content/compatibility.md`, "Resources inside a keyed module need

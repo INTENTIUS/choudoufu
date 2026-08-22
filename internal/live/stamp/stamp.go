@@ -270,8 +270,23 @@ const (
 
 	// SkipModuleKeyedTrusted is the benign half of the case above: the
 	// resource is inside a for_each'd module AND already declares a tags
-	// argument, so its markers are the operator's own hand-written ones and
-	// this pass leaves them alone. Nothing is missing and nothing is wrong.
+	// argument, so its markers are taken to be the operator's own
+	// hand-written ones and this pass leaves them alone.
+	//
+	// "Taken to be" is the whole of the claim, and how much it is worth
+	// depends on the resource. For an instance that can be found by something
+	// other than a marker, this reason says only that a tags argument is
+	// present and that nothing evaluated it: the markers may in fact be
+	// missing, and GitHub issue #378 is the plan-level consequence when they
+	// are. For an instance [stamper.mustStamp] is true for - marker-only, no
+	// other handle, unfindable once applied unmarked - the claim is checked
+	// before it is made: [keyedMarkersMissing] has to find both marker keys
+	// written as literal keys in the body, and a resource whose tags argument
+	// merely EXISTS gets [SkipModuleKeyed] and the ordinary unmarked-apply
+	// error instead. Before #379 it got this reason and no diagnostic of any
+	// severity, so `tags = var.tags` - the idiom every third-party child
+	// module writes - silently exempted exactly the population that cannot
+	// survive being unmarked.
 	//
 	// It is a separate reason because a Skip carries no severity of its own
 	// and its consumer has to infer one. statelessStampGaps turns any
@@ -963,6 +978,24 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 // the ordinary must-stamp severity: a marker-discovered type applying
 // unmarked is still the unrecoverable mistake [stamper.unstampable] exists
 // to catch, module or not.
+//
+// That trust has one limit, and it is GitHub issue #379's. "Declares a tags
+// argument" is not "declares a marker": `tags = var.tags`, what essentially
+// every third-party child module writes, sets the argument and carries
+// nothing this run can see. For a resource whose instances can be found by
+// something other than a marker that costs nothing here - the marker is
+// missing, discovery has another handle, and issue #378 owns the plan-level
+// consequence. For a resource [stamper.mustStamp] is true for it is the
+// unrecoverable one: the type is server-assigned or otherwise marker-only, so
+// an instance applied without a marker can never be found again, and trusting
+// an invisible marker turns the error this function already raises for a
+// resource with NO tags argument into silence for a resource whose tags
+// argument happens to be a variable. The two shapes are identically
+// unmarked. So for that population, and only that population, the trust has
+// to be established rather than assumed: [keyedMarkersMissing] asks whether
+// the marker keys are visible in the body from configuration alone, and a
+// resource whose markers are not gets the same refusal, wording and severity
+// as one with no tags argument at all.
 func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigResource) (*rewrite, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -980,18 +1013,105 @@ func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigRes
 		addr, TagEstate, TagAddress, TagEstate, TagAddress,
 	)
 	if hasTags {
-		// Trusted as written; see the function doc for why this pass cannot
-		// safely check it. SkipModuleKeyedTrusted rather than
-		// SkipModuleKeyed: this outcome is benign and its consumer needs to
-		// tell it apart from the branch below, which is not.
-		s.skip(addr, SkipModuleKeyedTrusted, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
-		return nil, diags
+		missing := keyedMarkersMissing(body)
+		if len(missing) == 0 || !s.mustStamp(rc) {
+			// Trusted as written; see the function doc for why this pass cannot
+			// safely check it. SkipModuleKeyedTrusted rather than
+			// SkipModuleKeyed: this outcome is benign and its consumer needs to
+			// tell it apart from the branch below, which is not.
+			s.skip(addr, SkipModuleKeyedTrusted, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
+			return nil, diags
+		}
+		// #379: the tags argument is set but no marker is visible in it, and
+		// this resource's instances have no handle but a marker. Same reason,
+		// wording and severity as the no-tags-at-all branch below, because the
+		// live object is in the same state either way.
+		untrusted := fmt.Sprintf(
+			"%s is declared inside a module call with more than one instance and sets a tags argument in which no %s is written as a literal key, so this run can neither compute the marker nor read one that is already there: the module's instances share one configuration body for the resource's tags argument, and an argument built from a variable, a function call or any other expression may or may not carry a marker for the instance being applied - nothing here can tell which. A tags argument is not a marker. Write the marker tags into the resource's own tags argument as literal keys - tags = { %s = ..., %s = ... }, or merge() with an object that sets them - building the address from a variable the module call passes through from its own each.key (the ordinary way a value that must vary per module instance reaches a child module's resources). For a count'd call there is no such variable to build one from - a module call whose own arguments read count.index is itself refused - so replace count with for_each, or move the module's resources into the root module, or give the module an estate of its own. See live/LIMITATIONS.md, \"child-module\".",
+			addr, strings.Join(missing, " or "), TagEstate, TagAddress,
+		)
+		s.skip(addr, SkipModuleKeyed, untrusted)
+		return nil, diags.Append(s.unstampable(rc, untrusted))
 	}
 	s.skip(addr, SkipModuleKeyed, detail)
 	if !s.mustStamp(rc) {
 		return nil, diags
 	}
 	return nil, diags.Append(s.unstampable(rc, detail))
+}
+
+// keyedMarkersMissing names the ownership markers a keyed-module resource's
+// tags argument cannot be SEEN to carry, in the order this package writes
+// them. An empty result means both are visible in the configuration itself,
+// which is the only evidence available inside a module call with more than
+// one instance - see [stamper.moduleKeyedResource] for why no value can be
+// evaluated there.
+//
+// The question is deliberately about the SHAPE of the expression and not
+// about the resource's type: a marker key sitting in an object constructor is
+// something a reader of the file can point at, and anything else - a
+// variable, a function call, an object whose keys are themselves computed -
+// is a value this pass would have to evaluate per module instance to know
+// anything about, which is the evaluation the whole surrounding function
+// exists because it cannot do. Nothing here is per-provider or per-type; the
+// property is the tags expression's, and it holds for every taggable type of
+// every provider.
+//
+// Both markers are required rather than the address alone. Discovery lists an
+// estate by [TagEstate] and binds an instance by [TagAddress], so an object
+// carrying one of the two is not findable by the mechanism this check exists
+// to protect, and the hand-stamped idiom live/LIMITATIONS.md documents (and
+// the detail text this function's caller prints) writes both.
+func keyedMarkersMissing(body *hclsyntax.Body) []string {
+	attr, ok := body.Attributes[tagsArgument]
+	if !ok {
+		return []string{TagEstate, TagAddress}
+	}
+	visible := make(map[string]struct{})
+	collectVisibleTagKeys(attr.Expr, visible)
+
+	var missing []string
+	for _, key := range []string{TagEstate, TagAddress} {
+		if _, ok := visible[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
+// collectVisibleTagKeys adds every tag key a tags expression can be read to
+// set from configuration alone into out.
+//
+// An object constructor contributes the keys that are literal
+// ([objectKeyLiteral]); a merge() contributes whatever its arguments
+// contribute, later ones no differently from earlier ones, since this asks
+// only whether a key is present and merge cannot remove one. An item whose
+// key expression is computed is simply not collected: it MIGHT evaluate to a
+// marker key, and treating a maybe as a marker is what this check exists to
+// stop. That direction is the safe one - it can only add a refusal, and a
+// refusal is loud and reversible.
+//
+// Not a variant of [literalEntries], which answers a different question and
+// has to fail whole ("is this object a destination I can append to without
+// colliding with a key I could not read"); an object with one computed key
+// and two literal marker keys is unusable as a destination and perfectly
+// readable as evidence.
+func collectVisibleTagKeys(expr hclsyntax.Expression, out map[string]struct{}) {
+	switch expr := expr.(type) {
+	case *hclsyntax.ObjectConsExpr:
+		for _, item := range expr.Items {
+			if key, ok := objectKeyLiteral(item.KeyExpr); ok {
+				out[key] = struct{}{}
+			}
+		}
+	case *hclsyntax.FunctionCallExpr:
+		if expr.Name != "merge" {
+			return
+		}
+		for _, arg := range expr.Args {
+			collectVisibleTagKeys(arg, out)
+		}
+	}
 }
 
 // mustStamp reports whether this resource's instances can only ever be found

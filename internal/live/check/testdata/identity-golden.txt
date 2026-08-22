@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=551 instances=1618
-# shape: class CONCRETE=793
-# shape: class NEEDS_DISCOVERY=688
-# shape: class PARENT_DERIVED=116
+# shape: dirs=559 instances=1628
+# shape: class CONCRETE=798
+# shape: class NEEDS_DISCOVERY=690
+# shape: class PARENT_DERIVED=119
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=7d0a962b1937cc94c8b583db23c402054bec540b07f2831bd3ef6b6fc24ecbfa
+# shape: body-sha256=ad009ce81dc4a2d2b76812bd65d9f160c1cb1536c1d86551afc222b1a36b7217
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -354,6 +354,16 @@ internal/live/identity/testdata/managed-read-known-plus-data	aws_acm_certificate
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_cognito_risk_configuration.main	CONCRETE	us-east-1_abc123:1example23456789	client_id=1example23456789,user_pool_id=us-east-1_abc123
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_detective_member.member	CONCRETE	arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d/123456789012	account_id=123456789012,graph_arn=arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_lambda_function_event_invoke_config.main	CONCRETE	example:production	function_name=example,qualifier=production
+internal/live/identity/testdata/merge-bare-module-output	aws_subnet.public	NEEDS_DISCOVERY		
+internal/live/identity/testdata/merge-bare-module-output	module.base.module.host.aws_iam_role.host[0]	CONCRETE	demo-eu-west-1a-0	name=demo-eu-west-1a-0
+internal/live/identity/testdata/merge-bare-module-output	module.base.module.host.aws_iam_role.poisoned[0]	PARENT_DERIVED	role-${aws_subnet.public.id}	name=role-${aws_subnet.public.id}
+internal/live/identity/testdata/module-arg-hoisted	aws_subnet.s	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
+internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
+internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
+internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
+internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.derived[0]	CONCRETE	derived-subnet-from-output	name=derived-subnet-from-output
+internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.gated[0]	CONCRETE	netout-0	name=netout-0
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
 internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app

@@ -137,6 +137,28 @@ import (
 // A duplicate key refuses too, for the same reason [collectStaticForEachKeys]
 // refuses one: two items keyed alike would silently become one.
 //
+// # Where the constructor is allowed to be (issue #375)
+//
+// The rebuild is about the VALUE the caller described, not about where the
+// caller's punctuation put it, so two more spellings of the same argument
+// reach it. A bare `local.cfg` is chased to the expression written next to
+// the local and that is rebuilt ([rebuildLocal]); a bare
+// `module.net.configuration` is answered by [resolver.moduleOutputValue],
+// which the leaf case has consulted since #313 and which the whole argument
+// could not reach because there was no constructor for it to be a leaf of.
+// Both were refusals where the identical value written out at the call
+// resolved, and testdata/module-arg-hoisted pins the equivalence by rendering
+// the same identity from both spellings.
+//
+// What still refuses is the case the paragraph above rules out for its own
+// reasons: `merge(a, b)` written as the argument, where a leaf inside a or b
+// refuses. Rebuilding THAT means rebuilding a call, and the boundary is
+// deliberate rather than an oversight - see the same fixture's "merged"
+// module. `local.cfg.subnet` and `local.cfg["subnet"]` are out too: a step
+// into a rebuilt value is a different question from a rebuilt value, and
+// [resolver.selectStatic] is the path that already reads a step into a local
+// for the symbolic, one-argument-at-a-time case.
+//
 // # Order, and why this is never the resolver's ordinary evaluator
 //
 // strict is called first and its answer used whenever it has one, so this
@@ -258,11 +280,75 @@ func (r *resolver) tolerantVariables(modInst addrs.ModuleInstance, strict config
 		if composed, ok := composedArgument(r.ctx, eval, attr.Expr, ident); ok {
 			return composed, nil
 		}
-		rebuilt, ok := rebuildConstructor(r.ctx, eval, attr.Expr, ident, r.moduleOutputValues(parentCfg, parentInst))
+		rb := argRebuild{
+			moduleOutput: r.moduleOutputValues(parentCfg, parentInst),
+			localExpr:    localExprs(parentCfg),
+		}
+		// The whole argument as a child module's output, before the
+		// rebuild: `base_configuration = module.network.configuration` is
+		// the same reference [elementOrUnknown] already answers when it
+		// sits one level in, as a leaf of a constructor the caller wrote
+		// out. There is no constructor to rebuild when the caller writes
+		// the reference on its own, so without this the identical
+		// reference resolves inside `{ cfg = module.network.configuration
+		// }` and refuses as `module.network.configuration` - a difference
+		// in the caller's punctuation, not in what is knowable.
+		// [resolver.moduleOutputValue]'s guards are the ones that make it
+		// safe there and they are unchanged here: the output's own
+		// expression is evaluated strictly in the child module, a
+		// sensitive output is refused on its declaration, an impure one
+		// before it is evaluated, and the answer has to come back wholly
+		// known, non-null and unmarked. A false leaves the caller with
+		// exactly the diagnostic it already had.
+		if rb.moduleOutput != nil {
+			if trav, travDiags := hcl.AbsTraversalForExpr(attr.Expr); !travDiags.HasErrors() {
+				if out, ok := rb.moduleOutput(trav); ok {
+					return out, nil
+				}
+			}
+		}
+		rebuilt, ok := rebuildConstructor(r.ctx, eval, attr.Expr, ident, rb)
 		if !ok {
 			return val, diags
 		}
 		return rebuilt, nil
+	}
+}
+
+// localExprs answers a local value's own defining expression in cfg's module,
+// and is what lets [rebuildConstructor] rebuild a constructor the caller
+// hoisted into a local instead of writing out at the module call.
+//
+// The two spellings
+//
+//	module "host" { base_configuration = { enabled = true, subnet = aws_subnet.s.id } }
+//
+// and
+//
+//	locals    { cfg = { enabled = true, subnet = aws_subnet.s.id } }
+//	module "host" { base_configuration = local.cfg }
+//
+// state the same fact about the same value, and stock plans both. The first
+// resolves here because [rebuildConstructor] sees an
+// [hclsyntax.ObjectConsExpr] and rebuilds it leaf by leaf; the second used to
+// refuse outright, because the module-call argument is a bare traversal and
+// the constructor is one syntactic step away, inside the local. Nothing about
+// the local makes its contents less knowable - a local has no scope of its
+// own, no repetition, and no value beyond the expression written next to it.
+//
+// Returns nil when there is no module to read, in which case
+// [rebuildConstructor] declines the chase and behaves exactly as it did
+// before this existed.
+func localExprs(cfg *configs.Config) func(string) (hcl.Expression, bool) {
+	if cfg == nil || cfg.Module == nil {
+		return nil
+	}
+	return func(name string) (hcl.Expression, bool) {
+		local, ok := cfg.Module.Locals[name]
+		if !ok || local.Expr == nil {
+			return nil, false
+		}
+		return local.Expr, true
 	}
 }
 
@@ -435,16 +521,16 @@ func (r *resolver) tolerantPart(expr hcl.Expression, scope instScope, ident conf
 // "this evaluates to something not yet known" are different claims, and only
 // the second one licenses a consumer to carry on.
 //
-// moduleOutput, when non-nil, is the one thing that can answer a refused leaf
-// with a real value rather than an unknown: a reference into a child module's
-// output whose own expression the child's own evaluator settles
-// ([resolver.moduleOutputValues]). Nil - as in this file's own unit tests -
-// restores exactly the behaviour that existed before it, where every refused
-// leaf became cty.DynamicVal.
-func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, moduleOutput func(hcl.Traversal) (cty.Value, bool)) (cty.Value, bool) {
+// rb carries the two out-of-band answers a refused leaf can have - a child
+// module's output value and a local's own defining expression - and the depth
+// the local chase has already spent. See [argRebuild].
+func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, rb argRebuild) (cty.Value, bool) {
 	switch e := expr.(type) {
 	case *hclsyntax.ParenthesesExpr:
-		return rebuildConstructor(ctx, eval, e.Expression, ident, moduleOutput)
+		return rebuildConstructor(ctx, eval, e.Expression, ident, rb)
+
+	case *hclsyntax.ScopeTraversalExpr:
+		return rebuildLocal(ctx, eval, e.Traversal, ident, rb)
 
 	case *hclsyntax.ObjectConsExpr:
 		attrs := make(map[string]cty.Value, len(e.Items))
@@ -456,7 +542,7 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 			if _, dup := attrs[name]; dup {
 				return cty.NilVal, false
 			}
-			attrs[name] = elementOrUnknown(ctx, eval, item.ValueExpr, ident, moduleOutput)
+			attrs[name] = elementOrUnknown(ctx, eval, item.ValueExpr, ident, rb)
 		}
 		if len(attrs) == 0 {
 			return cty.EmptyObjectVal, true
@@ -469,11 +555,78 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 		}
 		elems := make([]cty.Value, 0, len(e.Exprs))
 		for _, sub := range e.Exprs {
-			elems = append(elems, elementOrUnknown(ctx, eval, sub, ident, moduleOutput))
+			elems = append(elems, elementOrUnknown(ctx, eval, sub, ident, rb))
 		}
 		return cty.TupleVal(elems), true
 	}
 	return cty.NilVal, false
+}
+
+// argRebuild is what [rebuildConstructor] consults for a leaf, and for the
+// argument as a whole, when the static scope refuses it.
+//
+// moduleOutput, when non-nil, is the one thing that can answer a refused leaf
+// with a real value rather than an unknown: a reference into a child module's
+// output whose own expression the child's own evaluator settles
+// ([resolver.moduleOutputValues]).
+//
+// localExpr, when non-nil, answers a bare `local.<name>` with the expression
+// written next to it, so a constructor the caller hoisted into a local is
+// rebuilt exactly as one written out at the module call is ([localExprs]).
+//
+// depth counts the local chases already taken, because a local naming another
+// local is the one recursion here that syntax does not bound. A zero value -
+// as in this file's own unit tests - restores exactly the behaviour that
+// existed before either field, where every refused leaf became cty.DynamicVal
+// and a bare traversal was not a constructor at all.
+type argRebuild struct {
+	moduleOutput func(hcl.Traversal) (cty.Value, bool)
+	localExpr    func(name string) (hcl.Expression, bool)
+	depth        int
+}
+
+// rebuildLocal chases a bare `local.<name>` to the expression it is defined
+// as and rebuilds THAT, so that hoisting a constructor into a local does not
+// decide whether its literal siblings are knowable. See [localExprs] for the
+// rule and the two spellings it equates.
+//
+// Only the bare two-step form is chased. `local.cfg.subnet` and
+// `local.cfg["subnet"]` carry steps that would have to be applied to the
+// rebuilt value, and a step into a substituted leaf is a different question
+// from a substituted leaf itself; they keep refusing, and
+// [resolver.selectStatic] is the path that already reads a step into a local
+// for the symbolic, one-argument-at-a-time case.
+//
+// A `var.<name>` traversal is deliberately NOT chased: the evaluator this
+// runs on already answers var.* through [resolver.tolerantVariables] one
+// module up, so the caller's own argument has been substituted before this
+// function is ever reached, and chasing it here would substitute it a second
+// time under a different set of guards.
+//
+// The chase cannot invent a value. It ends at [rebuildConstructor], which
+// either finds a constructor - and then rebuilds it under the same rules,
+// with the same evaluator, in the same module - or reports false and leaves
+// the caller with the diagnostic it already had. A self-referential local
+// terminates on [configs.staticScopeData.scope]'s own circular-reference
+// check the moment the strict evaluation of its leaf re-enters it; depth
+// bounds the chain of distinct locals that HCL's own syntax does not.
+func rebuildLocal(ctx context.Context, eval *configs.StaticEvaluator, trav hcl.Traversal, ident configs.StaticIdentifier, rb argRebuild) (cty.Value, bool) {
+	if rb.localExpr == nil || rb.depth >= maxStaticDecomposeDepth {
+		return cty.NilVal, false
+	}
+	if len(trav) != 2 || trav.RootName() != "local" {
+		return cty.NilVal, false
+	}
+	nameStep, ok := trav[1].(hcl.TraverseAttr)
+	if !ok {
+		return cty.NilVal, false
+	}
+	def, ok := rb.localExpr(nameStep.Name)
+	if !ok {
+		return cty.NilVal, false
+	}
+	rb.depth++
+	return rebuildConstructor(ctx, eval, def, ident, rb)
 }
 
 // elementOrUnknown evaluates one element of a constructor: strictly first,
@@ -491,18 +644,18 @@ func rebuildConstructor(ctx context.Context, eval *configs.StaticEvaluator, expr
 // only with a wholly-known, non-null, unmarked one
 // ([resolver.moduleOutputValue]), so declining leaves cty.DynamicVal - the
 // same substitution a refused leaf has always had.
-func elementOrUnknown(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, moduleOutput func(hcl.Traversal) (cty.Value, bool)) cty.Value {
+func elementOrUnknown(ctx context.Context, eval *configs.StaticEvaluator, expr hcl.Expression, ident configs.StaticIdentifier, rb argRebuild) cty.Value {
 	if val, diags := eval.Evaluate(ctx, expr, ident); !diags.HasErrors() && val != cty.NilVal {
 		return val
 	}
-	if moduleOutput != nil {
+	if rb.moduleOutput != nil {
 		if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() {
-			if val, ok := moduleOutput(trav); ok {
+			if val, ok := rb.moduleOutput(trav); ok {
 				return val
 			}
 		}
 	}
-	if val, ok := rebuildConstructor(ctx, eval, expr, ident, moduleOutput); ok {
+	if val, ok := rebuildConstructor(ctx, eval, expr, ident, rb); ok {
 		return val
 	}
 	return cty.DynamicVal

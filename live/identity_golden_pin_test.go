@@ -295,7 +295,24 @@ var identityGoldenPin = map[string]int{
 	// actually adds needs provider schemas, which this sweep deliberately
 	// does not have, so they are pinned by value in transform_test.go
 	// instead. No pre-existing row moved.
-	"CONCRETE": 793,
+	// 2026-08-22 (issue #375): a module-call argument the caller HOISTED into
+	// a local, and one that is a child module's whole output named on its
+	// own, are now substituted the same way one written out at the call
+	// already was. Nine ADDED rows across two new fixtures
+	// (internal/live/identity/testdata/module-arg-hoisted and
+	// .../merge-bare-module-output); no pre-existing row moved, in class or
+	// in value - TestIdentityGolden reported "0 identities changed, 9 added,
+	// 0 removed" against the base. The equivalence the fix claims is visible
+	// in the rows themselves: module.inline and module.hoisted render
+	// byte-identical values on both of their resources.
+	// 798, up from 793 (issue #375): five ADDED rows -
+	// module.base.module.host.aws_iam_role.host[0] in merge-bare-module-output
+	// (which resolved before the fix; the fixture is the pin for the shape
+	// the issue named and did not turn out to be the blocker), plus
+	// module-arg-hoisted's inline/hoisted aws_iam_role.gated[0] pair, its
+	// module.output.aws_iam_role.gated[0] and its
+	// module.output.aws_iam_role.derived[0].
+	"CONCRETE": 798,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -468,7 +485,9 @@ var identityGoldenPin = map[string]int{
 	// not admit - and it is asserted directly, with schemas, by
 	// internal/live/check's TestStrictMarkersRecordRendersItsIdentityByValue
 	// and TestStrictMarkersRecordFailsClosedWithNoSchemas.
-	// 688, up from 684 (the corpus-rds-complete-postgres routing fix,
+	// 686, up from 684 (issue #375): the bare aws_subnet each of the two new
+	// fixtures declares as the thing its poisoned leaf reads.
+	// 690, up from 686 (the corpus-rds-complete-postgres routing fix,
 	// internal/live/identity/computedselect.go): four ADDED rows, every one
 	// of them a bare server-assigned aws_vpc or aws_security_group that the
 	// controls added to
@@ -477,9 +496,9 @@ var identityGoldenPin = map[string]int{
 	// uncomputable lookup() fallback is a different object from the leaf the
 	// caller wrote, and the new sgtyped module's own aws_security_group -
 	// each counted twice because the child directory is swept as a root of
-	// its own. Incidental for the same reason as #346's, #354's and #368's:
-	// a deferred read needs a real resource to point at.
-	"NEEDS_DISCOVERY": 688,
+	// its own. Incidental for the same reason as #346's, #354's, #368's and
+	// #375's: a deferred read needs a real resource to point at.
+	"NEEDS_DISCOVERY": 690,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -535,7 +554,23 @@ var identityGoldenPin = map[string]int{
 	// the target group INSTANCE the caller indexed, and three other strings
 	// would have satisfied a class check - the group's own name, the module
 	// output's name, and the type default that supplies the "elbv2" beside it.
-	"PARENT_DERIVED": 116,
+	// 118, up from 116 (issue #375): module-arg-hoisted's inline/hoisted
+	// aws_iam_role.derived[0] pair, both rendering the symbolic formula
+	// derived-${aws_subnet.s.id}. They are the negative half of the fix -
+	// the leaf that really is a live subnet ID stays a parent's value and
+	// never becomes a concrete marker - and they are byte-identical to each
+	// other, which is the equivalence the fix claims.
+	// 119, up from 118 (the corpus-rds-complete-postgres routing fix): one
+	// ADDED row, and it is #375's OWN control - merge-bare-module-output's
+	// module.base.module.host.aws_iam_role.poisoned[0], whose name reads the
+	// one member of the merged map that is a live subnet ID. It now renders
+	// the symbolic formula role-${aws_subnet.public.id}, which is what that
+	// control is about rather than an exception to it: a formula names the
+	// exact parent instance and attribute, renders off the LIVE object, and
+	// carries an EMPTY import ID until that object is read. #375's own
+	// assertion - moduleargspelling_test.go, "id must be empty" - is
+	// unchanged and still passes; a CONCRETE row there would be the failure.
+	"PARENT_DERIVED": 119,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -832,22 +867,22 @@ var identityGoldenPin = map[string]int{
 // with schemas: internal/live/check's
 // TestStrictMarkersRecordRendersItsIdentityByValue.
 // Then re-pinned for the corpus-rds-complete-postgres routing fix
-// (internal/live/identity/computedselect.go): "0 identities changed, 4
-// added, 0 removed" over 551 directories, read before this line was edited.
-// Every added row is a bare server-assigned resource the new controls in
-// testdata/deferred-through-module-list need to point at, and every one
-// renders an empty value.
+// (internal/live/identity/computedselect.go): "0 identities changed, 5
+// added, 0 removed" over 559 directories, read before this line was edited.
+// Four of the five are bare server-assigned resources the new controls in
+// testdata/deferred-through-module-list need to point at, each rendering an
+// empty value; the fifth is #375's own poisoned control, described under
+// PARENT_DERIVED above.
 //
-// The zero is again the load-bearing half, and it is what a reader should be
-// most suspicious of here, because this change DOES widen a resolution
-// route. It holds for the same reason #368's did: every identity the fold
-// produces is a deferred parent read, [resolver.parentPart] gates one on
-// r.stringAttrInSchema, and this sweep runs without provider schemas - so
-// the fold resolves the reference and then declines at the last hop, exactly
-// as it did before. The identities it renders WITH schemas are pinned by
-// value, against a lookup that hands back a real CIDR, in
+// The zero is the half worth being suspicious of, because this change DOES
+// widen a resolution route. It holds for the same reason #368's did: every
+// identity the fold produces is a deferred parent read, and this sweep runs
+// without provider schemas, so [resolver.parentPart]'s stringAttrInSchema
+// gate turns away everything that is not already a declared identity
+// attribute of the parent. The identities the fold renders WITH schemas are
+// pinned by value, against a lookup that hands back a real CIDR, in
 // internal/live/identity's deferred_through_module_list_test.go.
-const identityGoldenPinBodyDigest = "7d0a962b1937cc94c8b583db23c402054bec540b07f2831bd3ef6b6fc24ecbfa"
+const identityGoldenPinBodyDigest = "ad009ce81dc4a2d2b76812bd65d9f160c1cb1536c1d86551afc222b1a36b7217"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1321,17 +1356,16 @@ const (
 	// order to have something to select, or something to leave unselected
 	// beside it. See identityGoldenPinBodyDigest's own comment for why none
 	// of them renders as RECORD_LOCATED here.
-	//
-	// Then 1614 -> 1618 for the corpus-rds-complete-postgres routing fix:
-	// four added rows, nothing modified. Each is a plain server-assigned
-	// resource the new negative controls in
-	// internal/live/identity/testdata/deferred-through-module-list need in
-	// order to have something to point at - a second aws_vpc so that an
-	// uncomputable lookup() fallback is a different object from the leaf the
-	// caller wrote, and the new sgtyped module's own security group - and
-	// each is counted twice because the child directory is swept as a root
-	// of its own.
-	identityGoldenPinInstances = 1618
+	// Then 1614 -> 1623 for GitHub issue #375: nine added rows across the two
+	// new fixtures, none modified, none removed. See the class comments
+	// above for which row is which.
+	// Then 1623 -> 1628 for the corpus-rds-complete-postgres routing fix:
+	// five added rows, none modified, none removed. Four are plain
+	// server-assigned resources the new negative controls in
+	// testdata/deferred-through-module-list need in order to have something
+	// to point at; the fifth is #375's own poisoned control, which renders a
+	// formula and an empty import ID. See the class comments above.
+	identityGoldenPinInstances = 1628
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1453,11 +1487,19 @@ const (
 	// new limits-wing entries), and one child module swept as a root of its
 	// own. Thirteen of them declare resources; see
 	// identityGoldenPinInstances directly above.
-	// Then 550 -> 551 for the corpus-rds-complete-postgres routing fix: one
-	// new configuration directory, internal/live/identity/testdata/
-	// deferred-through-module-list/sgtyped, the module whose three variable
-	// declarations are the declared-type gate's own controls.
-	identityGoldenPinDirs = 551
+	// Then 550 -> 558 dirs for GitHub issue #375: eight new configuration
+	// directories, four per fixture -
+	// internal/live/identity/testdata/module-arg-hoisted with its gate, net
+	// and secret-net child modules, and .../merge-bare-module-output with
+	// its base, network and host child modules. Each child is swept as a
+	// root of its own; the ones declaring no resource of an admitted type
+	// contribute a directory and no row.
+	// Then 558 -> 559 for the corpus-rds-complete-postgres routing fix: one
+	// new configuration directory,
+	// internal/live/identity/testdata/deferred-through-module-list/sgtyped,
+	// the module whose three variable declarations are the declared-type
+	// gate's own controls.
+	identityGoldenPinDirs = 559
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
