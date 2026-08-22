@@ -131,9 +131,18 @@ func TestStrictMarkersInstanceAddressNamesTheWholeResource(t *testing.T) {
 // resource stays findable. TestStamp_markersRecordIsNotHonouredForAn
 // UnrecordableType is that leg.
 func TestStrictMarkersUnrecordableNeedsSchemas(t *testing.T) {
-	const typeName = "aws_cognito_user_pool_client"
+	const typeName = "aws_glue_partition"
 	if _, unproven := identity.IDNotProvenWholeTypes[typeName]; !unproven {
 		t.Skipf("%s left identity.IDNotProvenWholeTypes; pick another member for this test", typeName)
+	}
+	// The second half of the same premise, and the one that moved this
+	// fixture off its previous subject: a type the documented-grammar route
+	// CAN compose is recordable after all, so it stops being an example of
+	// this refusal without anything here changing. The fixture's own comment
+	// says why this subject is not reachable that way.
+	if _, described := identity.DocumentedImportIDs[typeName]; described {
+		t.Skipf("%s gained a documented import grammar, so a record can hold its whole identity; "+
+			"pick another member of identity.IDNotProvenWholeTypes that has none", typeName)
 	}
 
 	cfg := loadConfigDir(t, "testdata/strict-markers-unrecordable")
@@ -144,9 +153,10 @@ func TestStrictMarkersUnrecordableNeedsSchemas(t *testing.T) {
 
 	schemas := map[string]providers.Schema{
 		typeName: {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
-			"id":           {Type: cty.String, Computed: true},
-			"user_pool_id": {Type: cty.String, Required: true},
-			"tags":         {Type: cty.Map(cty.String), Optional: true},
+			"id":            {Type: cty.String, Computed: true},
+			"database_name": {Type: cty.String, Required: true},
+			"table_name":    {Type: cty.String, Required: true},
+			"tags":          {Type: cty.Map(cty.String), Optional: true},
 		}}},
 	}
 	issues := CheckWith(t.Context(), cfg, Context{Schemas: schemas})

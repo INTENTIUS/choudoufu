@@ -69,6 +69,7 @@ var MarkerlessTypes = map[string]struct{}{
 	"aws_cloudwatch_query_definition":                   {},
 	"aws_codebuild_source_credential":                   {},
 	"aws_cognito_managed_login_branding":                {},
+	"aws_cognito_managed_user_pool_client":              {},
 	"aws_cognito_user_pool_client":                      {},
 	"aws_connect_instance_storage_config":               {},
 	"aws_dataexchange_event_action":                     {},

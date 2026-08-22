@@ -1085,8 +1085,17 @@ func idParts(section, tfType string, sep *string, example string, args []Argumen
 	if len(tokens) < 2 {
 		// No backticked token source names the segments; the plain-prose
 		// enumeration ("using the primary GuardDuty detector ID and IPSet
-		// ID") is the last one that can.
-		parts := plainEnumIDParts(section, tfType, args, attrNames)
+		// ID") is the next one that can.
+		if parts := plainEnumIDParts(section, tfType, args, attrNames); len(parts) >= 2 && len(parts) == segCount {
+			return parts
+		}
+		// Last, the possessive-of enumeration ("the `id` of the Cognito
+		// User Pool, and the `id` of the Cognito User Pool Client"), which
+		// neither family above can read: every segment IS backticked, so
+		// the plain-word reader skips the phrase, and the tokens are the
+		// same generic property word in each, so no token source can tell
+		// them apart. See ofPhraseIDParts.
+		parts := ofPhraseIDParts(section, tfType, args, attrNames)
 		if len(parts) < 2 || len(parts) != segCount {
 			return nil
 		}

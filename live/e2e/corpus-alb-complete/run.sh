@@ -119,32 +119,50 @@ set -uo pipefail
 #     the closing comment scoped as a maintainer call ("Prerequisite (a) -
 #     credentialMaterial's breadth for the located path - is untouched").
 #
-#     condition 3, the identity cannot be recorded IN FULL. The type is in
-#     IDNotProvenWholeTypes (idnotwhole_generated.go): its Import section
-#     documents a composite <user pool id>/<client id> string that the
-#     exported `id` bullet does not corroborate, so `id` may be a fragment.
-#     Neither of the two routes out of that refusal is open to it -
-#     hashicorp/aws 6.59.0 serves NO wire identity schema for the type
-#     (required and optional identity attributes are both empty, measured),
-#     and it has no DocumentedImportIDs grammar, because its page names its
-#     segments in prose ("the `id` of the Cognito User Pool, and the `id` of
-#     the Cognito User Pool Client") rather than one token at a time, which
-#     is the form tools/importdocs-gen can read. LocatedIdentityPlanFor
-#     therefore returns recordable=false.
+#     condition 3, the identity cannot be recorded IN FULL. CLEARED
+#     2026-08-22 (branch gauntlet/albcomplete-importgrammar); the paragraph
+#     that used to sit here is kept below because it names the wall a reader
+#     of this file's history will otherwise go looking for.
 #
-#   Condition 3 is the load-bearing one, and this is the correction: a
-#   NARROWED credentialMaterial - however it is narrowed - moves this site
-#   not at all. Measured against real hashicorp/aws 6.59.0 schemas by
-#   TestLocatedTypePopulation's credential-wall census (internal/live/
-#   identity/located_test.go, CHOUDOUFU_LIVE_SCHEMAS=1): of the 10 markerless
-#   types the credential veto refuses, it is the SOLE wall for 8; the two it
-#   is not the sole wall for are aws_kms_grant and this type. The same census
-#   also records why the veto cannot simply be deleted for the located path
-#   on the argument that a located record holds only an identity:
-#   aws_wafv2_api_key's recorded identity IS api_key, a sensitive attribute,
-#   so a narrowing has to stay identity-aware. Clearing this site is
-#   condition 3's work - a grammar for this type, or a source for its
-#   composite identity - not the credential ruling's.
+#       WAS: the type is in IDNotProvenWholeTypes (idnotwhole_generated.go);
+#       its Import section documents a composite <user pool id>/<client id>
+#       string the exported `id` bullet does not corroborate, so `id` may be
+#       a fragment. Neither route out of that refusal was open to it -
+#       hashicorp/aws 6.59.0 serves NO wire identity schema for the type
+#       (required and optional identity attributes are both empty, measured),
+#       and it had no DocumentedImportIDs grammar, because its page names
+#       its segments in prose ("the `id` of the Cognito User Pool, and the
+#       `id` of the Cognito User Pool Client") rather than one token at a
+#       time.
+#
+#     tools/importdocs-gen now reads that sentence. The generic rule is the
+#     possessive-of one, not a Cognito one: English states a qualified name
+#     in two orders, and where the schema's order ("using the `user_pool_id`
+#     and `client_id`", which every existing reader resolves) is written the
+#     other way round, each segment is re-read owner-first and matched
+#     EXACTLY against the page's own Argument and Attribute Reference.
+#     "Cognito User Pool" + `id` is user_pool_id and nothing else; "Cognito
+#     User Pool Client" names the resource itself, so its `id` is the minted
+#     leaf. identity.DocumentedImportIDs now carries
+#     {Separator: "/", Parts: [userpoolid(argument), id]} for this type, and
+#     TestPossessiveOfGrammarComposesTheDocumentedImportString pins the
+#     composed string BY VALUE against the provider's own documented import
+#     example - us-west-2_abc123/3ho4ek12345678909nh3fmhpko - because a
+#     reading that swapped the two segments would be the same shape, the
+#     same length and a different object.
+#
+#   So the two conditions have traded places, and this is the correction to
+#   the previous one. Condition 3 is answered; condition 2 is now the SOLE
+#   wall on this site, and it is the maintainer call the closing comment
+#   scoped and nobody has made. The census this header used to cite
+#   (TestLocatedTypePopulation, internal/live/identity/located_test.go,
+#   CHOUDOUFU_LIVE_SCHEMAS=1) counted this type among the two the credential
+#   veto is NOT the sole wall for; on today's tree it is one of the types it
+#   IS. Re-run the census before quoting its split. What the census records
+#   and still holds: the veto cannot simply be deleted for the located path
+#   on the argument that a located record holds only an identity, because
+#   aws_wafv2_api_key's recorded identity IS api_key, a sensitive attribute
+#   - a narrowing has to stay identity-aware.
 #
 #   #305 (aws_default_network_acl/aws_default_route_table/
 #   aws_default_security_group, the VPC module's default-object adopters)
@@ -553,14 +571,16 @@ done
 log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - admitted"
 log "  to MarkerlessTypes (no longer unadmitted-type), and still refused as"
 log "  markerless-type: record_store IS declared here, but"
-log "  identity.LocatedType answers false on two independent conditions -"
-log "  client_secret is credential material (condition 2), AND the type's"
-log "  identity cannot be recorded in full (condition 3: IDNotProvenWholeTypes,"
-log "  no wire identity schema at 6.59.0, no DocumentedImportIDs grammar)."
-log "  Condition 3 is the load-bearing one: narrowing credentialMaterial,"
-log "  however it is narrowed, does not move this site. See the header for"
-log "  the census that measures it. #305's default-object trio is fixed and"
-log "  no longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
+log "  identity.LocatedType answers false on condition 2, credential"
+log "  material - client_secret is Sensitive and not Deprecated at 6.59.0."
+log "  Condition 3 no longer refuses it: the page's possessive-of import"
+log "  sentence is now read, so identity.DocumentedImportIDs carries"
+log "  {user_pool_id, id} joined by \"/\" and a record CAN hold the whole"
+log "  identity (pinned by value in internal/live/identity, see the header)."
+log "  So the credential veto is now the SOLE wall on this site, and its"
+log "  breadth is the open maintainer call - the reverse of what this script"
+log "  said before 2026-08-22. #305's default-object trio is fixed and no"
+log "  longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
 log "  eligible in stage 2 above)."
 
 log ""
@@ -568,7 +588,7 @@ log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site, now markerless-type"
 log "rather than unadmitted-type - see comment above); #305's 3 sites are no"
 log "longer part of this wall"
 log ""
-gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: 1 aws_cognito_user_pool_client site; LocatedType refuses on two independent conditions and the load-bearing one is condition 3, the identity cannot be recorded in full - no wire identity schema at 6.59.0 and no documented import grammar. Narrowing credentialMaterial does not move it; see header); #305's trio is fixed and no longer a stage-3 wall here"
+gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: 1 aws_cognito_user_pool_client site; condition 3 is CLEARED as of 2026-08-22 - the page's possessive-of import sentence is read and DocumentedImportIDs now composes user_pool_id/id - so credentialMaterial (condition 2, client_secret) is now the SOLE wall, and its breadth for the located path is the open maintainer call; see header); #305's trio is fixed and no longer a stage-3 wall here"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="

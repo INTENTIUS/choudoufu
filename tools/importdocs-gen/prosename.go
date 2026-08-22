@@ -244,6 +244,215 @@ func plainEnumIDParts(section, tfType string, args []ArgumentRefEntry, attrNames
 	return nil
 }
 
+// ofPhrasePartRe matches one enumerated segment written as a possessive-of
+// phrase: an optional article, ONE backticked property token, "of", and the
+// noun phrase naming what the property belongs to.
+//
+//	the `id` of the Cognito User Pool
+//	`listener_id` of the listener
+//
+// Anchored at both ends and refusing a backtick in the owner phrase, so a
+// part carrying anything else - a second backticked token, a distributed
+// owner shared with a sibling part, a trailing "combined with a `/`
+// character" clause - does not match, and [ofPhraseIDParts] then refuses
+// the whole reading rather than attributing part of it.
+var ofPhrasePartRe = regexp.MustCompile("(?i)^(?:the|an|a)?\\s*`([A-Za-z0-9_]+)`\\s+of\\s+([^`]+)$")
+
+// ofPhraseIDParts reads the one enumeration idiom every other reader here
+// declines: a sentence whose segments ARE backticked, but whose backticked
+// tokens are the same generic property word in each, so the tokens alone
+// cannot tell the segments apart and the prose around them is what does.
+//
+//	"using the `id` of the Cognito User Pool, and the `id` of the
+//	 Cognito User Pool Client"
+//
+// The backtick token sources see two tokens spelled "id"; the plain-word
+// reader skips the phrase outright because it contains backticks. Both are
+// right about what they were built for and neither can read this.
+//
+// # The rule, and why it is a reading rather than a guess
+//
+// English states a qualified name in two orders. Documentation that writes
+// the schema's order names the argument outright - the sibling Cognito
+// pages say "using the `user_pool_id` and `client_id`" and every existing
+// reader resolves them. Documentation that writes the possessive order
+// states the same two facts in the other sequence: the property last, the
+// owner first. So each part is re-read in the schema's order - owner words
+// then property token - and resolved by exactly the discipline the plain
+// readers already use: the longest word-suffix whose normalized form is
+// EXACTLY a Required argument's name, or exactly an exported attribute's.
+// "Cognito User Pool" + "id" is "userpoolid", which is `user_pool_id` and
+// nothing else. No name is trimmed, pluralized or approximated here, and a
+// part that lands on no schema name at all refuses the whole phrase.
+//
+// The one part that cannot resolve that way is the segment the resource
+// mints for itself, whose owner phrase names the resource rather than one
+// of its arguments ("the `id` of the Cognito User Pool Client" on the user
+// pool client's own page). [ownerNamesThisType] is the test, and the token
+// still has to be a property the page's own Attribute or Argument Reference
+// names, so the segment is a name read off the page either way.
+//
+// Every part must resolve and every resolved name must be distinct: a
+// partial reading of a composite identity is the fragment this whole
+// mechanism exists to refuse, and two segments reducing to one name means
+// the reading has lost the difference between them. The caller holds the
+// arity gate against the documented example.
+func ofPhraseIDParts(section, tfType string, args []ArgumentRefEntry, attrNames []string) []IDPart {
+	var requiredNames []string
+	for _, a := range args {
+		if a.Required {
+			requiredNames = append(requiredNames, a.Name)
+		}
+	}
+	for _, phrase := range usingPhrases(section) {
+		if i := strings.Index(strings.ToLower(phrase), "separated by"); i != -1 {
+			phrase = strings.TrimSpace(phrase[:i])
+		}
+		var parts []string
+		for _, p := range plainEnumSplitRe.Split(phrase, -1) {
+			if p = strings.TrimSpace(p); p != "" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) < 2 {
+			continue
+		}
+		out := make([]IDPart, 0, len(parts))
+		seen := make(map[string]bool, len(parts))
+		for _, p := range parts {
+			m := ofPhrasePartRe.FindStringSubmatch(p)
+			if m == nil {
+				out = nil
+				break
+			}
+			part, ok := attributeOfPhrasePart(m[1], m[2], tfType, requiredNames, attrNames)
+			if !ok {
+				out = nil
+				break
+			}
+			n := normalize(part.Token)
+			if seen[n] {
+				out = nil
+				break
+			}
+			seen[n] = true
+			out = append(out, part)
+		}
+		if len(out) >= 2 {
+			return out
+		}
+	}
+	return nil
+}
+
+// attributeOfPhrasePart resolves one possessive-of segment - the backticked
+// property token and the owner phrase it belongs to - to the single schema
+// name that segment is, or refuses.
+//
+// Unlike [attributePlainPart] this never returns an unresolved part. A
+// plain-word enumeration can be informative with one segment unattributed,
+// because its Token stays the doc's own prose and a consumer that needs a
+// name refuses it downstream. Here the Token IS a schema name, so a part
+// that resolves to nothing has no honest Token to carry and the phrase is
+// refused instead.
+func attributeOfPhrasePart(token, owner, tfType string, requiredNames, attrNames []string) (IDPart, bool) {
+	ownerWords := plainContentWords(owner)
+
+	// The owner is this resource: the segment is the property the resource
+	// exports under that token, which is the composite's server-minted leaf
+	// whenever the token is not itself a configuration argument.
+	if ownerNamesThisType(ownerWords, tfType) {
+		if name, ok := exactName(token, requiredNames); ok {
+			return IDPart{Token: name, Source: idPartSourceArgument}, true
+		}
+		if name, ok := exactName(token, attrNames); ok {
+			return IDPart{Token: name, Source: idPartSourceAttribute}, true
+		}
+		return IDPart{}, false
+	}
+
+	// The owner is something else this resource names: re-read the phrase
+	// in the schema's own order, longest owner suffix first, and take the
+	// exact match.
+	for k := len(ownerWords); k >= 1; k-- {
+		cand := normalize(strings.Join(ownerWords[len(ownerWords)-k:], "") + token)
+		if len(cand) < 3 {
+			continue
+		}
+		for _, a := range requiredNames {
+			if normalize(a) == cand {
+				return IDPart{Token: a, Source: idPartSourceArgument}, true
+			}
+		}
+		for _, a := range attrNames {
+			if normalize(a) == cand {
+				return IDPart{Token: a, Source: idPartSourceAttribute}, true
+			}
+		}
+	}
+	return IDPart{}, false
+}
+
+// exactName returns the pool entry whose normalized form is exactly the
+// token's, keeping the pool's own spelling.
+func exactName(token string, pool []string) (string, bool) {
+	n := normalize(token)
+	if n == "" {
+		return "", false
+	}
+	for _, p := range pool {
+		if normalize(p) == n {
+			return p, true
+		}
+	}
+	return "", false
+}
+
+// ownerNamesThisType reports whether a run of prose words is the
+// documentation's own name for the resource the page is about.
+//
+// [namesOwnIdentifier] answers the same question for the plain-word family
+// and does it with a strict TAIL match, which is right there because the
+// phrase it reads is short ("IPSet ID", "the alias ID"). A possessive-of
+// phrase spells the service name out in full - "the Cognito User Pool
+// Client" - and the type name may carry a qualifier word the prose leaves
+// off: aws_cognito_managed_user_pool_client's page calls the object it
+// creates a Cognito User Pool Client, because that is what Cognito calls
+// it, and "managed" describes how Terraform adopts it rather than what it
+// is. A tail match cannot see through that word; an in-order subsequence
+// can, and anchoring the last prose word to the type's LAST token keeps it
+// from matching a parent whose name is a prefix of the child's - "the
+// Cognito User Pool" does not name aws_cognito_user_pool_client, which is
+// exactly the distinction this whole reading turns on.
+//
+// Articles are dropped; nothing else is. A prose word that is not one of
+// the type's own tokens refuses.
+func ownerNamesThisType(words []string, tfType string) bool {
+	var prose []string
+	for _, w := range words {
+		if proseArticles[strings.ToLower(w)] {
+			continue
+		}
+		if n := normalize(w); n != "" {
+			prose = append(prose, n)
+		}
+	}
+	typeTokens := strings.Split(strings.TrimPrefix(tfType, "aws_"), "_")
+	if len(prose) == 0 || len(prose) > len(typeTokens) {
+		return false
+	}
+	if prose[len(prose)-1] != normalize(typeTokens[len(typeTokens)-1]) {
+		return false
+	}
+	i := 0
+	for _, tok := range typeTokens {
+		if i < len(prose) && prose[i] == normalize(tok) {
+			i++
+		}
+	}
+	return i == len(prose)
+}
+
 // plainEnumComposedArguments reads the same plain-word enumeration
 // plainEnumIDParts does ("using the listener arn and certificate arn,
 // separated by an underscore") but answers classifyGrammar's question
