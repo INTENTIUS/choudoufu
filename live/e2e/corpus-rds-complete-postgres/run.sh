@@ -137,6 +137,40 @@ set -uo pipefail
 # one-estate question." Not attempted here: revisiting the scope of #313's
 # ruling is a maintainer design call, not a script fix.
 #
+# GITHUB ISSUE #368 IS NOT THIS ESTATE'S BLOCKER, and its own framing of
+# this estate is refuted by measurement. #368 was filed on the reading that
+# what stops this configuration is the FUNCTION applied to the deferred
+# value - `cidr_blocks = compact(split(",", lookup(var.
+# ingress_with_cidr_blocks[count.index], "cidr_blocks", join(",", var.
+# ingress_cidr_blocks))))` - and that "the gap is specifically the function
+# application, not the routing". #368 landed that function application
+# (identity.ParentRef grew a render-time Transform; corpus-ecs-fargate's
+# own eight identity diagnostics went to zero on it) and this estate did
+# not move: still exactly 2 sites, same lines, same text.
+#
+# The reduction that settles it is
+# internal/live/identity/testdata/formula-transform's sibling experiment,
+# run against a fixture carrying this estate's exact expressions with the
+# security-group module's variable declared the same way. Four variants,
+# same module output feeding the same list argument:
+#
+#   [var.L[0].cidr_blocks]                        RESOLVES
+#   [var.L[count.index].cidr_blocks]              refuses (both diagnostics)
+#   compact(split(",", lookup(var.L[0], ...)))    refuses (both diagnostics)
+#   compact(split(",", lookup(var.L[count.index], ...)))  refuses - this estate
+#
+# So there are TWO independent blockers here and the function application
+# is only one of them. The other is ROUTING, and it is #354's family rather
+# than #368's: `var.<list>[count.index]` is not an absolute traversal, so
+# [resolver.namedLeaf] never chases it back across the module-call boundary
+# to the caller's element expression at all, and `lookup(var.<list>[i],
+# "k", d)` is not chased either because only `lookup(each.value, ...)` has
+# a route today. Both are separate, tractable units; neither is attempted
+# here. What #368 did add is the last step this estate would need AFTER
+# them: `compact(split(",", <a deferred read>))` on a
+# [Component.SoleElement] component now resolves and renders, pinned by
+# value in TestTransformSoleElementOverADeferredList.
+#
 # #305 (admission: aws_default_network_acl/aws_default_route_table/
 # aws_default_security_group were unadmitted) is FIXED. aws_default_network_
 # acl, aws_default_route_table and aws_default_security_group - the VPC
@@ -581,7 +615,7 @@ log "cleared) - #304, #305, #321 and #324 are all fixed and confirmed"
 log "absent above; #313's root cause B (deliberately out of scope) is the"
 log "sole remaining wall"
 log ""
-gauntlet_stage test_plan fail "BLOCKED at $((MODOUT_N + CASCADE_N)) sites (was 7, then 33, then 14) - #304, #305, #321, #324 fixed; #313 root cause B remains (choudoufu, see header)"
+gauntlet_stage test_plan fail "BLOCKED at $((MODOUT_N + CASCADE_N)) sites (was 7, then 33, then 14) - #304, #305, #321, #324 fixed; #368 landed and does NOT move this estate: measured, the blocker is var.<list>[count.index] and lookup() routing across the module-call boundary (#354's family), not the compact/split #368 was filed on - see header"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
