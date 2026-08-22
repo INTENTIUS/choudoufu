@@ -150,10 +150,37 @@ const (
 // declared would read an orphan as declared_tagged and hand it a
 // declared-quadrant verb it was never assigned - see
 // TestOwnershipPolicy_ReconcileCandidateIsNotDeclaredTagged.
-func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared bool) ownershipVerdict {
+func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located bool) ownershipVerdict {
 	own := b.opts.Ownership
 	switch {
 	case own == nil:
+		return ownershipOK
+	case located:
+		// The identity came out of this estate's own located record store,
+		// which is the ownership proof for this instance: the record was
+		// written by this estate's apply, under its own IAM, keyed by this
+		// exact address, and [LocatedStore.Get] has already refused a
+		// payload naming any other one. Re-deriving ownership from a tag
+		// would only be a way to get the same fact wrong twice - the same
+		// reason own.verified short-circuits marker discovery's answer
+		// below.
+		//
+		// Before GitHub issue #365 this branch was unreachable and unneeded:
+		// every located type was markerless, so markerCapable(schema.Block)
+		// was false and the case below admitted it. An operator's
+		// `markers = record` selection is the first way a TAGGABLE instance
+		// reaches here with a record-held identity, and without this branch
+		// it read as declared_untagged - the adoption-refusal quadrant -
+		// which would have kept the object out of the prior state and had
+		// every plan propose creating a duplicate of it. Nothing about that
+		// failure is visible in a verdict: the plans stay clean and the
+		// account grows a second object per run.
+		//
+		// It is deliberately not folded into the own.verified case above,
+		// which also records a declared_tagged policy outcome. This instance
+		// is not tagged, and reporting it as though it were would tell a
+		// policy block's declared_tagged verb it had governed something it
+		// never saw.
 		return ownershipOK
 	case own.verified(addr):
 		// Marker discovery already proved ownership by finding this

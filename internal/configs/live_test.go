@@ -727,3 +727,88 @@ func TestModule_liveStrictRefused(t *testing.T) {
 		})
 	}
 }
+
+// TestModule_liveStrictMarkers covers GitHub issue #365 slice 2's config
+// surface: the `markers "record"` block nested inside strict, carrying two
+// literal lists.
+//
+// The decoder's whole job here is to record what was written, ranges
+// included, and to judge none of it. Whether "aws_ebs_volume" is a real type
+// needs the provider's schemas; whether "module.server.aws_instance.instance"
+// is a usable address needs internal/addrs' target grammar and the module
+// tree. Both are internal/live/lint's, the same division [LivePolicyScope]'s
+// three lists already have.
+func TestModule_liveStrictMarkers(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-markers")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("no strict block was decoded")
+	}
+	m := st.MarkersRecord
+	if m == nil {
+		t.Fatal("no markers block was decoded")
+	}
+	if got, want := m.Kind, "record"; got != want {
+		t.Errorf("Kind = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(m.Types, ","), "aws_ebs_volume"; got != want {
+		t.Errorf("Types = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(m.Addresses, ","), "aws_instance.worker,module.server.aws_instance.instance"; got != want {
+		t.Errorf("Addresses = %q, want %q", got, want)
+	}
+	if !m.TypesSet || !m.AddressesSet {
+		t.Errorf("TypesSet=%v AddressesSet=%v; both lists were written", m.TypesSet, m.AddressesSet)
+	}
+	// The ranges are what let a lint refusal point at the list an operator
+	// wrote rather than at the whole block.
+	if m.TypesRange.Filename == "" || m.AddressesRange.Filename == "" || m.DeclRange.Filename == "" {
+		t.Error("a markers block range is the zero value, so a diagnostic cannot point at what was written")
+	}
+}
+
+// TestModule_liveStrictMarkersAbsent: a strict block with no markers block
+// leaves MarkersRecord nil, which every reader takes as "every taggable
+// resource keeps its marker". The same "absent means absent" contract the
+// rest of the live block has.
+func TestModule_liveStrictMarkersAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live.Strict.MarkersRecord != nil {
+		t.Errorf("MarkersRecord is %+v for a strict block with no markers block, want nil", mod.Live.Strict.MarkersRecord)
+	}
+}
+
+// TestModule_liveStrictMarkersRefused: the three lexical shapes.
+//
+// The label is refused here rather than at lint time because it is a
+// spelling, not a judgement - the same reason record_store's three backend
+// names are checked in the decoder. That it is a LABEL at all is what leaves
+// room for `markers "tag"`, the inverse selection, without a grammar change;
+// today it is not a carrier this fork knows, so it is refused by name.
+func TestModule_liveStrictMarkersRefused(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"testdata/invalid-files/live-strict-markers-bad-label.tf", "Invalid markers selection"},
+		{"testdata/invalid-files/live-strict-markers-duplicate.tf", "Duplicate markers block"},
+		{"testdata/invalid-files/live-strict-markers-non-literal.tf", "Variables not allowed"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			parser := NewParser(nil)
+			_, diags := parser.LoadConfigFile(tc.file)
+			if !diags.HasErrors() {
+				t.Fatal("the configuration loaded with no errors")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			}
+		})
+	}
+}

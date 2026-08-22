@@ -15,7 +15,9 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -74,7 +76,7 @@ import (
 // (internal/command/live_plan.go), so the residue is confined to a
 // schema-less "choudoufu live-check", whose output already says which
 // verdicts depend on them.
-func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, schemas map[string]providers.Schema, issues *[]Issue) {
+func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Module, schemas map[string]providers.Schema, markersRecord *strict.Selection, issues *[]Issue) {
 	managed := resource.Managed
 	if managed == nil {
 		return
@@ -83,6 +85,36 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 		return
 	}
 	if schema, ok := schemas[resource.Type]; ok && !markers.Taggable(schema.Block) {
+		return
+	}
+
+	// The third population this rule declines on, and the only one that is a
+	// choice rather than a fact: GitHub issue #365's
+	// `strict { marker_repair = "never"; markers "record" { ... } }`.
+	//
+	// Everything above this rule's refusal rests on is the marker being the
+	// resource's identity - "the update that writes them is planned and then
+	// discarded", so "adopting a resource this configuration does not yet own
+	// can never succeed", so "a marker that drifts can never be repaired".
+	// For a resource this selection covers, none of those three sentences is
+	// true any more. No marker is written into its tags at all
+	// (internal/live/stamp's SkipMarkersRecord), so there is no update to
+	// discard; its identity is the record the estate's store holds
+	// (identity.ClassRecordLocated), so there is nothing to adopt by tag and
+	// nothing to drift. Ignoring its tags costs exactly what ignoring them
+	// costs on stock, which is HANDOFF.md's own phrasing for this toggle:
+	// "with ignore_changes honoured exactly as stock honours it".
+	//
+	// Both halves are required and [markerRepairHonoursIgnoreChanges] is
+	// where that is argued. What matters here is the direction of the
+	// asymmetry: markersRecord is nil for every configuration that does not
+	// set both, and this rule then fires exactly as it did before - including
+	// on the resources a selection covers when the schemas were not available
+	// to prove the selection could be honoured, which is the same
+	// stricter-without-schemas answer the taggability check above already
+	// gives.
+	if markersRecord.Selects(addrs.ConfigResource{Module: path, Resource: resource.Addr()}) &&
+		identity.SelectedLocatedType(resource.Type, schemas) {
 		return
 	}
 

@@ -465,6 +465,13 @@ type wanted struct {
 	values map[string]string
 
 	undeclared bool
+
+	// located records that this instance's identity came out of the
+	// estate's located record store (identity.ClassRecordLocated) rather
+	// than from the configuration or from a marker sweep. See
+	// [builder.materializeLocated], and [builder.checkOwnership] for the one
+	// decision that turns on it.
+	located bool
 }
 
 // importTarget picks the form this instance's import is asked in.
@@ -1317,7 +1324,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// does not set Undeclared for it - and that is the same block-level
 	// coarsening internal/live/stamp's PolicyUntag already documents,
 	// rather than a new one.
-	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared) != ownershipOK {
+	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located) != ownershipOK {
 		return
 	}
 

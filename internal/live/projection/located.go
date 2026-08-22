@@ -154,6 +154,7 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 		addr:     addr,
 		importID: rec.ImportID,
 		values:   rec.Components,
+		located:  true,
 	})
 }
 
@@ -198,6 +199,24 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 
 	seen := make(map[string]bool, len(req.LocatedVersions))
 
+	// The operator's `markers = record` selection, read from the same
+	// configuration and through the same function the plan side read it with
+	// (identity.SelectionFor). It has to be consulted here for the reason the
+	// admission predicate is re-asked below: the set that gets WRITTEN must
+	// be the set that gets READ. A selected instance whose identity the plan
+	// side looked up in the store and this side declined to write would read
+	// unbound on every subsequent run, and every one of them would propose
+	// creating a second object - which is the announced-duplicate failure
+	// mode, arriving without the announcement.
+	//
+	// A nil req.Config selects nothing, which is the same fail-safe the
+	// provisioned half takes and is safe for the same reason: with no
+	// configuration to ask, no instance can be PROVEN selected. What it costs
+	// is stated rather than hidden - a caller that planned with a
+	// configuration and writes back without one loses the identity of every
+	// selected instance - and internal/live/live_mode.go passes it.
+	selection := identity.SelectionFor(req.Config)
+
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
 			if entry.DeposedKey != states.NotDeposed {
@@ -224,7 +243,11 @@ func writeBackLocated(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 			// that gets read; a second, looser rule here is how a type
 			// would come to be materialized from a record nothing writes,
 			// or written to a record nothing reads.
-			if !identity.LocatedType(typeName, map[string]providers.Schema{typeName: *schema}) {
+			typeSchemas := map[string]providers.Schema{typeName: *schema}
+			automatic := identity.LocatedType(typeName, typeSchemas)
+			selected := selection.Selects(addr.ConfigResource()) &&
+				identity.SelectedLocatedType(typeName, typeSchemas)
+			if !automatic && !selected {
 				continue
 			}
 

@@ -131,7 +131,56 @@ type LiveStrict struct {
 	MarkerRepairSet   bool
 	MarkerRepairRange hcl.Range
 
+	// MarkersRecord is the optional nested `markers "record"` block: which
+	// resources hold their identity in the estate's record store instead of
+	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
+	// markers = record, for tag budgets and tag policies, trading IAM
+	// governability for a record-held identity". Nil when the strict block
+	// declares no such block, which must mean today's behavior - every
+	// taggable resource is marked.
+	//
+	// It is a LABELED block rather than an attribute because HANDOFF's
+	// phrasing is shorthand for what is really a selection with two lists,
+	// and because the label leaves room for the inverse selection
+	// (`markers "tag"`) without a grammar change.
+	//
+	// Like every other field here this is the raw decode: two literal lists
+	// of strings, with no opinion on whether the type names exist or the
+	// addresses parse. That judgement needs internal/addrs' target grammar
+	// and the provider's schemas, and belongs to internal/live/lint - the
+	// same layering [Live.Estate] already has, whose grammar is checked by
+	// internal/live/discovery.ValidEstateName rather than here.
+	MarkersRecord *LiveStrictMarkers
+
 	// DeclRange is the "strict" block's own header.
+	DeclRange hcl.Range
+}
+
+// LiveStrictMarkers is a `markers "<kind>"` block nested inside a strict
+// block. See [LiveStrict.MarkersRecord].
+type LiveStrictMarkers struct {
+	// Kind is the block's label. "record" is the only one this fork knows
+	// today; decodeStrictBlock refuses anything else, so nothing else
+	// reaches this field.
+	Kind      string
+	KindRange hcl.Range
+
+	// Types names resource types whose every instance this selection
+	// covers, in the same literal-list-of-strings shape
+	// [LivePolicyScope.Types] uses and read by the same decode helper.
+	Types      []string
+	TypesSet   bool
+	TypesRange hcl.Range
+
+	// Addresses names individual resources this selection covers, in the
+	// `-target` grammar (internal/addrs' ParseTargetStr): module-qualified
+	// or not, whole-resource, with no wildcards. Parsed by
+	// internal/live/lint rather than here.
+	Addresses      []string
+	AddressesSet   bool
+	AddressesRange hcl.Range
+
+	// DeclRange is the "markers" block's own header.
 	DeclRange hcl.Range
 }
 
@@ -313,6 +362,16 @@ var liveStrictSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
 		{Name: "marker_repair"},
 	},
+	Blocks: []hcl.BlockHeaderSchema{
+		{Type: "markers", LabelNames: []string{"kind"}},
+	},
+}
+
+var liveStrictMarkersSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "types"},
+		{Name: "addresses"},
+	},
 }
 
 var recordStoreBlockSchema = &hcl.BodySchema{
@@ -493,7 +552,88 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 		}
 	}
 
+	// The markers blocks are collected by LABEL rather than counted, because
+	// "record" is one of a family: the inverse selection this grammar leaves
+	// room for is `markers "tag"`, and a configuration carrying both must be
+	// two blocks rather than a duplicate. Two blocks with the SAME label are
+	// the duplicate, and get the same diagnostic the policy and record_store
+	// blocks give for theirs.
+	seen := make(map[string]*hcl.Block, len(content.Blocks))
+	for _, block := range content.Blocks {
+		if block.Type != "markers" {
+			continue
+		}
+		label := block.Labels[0]
+		if label != string(strictMarkersRecord) {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid markers selection",
+				Detail: fmt.Sprintf(
+					"markers %q names a marker carrier this fork does not know. The only one is %q, which means the selected resources hold their identity in the estate's record store instead of in an ownership marker tag.",
+					label, strictMarkersRecord,
+				),
+				Subject: block.LabelRanges[0].Ptr(),
+			})
+			continue
+		}
+		if first, dup := seen[label]; dup {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate markers block",
+				Detail:   fmt.Sprintf("A strict block may have at most one markers %q block. Put every type and address in the one block.", label),
+				Subject:  block.DefRange.Ptr(),
+			})
+			_ = first
+			continue
+		}
+		seen[label] = block
+
+		m, mDiags := decodeStrictMarkersBlock(block)
+		diags = append(diags, mDiags...)
+		st.MarkersRecord = m
+	}
+
 	return st, diags
+}
+
+// strictMarkersRecord is the one markers-block label this fork knows. It is
+// a literal here and in internal/live/strict, which is the package that says
+// what it MEANS; this one only has to recognize the spelling, the same
+// division decodeRecordStoreBlock's three backend names already have.
+const strictMarkersRecord = "record"
+
+// decodeStrictMarkersBlock decodes one `markers "<kind>"` block: the two
+// literal lists that say which resources it covers. See [LiveStrictMarkers].
+func decodeStrictMarkersBlock(block *hcl.Block) (*LiveStrictMarkers, hcl.Diagnostics) {
+	m := &LiveStrictMarkers{
+		Kind:      block.Labels[0],
+		KindRange: block.LabelRanges[0],
+		DeclRange: block.DefRange,
+	}
+
+	content, diags := block.Body.Content(liveStrictMarkersSchema)
+
+	for _, f := range []struct {
+		name string
+		val  *[]string
+		set  *bool
+		rng  *hcl.Range
+	}{
+		{"types", &m.Types, &m.TypesSet, &m.TypesRange},
+		{"addresses", &m.Addresses, &m.AddressesSet, &m.AddressesRange},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		*f.rng = attr.Range
+		*f.set = true
+		list, listDiags := decodeLiteralStringList(attr, f.name)
+		diags = append(diags, listDiags...)
+		*f.val = list
+	}
+
+	return m, diags
 }
 
 // decodeRecordStoreBlock decodes a live block's nested "record_store" block:

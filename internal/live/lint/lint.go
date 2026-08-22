@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	residue "github.com/intentius/choudoufu/live"
 )
@@ -100,8 +101,15 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 	// happens to be visiting. See [recordStoreConfigured].
 	recordStoreConfigured := recordStoreConfiguredIn(cfg)
 
+	// GitHub issue #365's third toggle, read once from the root module for
+	// recordStoreConfigured's reason and for one more: the addresses it
+	// carries are module-qualified, so the only node that can resolve them
+	// is the one that can see the whole tree. See [checkStrictMarkers].
+	markersRecord := markerRepairHonoursIgnoreChanges(cfg)
+
 	var issues []Issue
-	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, nil, &issues)
+	checkStrictMarkers(cfg, lctx.Schemas, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, markersRecord, nil, &issues)
 	sortIssues(issues)
 	return issues
 }
@@ -117,6 +125,52 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 		return false
 	}
 	return cfg.Module.Live.RecordStore != nil
+}
+
+// markerRepairHonoursIgnoreChanges is the set of resources
+// [checkIgnoreChanges] must stop refusing: the ones a `markers "record"`
+// selection covers, and only when the strict block ALSO sets
+// marker_repair = "never". Nil when either half is missing, which is every
+// configuration written before GitHub issue #365 and every one that sets
+// only one of the two.
+//
+// # Why it takes both halves
+//
+// Either half alone leaves a reason to refuse standing.
+//
+// The selection alone says where the identity lives. It does not say the
+// operator wants this tool to stop reconciling the marker tags, and an
+// `ignore_changes = [tags]` written for some unrelated reason - a tagging
+// robot, a copied module - would then silently start meaning something new
+// on the resources it happens to cover. Requiring the second half makes the
+// lift something the operator asked for in so many words.
+//
+// marker_repair = "never" alone says the operator wants the tags left alone
+// and gives the resource nowhere else to hold its identity, which is the
+// "created unfindable" case this whole rule exists to prevent - slice 1's own
+// design, in [strict.Implemented]'s words: lifting the refusal safely "needs
+// somewhere else for the identity to live". It is also refused outright by
+// [checkLiveStrict], so it cannot reach here on its own.
+//
+// So the conjunction is the conservative direction, and both readings of the
+// pair - "the operator asked" and "the resource has an identity" - have to
+// hold before a marker stops being written.
+func markerRepairHonoursIgnoreChanges(cfg *configs.Config) *strict.Selection {
+	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil {
+		return nil
+	}
+	st := cfg.Module.Live.Strict
+	if st == nil || !st.MarkerRepairSet {
+		return nil
+	}
+	if strict.MarkerRepair(st.MarkerRepair) != strict.Never {
+		return nil
+	}
+	sel := selectionIn(cfg.Module)
+	if sel.Empty() {
+		return nil
+	}
+	return sel
 }
 
 // checkConfig appends the issues found in one node of the module tree and then
@@ -151,7 +205,7 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 // whole call chain once triggered, not of any single link in it. See
 // [checkModuleProviderBlocks] (GitHub issue #201), the only rule that reads
 // this argument.
-func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, noProviderConfigRange *hcl.Range, issues *[]Issue) {
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, markersRecord *strict.Selection, noProviderConfigRange *hcl.Range, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -168,7 +222,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkLiveStrict(mod, path, issues)
-	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
+	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, markersRecord, issues)
 	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReceiptLeafRule(mod, path, issues)
@@ -187,7 +241,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 			childNoProviderConfigRange = r
 		}
 		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, name))
-		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, childNoProviderConfigRange, issues)
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, markersRecord, childNoProviderConfigRange, issues)
 	}
 }
 
@@ -364,7 +418,7 @@ func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Modul
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, issues *[]Issue) {
+func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, markersRecord *strict.Selection, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -407,7 +461,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 
 		checkProvisioners(resource, addr, path, isLogical, recordStoreConfigured, issues)
 		checkCountIndex(ctx, mod, resource, addr, path, countIndexScopeForType(resource.Type, lt, isLogical), issues)
-		checkIgnoreChanges(resource, addr, path, schemas, issues)
+		checkIgnoreChanges(resource, addr, path, schemas, markersRecord, issues)
 
 		if isLogical {
 			if recordStoreAdmits(lt.Class) && recordStoreConfigured {
