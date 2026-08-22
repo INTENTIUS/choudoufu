@@ -334,6 +334,72 @@ func TestVerifyTableBreaking(t *testing.T) {
 	}
 }
 
+// TestVerifyTableBlockComponent is the regression for the false breakage
+// found while diagnosing corpus-autoscaling-complete's test_plan stage
+// (GitHub issue #310's own row): checkArguments checked every component's
+// Attrs against the resource's top-level block only, never descending into
+// the nested block Component.Block names. aws_autoscaling_traffic_source_attachment's
+// traffic_source_type and traffic_source_identifier are the "type" and
+// "identifier" attributes of a required traffic_source list block, not
+// top-level arguments, so the old check always reported the correct row as
+// naming an argument the provider does not have - breaking, even though
+// nothing was wrong. #354's fix to the resolver made this row reachable for
+// the first time in a real crossing, which is how the latent bug surfaced.
+func TestVerifyTableBlockComponent(t *testing.T) {
+	trafficSource := configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"type":       {Type: cty.String, Required: true},
+			"identifier": {Type: cty.String, Required: true},
+		},
+	}
+	schemas := map[string]providers.Schema{
+		"aws_autoscaling_traffic_source_attachment": {
+			Block: &configschema.Block{
+				Attributes: map[string]*configschema.Attribute{
+					"autoscaling_group_name": {Type: cty.String, Required: true},
+					"id":                     {Type: cty.String, Optional: true, Computed: true},
+				},
+				BlockTypes: map[string]*configschema.NestedBlock{
+					"traffic_source": {Block: trafficSource, Nesting: configschema.NestingList, MinItems: 1, MaxItems: 1},
+				},
+			},
+		},
+	}
+
+	v := verifyTable(map[string]TypeIdentity{
+		"aws_autoscaling_traffic_source_attachment": DefaultTable["aws_autoscaling_traffic_source_attachment"],
+	}, schemas, nil)
+
+	for _, f := range v.Findings {
+		t.Errorf("unexpected finding on %s (%s): %s", f.Type, f.Kind, f.Detail)
+	}
+
+	// A component naming a block the schema has no such nested block for
+	// must still be reported: componentSchemaBlock returning nil must not
+	// make hasAny vacuously pass.
+	broken := map[string]TypeIdentity{
+		"aws_broken": {
+			Type:       "aws_broken",
+			Components: []Component{{Attrs: []string{"x"}, Block: "nonexistent", IdentityAttr: SameNameIdentity}},
+		},
+	}
+	brokenSchemas := map[string]providers.Schema{
+		"aws_broken": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+			"id": {Type: cty.String, Computed: true},
+		}}},
+	}
+	v2 := verifyTable(broken, brokenSchemas, nil)
+	f := findingOf(t, v2, FindingArgumentNotInSchema)
+	if !f.Breaking {
+		t.Error("a component naming a nonexistent block must still be breaking")
+	}
+	for _, want := range []string{"x", "nonexistent", "aws_broken"} {
+		if !strings.Contains(f.Detail, want) {
+			t.Errorf("the detail does not name %q:\n%s", want, f.Detail)
+		}
+	}
+}
+
 // A breaking finding does not need an identity schema: it is a claim about
 // the resource schema, which every served type has.
 func TestVerifyTableBreakingWithoutIdentitySchema(t *testing.T) {

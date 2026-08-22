@@ -366,35 +366,58 @@ gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 a
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-# WHERE THIS STAGE ACTUALLY STOPS, measured 2026-08-21 at commit 7aea0eef95
-# against floci sha256:d65baf42 and hashicorp/aws 6.59.0, read off this
-# script's own output and not inferred. GitHub issue #353 removed this
-# estate's only provisioner diagnostic - the sole stage-3 failure it had
-# since 2026-08-20 - and two stand behind it, so the stage still fails and
-# the estate is still 2 of 5. Neither remaining one is specific to
-# autoscaling, and neither is in issue #353's scope:
+# WHERE THIS STAGE ACTUALLY STOPS, re-measured 2026-08-22 against real
+# Docker/floci/terraform/AWS CLI, hashicorp/aws 6.59.0, read off this
+# script's own output and not inferred. Three prior walls are now gone:
 #
 #   1. FIXED (GitHub issue #354). "Non-static identity argument" on
 #      module.complete.aws_autoscaling_traffic_source_attachment.this["ex-alb"].identifier
-#      (main.tf:1102, `identifier = each.value.traffic_source_identifier`,
-#      which reaches module.complete_alb's target-group ARN) stood here until
-#      #354's layered binding: the for_each element's converted VALUE is
-#      still the binding, and the caller's own expression for it is now kept
-#      beside it for the attributes of that value that came back unknown.
-#      The argument resolves PARENT_DERIVED to
-#      asg-fixed,elbv2,${module.alb.aws_lb_target_group.this["ex_asg"].arn}
-#      in the reduced fixture
-#      internal/live/identity/testdata/module-output-whole-resource, and its
-#      diagnostic is asserted ABSENT in stage 3 below. Measured offline over
-#      this estate: 5 refusals across 230 sites with 48 instances resolved ->
-#      4 across 229 with 49.
-#   2. STILL STANDING, and now the only identity refusal left:
-#      "Ambiguous list-valued identity argument" on
-#      module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids,
-#      which "has 0 elements" - the Component.SoleElement refusal, whose own
-#      registry text (internal/live/identity/refusals.go) already states
-#      that zero elements and more than one are both refused. Deliberate,
-#      not a new find.
+#      - the for_each element's own expression, layered under its converted
+#      value.
+#   2. FIXED (GitHub issue #369). "Ambiguous list-valued identity argument"
+#      on module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids
+#      - a zero-element Component.SoleElement alternation member now defers
+#      to its satisfied sibling (source_security_group_id) instead of
+#      refusing ambiguous.
+#   3. FIXED THIS PASS. #354's fix made this type's identity resolve for
+#      real for the first time, which is what surfaced a THIRD, unrelated
+#      wall behind it: "The identity table names something the provider
+#      does not have" on aws_autoscaling_traffic_source_attachment, from
+#      internal/live/identity/schema_verify.go's checkArguments. The row
+#      itself (internal/live/identity/table.go's aws_autoscaling_traffic_source_attachment
+#      comment, GitHub issue #310) is correct - "type" and "identifier" are
+#      real, required arguments of the type's traffic_source block, verified
+#      against `terraform providers schema -json` at 6.59.0 - but
+#      checkArguments checked every component's Attrs against the
+#      resource's TOP-LEVEL block only, never descending into the nested
+#      block a Component.Block names, so a correct Block-bearing row always
+#      read as "names an argument the provider does not have". Fixed
+#      generically (componentSchemaBlock in schema_verify.go, reached by
+#      any Component.Block user - this AWS type plus four kubernetes_*
+#      table rows), with a regression test
+#      (TestVerifyTableBlockComponent) built from the real 6.59.0 shape.
+#
+# What stands now, exposed only once the false failure above stopped
+# masking it: SEVEN aws_autoscaling_group instances (one per module call
+# using name_prefix instead of name: default, efa, external,
+# instance_requirements, mixed_instance, target_tracking_customized_metrics,
+# warm_pool) are "Unstamped marker-only resource" / "Unmarked apply of a
+# marker-only resource". An aws_autoscaling_group has no top-level tags map
+# (its tags are `tag` nested blocks - see stage 2's own comment on this),
+# so it cannot carry a marker, and a name_prefix-named instance's live name
+# is unknowable from configuration, so it cannot be identified by argument
+# either. Migrate (stage 2) binds it anyway, by reading the live name
+# straight out of the state file being imported - but nothing durable
+# records that binding: no marker (untaggable), and no record-backed
+# fallback is registered for this shape either (searched
+# internal/live/identity/discoverablefallback_generated.go - no
+# aws_autoscaling_group entry). So once the state file is gone, the
+# instance really is unfindable, and refusing rather than proposing a
+# silent duplicate create is HANDOFF's safety rule working as designed -
+# not a wrong answer, but a rung ("record-only") that has no path built for
+# this shape yet. That is a mechanism gap (the record store would have to
+# accept a provider-assigned name with no tag surface as a type's whole
+# identity), not a one-line fix, and is left for its own unit.
 #
 # Stages 4 and 5 are therefore never reached and stay not_run in
 # live/corpus-crossing-manifest.json: running them against a refused plan
@@ -407,13 +430,32 @@ rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 plan_into() { ( cd "$ADOPTED" && "$TOFU" live-plan -input=false -no-color ); }
 PLAN_OUT="$(plan_into 2>&1)"; PLAN_RC=$?
 # GitHub issue #354, asserted here rather than only in a unit test: the
-# traffic-source attachment's identity argument must contribute NO diagnostic
-# at all. Checked before the exit-code assertion below so that a regression
-# names itself rather than arriving as "live-plan exited 1" among the
-# Component.SoleElement refusal that is still expected.
-! grep -qF 'aws_autoscaling_traffic_source_attachment' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|traffic_source_attachment'; fail "#354's root cause is back on aws_autoscaling_traffic_source_attachment - it must contribute no diagnostic at all"; }
-[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC"; }
+# traffic-source attachment's identity argument must not raise "Non-static
+# identity argument" again. Checked before the exit-code assertion below so
+# that a regression names itself rather than arriving as "live-plan exited
+# 1" among whatever else the stage still expects.
+#
+# Deliberately narrower than "no diagnostic at all naming the type": this
+# type also raises a benign "Incomplete sweep for undeclared resources"
+# WARNING (it has no CFN type the ARN-join table recognizes, internal/live/discovery/tagging.go),
+# which is not #354 and used to make this very check false-fail on its own
+# unrelated text - the type's name appearing anywhere is not evidence of
+# #354's regression, only its specific summary is.
+! { grep -qF 'Non-static identity argument' <<< "$PLAN_OUT" && grep -qF 'aws_autoscaling_traffic_source_attachment' <<< "$PLAN_OUT"; } \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|Non-static identity argument|traffic_source_attachment'; fail "#354's root cause is back on aws_autoscaling_traffic_source_attachment - it must not raise Non-static identity argument again"; }
+if [ "$PLAN_RC" -ne 0 ]; then
+  # A blind tail is not enough here: this plan's own output runs into the
+  # thousands of lines (the diff for all 68 resources, printed before the
+  # diagnostics), so "tail -80" can miss every "Error:" block entirely -
+  # measured 2026-08-22, it missed all 7 "Unstamped marker-only resource"
+  # errors and several of the 7 "Unmarked apply of a marker-only resource"
+  # ones that stood behind #354 and #369 once both were fixed. Every error
+  # block, summary plus detail, in order, is what a reader needs instead.
+  ERROR_SUMMARIES="$(grep -oE '^Error: .+' <<< "$PLAN_OUT" | sort | uniq -c)"
+  printf '%s\n' "$ERROR_SUMMARIES"
+  printf '%s\n' "$PLAN_OUT" | grep -A6 -E '^Error:'
+  fail "live-plan exited $PLAN_RC: $(printf '%s' "$ERROR_SUMMARIES" | tr '\n' '; ')"
+fi
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "live-plan wrote a state file"
 grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
   && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
