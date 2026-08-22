@@ -1,9 +1,9 @@
 ---
-title: "Nothing is created unowned"
-weight: 4
+title: "How to deny creating anything unowned"
+weight: 5
 ---
 
-# Nothing is created unowned
+# How to deny creating anything unowned
 
 Tag compliance is normally retroactive. A scanner finds untagged resources, a
 ticket asks someone to explain them, and the backlog never empties because new
@@ -62,7 +62,7 @@ afterwards by whoever ran the scanner.
 
 `aws:RequestTag` is a different key from `aws:ResourceTag` and services support
 them independently, so confirm this one specifically.
-[Scoping a role]({{< relref "/docs/governance" >}}) covers the reach of both.
+[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) covers the reach of both.
 
 A service control policy has no effect on the organization's management
 account, or on any principal outside the organization.
