@@ -668,6 +668,38 @@ func TestModule_liveStrict(t *testing.T) {
 	}
 }
 
+// TestModule_liveStrictSecrets is GitHub issue #365 slice 3's config
+// surface: the same decoder, the same literal-string treatment, alongside
+// the argument that was there first. Both are asserted in one fixture on
+// purpose - the two arguments share a decode loop, and a loop that reads the
+// second into the first's field would pass two separate single-argument
+// tests.
+func TestModule_liveStrictSecrets(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-secrets")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("no strict block was decoded")
+	}
+	if !st.SecretsSet {
+		t.Fatal("SecretsSet is false for a block that writes secrets")
+	}
+	if got, want := st.Secrets, "refuse"; got != want {
+		t.Errorf("Secrets = %q, want %q", got, want)
+	}
+	if st.SecretsRange.Filename == "" {
+		t.Error("SecretsRange is the zero value, so a diagnostic cannot point at the argument")
+	}
+	if got, want := st.MarkerRepair, "never"; got != want {
+		t.Errorf("MarkerRepair = %q, want %q - the two arguments share a decode loop and must not be reading each other's attribute", got, want)
+	}
+	if st.MarkerRepairRange == st.SecretsRange {
+		t.Error("the two arguments decoded to one range, so a diagnostic about either would point at the same source")
+	}
+}
+
 // TestModule_liveStrictEmpty: a strict block that sets nothing decodes as a
 // non-nil block with every *Set flag false. The distinction matters because
 // "the block is there and sets nothing" and "the block is absent" must both
@@ -683,6 +715,9 @@ func TestModule_liveStrictEmpty(t *testing.T) {
 	}
 	if st.MarkerRepairSet {
 		t.Errorf("MarkerRepairSet is true for a strict block that writes no marker_repair (value %q)", st.MarkerRepair)
+	}
+	if st.SecretsSet {
+		t.Errorf("SecretsSet is true for a strict block that writes no secrets (value %q)", st.Secrets)
 	}
 }
 
@@ -714,6 +749,7 @@ func TestModule_liveStrictRefused(t *testing.T) {
 	}{
 		{"testdata/invalid-files/live-strict-duplicate.tf", "Duplicate strict block"},
 		{"testdata/invalid-files/live-strict-non-literal.tf", "Variables not allowed"},
+		{"testdata/invalid-files/live-strict-secrets-non-literal.tf", "Variables not allowed"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			parser := NewParser(nil)

@@ -124,8 +124,9 @@ Turning a toggle on is the setup step.
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"report"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. `"repair"` writes the declared value over it, as the plan's ordinary in-place tags update. `"report"` leaves it and names what it would have written. `"never"` leaves it silently, for an estate where something else owns the tags. |
+| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. `"store"` keeps it the way stock OpenTofu keeps it. `"refuse"` keeps none of it: a secret-generating type is refused outright, and a sensitive settable argument is never recorded. |
 
-None of the three affects a resource being created. A create is stamped
+None of the three `marker_repair` settings affects a resource being created. A create is stamped
 whatever the setting says: the safety rule has no converse permitting an
 unmarked create, and a create writes a marker that is new rather than one
 that disagrees with anything.
@@ -139,6 +140,67 @@ ordinary tags diff, and suppressing that per key is what
 whose identity is only its marker and whose marker write is discarded can
 never be found again. `"never"` therefore needs a resource to have somewhere
 else to hold its identity, which is the next block.
+
+#### `secrets`
+
+The default is `"store"`, and that is the compatibility half: a stock
+OpenTofu state file holds `random_password.result` in clear, so a
+configuration that generates a password runs here with a `live` block added
+and nothing else. What a state file would hold, the estate's record store
+holds — namespaced per estate, under IAM, written with compare-and-swap,
+with the sensitivity marks travelling beside the value. A secret-generating
+type still needs a `record_store` declared, exactly as every other logical
+type does.
+
+`"refuse"` is the principle, and it is two refusals rather than one:
+
+- a **secret-generating logical type** (`random_password`, `tls_private_key`,
+  `local_sensitive_file` and their measured siblings) is refused at lint,
+  naming the setting — and again at the two other layers that could write
+  such a record without lint having run: identity resolution, and
+  `choudoufu live-import`, which seeds records straight from a stock state
+  file;
+- a **sensitive settable argument** on an ordinary cloud resource is never
+  recorded as residue — the argument values this fork remembers because the
+  provider's own read never gives them back.
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    record_store "ssm" {}
+
+    strict {
+      secrets = "refuse"
+    }
+  }
+}
+```
+
+Three things neither setting reaches, and they are not the same kind of
+thing:
+
+- **Write-only attributes**, ever. The plugin protocol forbids a provider
+  returning one, so a recorded value could never be checked against the
+  object it describes — and stock does not keep one either, nulling them out
+  before the state is written. This is not a stricter or laxer choice.
+- **Effect receipt values.** A receipt is a published breadcrumb whose whole
+  purpose is that other tools can read it, which is the opposite of a record
+  store's IAM boundary, and stock has no equivalent of it to be compatible
+  with. See `receipt-secret` in
+  [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#receipt-secret).
+- **A sensitivity mark the provider's schema did not put there.** A residue
+  record stores an unmarked value and the sensitivity is reconstructed from
+  the schema when the record is read, which is exact for a schema mark and
+  for nothing else. A value that picked up sensitivity from a
+  `sensitive = true` *variable* stays out under either setting, and the
+  argument is proposed for update on every plan.
+
+A **markerless type whose schema carries credential material** is also
+outside this setting's reach today, and that is a deliberate bound rather
+than an omission — see
+[`strict-secrets`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-secrets)
+for the two measurements behind it.
 
 #### `markers "record"` block
 

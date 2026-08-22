@@ -372,7 +372,19 @@ func TestRecordBackedSkipIsRedundantWithTheClassSkip(t *testing.T) {
 		}
 
 		scope := countIndexScopeForType(typ, lt, isLogical)
-		switch lt.Class {
+		// The class the count.index question turns on is the one the type
+		// carries when it is admitted at all, which for a SECRET_REFUSED row
+		// is its StoredClass (GitHub issue #365 slice 3). Such a row is
+		// RecordBacked exactly like its non-secret siblings and reaches
+		// resolution under the default setting, so the walk has to be decided
+		// for it by the same boundary rather than fall through to the error
+		// below - which is what "resolution would hold a record for a type
+		// lint refuses" used to be about, and is no longer true of it.
+		class := lt.Class
+		if lt.StoredClass != "" {
+			class = lt.StoredClass
+		}
+		switch class {
 		case ClassRecordAdmitted:
 			if !scope.skip {
 				t.Errorf("countIndexScopeForType(%q) does not skip, but the type is RECORD_ADMITTED: "+
@@ -387,8 +399,9 @@ func TestRecordBackedSkipIsRedundantWithTheClassSkip(t *testing.T) {
 			}
 			walked++
 		default:
-			t.Errorf("identity.DefaultTable marks %q RecordBacked, but lint classifies it %s - "+
-				"resolution would hold a record for a type lint refuses", typ, lt.Class)
+			t.Errorf("identity.DefaultTable marks %q RecordBacked, but lint classifies it %s with no "+
+				"StoredClass - resolution would hold a record for a type lint refuses under every "+
+				"setting", typ, lt.Class)
 		}
 	}
 	if checked == 0 {

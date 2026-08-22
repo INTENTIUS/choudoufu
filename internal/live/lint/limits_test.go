@@ -75,7 +75,11 @@ var enforcedLimits = map[string]Rule{
 	// (valid combinations, defaults written out, an empty scope block);
 	// these three are the refusals, one per rule, in the shape the limits
 	// wing requires - doc entry, fixture, and asserted rule.
-	"policy-verb":      RulePolicyVerb,
+	"policy-verb": RulePolicyVerb,
+	// GitHub issue #365 slice 3. The one shape the secrets toggle refuses:
+	// a spelling outside the vocabulary. See live/LIMITATIONS.md,
+	// "strict-secrets".
+	"strict-secrets":   RuleStrictSecrets,
 	"policy-scope":     RulePolicyScope,
 	"policy-threshold": RulePolicyThreshold,
 	// GitHub issue #365's first strict-profile toggle. The fixture sets

@@ -38,11 +38,14 @@ import (
 // The evidence is the providers' own GetProviderSchema response, which every
 // one of them serves offline from the plugin cache. Two facts come out of it,
 // per attribute of every block of every managed resource type: whether the
-// provider marks it Sensitive, and whether it marks it Deprecated. That is
-// enough to settle the whole set, because "can a persisted record hold this
-// type's whole value" reduces to "does the type handle secret material" once
-// the provider is one whose resources exist only inside the record (see
-// [logicalProviderSource.StoreOnly]).
+// provider marks it Sensitive, and whether it marks it Deprecated. Together
+// they settle whether the record holding a type's whole value would hold
+// SECRET material, which is [identity.TypeIdentity.SecretMaterial]; whether
+// the record can hold that value at all is [recordBackedTypes], and the
+// answer there is yes for every measured type. What a run then does about
+// the first flag is the strict block's secrets setting - GitHub issue #365
+// slice 3, whose default keeps the value the way a stock OpenTofu state file
+// keeps it.
 //
 // -logical-schemas is the acquisition mode and needs a working init binary;
 // -emit reads the artifact it writes and needs nothing but the checkout, the
@@ -110,6 +113,19 @@ type logicalProviderSource struct {
 // from the start so the artifact would be the complete picture of the families
 // lint classifies rather than only the part that produced rows; since #314 it
 // produces rows too, and StoreOnly picks the class instead of gating the row.
+//
+// One stale parenthetical is left standing in hashicorp/tls's evidence below,
+// deliberately: "every one of its types is secret-bearing and so derives no
+// row here regardless" was true until GitHub issue #365 slice 3, which made a
+// secret-bearing type derive a row carrying
+// [identity.TypeIdentity.SecretMaterial] rather than derive none. Correcting
+// it means re-running -logical-schemas, which needs provider binaries, and
+// the string is committed verbatim into live/logical-schemas.json - an
+// artifact this repository regenerates rather than hand-edits. It is inert:
+// StoreOnlyEvidence is rendered onto a row only for a provider whose
+// StoreOnly is false, which hashicorp/tls's is not, so nothing downstream
+// reads it. TestLogicalSchemasArtifactCoversEverySource is what holds the two
+// copies together.
 var logicalProviderSources = []logicalProviderSource{
 	{
 		Type: "random", Source: "hashicorp/random", Version: "3.9.0",
@@ -421,6 +437,17 @@ type logicalClassRow struct {
 	// (EXTERNAL_ADMITTED).
 	Class string
 
+	// StoredClass is the class this type carries under GitHub issue #365's
+	// `strict { secrets = "store" }`, which is the default: the answer
+	// StoreOnly gives on its own, before sensitivity is consulted.
+	//
+	// Set only for a SECRET_REFUSED row, and empty for every other, where
+	// [Class] already is that answer. A row carrying both is one rule read
+	// under two settings - the same shape the [Class] field's own doc
+	// comment describes for the two facts that choose it, one setting
+	// further out.
+	StoredClass string
+
 	// Prefix is the family prefix, empty for the built-in provider.
 	Prefix string
 
@@ -555,21 +582,38 @@ func logicalClassRows(art logicalSchemas) ([]logicalClassRow, error) {
 						"types do not share one cannot be reduced to a family",
 					p.Source, t.Type, prefix)
 			}
-			class := logicalClassRecordAdmitted
+			// The class the provider's own StoreOnly settles, before
+			// sensitivity is consulted at all. It is what the type IS: the
+			// record is the whole of the resource, or the record holds its
+			// prior state while an argument names something outside it.
+			stored := logicalClassRecordAdmitted
 			external := ""
-			switch {
-			case len(liveSensitiveAttrs(t)) > 0:
-				class = logicalClassSecretRefused
-			case !p.StoreOnly:
-				class = logicalClassExternalAdmitted
+			if !p.StoreOnly {
+				stored = logicalClassExternalAdmitted
 				external = p.StoreOnlyEvidence
 			}
+			// Sensitivity then decides which of the two columns that answer
+			// goes in. A live sensitive attribute means the record would
+			// hold secret material, which is refused unless the operator
+			// asked for it - GitHub issue #365's secrets setting - so the
+			// class becomes SECRET_REFUSED and the answer above is carried
+			// alongside as the class that applies under `secrets = "store"`.
+			//
+			// Keeping BOTH is what lets one rule serve two settings without
+			// being written down twice. StoredClass is empty for a type with
+			// no live sensitive attribute, where Class already is the
+			// answer.
+			class, storedClass := stored, ""
+			if len(liveSensitiveAttrs(t)) > 0 {
+				class, storedClass = logicalClassSecretRefused, stored
+			}
 			out = append(out, logicalClassRow{
-				Type:     t.Type,
-				Class:    class,
-				Prefix:   prefix,
-				Evidence: logicalEvidence(p, t),
-				External: external,
+				Type:        t.Type,
+				Class:       class,
+				StoredClass: storedClass,
+				Prefix:      prefix,
+				Evidence:    logicalEvidence(p, t),
+				External:    external,
 			})
 		}
 	}
@@ -596,8 +640,22 @@ func logicalFamilyPrefixesOf(art logicalSchemas) []string {
 	return out
 }
 
-// recordBackedTypes is the derivation: every measured resource type with no
-// live sensitive attribute anywhere in its schema, sorted.
+// recordBackedTypes is the derivation: every measured resource type, sorted.
+//
+// It used to subtract the types carrying a live sensitive attribute, and
+// GitHub issue #365 slice 3 is why it no longer does. The subtraction
+// answered the wrong question. [TypeIdentity.RecordBacked] asks whether a
+// type's prior state comes out of the record store rather than out of a
+// cloud read, and for a secret-generating logical type the answer was always
+// yes - the record is the only place it could come from, exactly as for its
+// non-secret siblings. What the sensitive attribute settles is whether that
+// record may be WRITTEN, which is an operator's choice with a default rather
+// than a fact about the mechanism, and it is now carried on the same row by
+// [secretMaterialTypes] as [TypeIdentity.SecretMaterial].
+//
+// The visible consequence is that this function's output grew by the seven
+// types the subtraction removed. None of them resolves any differently under
+// `strict { secrets = "refuse" }` than it did before that setting existed.
 //
 // StoreOnly is deliberately not consulted here, and that is the one thing
 // worth reading twice. [TypeIdentity.RecordBacked] answers "does this type's
@@ -611,9 +669,10 @@ func logicalFamilyPrefixesOf(art logicalSchemas) []string {
 //
 // The rule is the one internal/live/lint's own classification already argues
 // from, in its rows' Evidence strings, spelled mechanically: a live sensitive
-// attribute anywhere in the schema means the type handles material a record
-// may not carry (live/RECEIPTS.md's no-secrets rule), and none means the
-// record can hold the type's whole value. lint's tls_self_signed_cert row
+// attribute anywhere in the schema means the record holding this type's whole
+// value would hold secret material, and none means it would not. Which of the
+// two flags a row carries is what that settles; whether the record is written
+// is the operator's secrets setting. lint's tls_self_signed_cert row
 // makes the "anywhere" reading explicit by refusing a type whose own cert_pem
 // output is not secret, on the strength of a sensitive private_key_pem
 // *argument*.
@@ -626,7 +685,36 @@ func recordBackedTypes(art logicalSchemas) []string {
 	var out []string
 	for _, p := range art.Providers {
 		for _, t := range p.Types {
-			if len(liveSensitiveAttrs(t)) > 0 {
+			out = append(out, t.Type)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// secretMaterialTypes is the other half of the same measurement: every
+// measured resource type that DOES carry a live sensitive attribute, sorted.
+//
+// It is a subset of [recordBackedTypes] by construction, which is the whole
+// point of splitting the rule this way. Until GitHub issue #365 slice 3
+// these types were simply absent from the record-backed set, which said the
+// record COULD NOT hold their prior state - and that was never the finding.
+// The finding was that the record would hold secret material, which is a
+// question about what the operator asked for and not about what the
+// mechanism can do: a stock state file holds random_password.result in
+// clear, so refusing it made a configuration stock runs unrunnable here.
+//
+// So the derivation now emits both flags off one predicate, and
+// [identity.TypeIdentity.SecretMaterial] is what internal/live/lint and
+// internal/live/identity gate on. Nothing here decides the gate; this
+// function only says which rows carry the fact.
+//
+// It names no resource type, for [recordBackedTypes]' reason.
+func secretMaterialTypes(art logicalSchemas) []string {
+	var out []string
+	for _, p := range art.Providers {
+		for _, t := range p.Types {
+			if len(liveSensitiveAttrs(t)) == 0 {
 				continue
 			}
 			out = append(out, t.Type)

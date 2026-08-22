@@ -130,6 +130,11 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 		// file leg below, and proving it round-trips through the conversion
 		// pair is the strongest statement available about it.
 		RecordBacked: true,
+		// SecretMaterial travels with it, for the same reason and under the
+		// same refusal: the two are one predicate over one artifact
+		// (tools/row-gen's recordBackedTypes and secretMaterialTypes), and
+		// loadRatified refuses a stored row setting either.
+		SecretMaterial: true,
 		// NonAWSProvider, unlike RecordBacked and UniqueName just below,
 		// IS a ratified fact - it travels through both legs, the same as
 		// ServerAssigned or Reason - so it stays set in viaFile too.
@@ -169,10 +174,11 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 		t.Errorf("toRatified/fromRatified changed a row in which every field is set\n got: %#v\nwant: %#v", got, full)
 	}
 
-	// Leg two: the file. Same row minus the two derived fields, which the
+	// Leg two: the file. Same row minus the three derived fields, which the
 	// ledger refuses.
 	viaFile := full
 	viaFile.RecordBacked = false
+	viaFile.SecretMaterial = false
 	viaFile.UniqueName = identity.UniqueName{}
 
 	cases := map[string]identity.TypeIdentity{
@@ -352,7 +358,7 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	ratified := loadRatifiedForTest(t)
-	recordBacked, err := recordBackedRows(ratified, loadLogicalSchemasForTest(t))
+	recordBacked, secretMaterial, err := recordBackedRows(ratified, loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("recordBackedRows: %v", err)
 	}
@@ -363,7 +369,7 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, loadSchemaFactsForTest(t)))
 	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch))
 
-	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, vetoed)
+	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)
 	if err != nil {
 		t.Fatalf("renderIdentityFile: %v", err)
@@ -402,12 +408,12 @@ func TestRatifiedJSONIsCanonical(t *testing.T) {
 	}
 }
 
-// TestRatifiedLoaderRefusesTheTwoWaysAFileCanLie is the loader's non-vacuity
+// TestRatifiedLoaderRefusesTheWaysAFileCanLie is the loader's non-vacuity
 // control. Both refusals are about a wrong marker rather than a missing one: a
 // row filed under the wrong key would render another type's identity under
 // this type's name, and a RecordBacked row here would put a derived row in a
 // ratification ledger where a later edit could contradict its derivation.
-func TestRatifiedLoaderRefusesTheTwoWaysAFileCanLie(t *testing.T) {
+func TestRatifiedLoaderRefusesTheWaysAFileCanLie(t *testing.T) {
 	for _, tc := range []struct {
 		name, body, want string
 	}{
@@ -419,6 +425,17 @@ func TestRatifiedLoaderRefusesTheTwoWaysAFileCanLie(t *testing.T) {
 		{
 			name: "record-backed row",
 			body: `{"aws_a": {"type": "aws_a", "record_backed": true}}`,
+			want: "never ratified",
+		},
+		{
+			// GitHub issue #365 slice 3. Checked separately from
+			// "record-backed row" rather than folded into it, because the
+			// refusal is separate for a reason: a hand edit that set only
+			// this flag - on an ordinary, non-record row, where it would
+			// mean nothing and gate nothing - has to be refused too rather
+			// than stored and ignored.
+			name: "secret-material row",
+			body: `{"aws_a": {"type": "aws_a", "secret_material": true}}`,
 			want: "never ratified",
 		},
 		{

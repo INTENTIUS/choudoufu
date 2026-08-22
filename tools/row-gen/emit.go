@@ -218,7 +218,7 @@ var emitFileOrder = []string{identityTableRel, lintTableRel, logicalTableRel, ma
 // generator writes. Everything below derives from it rather than from
 // [identity.DefaultTable]; see this file's own doc comment and issue #263.
 func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []proposal, annotations map[string]annotation, grammar map[string]importGrammarRow, survey map[string]surveyEntry, logical logicalSchemas, schemaFacts map[string]schemaFactEntry) (files map[string][]byte, identityPart, lintPart emitPartition, err error) {
-	recordBacked, err := recordBackedRows(ratified, logical)
+	recordBacked, secretMaterial, err := recordBackedRows(ratified, logical)
 	if err != nil {
 		return nil, emitPartition{}, emitPartition{}, err
 	}
@@ -237,7 +237,7 @@ func buildEmitFiles(ratified map[string]identity.TypeIdentity, proposals []propo
 	// two are still rendered into their own separate generated rosters below
 	// so each keeps its own reason. A type can be in both; setOf collapses
 	// the duplicate harmlessly.
-	rows, types := emittedRows(ratified, recordBacked, uniqueName, grammar, survey, setOf(append(append([]string(nil), vetoed...), notImportable...)))
+	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, setOf(append(append([]string(nil), vetoed...), notImportable...)))
 
 	// The convergence comparison runs over the rows about to be written, not
 	// over the ones last written: a row that is ratified but not yet in the
@@ -395,16 +395,29 @@ func setOf(types []string) map[string]bool {
 // type that resolves today and would stop. That question is about what
 // SHIPS, so it stays on [identity.DefaultTable] - and it has to, because
 // ratified.json holds no record-backed row to compare against.
-func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logicalSchemas) (map[string]bool, error) {
+func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logicalSchemas) (backed, secret map[string]bool, err error) {
 	derived := recordBackedTypes(logical)
-	backed := make(map[string]bool, len(derived))
+	backed = make(map[string]bool, len(derived))
 	for _, t := range derived {
 		if _, ok := ratified[t]; ok {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"row-gen -emit: %s derives RecordBacked from %s, but %s already ratifies it as an ordinary row - two evidence sources are claiming one type",
 				t, logicalSchemasJSONRel, ratifiedJSONRel)
 		}
 		backed[t] = true
+	}
+	// The second flag off the same artifact and the same predicate, so the
+	// two can never name inconsistent sets: which of the record-backed rows
+	// holds secret material. See [secretMaterialTypes] and
+	// [identity.TypeIdentity.SecretMaterial].
+	secret = map[string]bool{}
+	for _, t := range secretMaterialTypes(logical) {
+		if !backed[t] {
+			return nil, nil, fmt.Errorf(
+				"row-gen -emit: %s derives SecretMaterial from %s but not RecordBacked, which cannot be - the two read one predicate over one artifact",
+				t, logicalSchemasJSONRel)
+		}
+		secret[t] = true
 	}
 	var dropped []string
 	for _, t := range identity.AdmittedTypes() {
@@ -413,11 +426,11 @@ func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logical
 		}
 	}
 	if len(dropped) > 0 {
-		return nil, fmt.Errorf(
+		return nil, nil, fmt.Errorf(
 			"row-gen -emit: %d RecordBacked row(s) in %s are not reproduced by the derivation over %s, so emitting would remove them from the admission table - re-run -logical-schemas, or fix the rule:\n  %s",
 			len(dropped), identityTableRel, logicalSchemasJSONRel, strings.Join(dropped, "\n  "))
 	}
-	return backed, nil
+	return backed, secret, nil
 }
 
 // emittedRows builds every row the identity table will carry, and the sorted
@@ -457,7 +470,7 @@ func recordBackedRows(ratified map[string]identity.TypeIdentity, logical logical
 // no generator writes. It used to be [identity.DefaultTable], this
 // generator's own previous output, which is the whole of issue #263. See
 // ratified.go.
-func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[string]bool, uniqueName map[string]identity.TypeIdentity, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
+func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked, secretMaterial map[string]bool, uniqueName map[string]identity.TypeIdentity, grammar map[string]importGrammarRow, survey map[string]surveyEntry, vetoed map[string]bool) (map[string]identity.TypeIdentity, []string) {
 	rows := make(map[string]identity.TypeIdentity, len(ratified)+len(recordBacked)+len(uniqueName))
 	for _, t := range sortedRatifiedKeys(ratified) {
 		if ratified[t].RecordBacked {
@@ -469,7 +482,7 @@ func emittedRows(ratified map[string]identity.TypeIdentity, recordBacked map[str
 		rows[t] = mergeIdentityAttrs(mergeCloudDefault(mergeServerAssigned(ratified[t], grammar[t]), grammar[t]), survey[t])
 	}
 	for t := range recordBacked {
-		rows[t] = identity.TypeIdentity{Type: t, RecordBacked: true}
+		rows[t] = identity.TypeIdentity{Type: t, RecordBacked: true, SecretMaterial: secretMaterial[t]}
 	}
 	// The unique-name rows are derived whole, like the RecordBacked ones and
 	// for the same reason: nothing about one is ratified. uniqueNameRows
@@ -773,8 +786,16 @@ func renderLogicalTypeFile(rows []logicalClassRow, prefixes []string) ([]byte, e
 		if r.External != "" {
 			external = fmt.Sprintf(", External: %q", r.External)
 		}
-		fmt.Fprintf(&b, "%q: {Type: %q, Class: %s, Prefix: %q, Evidence: %q%s},\n",
-			r.Type, r.Type, r.Class, r.Prefix, r.Evidence, external)
+		// StoredClass on the same footing, and set only for a
+		// SECRET_REFUSED row - see [logicalClassRow.StoredClass]. Spelling
+		// it onto every row would put a field on fifteen of them whose
+		// value is already Class.
+		stored := ""
+		if r.StoredClass != "" {
+			stored = fmt.Sprintf(", StoredClass: %s", r.StoredClass)
+		}
+		fmt.Fprintf(&b, "%q: {Type: %q, Class: %s%s, Prefix: %q, Evidence: %q%s},\n",
+			r.Type, r.Type, r.Class, stored, r.Prefix, r.Evidence, external)
 	}
 	b.WriteString("}\n")
 	return format.Source([]byte(b.String()))
@@ -808,9 +829,13 @@ const logicalFamilyPrefixesDoc = `// logicalFamilyPrefixes are the provider-loca
 const logicalTypesDoc = `// logicalTypes is the per-type classification table, derived from
 // live/logical-schemas.json: every managed resource type of every measured
 // provider, classified by the rule that a live (non-deprecated) sensitive
-// attribute anywhere in the type's schema means it handles material
-// live/RECEIPTS.md's no-secrets rule forbids a record from carrying, and none
-// means the record can hold the type's whole prior state.
+// attribute anywhere in the type's schema means the record holding its whole
+// prior state would hold secret material, and none means it would not.
+//
+// That is a measurement and not a verdict. What a run DOES about it is the
+// strict block's secrets setting (GitHub issue #365 slice 3), whose default
+// keeps the value the way a stock OpenTofu state file keeps it; see
+// [ClassSecretRefused], [LogicalType.StoredClass] and [admitsUnder].
 //
 // It is the same rule, over the same artifact, that derives
 // [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's admitted

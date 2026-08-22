@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -214,6 +215,38 @@ func TestCheck(t *testing.T) {
 					construct: `strict.marker_repair = "sometimes"`,
 					file:      "testdata/strict-invalid-setting/main.tf",
 					line:      9,
+				},
+			},
+		},
+		{
+			// GitHub issue #365 slice 3. The default written out by hand,
+			// under #101's lesson again: this one is worth its own case
+			// rather than folding into strict-default-written-out, because
+			// the DEFAULT reversed with this slice and a fixture that names
+			// the spelling is what makes the reversal visible in a diff.
+			name: "strict secrets, the default written out explicitly",
+			dir:  "testdata/strict-secrets-store",
+			want: nil,
+		},
+		{
+			// The principle turned on. Clean at this layer: it is a valid,
+			// implemented setting, and what it refuses is resources rather
+			// than configurations.
+			name: "strict secrets, the principle turned on",
+			dir:  "testdata/strict-secrets-refuse",
+			want: nil,
+		},
+		{
+			// A setting outside the vocabulary altogether. The only shape
+			// RuleStrictSecrets has - both defined settings are implemented.
+			name: "strict secrets outside the vocabulary",
+			dir:  "testdata/strict-secrets-invalid",
+			want: []wantIssue{
+				{
+					rule:      RuleStrictSecrets,
+					construct: `strict.secrets = "none"`,
+					file:      "testdata/strict-secrets-invalid/main.tf",
+					line:      10,
 				},
 			},
 		},
@@ -991,8 +1024,26 @@ func TestLogicalTypesTableWellFormed(t *testing.T) {
 		if lt.Type != key {
 			t.Errorf("logicalTypes[%q].Type = %q, want %q", key, lt.Type, key)
 		}
-		switch lt.Class {
-		case ClassRecordAdmitted, ClassSecretRefused:
+		// External belongs to the class that decides what the record BOUNDS,
+		// which since GitHub issue #365 slice 3 is StoredClass on a
+		// SECRET_REFUSED row. local_sensitive_file is the case where both
+		// facts are true at once: a hashicorp/local type, so the record does
+		// not bound what it affects, and its own schema is sensitive.
+		effective := lt.Class
+		if lt.StoredClass != "" {
+			effective = lt.StoredClass
+			if !recordStoreAdmits(lt.StoredClass) {
+				t.Errorf("logicalTypes[%q] carries StoredClass %s, which is not a class a record_store "+
+					"admits; the field exists to say which admitted class applies under "+
+					`secrets = "store"`, key, lt.StoredClass)
+			}
+			if lt.Class != ClassSecretRefused {
+				t.Errorf("logicalTypes[%q] is %s and carries a StoredClass; only a SECRET_REFUSED row "+
+					"has a second answer to give", key, lt.Class)
+			}
+		}
+		switch effective {
+		case ClassRecordAdmitted:
 			if lt.Evidence == "" {
 				t.Errorf("logicalTypes[%q] (%s) has no Evidence", key, lt.Class)
 			}
@@ -1042,7 +1093,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		if !ok || lt.Class != ClassRecordAdmitted {
 			t.Fatalf("null_resource classified %+v, ok=%v; want ClassRecordAdmitted", lt, ok)
 		}
-		detail := logicalResourceDetail("null_resource", lt)
+		detail := logicalResourceDetail("null_resource", lt, strict.DefaultSecrets, false)
 		for _, want := range []string{"RECORD_ADMITTED", "#73", lt.Evidence} {
 			if !strings.Contains(detail, want) {
 				t.Errorf("RECORD_ADMITTED Detail = %q, want it to contain %q", detail, want)
@@ -1062,7 +1113,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		if !ok || lt.Class != ClassRecordAdmitted {
 			t.Fatalf("null_resource classified %+v, ok=%v; want ClassRecordAdmitted", lt, ok)
 		}
-		detail := logicalResourceDetail("null_resource", lt)
+		detail := logicalResourceDetail("null_resource", lt, strict.DefaultSecrets, false)
 
 		for _, want := range []string{"record_store", "live block", `record_store "ssm" {}`} {
 			if !strings.Contains(detail, want) {
@@ -1085,15 +1136,62 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		}
 	})
 
-	t.Run("SECRET_REFUSED names the class and the no-secrets rule", func(t *testing.T) {
+	// SECRET_REFUSED has three readers since GitHub issue #365 slice 3 and
+	// each gets its own next step. The class's message used to say the type
+	// "stays refused permanently", which stopped being true when the refusal
+	// became a setting with a default - so what these three assert is that
+	// the message names the reason the reader is actually looking at.
+	t.Run("SECRET_REFUSED under secrets=refuse names the setting, not a permanent property", func(t *testing.T) {
 		lt, ok := ClassifyLogicalType("random_password")
 		if !ok || lt.Class != ClassSecretRefused {
 			t.Fatalf("random_password classified %+v, ok=%v; want ClassSecretRefused", lt, ok)
 		}
-		detail := logicalResourceDetail("random_password", lt)
-		for _, want := range []string{"SECRET_REFUSED", "secret manager", lt.Evidence} {
+		// The constant's own value too, for recordStoreSupportExists'
+		// stated reason: a substring check against a constant is circular
+		// unless something says what the constant must still say.
+		if secretMaterialRemedy != `strict { secrets = "store" }` {
+			t.Errorf("secretMaterialRemedy = %q; if you are rewording it, make sure the new wording still names the "+
+				"setting an operator would change, rather than describing a permanent property of the type",
+				secretMaterialRemedy)
+		}
+		detail := logicalResourceDetail("random_password", lt, strict.Refuse, true)
+		for _, want := range []string{"SECRET_REFUSED", "secret manager", lt.Evidence, `secrets = "refuse"`, secretMaterialRemedy} {
 			if !strings.Contains(detail, want) {
-				t.Errorf("SECRET_REFUSED Detail = %q, want it to contain %q", detail, want)
+				t.Errorf("SECRET_REFUSED Detail under secrets=refuse = %q, want it to contain %q", detail, want)
+			}
+		}
+	})
+
+	t.Run("SECRET_REFUSED under secrets=store with no record_store names the store", func(t *testing.T) {
+		lt, _ := ClassifyLogicalType("random_password")
+		detail := logicalResourceDetail("random_password", lt, strict.Store, false)
+		for _, want := range []string{"SECRET_REFUSED", lt.Evidence, "record_store", `record_store "ssm" {}`, recordStoreSupportExists} {
+			if !strings.Contains(detail, want) {
+				t.Errorf("SECRET_REFUSED Detail under secrets=store = %q, want it to contain %q", detail, want)
+			}
+		}
+		// And it still says what the store would then hold, because that is
+		// the trade the operator is about to make and nothing else in the
+		// message says so.
+		if !strings.Contains(detail, "in clear") {
+			t.Errorf("SECRET_REFUSED Detail under secrets=store does not say what the record would hold; got %q", detail)
+		}
+	})
+
+	t.Run("a family-default SECRET_REFUSED type says no setting reaches it", func(t *testing.T) {
+		// The tls_ prefix default: a type released since the last
+		// -logical-schemas run, with no StoredClass because nothing has
+		// measured it. "Anything uncertain goes REFUSED" is a rule about
+		// measurement, and the secrets setting must not be described as a
+		// remedy for it.
+		lt, ok := ClassifyLogicalType("tls_hypothetical_new_type")
+		if !ok || lt.Class != ClassSecretRefused || lt.StoredClass != "" {
+			t.Fatalf("tls_hypothetical_new_type classified %+v, ok=%v; want ClassSecretRefused with no StoredClass", lt, ok)
+		}
+		for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+			detail := logicalResourceDetail("tls_hypothetical_new_type", lt, secrets, true)
+			if !strings.Contains(detail, "does not reach it") {
+				t.Errorf("family-default Detail under secrets=%s does not say the setting cannot admit it; got %q", secrets, detail)
 			}
 		}
 	})
@@ -1103,7 +1201,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		if !ok || lt.Class != ClassExternalAdmitted {
 			t.Fatalf("local_file classified %+v, ok=%v; want ClassExternalAdmitted", lt, ok)
 		}
-		detail := logicalResourceDetail("local_file", lt)
+		detail := logicalResourceDetail("local_file", lt, strict.DefaultSecrets, false)
 		for _, want := range []string{
 			"EXTERNAL_ADMITTED", "#73", lt.Evidence, lt.External,
 			"record_store", `record_store "ssm" {}`, recordStoreSupportExists,
@@ -1133,7 +1231,7 @@ func TestLogicalResourceDetailsRenderByClass(t *testing.T) {
 		if !ok || lt.Class != ClassOtherRefused {
 			t.Fatalf("local_hypothetical_new_type classified %+v, ok=%v; want ClassOtherRefused", lt, ok)
 		}
-		got := logicalResourceDetail("local_hypothetical_new_type", lt)
+		got := logicalResourceDetail("local_hypothetical_new_type", lt, strict.DefaultSecrets, false)
 		want := `"local_hypothetical_new_type" is a logical resource (local_*): it has no existence outside the record ` +
 			"that OpenTofu keeps of it, so that record is the store live resource " +
 			"markers remove. Nothing can recover its value from the live system, because " +
@@ -1159,6 +1257,9 @@ terraform {
     estate = "test-estate"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      secrets = "refuse"
     }
   }
 }
@@ -1213,8 +1314,11 @@ resource "random_password" "secret" {
 // The four are checked together with null_resource rather than alone, so a
 // regression that broke the whole branch and one that dropped only the
 // derived types are distinguishable in the output. random_password stays in
-// as the negative control: the store flips RECORD_ADMITTED and never the
-// no-secrets rule.
+// as the control for the OTHER gate, which since GitHub issue #365 slice 3
+// is the secrets setting rather than a permanent rule: this fixture writes
+// `secrets = "refuse"` so that the control still controls something.
+// [TestSecretsStoreAdmitsASecretGeneratingType] is the same fixture under
+// the default and is where the reversal is asserted.
 func TestRecordStoreAdmitsTheDerivedRandomTypes(t *testing.T) {
 	const src = `
 terraform {
@@ -1222,6 +1326,9 @@ terraform {
     estate = "test-estate"
     record_store "local" {
       path = ".tofu-records"
+    }
+    strict {
+      secrets = "refuse"
     }
   }
 }
@@ -1281,6 +1388,110 @@ resource "random_password" "secret" {
 	if !strings.Contains(secret[0].Detail, "SECRET_REFUSED") {
 		t.Errorf("random_password.secret's Detail = %q, want it to still say SECRET_REFUSED", secret[0].Detail)
 	}
+	if !strings.Contains(secret[0].Detail, `secrets = "refuse"`) {
+		t.Errorf("random_password.secret's Detail does not name the setting that produced the refusal; got %q", secret[0].Detail)
+	}
+}
+
+// TestSecretsStoreAdmitsASecretGeneratingType is GitHub issue #365 slice 3's
+// first population at the layer that decides it, and it is deliberately the
+// same configuration [TestRecordStoreAdmitsTheDerivedRandomTypes] uses with
+// the one argument removed.
+//
+// The reversal it pins is the whole slice. Before it, a configuration with a
+// record_store declared and one random_password in it could not run here at
+// all, and stock OpenTofu ran it without a word - HANDOFF.md's first
+// difference row, "choudoufu refuses where stock proceeds: a defect; fix
+// it". After it, the default admits the type and the record holds the value
+// the way a stock state file holds it, and the refusal is a setting an
+// operator turns on.
+//
+// Every issue is read, not only RuleLogicalResource: a type that stops being
+// refused as a logical resource and starts being refused as an unadmitted
+// one has not been admitted, which is the exact failure the identity row had
+// to grow to prevent.
+func TestSecretsStoreAdmitsASecretGeneratingType(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+resource "random_password" "secret" {
+  length = 16
+}
+
+resource "tls_private_key" "signing" {
+  algorithm = "RSA"
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	byConstruct := map[string][]Issue{}
+	for _, issue := range CheckContext(t.Context(), loadConfigDir(t, dir)) {
+		byConstruct[issue.Construct] = append(byConstruct[issue.Construct], issue)
+	}
+	for _, addr := range []string{"random_password.secret", "tls_private_key.signing"} {
+		if got := byConstruct[addr]; len(got) != 0 {
+			t.Errorf("%s is refused under the default secrets setting; got %d issue(s): %v.\n"+
+				"HANDOFF.md's default is \"secrets the configuration generates are stored there the way stock "+
+				"stores them\", and stock puts this value in its state file without comment.", addr, len(got), got)
+		}
+	}
+}
+
+// TestSecretsSettingDoesNotReachANonSecretType is the boundary on the other
+// side: the secrets setting is about secret material and is not a general
+// strictness dial. A RECORD_ADMITTED type generates none, so `refuse` must
+// leave it exactly where `store` does.
+//
+// Getting this wrong would be the easy over-read of the toggle's name, and
+// it would take null_resource, terraform_data and the whole non-secret
+// random_/time_ population out of every strict estate.
+func TestSecretsSettingDoesNotReachANonSecretType(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+    strict {
+      secrets = "refuse"
+    }
+  }
+}
+
+resource "null_resource" "trigger" {}
+
+resource "local_file" "rendered" {
+  filename = "out.txt"
+  content  = "hello"
+}
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+
+	byConstruct := map[string][]Issue{}
+	for _, issue := range CheckContext(t.Context(), loadConfigDir(t, dir)) {
+		byConstruct[issue.Construct] = append(byConstruct[issue.Construct], issue)
+	}
+	for _, addr := range []string{"null_resource.trigger", "local_file.rendered"} {
+		if got := byConstruct[addr]; len(got) != 0 {
+			t.Errorf(`%s is refused under secrets = "refuse", but its schema carries no sensitive attribute at `+
+				`all - the setting is about secret material, not about strictness in general; got %d issue(s): %v`,
+				addr, len(got), got)
+		}
+	}
 }
 
 // TestRecordStoreAbsentLeavesRefusalUnchanged pins the other half: without a
@@ -1319,7 +1530,7 @@ resource "null_resource" "trigger" {
 	if !ok {
 		t.Fatal("null_resource did not classify as a logical type")
 	}
-	want := logicalResourceDetail("null_resource", lt)
+	want := logicalResourceDetail("null_resource", lt, strict.DefaultSecrets, false)
 	if logicalIssues[0].Detail != want {
 		t.Errorf("Detail =\n%q\nwant\n%q", logicalIssues[0].Detail, want)
 	}

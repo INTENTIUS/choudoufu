@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=550 instances=1614
+# shape: dirs=554 instances=1617
 # shape: class CONCRETE=793
 # shape: class NEEDS_DISCOVERY=684
 # shape: class PARENT_DERIVED=116
-# shape: class RECORD_BACKED=21
-# shape: body-sha256=a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee
+# shape: class RECORD_BACKED=24
+# shape: body-sha256=df0bd8c29d6bb94b84a497bb900a6cff58da2b1f424aa94f0265b57798eefc3e
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -674,6 +674,7 @@ internal/live/lint/testdata/logical	local_file.rendered	RECORD_BACKED
 internal/live/lint/testdata/logical	null_resource.trigger	RECORD_BACKED		
 internal/live/lint/testdata/logical	random_pet.name	RECORD_BACKED		
 internal/live/lint/testdata/logical	time_sleep.wait	RECORD_BACKED		
+internal/live/lint/testdata/logical	tls_private_key.signing	RECORD_BACKED		
 internal/live/lint/testdata/module-provider-aliased	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/module-provider-aliased	module.compute.aws_s3_bucket.data	CONCRETE	module-provider-aliased-child	bucket=module-provider-aliased-child
 internal/live/lint/testdata/module-provider-aliased/child	aws_s3_bucket.data	CONCRETE	module-provider-aliased-child	bucket=module-provider-aliased-child
@@ -1593,6 +1594,7 @@ live/e2e/limits/ignore-changes	aws_s3_bucket.one_foreign_key	CONCRETE	estate-one
 live/e2e/limits/ignore-changes	aws_s3_bucket.whole_tags	CONCRETE	estate-whole-tags	bucket=estate-whole-tags
 live/e2e/limits/local-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-local-exec	bucket=tofu-stateless-limits-local-exec
 live/e2e/limits/local-file	local_file.rendered	RECORD_BACKED		
+live/e2e/limits/local-sensitive-file	local_sensitive_file.rendered	RECORD_BACKED		
 live/e2e/limits/module-provider-block	module.compute.aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-provider-block/child	aws_s3_bucket.data	CONCRETE	estate-module-provider-block	bucket=estate-module-provider-block
 live/e2e/limits/module-providers	module.aliased.aws_s3_bucket.data	CONCRETE	estate-module-providers-aliased	bucket=estate-module-providers-aliased
@@ -1604,6 +1606,7 @@ live/e2e/limits/moved-block	aws_s3_bucket.new	CONCRETE	tofu-stateless-limits-mov
 live/e2e/limits/moved-block	aws_s3_bucket.old	CONCRETE	tofu-stateless-limits-moved-old	bucket=tofu-stateless-limits-moved-old
 live/e2e/limits/null-resource	null_resource.trigger	RECORD_BACKED		
 live/e2e/limits/overlong-address	aws_s3_bucket.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	CONCRETE	tofu-stateless-limits-overlong-address	bucket=tofu-stateless-limits-overlong-address
+live/e2e/limits/random-password	random_password.db	RECORD_BACKED		
 live/e2e/limits/remote-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-remote-exec	bucket=tofu-stateless-limits-remote-exec
 live/e2e/limits/terraform-data	terraform_data.trigger	RECORD_BACKED		
 live/e2e/limits/time-sleep	time_sleep.wait	RECORD_BACKED		

@@ -700,6 +700,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		scope:       rctx.Scope,
 		recordStore: recordStoreConfiguredIn(cfg),
 		selection:   SelectionFor(cfg),
+		secrets:     SecretsFor(cfg),
 		dataIndex:   dataIndex,
 		// Measured on the index rather than on len(rctx.ManagedResults) so
 		// that an entry the index could not use - already reported as a
@@ -808,6 +809,20 @@ type resolver struct {
 	// resource stamp declines to mark while this resolver classifies it
 	// needs-discovery is created unfindable.
 	selection *strict.Selection
+
+	// secrets is the root module's `strict { secrets = ... }` setting,
+	// GitHub issue #365's first principle turned into a toggle. Read from
+	// the configuration here for [resolver.recordStore]'s reason and through
+	// the same function internal/live/lint and internal/live/projection read
+	// it with (see [SecretsFor]); an omitted argument, an absent strict block
+	// and an absent live block all resolve to [strict.DefaultSecrets].
+	//
+	// It reaches exactly one decision in this package - a
+	// [TypeIdentity.SecretMaterial] row's classification - and that decision
+	// is a refusal rather than a different identity. Nothing here resolves
+	// to a DIFFERENT object under one setting than under the other, which is
+	// what keeps it out of the safety rule's way.
+	secrets strict.Secrets
 
 	// dataIndex is [Context.DataResults] regrouped per module instance and
 	// resource, and nil when the caller passed none. See
@@ -1161,6 +1176,30 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 
 	if entry.RecordBacked {
+		// The one thing this class's record can hold that an operator may
+		// have said no to: secret material (GitHub issue #365).
+		// internal/live/lint has already refused such a configuration with
+		// the setting named, so this is the same question asked again at the
+		// layer that acts - the shape [SelectedLocatedType] already has, and
+		// here for the stronger reason. Every other gate in this file
+		// protects an IDENTITY; this one protects a value that would be
+		// written into the estate's record store in clear, and a caller that
+		// skipped lint must not be able to reach that by skipping lint.
+		//
+		// It is an error rather than a fall-through because there is nothing
+		// to fall through to: this type has no cloud identity at any rung,
+		// so the honest answer is the refusal, with the setting named.
+		if entry.SecretMaterial && !strict.StoresSecrets(r.secrets) {
+			r.errorf(rng, "Secret-generating resource refused",
+				"%s is a %q, whose whole prior state lives in this estate's record store - and whose schema carries "+
+					"secret material, so that record would hold the secret in clear. This estate's live block sets "+
+					"strict { secrets = %q }, which is HANDOFF.md's \"no secrets stored by the tool\" principle, so it "+
+					"is refused instead. Remove that argument to get the default, %q, which keeps the value the way a "+
+					"stock OpenTofu state file keeps it; or generate and store the secret in a secret manager and have "+
+					"configuration reference it by ARN or path. See live/LIMITATIONS.md, \"strict-secrets\".",
+				addr.String(), resAddr.Type, r.secrets, strict.DefaultSecrets)
+			return Resolution{}, false
+		}
 		// No cloud identity to build, ever - the whole point of this class.
 		// See [ClassRecordBacked] and [TypeIdentity.RecordBacked]. A
 		// resolution this shallow is safe here only because a

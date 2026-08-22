@@ -115,21 +115,82 @@ resource "aws_ssm_parameter" "secret" {
 	}
 }
 
+// TestResidueAttributesWarnsOnSensitiveSettable is the sensitive half of the
+// warning, and since GitHub issue #365 slice 3 it fires only under the
+// setting that makes its claim true.
+//
+// The claim is "no memory of the value survives a run, so every stateless
+// plan will propose sending it again". Under `strict { secrets = "store" }`,
+// the default, that is simply false: internal/live/projection's residue
+// mechanism records a sensitive settable argument exactly as it records an
+// ordinary one, so a warning here would train an author to ignore the one
+// case (write-only) where the claim is still unconditional.
 func TestResidueAttributesWarnsOnSensitiveSettable(t *testing.T) {
-	diags := residueDiags(t, `
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {}
+    strict {
+      secrets = "refuse"
+    }
+  }
+}
+
 resource "aws_db_instance" "db" {
   identifier = "app-db"
   password   = "placeholder"
 }
-`)
+`
+	diags := residueDiags(t, src)
 	if len(diags) != 1 {
-		t.Fatalf("expected exactly 1 warning, got %d: %v", len(diags), diags)
+		t.Fatalf("expected exactly 1 warning under secrets=refuse, got %d: %v", len(diags), diags)
 	}
 	desc := diags[0].Description()
-	for _, substr := range []string{"aws_db_instance.db", `"password"`, "sensitive", "no-secrets"} {
+	for _, substr := range []string{"aws_db_instance.db", `"password"`, "sensitive", `secrets = "refuse"`} {
 		if !strings.Contains(desc.Detail, substr) {
 			t.Errorf("detail = %q, want it to contain %q", desc.Detail, substr)
 		}
+	}
+}
+
+// TestResidueAttributesIsSilentOnASensitiveSettableUnderTheDefault is the
+// other half, and the reason it is a test rather than a comment: the
+// warning's own detail names the remedy ("set the value knowingly"), which
+// is advice about a limitation that no longer applies under the default.
+//
+// The write-only case in the same body must still fire, so this also pins
+// that the gate reached the one flag and not both.
+func TestResidueAttributesIsSilentOnASensitiveSettableUnderTheDefault(t *testing.T) {
+	const src = `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {}
+  }
+}
+
+resource "aws_db_instance" "db" {
+  identifier = "app-db"
+  password   = "placeholder"
+}
+
+resource "aws_ssm_parameter" "secret" {
+  name     = "/app/secret"
+  type     = "String"
+  value_wo = "hunter2"
+}
+`
+	diags := residueDiags(t, src)
+	if len(diags) != 1 {
+		t.Fatalf("expected exactly 1 warning under the default secrets setting, got %d: %v", len(diags), diags)
+	}
+	desc := diags[0].Description()
+	if !strings.Contains(desc.Detail, "aws_ssm_parameter.secret") || !strings.Contains(desc.Detail, "write-only") {
+		t.Errorf("the one warning is not the write-only one: %q", desc.Detail)
+	}
+	if strings.Contains(desc.Detail, "aws_db_instance") {
+		t.Errorf("a sensitive settable argument warned under secrets=store, where its value IS remembered: %q", desc.Detail)
 	}
 }
 
