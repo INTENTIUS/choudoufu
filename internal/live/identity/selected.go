@@ -170,7 +170,7 @@ func SelectedLocatedRefusal(resourceType string, schemas map[string]providers.Sc
 
 	if attr := sensitiveIdentityAttr(plan, schema); attr != "" {
 		return fmt.Sprintf(
-			"the identity a record would hold for a %s is its %q attribute, which the provider marks sensitive. Writing it to the estate's record store would put secret material there in clear, which this fork does not do. Leave this resource its ownership marker.",
+			"the identity a record would hold for a %s is its %q attribute, which the provider marks sensitive. Writing it to the estate's record store would put secret material there in clear - and unlike a secret this fork is asked to KEEP, which strict { secrets = \"store\" } covers, this one is what a later run would import BY, so a store that cannot be read in the clear leaves the resource unfindable. Leave this resource its ownership marker.",
 			resourceType, attr,
 		)
 	}

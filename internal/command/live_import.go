@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -200,9 +201,15 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	}
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
-		Estate:          args.Estate,
-		State:           stateFile.State,
-		Providers:       provs,
+		Estate:    args.Estate,
+		State:     stateFile.State,
+		Providers: provs,
+		// GitHub issue #365: the strict block's secrets setting, resolved
+		// here rather than left to the zero value, because the zero value is
+		// "refuse" and an OMITTED argument means "store". This is the one
+		// place in the migrate path that resolution happens; see
+		// identity.SecretsFor.
+		Secrets:         identity.SecretsFor(config),
 		ResidueStore:    residueStore,
 		RecordStore:     recordStore,
 		RecordKeyPrefix: recordKeyPrefix,

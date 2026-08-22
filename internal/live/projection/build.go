@@ -1353,11 +1353,18 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// obj.Value already carries the schema's own sensitivity here, applied by
 	// [importAndRead] to the provider's wire answer - which is GitHub issue
 	// #343's whole subject, and the reason that issue closed as a misreading
-	// of this function rather than as a fix. Nothing between there and here
-	// removes a mark: fillResidueFor's candidate filter refuses a Sensitive
-	// attribute outright, and the ownership check only reads. Encode turns
-	// the marks into AttrSensitivePaths, which under SkipRefresh is the whole
-	// of what the plan's "before" side gets.
+	// of this function rather than as a fix. Encode turns the marks into
+	// AttrSensitivePaths, which under SkipRefresh is the whole of what the
+	// plan's "before" side gets.
+	//
+	// Nothing between there and here removes a mark, and since GitHub issue
+	// #365 slice 3 that is a property of [builder.fillResidueFor] rather than
+	// of what it declines to touch. It used to hold because that function's
+	// candidate filter refused a Sensitive attribute outright; under
+	// `strict { secrets = "store" }` it fills one, from a record that holds
+	// the value unmarked, and re-marks the result from this same schema with
+	// [markSchemaSensitive] before returning. [residueMarkRecoverable] is
+	// what makes that restoration exact rather than approximate.
 	src, err := obj.Encode(schema.Block.ImpliedType(), uint64(schema.Version), uint64(schema.IdentitySchemaVersion))
 	if err != nil {
 		detail := fmt.Sprintf("The object read for %s could not be encoded into the projection: %s.", addr, err)

@@ -131,6 +131,23 @@ type LiveStrict struct {
 	MarkerRepairSet   bool
 	MarkerRepairRange hcl.Range
 
+	// Secrets is the literal string an author wrote for the "secrets"
+	// argument - "store", "refuse", or whatever they typed, valid or not.
+	// Read the same way [LiveStrict.MarkerRepair] is, by the same decoder,
+	// and judged the same place: internal/live/strict says what the
+	// spellings mean and internal/live/lint refuses the ones that mean
+	// nothing.
+	//
+	// SecretsSet distinguishes an omitted argument, which resolves to
+	// internal/live/strict.DefaultSecrets, from one written out. The two
+	// must behave identically for the default spelling - GitHub issue #101's
+	// standing lesson - and the flag exists so that a reader can tell the
+	// difference for a diagnostic's Subject range without changing the
+	// verdict.
+	Secrets      string
+	SecretsSet   bool
+	SecretsRange hcl.Range
+
 	// MarkersRecord is the optional nested `markers "record"` block: which
 	// resources hold their identity in the estate's record store instead of
 	// in an ownership marker tag, HANDOFF.md's "per-type or per-address
@@ -361,6 +378,7 @@ var liveBlockSchema = &hcl.BodySchema{
 var liveStrictSchema = &hcl.BodySchema{
 	Attributes: []hcl.AttributeSchema{
 		{Name: "marker_repair"},
+		{Name: "secrets"},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "markers", LabelNames: []string{"kind"}},
@@ -542,14 +560,27 @@ func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
 
 	content, diags := block.Body.Content(liveStrictSchema)
 
-	if attr, exists := content.Attributes["marker_repair"]; exists {
-		st.MarkerRepairRange = attr.Range
-		val, valDiags := decodeLiteralString(attr, "marker_repair")
-		diags = append(diags, valDiags...)
-		if !valDiags.HasErrors() {
-			st.MarkerRepair = val
-			st.MarkerRepairSet = true
+	for _, f := range []struct {
+		name string
+		val  *string
+		set  *bool
+		rng  *hcl.Range
+	}{
+		{"marker_repair", &st.MarkerRepair, &st.MarkerRepairSet, &st.MarkerRepairRange},
+		{"secrets", &st.Secrets, &st.SecretsSet, &st.SecretsRange},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
 		}
+		*f.rng = attr.Range
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		*f.val = val
+		*f.set = true
 	}
 
 	// The markers blocks are collected by LABEL rather than counted, because

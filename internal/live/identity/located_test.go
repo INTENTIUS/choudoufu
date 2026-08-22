@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -120,12 +121,31 @@ func TestLocatedTypeRequiresAllThreeConditions(t *testing.T) {
 		}
 	})
 
-	t.Run("credential material is refused", func(t *testing.T) {
+	t.Run("a sensitive id is refused", func(t *testing.T) {
+		// The identity this route would RECORD is sensitive - id itself.
+		// This is the one shape condition 2 exists to catch: the record
+		// would hold the secret.
+		schema := providers.Schema{Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+			"id": {Type: cty.String, Computed: true, Sensitive: true},
+		}}}
+		if LocatedType(markerless, map[string]providers.Schema{markerless: schema}) {
+			t.Errorf("LocatedType(%q) = true for a schema whose id itself is sensitive", markerless)
+		}
+	})
+
+	t.Run("a sensitive attribute outside the recorded identity does not refuse", func(t *testing.T) {
+		// #365 population 2, measured 2026-08-22: condition 2 asks whether
+		// the RECORD would carry a secret, not whether the type has one
+		// anywhere. A "secret" attribute the plan never reads (id is the
+		// whole identity here, and "secret" isn't it) must not refuse -
+		// refusing bought nothing, since the record this route would write
+		// never touches "secret" either way. This is the case the old
+		// whole-schema veto got wrong.
 		schema := locatedSchema(map[string]*configschema.Attribute{
 			"secret": {Type: cty.String, Computed: true, Sensitive: true},
 		})
-		if LocatedType(markerless, map[string]providers.Schema{markerless: schema}) {
-			t.Errorf("LocatedType(%q) = true for a schema carrying a sensitive attribute", markerless)
+		if !LocatedType(markerless, map[string]providers.Schema{markerless: schema}) {
+			t.Errorf("LocatedType(%q) = false for a schema carrying a sensitive attribute OUTSIDE its recorded identity (id); the record's promise is about id, not about every attribute in the block", markerless)
 		}
 	})
 
@@ -172,85 +192,31 @@ func TestLocatedTypeFailsClosedWithoutSchemas(t *testing.T) {
 	}
 }
 
-// credentialFixtures reproduces, for the two type names CLAUDE.md's
-// sanctioned credential exclusion names AND that are actually in
-// [MarkerlessTypes], the sensitive attributes hashicorp/aws 6.59.0 declares
-// for them.
+// TestSanctionedCredentialExclusionRefusesRegardlessOfSchema pins the two
+// types [sanctionedCredentialExclusion] names by NAME, which is the one
+// place a name may appear here: the ruling is what cannot be derived, and
+// this test is what says the ruling reaches the types it names.
 //
-// Measured, not guessed. Running the recursive Sensitive walk over the
-// provider's own GetProviderSchema response for the whole markerless
-// population returns ten types, these two among them:
-//
-//	aws_iam_access_key   secret, ses_smtp_password_v4
-//	aws_iot_certificate  ca_pem, certificate_pem, private_key, public_key
-//
-// TestLocatedTypePopulation re-derives that from the
-// real provider when a checkout has one; this table is what keeps the two
-// names pinned in an offline run.
-//
-// The other two names in CLAUDE.md's roster are deliberately absent:
-// aws_ivs_playback_key_pair and aws_appstream_directory_config are not in
-// MarkerlessTypes at all (the first is taggable), so they never reach this
-// predicate and pinning them here would assert nothing.
-var credentialFixtures = map[string][]string{
-	"aws_iam_access_key":  {"secret", "ses_smtp_password_v4"},
-	"aws_iot_certificate": {"ca_pem", "certificate_pem", "private_key", "public_key"},
-}
-
-// TestCredentialMaterialExcludesTheSanctionedTypes pins the two types by
-// NAME, which is the one place a name may appear: the predicate itself
-// names none, and this test is what says the derivation reaches the types
-// the ruling requires it to reach.
-//
-// It asserts in both directions on purpose. That the type is refused WITH
-// its measured sensitive attributes is the requirement; that the SAME type
-// with those attributes removed would be admitted is what proves the
-// refusal came from the credential rule rather than from the type happening
-// to fail one of the other two conditions - which is exactly the way a
-// guard comes to pass while measuring nothing.
-//
-// A fixture the issue #331 veto ALSO refuses cannot carry the counterfactual
-// half, because with two conditions firing nothing can attribute the refusal
-// to either - so that half is skipped for such a type and reported, rather
-// than being softened into an assertion that passes for the wrong reason.
-// aws_iot_certificate became such a type when the veto arrived; the loop
-// below fails outright if that ever becomes true of every fixture, since the
-// two-directional proof would then exist nowhere.
-func TestCredentialMaterialExcludesTheSanctionedTypes(t *testing.T) {
-	var counterfactuals int
-	for typeName, sensitive := range credentialFixtures {
+// Before 2026-08-22 (issue #365 population 2) this refusal came from
+// [credentialMaterial]'s whole-schema sweep, and the test proved that by a
+// counterfactual: strip the sensitive attribute and the type would be
+// admitted. That measurement showed the sweep was answering the wrong
+// question for nine of the eleven types it excluded - whether the RECORD
+// would carry a secret, not whether the type has one anywhere - so
+// condition 2 was narrowed to [sensitiveIdentityAttr]. These two names
+// survive as a standing exclusion regardless: the counterfactual would now
+// prove nothing (the refusal is unconditional, not schema-derived), so what
+// this test asserts instead is that property itself - refused even with a
+// schema [sensitiveIdentityAttr] would admit.
+func TestSanctionedCredentialExclusionRefusesRegardlessOfSchema(t *testing.T) {
+	for typeName := range sanctionedCredentialExclusion {
 		if _, ok := MarkerlessTypes[typeName]; !ok {
-			t.Errorf("%s is no longer in MarkerlessTypes, so the credential exclusion is no longer what keeps it out of the located population. Find out what does.", typeName)
+			t.Errorf("%s is no longer in MarkerlessTypes, so sanctionedCredentialExclusion no longer has a route to keep it out of. Find out what does.", typeName)
 			continue
 		}
-
-		attrs := map[string]*configschema.Attribute{}
-		for _, name := range sensitive {
-			attrs[name] = &configschema.Attribute{Type: cty.String, Computed: true, Sensitive: true}
+		if LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(nil)}) {
+			t.Errorf("LocatedType(%q) = true with a clean schema (a string id, nothing sensitive). This type is one of the maintainer's sanctioned credential exclusions and must be refused regardless of what its schema says.", typeName)
 		}
-		if LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(attrs)}) {
-			t.Errorf("LocatedType(%q) = true. This type is credential material and the run-time predicate must exclude it: %v are sensitive in its schema.", typeName, sensitive)
-		}
-
-		if NotImportable(typeName) {
-			t.Logf("%s is also refused by the not-importable veto (issue #331), so the counterfactual below cannot attribute a refusal to the credential rule and is skipped for it", typeName)
-			continue
-		}
-
-		// The counterfactual. Same type, same everything, sensitivity
-		// removed.
-		clean := map[string]*configschema.Attribute{}
-		for _, name := range sensitive {
-			clean[name] = &configschema.Attribute{Type: cty.String, Computed: true}
-		}
-		if !LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(clean)}) {
-			t.Errorf("LocatedType(%q) is false even with no sensitive attribute, so the refusal above proves nothing about the credential rule - the type is failing one of the other conditions and this test is measuring itself.", typeName)
-			continue
-		}
-		counterfactuals++
-	}
-	if counterfactuals == 0 {
-		t.Error("every credential fixture is refused by some other condition too, so nothing here proves the credential rule refuses anything. Add a fixture the other conditions admit.")
 	}
 }
 
@@ -259,10 +225,16 @@ func TestCredentialMaterialExcludesTheSanctionedTypes(t *testing.T) {
 // reduceResourceSchema) descends into nested attribute object types and
 // nested blocks, and a walk that stopped at the top level would admit a
 // type whose secret sits one level down.
+//
+// This tests [credentialMaterial] directly rather than through [LocatedType]
+// as it did before 2026-08-22 (issue #365 population 2): LocatedType's own
+// condition 2 no longer runs the whole-schema sweep this test is about (see
+// [sensitiveIdentityAttr]), so routing through it would prove nothing about
+// nested reach - it would pass because "id" stays clean, regardless of
+// whether the nested walk works at all. [CredentialMaterial] is still this
+// exact rule, still used by internal/live/projection's residue.
 func TestCredentialMaterialSeesNestedAttributes(t *testing.T) {
-	markerless := aMarkerlessType(t)
-
-	nestedBlock := providers.Schema{Block: &configschema.Block{
+	nestedBlock := &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{"id": {Type: cty.String, Computed: true}},
 		BlockTypes: map[string]*configschema.NestedBlock{
 			"parameters": {
@@ -272,12 +244,12 @@ func TestCredentialMaterialSeesNestedAttributes(t *testing.T) {
 				}},
 			},
 		},
-	}}
-	if LocatedType(markerless, map[string]providers.Schema{markerless: nestedBlock}) {
-		t.Errorf("LocatedType(%q) = true for a secret inside a nested BLOCK", markerless)
+	}
+	if !CredentialMaterial(nestedBlock) {
+		t.Errorf("CredentialMaterial(...) = false for a secret inside a nested BLOCK")
 	}
 
-	nestedAttr := providers.Schema{Block: &configschema.Block{
+	nestedAttr := &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
 			"id": {Type: cty.String, Computed: true},
 			"credentials": {
@@ -289,9 +261,9 @@ func TestCredentialMaterialSeesNestedAttributes(t *testing.T) {
 				},
 			},
 		},
-	}}
-	if LocatedType(markerless, map[string]providers.Schema{markerless: nestedAttr}) {
-		t.Errorf("LocatedType(%q) = true for a secret inside a nested ATTRIBUTE TYPE", markerless)
+	}
+	if !CredentialMaterial(nestedAttr) {
+		t.Errorf("CredentialMaterial(...) = false for a secret inside a nested ATTRIBUTE TYPE")
 	}
 }
 
@@ -299,13 +271,16 @@ func TestCredentialMaterialSeesNestedAttributes(t *testing.T) {
 // evidence rule that is a subtraction rather than a match. See
 // [credentialMaterial] and tools/row-gen's liveSensitiveAttrs for why a
 // deprecated sensitive attribute does not classify a type.
+//
+// Tests [CredentialMaterial] directly; see
+// TestCredentialMaterialSeesNestedAttributes for why routing through
+// [LocatedType] no longer proves this.
 func TestCredentialMaterialSubtractsDeprecated(t *testing.T) {
-	markerless := aMarkerlessType(t)
 	schema := locatedSchema(map[string]*configschema.Attribute{
 		"sensitive_content": {Type: cty.String, Optional: true, Sensitive: true, Deprecated: true},
-	})
-	if !LocatedType(markerless, map[string]providers.Schema{markerless: schema}) {
-		t.Errorf("LocatedType(%q) = false for a type whose only sensitive attribute is deprecated. The deprecation subtraction is part of lint.ClassSecretRefused's rule and this predicate is supposed to apply the same one.", markerless)
+	}).Block
+	if CredentialMaterial(schema) {
+		t.Errorf("CredentialMaterial(...) = true for a block whose only sensitive attribute is deprecated. The deprecation subtraction is part of lint.ClassSecretRefused's rule and this predicate is supposed to apply the same one.")
 	}
 }
 
@@ -368,14 +343,19 @@ func TestLocatedTypePopulation(t *testing.T) {
 		t.Fatalf("acquiring hashicorp/aws schemas: %s", err)
 	}
 
-	var located, composite, composed, credential, noID, unprovenID, notImportable []string
+	var located, composite, composed, credential, credentialWide, noID, unprovenID, notImportable []string
 	for name := range MarkerlessTypes {
 		schema, ok := schemas[name]
 		if !ok || schema.Block == nil {
 			continue
 		}
+		if credentialMaterial(schema.Block) {
+			credentialWide = append(credentialWide, name)
+		}
 		_, unproven := IDNotProvenWholeTypes[name]
 		plan, recordable := LocatedIdentityPlanFor(name, schema)
+		sensitiveID := recordable && sensitiveIdentityAttr(plan, schema) != ""
+		wall := sensitiveID || sanctionedCredentialExclusion[name]
 		switch {
 		case NotImportable(name):
 			// Condition 0 (issue #331). These are the types the other
@@ -383,7 +363,7 @@ func TestLocatedTypePopulation(t *testing.T) {
 			// id - and the provider will not import back, so the record
 			// would be written and never usable.
 			notImportable = append(notImportable, name)
-		case credentialMaterial(schema.Block):
+		case wall:
 			credential = append(credential, name)
 		case recordable && plan.Composite():
 			composite = append(composite, name)
@@ -399,33 +379,35 @@ func TestLocatedTypePopulation(t *testing.T) {
 		default:
 			located = append(located, name)
 		}
-		// The predicate re-derived from its own three conditions, in the
-		// order LocatedType applies them. This is the guard against the
-		// predicate and its stated conditions drifting apart, and it has
-		// to name every condition or it stops being one: it missed the
-		// composite branch between #329 and #309 and passed anyway,
-		// because no markerless type happened to be composite AND without
-		// a top-level string id at the same time.
-		want := !NotImportable(name) && !credentialMaterial(schema.Block) && recordable
+		// The predicate re-derived from its own conditions, in the order
+		// LocatedType applies them. This is the guard against the predicate
+		// and its stated conditions drifting apart, and it has to name
+		// every condition or it stops being one: it missed the composite
+		// branch between #329 and #309 and passed anyway, because no
+		// markerless type happened to be composite AND without a top-level
+		// string id at the same time.
+		want := !NotImportable(name) && recordable && !wall
 		if LocatedType(name, schemas) != want {
-			t.Errorf("LocatedType(%q) disagrees with its own four conditions (notImportable=%v credential=%v recordable=%v)",
-				name, NotImportable(name), credentialMaterial(schema.Block), recordable)
+			t.Errorf("LocatedType(%q) disagrees with its own conditions (notImportable=%v recordable=%v sensitiveID=%v sanctioned=%v)",
+				name, NotImportable(name), recordable, sensitiveID, sanctionedCredentialExclusion[name])
 		}
 	}
 	sort.Strings(credential)
+	sort.Strings(credentialWide)
 	sort.Strings(composed)
 	sort.Strings(notImportable)
 	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d located(composed string)=%d credential=%d unprovenID=%d noID=%d notImportable=%d",
 		len(MarkerlessTypes), len(located), len(composite), len(composed), len(credential), len(unprovenID), len(noID), len(notImportable))
-	t.Logf("credential material: %v", credential)
+	t.Logf("credential wall (identity itself sensitive, or sanctioned by name): %v", credential)
+	t.Logf("credential material anywhere in schema (informational only - not what LocatedType checks): %v", credentialWide)
 	t.Logf("composed from the documented grammar (#337): %v", composed)
 	t.Logf("refused by the not-importable veto (#331): %v", notImportable)
-	for _, line := range credentialWallDetail(schemas, credential) {
-		t.Logf("credential wall: %s", line)
+	for _, line := range credentialWallDetail(schemas, credentialWide) {
+		t.Logf("credential wall detail: %s", line)
 	}
 
 	// The requirement, against the real schema rather than a fixture.
-	for typeName := range credentialFixtures {
+	for typeName := range sanctionedCredentialExclusion {
 		if LocatedType(typeName, schemas) {
 			t.Errorf("LocatedType(%q) = true against the real hashicorp/aws schema", typeName)
 		}
@@ -516,4 +498,113 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 	}
 	sort.Strings(out)
 	return out
+}
+
+// TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto is GitHub issue
+// #365 slice 3's deliberate BOUND, written as a test because a bound nobody
+// can see is a bound the next change removes by accident.
+//
+// The slice turned this fork's three secret refusals into one setting. Two
+// of them moved: a secret-generating logical type is admitted under the
+// default and its record holds the value the way a stock state file does,
+// and a sensitive settable argument is recorded as residue under the same
+// default. This one, [LocatedType]'s condition 2, is untouched by the
+// setting on purpose: see below for why, and hazard two for what still
+// refuses regardless of it.
+//
+// # Hazard one, resolved: a located record has no slot for the value it never holds
+//
+// This was framed as "the record cannot hold a value the provider's read
+// does not return", measured against aws_iam_access_key's secret (issue
+// #365's credential-material census, commit 29a47794f5) and used to keep the
+// whole veto blanket. The census answered a different question than the one
+// this route asks: a record-LOCATED type's record holds its IDENTITY and
+// NOTHING ELSE - never the secret attribute, whether the provider's read
+// returns it or not. Whether "secret" round-trips through a read is
+// [projection]'s residue question, unconditional on this route and on the
+// `secrets` setting, because residue is what would carry it if anything
+// does. Measured 2026-08-22 (2026-08-22 (issue #365 population 2),
+// [sanctionedCredentialExclusion]'s doc comment carries the numbers): nine
+// of the eleven types this veto excluded have a clean identity - "id" is
+// never the sensitive attribute - so the record it would write never
+// touched the secret either way, under any secrets setting. Narrowed to
+// [sensitiveIdentityAttr], which is condition 2 now. Two of the nine,
+// aws_iam_access_key and aws_iot_certificate, stay refused anyway: they are
+// two of the maintainer's four sanctioned credential exclusions
+// (live/HARNESS.md), honored here by name because that ruling predates this
+// route and its own check never reached it.
+//
+// # Hazard two: for at least one type the identity IS the secret
+//
+// The same census found it: a markerless type whose recorded identity is
+// itself a sensitive attribute. This test builds that shape and shows what
+// admitting it would produce - not a secret in the record, but a run that
+// stops at apply, because [locatedAttrString] refuses a marked value rather
+// than unmarking it. A lint refusal traded for an apply-time failure with
+// the object already live is the one trade this mechanism is forbidden to
+// make ([LocatedType], condition 0's own reasoning).
+//
+// The selected route already answers hazard two on its own - see
+// [sensitiveIdentityAttr], which is the blanket narrowed to exactly the
+// attributes a record would hold - and it is safe there for a reason that
+// does not transfer: a SELECTED type is already admitted by its ratified row
+// and already applied with every one of its attributes, so nothing about the
+// selection changes which values exist. An automatically-located type has no
+// other route at all.
+//
+// # What this bound cost, measured, and what it now costs
+//
+// Before 2026-08-22 this veto was the SOLE remaining wall for the
+// corpus-alb-complete gauntlet estate's test_plan stage, on one
+// aws_cognito_user_pool_client. Its other wall, condition 3, cleared when
+// [DocumentedImportIDs] learned to read the type's possessive-of import
+// sentence. With hazard one resolved, that estate's wall clears too -
+// client_secret is not the identity - and this test now asserts the setting
+// still does not reach [sanctionedCredentialExclusion]'s two names, which
+// are what a THIRD estate-independent wall (the maintainer's ruling, not a
+// schema fact) would need to name to matter here at all.
+func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
+	typeName := aMarkerlessType(t)
+
+	// A sensitive attribute outside the recorded identity is admitted -
+	// hazard one, resolved (see the doc comment above). The control proves
+	// this is the shape being asserted, not some other condition passing by
+	// coincidence: both schemas admit.
+	withSecret := locatedSchema(map[string]*configschema.Attribute{
+		"secret": {Type: cty.String, Computed: true, Sensitive: true},
+	})
+	if !LocatedType(typeName, map[string]providers.Schema{typeName: withSecret}) {
+		t.Error("LocatedType refused a type whose only sensitive attribute is outside its recorded identity. " +
+			"The record this route writes never touches \"secret\" regardless of the secrets setting - see " +
+			"this test's doc comment, hazard one.")
+	}
+	clean := locatedSchema(nil)
+	if !LocatedType(typeName, map[string]providers.Schema{typeName: clean}) {
+		t.Fatal("the control schema is not admitted either, so the assertion above proves nothing about the " +
+			"credential veto")
+	}
+
+	// The maintainer's named exception still refuses regardless: this is
+	// the ONE place the setting could matter, since [sanctionedCredentialExclusion]
+	// is a ruling rather than a schema fact, and it does not.
+	for sanctioned := range sanctionedCredentialExclusion {
+		if _, ok := MarkerlessTypes[sanctioned]; !ok {
+			continue
+		}
+		if LocatedType(sanctioned, map[string]providers.Schema{sanctioned: clean}) {
+			t.Errorf("LocatedType(%q) = true even with a clean schema; the sanctioned exclusion must hold regardless of the secrets setting", sanctioned)
+		}
+	}
+
+	// Hazard two, by value: the identity attribute itself is sensitive, so
+	// the applied object carries it marked, and reading it back for the
+	// record fails rather than writing a secret.
+	marked := cty.ObjectVal(map[string]cty.Value{
+		"id": cty.StringVal("wafv2-api-key-material").Mark(marks.Sensitive),
+	})
+	if got, ok := LocatedImportID(marked); ok {
+		t.Errorf("LocatedImportID returned %q for a marked identity. Admitting such a type under any setting "+
+			"would either write the secret into the record store in clear or stop the run at apply with the "+
+			"object already live; refusing at the configuration is the only answer that is neither.", got)
+	}
 }

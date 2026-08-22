@@ -16,7 +16,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -97,7 +99,7 @@ func TestClassifyResidueSeparatesFilenameFromDescription(t *testing.T) {
 	schema := lambdaLikeSchema()
 	applied := lambdaApplied()
 
-	candidates := residueCandidates(schema, applied)
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 	// function_name is in the set: required, settable, non-null. arn is in
 	// the set too: purely Computed, which residueCandidates no longer
 	// excludes on its own (see its doc comment) - only id is never a
@@ -172,7 +174,7 @@ func TestClassifyResidueLeavesAZeroValueTheProviderAnswers(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(obj, residueCandidates(schema, obj), lambdaIdentityAttrs(), legacyRead)
+	got, ok := classifyResidue(obj, residueCandidates(schema, obj, strict.DefaultSecrets), lambdaIdentityAttrs(), legacyRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing at all; the three real residue arguments should still classify")
 	}
@@ -209,7 +211,7 @@ func TestClassifyResidueRefusesTheFrameworkNull(t *testing.T) {
 		return cty.ObjectVal(out), nil
 	}
 
-	got, ok := classifyResidue(applied, residueCandidates(schema, applied), lambdaIdentityAttrs(), frameworkRead)
+	got, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), frameworkRead)
 	if ok {
 		if _, bad := got["filename"]; bad {
 			t.Fatal("filename was recorded from a provider that answers null for it on EVERY read. " +
@@ -233,7 +235,7 @@ func TestClassifyResidueRefusesTheFrameworkNull(t *testing.T) {
 func TestClassifyResidueFailsClosed(t *testing.T) {
 	schema := lambdaLikeSchema()
 	applied := lambdaApplied()
-	candidates := residueCandidates(schema, applied)
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 
 	// Each case builds its own reader, so a counter in one cannot leak into
 	// the next. The first two exist separately because the two reads have
@@ -344,7 +346,7 @@ func TestClassifyResidueFailsClosed(t *testing.T) {
 func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	schema := lambdaLikeSchema()
 	applied := lambdaApplied()
-	candidates := residueCandidates(schema, applied)
+	candidates := residueCandidates(schema, applied, strict.DefaultSecrets)
 
 	echo := func(prior cty.Value) (cty.Value, error) { return prior, nil }
 	got, ok := classifyResidue(applied, candidates, lambdaIdentityAttrs(), echo)
@@ -359,19 +361,167 @@ func TestClassifyResidueOverAProviderThatReadsNothing(t *testing.T) {
 	}
 }
 
-// TestResidueCandidatesExcludeSecretsAndIdentity pins the three populations
+// secretLambdaSchema is [lambdaLikeSchema] with filename marked Sensitive,
+// which is aws_db_instance.password's shape reduced to this file's fixture:
+// a settable argument the provider marks sensitive, on a type whose other
+// arguments are ordinary. It is what GitHub issue #365's secrets setting is
+// about at both granularities at once - the attribute itself, and the
+// whole-type identity.CredentialMaterial veto its presence triggers.
+func secretLambdaSchema() providers.Schema {
+	s := lambdaLikeSchema()
+	s.Block.Attributes["filename"] = &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}
+	return s
+}
+
+// secretLambdaApplied is [lambdaApplied] with filename marked the way
+// [importAndRead] marks it: [markSchemaSensitive] over the provider's
+// unmarked wire answer, so the mark is on the whole attribute value and is
+// exactly the one the schema produces. Building it through that function
+// rather than by hand is the point - a mark this fixture invented would not
+// prove [residueMarkRecoverable] recognises the real one.
+func secretLambdaApplied() cty.Value {
+	return markSchemaSensitive(lambdaApplied(), secretLambdaSchema().Block)
+}
+
+// TestResidueCandidatesUnderSecretsStore is the other half of
+// [TestResidueCandidatesExcludeSecretsAndIdentity]: what the default setting
+// admits, asserted attribute by attribute rather than as a count.
+//
+// Three claims, and the third is the one that makes the first two safe.
+func TestResidueCandidatesUnderSecretsStore(t *testing.T) {
+	t.Run("the sensitive attribute and its type are both admitted", func(t *testing.T) {
+		got := residueCandidates(secretLambdaSchema(), secretLambdaApplied(), strict.Store)
+		want := []string{"arn", "description", "filename", "function_name", "publish", "source_code_hash"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("candidates under secrets=store: %v, want %v.\nThe whole-type identity.CredentialMaterial veto must not fire, and the sensitive attribute itself must be in the set: stock OpenTofu's state file holds this value, so refusing it is HANDOFF.md's first difference row.", got, want)
+		}
+	})
+
+	t.Run("secrets=refuse takes the whole type back out", func(t *testing.T) {
+		if got := residueCandidates(secretLambdaSchema(), secretLambdaApplied(), strict.Refuse); len(got) != 0 {
+			t.Fatalf("candidates under secrets=refuse: %v, want none", got)
+		}
+	})
+
+	t.Run("a mark the schema cannot put back is refused under either setting", func(t *testing.T) {
+		// The sensitive-VARIABLE case: the value is marked, the schema is
+		// not. Nothing in a later read could restore this mark, so storing
+		// the value would fill an unmarked prior against a marked planned
+		// value - a perpetual sensitivity-only update. See
+		// [residueMarkRecoverable].
+		s := lambdaLikeSchema()
+		applied := lambdaApplied()
+		attrs := applied.AsValueMap()
+		attrs["description"] = attrs["description"].Mark(marks.Sensitive)
+		applied = cty.ObjectVal(attrs)
+
+		for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+			for _, name := range residueCandidates(s, applied, secrets) {
+				if name == "description" {
+					t.Fatalf("an attribute marked sensitive by something OTHER than the schema reached the candidate set under secrets=%s; markSchemaSensitive could never put that mark back", secrets)
+				}
+			}
+		}
+	})
+}
+
+// TestResidueRoundTripsASensitiveArgumentWithItsMark is population 3 of
+// GitHub issue #365 slice 3 asserted BY VALUE, end to end, which is what
+// HANDOFF.md's safety rule requires of anything that changes what a record
+// holds: "convergence is never evidence an identity is right".
+//
+// Two values are asserted and both matter. The filled attribute must come
+// back with the value the apply sent - a record that fills the wrong string
+// is worse than one that fills nothing - and it must come back MARKED, or
+// the plan's "before" side disagrees with its re-marked "after" side on
+// sensitivity alone and proposes an update forever (sensitivepaths.go's
+// header is the long form).
+//
+// The store leg is real rather than mocked: the value goes through
+// ResidueStore.Put, which refuses a marked value outright, so this also pins
+// that the unmarking happens before the write and not after.
+func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
+	ctx := context.Background()
+	schema := secretLambdaSchema()
+	applied := secretLambdaApplied()
+	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
+
+	candidates := residueCandidates(schema, applied, strict.Store)
+	unmarked, _ := applied.UnmarkDeep()
+	attrs, ok := classifyResidue(unmarked, candidates, lambdaIdentityAttrs(), sdkv2LikeRead)
+	if !ok {
+		t.Fatal("classifyResidue proved nothing for a type whose sensitive argument the provider never returns")
+	}
+	if got, want := attrs["filename"], cty.StringVal("check_links.py.zip"); !got.RawEquals(want) {
+		t.Fatalf("classified filename = %#v, want %#v", got, want)
+	}
+
+	store := NewResidueStore(localHintStore(t), "my-estate")
+	if _, err := store.Put(ctx, addr, attrs, ""); err != nil {
+		t.Fatalf("Put: %s", err)
+	}
+	back, _, exists, err := store.Get(ctx, addr)
+	if err != nil || !exists {
+		t.Fatalf("Get: err=%v exists=%v", err, exists)
+	}
+
+	cold, err := identityOnly(unmarked, lambdaIdentityAttrs())
+	if err != nil {
+		t.Fatalf("identityOnly: %s", err)
+	}
+	cold, err = sdkv2LikeRead(cold)
+	if err != nil {
+		t.Fatalf("cold read: %s", err)
+	}
+
+	filled, n := fillResidue(cold, schema.Block, back, strict.Store)
+	if n == 0 {
+		t.Fatal("filled nothing from a record written under secrets=store")
+	}
+	// The caller's own step, asserted here because it is what restores the
+	// mark: see builder.fillResidueFor.
+	filled = markSchemaSensitive(filled, schema.Block)
+
+	got := filled.GetAttr("filename")
+	if !got.IsMarked() {
+		t.Fatal("filename came back from the record unmarked. An unmarked prior against a marked planned value is a sensitivity-only update the estate proposes on every run.")
+	}
+	if plain, _ := got.Unmark(); !plain.RawEquals(cty.StringVal("check_links.py.zip")) {
+		t.Fatalf("filename came back as %#v, want the value the apply sent", plain)
+	}
+
+	// And the refusing setting declines the SENSITIVE attribute out of the
+	// same record while still filling the ordinary ones beside it. Asserted
+	// per attribute rather than as a count, because "filled nothing" would
+	// pass for the wrong reason if the record were empty.
+	strictFilled, _ := fillResidue(cold, schema.Block, back, strict.Refuse)
+	if !strictFilled.GetAttr("filename").IsNull() {
+		t.Fatalf("secrets=refuse filled filename = %#v from a record; that setting is \"sensitive settable arguments never recorded\", and never read back either", strictFilled.GetAttr("filename"))
+	}
+	if got, want := strictFilled.GetAttr("source_code_hash"), cty.StringVal("82e750d3"); !got.RawEquals(want) {
+		t.Fatalf("secrets=refuse also declined the ordinary attribute beside it: source_code_hash = %#v, want %#v", got, want)
+	}
+}
+
+// TestResidueCandidatesExcludeSecretsAndIdentity pins the populations
 // residueCandidates keeps out entirely, each for a different reason. It is
 // deliberately not a "the filter works" test: it asserts the exclusions
 // individually so removing any ONE of them turns this red.
+//
+// The two sensitivity exclusions are asserted under strict.Refuse, which is
+// what they now depend on - GitHub issue #365 slice 3 made them the toggle
+// rather than the default. Their other half, that strict.Store lets exactly
+// these two through and nothing else, is
+// [TestResidueCandidatesUnderSecretsStore].
 func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 	base := lambdaLikeSchema()
 
-	t.Run("a sensitive attribute is never a candidate", func(t *testing.T) {
+	t.Run("a sensitive attribute is never a candidate under secrets=refuse", func(t *testing.T) {
 		s := lambdaLikeSchema()
 		s.Block.Attributes["filename"] = &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}
-		for _, name := range residueCandidates(s, lambdaApplied()) {
+		for _, name := range residueCandidates(s, lambdaApplied(), strict.Refuse) {
 			if name == "filename" {
-				t.Fatal("a sensitive attribute reached the candidate set. The no-secrets rule keeps secret values out of every marker and record, and a residue record is a record.")
+				t.Fatal("a sensitive attribute reached the candidate set under secrets=refuse. That setting is HANDOFF.md's \"sensitive settable arguments never recorded\", and a residue record is a record.")
 			}
 		}
 	})
@@ -379,18 +529,20 @@ func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 	t.Run("a write-only attribute is never a candidate", func(t *testing.T) {
 		s := lambdaLikeSchema()
 		s.Block.Attributes["filename"] = &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}
-		for _, name := range residueCandidates(s, lambdaApplied()) {
-			if name == "filename" {
-				t.Fatal("a write-only attribute reached the candidate set. The protocol forbids a provider ever returning it, and writing it down does not make it returnable.")
+		for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+			for _, name := range residueCandidates(s, lambdaApplied(), secrets) {
+				if name == "filename" {
+					t.Fatalf("a write-only attribute reached the candidate set under secrets=%s. The protocol forbids a provider ever returning it, and writing it down does not make it returnable - no setting may reach this exclusion.", secrets)
+				}
 			}
 		}
 	})
 
-	t.Run("credential material excludes the whole type", func(t *testing.T) {
+	t.Run("credential material excludes the whole type under secrets=refuse", func(t *testing.T) {
 		s := lambdaLikeSchema()
 		s.Block.Attributes["secret"] = &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}
-		if got := residueCandidates(s, lambdaApplied()); len(got) != 0 {
-			t.Fatalf("a type carrying secret material produced candidates %v. identity.CredentialMaterial is the one sanctioned exclusion in this fork and it applies here whole.", got)
+		if got := residueCandidates(s, lambdaApplied(), strict.Refuse); len(got) != 0 {
+			t.Fatalf("a type carrying secret material produced candidates %v under secrets=refuse. The whole-type form of identity.CredentialMaterial is what that setting turns on.", got)
 		}
 	})
 
@@ -399,7 +551,7 @@ func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 		s.IdentitySchema = &configschema.Object{Attributes: map[string]*configschema.Attribute{
 			"function_name": {Type: cty.String, Required: true},
 		}}
-		for _, name := range residueCandidates(s, lambdaApplied()) {
+		for _, name := range residueCandidates(s, lambdaApplied(), strict.DefaultSecrets) {
 			if name == "function_name" || name == "id" {
 				t.Fatalf("%q reached the candidate set. An identity attribute says WHICH object this is; a residue record must never be able to move an instance onto a different object.", name)
 			}
@@ -417,7 +569,7 @@ func TestResidueCandidatesExcludeSecretsAndIdentity(t *testing.T) {
 		// the candidate set; whether it is ever actually RECORDED is
 		// [classifyResidue]'s question, not this filter's.
 		found := false
-		for _, name := range residueCandidates(base, lambdaApplied()) {
+		for _, name := range residueCandidates(base, lambdaApplied(), strict.DefaultSecrets) {
 			if name == "arn" {
 				found = true
 			}
@@ -448,7 +600,7 @@ func TestFillResidueNeverOverwritesTheCloud(t *testing.T) {
 		"description": cty.StringVal("what the record says"),
 	}
 
-	got, n := fillResidue(read, block, rec)
+	got, n := fillResidue(read, block, rec, strict.DefaultSecrets)
 	if n != 2 {
 		t.Fatalf("filled %d attributes, want 2 (filename and publish; description was answered by the provider)", n)
 	}
@@ -480,7 +632,7 @@ func TestFillResidueRefusesAMismatchedType(t *testing.T) {
 	})
 	got, n := fillResidue(read, block, map[string]cty.Value{
 		"filename": cty.ListVal([]cty.Value{cty.StringVal("a.zip")}),
-	})
+	}, strict.DefaultSecrets)
 	if n != 0 || !got.GetAttr("filename").IsNull() {
 		t.Fatalf("filled %d attributes from a record whose recorded type no longer fits the schema", n)
 	}
@@ -496,11 +648,20 @@ func TestFillResidueRefusesAMismatchedType(t *testing.T) {
 // below, which used to be a third case here expecting the opposite).
 func TestFillResidueRefusesASensitiveOrWriteOnlyTarget(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		attr *configschema.Attribute
+		name    string
+		attr    *configschema.Attribute
+		secrets strict.Secrets
 	}{
-		{"sensitive now", &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}},
-		{"write-only now", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}},
+		// Sensitive is now the toggle's business (GitHub issue #365 slice
+		// 3), so the refusal is asserted under the setting that makes it
+		// one. Under strict.Store it is meant to fill, which is what
+		// TestResidueRoundTripsASensitiveArgumentWithItsMark asserts by
+		// value.
+		{"sensitive now, under secrets=refuse", &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}, strict.Refuse},
+		// Write-only is not, and both settings are asserted so that a
+		// future widening of the toggle cannot reach it silently.
+		{"write-only now, under secrets=store", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}, strict.Store},
+		{"write-only now, under secrets=refuse", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}, strict.Refuse},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := lambdaLikeSchema()
@@ -514,7 +675,7 @@ func TestFillResidueRefusesASensitiveOrWriteOnlyTarget(t *testing.T) {
 				"description":      cty.NullVal(cty.String),
 				"arn":              cty.NullVal(cty.String),
 			})
-			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")})
+			_, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, tc.secrets)
 			if n != 0 {
 				t.Fatalf("filled filename from a record even though the current schema says %s", tc.name)
 			}
@@ -541,7 +702,7 @@ func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
 		"description":      cty.NullVal(cty.String),
 		"arn":              cty.NullVal(cty.String),
 	})
-	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")})
+	got, n := fillResidue(read, s.Block, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, strict.DefaultSecrets)
 	if n != 1 {
 		t.Fatalf("filled %d attributes, want 1 - a Computed-only attribute whose read carries no information must be fillable from its record", n)
 	}
@@ -723,7 +884,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 	applied := lambdaApplied()
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
-	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied), lambdaIdentityAttrs(), sdkv2LikeRead)
+	attrs, ok := classifyResidue(applied, residueCandidates(schema, applied, strict.DefaultSecrets), lambdaIdentityAttrs(), sdkv2LikeRead)
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
@@ -752,7 +913,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 		}
 	}
 
-	filled, n := fillResidue(cold, schema.Block, back)
+	filled, n := fillResidue(cold, schema.Block, back, strict.DefaultSecrets)
 	if n != 3 {
 		t.Fatalf("filled %d attributes, want 3", n)
 	}
@@ -823,7 +984,7 @@ func TestIdentityOnlyKeepsTheIdentityAndNothingElse(t *testing.T) {
 // prior read A is built from - rather than by grepping for a word.
 func TestNoSentinelValueExists(t *testing.T) {
 	applied := lambdaApplied()
-	candidates := residueCandidates(lambdaLikeSchema(), applied)
+	candidates := residueCandidates(lambdaLikeSchema(), applied, strict.DefaultSecrets)
 	stub, err := identityOnly(applied, lambdaIdentityAttrs())
 	if err != nil {
 		t.Fatalf("identityOnly: %s", err)
@@ -989,56 +1150,69 @@ func sgLikeRead(prior cty.Value) (cty.Value, error) {
 // they are what keeps this from being a rule about a block named
 // "timeouts": ingress is real cloud data the provider does read back, and
 // it must stay out of the record whatever this rule does to its neighbour.
+//
+// Both `strict { secrets = ... }` settings are run, and the assertion is
+// that the answer does not move between them. The two populations residue
+// now carries were built for different questions - the secrets setting
+// decides whether a SENSITIVE flat attribute may be recorded, and this
+// block rule decides whether a config-only single-nested block may be - and
+// this schema holds nothing sensitive at all, so the setting has nothing to
+// reach here. A future change that threads the setting into the block half
+// fails this test rather than passing quietly.
 func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
-	schema := sgLikeSchema()
-	applied := sgApplied()
+	for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+		t.Run(string(secrets), func(t *testing.T) {
+			schema := sgLikeSchema()
+			applied := sgApplied()
 
-	candidates := residueCandidates(schema, applied)
-	want := []string{"name", "revoke_rules_on_delete", "timeouts"}
-	if !reflect.DeepEqual(candidates, want) {
-		t.Fatalf("residueCandidates = %v, want %v - a NestingSingle block is in scope and a NestingSet one is not, whatever either is called", candidates, want)
-	}
+			candidates := residueCandidates(schema, applied, secrets)
+			want := []string{"name", "revoke_rules_on_delete", "timeouts"}
+			if !reflect.DeepEqual(candidates, want) {
+				t.Fatalf("residueCandidates = %v, want %v - a NestingSingle block is in scope and a NestingSet one is not, whatever either is called", candidates, want)
+			}
 
-	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), sgLikeRead)
-	if !ok {
-		t.Fatal("classifyResidue recorded nothing")
-	}
-	got, held := attrs["timeouts"]
-	if !held {
-		t.Fatalf("timeouts was not recorded; recorded %v", attrs)
-	}
-	wantVal := cty.ObjectVal(map[string]cty.Value{
-		"create": cty.StringVal("10m"),
-		"delete": cty.StringVal("15m"),
-	})
-	if !got.RawEquals(wantVal) {
-		t.Fatalf("recorded timeouts = %#v, want %#v", got, wantVal)
-	}
-	if _, held := attrs["ingress"]; held {
-		t.Fatal("ingress was recorded - a block the provider reads from the remote must never reach a record")
-	}
-	if _, held := attrs["name"]; held {
-		t.Fatal("name was recorded - the filter lets it through and the classifier is what drops it, because the provider answers it")
-	}
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), sgLikeRead)
+			if !ok {
+				t.Fatal("classifyResidue recorded nothing")
+			}
+			got, held := attrs["timeouts"]
+			if !held {
+				t.Fatalf("timeouts was not recorded; recorded %v", attrs)
+			}
+			wantVal := cty.ObjectVal(map[string]cty.Value{
+				"create": cty.StringVal("10m"),
+				"delete": cty.StringVal("15m"),
+			})
+			if !got.RawEquals(wantVal) {
+				t.Fatalf("recorded timeouts = %#v, want %#v", got, wantVal)
+			}
+			if _, held := attrs["ingress"]; held {
+				t.Fatal("ingress was recorded - a block the provider reads from the remote must never reach a record")
+			}
+			if _, held := attrs["name"]; held {
+				t.Fatal("name was recorded - the filter lets it through and the classifier is what drops it, because the provider answers it")
+			}
 
-	// And the other half of the round trip: a cold read carrying no
-	// timeouts at all is filled back to exactly the same object, which is
-	// what makes the replan render "(1 unchanged block hidden)" the way
-	// stock's does.
-	cold := cty.ObjectVal(map[string]cty.Value{
-		"id":                     cty.StringVal("sg-823b494443f0e3e7a"),
-		"name":                   cty.StringVal("complete-postgresql-d9972d37dfe1552a1323196f98"),
-		"revoke_rules_on_delete": cty.NullVal(cty.Bool),
-		"timeouts":               cty.NullVal(sgTimeoutsType()),
-		"ingress":                sgApplied().GetAttr("ingress"),
-		"egress":                 cty.NullVal(sgRuleSetType()),
-	})
-	filled, n := fillResidue(cold, schema.Block, attrs)
-	if n != 2 {
-		t.Fatalf("fillResidue filled %d, want 2 (revoke_rules_on_delete and timeouts)", n)
-	}
-	if !filled.GetAttr("timeouts").RawEquals(wantVal) {
-		t.Fatalf("filled timeouts = %#v, want %#v", filled.GetAttr("timeouts"), wantVal)
+			// And the other half of the round trip: a cold read carrying no
+			// timeouts at all is filled back to exactly the same object, which is
+			// what makes the replan render "(1 unchanged block hidden)" the way
+			// stock's does.
+			cold := cty.ObjectVal(map[string]cty.Value{
+				"id":                     cty.StringVal("sg-823b494443f0e3e7a"),
+				"name":                   cty.StringVal("complete-postgresql-d9972d37dfe1552a1323196f98"),
+				"revoke_rules_on_delete": cty.NullVal(cty.Bool),
+				"timeouts":               cty.NullVal(sgTimeoutsType()),
+				"ingress":                sgApplied().GetAttr("ingress"),
+				"egress":                 cty.NullVal(sgRuleSetType()),
+			})
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			if n != 2 {
+				t.Fatalf("fillResidue filled %d, want 2 (revoke_rules_on_delete and timeouts)", n)
+			}
+			if !filled.GetAttr("timeouts").RawEquals(wantVal) {
+				t.Fatalf("filled timeouts = %#v, want %#v", filled.GetAttr("timeouts"), wantVal)
+			}
+		})
 	}
 }
 
@@ -1048,6 +1222,20 @@ func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
 // block has to be walked for the same answer. Both directions are asserted,
 // because a rule that excluded every block would also pass a test that only
 // checked the secret case.
+//
+// The `strict { secrets = ... }` axis is the reconciliation of #365 slice 3
+// with this rule, and it is asserted rather than described. Under
+// [strict.Store] a sensitive flat ATTRIBUTE becomes recordable, and the
+// obvious guess is that a block containing one becomes recordable with it.
+// It does not, and the reason is not a stricter reading of the toggle: the
+// sensitive attribute is admitted under Store only because
+// [residueMarkRecoverable] can prove the mark comes back - one mark, on the
+// whole attribute value, reproduced from the schema by
+// [markSchemaSensitive] - and a sensitive argument INSIDE a block puts its
+// mark at a path inside the block's value, the one shape that predicate
+// names as unrecoverable. Store and Refuse therefore give the same verdict
+// from two different supports, and the write-only case never depended on
+// the setting at all.
 func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -1056,36 +1244,88 @@ func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
 		{"sensitive leaf", &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}},
 		{"write-only leaf", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			schema := sgLikeSchema()
-			schema.Block.BlockTypes["timeouts"].Block.Attributes["create"] = tc.attr
-			for _, name := range residueCandidates(schema, sgApplied()) {
-				if name == "timeouts" {
-					t.Fatalf("timeouts is a residue candidate even though it holds a %s", tc.name)
+		for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+			t.Run(tc.name+"/"+string(secrets), func(t *testing.T) {
+				schema := sgLikeSchema()
+				schema.Block.BlockTypes["timeouts"].Block.Attributes["create"] = tc.attr
+				for _, name := range residueCandidates(schema, sgApplied(), secrets) {
+					if name == "timeouts" {
+						t.Fatalf("timeouts is a residue candidate under secrets=%q even though it holds a %s", secrets, tc.name)
+					}
 				}
-			}
-			if singleNestedResidueBlock(schema.Block, "timeouts") {
-				t.Fatalf("singleNestedResidueBlock admitted a block with a %s", tc.name)
-			}
-			// fillResidue must refuse it too, from the same predicate, so a
-			// record written before the schema grew the secret stops being
-			// filled the day it does.
-			cold := cty.ObjectVal(map[string]cty.Value{
-				"id":                     cty.StringVal("sg-1"),
-				"name":                   cty.StringVal("n"),
-				"revoke_rules_on_delete": cty.NullVal(cty.Bool),
-				"timeouts":               cty.NullVal(sgTimeoutsType()),
-				"ingress":                cty.NullVal(sgRuleSetType()),
-				"egress":                 cty.NullVal(sgRuleSetType()),
+				if singleNestedResidueBlock(schema.Block, "timeouts") {
+					t.Fatalf("singleNestedResidueBlock admitted a block with a %s", tc.name)
+				}
+				// fillResidue must refuse it too, from the same predicate, so a
+				// record written before the schema grew the secret stops being
+				// filled the day it does.
+				cold := cty.ObjectVal(map[string]cty.Value{
+					"id":                     cty.StringVal("sg-1"),
+					"name":                   cty.StringVal("n"),
+					"revoke_rules_on_delete": cty.NullVal(cty.Bool),
+					"timeouts":               cty.NullVal(sgTimeoutsType()),
+					"ingress":                cty.NullVal(sgRuleSetType()),
+					"egress":                 cty.NullVal(sgRuleSetType()),
+				})
+				_, n := fillResidue(cold, schema.Block, map[string]cty.Value{
+					"timeouts": cty.ObjectVal(map[string]cty.Value{
+						"create": cty.StringVal("10m"),
+						"delete": cty.StringVal("15m"),
+					}),
+				}, secrets)
+				if n != 0 {
+					t.Fatalf("fillResidue filled a block holding a %s under secrets=%q", tc.name, secrets)
+				}
 			})
-			_, n := fillResidue(cold, schema.Block, map[string]cty.Value{
-				"timeouts": cty.ObjectVal(map[string]cty.Value{
-					"create": cty.StringVal("10m"),
-					"delete": cty.StringVal("15m"),
-				}),
+		}
+	}
+}
+
+// TestResidueRefusesASingleNestedBlockCarryingAVariableMark is the
+// reconciliation's own regression test, and it is about a mark the SCHEMA
+// does not produce.
+//
+// #365 slice 3 replaced residueCandidates' flat `v.IsMarked()` with
+// [residueMarkRecoverable], because a value that picked up sensitivity from
+// a `sensitive = true` VARIABLE has no schema fact to restore it from: it
+// would be stored unmarked, filled back unmarked, and left disagreeing with
+// the planned value on sensitivity alone, forever. The block loop this
+// branch added arrived with the older, flat spelling - and cty's
+// Value.IsMarked is SHALLOW. A `timeouts { create = var.secret_duration }`
+// carries its mark on the create argument inside the block value, not on
+// the block value itself, so IsMarked answers false and the block would be
+// recorded and filled with the mark silently dropped.
+//
+// Routing the block loop through residueMarkRecoverable with a nil
+// attribute is what closes it, because that function's walk is
+// UnmarkDeepWithPaths. Both settings are asserted: an unrecoverable mark is
+// not a policy question, so `secrets = "store"` does not admit one either.
+func TestResidueRefusesASingleNestedBlockCarryingAVariableMark(t *testing.T) {
+	for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+		t.Run(string(secrets), func(t *testing.T) {
+			schema := sgLikeSchema()
+
+			// The block schema says nothing is sensitive - it is the VALUE
+			// that carries the mark, which is what a sensitive variable
+			// feeding one of the block's arguments produces.
+			if !singleNestedResidueBlock(schema.Block, "timeouts") {
+				t.Fatal("the fixture's block is refused on the schema alone, so this test cannot see the mark rule")
+			}
+
+			applied := sgApplied().AsValueMap()
+			applied["timeouts"] = cty.ObjectVal(map[string]cty.Value{
+				"create": cty.StringVal("10m").Mark(marks.Sensitive),
+				"delete": cty.StringVal("15m"),
 			})
-			if n != 0 {
-				t.Fatalf("fillResidue filled a block holding a %s", tc.name)
+			marked := cty.ObjectVal(applied)
+			if marked.GetAttr("timeouts").IsMarked() {
+				t.Fatal("the fixture's mark is on the block value itself, so a shallow IsMarked would already catch it and this test would prove nothing")
+			}
+
+			for _, name := range residueCandidates(schema, marked, secrets) {
+				if name == "timeouts" {
+					t.Fatalf("timeouts is a residue candidate under secrets=%q although an argument inside it carries a mark no schema read can put back", secrets)
+				}
 			}
 		})
 	}
@@ -1108,5 +1348,63 @@ func TestResidueRefusesACollectionNestedBlock(t *testing.T) {
 		if singleNestedResidueBlock(schema.Block, "timeouts") {
 			t.Fatalf("singleNestedResidueBlock admitted nesting mode %v", nesting)
 		}
+	}
+}
+
+// TestFillResidueSeesThroughASensitivityMark is the regression test for the
+// defect that made GitHub issue #365 slice 3's sensitive residue a no-op on
+// the read side, found by an adversarial audit of the slice rather than by
+// any check in this repository.
+//
+// The write side works on an unmarked copy of the applied object, so it
+// records a sensitive attribute correctly. The read side is handed
+// builder.materialize's object, which [importAndRead] has already marked from
+// the schema - and [carriesNoInformation] answers false for a marked value on
+// purpose, because it must not draw a conclusion from one. For a legacy-SDK
+// provider, whose answer for an unset argument is the empty string rather
+// than a null, that meant "the provider answered something", so the record
+// was never filled: an attribute recorded on every apply and re-proposed on
+// every plan, forever, for exactly the population the setting was added to
+// cover.
+//
+// The fixture reproduces both halves of the shape deliberately. filename is
+// Sensitive and its cold read is the legacy SDK's EMPTY STRING, not a null -
+// a null unmarks itself inside cty.Value.IsNull, so a null-shaped fixture
+// passes whether or not the defect is present, which is why the first version
+// of TestResidueRoundTripsASensitiveArgumentWithItsMark missed it.
+func TestFillResidueSeesThroughASensitivityMark(t *testing.T) {
+	schema := secretLambdaSchema()
+
+	// The cold read, in the shape hashicorp/aws actually produces and then
+	// marked the way importAndRead marks it.
+	cold := markSchemaSensitive(cty.ObjectVal(map[string]cty.Value{
+		"id":               cty.StringVal("check-links"),
+		"function_name":    cty.StringVal("check-links"),
+		"filename":         cty.StringVal(""),
+		"source_code_hash": cty.StringVal(""),
+		"publish":          cty.NullVal(cty.Bool),
+		"description":      cty.StringVal("link checker"),
+		"arn":              cty.StringVal("arn:aws:lambda:eu-west-1:000000000000:function:check-links"),
+	}), schema.Block)
+	if !cold.GetAttr("filename").IsMarked() {
+		t.Fatal("the fixture's sensitive attribute is not marked, so this test cannot see the defect it exists for")
+	}
+
+	record := map[string]cty.Value{"filename": cty.StringVal("check_links.py.zip")}
+	filled, n := fillResidue(cold, schema.Block, record, strict.Store)
+	if n != 1 {
+		t.Fatalf("filled %d attributes, want 1.\nA sensitive attribute whose cold read is the legacy SDK's empty "+
+			"string carries no information, marked or not - and refusing to fill it leaves the estate proposing "+
+			"the update this mechanism exists to remove.", n)
+	}
+	got := filled.GetAttr("filename")
+	if plain, _ := got.Unmark(); !plain.RawEquals(cty.StringVal("check_links.py.zip")) {
+		t.Errorf("filename = %#v, want the recorded value", plain)
+	}
+
+	// The attributes nothing filled keep their marks, which is the other
+	// half: this function must not launder a value on its way through.
+	if !filled.GetAttr("source_code_hash").IsMarked() == cold.GetAttr("source_code_hash").IsMarked() {
+		t.Error("an untouched attribute's marks changed on the way through fillResidue")
 	}
 }

@@ -167,6 +167,13 @@ const (
 	// somewhere else.
 	RuleStrictMarkersUnrecordable Rule = "strict-markers-unrecordable"
 
+	// RuleStrictSecrets covers a live block's strict block whose secrets
+	// argument names something outside internal/live/strict's vocabulary.
+	// Both settings the vocabulary defines are implemented, so unlike
+	// [RuleStrictMarkerRepair] there is only one shape here: a typo. GitHub
+	// issue #365. See strict.go.
+	RuleStrictSecrets Rule = "strict-secrets"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -366,6 +373,10 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictMarkersUnrecordable: {
 		summary: "Markers selection reaches a type no record can identify",
 		docsRef: `live/LIMITATIONS.md, "strict-markers-unrecordable"`,
+	},
+	RuleStrictSecrets: {
+		summary: "Secrets setting is not one this fork's schema defines",
+		docsRef: `live/LIMITATIONS.md, "strict-secrets"`,
 	},
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",

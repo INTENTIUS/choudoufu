@@ -16,10 +16,10 @@
 //
 // # What is implemented, and what is not
 //
-// GitHub issue #365 is the schema for four toggles. This package carries the
-// first, marker_repair, and only its grammar: see [Implemented] for the
-// reason the two non-default settings are refused by lint rather than
-// silently accepted.
+// GitHub issue #365 is the schema for four toggles. This package carries
+// marker_repair (grammar plus the two predicates that say which settings a
+// build acts on - see [Implemented]), the `markers "record"` selection, and
+// secrets (see [Secrets]).
 package strict
 
 import (
@@ -179,6 +179,125 @@ func Implemented(v MarkerRepair) bool {
 // not reach, as a refusal naming that resource, on the first run.
 func ImplementedWithSelection(v MarkerRepair) bool {
 	return markerRepairs[v].withSelection
+}
+
+// Secrets is what a run does with the secret material a configuration
+// generates or sets: the values stock OpenTofu writes into its state file
+// and reads back out of it on the next run.
+//
+// HANDOFF.md states both halves. The default is the compatibility half -
+// "secrets the configuration generates are stored there the way stock stores
+// them" - and the principle this fork exists for is the toggle: "no secrets
+// stored by the tool (secret-generating types refused, sensitive settable
+// arguments never recorded)".
+//
+// # What "the way stock stores them" means here
+//
+// A stock run keeps one secret in one place: the state file, in clear, as an
+// ordinary attribute value, with a "sensitive_attributes" list beside it
+// saying which paths were marked. This fork has no state file, so the
+// equivalent place is the estate's record store - namespaced per estate,
+// under IAM, written with compare-and-swap - and the sensitivity travels
+// with the value (internal/live/projection's sensitivepaths.go persists the
+// state file's own encoding of it). That is the whole of what [Store] turns
+// on: nothing new is computed, nothing extra is written, and no value that
+// was not already in a stock state file becomes recordable.
+//
+// # What no setting can turn on
+//
+// A WRITE-ONLY attribute, and this is a protocol rule rather than a policy
+// one. The plugin protocol forbids a provider ever returning a write-only
+// value (internal/plugin6/validation/write_only.go refuses one that does),
+// so a recorded write-only value could never be checked against the object
+// it claims to describe, and stock does not store one either - it nulls them
+// out before the state is written. Recording it is not a stricter or laxer
+// choice; it is a wrong one. [Store] does not reach it and must not be made
+// to.
+//
+// Nor an effect RECEIPT's value. A receipt is a published breadcrumb whose
+// whole purpose is that other tools can read it (live/RECEIPTS.md), which is
+// the opposite of a record store's IAM boundary, and stock has no equivalent
+// of it to be compatible with. internal/live/lint's RuleReceiptSecret is
+// outside this toggle's reach for that reason.
+type Secrets string
+
+const (
+	// Store admits a secret-bearing type or argument and keeps its value the
+	// way stock OpenTofu keeps it. It is the default, and it is what
+	// HANDOFF.md's "compatible out of the box" means for this dimension: a
+	// configuration that works on stock works here with a live block added
+	// and nothing else, and a configuration that generates a password is
+	// exactly such a configuration.
+	Store Secrets = "store"
+
+	// Refuse keeps no secret material anywhere this run can write: a
+	// secret-generating logical type is refused outright, and a sensitive
+	// settable argument is never recorded as residue. It is HANDOFF.md's
+	// first principle, and it is what every run did before this toggle
+	// existed.
+	//
+	// It is a REFUSAL and not a silent omission, which is the part worth
+	// reading twice. Quietly dropping a sensitive argument from a record
+	// would leave the estate proposing an update to it on every run forever,
+	// with nothing saying why; refusing the type says so once, loudly, at
+	// the configuration.
+	Refuse Secrets = "refuse"
+)
+
+// DefaultSecrets is what an omitted secrets argument means, and therefore
+// what every configuration written before this toggle existed now gets.
+//
+// It is [Store] rather than [Refuse], and that is a deliberate reversal of
+// what this fork did up to GitHub issue #365 slice 3, not an accident of
+// ordering. The old default refused, which made a configuration containing
+// one random_password unrunnable here and runnable on stock - HANDOFF.md's
+// first difference row ("choudoufu refuses where stock proceeds: a defect;
+// fix it"). The principle did not change; it moved from being the default to
+// being the toggle, which is what "the principles this fork exists for are
+// toggles, and turning them on is the setup step" says.
+const DefaultSecrets = Store
+
+// secretsSettings is the whole vocabulary. Both settings are implemented, so
+// unlike [markerRepairs] this needs no support column: there is no
+// grammar-without-a-mechanism case here.
+var secretsSettings = map[Secrets]bool{
+	Store:  true,
+	Refuse: true,
+}
+
+// SecretsValid reports whether v is one of the two settings this fork's
+// schema defines.
+func SecretsValid(v Secrets) bool {
+	return secretsSettings[v]
+}
+
+// SecretsNames renders the vocabulary for a diagnostic, sorted so the
+// message is stable: `"refuse", "store"`.
+func SecretsNames() string {
+	out := make([]string, 0, len(secretsSettings))
+	for v := range secretsSettings {
+		out = append(out, `"`+string(v)+`"`)
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
+}
+
+// StoresSecrets reports whether v is the setting under which a run may keep
+// secret material.
+//
+// It is a function over the type rather than a `v == Store` at each call
+// site because the call sites are in four packages (internal/live/lint,
+// internal/live/identity, internal/live/projection, internal/live/liveimport)
+// and the zero value has to answer the same way everywhere. Secrets("") is
+// what a caller holding no configuration has, and it answers FALSE here
+// while [DefaultSecrets] answers true - the two are different questions and
+// the difference is the fail-safe: a layer that could not read the
+// configuration must not conclude the operator asked for storage. Every
+// layer that CAN read it resolves the omitted argument to [DefaultSecrets]
+// first; see identity.SecretsFor, which is the one place that resolution
+// happens.
+func StoresSecrets(v Secrets) bool {
+	return v == Store
 }
 
 // Names renders the whole vocabulary for a diagnostic, sorted so the message

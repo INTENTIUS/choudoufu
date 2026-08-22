@@ -132,7 +132,25 @@ type countIndexScope struct {
 // more, not less.
 func countIndexScopeForType(resourceType string, lt LogicalType, isLogical bool) countIndexScope {
 	if isLogical {
-		if lt.Class == ClassRecordAdmitted {
+		// The class the skip turns on is the one the type carries when it is
+		// admitted at all, which for a SECRET_REFUSED row is its StoredClass
+		// (GitHub issue #365 slice 3). That is not the secrets setting
+		// leaking in here: the skip's whole ground is the provider's own
+		// store_only measurement - "the record is the whole of the resource,
+		// so no argument can name anything else" - and sensitivity says
+		// nothing about it either way. A row whose StoredClass is
+		// EXTERNAL_ADMITTED (local_sensitive_file) still walks, for exactly
+		// the reason local_file does.
+		//
+		// It is read unconditionally rather than under the setting because
+		// the answer is moot for a refused resource - RuleLogicalResource
+		// has already taken it out - and a function that took the setting
+		// would be one more place the two could disagree.
+		class := lt.Class
+		if lt.StoredClass != "" {
+			class = lt.StoredClass
+		}
+		if class == ClassRecordAdmitted {
 			return countIndexScope{skip: true}
 		}
 		// Every other logical class, admitted or refused. EXTERNAL_ADMITTED

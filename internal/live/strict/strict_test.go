@@ -74,3 +74,52 @@ func TestNamesAreStable(t *testing.T) {
 		}
 	}
 }
+
+// TestSecretsVocabulary pins the whole of GitHub issue #365 slice 3's
+// vocabulary by value, including the two things that are easy to get right
+// once and then lose: which setting is the default, and what the ZERO value
+// answers.
+func TestSecretsVocabulary(t *testing.T) {
+	for _, v := range []Secrets{Store, Refuse} {
+		if !SecretsValid(v) {
+			t.Errorf("SecretsValid(%q) = false for a setting this package declares", v)
+		}
+	}
+	for _, v := range []Secrets{"", "none", "Store", "STORE", "no"} {
+		if SecretsValid(v) {
+			t.Errorf("SecretsValid(%q) = true", v)
+		}
+	}
+
+	// The default is "store", not "refuse", and this assertion is the whole
+	// reversal slice 3 made: HANDOFF.md's "compatible out of the box" says
+	// "secrets the configuration generates are stored there the way stock
+	// stores them", and the principle is the toggle. Flipping this constant
+	// back makes a configuration containing one random_password unrunnable
+	// here and runnable on stock, which is HANDOFF's first difference row.
+	if got, want := DefaultSecrets, Store; got != want {
+		t.Fatalf("DefaultSecrets = %q, want %q", got, want)
+	}
+	if !SecretsValid(DefaultSecrets) {
+		t.Fatal("DefaultSecrets is not in the vocabulary")
+	}
+
+	if got, want := SecretsNames(), `"refuse", "store"`; got != want {
+		t.Errorf("SecretsNames() = %s, want %s", got, want)
+	}
+
+	if !StoresSecrets(Store) {
+		t.Error("StoresSecrets(Store) = false")
+	}
+	if StoresSecrets(Refuse) {
+		t.Error("StoresSecrets(Refuse) = true")
+	}
+	// The zero value answers FALSE while DefaultSecrets answers true, and
+	// the two are different questions. A layer holding Secrets("") could not
+	// read a configuration, and must not conclude the operator asked for
+	// storage; a layer that CAN read one resolves an omitted argument to
+	// DefaultSecrets first. See identity.SecretsFor.
+	if StoresSecrets(Secrets("")) {
+		t.Error("StoresSecrets of the zero value = true; a caller that could not read a configuration must not be told the operator asked to store secrets")
+	}
+}

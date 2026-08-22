@@ -151,11 +151,22 @@ configuration with a `record_store` was told its type could never work.
   family (`tls_private_key`, `tls_self_signed_cert`,
   `tls_locally_signed_cert`, `tls_cert_request`, and any future `tls_`
   addition by default), and `local_sensitive_file`. Each generates, or
-  requires as an argument, secret material a live-markers run has nowhere
-  safe to keep: no state file, and no persisted micro-state record either,
-  since the no-secrets rule that already governs snapshots and receipts
-  forbids a record from carrying it too. Refused permanently, with or
-  without a `record_store` configured - the store never weakens this class.
+  requires as an argument, secret material, so the persisted micro-state
+  record holding its whole prior state would hold that material too.
+
+  That is a measurement, and since GitHub issue #365 slice 3 what a run does
+  about it is the strict block's `secrets` setting. Under the default,
+  `"store"`, such a type is admitted the moment a `record_store` is declared
+  - as its `StoredClass`, which is the class it would carry if nothing in its
+  schema were sensitive - and the record holds the value the way a stock
+  OpenTofu state file holds it. Under `"refuse"` it is refused exactly as it
+  always was, at lint, at `internal/live/identity`'s resolver, and at a
+  migration's record seed. See "strict-secrets".
+
+  A member reached by the `tls_` FAMILY DEFAULT rather than by a measured row
+  is refused under both settings, and that is a rule about measurement rather
+  than about secrets: nothing has read such a type's schema, so nothing can
+  say what a record would hold.
   `local_sensitive_file` is a derived row like every other since #314; it
   used to carry a hand-written exact-match verdict in `ClassifyLogicalType`
   because `hashicorp/local` contributed no rows at all, and the derivation
@@ -298,43 +309,76 @@ gated on `record_store` being absent. Fixture at
 
 **Construct.** `local_sensitive_file`.
 
-**Why banned.** hashicorp/local's own docs mark this resource's
+**Construct, restated since GitHub issue #365 slice 3.** This is a
+*setting*, not a ban. hashicorp/local's own docs mark this resource's
 content-carrying arguments sensitive - "The arguments accepted by this
 resource are marked as sensitive," and its schema marks `content` and
 `content_base64` `(String, Sensitive)`, neither deprecated, unlike
-`local_file`'s sole sensitive field. A live-markers run has nowhere safe to
-keep that content: no state file, and no persisted micro-state record
-either, since `internal/live/projection`'s `recordPayload` would store the
-whole object value.
+`local_file`'s sole sensitive field - so the persisted micro-state record
+holding this type's whole object value would hold that content. Stock
+OpenTofu's state file holds it too, which is why the default is to keep it:
+under `strict { secrets = "store" }` this type is admitted the moment a
+`record_store` is declared, exactly as `local_file` is. Under
+`strict { secrets = "refuse" }` it is refused, and that refusal is what this
+entry's fixture exercises. See "strict-secrets".
 
-**Forwarding address.** A secret-store Op, same as `random_password` and
-the `tls_` family: generate and store the secret in a secret manager
-outside OpenTofu's model, and have configuration reference it by ARN/path,
-never by value.
+**Why bounded at all.** The record store is not a secret manager. It is
+namespaced per estate and under IAM, and the value is held in clear with its
+sensitivity marks beside it - the same posture a stock state file has, and
+no better. An estate that must not hold secret material at all is what the
+setting is for.
 
-**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED` (see
-above. See `internal/live/lint/logical_type.go`, `ClassifyLogicalType`.)
-Fixture at `live/e2e/limits/local-sensitive-file/`.
+**Forwarding address.** Declare a `record_store`, or - if the estate should
+hold no secret material - set `strict { secrets = "refuse" }` and take the
+secret-store Op: generate and store the secret in a secret manager outside
+OpenTofu's model, and have configuration reference it by ARN/path, never by
+value.
+
+**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED` with a
+`StoredClass` of `EXTERNAL_ADMITTED` (`internal/live/lint/logical_type.go`,
+`ClassifyLogicalType` and `admitsUnder`), and the same question re-asked at
+the layer that acts by `internal/live/identity`'s resolver, against
+`TypeIdentity.SecretMaterial`. Fixture at
+`live/e2e/limits/local-sensitive-file/`, which declares no `record_store`
+and so is refused under either setting.
 
 ### random-password
 
 **Construct.** `random_password`.
 
-**Why banned.** The generated value only exists because state remembered
-it, and regenerating it from the live system is impossible by construction.
-A random value has no live twin. Logical-resource family.
+**Construct, restated since GitHub issue #365 slice 3.** This is a
+*setting*, not a ban. The generated value only exists because something
+remembered it, and no live system can regenerate it - a random value has no
+live twin. What remembers it on stock OpenTofu is the state file, in clear;
+what remembers it here is the estate's record store, which is where this
+fork keeps everything a state file would. So under
+`strict { secrets = "store" }`, the default, `random_password` is admitted
+the moment a `record_store` is declared, exactly like its `RECORD_ADMITTED`
+neighbours; under `strict { secrets = "refuse" }` it is refused, which is
+what this entry's fixture exercises. The same applies to `random_bytes` and
+the whole `tls_*` family. See "strict-secrets".
 
-**Forwarding address.** A secret-store Op. Generate and store the secret
-in a secret manager (outside OpenTofu's model entirely), and have
-configuration reference it by ARN/path, never by value. The same forwarding
-applies to `tls_*`, banned for the same reason. Classified `SECRET_REFUSED`
-(see above): refused permanently, with no record-store forwarding address,
-unlike this family's `RECORD_ADMITTED` neighbors, because configuring a
-`record_store` does nothing for this type, by design.
+The previous wording said this type was "refused permanently, with no
+record-store forwarding address ... because configuring a `record_store`
+does nothing for this type, by design". That was the reading slice 3
+retracted: it refused a configuration stock OpenTofu runs, which is
+`HANDOFF.md`'s first difference row.
 
-**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED`
-(`internal/live/lint/logical_type.go`, `ClassifyLogicalType`). Fixture at
-`live/e2e/limits/random-password/`.
+**Why bounded at all.** The record store is not a secret manager - see
+"local-sensitive-file" just above for the same paragraph.
+
+**Forwarding address.** Declare a `record_store`, or set
+`strict { secrets = "refuse" }` and take the secret-store Op: generate and
+store the secret in a secret manager (outside OpenTofu's model entirely),
+and have configuration reference it by ARN/path, never by value.
+
+**Enforcement.** `RuleLogicalResource`, classified `SECRET_REFUSED` with a
+`StoredClass` of `RECORD_ADMITTED` (`internal/live/lint/logical_type.go`,
+`ClassifyLogicalType` and `admitsUnder`), and the same question re-asked at
+the layer that acts by `internal/live/identity`'s resolver, against
+`TypeIdentity.SecretMaterial`. Fixture at
+`live/e2e/limits/random-password/`, which declares no `record_store` and so
+is refused under either setting.
 
 **The same problem returns, permanently, wherever ANY `random_*` resource's
 generated attribute is built into a sibling's identity.** This is not the
@@ -1544,6 +1588,121 @@ behavior, with every marker written exactly as before, because
 `internal/live/identity` and `internal/live/stamp` both decline to honour a
 selection they cannot verify.
 
+### strict-secrets
+
+**Construct.** A `strict { secrets = "..." }` argument naming something
+outside this fork's vocabulary. The two settings are:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    record_store "ssm" {}
+    strict {
+      secrets = "refuse" # default "store"
+    }
+  }
+}
+```
+
+`"store"`, the default, keeps the secret material a configuration generates
+or sets the way stock OpenTofu keeps it: in the estate's record store rather
+than in a state file, with its sensitivity travelling beside it. `"refuse"`
+keeps none of it — a secret-generating logical type is refused outright, and
+a sensitive settable argument is never recorded as residue.
+
+**Why bounded.** The two settings are opposites, so a spelling that is
+neither is a question this package cannot answer. `secrets = "none"` could
+plausibly be read either way; resolving it to the default would run the
+estate under the setting the author was trying to change, and resolving it
+to `"refuse"` would refuse types they never asked to refuse. Saying so is
+the only answer that is not a guess. Writing the default out by hand is
+clean and means exactly what omitting it means.
+
+**What no setting reaches.** A **write-only** attribute is never recorded,
+under either setting. That is a protocol rule rather than a policy one: the
+plugin protocol forbids a provider ever returning a write-only value, so a
+recorded one could never be checked against the object it claims to
+describe, and stock does not keep one either — it nulls them out before the
+state is written. An effect **receipt**'s value is out of reach for a
+different reason: a receipt is a published breadcrumb whose whole purpose is
+that other tools can read it (`live/RECEIPTS.md`), which is the opposite of
+a record store's IAM boundary, and stock has no equivalent of it to be
+compatible with. See "receipt-secret".
+
+A mark this fork cannot put back is out of reach too, and this one is a
+mechanism limit rather than a rule. Everything in a residue record is stored
+unmarked, and the sensitivity is reconstructed from the provider's schema
+when the record is read — exact for a mark the schema itself produced and
+for nothing else. So a value that picked up sensitivity from a
+`sensitive = true` *variable* rather than from the schema stays out under
+either setting, and the argument is proposed for update on every plan.
+
+**What the setting does not reach yet, and why that is a bound rather than
+an omission.** A **markerless type whose schema carries credential
+material** stays refused under both settings. Such a type has no tags
+argument, so its identity would live in the estate's record store
+(`markerless-type`'s record-located route), and two measurements say the
+secrets setting must not open that route:
+
+- A located record holds the type's **identity and nothing else** — that is
+  what separates it from a record-*backed* type, whose record holds the
+  whole object. So `"store"`'s promise, "kept the way stock keeps it",
+  is one this route cannot make for an attribute the provider's own read
+  never returns: `aws_iam_access_key`'s `secret` is the measured case, and
+  admitting the type would trade a loud refusal for a silent loss stock does
+  not have. Residue is the mechanism that could carry such a value, and it
+  is not a substitute: residue records an attribute only after the
+  provider has proved, twice, at apply time, that it neither sources it from
+  the remote nor re-derives it. Lint has to answer at the configuration,
+  before any of that has happened.
+- For at least one type **the recorded identity is itself the secret**
+  (`aws_wafv2_api_key`, whose `id` is its `api_key`). Reading a marked value
+  back for the record is refused rather than unmarked, so admitting that
+  shape would stop the run at apply with the object already live — a plan
+  refusal traded for an apply-time failure, which is the one trade the
+  record-located mechanism is forbidden to make.
+
+The `markers "record"` selection reaches the second of these on its own and
+is safe there for a reason that does not transfer: a selected type is
+already admitted by its ratified row and already applied with every one of
+its attributes, so the selection changes only where "which object is this"
+comes from. See `strict-markers-unrecordable`.
+`internal/live/identity`'s `TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto`
+holds both halves.
+
+This bound is not free, and saying what it costs is part of stating it: as
+of 2026-08-22 the credential veto is the **sole** remaining wall for the
+`corpus-alb-complete` gauntlet estate's `test_plan` stage, on one
+`aws_cognito_user_pool_client`. The rule that would clear it already exists
+and already ships — `sensitiveIdentityAttr`, the same blanket narrowed to
+exactly the attributes a record would hold, written for the selection route
+in `markers "record"` — and applying it here would refuse the second shape
+above while admitting the first. What is missing is one measurement, not one
+rule: whether every sensitive attribute of each type it would newly admit
+survives an import-and-read, or is picked up as residue instead. That is a
+per-type, post-apply fact about a provider, and lint has to answer at the
+configuration.
+
+**Forwarding address.** Correct the spelling, or remove the argument (which
+means `"store"`).
+
+**Enforcement.** `RuleStrictSecrets`, `internal/live/lint/strict.go`
+(`checkStrictSecrets`), against `internal/live/strict`'s `SecretsValid`.
+Fixture at `live/e2e/limits/strict-secrets/`; the two valid spellings and
+the default written out are in `internal/live/lint/testdata`.
+
+The *setting* itself is enforced in three places, and the third is not
+covered by the other two. `internal/live/lint`'s `admitsUnder` is the gate a
+configuration meets; `internal/live/identity`'s resolver asks the same
+question again at the layer that acts, so a caller that skipped lint gets a
+refusal rather than a record full of secrets. `choudoufu live-import` runs
+neither - it loads the configuration for the estate name and the record store
+and nothing else - so `internal/live/liveimport`'s `ratifyOne` is the only
+thing standing between `"refuse"` and a stock state file's generated password
+landing in the record store, and what that path writes is the instance's
+whole prior object rather than an identity.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity
@@ -1921,6 +2080,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Required variable not set | error | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | error | `internal/addrs` | "Reserved symbol name" |
 | 0 | 0 | identity | Resource type has no orphan recovery | error | `internal/live/identity` | "Resource type has no orphan recovery" |
+| - | - | identity | Secret-generating resource refused | error | `internal/live/identity` | "strict-secrets" |
 | 0 | 0 | identity | Sensitive count expression | error | `internal/live/identity` | "Sensitive count expression" |
 | 0 | 0 | identity | Sensitive for_each expression | error | `internal/live/identity` | "Sensitive for_each expression" |
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | error | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
@@ -1955,6 +2115,7 @@ refused, and each says so in its own entry.
 | - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
 | - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
 | - | - | lint | strict-markers-unrecordable | error | `internal/live/lint` | "strict-markers-unrecordable" |
+| - | - | lint | strict-secrets | error | `internal/live/lint` | "strict-secrets" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
@@ -1999,7 +2160,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**202 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**204 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

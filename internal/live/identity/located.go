@@ -90,12 +90,12 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 //     (live/admission_coverage_test.go holds the overlap at zero) and this
 //     check is what keeps the ordering safe if that ever changes.
 //
-//  2. The type's schema carries no live secret material. This is the
-//     credential exclusion CLAUDE.md names, DERIVED rather than listed:
-//     [credentialMaterial] applies the same evidence rule
-//     lint.ClassSecretRefused applies to logical types - every attribute
-//     reachable from the block, nested attribute types and nested blocks
-//     included, minus the deprecated ones.
+//  2. The identity this route would RECORD carries no secret. Not "the type
+//     has no secret anywhere" - [sensitiveIdentityAttr] asks only about the
+//     attributes [LocatedIdentityPlanFor] actually reads, because those are
+//     the only ones this route's promise touches. See the check itself,
+//     below, for the measurement that replaced a whole-schema veto with
+//     this narrower one.
 //
 //  3. The type has an identity this mechanism can record IN FULL - which is
 //     the top-level string [locatedImportIDAttr] for a type whose whole
@@ -144,11 +144,50 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 	if !ok || schema.Block == nil {
 		return false
 	}
-	if credentialMaterial(schema.Block) {
+	plan, recordable := LocatedIdentityPlanFor(resourceType, schema)
+	if !recordable {
 		return false
 	}
-	_, recordable := LocatedIdentityPlanFor(resourceType, schema)
-	return recordable
+	// Condition 2 asks whether the RECORD would carry a secret, not whether
+	// the type has one anywhere in its schema - those are different
+	// questions. [credentialMaterial]'s whole-schema sweep answers the
+	// second, which is [CredentialMaterial]'s job for internal/live/projection's
+	// residue (a value-preservation promise this route makes no claim
+	// about). This route's promise is narrower: it records
+	// locatedImportIDAttr or plan's own components, nothing else, so the
+	// only sensitive material it can leak is a secret that IS one of those
+	// attributes. Measured 2026-08-22 (issue #365 population 2): of the
+	// types [credentialMaterial] excludes, nine of eleven carry their secret
+	// on an attribute the plan never reads, and refusing them bought nothing
+	// - the record it would have written never touched the secret either
+	// way. [sensitiveIdentityAttr] is that narrower question, already
+	// written for the operator-selected "markers record" route.
+	if sensitiveIdentityAttr(plan, schema) != "" {
+		return false
+	}
+	if sanctionedCredentialExclusion[resourceType] {
+		return false
+	}
+	return true
+}
+
+// sanctionedCredentialExclusion is the maintainer's 2026-08-15 parity ruling
+// (live/HARNESS.md's "credential-exclusions-are-exactly-four" ratchet,
+// internal/live/harness/assumptions.go's sanctionedCredentialExclusions),
+// applied here too. That ratchet's own enforcement only reads
+// tools/row-gen/rejected.json and [DefaultTable] - the ordinary tag-admission
+// path - because the located route did not exist when it was written; its
+// prose is broader ("none of them is admitted"), and honoring that literally
+// is what this list is for. Two of the four are markerless and therefore
+// reachable here at all: aws_appstream_directory_config and
+// aws_ivs_playback_key_pair are not in [MarkerlessTypes]. This is a second,
+// narrower hand list rather than an import of the harness one, because that
+// package reads a checked-out repo's working tree and this one must not
+// depend on that. Growing past four is the ratchet's question to answer, not
+// this predicate's.
+var sanctionedCredentialExclusion = map[string]bool{
+	"aws_iam_access_key":  true,
+	"aws_iot_certificate": true,
 }
 
 // hasLocatedImportID reports whether b carries a top-level string

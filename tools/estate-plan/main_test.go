@@ -396,21 +396,40 @@ func TestRefineMarkerlessTypeIsDemotedOnlyWhenLocatedAndSchemaBacked(t *testing.
 		t.Error("a wholly-located markerless blocker must say the record_store clears it")
 	}
 
-	// One credential-bearing type in the set withdraws the note and keeps
-	// the whole blocker blocking - the same shape recordAdmittedAll pins for
-	// logical-resource, and the reason a roster-free predicate is safe here.
-	credentialSchemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
+	// A sensitive attribute OUTSIDE the recorded identity does not withdraw
+	// the note: identity.LocatedType's condition 2 asks whether the RECORD
+	// would carry a secret (#365 population 2, measured 2026-08-22), not
+	// whether the type has a secret anywhere - "id" here is the whole
+	// identity and "secret" isn't it, so the record never touches it and
+	// the type is still demoted.
+	sensitiveElsewhereSchemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
 			"id":     {Type: cty.String, Computed: true},
 			"secret": {Type: cty.String, Computed: true, Sensitive: true},
 		},
 	}}}
-	got, note = refine("markerless-type", causes, ActionDefer, credentialSchemas)
+	got, note = refine("markerless-type", causes, ActionDefer, sensitiveElsewhereSchemas)
+	if got != ActionRead {
+		t.Errorf("action = %s, want %s - a sensitive attribute outside the recorded identity must not keep the blocker blocking", got, ActionRead)
+	}
+	if note == "" {
+		t.Error("a demoted markerless blocker must say the record_store clears it, even with a sensitive attribute elsewhere in the schema")
+	}
+
+	// A sensitive id - the identity itself is credential material - keeps
+	// the whole blocker blocking and withdraws the note, the same shape
+	// recordAdmittedAll pins for logical-resource.
+	sensitiveIDSchemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id": {Type: cty.String, Computed: true, Sensitive: true},
+		},
+	}}}
+	got, note = refine("markerless-type", causes, ActionDefer, sensitiveIDSchemas)
 	if got != ActionDefer {
-		t.Errorf("action = %s, want %s - credential material must keep the blocker blocking even under a schema", got, ActionDefer)
+		t.Errorf("action = %s, want %s - a sensitive id must keep the blocker blocking even under a schema", got, ActionDefer)
 	}
 	if note != "" {
-		t.Errorf("credential material must withdraw the note entirely; got %q", note)
+		t.Errorf("a sensitive id must withdraw the note entirely; got %q", note)
 	}
 }
 

@@ -1716,13 +1716,22 @@ func statelessTestSchemas() map[string]providers.Schema {
 		// slot markers.
 		"aws_eip": schema("id", "domain"),
 	}
-	// A sensitive, settable attribute on the bucket, so command-level tests
+	// A write-only settable attribute on the bucket, so command-level tests
 	// can pin that lint.CheckResidueAttributes is actually WIRED into the
 	// live entry points - the wave-3 audit removed the call and watched
 	// this suite stay green, which is the unpinned-wiring shape wave 1
 	// found once already.
+	//
+	// Write-only rather than Sensitive since GitHub issue #365 slice 3.
+	// The sensitive half of that warning now fires only under
+	// strict { secrets = "refuse" }, because under the default such an
+	// argument IS remembered - so a Sensitive attribute here would make this
+	// wiring guard depend on a setting the fixture does not write, and the
+	// guard would go quiet for the wrong reason. Write-only is the half no
+	// setting reaches: the plugin protocol forbids the provider ever
+	// returning the value.
 	base["aws_s3_bucket"].Block.Attributes["secret_policy_seed"] = &configschema.Attribute{
-		Type: cty.String, Optional: true, Sensitive: true,
+		Type: cty.String, Optional: true, WriteOnly: true,
 	}
 	return base
 }

@@ -135,6 +135,16 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"fail when the veto set drifts away from those four. Naming them here is the check, not the hand-wiring.",
 		Data: 4, Code: 0,
 	},
+	"internal/live/identity/located.go": {
+		Reason: "sanctionedCredentialExclusion: the two of the maintainer's four sanctioned credential exclusions " +
+			"(live/HARNESS.md's credential-exclusions-are-exactly-four ratchet) that are markerless and therefore " +
+			"reachable by the located route at all - aws_iam_access_key, aws_iot_certificate. That ratchet's own " +
+			"check reads only rejected.json and DefaultTable, the ordinary tag-admission path, because the located " +
+			"route postdates it; its prose is broader (\"none of them is admitted\"), and this list is what honors " +
+			"that here too rather than silently exempting a route the ruling's author never saw. A ruling is the " +
+			"one thing that cannot be derived.",
+		Data: 2, Code: 0,
+	},
 	"internal/live/identity/parent.go": {
 		Reason: "parentReadRemovable and foldParentTypes: two one-entry maps whose growth rule is written into their own doc " +
 			"comments as \"one provider-behavior verification at a time\". The fact recorded is what a live " +
@@ -323,7 +333,14 @@ const (
 	// kubernetes_config_map, kubernetes_namespace, kubernetes_storage_class)
 	// live/survey-full.json structurally has no row for and never will.
 	// Four Data literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 435
+	// 435 -> 437 data, 2026-08-22 (issue #365 population 2): new
+	// internal/live/identity/located.go's sanctionedCredentialExclusion, two
+	// entries - aws_iam_access_key, aws_iot_certificate, the markerless
+	// subset of the maintainer's four sanctioned credential exclusions,
+	// honored on the located route now that its general credential veto was
+	// narrowed to the identity attributes it actually records. Two Data
+	// literals added, no Code, nothing moved.
+	typeLiteralDataTotal = 437
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

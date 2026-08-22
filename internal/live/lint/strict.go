@@ -19,7 +19,8 @@ import (
 // checkLiveStrict validates the optional strict block nested in a live block,
 // GitHub issue #365's profile toggles.
 //
-// Two things live here today. marker_repair is checked below; the
+// Three things live here. marker_repair is checked below and secrets by
+// [checkStrictSecrets], both of which need nothing but the block itself; the
 // `markers "record"` selection is checked by [checkStrictMarkers], which
 // runs once over the whole configuration because half of what it has to say
 // needs the module tree and the provider schemas.
@@ -67,6 +68,8 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	}
 	st := mod.Live.Strict
 
+	checkStrictSecrets(st, path, issues)
+
 	if !st.MarkerRepairSet {
 		// An omitted argument resolves to strict.DefaultMarkerRepair, which
 		// is today's behavior by construction. Nothing to check.
@@ -109,6 +112,60 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 			Subject: st.MarkerRepairRange,
 		})
 	}
+}
+
+// checkStrictSecrets validates the strict block's secrets argument: GitHub
+// issue #365's first principle, "no secrets stored by the tool", turned into
+// a setting whose default is stock OpenTofu's own behavior.
+//
+// There is one shape to refuse and it is a typo. Unlike marker_repair, both
+// settings this fork's schema defines are implemented, so there is no
+// grammar-without-a-mechanism case: [strict.Store] is what every layer does
+// when the argument is omitted, and [strict.Refuse] is what every layer did
+// before the argument existed. Neither can be accepted-and-ignored, because
+// each is somebody's whole behavior today.
+//
+// The default written out by hand is clean, for GitHub issue #101's standing
+// reason: `secrets = "store"` must mean exactly what omitting it means, or
+// an operator who documents their intent in their own configuration is
+// punished for it. That is not a special case below - both valid spellings
+// take the same silent branch - and TestCheck's "strict secrets, the default
+// written out explicitly" case is what holds it there, beside the same case
+// for marker_repair.
+//
+// # Why a typo is a refusal rather than a warning
+//
+// The two settings are opposites, and every spelling that is neither is a
+// question this package cannot answer: `secrets = "none"` could plausibly be
+// read as either. Resolving it to the default would run the operator's
+// estate under the setting they were trying to change; resolving it to
+// [strict.Refuse] would refuse types they never asked to refuse. Saying so
+// is the only answer that is not a guess.
+func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Issue) {
+	if !st.SecretsSet {
+		// An omitted argument resolves to strict.DefaultSecrets in
+		// identity.SecretsFor, which every layer reads. Nothing to check.
+		return
+	}
+	if strict.SecretsValid(strict.Secrets(st.Secrets)) {
+		return
+	}
+	*issues = append(*issues, Issue{
+		Rule:      RuleStrictSecrets,
+		Construct: fmt.Sprintf("strict.secrets = %q", st.Secrets),
+		Module:    path,
+		Detail: fmt.Sprintf(
+			"%q is not a secrets setting. Valid settings: %s. %q, which is what omitting the argument means, "+
+				"keeps the secret material a configuration generates or sets the way stock OpenTofu keeps it - "+
+				"in the estate's record store rather than in a state file, with its sensitivity travelling "+
+				"beside it. %q keeps none of it: a secret-generating logical type is refused outright, and a "+
+				"sensitive settable argument is never recorded. Neither setting can make a write-only "+
+				"attribute recordable - the plugin protocol forbids a provider ever returning one, so no "+
+				"stored value could be checked against the object it describes.",
+			st.Secrets, strict.SecretsNames(), strict.DefaultSecrets, strict.Refuse,
+		),
+		Subject: st.SecretsRange,
+	})
 }
 
 // unimplementedRepairDetail is the sentence for a setting the schema defines
