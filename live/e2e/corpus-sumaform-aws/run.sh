@@ -742,11 +742,17 @@ assert_tag "$VPC_ID" "the crossing VPC" "$ESTATE_NAME" || fail "the crossing VPC
 assert_tag "$INSTANCE_ID" "module.server's instance" "$ESTATE_NAME" || fail "module.server's instance's markers moved during the replan"
 VPC_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-address" --query 'Tags[0].Value' --output text)"
 [ "$VPC_ADDR" = "aws_vpc.crossing" ] || fail "the crossing VPC's tofu-address is '$VPC_ADDR', not 'aws_vpc.crossing'"
+# The instance key is spelled ":0" and not "[0]": the marker spec escapes
+# every "[...]" instance key to ":" plus the escaped key
+# (internal/live/markers' EscapeAddress), because a tag value cannot carry a
+# bracket. Asserted in the escaped spelling deliberately - this is the exact
+# string that is on the live object, and a test that quoted the unescaped
+# address would be asserting something no cloud tag ever holds.
 INSTANCE_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=tofu-address" --query 'Tags[0].Value' --output text)"
-[ "$INSTANCE_ADDR" = "module.server.module.server.module.host.aws_instance.instance[0]" ] \
-  || fail "module.server's instance carries tofu-address '$INSTANCE_ADDR', not module.server.module.server.module.host.aws_instance.instance[0]"
-log "  identities by value: aws_vpc.crossing and"
-log "  module.server.module.server.module.host.aws_instance.instance[0], read off floci"
+[ "$INSTANCE_ADDR" = "module.server.module.server.module.host.aws_instance.instance:0" ] \
+  || fail "module.server's instance carries tofu-address '$INSTANCE_ADDR', not module.server.module.server.module.host.aws_instance.instance:0"
+log "  identities by value, read off floci: aws_vpc.crossing and"
+log "  module.server.module.server.module.host.aws_instance.instance:0"
 
 # --- 3c: what is left, and why this stage is still fail
 #
@@ -786,7 +792,7 @@ log "zero by value). Still fail: live-import does not write a located record for
 log "type, so the 2 selected instances and the 1 attachment derived from one read ABSENT."
 log "Stages 4-5 remain unwritten: nothing runs yet for them to exercise."
 log ""
-gauntlet_stage test_plan fail "the static count() wall is FIXED - 360 refusals -> 0 and aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record all expand to zero instances by value, matching stock's own cold state (internal/configs' tolerant static scope, StaticEvaluator.WithUnknownForRefusedReferences). The plan is now 3 to add, 0 to change, 0 to destroy, and all 3 are ONE gap: live-import does not honour `markers = record`, so it writes no tofu-located record for aws_instance.instance[0] or aws_ebs_volume.data_disk[0] (both ABSENT) and the aws_volume_attachment derived from the volume is PARENT_UNAVAILABLE. Asserted at the store, not just in the prose: .tofu-records/tofu-residue exists and .tofu-records/tofu-located does not. HANDOFF row 2, and #365 slice 2's own completeness rather than a new finding - see this script's header, item 4"
+gauntlet_stage test_plan fail "the static count() wall is FIXED - 360 refusals -> 0 and aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record all expand to zero instances by value, matching stock's own cold state (internal/configs' tolerant static scope, StaticEvaluator.WithUnknownForRefusedReferences). The plan is now 3 to add, 0 to change, 0 to destroy, and all 3 are ONE gap: live-import does not honour markers = record, so it writes no tofu-located record for aws_instance.instance[0] or aws_ebs_volume.data_disk[0] (both ABSENT) and the aws_volume_attachment derived from the volume is PARENT_UNAVAILABLE. Asserted at the store, not just in the prose: .tofu-records/tofu-residue exists and .tofu-records/tofu-located does not. HANDOFF row 2, and #365 slice 2's own completeness rather than a new finding - see this script's header, item 4"
 gauntlet_stage test_apply not_run "stage 3 still blocks on the live-import located-record gap; stages 4-5 unwritten"
 gauntlet_stage drift_reconverge not_run "stage 3 still blocks on the live-import located-record gap; stages 4-5 unwritten"
 CURRENT_STAGE=""
