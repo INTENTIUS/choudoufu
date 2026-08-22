@@ -349,6 +349,15 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			// two diagnostics here would separate a user's "I referenced
 			// the whole module instead of one output" mistake from its own
 			// twin for no reason a reader could tell was intentional.
+			//
+			// A tolerant evaluator answers all three forms instead: by
+			// value where its module-output lookup covers the call, as an
+			// unknown where it does not. See
+			// [StaticEvaluator.WithUnknownForRefusedReferences] and
+			// [staticScopeData.GetModule].
+			if s.eval.unknownForRefused {
+				continue
+			}
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Module output not supported in static context",
@@ -395,6 +404,14 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 				if val, covered := s.eval.dataLookup(res); covered && lookupCoversTraversal(val, ref.Remaining) {
 					continue
 				}
+			}
+			// A tolerant evaluator answers an uncovered resource reference
+			// with an unknown rather than refusing it, so that the literals
+			// standing beside it in the same expression still have an
+			// answer. See [StaticEvaluator.WithUnknownForRefusedReferences]
+			// and [staticScopeData.GetResource].
+			if _, ok := anyResourceSubject(subject); ok && s.eval.unknownForRefused {
+				continue
 			}
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
@@ -566,6 +583,14 @@ func (s staticScopeData) GetResource(_ context.Context, addr addrs.Resource, _ t
 			return val, nil
 		}
 	}
+	if s.eval.unknownForRefused {
+		// The tolerant counterpart of the refusal above: an unknown of
+		// unknown type, which attribute access and indexing both accept
+		// unconditionally, so a chain through it resolves to unknown
+		// instead of erring a second, unclassifiable way. See
+		// [StaticEvaluator.WithUnknownForRefusedReferences].
+		return cty.DynamicVal, nil
+	}
 	panic("Not Available in Static Context")
 }
 
@@ -598,7 +623,20 @@ func (s staticScopeData) GetLocalValue(ctx context.Context, ident addrs.LocalVal
 	return val, s.enhanceDiagnostics(id, diags.Append(valDiags))
 }
 
-func (s staticScopeData) GetModule(context.Context, addrs.ModuleCall, tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+// GetModule answers a module-call reference from the evaluator's
+// module-output lookup, when it has one that covers the call, and with an
+// unknown when a tolerant evaluator's lookup declines.
+// [staticScopeData.StaticValidateReferences] refuses every module reference
+// before evaluation starts unless the evaluator is tolerant, so the panic
+// below is unreachable through this package's own scopes; it stays as the
+// same programming-error backstop the other unavailable getters keep.
+func (s staticScopeData) GetModule(_ context.Context, addr addrs.ModuleCall, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	if s.eval.unknownForRefused {
+		if val, ok := s.eval.moduleOutputsFor(addr); ok {
+			return val, nil
+		}
+		return cty.DynamicVal, nil
+	}
 	panic("Not Available in Static Context")
 }
 

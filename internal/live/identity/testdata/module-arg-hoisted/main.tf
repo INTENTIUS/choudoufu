@@ -15,13 +15,16 @@
 #            ([elementOrUnknown]'s moduleOutput arm); on its own there was no
 #            constructor to be a leaf of.
 #
-# The three that must keep refusing:
+# "merged" - merge() of two literal objects, one member of which reads the
+# live subnet - joined them when the tolerant static scope landed
+# ([configs.StaticEvaluator.WithUnknownForRefusedReferences]). The call is
+# still never REBUILT; it is RUN, on a value whose refused leaf the scope
+# substituted an unknown for, and merge's own answer is the one taken. Its
+# "derived" resource, which reads that very member, keeps refusing, which is
+# the half that says the substitution did not become a marker.
 #
-#   merged   merge() of two literal objects. Rebuilding a CALL would mean
-#            deciding what the function does to an unknown argument, which
-#            this package does not do - see partialargs.go's own
-#            "What it deliberately does not do". Recorded here so that the
-#            boundary is a fixture rather than a sentence.
+# The two that must keep refusing:
+#
 #   secret   a sensitive module output. A marker is written into a cloud tag
 #            in clear, so the refusal is on the DECLARATION, not on whether
 #            the mark survives.

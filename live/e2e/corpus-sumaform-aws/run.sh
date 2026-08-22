@@ -147,80 +147,97 @@ set -uo pipefail
 #      not something this crossing's script can paper over, and not
 #      something this unit forced a fix for: wiring markers = record into
 #      live-import's own stamping is a real, separate feature slice.
-#   3. THE NEW WALL, reached only now that #2 is out of the way: a static
-#      count() expression in the SAME leaf module, on THREE OTHER resources
-#      - aws_eip.host_eip, aws_eip_association.eip_assoc and
-#      aws_route53_record.dns_record (none of them aws_instance or
-#      aws_ebs_volume). Their counts are `local.host_eip ? var.quantity : 0`
-#      and `local.route53_domain == null ? 0 : 1`, and every value they read
-#      is, in this estate, a genuine literal - host_eip and quantity are
+#   3. [RESOLVED - kept here for the history, and for the shape, which is
+#      the widest thing this crossing found] A static count() expression in
+#      the SAME leaf module, on THREE OTHER resources - aws_eip.host_eip,
+#      aws_eip_association.eip_assoc and aws_route53_record.dns_record (none
+#      of them aws_instance or aws_ebs_volume). Their counts are
+#      `local.host_eip ? var.quantity : 0` and
+#      `local.route53_domain == null ? 0 : 1`, and every value they read is,
+#      in this estate, a genuine literal - host_eip and quantity are
 #      false/0/1 from literal provider_settings maps, route53_domain is null
 #      because nothing sets it. Stock proceeds (stage 1 above applies this
 #      exact estate cleanly with plain tofu, computing all three counts as
 #      0) - HANDOFF.md's first row, choudoufu refuses where stock proceeds.
 #
-#      Root cause, RE-DERIVED from scratch under issue #375 and NOT what the
-#      first account said. Two claims in that account are wrong, and both are
-#      refuted by fixtures now in the tree rather than by argument:
+#      What actually blocked it, re-derived from a real run rather than
+#      inherited: NOT "rebuilding a call", which is what #375's account
+#      predicted. internal/live/identity's partialargs.go already RUNS a
+#      function on a value whose refused leaf it substituted an unknown for
+#      (composedArgument), and has since before this crossing. The two hops
+#      it could not reach were both one layer further IN, inside
+#      internal/configs' static scope itself:
 #
-#        - "a merge() whose argument is a bare module-output reference fails
-#          outright" is false for an identity argument.
-#          internal/live/identity/testdata/merge-bare-module-output is exactly
-#          that shape and resolves, and resolved before any of #375's work:
-#          resolver.selectStatic reads a step into a merge() of object
-#          constructors and chases a module-output reference into the child
-#          module, one argument at a time. TestMergeOfBareModuleOutputResolves
-#          pins the rendered value.
-#        - "the failure propagates to a DIFFERENT module call's unrelated
-#          argument (`quantity = local.create_network ? 1 : 0`)" is false.
-#          There is no shared static-evaluation state and nothing propagates.
-#          `local.create_network` reads `var.provider_settings`, which THIS
-#          SCRIPT hands module.base with three leaves that are live resources
-#          (aws_vpc.crossing, aws_subnet.crossing_public,
-#          aws_security_group.crossing_public), so its STRICT evaluation fails
-#          on its own account and prints its own chain of "Unable to compute
-#          static value" trailers. The tolerant retry then answers it: bastion's
-#          own `aws_instance.instance`, whose count is `var.quantity` and
-#          nothing else, resolves to zero instances and raises no refusal at
-#          all. Reading the strict trailers as the verdict is what produced the
-#          propagation story.
+#        (a) a managed resource or data source named inside a LOCAL of the
+#            module being read - backend_modules/aws/base's
+#            `local.configuration_output` merges
+#            `aws_iam_instance_profile...[0].name` and ~23
+#            `data.aws_ami.*.image_id` into a map whose other members are
+#            literals - refuses THERE, and merge() of a refusal is a
+#            refusal, so the whole map's KEY SET goes with it; and
+#        (b) a child module's whole OUTPUT named in the middle of a larger
+#            expression (`module.network.configuration` as one merge
+#            argument, `module.base_backend.configuration` as another) -
+#            refused by staticScopeData.StaticValidateReferences on the
+#            grounds that "the module has not been evaluated yet", which is
+#            true of a module's RESOURCES and false of its OUTPUTS. An
+#            output is an expression written in the child module, and the
+#            child module's scope is one this resolver can enter.
 #
-#      What actually blocks stage 3 is a COUNT, and counts are the whole
-#      difference. An identity ARGUMENT is resolved symbolically, one component
-#      at a time, so a map with one unknowable member still answers for its
-#      knowable ones. A `count` needs a whole VALUE, and the only machinery
-#      that produces one out of a partly-unknowable argument is
-#      internal/live/identity/partialargs.go's rebuild, which substitutes an
-#      unknown leaf by leaf. The three refused counts are
-#      backend_modules/aws/host's `local.host_eip ? var.quantity : 0` (twice)
-#      and `local.route53_domain == null ? 0 : 1`, and the chain under them,
-#      read off a real offline analysis of this estate, is:
+#      Both are now one seam:
+#      configs.StaticEvaluator.WithUnknownForRefusedReferences (opt-in, and
+#      reached only through partialargs.go's own tolerant retry, which runs
+#      last and only after every strict route has failed). A refused
+#      resource reference becomes cty.DynamicVal; a module call is answered
+#      by evaluating that child's outputs the same tolerant way
+#      (internal/live/identity/tolerantmodule.go), recursively, memoized per
+#      child module instance. The substitution is an unknown and never a
+#      guess, so a value that comes back KNOWN did not depend on it, and
+#      every gate that turns a value into a marker still demands a known
+#      one.
 #
-#        local.host_eip / local.route53_domain
-#          <- local.provider_settings  = merge({ ... var.base_configuration[...] ... }, ...)
-#          <- var.base_configuration   = module.base.configuration          (modules/server)
-#          <- output.configuration     = merge({ ... }, module.base_backend.configuration)
-#          <- output.configuration     = merge(local.configuration_output, { ... })
-#          <- local.configuration_output = merge({ ... aws_iam_instance_profile...[0].name
-#                                                     ... data.aws_ami.* ... },
-#                                                module.network.configuration, ...)
-#          <- output.configuration     = merge(var.create_network ? { aws_subnet.public[0].id ... } : {}, ...)
+#      Measured on this exact estate, against floci, before and after:
+#      live-plan went from 360 Error diagnostics (195 "Unable to compute
+#      static value", 107 "Dynamic value in static context", 58 "Module
+#      output not supported in static context") to ZERO, and all three
+#      counts came out at the value stock computes for them - zero
+#      instances, which is also what stock's own cold state holds. Stage 3a
+#      below asserts both halves, plus a negative control proving its own
+#      pattern is not vacuous.
 #
-#      Every hop is a merge() whose arguments carry a leaf the static scope
-#      refuses. #375 fixed the two hops that are a bare reference with nothing
-#      to rebuild - a constructor hoisted into a local, and a child module's
-#      whole output named on its own (see
-#      internal/live/identity/testdata/module-arg-hoisted, pinned by value in
-#      moduleargspelling_test.go). It did NOT fix the merge() hops, because
-#      rebuilding a CALL means deciding what the function does to an unknown
-#      argument and partialargs.go deliberately does not; and it did not fix
-#      the last hop at all, where the substitution would have to happen inside
-#      a LOCAL of the module being evaluated rather than at a module-call
-#      argument, which needs a seam in internal/configs' GetLocalValue that
-#      does not exist. So this estate's stage 3 is unmoved, and the remaining
-#      work is named rather than guessed at: tolerant substitution through a
-#      function call's arguments, and through a local value, in that order.
-#      Recorded here as this estate's real, current blocker.
+#      The rule names no type and reaches every configuration in the corpus,
+#      not this one: it is a property of static evaluation, not of a
+#      provider. Pinned by value in
+#      internal/live/identity/testdata/tolerant-module-output (three names
+#      each spelled in a different file, one count that must come out zero,
+#      and two resources reading the substituted members that must render
+#      nothing) and in the 1660-row identity golden, where it changed 0 rows
+#      and added 9.
+#   4. THE WALL THAT IS LEFT, reached only now that #3 is out of the way,
+#      and not a new finding: `choudoufu live-import` does not honour
+#      `markers = record`. Item 2 above already recorded the half of it that
+#      was visible then - live-import's stamping path
+#      (internal/live/liveimport/stamp.go) is a separate implementation from
+#      internal/live/stamp and never consults identity.SelectionFor, so both
+#      selected types are tag-stamped normally during migrate. The half only
+#      a rendered plan could show is the consequence: it also writes no
+#      LOCATED RECORD for them, and a markers=record instance's identity
+#      lives nowhere else. So the replan reads
+#      aws_instance.instance[0] and aws_ebs_volume.data_disk[0] as ABSENT
+#      ("No record of which live aws_instance ... owns exists yet"), and
+#      aws_volume_attachment.data_disk_attachment[0], whose identity is a
+#      composite of the volume's live ID, as PARENT_UNAVAILABLE. Plan: 3 to
+#      add, 0 to change, 0 to destroy - and all three are that one gap.
+#
+#      internal/live/projection's writeBackLocated DOES honour the
+#      selection, and says why in its own doc ("the set that gets WRITTEN
+#      must be the set that gets READ"), so the apply path is already
+#      correct and only the migration path is not. Wiring markers = record
+#      into live-import's own stamping is a real, separate feature slice,
+#      exactly as item 2 said when it named the first half; stage 3c below
+#      asserts the gap at the record store rather than from the plan's
+#      prose, so the day it closes this script fails loudly instead of
+#      quietly passing.
 #
 # Because all three live in the ONE leaf module every role shares, none of
 # this is an artifact of this crossing's own reduced slice: module.mirror,
@@ -645,66 +662,140 @@ gauntlet_stage migrate pass "9 stamped, 0 failed, 2 skipped"
 CURRENT_STAGE=test_plan
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGE 3: TEST PLAN - real, structural refusal (see this script's header)
+# STAGE 3: TEST PLAN - the static-count wall is gone; a live-import gap is
+# what is left (see this script's header, items 3 and 4)
 # ══════════════════════════════════════════════════════════════════════════
 log "=== STAGE 3: no state file, live-plan ==="
 rm -f "$ESTATE/terraform.tfstate" "$ESTATE/terraform.tfstate.backup"
 PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -40; fail "live-plan exited 0 - the known refusal has apparently been fixed; update this script's header and stages 3-5"; }
 
-# The connection-block refusal used to fire here too (see this script's
-# header, item 1): #353 gave every instance whose estate declares a
-# record_store somewhere to keep a tainted-object bit, and this estate's
-# own write_main_tf does declare one, so checkProvisioners now admits the
-# dead connection block on aws_instance.instance the same as it would a
-# real provisioner. Assert that stays fixed - not just absent by
-# accident - so a future regression here is caught the same way the
-# original gap was.
+# The connection-block refusal used to fire here (see this script's header,
+# item 1): #353 gave every instance whose estate declares a record_store
+# somewhere to keep a tainted-object bit, and this estate's own
+# write_main_tf does declare one, so checkProvisioners now admits the dead
+# connection block on aws_instance.instance the same as it would a real
+# provisioner. Assert that stays fixed - not just absent by accident - so a
+# future regression here is caught the same way the original gap was.
 grep -qF 'Error: Provisioners are not available under live resource markers' <<< "$PLAN_OUT" \
   && { printf '%s\n' "$PLAN_OUT" | tail -60; fail "the connection-block refusal is back - #353's record_store admission (internal/live/lint.go's recordStoreConfigured gate) has regressed"; }
 
-# The ignore_changes refusal this script used to hit here (item 2 in the
-# header) is GONE, for real, as of the estate's own `strict { marker_repair =
-# "never"; markers "record" { types = ["aws_instance", "aws_ebs_volume"] } }`
-# block in write_main_tf above (GitHub issue #365 slice 2). Assert it stays
-# gone rather than merely absent by accident.
+# The ignore_changes refusal (header item 2) is GONE, for real, as of the
+# estate's own `strict { marker_repair = "never"; markers "record" { types =
+# ["aws_instance", "aws_ebs_volume"] } }` block in write_main_tf above
+# (GitHub issue #365 slice 2). Assert it stays gone rather than merely
+# absent by accident.
 [ "$(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")" = "0" ] \
   || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected 0 ignore-changes refusals now that aws_instance and aws_ebs_volume are markers=record selected, got $(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")"; }
 log "  confirmed: the ignore_changes[tags] refusal on aws_instance.instance and aws_ebs_volume.data_disk"
 log "  is gone - the markers = record selection above clears it for real against floci."
 
-# THE NEXT WALL, reached only now that the ignore_changes refusal is out of
-# the way: a static count() expression backend_modules/aws/host/main.tf's
-# OTHER resources carry (aws_eip.host_eip, aws_eip_association.eip_assoc,
-# aws_route53_record.dns_record - none of them aws_instance or
-# aws_ebs_volume). See this script's header for the root cause, which is NOT
-# what it first looks like (a bad count() expression) - every value involved
-# genuinely reduces to a literal, and stock's own dynamic graph walk computes
-# all three counts as 0 without complaint (confirmed: stage 1 above applies
-# cleanly with plain tofu). This is HANDOFF.md's first row - choudoufu
-# refuses where stock proceeds - but the fix is core static-evaluator surgery
-# (internal/configs' module-call variable evaluation), not a script change,
-# and not safely attemptable inside this unit's budget: see the header for
-# the isolated repro and why it was left alone.
-grep -qF 'Error: Unable to compute static value' <<< "$PLAN_OUT" \
-  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected the known static-count wall (aws_eip.host_eip / aws_eip_association.eip_assoc / aws_route53_record.dns_record) - has it been fixed upstream? update this script's header and stages 3-5 if so"; }
-grep -qF 'aws_eip.host_eip' <<< "$PLAN_OUT" || fail "expected the static-count wall to name aws_eip.host_eip"
-grep -qF 'aws_route53_record.dns_record' <<< "$PLAN_OUT" || fail "expected the static-count wall to name aws_route53_record.dns_record"
-log "  confirmed: the estate now blocks on a DIFFERENT, previously-unreached wall - a static count()"
-log "  expression in backend_modules/aws/host/main.tf's aws_eip.host_eip, aws_eip_association.eip_assoc"
-log "  and aws_route53_record.dns_record. See this script's header for the root cause and why it is"
-log "  left as this estate's real blocker rather than routed around."
+# --- 3a: the static-count wall (header item 3) is gone, asserted three ways
+#
+# Not "no error appeared": an error that stopped appearing because an
+# earlier one now short-circuits would read the same. So this asserts the
+# three counts came out at the VALUE stock computes for them - zero - and
+# that the whole run refuses nothing at all.
+[ "$PLAN_RC" = "0" ] || {
+  printf '%s\n' "$PLAN_OUT" | grep '^Error:' | sort | uniq -c | sort -rn | head -20
+  fail "live-plan exited $PLAN_RC; the static-count wall (or something new) is still refusing this estate"
+}
+REFUSALS="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
+[ "$REFUSALS" = "0" ] || {
+  printf '%s\n' "$PLAN_OUT" | grep '^Error:' | sort | uniq -c | sort -rn | head -20
+  fail "expected 0 refusals of any kind from live-plan, got $REFUSALS (was 360 before the tolerant static scope landed)"
+}
+log "  0 refusals of any kind (was 360: 195 'Unable to compute static value', 107 'Dynamic value in"
+log "  static context', 58 'Module output not supported in static context')"
+
+# The three counts, by value. `local.host_eip ? var.quantity : 0` (twice)
+# and `local.route53_domain == null ? 0 : 1` all come out zero, so not one
+# instance of the three resources may appear in the plan - and stock's own
+# cold state, the oracle for this stage, holds none of them either. Both
+# halves are asserted, because "choudoufu proposes none" is only evidence
+# when it is the same answer stock gave.
+for BLOCK in aws_eip.host_eip aws_eip_association.eip_assoc aws_route53_record.dns_record; do
+  IN_PLAN="$(grep -cE "^  # .*\\.${BLOCK//./\\.}\\[" <<< "$PLAN_OUT" || true)"
+  [ "$IN_PLAN" = "0" ] || {
+    grep -E "^  # .*${BLOCK}" <<< "$PLAN_OUT" | head -5
+    fail "$BLOCK expanded to $IN_PLAN instance(s) in the live plan; its count is a literal zero in this estate and stock computed zero"
+  }
+  IN_STOCK="$(cd "$PLAIN" && "$TF_COLD" state list | grep -cE "\\.${BLOCK//./\\.}\\[" || true)"
+  [ "$IN_STOCK" = "0" ] || fail "stock's own cold state holds $IN_STOCK instance(s) of $BLOCK, so zero is not the oracle's answer and this assertion is wrong"
+done
+log "  aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record all"
+log "  expanded to ZERO instances, which is what stock's own cold state holds for each."
+
+# The negative control for the loop above: the same test, on a block this
+# estate really does declare, must find it. Without this, a typo in the
+# pattern would make all three assertions pass vacuously.
+CONTROL="$(grep -cE '^  # .*\.aws_instance\.instance\[' <<< "$PLAN_OUT" || true)"
+[ "$CONTROL" != "0" ] || fail "the count assertion's own pattern matches nothing even for aws_instance.instance, so the three zeroes above prove nothing"
+log "  negative control: the same pattern finds aws_instance.instance in the plan, so the zeroes are real"
+
+# --- 3b: identities by value, against the AWS CLI
+#
+# The stage's own bar (live/GAUNTLET.md): an empty plan alone is not enough,
+# because a wrong identity can converge. These read the marker straight off
+# floci and compare it to the address the plan is written against.
+assert_tag "$VPC_ID" "the crossing VPC" "$ESTATE_NAME" || fail "the crossing VPC's markers moved during the replan"
+assert_tag "$INSTANCE_ID" "module.server's instance" "$ESTATE_NAME" || fail "module.server's instance's markers moved during the replan"
+VPC_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-address" --query 'Tags[0].Value' --output text)"
+[ "$VPC_ADDR" = "aws_vpc.crossing" ] || fail "the crossing VPC's tofu-address is '$VPC_ADDR', not 'aws_vpc.crossing'"
+# The instance key is spelled ":0" and not "[0]": the marker spec escapes
+# every "[...]" instance key to ":" plus the escaped key
+# (internal/live/markers' EscapeAddress), because a tag value cannot carry a
+# bracket. Asserted in the escaped spelling deliberately - this is the exact
+# string that is on the live object, and a test that quoted the unescaped
+# address would be asserting something no cloud tag ever holds.
+INSTANCE_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$INSTANCE_ID" "Name=key,Values=tofu-address" --query 'Tags[0].Value' --output text)"
+[ "$INSTANCE_ADDR" = "module.server.module.server.module.host.aws_instance.instance:0" ] \
+  || fail "module.server's instance carries tofu-address '$INSTANCE_ADDR', not module.server.module.server.module.host.aws_instance.instance:0"
+log "  identities by value, read off floci: aws_vpc.crossing and"
+log "  module.server.module.server.module.host.aws_instance.instance:0"
+
+# --- 3c: what is left, and why this stage is still fail
+#
+# The plan is not empty: three instances are proposed for creation, and all
+# three trace to ONE gap, not to anything the count wall was hiding. See
+# this script's header, item 4.
+PLAN_LINE="$(grep -E '^Plan: ' <<< "$PLAN_OUT" | tail -1)"
+[ -n "$PLAN_LINE" ] || fail "live-plan printed no 'Plan:' line at all"
+log "  $PLAN_LINE"
+[ "$PLAN_LINE" = "Plan: 3 to add, 0 to change, 0 to destroy." ] \
+  || fail "expected exactly 'Plan: 3 to add, 0 to change, 0 to destroy.' - the live-import located-record gap below and nothing else; got '$PLAN_LINE'"
+
+# Each of the three, named, so a fourth appearing is a failure rather than a
+# rounding difference. The two markers=record types are ABSENT because no
+# located record exists; the volume attachment is PARENT_UNAVAILABLE because
+# its identity is a composite of one of them.
+for WANT in \
+  "module.server.module.server.module.host.aws_ebs_volume.data_disk[0] [ABSENT]" \
+  "module.server.module.server.module.host.aws_instance.instance[0] [ABSENT]" \
+  "module.server.module.server.module.host.aws_volume_attachment.data_disk_attachment[0] [PARENT_UNAVAILABLE]" ; do
+  grep -qF "$WANT" <<< "$PLAN_OUT" || fail "expected the not-read report to name '$WANT'"
+done
+log "  all 3 are the markers=record selection's own instances (2 ABSENT) plus the attachment"
+log "  derived from one of them (PARENT_UNAVAILABLE): live-import writes no located record."
+
+# The gap stated as a fact about the store rather than as a reading of the
+# plan's prose: live-import ran with -approve above, and the record store it
+# wrote holds a residue namespace and no located one at all.
+[ -d "$ESTATE/.tofu-records/tofu-residue" ] || fail "live-import wrote no tofu-residue namespace, so this estate's record store is not what stage 2 reported"
+[ ! -d "$ESTATE/.tofu-records/tofu-located" ] \
+  || fail "a tofu-located namespace exists, so live-import DOES honour markers=record now - update this script's header and stages 3-5"
+log "  confirmed at the store: .tofu-records/tofu-residue exists, .tofu-records/tofu-located does not."
 
 log ""
-log "STAGE 3 (test plan): BLOCKED (real, structural - see header). Stages 4-5 unwritten:"
-log "nothing runs yet for them to exercise. Stopping here rather than forcing a plan"
-log "this script cannot honestly call empty."
+log "STAGE 3 (test plan): the static count() wall is FIXED (360 refusals -> 0, all three counts"
+log "zero by value). Still fail: live-import does not write a located record for a markers=record"
+log "type, so the 2 selected instances and the 1 attachment derived from one read ABSENT."
+log "Stages 4-5 remain unwritten: nothing runs yet for them to exercise."
 log ""
-gauntlet_stage test_plan fail "the ignore_changes refusal on aws_instance/aws_ebs_volume is fixed (markers = record, #365 slice 2); the estate now blocks on a static count() wall in backend_modules/aws/host/main.tf's aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record (see this script's header)"
-gauntlet_stage test_apply not_run "stage 3 blocks structurally; stages 4-5 unwritten"
-gauntlet_stage drift_reconverge not_run "stage 3 blocks structurally; stages 4-5 unwritten"
+gauntlet_stage test_plan fail "the static count() wall is FIXED - 360 refusals -> 0 and aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record all expand to zero instances by value, matching stock's own cold state (internal/configs' tolerant static scope, StaticEvaluator.WithUnknownForRefusedReferences). The plan is now 3 to add, 0 to change, 0 to destroy, and all 3 are ONE gap: live-import does not honour markers = record, so it writes no tofu-located record for aws_instance.instance[0] or aws_ebs_volume.data_disk[0] (both ABSENT) and the aws_volume_attachment derived from the volume is PARENT_UNAVAILABLE. Asserted at the store, not just in the prose: .tofu-records/tofu-residue exists and .tofu-records/tofu-located does not. HANDOFF row 2, and #365 slice 2's own completeness rather than a new finding - see this script's header, item 4"
+gauntlet_stage test_apply not_run "stage 3 still blocks on the live-import located-record gap; stages 4-5 unwritten"
+gauntlet_stage drift_reconverge not_run "stage 3 still blocks on the live-import located-record gap; stages 4-5 unwritten"
 CURRENT_STAGE=""
-log "=== PARTIAL: stages 1 and 2 verified for real; stage 3 blocked as described above ==="
+log "=== PARTIAL: stages 1 and 2 verified for real; stage 3 as described above ==="
 exit 1
 gauntlet_end
