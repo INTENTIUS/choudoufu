@@ -282,18 +282,38 @@ func checkStrictMarkers(cfg *configs.Config, schemas map[string]providers.Schema
 		return
 	}
 
-	if cfg.Module.Live.RecordStore == nil {
+	// The store this selection's identities would go to has to be one the
+	// author DECLARED, not the implied local one issue #364 fills in for
+	// every live block (internal/configs.impliedRecordStore).
+	//
+	// The implied store is a real store and would hold these identities
+	// perfectly well, so this is not a mechanical limit; it is the same
+	// deliberateness this selection block already demands of itself. Every
+	// other thing the implied store admits - the RECORD_ADMITTED logical
+	// types, a markerless-but-locatable type's located identity, a
+	// provisioner's taint bit - has NO marker available to it in the first
+	// place, so the record is the only rung there is and implying the store
+	// costs the author nothing. `markers "record"` is the opposite case: the
+	// type is taggable, the marker IS available, and the author is choosing
+	// to give up the IAM-governable, cloud-listable, tag-rebuildable copy of
+	// the identity for a file whose loss is unrecoverable. HANDOFF.md files
+	// that under "the principles this fork exists for are toggles, and
+	// turning them on is the setup step" - so naming where the identity goes
+	// stays part of turning it on.
+	if cfg.Module.Live.RecordStore == nil || cfg.Module.Live.RecordStore.Implied {
 		*issues = append(*issues, Issue{
 			Rule:      RuleStrictMarkers,
 			Construct: fmt.Sprintf("strict.markers %q", m.Kind),
 			Module:    path,
 			Detail: fmt.Sprintf(
 				"markers %q holds a resource's identity in the estate's record store instead of in an ownership "+
-					"marker tag, and this live block declares no record_store, so there is nowhere for that identity "+
-					"to go. A resource with neither a marker nor a record cannot be found by any later run: every "+
-					"plan after the first would propose creating another one. Add a record_store block - "+
-					"record_store \"local\" {} is the solo default, record_store \"ssm\" {} the team one - or remove "+
-					"this selection.",
+					"marker tag, and this live block declares no record_store, so nothing names where that identity "+
+					"goes. Every live block has an implied local record store, which is enough for the constructs "+
+					"that have no marker to fall back on - but this selection is giving UP a marker that was "+
+					"available, and a resource whose only copy of its identity is a lost local file cannot be found "+
+					"by any later run: every plan after that would propose creating another one. Declare the store "+
+					"this selection writes to - record_store \"local\" {} is the solo default, record_store "+
+					"\"ssm\" {} the team one - or remove this selection.",
 				m.Kind,
 			),
 			Subject: m.DeclRange,

@@ -24,12 +24,19 @@ set -uo pipefail
 #                     #59's root-module-only scope is CLOSED). All 54
 #                     resource instances across the root module, module.vpc
 #                     and module.eks are considered: 18 VERIFIED + 7 DRIFTED
-#                     = 25 eligible and stamped, 28 UNTAGGABLE by design (no
-#                     `tags` argument in the provider schema - ASGs, launch
+#                     = 25 eligible and stamped, 5 RECORDED into the
+#                     estate's record store (choudoufu #364, 2026-08-22 -
+#                     random_string.suffix, module.eks.random_pet.workers[0]
+#                     and [1], module.eks.null_resource.wait_for_cluster[0]
+#                     and module.eks.local_file.kubeconfig[0], each one a
+#                     type whose value IS its identity and which therefore
+#                     has no live object to tag; they used to fall off the
+#                     end of the migration as SKIPPED and are now carried
+#                     across it), 23 UNTAGGABLE by design (no `tags`
+#                     argument in the provider schema - ASGs, launch
 #                     configurations, IAM role policy attachments, security
-#                     group rules, routes, route table associations,
-#                     random_pet/random_string, local_file), and 1 MISSING -
-#                     kubernetes_config_map.aws_auth. #326's fix (merged
+#                     group rules, routes, route table associations), and 1
+#                     MISSING - kubernetes_config_map.aws_auth. #326's fix (merged
 #                     852f52073f/a990112e26, 2026-08-20) admitted this type,
 #                     so live-import no longer refuses it outright; it now
 #                     genuinely attempts to verify the live object and
@@ -55,53 +62,62 @@ set -uo pipefail
 #                     know this type" to "we know it, and we know precisely
 #                     why we can't verify it yet."
 #   3. TEST PLAN      choudoufu live-plan against the full 54-resource
-#                     config. STILL REFUSES OUTRIGHT, but for half as many
-#                     reasons as it did: 4 Error diagnostics as of
-#                     2026-08-22, all of them logical-resource, down from 8.
-#                     Not "empty" and not "N to add" - admission itself stops
-#                     the run before any plan is rendered. Re-verified
-#                     2026-08-20 with #326's fix
-#                     merged: the unadmitted-type refusal on kubernetes_
-#                     config_map.aws_auth is CONFIRMED GONE - zero
-#                     occurrences of "Rule: unadmitted-type." and zero
-#                     mentions of "kubernetes" anywhere in live-plan's
-#                     output. The type's identity (metadata.name/namespace,
-#                     fully client-named and statically knowable) now
-#                     resolves cleanly at plan time, same as the
-#                     association family. What's real and current, asserted
-#                     below by rule and by resource - unchanged by #326,
-#                     since neither of these families ever depended on
-#                     kubernetes_config_map's admission state:
-#                       - logical-resource (4 sites): random_string.suffix,
-#                         null_resource.wait_for_cluster, random_pet.workers
-#                         are RECORD_ADMITTED and correctly refused only
-#                         because this configuration declares no
-#                         record_store, exactly as designed (#73) - declaring
-#                         one would admit them. local_file.kubeconfig is
-#                         EXTERNAL_ADMITTED in the SAME rule's output - #314
-#                         (closed) landed exactly the fourth LogicalClass its
-#                         own investigation called for, and re-verified here
-#                         2026-08-21 by reading the real diagnostic text: it
-#                         now offers the identical record_store escape hatch
-#                         as the other three ("Declare a record_store in the
-#                         live block and it is admitted ..."), so all 4
-#                         logical-resource sites are the same shape - refused
-#                         only for the absence of a record_store declaration,
-#                         which HANDOFF's compatible-by-default principle
-#                         says should eventually be implied when none is
-#                         given (tracked separately and much larger than this
-#                         estate: issue #365, "the strict-profile toggles in
-#                         the live configuration schema" - not attempted
-#                         here, since it is cross-cutting foundation work,
-#                         not a per-estate fix, and this script deliberately
-#                         does not paper over the estate by adding a
-#                         record_store itself (see the note above about not
-#                         hand-patching to dodge the wall).
-#                       - count-index (4 sites): FIXED 2026-08-22, and the
-#                         four sites are asserted ABSENT below as a negative
-#                         control with BREAK=1 flipping it. They were
-#                         module.vpc's aws_route_table_association.public and
-#                         .private, whose subnet_id and route_table_id are
+#                     config. STILL FAILS, but the wall is a different and
+#                     much deeper one than it was, and there is exactly ONE
+#                     of it: 1 Error diagnostic as of 2026-08-22, down from
+#                     8, then 4. What is left is "Unlistable
+#                     marker-discovered type" on aws_launch_configuration -
+#                     nothing was refused for want of a declaration, the run
+#                     reached marker discovery and found a type the provider
+#                     cannot enumerate at all, so the 2 declared instances
+#                     (untaggable by design, no `tags` argument) can be
+#                     neither tagged nor listed and therefore cannot be
+#                     found again. That is HANDOFF.md's fourth row - handling
+#                     it would write a wrong marker, so the instance belongs
+#                     on the record rung - and it is choudoufu #364's OTHER
+#                     half ("removing admission as a gate: a type with no
+#                     table row lands on the record rung instead of
+#                     refusing"), not attempted here.
+#
+#                     Three earlier walls are asserted ABSENT below as
+#                     negative controls, each flipped by BREAK=3 (BREAK=1
+#                     mutates stage 2 as well and exits there, so it never
+#                     reaches these three - see the BREAK entry under
+#                     "Environment" below):
+#                       - unadmitted-type on kubernetes_config_map.aws_auth,
+#                         fixed by issue #326 (merged 852f52073f/a990112e26,
+#                         2026-08-20). Its identity - metadata.name/namespace,
+#                         fully client-named and statically knowable -
+#                         resolves cleanly at plan time. The word
+#                         "kubernetes" does still appear four times in the
+#                         plan's output, and none of the four is a refusal:
+#                         they are the tag sweep's own "no CFN type in the
+#                         ARN join table" warnings about four kubernetes_*
+#                         types, a statement about the sweep's reach over
+#                         another provider entirely. The check excludes those
+#                         lines by shape; it used to grep the whole output
+#                         for the word and went red on a run where nothing
+#                         about kubernetes_config_map had changed.
+#                       - logical-resource (was 4 sites): FIXED 2026-08-22 by
+#                         choudoufu #364, the implied local record store.
+#                         random_string.suffix, null_resource.wait_for_cluster,
+#                         random_pet.workers and local_file.kubeconfig were
+#                         all refused for one reason and one only - "this
+#                         configuration declares no record_store" - and
+#                         HANDOFF.md's compatible-by-default principle says a
+#                         local store is implied when none is declared, the
+#                         way stock implies local state. internal/configs'
+#                         decoder now fills one in for every live block, so
+#                         all four are admitted with no edit to this estate:
+#                         the live block this script injects is still the
+#                         same four lines it always was. Stage 2 above shows
+#                         the other end of the same change - those same
+#                         instances are now SEEDED into that store by
+#                         live-import instead of skipped. The change names no
+#                         resource type anywhere.
+#                       - count-index (was 4 sites): FIXED 2026-08-22. They
+#                         were module.vpc's aws_route_table_association.public
+#                         and .private, whose subnet_id and route_table_id are
 #                         `element(<a sibling resource's splat>, <an index
 #                         over count.index>)` (terraform-aws-modules/vpc
 #                         v6.6.1 main.tf:200-201 and 348-352). Root cause:
@@ -141,11 +157,13 @@ set -uo pipefail
 #   5. DRIFT/RECONVERGE UNREACHABLE for the same reason.
 #
 # This script does not paper over stages 4-5 by hand-patching the estate to
-# dodge the refusal wall - the point of a real-estate crossing is to find
-# what a real user hits, not to manufacture a passing shape. Stages 1-2 are
+# dodge the wall - the point of a real-estate crossing is to find what a real
+# user hits, not to manufacture a passing shape. In particular it does not
+# declare a record_store: the four logical-resource refusals cleared because
+# choudoufu implies one now, not because this estate was edited to have one. Stages 1-2 are
 # fully real and asserted; stage 3 is real and its refusal is asserted by
-# rule and by resource, with a BREAK=1 control proving each assertion is
-# load-bearing.
+# rule and by resource, with BREAK=1 proving stage 2's assertions and
+# BREAK=3 proving stage 3's are load-bearing.
 #
 # ── Deltas needed to even cold-deploy this pinned estate ───────────────────
 #
@@ -243,8 +261,14 @@ set -uo pipefail
 #                live/floci-image, which now carries both fixes described
 #                above under "Two real floci gaps".
 #   BREAK        set to 1 to corrupt an expected count/rule before the
-#                stage-2 and stage-3 assertions, proving each is
-#                load-bearing rather than a check that always passes.
+#                stage-2 and stage-3 assertions, or to 3 to corrupt only
+#                stage 3's, proving each is load-bearing rather than a check
+#                that always passes. BREAK=1 never reaches stage 3 (stage 2's
+#                own mutation exits first), which is why the stage-3-only
+#                value exists: the three negative controls there carry issue
+#                #326's, internal/live/lint/sibling_select.go's and choudoufu
+#                #364's fixes, and a control nothing ever flips proves
+#                nothing.
 #   DUMP_PLAN    path to write live-plan's full raw output to, for by-hand
 #                re-verification of stage 3's exact refusal wall shape.
 #   DUMP_IMPORT  path to write live-import's full raw output to, same
@@ -657,9 +681,27 @@ if [ -n "${DUMP_IMPORT:-}" ]; then printf '%s\n' "$IMPORT_OUT" > "$DUMP_IMPORT";
 # precise, different reason (the kubernetes provider's own config depends
 # on live data.aws_eks_cluster/data.aws_eks_cluster_auth values live-
 # import's no-state verification pass cannot evaluate - see stage 3 below).
+#
+# 2026-08-22, choudoufu #364 (the implied local record store): 5 of those
+# 28 untaggable-by-design instances are no longer SKIPPED, they are
+# RECORDED - module.eks.local_file.kubeconfig[0], module.eks.null_resource.
+# wait_for_cluster[0], module.eks.random_pet.workers[0] and [1], and
+# random_string.suffix. Every one is record-backed: it has no live object
+# to tag because its value IS its identity, and an approved migration now
+# seeds the estate's record store from the state's own object for it. That
+# store exists without this configuration declaring one, which is the whole
+# of #364. The stamped count is unchanged (none of the five was ever
+# taggable); what moved is 29 skipped -> 24 skipped and 0 newly recorded ->
+# 5 newly recorded, which is five state entries that used to fall off the
+# end of the migration now carried across it.
 EXPECT_ELIGIBLE="25 of 54 resource instance(s) are eligible for stamping"
-EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 29 skipped."
+EXPECT_STAMPED="25 resource(s) newly stamped, 0 already stamped, 5 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 24 skipped."
 EXPECT_MISSING_K8S='kubernetes_config_map.*could not be used'
+# BREAK=1 mutates BOTH stages, which means it never reaches stage 3: `fail`
+# exits, so a BREAK=1 run proves stage 2's control and leaves stage 3's
+# unexercised. BREAK=3 mutates stage 3 only, and is what proves this script's
+# three negative controls - the ones carrying #326's, sibling_select.go's and
+# #364's fixes - are load-bearing rather than vacuously green.
 if [ "${BREAK:-}" = "1" ]; then
   EXPECT_ELIGIBLE="26 of 54 resource instance(s) are eligible for stamping"
   log "  BREAK=1: expecting \"$EXPECT_ELIGIBLE\" (off by one from the real"
@@ -674,13 +716,13 @@ grep -qF "$EXPECT_STAMPED" <<< "$IMPORT_OUT" || {
   fail "did not find \"$EXPECT_STAMPED\" in live-import's own output"
 }
 grep -qE "$EXPECT_MISSING_K8S" <<< "$IMPORT_OUT" || fail "kubernetes_config_map.aws_auth no longer reports as MISSING/could-not-be-used in live-import's output - issue #326's fix (or the kubernetes-provider-config wall it exposed) has changed shape; re-check by hand"
-log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
+log "  live-import's own accounting matches: 25 of 54 resource instances stamped (module.vpc + module.eks are now in scope, issue #59 is closed), 5 record-backed instances seeded into the implied local record store (#364), kubernetes_config_map.aws_auth correctly MISSING (admitted, but its provider config can't be statically evaluated)"
 
 MARKED_AFTER="$(awsl resourcegroupstaggingapi get-resources --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
 [ "$MARKED_AFTER" = "25" ] || fail "expected 25 objects carrying tofu-estate=$ESTATE after migration, got $MARKED_AFTER"
 log "  25 of 25 stamped objects confirmed via the AWS CLI directly"
-gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI"
+gauntlet_stage migrate pass "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI; 5 record-backed instances seeded into the implied local record store (#364)"
 
 # ── 5. STAGE 3: test plan ───────────────────────────────────────────────────
 CURRENT_STAGE=test_plan
@@ -688,84 +730,126 @@ log "=== 5. STAGE 3 - test plan: choudoufu live-plan against the full config ===
 rm -f "$ADOPTED/terraform.tfstate" "$ADOPTED/terraform.tfstate.backup"
 PLAN_OUT="$(tofu_run "$ADOPTED_REL" live-plan -input=false -no-color 2>&1)"; PLAN_RC=$?
 if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan exited 0 - the refusal wall this script expects did not fire. Either issue #59 shipped root+nested support, or new admission rows changed what refuses here - re-check by hand before trusting this script's stage 4/5 skip."; }
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan exited 0 - this estate's wall did not fire. That would be stages 4-5 becoming reachable, which is good news and not something this script may skip past silently: read the plan and rewrite this stage."; }
 
 # No associative arrays: /bin/bash on macOS is still 3.2 (no `declare -A`
 # support at all), and every other corpus-* script in this repo already
 # avoids them for exactly that reason.
-# The 4 "default_*" adopter types and 3 VPN-gateway types that used to
-# refuse here (issue #59-era output, root module only in scope) are GONE:
-# module.vpc's aws_default_route_table/aws_default_security_group/
-# aws_default_network_acl are all admitted and stamp cleanly in stage 2 now
-# that module.vpc is in scope, and this example declares no
-# aws_default_vpc/VPN-gateway resources with any live instance.
-# kubernetes_config_map.aws_auth is CONFIRMED GONE from the refusal wall
-# as of issue #326's fix (merged 852f52073f/a990112e26, 2026-08-20): its
-# identity resolves cleanly at plan time, so neither "Rule: unadmitted-
-# type." nor the string "kubernetes" appears anywhere in live-plan's
-# output any more. Asserted below as a negative control, with BREAK=1
-# flipping the expectation (proving the check is load-bearing, not
-# vacuously true because the rule never fired for any reason).
+#
+# THREE WALLS ARE ASSERTED ABSENT HERE, and one is asserted present.
+#
+# Absent (each was this estate's stage-3 wall at some point, each is a
+# negative control with BREAK=3 flipping it, so none of them can read as
+# green merely because the rule stopped firing for an unrelated reason):
+#
+#   - unadmitted-type on kubernetes_config_map.aws_auth. Fixed by issue
+#     #326 (merged 852f52073f/a990112e26, 2026-08-20); its identity
+#     resolves cleanly at plan time. The string "kubernetes" DOES still
+#     appear in the plan's output, four times, and none of them is a
+#     refusal: they are "Incomplete sweep for undeclared resources"
+#     warnings saying the four kubernetes_* types have no CFN type in the
+#     ARN join table (internal/live/discovery/tagging.go), which is a
+#     statement about the tag sweep's reach over an entirely different
+#     provider and not about this configuration's admission. The check
+#     below excludes exactly those lines rather than grepping the whole
+#     output for the word, which is what it used to do - and which went
+#     red on a run where nothing about kubernetes_config_map had changed.
+#   - count-index on module.vpc's four aws_route_table_association.public/
+#     private, all four of them element(<a sibling resource's splat>, <an
+#     index over count.index>). Retired by internal/live/lint/
+#     sibling_select.go - see the header.
+#   - logical-resource on random_string.suffix, random_pet.workers,
+#     null_resource.wait_for_cluster and local_file.kubeconfig. Retired by
+#     choudoufu #364, the implied local record store: all four were
+#     refused for one reason only - "this configuration declares no
+#     record_store" - and a live block now implies a local one, so all
+#     four are admitted with no edit to this estate at all. That is
+#     HANDOFF.md's "a local record store is implied when none is declared,
+#     the way stock implies local state" arriving. Stage 2 above shows the
+#     other end of the same change: the same instances are now SEEDED into
+#     that store by live-import instead of skipped.
+#
+# Present, and this estate's current wall:
+#
+#   - "Unlistable marker-discovered type" on aws_launch_configuration. The
+#     two declared instances are untaggable by design (the type has no
+#     tags argument), so they can only be found again by marker discovery,
+#     and the provider cannot list the type at all - so there is no sweep
+#     that could find them. This is a DIFFERENT and deeper wall than the
+#     admission ones above: nothing was refused for want of a declaration,
+#     the run got all the way to discovery and found a type it cannot
+#     enumerate. It is the shape HANDOFF.md's fourth row covers ("handling
+#     it would write a wrong marker - drop the instance to the record rung,
+#     proceed, open a rung ticket"): an instance that can be neither tagged
+#     nor listed belongs on the record rung, and choudoufu #364's OTHER
+#     half - "removing admission as a gate: a type with no table row lands
+#     on the record rung instead of refusing" - is where that lands. Not
+#     attempted here; it is foundation work, not a per-estate fix, and this
+#     script does not paper over it.
 LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
-# The four count-index sites this script used to assert as PRESENT are
-# asserted as ABSENT below. They were module.vpc's own
-# aws_route_table_association.public/private, all four of them
-# element(<a sibling resource's splat>, <an index over count.index>), and
-# internal/live/lint/sibling_select.go retired that wall - see the header.
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
+# The kubernetes_* lines that are NOT a refusal: the tag sweep's own
+# "no CFN type in the ARN join table" warnings. Excluded by exact shape
+# rather than by the provider prefix, so a real kubernetes refusal - which
+# would say "Rule:" or "Error:" - still trips the check.
+K8S_NOT_A_REFUSAL='has no CFN type the ARN join table'
 
-assert_rule_fires() {
-  local rule="$1" sites="$2"
-  local count site_hits
-  count="$(grep -cE "Rule: ${rule}\." <<< "$PLAN_OUT" || true)"
-  [ "$count" -ge 1 ] || fail "no \"Rule: ${rule}.\" refusal found in live-plan's output - the refusal wall's shape has changed"
-  site_hits="$(grep -cE "$sites" <<< "$PLAN_OUT" || true)"
-  [ "$site_hits" -ge 1 ] || fail "rule $rule fired $count time(s) but none of the expected resource names appeared - the refusal wall's shape has changed"
-  log "  Rule: ${rule}. fires $count time(s), including the expected resource(s)"
+assert_rule_absent() {
+  local rule="$1" sites="$2" what="$3"
+  grep -qE "Rule: ${rule}\." <<< "$PLAN_OUT" \
+    && { grep -E "Rule: ${rule}\." <<< "$PLAN_OUT"; fail "$rule fired unexpectedly - $what may have regressed"; }
+  grep -qE "$sites" <<< "$PLAN_OUT" \
+    && { grep -E "$sites" <<< "$PLAN_OUT"; fail "the $rule sites still appear in live-plan's output - they are supposed to be past the wall entirely, and a refusal that came back under another rule's name would still print them"; }
+  log "  Confirmed: no \"Rule: ${rule}.\" refusal and no mention of its sites - $what holds"
 }
 
-if [ "${BREAK:-}" = "1" ]; then
-  log "  BREAK=1: expecting \"Rule: unadmitted-type.\" to still fire on"
-  log "           kubernetes_config_map (issue #326's own fix, deliberately"
-  log "           treated as absent), and \"Rule: count-index.\" to still fire"
-  log "           on aws_route_table_association (sibling_select.go's fix,"
-  log "           likewise treated as absent). Both steps must fail."
-  grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" \
-    || fail "BREAK=1 correctly detected: no count-index refusal fired anywhere - sibling_select.go's fix holds (this failure is the expected, load-bearing one)"
-  grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" \
-    || fail "BREAK=1 correctly detected: no unadmitted-type refusal fired anywhere - #326's fix holds (this failure is the expected, load-bearing one)"
+if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
+  log "  BREAK=${BREAK}: expecting \"Rule: unadmitted-type.\", \"Rule: count-index.\""
+  log "           and \"Rule: logical-resource.\" to still fire (issue #326's"
+  log "           fix, sibling_select.go's fix and #364's implied record"
+  log "           store, each deliberately treated as absent). All three"
+  log "           must be reported as detected."
+  # Collected rather than checked one `fail` at a time, because `fail` exits:
+  # a sequence of three would only ever prove the FIRST control, and the run
+  # would look like a passing mutation check while two of the three
+  # assertions above stayed unexercised. All three are named in one failure.
+  BREAK_HITS=""
+  grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS unadmitted-type(#326)"
+  grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS count-index(sibling_select.go)"
+  grep -qE 'Rule: logical-resource\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS logical-resource(#364)"
+  [ -z "$BREAK_HITS" ] \
+    || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
-  grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" \
-    && { grep -E 'Rule: unadmitted-type\.' <<< "$PLAN_OUT"; fail "unadmitted-type fired unexpectedly - #326's fix may have regressed, or a new type lost its identity row"; }
-  grep -qi 'kubernetes' <<< "$PLAN_OUT" \
-    && { grep -i 'kubernetes' <<< "$PLAN_OUT"; fail "\"kubernetes\" still appears in live-plan's output - #326 not confirmed fixed"; }
-  log "  Confirmed: no \"Rule: unadmitted-type.\" refusal and no mention of"
-  log "             kubernetes anywhere in live-plan's output - issue #326's"
-  log "             fix holds for kubernetes_config_map.aws_auth"
+  assert_rule_absent "unadmitted-type" 'Rule: unadmitted-type\.' "issue #326's fix for kubernetes_config_map.aws_auth"
+  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vcF "$K8S_NOT_A_REFUSAL" || true)"
+  [ "$K8S_REFUSALS" = "0" ] || {
+    grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL"
+    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed"
+  }
+  log "  Confirmed: the only mentions of kubernetes anywhere in live-plan's"
+  log "             output are the tag sweep's four join-table warnings, not"
+  log "             a refusal - issue #326's fix holds for"
+  log "             kubernetes_config_map.aws_auth"
 
-  # The count-index half of this estate's wall, asserted as a negative
-  # control the same way #326's is: the rule no longer fires, and the four
-  # sites no longer appear in the output under any rule at all. The second
-  # leg is what stops this reading as green when the wall has merely MOVED -
-  # a refusal that came back under another rule's name, or an
-  # "Unresolvable identity" on the same resource, would still print
-  # aws_route_table_association and would still be a wall.
-  grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" \
-    && { grep -E 'Rule: count-index\.' <<< "$PLAN_OUT"; fail "count-index fired unexpectedly - internal/live/lint/sibling_select.go's rule may have regressed"; }
-  grep -qE "$COUNTINDEX_SITES" <<< "$PLAN_OUT" \
-    && { grep -E "$COUNTINDEX_SITES" <<< "$PLAN_OUT"; fail "aws_route_table_association still appears in live-plan's output - it is supposed to be past the refusal wall entirely now"; }
-  log "  Confirmed: no \"Rule: count-index.\" refusal and no mention of"
-  log "             aws_route_table_association anywhere in live-plan's"
-  log "             output - module.vpc's four element(<sibling splat>,"
-  log "             count.index) sites are past the wall"
+  assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
+  assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
 fi
 
-assert_rule_fires "logical-resource" "$LOGICAL_SITES"
+# The wall that IS here, asserted by its own words and by the type it names.
+grep -qF 'Unlistable marker-discovered type' <<< "$PLAN_OUT" \
+  || { grep -E '^Error:' <<< "$PLAN_OUT"; fail "the \"Unlistable marker-discovered type\" error is gone - this estate's wall has moved again; read the plan and rewrite this stage"; }
+grep -qE 'cannot list aws_launch_configuration' <<< "$PLAN_OUT" \
+  || fail "the unlistable-type error no longer names aws_launch_configuration - the wall has changed shape"
 ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
-[ "$ERROR_COUNT" = "4" ] || fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 4 (the logical-resource sites; the 4 count-index sites are fixed) - the refusal wall's shape has changed"
-log "  exactly 4 Error diagnostics total, all logical-resource, matching the expected shape"
+[ "$ERROR_COUNT" = "1" ] || {
+  grep -E '^Error:' <<< "$PLAN_OUT"
+  fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 1 (aws_launch_configuration's unlistable-type wall; the 4 logical-resource and 4 count-index sites are fixed) - the wall's shape has changed"
+}
+log "  exactly 1 Error diagnostic total: aws_launch_configuration is"
+log "  marker-discovered and the provider cannot list it, so its 2 declared"
+log "  instances cannot be found again. Was 8 diagnostics, then 4, now 1."
 
-gauntlet_stage test_plan fail "4 logical-resource refusals (choudoufu #364's implied local record store), 4 Error diagnostics total; the 4 count-index refusals are FIXED"
+gauntlet_stage test_plan fail "1 Error diagnostic: aws_launch_configuration is marker-discovered and unlistable, so its 2 instances cannot be found again; the 4 logical-resource refusals are FIXED by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go"
 gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
 gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
 CURRENT_STAGE=""
@@ -781,27 +865,26 @@ log ""
 log "  STAGE 1  PASS  54/54 resources, genuinely cold, genuinely unmarked."
 log "  STAGE 2  PASS  25 of 54 resource instances stamped across the root"
 log "           module, module.vpc and module.eks (issue #59's"
-log "           root-module-only scope is closed); the other 29 are 28"
-log "           legitimately untaggable-by-design plus 1 MISSING -"
+log "           root-module-only scope is closed), 5 seeded into the implied"
+log "           local record store (choudoufu #364), and of the remaining 24"
+log "           23 are legitimately untaggable-by-design plus 1 MISSING -"
 log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
 log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
-log "  STAGE 3  REFUSES  4 logical-resource sites and nothing else, down"
-log "           from 8 diagnostics. They are refused pending a record_store"
-log "           declaration, #73 as designed (#314, closed, landed"
-log "           local_file's own fourth LogicalClass - EXTERNAL_ADMITTED -"
-log "           so it is now the same shape as the other 3, not a distinct"
-log "           gap). HANDOFF.md's compatible-by-default principle says a"
-log "           local record store should be IMPLIED when none is declared,"
-log "           which is choudoufu #364's foundation work and not a"
-log "           per-estate fix; this script deliberately does not paper over"
-log "           it by declaring one. The 4 count-index sites that used to"
-log "           sit beside them are FIXED (internal/live/lint/"
-log "           sibling_select.go) and are asserted ABSENT above, alongside"
-log "           issue #326's own unadmitted-type site"
-log "           (kubernetes_config_map.aws_auth). Asserted by rule and by"
-log "           resource, with BREAK=1 proving neither negative control nor"
-log "           the positive checks are vacuous."
+log "  STAGE 3  FAILS  1 Error diagnostic and nothing else, down from 8,"
+log "           then 4. What is left is not an admission refusal at all:"
+log "           aws_launch_configuration is marker-discovered and the"
+log "           provider cannot list it, so its 2 declared instances can be"
+log "           neither tagged nor found. That is HANDOFF's fourth row - the"
+log "           instance belongs on the record rung - and it is choudoufu"
+log "           #364's other half, removing admission as a gate."
+log "           The 4 logical-resource sites are FIXED by #364's implied"
+log "           local record store, with no edit to this estate; the 4"
+log "           count-index sites by internal/live/lint/sibling_select.go;"
+log "           issue #326's unadmitted-type site by #326. All three are"
+log "           asserted ABSENT above, by rule and by resource, with"
+log "           BREAK=3 proving neither the negative controls nor the"
+log "           positive check on the remaining wall are vacuous."
 log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"

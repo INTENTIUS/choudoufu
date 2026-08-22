@@ -207,7 +207,7 @@ func TestStampGate_GenuinelyUntaggableTypeStillRefuses(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("aws_cloudfront_origin_access_control, genuinely untaggable with its own schema present, was not refused: %v", findingIDs(report))
+		t.Fatalf("aws_cloudfront_origin_access_control, genuinely untaggable with its own schema present and no live block to imply a record store, was not refused: %v", findingIDs(report))
 	}
 
 	if got := ClassifyOnboarding(report.Readable(), refusalIDs(report.Findings)); got != OnboardingLanguageBlocked {

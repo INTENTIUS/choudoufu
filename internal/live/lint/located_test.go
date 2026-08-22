@@ -60,18 +60,41 @@ func locatableSchemas(typeName string) map[string]providers.Schema {
 	}}}
 }
 
-// locatedFixture writes a module declaring one block of typeName, with a
-// live block that does or does not carry a record_store.
-func locatedFixture(t *testing.T, typeName string, withStore bool) *configs.Config {
+// locatedStoreShape is what a [locatedFixture] says about its record store.
+// Issue #364 turned this from a bool into three cases: a live block with no
+// record_store block no longer means "no store", it means the implied local
+// one, and the only configuration left with no store at all is one with no
+// live block.
+type locatedStoreShape int
+
+const (
+	// locatedNoLiveBlock: no live block, so no estate, so nothing to imply
+	// a store for. The one remaining nil-RecordStore shape, and what
+	// `live-check` reads on a configuration nobody has adopted yet.
+	locatedNoLiveBlock locatedStoreShape = iota
+	// locatedImpliedStore: a live block with nothing but an estate name.
+	locatedImpliedStore
+	// locatedDeclaredStore: the same store written out longhand.
+	locatedDeclaredStore
+)
+
+// locatedFixture writes a module declaring one block of typeName, with the
+// live block shape asked for.
+func locatedFixture(t *testing.T, typeName string, shape locatedStoreShape) *configs.Config {
 	t.Helper()
-	live := `
+	var live string
+	switch shape {
+	case locatedNoLiveBlock:
+		live = ""
+	case locatedImpliedStore:
+		live = `
 terraform {
   live {
     estate = "test-estate"
   }
 }
 `
-	if withStore {
+	case locatedDeclaredStore:
 		live = `
 terraform {
   live {
@@ -109,7 +132,7 @@ func TestMarkerlessTypeAdmittedUnderARecordStore(t *testing.T) {
 		t.Fatalf("identity.LocatedType(%q) = false with a clean schema, so this test is not exercising the branch it is written for", typeName)
 	}
 
-	issues := CheckWith(t.Context(), locatedFixture(t, typeName, true), Context{Schemas: schemas})
+	issues := CheckWith(t.Context(), locatedFixture(t, typeName, locatedDeclaredStore), Context{Schemas: schemas})
 	for _, issue := range issues {
 		if issue.Rule == RuleMarkerlessType || issue.Rule == RuleUnadmittedType {
 			t.Errorf("%s still refused a markerless type under a record_store: %s\n%s", issue.Rule, issue.Construct, issue.Detail)
@@ -122,15 +145,21 @@ func TestMarkerlessTypeAdmittedUnderARecordStore(t *testing.T) {
 // this issue unblocks is safe.
 //
 // Once tools/estate-plan can demote markerless-type to a pre-onboarding
-// finding, an operator who writes the live block and forgets the store must
-// still be stopped, by name, with the missing thing named. The refusal must
-// also NOT carry the permanent wording, which says no configuration edit
-// changes the verdict - false here, where one block does.
+// finding, an operator whose configuration has no store must still be
+// stopped, by name, with the missing thing named. The refusal must also NOT
+// carry the permanent wording, which says no configuration edit changes the
+// verdict - false here, where one block does.
+//
+// Issue #364 moved which configuration that is. It used to be "the live
+// block is there and the record_store is not"; it is now "there is no live
+// block", because every live block implies a local store. The remedy the
+// refusal names got SHORTER as a result, and the sentence about it still
+// has to name a store.
 func TestMarkerlessLocatableTypeWithoutARecordStoreIsRefusedByName(t *testing.T) {
 	typeName := aLocatableType(t)
 	schemas := locatableSchemas(typeName)
 
-	issues := CheckWith(t.Context(), locatedFixture(t, typeName, false), Context{Schemas: schemas})
+	issues := CheckWith(t.Context(), locatedFixture(t, typeName, locatedNoLiveBlock), Context{Schemas: schemas})
 
 	var detail string
 	for _, issue := range issues {
@@ -139,7 +168,7 @@ func TestMarkerlessLocatableTypeWithoutARecordStoreIsRefusedByName(t *testing.T)
 		}
 	}
 	if detail == "" {
-		t.Fatalf("no %s refusal for %q with a live block and no record_store. Demoting this refusal in tools/estate-plan would then be trading a refusal for a silent failure.", RuleMarkerlessType, typeName)
+		t.Fatalf("no %s refusal for %q with no live block at all. Demoting this refusal in tools/estate-plan would then be trading a refusal for a silent failure.", RuleMarkerlessType, typeName)
 	}
 	if !strings.Contains(detail, "record_store") {
 		t.Errorf("the refusal does not name record_store, which is the whole fix:\n%s", detail)
@@ -172,7 +201,7 @@ func TestMarkerlessLocatedSupportExistsSaysSo(t *testing.T) {
 func TestMarkerlessTypeStaysRefusedWithoutSchemas(t *testing.T) {
 	typeName := aLocatableType(t)
 
-	issues := CheckWith(t.Context(), locatedFixture(t, typeName, true), Context{})
+	issues := CheckWith(t.Context(), locatedFixture(t, typeName, locatedDeclaredStore), Context{})
 
 	var found bool
 	for _, issue := range issues {
@@ -207,7 +236,7 @@ func TestCredentialMaterialStaysRefusedUnderARecordStore(t *testing.T) {
 		},
 	}}}
 
-	issues := CheckWith(t.Context(), locatedFixture(t, typeName, true), Context{Schemas: schemas})
+	issues := CheckWith(t.Context(), locatedFixture(t, typeName, locatedDeclaredStore), Context{Schemas: schemas})
 
 	var found bool
 	for _, issue := range issues {
@@ -239,7 +268,7 @@ func TestLocatedTypeIsNeverAskedToStamp(t *testing.T) {
 	typeName := aLocatableType(t)
 	schemas := locatableSchemas(typeName)
 
-	result, diags := identity.ResolveWith(t.Context(), locatedFixture(t, typeName, true), identity.Context{Schemas: schemas})
+	result, diags := identity.ResolveWith(t.Context(), locatedFixture(t, typeName, locatedDeclaredStore), identity.Context{Schemas: schemas})
 	if diags.HasErrors() {
 		t.Fatalf("resolution refused an admitted located type: %s", diags.Err())
 	}
@@ -272,8 +301,21 @@ func TestLocatedAdmissionAgreesWithLint(t *testing.T) {
 	typeName := aLocatableType(t)
 	schemas := locatableSchemas(typeName)
 
-	for _, withStore := range []bool{true, false} {
-		cfg := locatedFixture(t, typeName, withStore)
+	for _, tc := range []struct {
+		name       string
+		shape      locatedStoreShape
+		wantLocate int
+	}{
+		{"a declared record_store", locatedDeclaredStore, 1},
+		// Issue #364. This row is the whole change seen from the
+		// admission side: the same live block, with nothing but an
+		// estate name in it, now produces the same located instance a
+		// declared store does. If the implied default were dropped from
+		// internal/configs this row goes to 0 and this test fails.
+		{"the implied local record store", locatedImpliedStore, 1},
+		{"no live block at all", locatedNoLiveBlock, 0},
+	} {
+		cfg := locatedFixture(t, typeName, tc.shape)
 
 		var lintRefused bool
 		for _, issue := range CheckWith(t.Context(), cfg, Context{Schemas: schemas}) {
@@ -290,15 +332,12 @@ func TestLocatedAdmissionAgreesWithLint(t *testing.T) {
 		}
 
 		if lintRefused != resolutionRefused {
-			t.Errorf("with record_store=%v: lint refused=%v but resolution refused=%v.\n"+
+			t.Errorf("with %s: lint refused=%v but resolution refused=%v.\n"+
 				"The two read the same field for the same decision and must agree. A type lint admits and resolution refuses stops the run after lint said it was fine; the reverse holds a record for a type lint already turned away.",
-				withStore, lintRefused, resolutionRefused)
+				tc.name, lintRefused, resolutionRefused)
 		}
-		if withStore && located != 1 {
-			t.Errorf("with a record_store, resolution produced %d RECORD_LOCATED instances, want 1", located)
-		}
-		if !withStore && located != 0 {
-			t.Errorf("with no record_store, resolution produced %d RECORD_LOCATED instances, want 0", located)
+		if located != tc.wantLocate {
+			t.Errorf("with %s, resolution produced %d RECORD_LOCATED instances, want %d", tc.name, located, tc.wantLocate)
 		}
 	}
 }

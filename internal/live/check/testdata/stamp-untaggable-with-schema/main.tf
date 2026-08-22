@@ -1,21 +1,22 @@
-terraform {
-  live {
-    estate = "stamp-untaggable-with-schema"
-
-    # No record_store, and its ABSENCE is load-bearing since GitHub issue
-    # #270. This fixture is the "not onboarded" side of that issue: a type
-    # with nowhere to write a marker and nothing to record which object it
-    # is, which is still refused and must stay refused. The onboarded side
-    # - the same type under a record_store, admitted as RECORD_LOCATED -
-    # is stamp-untaggable-record-located next door.
-    #
-    # This block did declare a record_store until #270 landed, and it did
-    # nothing: before that issue the store had no bearing on a markerless
-    # type at all. Adding one back would silently move this fixture to the
-    # other side of the split and take TestStampGate_GenuinelyUntaggableTypeStillRefuses
-    # with it.
-  }
-}
+# NO live block, and its absence is load-bearing.
+#
+# This fixture is the "not onboarded" side of GitHub issue #270's split: a
+# type with nowhere to write a marker and nothing to record which object it
+# is, which is still refused and must stay refused. The onboarded side - the
+# same shape under a record store, admitted as RECORD_LOCATED - is
+# stamp-untaggable-record-located next door.
+#
+# It carried a live block with no record_store until choudoufu #364, which
+# is when that stopped meaning "no store": every live block now gets an
+# implied local one (internal/configs.impliedRecordStore), so a live block
+# here would put this fixture on the OTHER side of the split and take
+# TestStampGate_GenuinelyUntaggableTypeStillRefuses with it. Adding one back
+# does exactly that. What is left on this side is a configuration nobody has
+# adopted - which is what `choudoufu live-check` reads, and the state
+# ClassifyOnboarding exists to classify.
+#
+# It declared a record_store before #270 landed, and that did nothing:
+# before that issue the store had no bearing on a markerless type at all.
 
 # aws_cloudfront_origin_access_control is issue #272's permanent negative
 # case. It sits beside the two CloudFront policy types in the same service,

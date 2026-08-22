@@ -196,8 +196,13 @@ An acceptable configuration can still be refused by how it is invoked.
 ## Effects do work
 
 `null_resource`, `terraform_data`, `time_*` and non-secret `random_*` are
-admitted once the live configuration declares a `record_store`. An older
-refusal message called them unsupported. They are not.
+admitted. They run the stock provider lifecycle exactly as upstream, against a
+record in the estate's record store. An older refusal message called them
+unsupported. They are not.
+
+Nothing has to be turned on for that: an estate with no `record_store` block
+gets an implied local one, a `.tofu-records` directory beside the module.
+Declare a `record_store` to put the records somewhere a team shares instead.
 
 ```hcl
 # estate.chdf.hcl
@@ -207,8 +212,7 @@ record_store "ssm" {}
 ```
 
 The label picks the backend, one of `local`, `ssm` or `s3`. [Where things are
-stored]({{< relref "/docs/use/storage" >}}) has the arguments. Without one they are refused. With one
-they run the stock provider lifecycle exactly as upstream.
+stored]({{< relref "/docs/use/storage" >}}) has the arguments.
 
 ## Two hazards that are now refusals
 

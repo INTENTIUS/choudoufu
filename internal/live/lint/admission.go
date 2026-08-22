@@ -155,16 +155,9 @@ func markerlessLocatedDetail(resourceType string) string {
 			"this\". For an object this estate created, choudoufu minted the identity, and a "+
 			"per-estate record can hold it. "+
 			"%s - GitHub issue #270's record-located identity - and this configuration has "+
-			"simply not turned it on, which is the only reason %s is refused here. Declare a "+
-			"record_store in the live block and it is admitted:\n\n"+
-			"  terraform {\n"+
-			"    live {\n"+
-			"      estate = \"my-estate\"\n"+
-			"      record_store \"ssm\" {}\n"+
-			"    }\n"+
-			"  }\n\n"+
-			"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket argument), or "+
-			"\"local\" (a directory beside the module). The record answers only which object "+
+			"no live block, which is the only reason %s is refused here. "+
+			impliedRecordStoreRemedy+
+			" The record answers only which object "+
 			"this is; it is never read as permission to delete anything, and losing it "+
 			"proposes a create rather than a destroy.",
 		resourceType, identity.MarkerlessReason, UnfindableClause, markerlessLocatedSupportExists, resourceType,
