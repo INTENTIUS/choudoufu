@@ -263,9 +263,8 @@ set -uo pipefail
 #      `deployment_configuration` block (plus its task_definition going
 #      "known after apply" behind item 2), aws_default_network_acl's
 #      egress/ingress rules, and aws_default_route_table's `timeouts`.
-#   4. The last two are a genuine choudoufu finding this pass turned up and
-#      did not fix: the two aws_cloudwatch_log_group instances inside
-#      for_each'd module calls -
+#   4. The last two are a genuine choudoufu finding: the two
+#      aws_cloudwatch_log_group instances inside for_each'd module calls -
 #      module.ecs_service.module.container_definition["fluent-bit"] and
 #      module.ecs_task_definition.module.container_definition["al2023"] -
 #      have live-plan proposing to REMOVE their own tofu-address and
@@ -275,12 +274,45 @@ set -uo pipefail
 #      carries no marker at all. Every other instance in this estate under
 #      a for_each'd module call is untaggable, so these two are the whole
 #      visible population of the shape. Pinned by name below so it cannot
-#      quietly change; not root-caused here.
+#      quietly change.
+#
+#      ROOT-CAUSED, issue #378, and not fixed here. It is internal/live/stamp
+#      and nothing in this estate. The pass injects markers into
+#      CONFIGURATION, so the plan's desired tags are whatever the stamped
+#      configuration says, and there is no layer between "the pass declined
+#      to stamp" and "the provider is handed a desired tag set" that
+#      preserves a marker the pass did not write. A resource under a module
+#      call with more than one instance is stamper.moduleKeyedResource's:
+#      the call's instances share one HCL body for the resource's tags
+#      argument and no expression writable in the child can name the parent
+#      call's own instance key, so nothing is injected (deliberate, and
+#      live/LIMITATIONS.md's "child-module"). Which of the two skips it then
+#      gets is decided by hasTags - "does this body set a tags argument at
+#      all" - not by whether that argument carries a marker, so terraform-
+#      aws-modules/ecs's `tags = var.tags` reports MODULE_KEYED_TRUSTED,
+#      "its markers are trusted as written", about a marker nobody wrote,
+#      and internal/command's statelessStampGaps exempts that reason by name.
+#      Pinned by value, with no cloud, in
+#      internal/live/stamp/modulekeyed_markerloss_test.go: the same module,
+#      the same `tags = var.tags`, called with and without for_each, renders
+#      {Example} and {Example, tofu-estate, tofu-address} respectively.
+#      The rule names no type: it reaches all 847 taggable types of
+#      hashicorp/aws 6.59.0 (live/survey-full.json), under any keyed module
+#      call at any depth. Closing it needs either a way to carry the module
+#      instance's own address into the child module, or a record rung that
+#      also stops the tags diff deleting what it finds - and the record rung
+#      as it stands has the same property (TestStamp_markersRecordWithholds-
+#      OnlyTheSelectedMarker: a selected resource gains no marker, so an
+#      already-marked live object would have its marker planned away too).
 #
 # BREAK=1 corrupts the expected ResourceId (it names a cluster that does
 # not exist), proving that assertion is load-bearing rather than a
 # comparison that always matches - same discipline as the RDS and
-# security-group crossings before this one. Stages 1 and 2 are unaffected.
+# security-group crossings before this one. It now also corrupts stage 2d's
+# expected tofu-address for the fluent-bit log group, so #378's premise -
+# that live-import really does stamp the two for_each'd-module log groups -
+# is provably load-bearing too and not a comparison of two empty strings.
+# Stage 1 is unaffected; stage 2 fails at 2d, before it reports its verdict.
 #
 #   bash live/e2e/corpus-ecs-fargate/run.sh
 #
@@ -293,9 +325,12 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt stage 3's two identity-by-value
-#                assertions (#368's scalable-target ResourceId and #371's
-#                ECS cluster ARN) and its expected plan counts.
+#   BREAK        set to 1 to corrupt stage 2d's expected tofu-address for
+#                the fluent-bit log group (#378) and stage 3's two
+#                identity-by-value assertions (#368's scalable-target
+#                ResourceId and #371's ECS cluster ARN) plus its expected
+#                plan counts. Stage 2 fails first, so reach stage 3's
+#                corruption by commenting the 2d block's BREAK branch out.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -575,6 +610,46 @@ GOT_SVC_ADDR="$(awsl ecs list-tags-for-resource --resource-arn "$SVC_ARN" --quer
 log "  $SVC_ARN now carries tofu-address=$GOT_SVC_ADDR"
 log "  confirmed independently through the AWS CLI, never through choudoufu's own report"
 
+# The two log groups inside for_each'd module calls, BY VALUE and through
+# the CLI. Issue #378's whole premise is that live-import really did stamp
+# these and stage 3's plan really does propose to delete what it wrote, and
+# until this block existed only the first half was prose: the script asserted
+# the deletion in stage 3 and merely claimed the stamping in its header. Both
+# halves are now load-bearing, and if live-import ever stops stamping them
+# this fails here rather than turning #378's stage-3 assertion into a
+# comparison that always matches.
+log "=== 2d. the two for_each'd-module log groups' markers, read through the AWS CLI (#378) ==="
+LOG_GROUP_FLUENTBIT="/aws/ecs/ex-fargate/fluent-bit"
+LOG_GROUP_AL2023="/aws/ecs/ex-fargate-standalone/al2023"
+WANT_LG_FLUENTBIT_ADDR="module.ecs_service.module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0"
+WANT_LG_AL2023_ADDR="module.ecs_task_definition.module.container_definition:al2023.aws_cloudwatch_log_group.this:0"
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_LG_FLUENTBIT_ADDR="module.ecs_service.module.container_definition:not-a-container.aws_cloudwatch_log_group.this:0"
+  log "  BREAK=1: expecting the fluent-bit log group's tofu-address to name a"
+  log "           container that does not exist. It does not. This step must fail."
+fi
+log_group_tag() {
+  local name="$1" key="$2" arn
+  arn="$(awsl logs describe-log-groups --log-group-name-prefix "$name" \
+    --query "logGroups[?logGroupName=='${name}'].arn | [0]" --output text)"
+  [ -n "$arn" ] && [ "$arn" != "None" ] || { printf 'NO_SUCH_LOG_GROUP\n'; return; }
+  awsl logs list-tags-for-resource --resource-arn "${arn%:\*}" \
+    --query "tags.\"${key}\"" --output text
+}
+for lg in "$LOG_GROUP_FLUENTBIT:$WANT_LG_FLUENTBIT_ADDR" "$LOG_GROUP_AL2023:$WANT_LG_AL2023_ADDR"; do
+  LG_NAME="${lg%%:*}"
+  LG_WANT="${lg#*:}"
+  LG_GOT_ADDR="$(log_group_tag "$LG_NAME" tofu-address)"
+  [ "$LG_GOT_ADDR" = "$LG_WANT" ] \
+    || fail "$LG_NAME carries tofu-address=$LG_GOT_ADDR, not $LG_WANT - #378's premise is that live-import stamps these correctly and only the replan drops them; if live-import stopped stamping them, that is a different (and larger) defect"
+  LG_GOT_ESTATE="$(log_group_tag "$LG_NAME" tofu-estate)"
+  [ "$LG_GOT_ESTATE" = "$ESTATE" ] \
+    || fail "$LG_NAME carries tofu-estate=$LG_GOT_ESTATE, not $ESTATE"
+  log "  $LG_NAME carries tofu-address=$LG_GOT_ADDR, tofu-estate=$LG_GOT_ESTATE"
+done
+log "  both markers are correct on the wire; #378 is the REPLAN dropping them,"
+log "  not live-import failing to write them"
+
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
@@ -835,11 +910,13 @@ log "instances missing the tofu-slot marker (choudoufu #372, deliberate and"
 log "known), two task-definition replacements stock itself proposes on its own"
 log "fresh state (stage 1c - HANDOFF.md row 3), four emulator read-fidelity"
 log "diffs also in stock's replan, and two log groups inside for_each'd module"
-log "calls whose markers live-plan proposes to remove."
+log "calls whose markers live-plan proposes to remove - choudoufu #378, now"
+log "root-caused to internal/live/stamp's moduleKeyedResource and pinned by"
+log "value in internal/live/stamp/modulekeyed_markerloss_test.go."
 log "All eight of #368's diagnostics are gone, asserted by absence above,"
 log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "#371 FIXED: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1 - skip_requesting_account_id = true left hashicorp/aws composing account-less ARNs for its ECS reads, and stock terraform fails identically on the same provider block. Plan is now 2 to add, 31 to change, 2 to destroy (was 7/30/0). Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), 4 emulator read-fidelity diffs also in stock's replan, and 2 aws_cloudwatch_log_group instances inside for_each'd module calls whose tofu-address/tofu-estate markers live-plan proposes to REMOVE - a new finding, pinned by name, not root-caused"
+gauntlet_stage test_plan fail "#371 FIXED: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1 - skip_requesting_account_id = true left hashicorp/aws composing account-less ARNs for its ECS reads, and stock terraform fails identically on the same provider block. Plan is now 2 to add, 31 to change, 2 to destroy (was 7/30/0). Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), 4 emulator read-fidelity diffs also in stock's replan, and 2 aws_cloudwatch_log_group instances inside for_each'd module calls whose tofu-address/tofu-estate markers live-plan proposes to REMOVE - choudoufu #378, now root-caused to internal/live/stamp and pinned by value in internal/live/stamp/modulekeyed_markerloss_test.go: a resource under a keyed module call is never stamped (its instances share one tags body), and stamper.moduleKeyedResource decides between MODULE_KEYED and MODULE_KEYED_TRUSTED on whether a tags argument EXISTS rather than on whether it carries a marker, so terraform-aws-modules' \`tags = var.tags\` is reported as trusted hand-stamping and internal/command's statelessStampGaps exempts it. The desired tag set therefore carries no marker and the ordinary tags diff renders the difference as a deletion. Not fixed: no type is named by the rule and it reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -852,7 +929,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #371 FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, four emulator read-fidelity diffs, and two markers live-plan proposes to remove"
+log "  stage 3  test_plan          BLOCKED - #371 FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, four emulator read-fidelity diffs, and two markers live-plan proposes to remove (#378, root-caused)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
@@ -862,5 +939,6 @@ log "output, or a tag read straight through the AWS CLI - never choudoufu's"
 log "own self-report. Two real floci gaps found and filed along the way"
 log "(lex00/floci#59, #60) do not block this script: live-import tolerates"
 log "drift by design, and neither field reaches the identities stage 3"
-log "compares. Run again with BREAK=1: stages 1 and 2 still pass and stage"
-log "3's identity-by-value assertion is the one that fails."
+log "compares. Run again with BREAK=1: stage 1 still passes and stage 2's"
+log "own identity-by-value assertion, 2d's marker on the fluent-bit log"
+log "group (#378), is the first one that fails."
