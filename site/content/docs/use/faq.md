@@ -12,7 +12,7 @@ pieces]({{< relref "/docs/model" >}}), self-service tagging and IAM in
 are stored]({{< relref "/docs/use/storage" >}}), migration in [Migrate an
 existing estate]({{< relref "/docs/use/migrate" >}}), marker stripping in
 [Identity]({{< relref "/docs/model/identity" >}}), and concurrent applies in
-[Day-2 operations]({{< relref "/docs/use/day2" >}}).
+[Two runs at once]({{< relref "/docs/model/concurrency" >}}).
 
 ## Why is it called choudoufu?
 

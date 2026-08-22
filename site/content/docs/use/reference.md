@@ -1,6 +1,6 @@
 ---
 title: "Reference"
-weight: 7
+weight: 11
 ---
 
 # Reference
@@ -99,7 +99,7 @@ trade-offs.
 
 The ownership matrix. One verb per quadrant of declared-or-not against
 tagged-or-not, plus marker key overrides and the delete guard.
-[Day 2 operations]({{< relref "/docs/use/day2" >}}) has the verbs, defaults and reasoning. The
+[The ownership policy matrix]({{< relref "/docs/use/ownership-policy" >}}) has the verbs, defaults and reasoning. The
 arguments follow.
 
 | Argument | Meaning |
