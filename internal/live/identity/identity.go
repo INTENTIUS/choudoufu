@@ -344,9 +344,7 @@ func (f *Formula) String() string {
 			continue
 		}
 		buf.WriteString("${")
-		buf.WriteString(p.Parent.Instance.String())
-		buf.WriteString(".")
-		buf.WriteString(p.Parent.Attr)
+		buf.WriteString(p.Parent.String())
 		buf.WriteString("}")
 	}
 	return buf.String()
@@ -393,6 +391,10 @@ func renderParts(parts []Part, lookup func(parent addrs.AbsResourceInstance, att
 		if !ok {
 			return "", false
 		}
+		v, ok = applyOps(p.Parent.Transform, v)
+		if !ok {
+			return "", false
+		}
 		buf.WriteString(v)
 	}
 	return buf.String(), true
@@ -415,8 +417,29 @@ type ParentRef struct {
 	Instance addrs.AbsResourceInstance
 
 	// Attr is the attribute being read, always one of the parent type's
-	// IdentityAttrs in the table (in practice "id").
+	// IdentityAttrs in the table (in practice "id"), or an attribute
+	// [resolver.parentPart]'s deferred-read branch admitted off the
+	// provider's own schema.
 	Attr string
+
+	// Transform is a pipeline of pure functions applied to the attribute's
+	// value, in order, once that value is known. Empty - the ordinary case,
+	// and every reference written as a bare traversal - is the identity
+	// function. See [Op] and [applyOps].
+	Transform []Op
+}
+
+// String renders a parent reference the way the configuration would have
+// written it, transform and all: `aws_ecs_cluster.this[0].arn` for a bare
+// read, `element(split("/", aws_ecs_cluster.this[0].arn), 1)` for one with a
+// pipeline. It is the body of the `${...}` [Formula.String] wraps it in, and
+// so is what the identity golden file pins.
+func (p ParentRef) String() string {
+	s := p.Instance.String() + "." + p.Attr
+	for _, op := range p.Transform {
+		s = op.wrap(s)
+	}
+	return s
 }
 
 // Result is the outcome of resolving a whole configuration: every managed

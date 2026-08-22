@@ -286,7 +286,16 @@ var identityGoldenPin = map[string]int{
 	// all_empty_no_sibling (every alternation member a proven empty
 	// list, nothing else set), stays refused and contributes no row -
 	// the half that has to hold. No pre-existing row moved.
-	"CONCRETE": 792,
+	// 793, up from 792 (issue #368, a render-time transform in Formula):
+	// one ADDED row, internal/live/identity/testdata/formula-transform's
+	// module.cluster.aws_ecs_cluster.this[0], a plain client-named ECS
+	// cluster that renders its own name. It is incidental to the change:
+	// the fixture needs a real managed resource behind the module output
+	// for the transform to have a live value to split. Every row #368
+	// actually adds needs provider schemas, which this sweep deliberately
+	// does not have, so they are pinned by value in transform_test.go
+	// instead. No pre-existing row moved.
+	"CONCRETE": 793,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -438,7 +447,16 @@ var identityGoldenPin = map[string]int{
 	// bare aws_lb_target_group, and incidental to the change: the fixture
 	// needs a real managed resource behind the module output for the deferred
 	// read to have something to point at.
-	"NEEDS_DISCOVERY": 664,
+	// 671, up from 664 (issue #368): seven ADDED rows, every one of them a
+	// bare server-assigned aws_vpc, aws_security_group or aws_ecs_service
+	// in the two new fixtures - three in formula-transform (aws_vpc.this[0],
+	// aws_security_group.this[0], module.svc.aws_ecs_service.this[0]) and
+	// four in deferred-through-module-list (module.vpc.aws_vpc.this[0],
+	// module.sg.aws_security_group.this[0], and the same two again with the
+	// child directories swept as roots of their own). Incidental for the
+	// same reason as #346's and #354's: a deferred read needs a real
+	// resource to point at.
+	"NEEDS_DISCOVERY": 671,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -762,7 +780,18 @@ var identityGoldenPin = map[string]int{
 // zero-element list from "present" to "absent" so the search can try the
 // next alternative - it never resolves or picks a value itself, so no
 // existing fixture's rendered identity can move.
-const identityGoldenPinBodyDigest = "9baddc13a248e718c033a8ae85ced20e18a9171135ddc860b63060bd1ddb6bce"
+//
+// 2026-08-21 (issue #368): digest moved because eight more rows were ADDED,
+// every one of them from the two new fixture roots
+// internal/live/identity/testdata/formula-transform and
+// .../deferred-through-module-list (and their child modules swept as roots
+// of their own). TestIdentityGolden's own diff, read before this line was
+// edited, reported "0 identities changed, 8 added, 0 removed" over 530
+// directories. The zero is the load-bearing half: a transform is only ever
+// reached after every existing route has declined, and it declines in turn
+// unless it finds a recognized pipeline over exactly one deferred parent
+// read, so no expression that renders a marker today can be re-routed by it.
+const identityGoldenPinBodyDigest = "6c002eaceb3be996e8ac8fcb41682aa9751ff49c26ce5c1dfdc62285977f283b"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1204,7 +1233,32 @@ const (
 	// all_empty_no_sibling, is the negative control (every alternation
 	// member proven empty, no sibling set) and stays refused, so it
 	// contributes no row.
-	identityGoldenPinInstances = 1593
+	//
+	// 2026-08-21 (issue #368): instances 1593 -> 1601, dirs 524 -> 530.
+	// 0 changed, 8 added, 0 removed. Two new fixture roots -
+	// internal/live/identity/testdata/formula-transform (the ECS and
+	// security-group shapes a render-time [ParentRef.Transform] makes
+	// expressible) and .../deferred-through-module-list (the measurement
+	// that refutes #368's own reading of corpus-rds-complete-postgres) -
+	// plus their four child modules swept as roots of their own.
+	//
+	// Every added row is a plain server-assigned or client-named parent
+	// the fixtures need a live value from; NOT ONE of them is a transformed
+	// identity. That is a property of this sweep, not of the change: every
+	// resolution a transform produces here goes through
+	// [resolver.parentPart]'s deferred-read branch, which needs provider
+	// schemas, and this sweep runs without them. The transformed identities
+	// are pinned BY VALUE in internal/live/identity/transform_test.go,
+	// rendered against a lookup that hands back a real ARN, which is where
+	// HANDOFF.md's safety rule is actually discharged for this change.
+	//
+	// The zero changed is the load-bearing half here as everywhere: the two
+	// entry points [resolver.resolveTransformCall] and
+	// [resolver.soleElementDeferred] are reached only after every existing
+	// route has already declined, and each declines again unless it finds a
+	// recognized pipeline over exactly one deferred read, so nothing that
+	// renders a marker today can be re-routed by them.
+	identityGoldenPinInstances = 1601
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1305,7 +1359,16 @@ const (
 	// unchanged, confirmed by regenerating and diffing: only the header's
 	// "dirs=" line moved, and TestIdentityGolden itself reported "differs
 	// but no instance's identity did".
-	identityGoldenPinDirs = 529
+	//
+	// Then 529 -> 535 dirs and 1593 -> 1601
+	// instances for GitHub issue #368: six new directories (the two fixture
+	// roots internal/live/identity/testdata/formula-transform and
+	// .../deferred-through-module-list, plus four child modules swept as
+	// roots of their own), eight added rows, nothing modified. See
+	// identityGoldenPinInstances' own comment directly above. #365 and #368
+	// landed independently on top of the same base and are merged here
+	// together, so this pin reflects both.
+	identityGoldenPinDirs = 535
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
