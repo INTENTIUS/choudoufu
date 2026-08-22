@@ -107,9 +107,18 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 	// is the one that can see the whole tree. See [checkStrictMarkers].
 	markersRecord := markerRepairHonoursIgnoreChanges(cfg)
 
+	// GitHub issue #365's first toggle, read once from the root module for
+	// recordStoreConfigured's exact reason. identity.SecretsFor is the one
+	// place an omitted argument resolves to strict.DefaultSecrets, and it is
+	// the same function internal/live/projection and internal/live/liveimport
+	// read it with - the three must never disagree about what the operator
+	// asked for, or a configuration this package admits produces a record
+	// the write side declines to write.
+	secrets := identity.SecretsFor(cfg)
+
 	var issues []Issue
 	checkStrictMarkers(cfg, lctx.Schemas, &issues)
-	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, markersRecord, nil, &issues)
+	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, signal, recordStoreConfigured, secrets, markersRecord, nil, &issues)
 	sortIssues(issues)
 	return issues
 }
@@ -205,7 +214,7 @@ func markerRepairHonoursIgnoreChanges(cfg *configs.Config) *strict.Selection {
 // whole call chain once triggered, not of any single link in it. See
 // [checkModuleProviderBlocks] (GitHub issue #201), the only rule that reads
 // this argument.
-func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, markersRecord *strict.Selection, noProviderConfigRange *hcl.Range, issues *[]Issue) {
+func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, noProviderConfigRange *hcl.Range, issues *[]Issue) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -222,7 +231,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
 	checkLiveStrict(mod, path, issues)
-	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, markersRecord, issues)
+	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, secrets, markersRecord, issues)
 	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
 	checkReservedSymbols(mod, path, issues)
@@ -242,7 +251,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 			childNoProviderConfigRange = r
 		}
 		childInst := modInst.Child(name, worstCaseChildKey(ctx, cfg, name))
-		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, markersRecord, childNoProviderConfigRange, issues)
+		checkConfig(ctx, cfg.Children[name], childInst, schemas, signal, recordStoreConfigured, secrets, markersRecord, childNoProviderConfigRange, issues)
 	}
 }
 
@@ -419,7 +428,7 @@ func checkMovedBlocks(cfg *configs.Config, mod *configs.Module, path addrs.Modul
 // checkManagedResources runs the rules that apply to resource blocks:
 // provisioners and their connection blocks, logical resource types, and the v0
 // admission table.
-func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, markersRecord *strict.Selection, issues *[]Issue) {
+func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.Module, schemas map[string]providers.Schema, signal *identity.ConfigSignal, recordStoreConfigured bool, secrets strict.Secrets, markersRecord *strict.Selection, issues *[]Issue) {
 	for _, resource := range mod.ManagedResources {
 		addr := resource.Addr().String()
 
@@ -465,7 +474,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 		checkIgnoreChanges(resource, addr, path, schemas, markersRecord, issues)
 
 		if isLogical {
-			if recordStoreAdmits(lt.Class) && recordStoreConfigured {
+			if admitsUnder(lt, secrets) && recordStoreConfigured {
 				// GitHub issue #73: a RECORD_ADMITTED type flips from
 				// refused to admitted once a live block configures a
 				// record_store. Its identity is the persisted micro-state
@@ -481,6 +490,15 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 				// condition and resolves through the same
 				// ClassRecordBacked path. What differs is upstream of
 				// here, in countIndexScopeForType, which has already run.
+				//
+				// SECRET_REFUSED (issue #365 slice 3) flips on the same
+				// condition PLUS the operator's secrets setting - see
+				// [admitsUnder], which is the whole of the difference. The
+				// record such a type resolves through then holds secret
+				// material, which is what the setting is about and is the
+				// only thing that distinguishes it from the two classes
+				// above. internal/live/identity's resolver asks the same
+				// question again for a caller that skipped this one.
 				continue
 			}
 			*issues = append(*issues, Issue{
@@ -488,7 +506,7 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 				Construct: addr,
 				Type:      resource.Type,
 				Module:    path,
-				Detail:    logicalResourceDetail(resource.Type, lt),
+				Detail:    logicalResourceDetail(resource.Type, lt, secrets, recordStoreConfigured),
 				Subject:   resource.DeclRange,
 			})
 			// One verdict per resource: a logical type is already out, and

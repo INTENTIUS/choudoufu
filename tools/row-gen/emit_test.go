@@ -255,7 +255,7 @@ func TestEmitGateRefusesUnruledMismatch(t *testing.T) {
 	// A RecordBacked row is exempt from the gate by derivation, so it is
 	// never a candidate victim - deleting its (now non-existent) ruling
 	// would prove nothing about the gate.
-	recordBacked, err := recordBackedRows(loadRatifiedForTest(t), loadLogicalSchemasForTest(t))
+	recordBacked, _, err := recordBackedRows(loadRatifiedForTest(t), loadLogicalSchemasForTest(t))
 	if err != nil {
 		t.Fatalf("recordBackedRows: %v", err)
 	}

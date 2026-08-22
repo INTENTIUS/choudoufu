@@ -593,7 +593,33 @@ var identityGoldenPin = map[string]int{
 	// two new coalesce fixtures' root modules, both rendering an empty
 	// value - the honest answer for a resource whose whole object lives in
 	// the estate's record store and nowhere else.
-	"RECORD_BACKED": 21,
+	// 24, up from 21 (GitHub issue #365 slice 3): three ADDED rows, all with
+	// an EMPTY value, and the reason they are here at all is the whole of
+	// the slice. random_password, local_sensitive_file and tls_private_key
+	// carry secret material in their schemas, and until this slice that made
+	// them absent from internal/live/identity.DefaultTable - which said the
+	// record COULD NOT hold their prior state, when what was actually true
+	// is that it should not hold it unless the operator asked. They now
+	// carry a RecordBacked row with SecretMaterial set, resolve
+	// RECORD_BACKED under the default `strict { secrets = "store" }`, and
+	// are refused by name under `secrets = "refuse"`.
+	//
+	// The empty value is the honest one and is worth reading rather than
+	// skipping past: a record-backed resource has no cloud object and
+	// therefore no rendered identity to write into a tag, so nothing about
+	// these three rows is a marker this tool will put anywhere. The value
+	// that DOES move is the record's contents, and that is asserted by
+	// value in internal/live/projection's residue tests and
+	// internal/live/lint's TestSecretsStoreAdmitsASecretGeneratingType,
+	// neither of which this sweep can reach.
+	//
+	// The three fixtures: internal/live/lint/testdata/logical (which already
+	// declared tls_private_key.signing and contributed no row for it),
+	// live/e2e/limits/local-sensitive-file and live/e2e/limits/
+	// random-password (both of which already existed as limits fixtures and
+	// stay refused there, for want of a record_store rather than for want of
+	// admission).
+	"RECORD_BACKED": 24,
 }
 
 // identityGoldenPinBodyDigest is sha256 over the golden's rows, and it is the
@@ -898,7 +924,27 @@ var identityGoldenPin = map[string]int{
 // schema-less sweep does not render at all, so its whole effect here is the
 // fixture it brought with it. "0 identities changed, 1 added, 0 removed"
 // over 560 directories, read before this line was edited.
-const identityGoldenPinBodyDigest = "9bfc2d3a86632189ce34b0cdad68017350a3adf4fe6668214c3d8da1bdab06a4"
+//
+// Then re-pinned for GitHub issue #365 slice 3, reconciled onto the three
+// changes above rather than measured against the base it was written on:
+// three rows ADDED, all RECORD_BACKED and all rendering an EMPTY value
+// (random_password, local_sensitive_file, tls_private_key gaining a
+// SecretMaterial row in identity.DefaultTable), and four new configuration
+// directories that declare no resource at all. Read against the merged tree,
+// not against 350afb5925 - see identityGoldenPinInstances. The zero-changed
+// half holds for the reason the slice's own design gives it: the setting
+// reaches one decision, whether a SecretMaterial row is REFUSED, and never
+// resolves any instance to a different object, so no row this sweep already
+// rendered can move. Slice 3 and the three changes above touch disjoint
+// routes - nothing in identity.DefaultTable is read by computedselect.go or
+// by internal/live/stamp - so their row sets add rather than interact. The
+// reconciled regeneration, diffed against 292bff5932's own golden rather
+// than against the slice's original base, reports exactly that: three lines
+// added (internal/live/lint/testdata/logical's tls_private_key.signing,
+// live/e2e/limits/local-sensitive-file's local_sensitive_file.rendered and
+// live/e2e/limits/random-password's random_password.db), none modified and
+// none removed, over 564 directories.
+const identityGoldenPinBodyDigest = "8e7b14632956bef63032d3283b440dc5cef4c01f758e8620765a9eefd882cd39"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1387,7 +1433,17 @@ const (
 	// #378's own change is to what internal/live/stamp writes into a tags
 	// argument, which this sweep does not render at all, so its whole effect
 	// here is the fixture it brought with it.
-	identityGoldenPinInstances = 1629
+	//
+	// Then 1629 -> 1632 for GitHub issue #365 slice 3: three added rows, zero
+	// modified, zero removed. All three are RECORD_BACKED and all three
+	// render an empty value; see the RECORD_BACKED entry in
+	// identityGoldenPinClasses for which fixtures and why the empty value is
+	// the right one. The slice was originally measured as 1614 -> 1617
+	// against 350afb5925; the delta it contributes is unchanged by the three
+	// changes above, which is what the reconciled figure says - +3 either
+	// way, because the rows come from identity.DefaultTable gaining
+	// SecretMaterial entries and nothing above reads that table.
+	identityGoldenPinInstances = 1632
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1523,7 +1579,18 @@ const (
 	// gate's own controls.
 	// Then 559 -> 560 for GitHub issue #378: live/e2e/limits/reserved-symbol,
 	// the fixture for the lint rule reserving tofu.marker_module_prefix.
-	identityGoldenPinDirs = 560
+	//
+	// Then 560 -> 564 dirs for GitHub issue #365 slice 3's secrets toggle:
+	// four new configuration directories, none of which declares a resource
+	// at all - three under internal/live/lint/testdata (the two valid
+	// spellings and one outside the vocabulary) and live/e2e/limits/
+	// strict-secrets. Every one is a terraform{live{strict{}}} block and
+	// nothing else, so none contributes a row; the three ADDED rows come
+	// from fixtures that already existed. See identityGoldenPinInstances'
+	// own comment directly above. Measured as 550 -> 554 against
+	// 350afb5925 and +4 either way, since none of the three changes above
+	// added or removed a directory this slice's fixtures sit in.
+	identityGoldenPinDirs = 564
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

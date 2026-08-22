@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -205,6 +206,28 @@ type Request struct {
 	// never writes anything.
 	ResidueStore *projection.ResidueStore
 
+	// Secrets is the root module's `strict { secrets = ... }` setting,
+	// GitHub issue #365, resolved by the caller with identity.SecretsFor.
+	//
+	// It reaches two decisions in this package, and the second is the one
+	// that matters most. The first is whether the residue this migration
+	// records may include an argument the provider marks sensitive, which is
+	// what stock's own state file holds for the estate being migrated FROM.
+	// The second is whether a record-backed type whose value IS secret
+	// material gets its record seeded at all ([ratifyOne]) - and this path
+	// runs no lint pass and builds no resolver, so it is the ONLY gate that
+	// stands between `secrets = "refuse"` and a stock state file's
+	// random_password landing in the estate's record store in clear.
+	//
+	// The zero value is Secrets(""), which strict.StoresSecrets reads as
+	// false - so a caller that builds a Request without setting it gets the
+	// behavior every migrate had before this field existed. That is the
+	// right default for a struct literal and the WRONG one for a real run,
+	// which is why the command layer resolves it through identity.SecretsFor
+	// rather than leaving it zero: an omitted argument means
+	// strict.DefaultSecrets, not the zero value. See identity.SecretsFor.
+	Secrets strict.Secrets
+
 	// RecordStore is GitHub issue #73's record store itself - the same one
 	// ResidueStore is layered over, opened by the same caller from the same
 	// record_store block - and RecordKeyPrefix is the namespace that block
@@ -258,6 +281,10 @@ type Ratification struct {
 	residuable map[string]*residuable
 
 	residueStore *projection.ResidueStore
+
+	// secrets is [Request.Secrets], carried through to Approve because that
+	// is where residue is written. See that field.
+	secrets strict.Secrets
 
 	recordStore     staterecord.Store
 	recordKeyPrefix string
@@ -314,6 +341,7 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		recordable:      make(map[string]*recordable),
 		residuable:      make(map[string]*residuable),
 		residueStore:    req.ResidueStore,
+		secrets:         req.Secrets,
 		recordStore:     req.RecordStore,
 		recordKeyPrefix: req.RecordKeyPrefix,
 		rootOutputStore: req.RootOutputStore,
@@ -402,6 +430,36 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// fall off the end of a migration with nothing written anywhere, which
 	// is what happened while this branch did not exist.
 	if recordBackedType(typeName) && req.RecordStore != nil {
+		if secretMaterialType(typeName) && !strict.StoresSecrets(req.Secrets) {
+			// GitHub issue #365 slice 3. This is the one place in this
+			// package where the secrets setting decides what gets WRITTEN
+			// rather than what gets recorded as residue, and it is here
+			// rather than in Approve because the carrier is the decision:
+			// an instance with no [recordable] is one Approve cannot seed a
+			// record for.
+			//
+			// It matters more here than anywhere else the setting is read.
+			// live-import runs no lint pass and builds no resolver, so the
+			// two gates that refuse such a type everywhere else are both
+			// absent from this path - and what this path would write is not
+			// an identity or a residue attribute but the instance's WHOLE
+			// prior object, secret included, straight out of the stock state
+			// file. An operator who set `secrets = "refuse"` and then
+			// migrated would have got exactly the thing they turned off.
+			//
+			// The verdict left behind is the ordinary one for a type with no
+			// live object to tag, which is what it is; only the record write
+			// is withheld, and the Detail says so.
+			entry.Status = StatusUntaggable
+			entry.Detail = fmt.Sprintf(
+				"%s has no live object to tag, and this configuration sets strict { secrets = %q }, so its value is "+
+					"not seeded into the estate's record store either: that value is the secret material the setting "+
+					"refuses to keep. Nothing was written for it and nothing was lost - the state file is untouched. "+
+					"Remove the argument to get the default, %q, which keeps the value the way this state file already "+
+					"keeps it.",
+				typeName, req.Secrets, strict.DefaultSecrets)
+			return entry, carriers{}
+		}
 		return ratifyRecordBacked(entry, typeName, schema, inst)
 	}
 
@@ -533,6 +591,18 @@ func ratifyUntaggable(entry Entry, provider providers.Interface, schema provider
 func recordBackedType(typeName string) bool {
 	ti, ok := identity.LookupType(typeName)
 	return ok && ti.RecordBacked
+}
+
+// secretMaterialType is [recordBackedType]'s companion for GitHub issue
+// #365's secrets setting: whether the record this migration would seed holds
+// secret material.
+//
+// Derived from [identity.TypeIdentity.SecretMaterial], from the same table by
+// the same lookup, and for [recordBackedType]'s stated reason there is no list
+// of type names here and there must never be one.
+func secretMaterialType(typeName string) bool {
+	ti, ok := identity.LookupType(typeName)
+	return ok && ti.SecretMaterial
 }
 
 // ratifyRecordBacked is ratifyOne's verdict for a record-backed instance: the

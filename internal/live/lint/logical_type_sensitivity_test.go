@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 )
 
 // This file is the external cross-check on [logicalTypes]. Every other test
@@ -196,18 +197,25 @@ func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 			continue
 		}
 
-		want := ClassRecordAdmitted
-		switch {
-		case len(sensitive) > 0:
-			want = ClassSecretRefused
-		case external:
-			want = ClassExternalAdmitted
+		// The store_only measurement alone settles which admitted class the
+		// type carries, and sensitivity then settles which COLUMN that
+		// answer goes in - Class for a type that generates none,
+		// StoredClass for one that does (GitHub issue #365 slice 3). Both
+		// are recomputed here, from the same two facts, so a row that
+		// carried the right class name in the wrong column would fail.
+		wantStored := ClassRecordAdmitted
+		if external {
+			wantStored = ClassExternalAdmitted
 		}
-		if lt.Class != want {
-			t.Errorf("logicalTypes[%q].Class = %q, but the provider's schema marks %d attribute(s) "+
-				"sensitive (%v) and its family writes-outside-its-record is %v, which derives %q - "+
-				"one of the two is wrong",
-				typ, lt.Class, len(sensitive), sensitive, external, want)
+		wantClass, wantStoredCol := wantStored, LogicalClass("")
+		if len(sensitive) > 0 {
+			wantClass, wantStoredCol = ClassSecretRefused, wantStored
+		}
+		if lt.Class != wantClass || lt.StoredClass != wantStoredCol {
+			t.Errorf("logicalTypes[%q] is Class=%q StoredClass=%q, but the provider's schema marks %d "+
+				"attribute(s) sensitive (%v) and its family writes-outside-its-record is %v, which "+
+				"derives Class=%q StoredClass=%q - one of the two is wrong",
+				typ, lt.Class, lt.StoredClass, len(sensitive), sensitive, external, wantClass, wantStoredCol)
 		}
 
 		// The half that matters most is not the class name but what the
@@ -215,8 +223,16 @@ func TestLogicalClassAgreesWithProviderSensitivity(t *testing.T) {
 		// TestLocalFileKeepsItsCountIndexCheck's two hardcoded type names,
 		// so a future family measured as writing outside its record cannot
 		// pick up the skip by inheriting a class name.
+		//
+		// Sensitivity is deliberately NOT part of this expectation any
+		// more. The skip's ground is store_only and nothing else: "the
+		// record is the whole of the resource, so no argument can name
+		// anything else" is true of random_password exactly as it is of
+		// random_string. It used to be part of it only because a sensitive
+		// type was refused outright, so the walk's verdict for it was moot -
+		// and a moot verdict that happens to be conservative is not a rule.
 		scope := countIndexScopeForType(typ, lt, true)
-		if scope.skip != (!external && len(sensitive) == 0) {
+		if scope.skip != !external {
 			t.Errorf("countIndexScopeForType(%q).skip = %v, but the family's measured "+
 				"writes-outside-its-record is %v - the count.index walk must run for exactly the "+
 				"types whose arguments can name something the record does not bound",
@@ -393,37 +409,77 @@ func TestLocalFileKeepsItsCountIndexCheck(t *testing.T) {
 // cannot report what only the other layer knows about. The second loop below
 // is keyed on identity's.
 func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
-	for typ, lt := range logicalTypes {
-		entry, ok := identity.LookupType(typ)
-		if !recordStoreAdmits(lt.Class) {
-			if ok && entry.RecordBacked {
-				t.Errorf("logicalTypes[%q] is %s but identity.DefaultTable marks it RecordBacked; "+
-					"resolution would hold a record for a type lint refuses", typ, lt.Class)
+	// Both directions are now asked under BOTH secrets settings rather than
+	// once, which is GitHub issue #365 slice 3's whole addition here. The
+	// question the two layers have to agree on is not "is this type
+	// admitted" but "is it admitted under this run's setting", and a check
+	// that asked only the default would go green on a build where
+	// secrets = "refuse" admitted a type identity had no row for.
+	//
+	// The identity side answers with two flags rather than one:
+	// RecordBacked says a record holds the type's prior state, and
+	// SecretMaterial says the record would hold a secret, which is what the
+	// resolver's own gate reads.
+	for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+		for typ, lt := range logicalTypes {
+			entry, ok := identity.LookupType(typ)
+			resolves := ok && entry.RecordBacked && !(entry.SecretMaterial && !strict.StoresSecrets(secrets))
+			if !admitsUnder(lt, secrets) {
+				if resolves {
+					t.Errorf("under secrets=%s, logicalTypes[%q] is %s (stored: %s) but identity resolves it "+
+						"as record-backed; resolution would hold a record for a type lint refuses",
+						secrets, typ, lt.Class, lt.StoredClass)
+				}
+				continue
 			}
-			continue
+			if !resolves {
+				t.Errorf("under secrets=%s, logicalTypes[%q] is %s (stored: %s), so lint admits it under a "+
+					"record_store, but identity refuses it (row=%v recordBacked=%v secretMaterial=%v) - "+
+					"resolution would refuse what lint just promised",
+					secrets, typ, lt.Class, lt.StoredClass, ok, entry.RecordBacked, entry.SecretMaterial)
+			}
 		}
-		if !ok || !entry.RecordBacked {
-			t.Errorf("logicalTypes[%q] is %s, so lint admits it under a record_store, "+
-				"but identity.DefaultTable has no RecordBacked row for it - resolution would refuse "+
-				"what lint just promised", typ, lt.Class)
+
+		for typ, entry := range identity.DefaultTable {
+			if !entry.RecordBacked {
+				continue
+			}
+			lt, ok := ClassifyLogicalType(typ)
+			if !ok {
+				t.Errorf("identity.DefaultTable marks %q RecordBacked, but ClassifyLogicalType does not "+
+					"recognise it as a logical type at all - lint would send it to the admission table, "+
+					"which by construction does not list a RecordBacked type", typ)
+				continue
+			}
+			if entry.SecretMaterial && !strict.StoresSecrets(secrets) {
+				// Refused by both layers under this setting, which is the
+				// agreement rather than a violation of it. The lint loop
+				// above already checked that lint refuses it too.
+				continue
+			}
+			if !admitsUnder(lt, secrets) {
+				t.Errorf("under secrets=%s, identity.DefaultTable marks %q RecordBacked, so resolution holds "+
+					"its prior state in a record, but lint classifies it %s (stored: %s) and refuses it "+
+					"before resolution ever runs - a record_store cannot admit what lint has already rejected",
+					secrets, typ, lt.Class, lt.StoredClass)
+			}
 		}
 	}
 
+	// And the two flags must name one set, which is the pairing the
+	// generator derives from one predicate. A SecretMaterial row lint does
+	// not call SECRET_REFUSED means the resolver's gate would fire on a type
+	// lint had already admitted; the reverse means it would never fire.
 	for typ, entry := range identity.DefaultTable {
-		if !entry.RecordBacked {
-			continue
-		}
 		lt, ok := ClassifyLogicalType(typ)
-		if !ok {
-			t.Errorf("identity.DefaultTable marks %q RecordBacked, but ClassifyLogicalType does not "+
-				"recognise it as a logical type at all - lint would send it to the admission table, "+
-				"which by construction does not list a RecordBacked type", typ)
-			continue
+		secretForLint := ok && lt.Class == ClassSecretRefused && lt.StoredClass != ""
+		if entry.SecretMaterial != secretForLint {
+			t.Errorf("identity.DefaultTable[%q].SecretMaterial = %v, but lint's own answer is %v "+
+				"(class %s, stored %s) - the two are one predicate over one artifact and must name one set",
+				typ, entry.SecretMaterial, secretForLint, lt.Class, lt.StoredClass)
 		}
-		if !recordStoreAdmits(lt.Class) {
-			t.Errorf("identity.DefaultTable marks %q RecordBacked, so resolution holds its prior state "+
-				"in a record, but lint classifies it %s and refuses it before resolution ever runs - "+
-				"a record_store cannot admit what lint has already rejected", typ, lt.Class)
+		if entry.SecretMaterial && !entry.RecordBacked {
+			t.Errorf("identity.DefaultTable[%q] is SecretMaterial without RecordBacked, which gates nothing", typ)
 		}
 	}
 }
@@ -440,32 +496,65 @@ func TestNoLogicalTypeIsAdmittedWithoutAnIdentityRow(t *testing.T) {
 // the test above records happening once already, when the two sets were
 // maintained by hand.
 func TestRecordStoreAdmitsMatchesTheRecordBackedSet(t *testing.T) {
-	backing := map[LogicalClass]bool{}
+	// The set of classes a RecordBacked row can carry, split by whether the
+	// row's own secrets flag is set. Two populations rather than one since
+	// GitHub issue #365 slice 3, and they are what the two predicates below
+	// have to answer for.
+	unconditional := map[LogicalClass]bool{}
+	underStoreOnly := map[LogicalClass]bool{}
 	for typ, entry := range identity.DefaultTable {
 		if !entry.RecordBacked {
 			continue
 		}
-		if lt, ok := ClassifyLogicalType(typ); ok {
-			backing[lt.Class] = true
+		lt, ok := ClassifyLogicalType(typ)
+		if !ok {
+			continue
 		}
+		if entry.SecretMaterial {
+			underStoreOnly[lt.Class] = true
+			continue
+		}
+		unconditional[lt.Class] = true
 	}
-	if len(backing) == 0 {
+	if len(unconditional) == 0 {
 		t.Fatal("no RecordBacked row in identity.DefaultTable resolves to a logical class; " +
 			"this check is not exercising anything")
+	}
+	if len(underStoreOnly) == 0 {
+		t.Fatal("no SecretMaterial row in identity.DefaultTable resolves to a logical class; " +
+			"the secrets setting has nothing to gate and this check has degenerated to its pre-#365 form")
 	}
 
 	all := []LogicalClass{ClassRecordAdmitted, ClassExternalAdmitted, ClassSecretRefused, ClassOtherRefused}
 	for _, c := range all {
-		if got, want := recordStoreAdmits(c), backing[c]; got != want {
-			t.Errorf("recordStoreAdmits(%s) = %v, but %d RecordBacked identity row(s) carry that "+
-				"class (want %v) - lint's admission set and identity's record-backed set have diverged",
-				c, got, len(backing), want)
+		if got, want := recordStoreAdmits(c), unconditional[c]; got != want {
+			t.Errorf("recordStoreAdmits(%s) = %v, but %d unconditionally-record-backed identity row(s) carry "+
+				"that class (want %v) - lint's admission set and identity's record-backed set have diverged",
+				c, got, len(unconditional), want)
 		}
 	}
-	if len(backing) != 2 {
-		t.Errorf("RecordBacked rows resolve to %d logical class(es) (%v), want 2 "+
+	if len(unconditional) != 2 {
+		t.Errorf("RecordBacked rows with no secret material resolve to %d logical class(es) (%v), want 2 "+
 			"(RECORD_ADMITTED and EXTERNAL_ADMITTED) - a new one needs recordStoreAdmits, "+
 			"countIndexScopeForType and logicalResourceDetail all considered on purpose",
-			len(backing), backing)
+			len(unconditional), unconditional)
+	}
+	// The secret half is one class and it is SECRET_REFUSED, whose rows
+	// admitsUnder admits under strict.Store and refuses under strict.Refuse.
+	// A second class appearing here would mean a row carrying secret
+	// material that lint does not classify as carrying it.
+	if len(underStoreOnly) != 1 || !underStoreOnly[ClassSecretRefused] {
+		t.Errorf("SecretMaterial rows resolve to %v, want exactly {SECRET_REFUSED}", underStoreOnly)
+	}
+	for typ, lt := range logicalTypes {
+		if lt.Class != ClassSecretRefused || lt.StoredClass == "" {
+			continue
+		}
+		if !admitsUnder(lt, strict.Store) {
+			t.Errorf("admitsUnder(%q, store) = false for a SECRET_REFUSED row carrying StoredClass %s", typ, lt.StoredClass)
+		}
+		if admitsUnder(lt, strict.Refuse) {
+			t.Errorf("admitsUnder(%q, refuse) = true; that setting is HANDOFF.md's \"secret-generating types refused\"", typ)
+		}
 	}
 }

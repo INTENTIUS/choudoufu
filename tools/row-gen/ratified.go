@@ -110,6 +110,7 @@ type ratifiedRow struct {
 	ServerAssigned     bool                 `json:"server_assigned,omitempty"`
 	Reason             string               `json:"reason,omitempty"`
 	RecordBacked       bool                 `json:"record_backed,omitempty"`
+	SecretMaterial     bool                 `json:"secret_material,omitempty"`
 	NonAWSProvider     bool                 `json:"non_aws_provider,omitempty"`
 	Components         *[]ratifiedComponent `json:"components,omitempty"`
 	ImportSyntax       string               `json:"import_syntax,omitempty"`
@@ -158,6 +159,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 		ServerAssigned:     e.ServerAssigned,
 		Reason:             e.Reason,
 		RecordBacked:       e.RecordBacked,
+		SecretMaterial:     e.SecretMaterial,
 		NonAWSProvider:     e.NonAWSProvider,
 		ImportSyntax:       e.ImportSyntax,
 		IdentityAttrs:      strsPtr(e.IdentityAttrs),
@@ -198,6 +200,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 		ServerAssigned:     r.ServerAssigned,
 		Reason:             r.Reason,
 		RecordBacked:       r.RecordBacked,
+		SecretMaterial:     r.SecretMaterial,
 		NonAWSProvider:     r.NonAWSProvider,
 		ImportSyntax:       r.ImportSyntax,
 		IdentityAttrs:      strsValue(r.IdentityAttrs),
@@ -275,6 +278,14 @@ func loadRatified(path string) (map[string]identity.TypeIdentity, error) {
 		}
 		if row.RecordBacked {
 			return nil, fmt.Errorf("%s: %s is stored as RecordBacked, but a record-backed row is derived from %s and never ratified", path, key, logicalSchemasJSONRel)
+		}
+		if row.SecretMaterial {
+			// The same refusal for the same reason, one field over. It is
+			// checked separately rather than folded into the one above so
+			// that a hand edit setting only this flag - on an ordinary,
+			// non-record row, where it would mean nothing and gate nothing -
+			// is refused too rather than stored and ignored.
+			return nil, fmt.Errorf("%s: %s is stored as SecretMaterial, but that flag is derived from %s alongside RecordBacked and never ratified", path, key, logicalSchemasJSONRel)
 		}
 		if row.UniqueName != nil {
 			return nil, fmt.Errorf("%s: %s is stored with a unique_name, but that claim is derived by crossing %s with %s and is never ratified - see tools/row-gen/uniquename.go", path, key, registryJSONRel, importGrammarJSONRel)
@@ -360,7 +371,7 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
 	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, schemaFacts))
 	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch)
-	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), uniqueName, grammar, survey, setOf(vetoed))
+	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), setOf(secretMaterialTypes(logical)), uniqueName, grammar, survey, setOf(vetoed))
 	return rows, nil
 }
 

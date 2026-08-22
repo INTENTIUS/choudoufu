@@ -1409,7 +1409,11 @@ func statelessManagedResourceProviders(config *configs.Config) []addrs.AbsProvid
 	walkManagedResources(config, func(rc *configs.Resource, modCfg *configs.Config) {
 		if ti, ok := identity.LookupType(rc.Type); ok && ti.RecordBacked {
 			// GitHub issue #73's record-backed resources (null_resource,
-			// terraform_data, time_*, non-sensitive random_*) have no
+			// terraform_data, and the time_*, random_*, tls_* and local_*
+			// families - including the secret-bearing ones since issue #365
+			// slice 3, which are record-backed exactly as their siblings are
+			// and differ only in whether the operator asked for the record to
+			// be written) have no
 			// cloud object and no marker of any kind, so they are never a
 			// candidate for the estate-wide sweep's provider set: there is
 			// nothing for a sweep issued through their provider to find,

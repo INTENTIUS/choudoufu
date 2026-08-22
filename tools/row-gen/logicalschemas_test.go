@@ -122,28 +122,28 @@ func TestRecordBackedDerivationReproducesEveryCommittedRow(t *testing.T) {
 func TestRecordBackedDerivationRefusesToDropARow(t *testing.T) {
 	art := loadLogicalSchemasForTest(t)
 
-	// Marking one attribute of every type sensitive empties the derived set
-	// without touching a single type name, which is the realistic way this
-	// breaks: a re-acquisition against a provider release that widened its
-	// own sensitivity markings, or a source list someone edited.
+	// Dropping every measured type empties the derived set, which is the
+	// realistic way this breaks: a re-acquisition against a provider that
+	// failed to launch, or a source list someone edited.
 	//
-	// This used to clear store_only instead, which stopped emptying anything
-	// once issue #314 made StoreOnly select a class rather than gate a row -
-	// a mutation that no longer mutates is a guard that passes forever, and
-	// the whole point of this test is the opposite.
+	// The mutation has moved twice, and both moves say something about the
+	// rule rather than about the test. It cleared store_only first, which
+	// stopped emptying anything once issue #314 made StoreOnly select a
+	// class rather than gate a row. It then marked one attribute of every
+	// type sensitive, which stopped emptying anything once issue #365 slice
+	// 3 made sensitivity set [identity.TypeIdentity.SecretMaterial] on a row
+	// rather than withhold the row - a secret-bearing type is record-backed
+	// exactly as its siblings are, and what varies is whether the operator
+	// asked for the record to be written. A mutation that no longer mutates
+	// is a guard that passes forever, and the whole point of this test is
+	// the opposite.
 	mutated := logicalSchemas{}
 	for _, p := range art.Providers {
-		var types []logicalTypeSchema
-		for _, ty := range p.Types {
-			ty.Sensitive = append(append([]logicalAttr(nil), ty.Sensitive...),
-				logicalAttr{Name: "zzz_synthetic_secret"})
-			types = append(types, ty)
-		}
-		p.Types = types
+		p.Types = nil
 		mutated.Providers = append(mutated.Providers, p)
 	}
 
-	backed, err := recordBackedRows(loadRatifiedForTest(t), mutated)
+	backed, _, err := recordBackedRows(loadRatifiedForTest(t), mutated)
 	if err == nil {
 		t.Fatalf("recordBackedRows accepted evidence deriving %d rows where the table carries more; "+
 			"the drop guard is not firing", len(backed))
@@ -192,8 +192,12 @@ func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 
 	// The same shape under a provider whose resources are not store-only
 	// derives a row too - the record is what holds its prior state either
-	// way - while a SENSITIVE type of either provider derives none, which is
-	// the flag that really gates this derivation.
+	// way - and so does a SENSITIVE type of either provider, which is the
+	// half that moved with GitHub issue #365 slice 3: the record is where
+	// such a type's prior state comes from whatever the operator's secrets
+	// setting says, and the setting decides whether the record is written,
+	// not whether it could be. What the sensitive attribute now sets is the
+	// second flag, asserted below.
 	art.Providers[other].Types = append(art.Providers[other].Types,
 		logicalTypeSchema{Type: "local_zzz_not_yet_released"},
 		logicalTypeSchema{Type: "local_zzz_secret", Sensitive: []logicalAttr{{Name: "content"}}})
@@ -201,6 +205,10 @@ func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 	derived := map[string]bool{}
 	for _, typeName := range recordBackedTypes(art) {
 		derived[typeName] = true
+	}
+	secret := map[string]bool{}
+	for _, typeName := range secretMaterialTypes(art) {
+		secret[typeName] = true
 	}
 	if !derived[future.Type] {
 		t.Errorf("a new non-secret type of a store-only provider does not derive a RecordBacked row; "+
@@ -210,9 +218,19 @@ func TestRecordBackedDerivationAdmitsAnUnseenType(t *testing.T) {
 		t.Error("a new non-secret type of a non-store-only provider derives no RecordBacked row; " +
 			"its prior state has nowhere else to come from - hashicorp/local implements no import at all")
 	}
-	if derived["local_zzz_secret"] {
-		t.Error("a type with a live sensitive attribute derived a RecordBacked row; " +
-			"the no-secrets rule is not load-bearing")
+	if !derived["local_zzz_secret"] {
+		t.Error("a new type with a live sensitive attribute derived no RecordBacked row; " +
+			"the record is where such a type's prior state comes from whatever the secrets setting says - " +
+			"withholding the row would leave internal/live/identity with nothing to refuse WITH, and the " +
+			"operator would get \"Resource type outside the live-markers subset\" instead of the setting's name")
+	}
+	if !secret["local_zzz_secret"] {
+		t.Error("a new type with a live sensitive attribute derived no SecretMaterial flag; " +
+			"the no-secrets toggle has nothing to gate on and the record would be written under either setting")
+	}
+	if secret["local_zzz_not_yet_released"] || secret[future.Type] {
+		t.Error("a type with no live sensitive attribute derived a SecretMaterial flag; " +
+			"strict { secrets = \"refuse\" } would refuse a type that generates no secret")
 	}
 }
 
@@ -274,39 +292,55 @@ func TestLogicalClassRowsSplitTheAdmittedClassesByStoreOnly(t *testing.T) {
 	}
 }
 
-// TestSensitiveTypesDeriveNoRow pins the other direction of the rule against
-// the committed evidence, recomputed rather than restated: every type of a
-// store-only provider with a live sensitive attribute must be absent from the
-// derived set, and the set of such types must be non-empty (a rule that
-// refuses nothing is not being exercised).
-func TestSensitiveTypesDeriveNoRow(t *testing.T) {
+// TestSensitiveTypesDeriveASecretMaterialRow pins the other direction of the
+// rule against the committed evidence, recomputed rather than restated: every
+// measured type with a live sensitive attribute derives a RecordBacked row
+// AND the SecretMaterial flag, and every type without one derives the row
+// without the flag. The set of flagged types must be non-empty - a rule that
+// flags nothing is not being exercised.
+//
+// It used to assert the opposite for the first half ("derived no row at
+// all"), and GitHub issue #365 slice 3 is the reversal. Withholding the row
+// answered the wrong question: whether the record CAN hold the type's prior
+// state, which it always could, rather than whether the operator asked for it
+// to. The visible cost of the old answer was that a configuration stock
+// OpenTofu runs - one random_password - could not run here at all, and the
+// message an operator got named the admission table rather than a setting.
+func TestSensitiveTypesDeriveASecretMaterialRow(t *testing.T) {
 	art := loadLogicalSchemasForTest(t)
 
 	derived := map[string]bool{}
 	for _, typeName := range recordBackedTypes(art) {
 		derived[typeName] = true
 	}
+	flagged := map[string]bool{}
+	for _, typeName := range secretMaterialTypes(art) {
+		flagged[typeName] = true
+	}
 
-	var refused []string
+	var secret []string
 	for _, p := range art.Providers {
-		if !p.StoreOnly {
-			continue
-		}
 		for _, ty := range p.Types {
+			if !derived[ty.Type] {
+				t.Errorf("%s is measured but derives no RecordBacked row at all", ty.Type)
+			}
 			if len(liveSensitiveAttrs(ty)) == 0 {
+				if flagged[ty.Type] {
+					t.Errorf("%s has no live sensitive attribute but derives SecretMaterial", ty.Type)
+				}
 				continue
 			}
-			refused = append(refused, ty.Type)
-			if derived[ty.Type] {
-				t.Errorf("%s has live sensitive attribute(s) %v but derived a RecordBacked row", ty.Type, liveSensitiveAttrs(ty))
+			secret = append(secret, ty.Type)
+			if !flagged[ty.Type] {
+				t.Errorf("%s has live sensitive attribute(s) %v and derives no SecretMaterial flag", ty.Type, liveSensitiveAttrs(ty))
 			}
 		}
 	}
-	sort.Strings(refused)
-	if len(refused) == 0 {
-		t.Fatalf("no type of any store-only provider carries a live sensitive attribute; the secret half of the rule is not exercised by the committed evidence")
+	sort.Strings(secret)
+	if len(secret) == 0 {
+		t.Fatalf("no measured type carries a live sensitive attribute; the secret half of the rule is not exercised by the committed evidence")
 	}
-	t.Logf("%d store-only type(s) refused for secret material: %v", len(refused), refused)
+	t.Logf("%d type(s) carry secret material: %v", len(secret), secret)
 }
 
 // TestDeprecationClauseBound bounds the subtraction in [liveSensitiveAttrs]
@@ -382,21 +416,41 @@ func TestLogicalClassRowsAgreeWithRecordBackedDerivation(t *testing.T) {
 	// admits either - and comparing only one half against the whole
 	// RecordBacked set would report the other half as a divergence, which is
 	// exactly the false alarm that makes a guard get relaxed.
+	// A row lint admits under SOME setting: its own class is an admitted
+	// one, or its StoredClass is (GitHub issue #365 slice 3, where a
+	// SECRET_REFUSED row started carrying the class it would have had if
+	// nothing in its schema were sensitive). That is the set identity's
+	// RecordBacked half has to equal - the identity row exists so that the
+	// two layers have something to agree ABOUT, and lint's secrets setting
+	// then decides which of them a given run admits.
 	admitted := map[string]bool{}
 	classes := map[string]string{}
+	secretRefused := map[string]bool{}
 	for _, r := range rows {
 		classes[r.Type] = r.Class
-		if r.Class == logicalClassRecordAdmitted || r.Class == logicalClassExternalAdmitted {
+		switch {
+		case r.Class == logicalClassRecordAdmitted || r.Class == logicalClassExternalAdmitted:
 			admitted[r.Type] = true
+		case r.StoredClass == logicalClassRecordAdmitted || r.StoredClass == logicalClassExternalAdmitted:
+			admitted[r.Type] = true
+			secretRefused[r.Type] = true
 		}
 	}
 	backed := map[string]bool{}
 	for _, typeName := range recordBackedTypes(art) {
 		backed[typeName] = true
 	}
+	flagged := map[string]bool{}
+	for _, typeName := range secretMaterialTypes(art) {
+		flagged[typeName] = true
+	}
 
 	if len(admitted) == 0 {
 		t.Fatal("no admitted row derived at all; the rule is not being exercised")
+	}
+	if len(secretRefused) == 0 {
+		t.Fatal("no SECRET_REFUSED row carries a StoredClass; the secrets setting has nothing to admit and this " +
+			"check has degenerated into the pre-#365 equality")
 	}
 	for typeName := range admitted {
 		if !backed[typeName] {
@@ -407,8 +461,25 @@ func TestLogicalClassRowsAgreeWithRecordBackedDerivation(t *testing.T) {
 	}
 	for typeName := range backed {
 		if !admitted[typeName] {
-			t.Errorf("%s derives a RecordBacked identity row but lint's class is %q: "+
-				"resolution would hold a record for a type lint refuses first", typeName, classes[typeName])
+			t.Errorf("%s derives a RecordBacked identity row but lint's class is %q with no StoredClass: "+
+				"resolution would hold a record for a type lint refuses under every setting", typeName, classes[typeName])
+		}
+	}
+	// The two flags are one predicate read twice and must name one set: a
+	// row lint calls SECRET_REFUSED is exactly a row identity flags
+	// SecretMaterial. Divergence here is the shape that would let lint
+	// admit under secrets=store a type whose identity row does not know it
+	// holds a secret, so the resolver's own gate would never fire.
+	for typeName := range secretRefused {
+		if !flagged[typeName] {
+			t.Errorf("%s is SECRET_REFUSED for lint but derives no SecretMaterial flag for identity: "+
+				"the resolver's own secrets gate would never fire for it", typeName)
+		}
+	}
+	for typeName := range flagged {
+		if !secretRefused[typeName] {
+			t.Errorf("%s derives SecretMaterial for identity but lint's class is %q: "+
+				"the resolver would refuse under secrets=refuse what lint had already admitted", typeName, classes[typeName])
 		}
 	}
 
@@ -486,9 +557,19 @@ func TestLogicalClassRowsCoverEveryMeasuredType(t *testing.T) {
 		// here too, at the source, so the generator cannot start populating
 		// it everywhere and have the emitted table be the only thing that
 		// notices.
-		if (r.External != "") != (r.Class == logicalClassExternalAdmitted) {
-			t.Errorf("%s is %s with External=%q; that field belongs to EXTERNAL_ADMITTED and to no "+
-				"other class", r.Type, r.Class, r.External)
+		// Since GitHub issue #365 slice 3 the class that owns External is
+		// the one the row would carry under `secrets = "store"`, which for
+		// a SECRET_REFUSED row is its StoredClass. local_sensitive_file is
+		// the case: a hashicorp/local type, so the record does not bound
+		// what it affects, and its own schema is sensitive - both facts are
+		// true at once and the row has to carry both.
+		effective := r.Class
+		if r.StoredClass != "" {
+			effective = r.StoredClass
+		}
+		if (r.External != "") != (effective == logicalClassExternalAdmitted) {
+			t.Errorf("%s is %s (stored: %s) with External=%q; that field belongs to EXTERNAL_ADMITTED and to no "+
+				"other class", r.Type, r.Class, r.StoredClass, r.External)
 		}
 	}
 

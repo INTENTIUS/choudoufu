@@ -38,9 +38,13 @@ var logicalFamilyPrefixes = []string{
 // logicalTypes is the per-type classification table, derived from
 // live/logical-schemas.json: every managed resource type of every measured
 // provider, classified by the rule that a live (non-deprecated) sensitive
-// attribute anywhere in the type's schema means it handles material
-// live/RECEIPTS.md's no-secrets rule forbids a record from carrying, and none
-// means the record can hold the type's whole prior state.
+// attribute anywhere in the type's schema means the record holding its whole
+// prior state would hold secret material, and none means it would not.
+//
+// That is a measurement and not a verdict. What a run DOES about it is the
+// strict block's secrets setting (GitHub issue #365 slice 3), whose default
+// keeps the value the way a stock OpenTofu state file keeps it; see
+// [ClassSecretRefused], [LogicalType.StoredClass] and [admitsUnder].
 //
 // It is the same rule, over the same artifact, that derives
 // [identity.TypeIdentity.RecordBacked] - deliberately, so that lint's admitted
@@ -59,12 +63,12 @@ var logicalFamilyPrefixes = []string{
 // [ClassOtherRefused] by default (see [ClassifyLogicalType]).
 var logicalTypes = map[string]LogicalType{
 	"local_file":              {Type: "local_file", Class: ClassExternalAdmitted, Prefix: "local_", Evidence: "hashicorp/local 2.9.0 marks sensitive_content sensitive, but deprecates every one of them (sensitive_content: \"Use the `local_sensitive_file` resource instead\"), so no attribute the provider still tells you to use carries secret material", External: "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record, and two instances at distinct addresses hold distinct records and still collide on one filename, so what the resource affects is named by its filename argument rather than bounded by the record"},
-	"local_sensitive_file":    {Type: "local_sensitive_file", Class: ClassSecretRefused, Prefix: "local_", Evidence: "hashicorp/local 2.9.0 marks content and content_base64 sensitive"},
+	"local_sensitive_file":    {Type: "local_sensitive_file", Class: ClassSecretRefused, StoredClass: ClassExternalAdmitted, Prefix: "local_", Evidence: "hashicorp/local 2.9.0 marks content and content_base64 sensitive", External: "hashicorp/local's resources write a file to the local filesystem and read it back on refresh. Measured against 2.9.0: delete the file and the provider drops the resource so the next plan proposes a create, and id is the SHA1 of the content, so changing the file changes the resource. The file outlives any record, and two instances at distinct addresses hold distinct records and still collide on one filename, so what the resource affects is named by its filename argument rather than bounded by the record"},
 	"null_resource":           {Type: "null_resource", Class: ClassRecordAdmitted, Prefix: "null_", Evidence: "hashicorp/null 3.3.1 marks no attribute of null_resource sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
-	"random_bytes":            {Type: "random_bytes", Class: ClassSecretRefused, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks base64 and hex sensitive"},
+	"random_bytes":            {Type: "random_bytes", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks base64 and hex sensitive"},
 	"random_id":               {Type: "random_id", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_id sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"random_integer":          {Type: "random_integer", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_integer sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
-	"random_password":         {Type: "random_password", Class: ClassSecretRefused, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks bcrypt_hash and result sensitive"},
+	"random_password":         {Type: "random_password", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks bcrypt_hash and result sensitive"},
 	"random_pet":              {Type: "random_pet", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_pet sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"random_shuffle":          {Type: "random_shuffle", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_shuffle sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"random_string":           {Type: "random_string", Class: ClassRecordAdmitted, Prefix: "random_", Evidence: "hashicorp/random 3.9.0 marks no attribute of random_string sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
@@ -76,8 +80,8 @@ var logicalTypes = map[string]LogicalType{
 	"time_rotating":           {Type: "time_rotating", Class: ClassRecordAdmitted, Prefix: "time_", Evidence: "hashicorp/time 0.14.1 marks no attribute of time_rotating sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"time_sleep":              {Type: "time_sleep", Class: ClassRecordAdmitted, Prefix: "time_", Evidence: "hashicorp/time 0.14.1 marks no attribute of time_sleep sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
 	"time_static":             {Type: "time_static", Class: ClassRecordAdmitted, Prefix: "time_", Evidence: "hashicorp/time 0.14.1 marks no attribute of time_static sensitive, measured over every attribute of every block of its schema, nested attribute types and nested blocks included"},
-	"tls_cert_request":        {Type: "tls_cert_request", Class: ClassSecretRefused, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_pem sensitive"},
-	"tls_locally_signed_cert": {Type: "tls_locally_signed_cert", Class: ClassSecretRefused, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks ca_private_key_pem sensitive"},
-	"tls_private_key":         {Type: "tls_private_key", Class: ClassSecretRefused, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_openssh, private_key_pem and private_key_pem_pkcs8 sensitive"},
-	"tls_self_signed_cert":    {Type: "tls_self_signed_cert", Class: ClassSecretRefused, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_pem sensitive"},
+	"tls_cert_request":        {Type: "tls_cert_request", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_pem sensitive"},
+	"tls_locally_signed_cert": {Type: "tls_locally_signed_cert", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks ca_private_key_pem sensitive"},
+	"tls_private_key":         {Type: "tls_private_key", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_openssh, private_key_pem and private_key_pem_pkcs8 sensitive"},
+	"tls_self_signed_cert":    {Type: "tls_self_signed_cert", Class: ClassSecretRefused, StoredClass: ClassRecordAdmitted, Prefix: "tls_", Evidence: "hashicorp/tls 4.3.0 marks private_key_pem sensitive"},
 }

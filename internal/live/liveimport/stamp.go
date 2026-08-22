@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -209,11 +210,11 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// The outcome stays SKIPPED on purpose - the marker write is what
 			// was skipped, and that is what this axis reports - so no count
 			// this run prints moves.
-			diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, r.residuable[entry.Addr.String()]))
+			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, r.residuable[entry.Addr.String()]))
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig))
-		diags = diags.Append(recordResidueFor(ctx, r.residueStore, entry.Addr, &elig.residuable))
+		diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, &elig.residuable))
 	}
 
 	// GitHub issue #349: carry the state file's root output values across
@@ -294,7 +295,7 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 // without one) makes this an immediate no-op, and so does e itself being nil
 // - an instance with no carrier at all, such as one whose type is unadmitted
 // or whose state holds no current object, has nothing to classify from.
-func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
+func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secrets strict.Secrets, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if store == nil || e == nil {
 		return diags
@@ -317,7 +318,7 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, addr 
 		}
 		return resp.NewState, nil
 	}
-	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, read); err != nil {
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, secrets, read); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
 			addr, err,

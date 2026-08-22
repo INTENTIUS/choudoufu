@@ -17,8 +17,10 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -276,10 +278,12 @@ func (s *ResidueStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, 
 			return "", fmt.Errorf("refusing to record attribute %q of %s: its applied value is null or not wholly known", name, addr)
 		}
 		if val.IsMarked() {
-			// A marked value is sensitive by the schema's own account.
-			// classifyResidue already excludes Sensitive attributes, so
-			// reaching here means the marks came from somewhere else; the
-			// no-secrets rule applies either way.
+			// Everything this store holds is held unmarked - ctyjson
+			// cannot encode a marked value - and the sensitivity is
+			// reconstructed from the schema on the way out (see
+			// [builder.fillResidueFor]). So a marked value reaching here
+			// is a caller that skipped the unmarking, not a policy
+			// question, and it is refused under either secrets setting.
 			return "", fmt.Errorf("refusing to record attribute %q of %s: its value is marked sensitive", name, addr)
 		}
 		ty := val.Type()
@@ -357,11 +361,26 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 	}
 	b.residueVersions = append(b.residueVersions, RecordVersion{Addr: addr, Version: version})
 
-	filled, n := fillResidue(obj.Value, schema.Block, attrs)
+	filled, n := fillResidue(obj.Value, schema.Block, attrs, identity.SecretsFor(b.cfg))
 	if n == 0 {
 		return
 	}
-	obj.Value = filled
+
+	// The sensitivity a filled value lost on the way into the store, put
+	// back from the provider's own schema.
+	//
+	// Everything in a residue record is stored unmarked - ctyjson cannot
+	// encode a marked value and the plugin channel cannot carry one - and
+	// [residueMarkRecoverable] is what guarantees this restores exactly what
+	// was taken: a value only becomes a candidate when its marks are the
+	// ones this schema produces, or when it has none.
+	//
+	// Called unconditionally rather than only when a sensitive attribute was
+	// filled, because it is a no-op in the other case and a no-op is easier
+	// to keep true than a condition. Every mark already on obj.Value survives
+	// it: [markSchemaSensitive] combines the paths the value carries with the
+	// ones the schema names, which is what upstream's own refresh does.
+	obj.Value = markSchemaSensitive(filled, schema.Block)
 	log.Printf("[TRACE] projection: filled %d residue attribute(s) of %s from the record store", n, addr)
 }
 
@@ -381,19 +400,54 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // this function alone. The filter exists to keep the question small and to
 // keep three populations out of it entirely:
 //
-//   - Credential material, by [identity.CredentialMaterial] - the one
-//     sanctioned exclusion, re-asked here rather than restated, so that a
-//     type whose schema grows a secret drops out the day it does.
-//   - Sensitive and write-only attributes individually, which is the same
-//     rule at attribute granularity. internal/live/lint's
-//     CheckResidueAttributes already warns that these can never round-trip;
-//     this is why they still cannot. A write-only value the protocol forbids
-//     a provider returning is not made returnable by writing it down, and a
-//     sensitive value must not be in a record at all.
+//   - Credential material, by [identity.CredentialMaterial] - the whole-type
+//     form, re-asked here rather than restated, so that a type whose schema
+//     grows a secret drops out the day it does. Under
+//     `strict { secrets = "store" }`, which is the default, this one does
+//     NOT apply: see "What the secrets setting moves here" below.
+//   - Sensitive attributes individually, which is the same rule at attribute
+//     granularity, and which the secrets setting moves with the whole-type
+//     form.
+//   - Write-only attributes, ALWAYS, whatever the secrets setting says. See
+//     below.
 //   - The identity: "id" and every attribute the provider's identity schema
 //     names. Those are what say WHICH object this is, they are answered by
 //     the marker and the import, and a residue record must never be in a
 //     position to move an instance onto a different object.
+//
+// # What the secrets setting moves here, and what it cannot
+//
+// GitHub issue #365's `strict { secrets = ... }`, HANDOFF.md's first
+// principle expressed as a toggle. The default is [strict.Store], which is
+// what stock OpenTofu does: an argument the provider never gives back is
+// remembered whether or not the provider marks it sensitive, because stock's
+// state file remembers it either way. [strict.Refuse] is what this file did
+// before the toggle existed, and it is exactly the two sensitivity
+// exclusions above.
+//
+// Two things the setting does not reach, and they are not the same kind of
+// thing.
+//
+// A WRITE-ONLY attribute, which is a protocol rule. The plugin protocol
+// forbids a provider ever returning a write-only value - internal/plugin6/
+// validation/write_only.go refuses a response that does - so a recorded one
+// could never be checked against the object it claims to describe, and
+// stock does not keep one either: it nulls them out before the state is
+// written. This is not a stricter or a laxer choice, it is a wrong one, and
+// [fillResidue] re-checks it on the way back out for the same reason.
+//
+// A mark this schema cannot put back. Everything stored here is stored
+// UNMARKED - a marked value cannot be JSON-encoded and cannot cross the
+// plugin channel - so the sensitivity has to be reconstructed when the
+// record is read, and [builder.fillResidueFor] reconstructs it from the
+// provider's schema with [markSchemaSensitive]. That is exact for a mark the
+// schema itself produced and for nothing else, so a value carrying any OTHER
+// mark stays out however the setting reads. See [residueMarkRecoverable],
+// which is the predicate, and note what it protects: an attribute whose
+// value picked up sensitivity from a `sensitive = true` VARIABLE rather than
+// from the schema would come back from the record unmarked, and an unmarked
+// prior against a marked planned value is the perpetual sensitivity-only
+// update sensitivepaths.go's header describes.
 //
 // Nested blocks and nested object attributes are out of scope, and that is
 // a stated bound rather than an oversight: the classifier's discriminator
@@ -432,11 +486,12 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // combination) and reaches here harmlessly; the identity stays excluded by
 // [residueIdentityAttrs] regardless of Required/Optional/Computed, which is
 // why removing this restriction does not reopen the identity question.
-func residueCandidates(schema providers.Schema, applied cty.Value) []string {
+func residueCandidates(schema providers.Schema, applied cty.Value, secrets strict.Secrets) []string {
 	if schema.Block == nil || applied == cty.NilVal || applied.IsNull() || !applied.Type().IsObjectType() {
 		return nil
 	}
-	if identity.CredentialMaterial(schema.Block) {
+	storing := strict.StoresSecrets(secrets)
+	if !storing && identity.CredentialMaterial(schema.Block) {
 		return nil
 	}
 	identityAttrs := residueIdentityAttrs(schema)
@@ -446,7 +501,11 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 		if attr == nil || identityAttrs[name] {
 			continue
 		}
-		if attr.Sensitive || attr.WriteOnly {
+		if attr.WriteOnly {
+			// Never, under any setting. See this function's doc comment.
+			continue
+		}
+		if attr.Sensitive && !storing {
 			continue
 		}
 		if attr.NestedType != nil {
@@ -456,13 +515,60 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 			continue
 		}
 		v := applied.GetAttr(name)
-		if v.IsNull() || !v.IsWhollyKnown() || v.IsMarked() {
+		if v.IsNull() || !v.IsWhollyKnown() {
+			continue
+		}
+		if !residueMarkRecoverable(attr, v) {
 			continue
 		}
 		out = append(out, name)
 	}
 	sort.Strings(out)
 	return out
+}
+
+// residueMarkRecoverable reports whether v's marks are exactly the ones
+// [markSchemaSensitive] would put back on it from attr alone.
+//
+// A residue record stores an unmarked value, so every mark on the way in has
+// to be reconstructible on the way out or it is lost. Three answers:
+//
+//   - No marks at all: nothing to reconstruct, and this is every value that
+//     reached this function before the secrets setting existed.
+//   - One [marks.Sensitive] mark on the whole attribute value, where the
+//     schema marks the attribute Sensitive: exactly what
+//     [configschema.Block.ValueMarks] produces for such an attribute, so
+//     [markSchemaSensitive] restores it identically.
+//   - Anything else: refused. A mark at a path INSIDE the value, a second
+//     mark of any kind, or a Sensitive mark on an attribute the schema does
+//     not call sensitive - which is the sensitive-VARIABLE case, where the
+//     sensitivity is a fact about this configuration and not about the type,
+//     and no schema read can bring it back.
+//
+// The third answer is the one worth being strict about, and it is strict in
+// the safe direction: refusing a candidate leaves the estate proposing an
+// update to that argument, which is visible on every plan. Recording it and
+// filling it back unmarked would produce a prior that disagrees with the
+// planned value on sensitivity alone - the perpetual "The value is
+// unchanged" update sensitivepaths.go's header describes - which is the same
+// nuisance wearing a disguise.
+//
+// Nested attribute types never reach here ([residueCandidates] excludes
+// them), so "the whole attribute value" is the only path a schema mark can
+// land on.
+func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
+	_, pvms := v.UnmarkDeepWithPaths()
+	if len(pvms) == 0 {
+		return true
+	}
+	if !attr.Sensitive || len(pvms) != 1 {
+		return false
+	}
+	if len(pvms[0].Path) != 0 || len(pvms[0].Marks) != 1 {
+		return false
+	}
+	_, sensitive := pvms[0].Marks[marks.Sensitive]
+	return sensitive
 }
 
 // RecordResidueForInstance is [classifyResidue]'s classify-and-record step
@@ -484,6 +590,15 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 // argument it is a phantom REPLACE of an object that is not actually
 // different, on every plan until that first apply happens.
 //
+// secrets is the operator's `strict { secrets = ... }` setting, which this
+// path takes as an argument rather than reading from a configuration for the
+// one reason the other two do not: internal/live/liveimport's Request is
+// built from a state file and a provider set, and the migrate command reads
+// its configuration for exactly two facts (the estate name and the record
+// store) which it passes the same way. Threading a third is the smaller
+// change, and identity.SecretsFor is still the one place the omitted
+// argument resolves - the caller calls it.
+//
 // read is the caller's ReadResource wrapper, called twice by
 // [classifyResidue] exactly as [writeBackResidue] calls it - once with an
 // identity-only stub, once with applied itself. recorded reports whether
@@ -494,11 +609,11 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *ResidueStore, addr addrs.AbsResourceInstance, schema providers.Schema, applied cty.Value, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *ResidueStore, addr addrs.AbsResourceInstance, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
-	candidates := residueCandidates(schema, applied)
+	candidates := residueCandidates(schema, applied, secrets)
 	if len(candidates) == 0 {
 		return false, nil
 	}
@@ -577,6 +692,21 @@ func writeBackResidue(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 		return diags
 	}
 
+	// The operator's secrets setting, read from the same configuration and
+	// through the same function the plan side read it with
+	// (identity.SecretsFor). The set that gets WRITTEN has to be the set that
+	// gets READ, which is [writeBackLocated]'s reason for reading its own
+	// toggle here rather than being handed one: an attribute this side
+	// declined to record while the plan side expected to fill it is an
+	// argument proposed for update on every run, forever.
+	//
+	// A nil req.Config resolves to the default, which is [strict.Store].
+	// Unlike the `markers "record"` selection, whose nil selects nothing
+	// because withholding a marker wrongly creates an unfindable object,
+	// nothing here moves an identity - see identity.SecretsFor for the
+	// asymmetry in full.
+	secrets := identity.SecretsFor(req.Config)
+
 	seen := make(map[string]bool, len(req.ResidueVersions))
 	cache := map[string]providers.Interface{}
 
@@ -614,17 +744,19 @@ func writeBackResidue(ctx context.Context, req WriteBackRequest) tfdiags.Diagnos
 			schema := *schemaPtr
 
 			// Marked before unmarked, and in that order: candidacy is
-			// decided on the value that still carries its marks, so a
-			// sensitive attribute is excluded by the mark as well as by the
-			// schema flag, and only then is an unmarked copy made for the
-			// provider - a marked value cannot cross the plugin channel.
+			// decided on the value that still carries its marks, so
+			// [residueMarkRecoverable] can see what a stored value would
+			// have to give back, and only then is an unmarked copy made for
+			// the provider - a marked value cannot cross the plugin channel.
+			// Under `secrets = "refuse"` that ordering is what excludes a
+			// sensitive attribute by the mark as well as by the schema flag.
 			obj, err := ri.Current.Decode(schema.Block.ImpliedType())
 			if err != nil {
 				continue
 			}
 			seen[addr.String()] = true
 
-			candidates := residueCandidates(schema, obj.Value)
+			candidates := residueCandidates(schema, obj.Value, secrets)
 			if len(candidates) == 0 {
 				continue
 			}
@@ -1011,20 +1143,71 @@ func identityOnly(obj cty.Value, identityAttrs map[string]bool) (cty.Value, erro
 // safe to fill as one for an Optional+Computed attribute, because the
 // safety is the "current read carries no information" test two lines
 // above, not the schema's Required/Optional/Computed shape.
-func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value) (cty.Value, int) {
+//
+// # The two schema flags this re-checks, and why only one of them moves
+//
+// Both are re-asked here rather than trusted from the classifier, because
+// the two are separated in time: a record written months ago against a
+// schema where an attribute was ordinary must not be applied after a
+// provider release marks it.
+//
+// WriteOnly is refused whatever secrets says, for [residueCandidates]'
+// stated reason - the protocol forbids the provider returning it, so no
+// stored value could be right.
+//
+// Sensitive follows the setting, and it follows the setting THIS run holds
+// rather than the one the record was written under. That direction is the
+// safe one and it is worth saying which way it fails. An estate that
+// recorded a sensitive argument and then turned secrets to "refuse" stops
+// filling it, so the argument is proposed for update again - visible,
+// annoying, and correctable by deleting the record. The other direction, an
+// estate that turns secrets to "store" and starts filling from a record
+// written when the attribute was ordinary, is filling a value this fork
+// wrote for the same attribute of the same instance; nothing about the
+// record's age makes it a different value.
+//
+// The caller is what puts the sensitivity mark back - see
+// [builder.fillResidueFor], which re-marks from the schema after this
+// returns. This function deliberately deals in unmarked values on both
+// sides, which is why rec.IsMarked() is still a refusal: a marked value in
+// the record store is a record this package did not write.
+func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.Value, secrets strict.Secrets) (cty.Value, int) {
 	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || block == nil || len(attrs) == 0 {
 		return obj, 0
 	}
+	refusesSecrets := !strict.StoresSecrets(secrets)
 	attrTypes := obj.Type().AttributeTypes()
 	out := make(map[string]cty.Value, len(attrTypes))
 	filled := 0
 	for name, ty := range attrTypes {
 		cur := obj.GetAttr(name)
+		// The information test runs on the UNMARKED value, and that is not
+		// tidiness - it is what makes the whole sensitive half of the
+		// secrets setting work.
+		//
+		// obj reaches here already carrying the schema's own sensitivity
+		// marks ([importAndRead] applies them to the provider's wire answer),
+		// so a Sensitive attribute's current value is marked. And
+		// [carriesNoInformation] answers FALSE for any marked value on
+		// purpose - it must not draw a conclusion from one - which for a
+		// legacy-SDK provider means the empty string it returns for an
+		// unset argument reads as "the provider answered something" instead
+		// of "the provider answered nothing". The record would be written by
+		// the classifier, which works on an unmarked copy, and never filled
+		// by this function: the perpetual update the mechanism exists to
+		// remove, surviving for exactly the population the setting was added
+		// to cover.
+		//
+		// Unmarking for the test is safe because the test is about the
+		// SHAPE of a provider's answer - null, or its type's zero value -
+		// and a mark says nothing about that. cur itself, marks and all, is
+		// what goes back into out below when nothing is filled.
+		curPlain, _ := cur.UnmarkDeep()
 		rec, recorded := attrs[name]
 		schemaAttr := block.Attributes[name]
 		switch {
-		case !recorded, !carriesNoInformation(cur), schemaAttr == nil,
-			schemaAttr.Sensitive, schemaAttr.WriteOnly,
+		case !recorded, !carriesNoInformation(curPlain), schemaAttr == nil,
+			schemaAttr.Sensitive && refusesSecrets, schemaAttr.WriteOnly,
 			rec.IsNull(), !rec.IsWhollyKnown(), rec.IsMarked(),
 			!rec.Type().Equals(ty):
 			out[name] = cur

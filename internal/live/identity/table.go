@@ -46,6 +46,54 @@ type TypeIdentity struct {
 	// this. [SynthesizeTypeIdentity] never produces it.
 	RecordBacked bool
 
+	// SecretMaterial is true when this [RecordBacked] type's schema carries
+	// a live sensitive attribute, so the record holding its whole value
+	// holds secret material - a generated password, a private key, the
+	// contents of a file the provider marks sensitive.
+	//
+	// It never appears without RecordBacked. The two are derived from one
+	// measurement of one artifact (live/logical-schemas.json, through
+	// tools/row-gen's recordBackedTypes and secretMaterialTypes): the flag
+	// above says the record is where this type's prior state comes from, and
+	// this one says what is in it.
+	//
+	// # What it gates, and where
+	//
+	// GitHub issue #365's `strict { secrets = ... }`. Such a type resolves
+	// [ClassRecordBacked] under the default, [strict.Store], which is what
+	// stock OpenTofu does - a stock state file holds random_password.result
+	// in clear, and the estate's record store is where this fork keeps what
+	// a state file would. Under [strict.Refuse] it does not resolve at all.
+	//
+	// THREE places branch on it, and the third is the one an audit of this
+	// change had to find because the first draft of this comment denied it
+	// existed.
+	//
+	// internal/live/lint is the gate a configuration meets first (its
+	// RuleLogicalResource refusal names the setting), and [resolver.classify]
+	// asks the same question again at the layer that acts, so a caller that
+	// skipped lint gets a refusal rather than a record full of secrets. That
+	// double-asking is the same shape the `markers "record"` selection
+	// already has, and it is here for the same reason: the two layers must
+	// never disagree about what the operator asked for.
+	//
+	// internal/live/liveimport's ratifyOne is the third, and it is NOT
+	// covered by the other two: `choudoufu live-import` runs no lint pass and
+	// builds no resolver at all. What it would write is not an identity and
+	// not a residue attribute but the instance's WHOLE prior object, read
+	// straight out of the stock state file being migrated - so it is the only
+	// thing standing between an operator who set [strict.Refuse] and exactly
+	// the outcome they turned off.
+	//
+	// Every OTHER consumer of RecordBacked - discovery's cloudObservable,
+	// projection's write-back, internal/command's live-plan provider set,
+	// tools/survey-gen's untaggable render - is asking "does this type have a
+	// cloud object", and the answer is no whatever the secrets setting says.
+	// The distinction worth carrying forward is the one that hid the defect:
+	// a consumer asking about the OBJECT can ignore this flag, and a consumer
+	// deciding what to WRITE cannot.
+	SecretMaterial bool
+
 	// NonAWSProvider is true when this type is a real, live object - unlike
 	// RecordBacked - but belongs to a provider other than AWS, so
 	// live/survey-full.json (CloudFormation-registry-backed, and by

@@ -64,8 +64,14 @@ func TestRefusalsRegistered(t *testing.T) {
 func TestRefusalsWithOwnDoc(t *testing.T) {
 	elsewhere := map[string]string{
 		"Resource type outside the live-markers subset": `live/LIMITATIONS.md, "unadmitted-type"`,
-		"Two resources with the same identity":          `live/LIMITATIONS.md, "duplicate-identity"`,
-		"for_each key cannot be recorded as a marker":   `live/MARKERS.md, "Ownership semantics"`,
+		// GitHub issue #365 slice 3. The fuller treatment is the toggle's
+		// own entry: what the two settings mean, what neither reaches
+		// (write-only attributes, receipt values), and why the default is
+		// the compatible one. None of that belongs in a generated
+		// per-refusal stub.
+		"Secret-generating resource refused":          `live/LIMITATIONS.md, "strict-secrets"`,
+		"Two resources with the same identity":        `live/LIMITATIONS.md, "duplicate-identity"`,
+		"for_each key cannot be recorded as a marker": `live/MARKERS.md, "Ownership semantics"`,
 	}
 
 	for _, r := range RefusalsWithOwnDoc() {

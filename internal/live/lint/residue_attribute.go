@@ -14,6 +14,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -21,13 +23,14 @@ import (
 // CheckResidueAttributes warns, once per resource block and attribute path,
 // when a configuration sets an argument whose value can never round-trip a
 // stateless replan: a write-only attribute, whose value the plugin protocol
-// forbids the provider ever returning, or a sensitive settable attribute,
-// whose value the no-secrets rule keeps out of every marker and record even
-// when a cloud read would echo it. Either way no memory of the value
-// survives a run, so every stateless plan re-proposes sending it - exactly
-// what stock `terraform import` produces for the same arguments. The
-// configuration still works; the warning exists so the perpetual diff is
-// set knowingly rather than discovered.
+// forbids the provider ever returning, or - under
+// `strict { secrets = "refuse" }` only - a sensitive settable attribute,
+// which that setting keeps out of every marker and record even when a cloud
+// read would echo it. Either way no memory of the value survives a run, so
+// every stateless plan re-proposes sending it - exactly what stock
+// `terraform import` produces for the same arguments. The configuration
+// still works; the warning exists so the perpetual diff is set knowingly
+// rather than discovered.
 //
 // GitHub issue #126's ruling: a warning, never a refusal. A refusal fails at
 // both ends of the measurement - it cannot see the schema-invisible members
@@ -77,7 +80,17 @@ import (
 // attributes returns nil.
 func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	walkResidueAttributes(cfg, schemas, &diags)
+	// GitHub issue #365 slice 3. The sensitive half of this warning is a
+	// claim about what a record may hold, and that claim is now the
+	// operator's to make: under `strict { secrets = "store" }`, the default,
+	// internal/live/projection's residue mechanism records a sensitive
+	// settable argument the same way it records an ordinary one, so the
+	// sentence "no memory of the value survives a run" would be false.
+	//
+	// Read once, from the root, through the same function every other layer
+	// reads it with. The write-only half is unaffected and stays: no setting
+	// makes a write-only value returnable.
+	walkResidueAttributes(cfg, schemas, identity.SecretsFor(cfg), &diags)
 	return diags
 }
 
@@ -86,7 +99,7 @@ func CheckResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sc
 // A type with no schema (the effects types, or a run whose providers gave no
 // schemas) is silently skipped: with nothing to consult there is nothing to
 // claim.
-func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema, diags *tfdiags.Diagnostics) {
+func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Schema, secrets strict.Secrets, diags *tfdiags.Diagnostics) {
 	if cfg == nil || cfg.Module == nil {
 		return
 	}
@@ -106,7 +119,7 @@ func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sch
 		if !cfg.Path.IsRoot() {
 			addr = cfg.Path.String() + "." + addr
 		}
-		warnResidueInBody(addr, resource.Config, schema.Block, "", diags)
+		warnResidueInBody(addr, resource.Config, schema.Block, "", secrets, diags)
 	}
 
 	childNames := make([]string, 0, len(cfg.Children))
@@ -115,7 +128,7 @@ func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sch
 	}
 	sort.Strings(childNames)
 	for _, name := range childNames {
-		walkResidueAttributes(cfg.Children[name], schemas, diags)
+		walkResidueAttributes(cfg.Children[name], schemas, secrets, diags)
 	}
 }
 
@@ -123,7 +136,7 @@ func walkResidueAttributes(cfg *configs.Config, schemas map[string]providers.Sch
 // recurses into the nested blocks the body actually contains. Attributes
 // are visited in name order and blocks in source order, so repeated runs
 // over one configuration warn identically.
-func warnResidueInBody(addr string, body hcl.Body, block *configschema.Block, prefix string, diags *tfdiags.Diagnostics) {
+func warnResidueInBody(addr string, body hcl.Body, block *configschema.Block, prefix string, secrets strict.Secrets, diags *tfdiags.Diagnostics) {
 	if body == nil || block == nil {
 		return
 	}
@@ -159,12 +172,12 @@ func warnResidueInBody(addr string, body hcl.Body, block *configschema.Block, pr
 			continue
 		}
 		schemaAttr := block.Attributes[name]
-		if kind, flagged := residueFlag(schemaAttr); flagged {
+		if kind, flagged := residueFlag(schemaAttr, secrets); flagged {
 			*diags = diags.Append(residueWarning(addr, prefix+name, kind, attr.Expr.Range()))
 			continue
 		}
 		if schemaAttr.NestedType != nil {
-			warnResidueInObjectExpr(addr, attr.Expr, schemaAttr.NestedType, prefix+name+".", diags)
+			warnResidueInObjectExpr(addr, attr.Expr, schemaAttr.NestedType, prefix+name+".", secrets, diags)
 		}
 	}
 
@@ -173,7 +186,7 @@ func warnResidueInBody(addr string, body hcl.Body, block *configschema.Block, pr
 		if !ok {
 			continue
 		}
-		warnResidueInBody(addr, inner.Body, &bt.Block, prefix+inner.Type+".", diags)
+		warnResidueInBody(addr, inner.Body, &bt.Block, prefix+inner.Type+".", secrets, diags)
 	}
 }
 
@@ -183,7 +196,7 @@ func warnResidueInBody(addr string, body hcl.Body, block *configschema.Block, pr
 // literally. Anything it cannot see into - a variable reference, a splat, a
 // function call - is left silent on purpose; see the doc comment's static
 // boundary.
-func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema.Object, prefix string, diags *tfdiags.Diagnostics) {
+func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema.Object, prefix string, secrets strict.Secrets, diags *tfdiags.Diagnostics) {
 	if obj == nil {
 		return
 	}
@@ -196,7 +209,7 @@ func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema
 		}
 		single := configschema.Object{Attributes: obj.Attributes, Nesting: configschema.NestingSingle}
 		for _, elem := range elems {
-			warnResidueInObjectExpr(addr, elem, &single, prefix, diags)
+			warnResidueInObjectExpr(addr, elem, &single, prefix, secrets, diags)
 		}
 		return
 	case configschema.NestingMap:
@@ -206,7 +219,7 @@ func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema
 		}
 		single := configschema.Object{Attributes: obj.Attributes, Nesting: configschema.NestingSingle}
 		for _, pair := range pairs {
-			warnResidueInObjectExpr(addr, pair.Value, &single, prefix, diags)
+			warnResidueInObjectExpr(addr, pair.Value, &single, prefix, secrets, diags)
 		}
 		return
 	}
@@ -229,21 +242,22 @@ func warnResidueInObjectExpr(addr string, expr hcl.Expression, obj *configschema
 		if !ok {
 			continue
 		}
-		if kind, flagged := residueFlag(nested); flagged {
+		if kind, flagged := residueFlag(nested, secrets); flagged {
 			*diags = diags.Append(residueWarning(addr, prefix+key, kind, pair.Value.Range()))
 			continue
 		}
 		if nested.NestedType != nil {
-			warnResidueInObjectExpr(addr, pair.Value, nested.NestedType, prefix+key+".", diags)
+			warnResidueInObjectExpr(addr, pair.Value, nested.NestedType, prefix+key+".", secrets, diags)
 		}
 	}
 }
 
 // residueFlag reports whether one schema attribute belongs to the class this
 // warning covers, and which of the two reasons applies. Write-only wins the
-// label when both flags are set, because it is the stronger claim: the
-// protocol itself forbids the value coming back, no-secrets rule or not.
-func residueFlag(a *configschema.Attribute) (string, bool) {
+// label when both flags are set, because it is the stronger claim and the
+// unconditional one: the protocol itself forbids the value coming back,
+// whatever the secrets setting says.
+func residueFlag(a *configschema.Attribute, secrets strict.Secrets) (string, bool) {
 	if a == nil || (!a.Required && !a.Optional) {
 		// A computed-only attribute cannot be set in configuration, so
 		// there is nothing to warn about even when it is sensitive: that is
@@ -254,7 +268,10 @@ func residueFlag(a *configschema.Attribute) (string, bool) {
 	switch {
 	case a.WriteOnly:
 		return residueWriteOnly, true
-	case a.Sensitive:
+	case a.Sensitive && !strict.StoresSecrets(secrets):
+		// Only under the setting that makes the claim true. See
+		// [CheckResidueAttributes]; under the default this argument is an
+		// ordinary residue candidate and there is nothing to warn about.
 		return residueSensitive, true
 	}
 	return "", false
@@ -274,7 +291,7 @@ func residueWarning(addr, path, kind string, subject hcl.Range) *hcl.Diagnostic 
 	case residueWriteOnly:
 		reason = "the provider's schema marks it write-only, so the plugin protocol forbids the provider ever returning its value"
 	case residueSensitive:
-		reason = "the provider's schema marks it sensitive, so the no-secrets rule keeps its value out of every ownership marker and record"
+		reason = `the provider's schema marks it sensitive and this estate's live block sets strict { secrets = "refuse" }, which keeps its value out of every ownership marker and record`
 	}
 	return &hcl.Diagnostic{
 		Severity: hcl.DiagWarning,

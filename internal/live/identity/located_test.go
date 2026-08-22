@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -497,4 +498,105 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 	}
 	sort.Strings(out)
 	return out
+}
+
+// TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto is GitHub issue
+// #365 slice 3's deliberate BOUND, written as a test because a bound nobody
+// can see is a bound the next change removes by accident.
+//
+// The slice turned this fork's three secret refusals into one setting. Two
+// of them moved: a secret-generating logical type is admitted under the
+// default and its record holds the value the way a stock state file does,
+// and a sensitive settable argument is recorded as residue under the same
+// default. This one, [LocatedType]'s condition 2, did NOT, and it must not
+// be widened without answering the two things below.
+//
+// # Hazard one: a located record has no slot for the value
+//
+// A record-backed type's record holds its whole object; a record-LOCATED
+// type's record holds its IDENTITY and nothing else, so that a later run can
+// import the object back. That difference is the whole reason the two are
+// different classes. So "stored the way stock stores them", which is what
+// `secrets = "store"` promises, is a promise this route cannot keep for an
+// attribute the provider's own read does not return - aws_iam_access_key's
+// secret is the measured case (issue #365's credential-material census,
+// commit 29a47794f5). Admitting the type would trade a loud refusal for a
+// silent loss that stock does not have, which is worse than either.
+//
+// Residue is the mechanism that COULD carry such a value, and it is not a
+// substitute for this analysis: residue records an attribute only after
+// [classifyResidue]'s two-read discriminator proves the provider neither
+// sources it from the remote nor re-derives it, which is an empirical,
+// per-type, post-apply fact. Lint has to answer at the configuration, before
+// any of that has happened, so admitting here would be promising something
+// no static check can know.
+//
+// # Hazard two: for at least one type the identity IS the secret
+//
+// The same census found it: a markerless type whose recorded identity is
+// itself a sensitive attribute. This test builds that shape and shows what
+// admitting it would produce - not a secret in the record, but a run that
+// stops at apply, because [locatedAttrString] refuses a marked value rather
+// than unmarking it. A lint refusal traded for an apply-time failure with
+// the object already live is the one trade this mechanism is forbidden to
+// make ([LocatedType], condition 0's own reasoning).
+//
+// The selected route already answers hazard two on its own - see
+// [sensitiveIdentityAttr], which is the blanket narrowed to exactly the
+// attributes a record would hold - and it is safe there for a reason that
+// does not transfer: a SELECTED type is already admitted by its ratified row
+// and already applied with every one of its attributes, so nothing about the
+// selection changes which values exist. An automatically-located type has no
+// other route at all.
+//
+// # What this bound costs, measured
+//
+// As of 2026-08-22 this veto is the SOLE remaining wall for the
+// corpus-alb-complete gauntlet estate's test_plan stage, on one
+// aws_cognito_user_pool_client. Its other wall, condition 3, cleared when
+// [DocumentedImportIDs] learned to read the type's possessive-of import
+// sentence, so nothing else stands between that estate and the stage.
+//
+// The rule that would clear it is [sensitiveIdentityAttr], unchanged, asked
+// here under [strict.Store] instead of the blanket. What is missing is not
+// the rule but one measurement: whether every sensitive attribute of each
+// type it would newly admit survives an import-and-read, or is picked up by
+// internal/live/projection's residue classifier instead - which under
+// secrets = "store" now records sensitive attributes, and is the mechanism
+// that would carry exactly the values hazard one is about. That is a
+// per-type, post-apply fact about a provider, and admitting at lint time on
+// an unmeasured version of it is the thing this test exists to stop.
+func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
+	typeName := aMarkerlessType(t)
+
+	// Hazard one, as a shape: a clean identity beside a sensitive attribute
+	// no record on this route would hold.
+	withSecret := locatedSchema(map[string]*configschema.Attribute{
+		"secret": {Type: cty.String, Computed: true, Sensitive: true},
+	})
+	if LocatedType(typeName, map[string]providers.Schema{typeName: withSecret}) {
+		t.Error("LocatedType admitted a type carrying credential material. The secrets setting does not reach " +
+			"this veto: a located record holds the identity and nothing else, so admitting the type would " +
+			"lose the sensitive attribute silently, which stock does not do - see this test's doc comment.")
+	}
+	// And the same schema without the sensitive attribute IS admitted, so
+	// the assertion above is about the veto rather than about some other
+	// condition failing first.
+	clean := locatedSchema(nil)
+	if !LocatedType(typeName, map[string]providers.Schema{typeName: clean}) {
+		t.Fatal("the control schema is not admitted either, so the assertion above proves nothing about the " +
+			"credential veto")
+	}
+
+	// Hazard two, by value: the identity attribute itself is sensitive, so
+	// the applied object carries it marked, and reading it back for the
+	// record fails rather than writing a secret.
+	marked := cty.ObjectVal(map[string]cty.Value{
+		"id": cty.StringVal("wafv2-api-key-material").Mark(marks.Sensitive),
+	})
+	if got, ok := LocatedImportID(marked); ok {
+		t.Errorf("LocatedImportID returned %q for a marked identity. Admitting such a type under any setting "+
+			"would either write the secret into the record store in clear or stop the run at apply with the "+
+			"object already live; refusing at the configuration is the only answer that is neither.", got)
+	}
 }

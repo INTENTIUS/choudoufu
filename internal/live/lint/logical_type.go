@@ -8,6 +8,8 @@ package lint
 import (
 	"fmt"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/strict"
 )
 
 // LogicalClass is the record-backed classification of a logical, store-only
@@ -98,12 +100,33 @@ const (
 
 	// ClassSecretRefused types generate or require secret material - a
 	// private key, a generated password, a cryptographically random byte
-	// string meant to stay hidden - that the no-secrets rule
-	// (live/RECEIPTS.md) forbids a live-markers run from persisting
-	// anywhere a record could carry it. Refused permanently, not only
-	// until #73 lands: #73's own charter (issue comment, 2026-08) names
-	// this exact family as staying refused under the existing no-secrets
-	// rule.
+	// string meant to stay hidden - so the persisted micro-state record
+	// holding their whole prior state would hold that material too.
+	//
+	// # What this class is, after GitHub issue #365 slice 3
+	//
+	// It is a fact about the type's schema and a DEFAULT, not a permanent
+	// verdict. It used to be the second: "refused permanently, not only
+	// until #73 lands", on the reading that a live-markers run has nowhere
+	// to keep secret material at all. That reading was wrong in a way
+	// HANDOFF.md's first difference row names - it refused a configuration
+	// stock OpenTofu runs. Stock keeps random_password.result in its state
+	// file, in clear, and this fork's record store is precisely where it
+	// keeps what a state file would: namespaced per estate, under IAM,
+	// written with compare-and-swap, with the sensitivity marks travelling
+	// beside the value (internal/live/projection's sensitivepaths.go).
+	//
+	// So the refusal became a toggle with a default, `strict { secrets }`.
+	// Under [strict.Store], the default, such a type is admitted with a
+	// record_store declared, as its [LogicalType.StoredClass]. Under
+	// [strict.Refuse] it is refused exactly as it always was, and that is
+	// what HANDOFF.md's first principle - "no secrets stored by the tool
+	// (secret-generating types refused ...)" - now means in code.
+	//
+	// The class name did not change with the meaning, and that is
+	// deliberate: it still names the measurement, which is the only thing
+	// live/logical-schemas.json can tell anybody. What varies is what a run
+	// does about it. See [admitsUnder].
 	ClassSecretRefused LogicalClass = "SECRET_REFUSED"
 
 	// ClassOtherRefused is every other logical type: anything this table
@@ -130,6 +153,25 @@ type LogicalType struct {
 	// Class is this type's classification. See the three [LogicalClass]
 	// constants.
 	Class LogicalClass
+
+	// StoredClass is the classification that applies under GitHub issue
+	// #365's `strict { secrets = "store" }`, which is the default.
+	//
+	// Set only on a [ClassSecretRefused] row, where it is
+	// [ClassRecordAdmitted] or [ClassExternalAdmitted] according to the
+	// provider's own store_only measurement - the class the type would carry
+	// if nothing in its schema were sensitive. Empty everywhere else, where
+	// [Class] is already the answer under either setting.
+	//
+	// It is a second column rather than a second table for [Valid]'s reason
+	// in internal/live/strict: one rule, read at two settings, cannot drift
+	// from itself. The generator derives both from one predicate over
+	// live/logical-schemas.json (tools/row-gen's logicalClassRows), the same
+	// predicate that sets [identity.TypeIdentity.SecretMaterial] on the
+	// matching identity row.
+	//
+	// See [admitsUnder], which is the only thing that reads it.
+	StoredClass LogicalClass
 
 	// Prefix is the shared family prefix this type belongs to (e.g.
 	// "null_" for null_resource), for building the "(prefix*)" clause
@@ -235,6 +277,38 @@ func recordStoreAdmits(c LogicalClass) bool {
 	return c == ClassRecordAdmitted || c == ClassExternalAdmitted
 }
 
+// admitsUnder is [recordStoreAdmits] plus the operator's secrets setting:
+// whether a configured record_store admits lt given what this run was told
+// to do about secret material (GitHub issue #365).
+//
+// Two branches and they are asymmetric on purpose. A type whose own class is
+// admitted is admitted whatever the setting says - nothing about "no secrets
+// stored by the tool" is a reason to refuse a type that generates none, and
+// reading the toggle as a general strictness dial would refuse null_resource
+// under it. A [ClassSecretRefused] type is admitted only under
+// [strict.Store], and then as its [LogicalType.StoredClass], which is the
+// class it would have carried if nothing in its schema were sensitive.
+//
+// # Why the setting cannot rescue a type with no StoredClass
+//
+// A row reaching here with ClassSecretRefused and an empty StoredClass is
+// not a measured type. It is the tls_ family default (see
+// [ClassifyLogicalType]), the answer for a type released since the last
+// -logical-schemas run, and "anything uncertain goes REFUSED" is a rule
+// about measurement rather than about secrets. Admitting one would hand
+// internal/live/identity a type with no row at all, which produces the
+// "Resource type outside the live-markers subset" error - a clear refusal
+// traded for a confusing one, on a type nobody has measured.
+//
+// The same is true of [ClassOtherRefused], which never carries a
+// StoredClass either.
+func admitsUnder(lt LogicalType, secrets strict.Secrets) bool {
+	if recordStoreAdmits(lt.Class) {
+		return true
+	}
+	return strict.StoresSecrets(secrets) && recordStoreAdmits(lt.StoredClass)
+}
+
 // logicalResourceDetail builds the Detail of a RuleLogicalResource issue for
 // resourceType, worded according to lt.Class.
 //
@@ -253,6 +327,17 @@ func recordStoreAdmits(c LogicalClass) bool {
 // recordStoreSupportExists is the load-bearing claim of the RECORD_ADMITTED
 // detail, factored out so a test can pin it by value.
 //
+// ClassSecretRefused's wording is the one that moved with GitHub issue #365
+// slice 3, and it moved because the claim it used to make stopped being
+// true. It said the type "stays refused permanently, not only until #73
+// lands", on the reading that a live-markers run has nowhere to keep secret
+// material. It has somewhere: the estate's record store, namespaced under
+// IAM and written with compare-and-swap, which is where this fork keeps
+// everything a stock state file would - and a stock state file holds
+// random_password.result in clear. So the refusal became a setting with a
+// default, and the message now says which of the two reasons an operator is
+// looking at. See [secretRefusedDetail].
+//
 // ClassExternalAdmitted names the same remedy for the same reason, and adds
 // the one sentence a RECORD_ADMITTED reader does not need: that declaring the
 // store does NOT make count.index safe inside this resource, because an
@@ -270,7 +355,7 @@ func recordStoreAdmits(c LogicalClass) bool {
 // so rewording the claim means editing the test on purpose.
 const recordStoreSupportExists = "That support exists"
 
-func logicalResourceDetail(resourceType string, lt LogicalType) string {
+func logicalResourceDetail(resourceType string, lt LogicalType, secrets strict.Secrets, recordStoreConfigured bool) string {
 	switch lt.Class {
 	case ClassRecordAdmitted:
 		return fmt.Sprintf(
@@ -322,17 +407,7 @@ func logicalResourceDetail(resourceType string, lt LogicalType) string {
 			resourceType, lt.Evidence, lt.External, resourceType, resourceType,
 		)
 	case ClassSecretRefused:
-		return fmt.Sprintf(
-			"%q is a logical resource, classified SECRET_REFUSED: %s. A live-markers "+
-				"run has nowhere to keep secret material - no state file today, and, "+
-				"per GitHub issue #73's charter, no persisted micro-state record "+
-				"either: the no-secrets rule forbids a record from carrying it the "+
-				"same way it forbids a snapshot from carrying it. This type stays "+
-				"refused permanently, not only until #73 lands. Generate and store "+
-				"the secret in a secret manager instead, and have configuration "+
-				"reference it by ARN or path, never by value",
-			resourceType, lt.Evidence,
-		)
+		return secretRefusedDetail(resourceType, lt, secrets, recordStoreConfigured)
 	default: // ClassOtherRefused
 		return fmt.Sprintf(
 			"%q is a logical resource (%s*): it has no existence outside the record "+
@@ -341,6 +416,95 @@ func logicalResourceDetail(resourceType string, lt LogicalType) string {
 				"there is no live system holding it. Pass the value in as a variable or "+
 				"a local, or read it from a resource that really exists",
 			resourceType, lt.Prefix,
+		)
+	}
+}
+
+// secretMaterialRemedy is the load-bearing claim of the SECRET_REFUSED
+// detail under strict.Refuse, factored out so a test can pin it by value the
+// way [recordStoreSupportExists] is pinned.
+//
+// It replaces the old detail's "This type stays refused permanently, not
+// only until #73 lands", which stopped being true when the refusal became a
+// setting. A ban-list of the old wording was not attempted here for the
+// reason [logicalResourceDetail]'s own comment gives about that technique:
+// what is worth asserting is that the message names the setting that produced
+// the refusal, which is what
+// TestLogicalResourceDetailsRenderByClass's SECRET_REFUSED subtests check -
+// against this constant AND against its own value, so rewording it means
+// editing that test on purpose.
+const secretMaterialRemedy = `strict { secrets = "store" }`
+
+// secretRefusedDetail is the RuleLogicalResource detail for a SECRET_REFUSED
+// type, which since GitHub issue #365 slice 3 has three readers rather than
+// one. Each gets the one sentence that is actually their next step.
+//
+//   - Under strict.Refuse: the operator turned this off on purpose. The
+//     remedy is the setting, and the message says so rather than describing
+//     a permanent property of the type - which is what it used to do, and
+//     what would now be a lie.
+//   - Under strict.Store with no record_store: the same one-block fix every
+//     other admitted logical class gets, for the same reason. This is the
+//     #101 shape and the message is deliberately close to
+//     [logicalResourceDetail]'s RECORD_ADMITTED wording.
+//   - A type with no StoredClass reaching here at all: the tls_ family
+//     default, a type released since the last -logical-schemas run. Nothing
+//     has measured it, so nothing can say what a record would hold, and
+//     "anything uncertain goes REFUSED" applies whatever the setting says.
+//     See [admitsUnder].
+func secretRefusedDetail(resourceType string, lt LogicalType, secrets strict.Secrets, recordStoreConfigured bool) string {
+	switch {
+	case lt.StoredClass == "":
+		return fmt.Sprintf(
+			"%q is a logical resource this fork classifies SECRET_REFUSED by FAMILY rather than by measurement: %s. "+
+				"Nothing has read this type's own schema, so nothing can say what a record holding its prior state "+
+				"would contain, and %s does not reach it - a setting cannot admit a type nobody has measured. "+
+				"Generate and store the secret in a secret manager instead, and have configuration reference it by "+
+				"ARN or path, never by value.",
+			resourceType, lt.Evidence, secretMaterialRemedy,
+		)
+	case !strict.StoresSecrets(secrets):
+		return fmt.Sprintf(
+			"%q is a logical resource, classified SECRET_REFUSED: %s. This estate's live block sets "+
+				"strict { secrets = %q }, which is HANDOFF.md's \"no secrets stored by the tool\" principle: a "+
+				"secret-generating type is refused rather than admitted, so nothing this run writes can carry the "+
+				"material. That is a setting and not a property of the type - the default, %s, admits it and keeps "+
+				"its value in the estate's record store the way a stock OpenTofu state file keeps it. Remove the "+
+				"argument to get that, or generate and store the secret in a secret manager instead and have "+
+				"configuration reference it by ARN or path, never by value.",
+			resourceType, lt.Evidence, strict.Refuse, secretMaterialRemedy,
+		)
+	case !recordStoreConfigured:
+		return fmt.Sprintf(
+			"%q is a logical resource, classified SECRET_REFUSED: %s. "+recordStoreSupportExists+" - this estate's "+
+				"record store is where a value with no cloud object behind it lives, exactly as it is for every "+
+				"other logical type - and this configuration has simply not turned it on, which is the only reason "+
+				"%s is refused here. Declare a record_store in the live block and it is admitted:\n\n"+
+				"  terraform {\n"+
+				"    live {\n"+
+				"      estate = \"my-estate\"\n"+
+				"      record_store \"ssm\" {}\n"+
+				"    }\n"+
+				"  }\n\n"+
+				"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket argument), or \"local\" (a "+
+				"directory beside the module). What makes this type different from the others is what the record "+
+				"then holds: the secret material named above, in clear, the way a stock OpenTofu state file holds "+
+				"it. If that is not a trade you want to make, set strict { secrets = %q } - which keeps this exact "+
+				"refusal - and pass the value in as a variable, or read it from a secret manager by ARN or path.",
+			resourceType, lt.Evidence, resourceType, strict.Refuse,
+		)
+	default:
+		// Unreachable while checkManagedResources consults admitsUnder
+		// before building a detail: a SECRET_REFUSED type with a
+		// StoredClass, under secrets=store, with a record_store declared,
+		// is admitted and raises nothing. Kept as a real sentence rather
+		// than a panic because a lint refusal is the wrong place to crash,
+		// and TestSecretRefusedDetailNamesTheSetting pins that no caller
+		// reaches it.
+		return fmt.Sprintf(
+			"%q is a logical resource, classified SECRET_REFUSED: %s. It is admitted under this estate's settings, "+
+				"so this message should not have been raised; please report it.",
+			resourceType, lt.Evidence,
 		)
 	}
 }
