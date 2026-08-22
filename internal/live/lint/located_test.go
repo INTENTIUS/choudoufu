@@ -189,14 +189,21 @@ func TestMarkerlessTypeStaysRefusedWithoutSchemas(t *testing.T) {
 }
 
 // TestCredentialMaterialStaysRefusedUnderARecordStore is acceptance
-// criterion (c) seen from lint: a record_store does not admit credential
-// material, whatever else it admits.
+// criterion (c) seen from lint: a record_store does not admit a type whose
+// recorded identity would itself be a secret, whatever else it admits.
+//
+// Before 2026-08-22 (issue #365 population 2) the fixture put the sensitive
+// attribute OUTSIDE the identity ("id" stayed clean) and this still refused,
+// because identity.LocatedType's condition 2 was a whole-schema sweep. That
+// was measured and found over-broad - the record this route writes never
+// touches an attribute the identity doesn't include - and narrowed to
+// identity.sensitiveIdentityAttr. The fixture now makes the identity itself
+// sensitive, which is the shape that must still refuse.
 func TestCredentialMaterialStaysRefusedUnderARecordStore(t *testing.T) {
 	typeName := aLocatableType(t)
 	schemas := map[string]providers.Schema{typeName: {Block: &configschema.Block{
 		Attributes: map[string]*configschema.Attribute{
-			"id":     {Type: cty.String, Computed: true},
-			"secret": {Type: cty.String, Computed: true, Sensitive: true},
+			"id": {Type: cty.String, Computed: true, Sensitive: true},
 		},
 	}}}
 
@@ -209,7 +216,7 @@ func TestCredentialMaterialStaysRefusedUnderARecordStore(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("a type carrying secret material was admitted under a record_store. The one sanctioned exclusion is credential material, and a record_store must not be a way around it.")
+		t.Errorf("a type whose recorded identity is itself sensitive was admitted under a record_store. A record_store must not be a way around that.")
 	}
 }
 

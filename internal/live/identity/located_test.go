@@ -508,28 +508,31 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 // of them moved: a secret-generating logical type is admitted under the
 // default and its record holds the value the way a stock state file does,
 // and a sensitive settable argument is recorded as residue under the same
-// default. This one, [LocatedType]'s condition 2, did NOT, and it must not
-// be widened without answering the two things below.
+// default. This one, [LocatedType]'s condition 2, is untouched by the
+// setting on purpose: see below for why, and hazard two for what still
+// refuses regardless of it.
 //
-// # Hazard one: a located record has no slot for the value
+// # Hazard one, resolved: a located record has no slot for the value it never holds
 //
-// A record-backed type's record holds its whole object; a record-LOCATED
-// type's record holds its IDENTITY and nothing else, so that a later run can
-// import the object back. That difference is the whole reason the two are
-// different classes. So "stored the way stock stores them", which is what
-// `secrets = "store"` promises, is a promise this route cannot keep for an
-// attribute the provider's own read does not return - aws_iam_access_key's
-// secret is the measured case (issue #365's credential-material census,
-// commit 29a47794f5). Admitting the type would trade a loud refusal for a
-// silent loss that stock does not have, which is worse than either.
-//
-// Residue is the mechanism that COULD carry such a value, and it is not a
-// substitute for this analysis: residue records an attribute only after
-// [classifyResidue]'s two-read discriminator proves the provider neither
-// sources it from the remote nor re-derives it, which is an empirical,
-// per-type, post-apply fact. Lint has to answer at the configuration, before
-// any of that has happened, so admitting here would be promising something
-// no static check can know.
+// This was framed as "the record cannot hold a value the provider's read
+// does not return", measured against aws_iam_access_key's secret (issue
+// #365's credential-material census, commit 29a47794f5) and used to keep the
+// whole veto blanket. The census answered a different question than the one
+// this route asks: a record-LOCATED type's record holds its IDENTITY and
+// NOTHING ELSE - never the secret attribute, whether the provider's read
+// returns it or not. Whether "secret" round-trips through a read is
+// [projection]'s residue question, unconditional on this route and on the
+// `secrets` setting, because residue is what would carry it if anything
+// does. Measured 2026-08-22 (2026-08-22 (issue #365 population 2),
+// [sanctionedCredentialExclusion]'s doc comment carries the numbers): nine
+// of the eleven types this veto excluded have a clean identity - "id" is
+// never the sensitive attribute - so the record it would write never
+// touched the secret either way, under any secrets setting. Narrowed to
+// [sensitiveIdentityAttr], which is condition 2 now. Two of the nine,
+// aws_iam_access_key and aws_iot_certificate, stay refused anyway: they are
+// two of the maintainer's four sanctioned credential exclusions
+// (live/HARNESS.md), honored here by name because that ruling predates this
+// route and its own check never reached it.
 //
 // # Hazard two: for at least one type the identity IS the secret
 //
@@ -549,43 +552,48 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 // selection changes which values exist. An automatically-located type has no
 // other route at all.
 //
-// # What this bound costs, measured
+// # What this bound cost, measured, and what it now costs
 //
-// As of 2026-08-22 this veto is the SOLE remaining wall for the
+// Before 2026-08-22 this veto was the SOLE remaining wall for the
 // corpus-alb-complete gauntlet estate's test_plan stage, on one
 // aws_cognito_user_pool_client. Its other wall, condition 3, cleared when
 // [DocumentedImportIDs] learned to read the type's possessive-of import
-// sentence, so nothing else stands between that estate and the stage.
-//
-// The rule that would clear it is [sensitiveIdentityAttr], unchanged, asked
-// here under [strict.Store] instead of the blanket. What is missing is not
-// the rule but one measurement: whether every sensitive attribute of each
-// type it would newly admit survives an import-and-read, or is picked up by
-// internal/live/projection's residue classifier instead - which under
-// secrets = "store" now records sensitive attributes, and is the mechanism
-// that would carry exactly the values hazard one is about. That is a
-// per-type, post-apply fact about a provider, and admitting at lint time on
-// an unmeasured version of it is the thing this test exists to stop.
+// sentence. With hazard one resolved, that estate's wall clears too -
+// client_secret is not the identity - and this test now asserts the setting
+// still does not reach [sanctionedCredentialExclusion]'s two names, which
+// are what a THIRD estate-independent wall (the maintainer's ruling, not a
+// schema fact) would need to name to matter here at all.
 func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
 	typeName := aMarkerlessType(t)
 
-	// Hazard one, as a shape: a clean identity beside a sensitive attribute
-	// no record on this route would hold.
+	// A sensitive attribute outside the recorded identity is admitted -
+	// hazard one, resolved (see the doc comment above). The control proves
+	// this is the shape being asserted, not some other condition passing by
+	// coincidence: both schemas admit.
 	withSecret := locatedSchema(map[string]*configschema.Attribute{
 		"secret": {Type: cty.String, Computed: true, Sensitive: true},
 	})
-	if LocatedType(typeName, map[string]providers.Schema{typeName: withSecret}) {
-		t.Error("LocatedType admitted a type carrying credential material. The secrets setting does not reach " +
-			"this veto: a located record holds the identity and nothing else, so admitting the type would " +
-			"lose the sensitive attribute silently, which stock does not do - see this test's doc comment.")
+	if !LocatedType(typeName, map[string]providers.Schema{typeName: withSecret}) {
+		t.Error("LocatedType refused a type whose only sensitive attribute is outside its recorded identity. " +
+			"The record this route writes never touches \"secret\" regardless of the secrets setting - see " +
+			"this test's doc comment, hazard one.")
 	}
-	// And the same schema without the sensitive attribute IS admitted, so
-	// the assertion above is about the veto rather than about some other
-	// condition failing first.
 	clean := locatedSchema(nil)
 	if !LocatedType(typeName, map[string]providers.Schema{typeName: clean}) {
 		t.Fatal("the control schema is not admitted either, so the assertion above proves nothing about the " +
 			"credential veto")
+	}
+
+	// The maintainer's named exception still refuses regardless: this is
+	// the ONE place the setting could matter, since [sanctionedCredentialExclusion]
+	// is a ruling rather than a schema fact, and it does not.
+	for sanctioned := range sanctionedCredentialExclusion {
+		if _, ok := MarkerlessTypes[sanctioned]; !ok {
+			continue
+		}
+		if LocatedType(sanctioned, map[string]providers.Schema{sanctioned: clean}) {
+			t.Errorf("LocatedType(%q) = true even with a clean schema; the sanctioned exclusion must hold regardless of the secrets setting", sanctioned)
+		}
 	}
 
 	// Hazard two, by value: the identity attribute itself is sensitive, so
