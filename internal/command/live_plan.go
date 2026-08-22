@@ -1212,6 +1212,18 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.Bl
 		// Treating it as a gap tells an operator their marker is missing
 		// while it sits in the file above the error. See #111.
 		//
+		// That exemption is only as sound as the reason it trusts, and until
+		// GitHub issue #379 it was not sound at all for the population reached
+		// here: this loop runs over resources that can ONLY be found by their
+		// marker, and stamping reported MODULE_KEYED_TRUSTED for any of them
+		// that merely SET a tags argument - `tags = var.tags` included - so a
+		// server-assigned resource about to be created with no marker on it
+		// was exempted by name. [stamp.SkipModuleKeyedTrusted] now checks the
+		// marker keys are visible in the body before it claims them for a
+		// must-stamp resource, which is what makes reading the reason alone
+		// honest here. Do not re-derive that check in this function: one
+		// decision, in the pass that read the body, is the shape #111 taught.
+		//
 		// [stamp.SkipReason.Unknown] is exempt for a different reason, and
 		// it is GitHub issue #230's: that skip records that this run could
 		// not READ the type's schema, so whether the resource can carry a
