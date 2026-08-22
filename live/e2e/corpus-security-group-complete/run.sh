@@ -203,9 +203,10 @@ set -uo pipefail
 # vpc_dhcp_options) all document import by their own id and are unaffected -
 # a singleton, checked against the doc cache rather than assumed.
 #
-# WHAT #332 NEWLY REACHED, one layer further out again, NOT FIXED here: with
-# every choudoufu refusal at zero the plan imports all 67 resources AND diffs
-# them, and the AWS provider itself fails on exactly one:
+# WHAT #332 NEWLY REACHED, one layer further out again, NOT a choudoufu
+# defect (CONFIRMED against stock, see step 1c): with every choudoufu
+# refusal at zero the plan imports all 67 resources AND diffs them, and the
+# AWS provider itself fails on exactly one:
 #
 #   Error: Provider produced invalid plan
 #   Provider "…/hashicorp/aws" has indicated "requires replacement" on
@@ -217,19 +218,39 @@ set -uo pipefail
 #
 # That is the provider's own words, and it names no choudoufu code. It is the
 # one rule in this estate sourced from a prefix list rather than a CIDR or a
-# referenced security group. Not investigated here.
+# referenced security group.
+#
+# HANDOFF.md's four-row table has a place for exactly this, and which row it
+# falls in was never actually checked against stock until now - a header
+# claim that a message "names no choudoufu code" is a reading, not a proof,
+# and this file used to say so ("Not investigated here"). Step 1c below runs
+# stock terraform - no choudoufu anywhere, this estate's own real state,
+# right after stock's own real apply, nothing migrated or deleted - and it
+# hits the byte-identical diagnostic (same resource address, same
+# requires-replacement decision, same empty attribute-step path). That is
+# HANDOFF.md's third row: stock fails too. There is no choudoufu fix that
+# makes stage 3 clean here; the defect is in hashicorp/aws 6.59.0's own
+# RequiresReplace plan-modification logic for a
+# aws_vpc_security_group_ingress_rule sourced from a prefix list, reachable
+# by plain terraform alone once the object is planned against its own
+# refreshed state.
 #
 # So stage 3 goes 239 diagnostics -> 19 -> 7 -> 4 -> 1, every choudoufu
 # refusal of every layer is at zero and asserted by absence, both default
 # route tables' import identities are additionally asserted BY VALUE against
-# the AWS CLI, and what blocks the estate is a defect in the provider.
-# Assertions below hold the exact counts so a change to any of them is
-# visible.
+# the AWS CLI, and what blocks the estate is a defect in the provider that
+# stock hits too. Assertions below hold the exact counts so a change to any
+# of them is visible.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
 #   stage 1  cold deploy   PASS - real, unmarked infrastructure, 67 of the
-#                          module's 68 resources (DELTA 2, #57).
+#                          module's 68 resources (DELTA 2, #57). Step 1c
+#                          additionally runs a plain stock `terraform plan`
+#                          against this same real state, right after this
+#                          same real apply, no choudoufu involved - the
+#                          control that settles stage 3's remaining wall
+#                          (see below).
 #   stage 2  migrate       PASS - real: 58 of 67 resource instances stamped
 #                          for real (39 VERIFIED + 19 DRIFTED - most of the
 #                          drift is a provider-normalized
@@ -255,7 +276,12 @@ set -uo pipefail
 #                          re-derived from AWS itself and asserted by value
 #                          (step 3a), because an absent diagnostic is not
 #                          evidence that a marker is right. What remains is
-#                          a bug in the AWS provider, not in this fork.
+#                          a bug in the AWS provider, CONFIRMED against
+#                          stock in step 1c: plain stock terraform hits the
+#                          byte-identical diagnostic on its own real state,
+#                          no choudoufu involved. HANDOFF.md's third row -
+#                          stock fails too - not the second; no choudoufu
+#                          fix reaches it.
 #                          The reading this line used to carry, kept because
 #                          it was wrong in an instructive way: "#313's root
 #                          cause B alone: a same-plan resource attribute
@@ -424,6 +450,46 @@ MAIN_SG_ID="$(terraform -chdir="$PLAIN_EST" output -raw security_group_id)"
 MARKER_COUNT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_SG_ID" "Name=key,Values=tofu-address" --query 'length(Tags)' --output text)"
 [ "$MARKER_COUNT" = "0" ] || fail "the main security group already carries a tofu-address tag before migration - this crossing proves nothing"
 log "  confirmed unmarked: $MAIN_SG_ID carries no tofu-address tag"
+
+# ── 1c. stock control: does STOCK's own plan hit the same provider bug? ────
+#
+# Stage 3's header (below) records the estate's one remaining wall as "a
+# provider bug ... not a choudoufu refusal" but, until now, never actually
+# ran it through stock to settle which of HANDOFF.md's four rows it falls
+# in: the second ("the plans ... differ: a defect; fix it") or the third
+# ("stock fails too: record it against stock and move on"). Settled here,
+# with real stock terraform, this estate's own real state, and zero
+# choudoufu anywhere in the loop: a completely ordinary `terraform plan`
+# against $PLAIN_EST, run right after stock's own apply above (same
+# directory, same terraform.tfstate, nothing migrated, nothing deleted),
+# hits the byte-identical diagnostic - same resource address, same
+# requires-replacement decision, same empty-attribute-step path - that
+# choudoufu's live-plan hits three steps later in stage 3. The one
+# cosmetic difference is the provider address string each binary's own
+# diagnostic renderer prints (registry.terraform.io vs
+# registry.opentofu.org / the provider[...] wrapping), not the bug.
+log ""
+log "=== 1c. stock control: stock's own plan, no choudoufu, same state ==="
+STOCK_PLAN_OUT="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
+STOCK_PLAN_RC=$?
+[ "$STOCK_PLAN_RC" -eq 1 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "expected stock's own plan to fail (exit 1) reproducing the provider bug; got exit $STOCK_PLAN_RC - the provider or the corpus pin has moved, re-check whether this is still a stock bug"; }
+grep -qF 'Error: Provider produced invalid plan' <<< "$STOCK_PLAN_OUT" \
+  || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock's own plan no longer reproduces 'Provider produced invalid plan' - re-check whether this is still a stock bug"; }
+grep -qF 'module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"]' <<< "$STOCK_PLAN_OUT" \
+  || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock's own plan error no longer names dns-from-prefix-list - the wall has moved"; }
+grep -qF 'cty.Path{cty.GetAttrStep{Name:""}}' <<< "$STOCK_PLAN_OUT" \
+  || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock's own plan error no longer carries the empty-attribute-step path - the provider bug has changed shape"; }
+log "  CONFIRMED: plain, stock terraform - no choudoufu, its own real state,"
+log "  right after its own real apply - fails with the same diagnostic:"
+log "    Error: Provider produced invalid plan"
+log "    Provider \"registry.terraform.io/hashicorp/aws\" has indicated"
+log "    \"requires replacement\" on"
+log "    module.security_group.aws_vpc_security_group_ingress_rule"
+log "      .this[\"dns-from-prefix-list\"]"
+log "    for a non-existent attribute path cty.Path{cty.GetAttrStep{Name:\"\"}}."
+log "  HANDOFF.md's third row: stock fails too. This is a defect in"
+log "  hashicorp/aws (v6.59.0), reachable by plain terraform alone, not a"
+log "  choudoufu difference - no choudoufu fix can make stage 3 clean here."
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
@@ -825,7 +891,10 @@ log "    $INVALID_PLAN_N  a provider bug - hashicorp/aws hands back a"
 log "       RequiresReplace path with an empty attribute step for"
 log "       module.security_group.aws_vpc_security_group_ingress_rule"
 log "       .this[\"dns-from-prefix-list\"]. Not a choudoufu refusal; the"
-log "       message names the provider's own issue tracker."
+log "       message names the provider's own issue tracker. CONFIRMED"
+log "       against stock in step 1c: plain stock terraform hits the"
+log "       byte-identical diagnostic on its own real state - HANDOFF.md's"
+log "       third row, stock fails too."
 
 log ""
 log "STAGE 3 (test_plan): BLOCKED for real, at 1 site (was 239, then 19, then"
@@ -833,9 +902,11 @@ log "7, then 4) - every choudoufu wall this estate has ever hit (#305, #307,"
 log "#313 A and B, #321, #332) is fixed and confirmed absent above, and both"
 log "default route tables' import identities are asserted BY VALUE against"
 log "AWS. What is left is a defect in the AWS provider itself, reachable only"
-log "now that the plan imports all 67 resources and diffs them"
+log "now that the plan imports all 67 resources and diffs them, and step 1c"
+log "confirms stock hits the identical diagnostic - HANDOFF.md's stock-fails-"
+log "too row, not a choudoufu difference"
 log ""
-gauntlet_stage test_plan fail "BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is an AWS-provider bug; see header"
+gauntlet_stage test_plan fail "BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is a hashicorp/aws provider bug, CONFIRMED against stock in step 1c (plain terraform hits the byte-identical diagnostic on its own real state) - HANDOFF's stock-fails-too row, no choudoufu fix reaches it; see header"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -848,7 +919,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is an AWS-provider bug; see header"
+log "  stage 3  test_plan          BLOCKED at 1 site (was 239, then 19, then 7, then 4) - every choudoufu wall is gone and #332's identity is asserted by value; the 1 remaining is a hashicorp/aws provider bug CONFIRMED against stock in step 1c; see header"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
