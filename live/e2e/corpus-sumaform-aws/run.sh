@@ -159,52 +159,67 @@ set -uo pipefail
 #      exact estate cleanly with plain tofu, computing all three counts as
 #      0) - HANDOFF.md's first row, choudoufu refuses where stock proceeds.
 #
-#      Root cause, isolated with a from-scratch repro (not this estate's own
-#      files, to rule out anything this script's own reduction introduced):
-#      backend_modules/aws/base/main.tf's `local.configuration_output` is a
-#      `merge()` whose SECOND ARGUMENT is a bare sibling-module-output
-#      reference (`module.network.configuration`), passed straight through
-#      as `base_configuration` to module.bastion/module.server's host chain.
-#      internal/live/identity/partialargs.go's tolerant-substitution machinery
-#      (documented at length in that file) rebuilds an OBJECT CONSTRUCTOR leaf
-#      by leaf when ONE of its leaves is unresolvable, and runs a function
-#      call through a tolerant evaluator when its ARGUMENTS were already
-#      substituted that way one module up - both confirmed working in
-#      isolation (a bare object-constructor argument with one poisoned leaf,
-#      even three, resolves fine; a `merge()` of two SEPARATE object literals
-#      each with one poisoned leaf also resolves fine). What does NOT work,
-#      confirmed with a from-scratch repro reproducing this estate's own
-#      shape: when a `merge()` call's argument is a BARE module-output
-#      reference (not an object constructor with poisoned leaves - the WHOLE
-#      argument, structurally, is unavailable), evaluating that merge() fails
-#      outright, and - more surprisingly - a call to a DIFFERENT module in the
-#      SAME module tree, passing an ENTIRELY UNRELATED argument
-#      (`quantity = local.create_network ? 1 : 0`, where local.create_network
-#      has no dependency on configuration_output or module.network at all)
-#      ALSO starts failing as "Unable to compute static value" the moment
-#      module.network's output is merged in elsewhere in the same module -
-#      confirmed by removing it and watching local.create_network resolve
-#      cleanly again, then reproducing the failure again by putting it back,
-#      each time from a from-scratch minimal module tree, not this estate's
-#      own files. That cross-argument, cross-module-call poisoning is the
-#      part that looks like a real defect rather than a documented boundary
-#      (the file explicitly says a CALL like merge() is never reconstructed,
-#      by design - but that is a statement about not guessing what merge()
-#      does to an unknown LEAF, not about one call's hard failure reaching an
-#      unrelated call's unrelated argument).
+#      Root cause, RE-DERIVED from scratch under issue #375 and NOT what the
+#      first account said. Two claims in that account are wrong, and both are
+#      refuted by fixtures now in the tree rather than by argument:
 #
-#      This was NOT fixed in this unit. The exact mechanism moving the
-#      failure between unrelated call sites was not pinned down to a single
-#      line - only the boundary (present with the merge+module-output shape,
-#      absent without it) was confirmed by repro, across roughly a dozen
-#      reduced test configurations built and discarded in scratch space, not
-#      committed here. A fix would touch internal/configs' module-call
-#      static-variable evaluation (module_call.go's VariablesUsing /
-#      static_evaluator.go / static_scope.go), which every module call in
-#      the whole tool goes through - too load-bearing to change on a guess,
-#      and HANDOFF.md's safety rule ("assert the rendered identity by value")
-#      could not be honoured here because the run never gets far enough to
-#      render an identity for anything backend_modules/aws/host declares.
+#        - "a merge() whose argument is a bare module-output reference fails
+#          outright" is false for an identity argument.
+#          internal/live/identity/testdata/merge-bare-module-output is exactly
+#          that shape and resolves, and resolved before any of #375's work:
+#          resolver.selectStatic reads a step into a merge() of object
+#          constructors and chases a module-output reference into the child
+#          module, one argument at a time. TestMergeOfBareModuleOutputResolves
+#          pins the rendered value.
+#        - "the failure propagates to a DIFFERENT module call's unrelated
+#          argument (`quantity = local.create_network ? 1 : 0`)" is false.
+#          There is no shared static-evaluation state and nothing propagates.
+#          `local.create_network` reads `var.provider_settings`, which THIS
+#          SCRIPT hands module.base with three leaves that are live resources
+#          (aws_vpc.crossing, aws_subnet.crossing_public,
+#          aws_security_group.crossing_public), so its STRICT evaluation fails
+#          on its own account and prints its own chain of "Unable to compute
+#          static value" trailers. The tolerant retry then answers it: bastion's
+#          own `aws_instance.instance`, whose count is `var.quantity` and
+#          nothing else, resolves to zero instances and raises no refusal at
+#          all. Reading the strict trailers as the verdict is what produced the
+#          propagation story.
+#
+#      What actually blocks stage 3 is a COUNT, and counts are the whole
+#      difference. An identity ARGUMENT is resolved symbolically, one component
+#      at a time, so a map with one unknowable member still answers for its
+#      knowable ones. A `count` needs a whole VALUE, and the only machinery
+#      that produces one out of a partly-unknowable argument is
+#      internal/live/identity/partialargs.go's rebuild, which substitutes an
+#      unknown leaf by leaf. The three refused counts are
+#      backend_modules/aws/host's `local.host_eip ? var.quantity : 0` (twice)
+#      and `local.route53_domain == null ? 0 : 1`, and the chain under them,
+#      read off a real offline analysis of this estate, is:
+#
+#        local.host_eip / local.route53_domain
+#          <- local.provider_settings  = merge({ ... var.base_configuration[...] ... }, ...)
+#          <- var.base_configuration   = module.base.configuration          (modules/server)
+#          <- output.configuration     = merge({ ... }, module.base_backend.configuration)
+#          <- output.configuration     = merge(local.configuration_output, { ... })
+#          <- local.configuration_output = merge({ ... aws_iam_instance_profile...[0].name
+#                                                     ... data.aws_ami.* ... },
+#                                                module.network.configuration, ...)
+#          <- output.configuration     = merge(var.create_network ? { aws_subnet.public[0].id ... } : {}, ...)
+#
+#      Every hop is a merge() whose arguments carry a leaf the static scope
+#      refuses. #375 fixed the two hops that are a bare reference with nothing
+#      to rebuild - a constructor hoisted into a local, and a child module's
+#      whole output named on its own (see
+#      internal/live/identity/testdata/module-arg-hoisted, pinned by value in
+#      moduleargspelling_test.go). It did NOT fix the merge() hops, because
+#      rebuilding a CALL means deciding what the function does to an unknown
+#      argument and partialargs.go deliberately does not; and it did not fix
+#      the last hop at all, where the substitution would have to happen inside
+#      a LOCAL of the module being evaluated rather than at a module-call
+#      argument, which needs a seam in internal/configs' GetLocalValue that
+#      does not exist. So this estate's stage 3 is unmoved, and the remaining
+#      work is named rather than guessed at: tolerant substitution through a
+#      function call's arguments, and through a local value, in that order.
 #      Recorded here as this estate's real, current blocker.
 #
 # Because all three live in the ONE leaf module every role shares, none of

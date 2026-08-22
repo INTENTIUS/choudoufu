@@ -295,7 +295,24 @@ var identityGoldenPin = map[string]int{
 	// actually adds needs provider schemas, which this sweep deliberately
 	// does not have, so they are pinned by value in transform_test.go
 	// instead. No pre-existing row moved.
-	"CONCRETE": 793,
+	// 2026-08-22 (issue #375): a module-call argument the caller HOISTED into
+	// a local, and one that is a child module's whole output named on its
+	// own, are now substituted the same way one written out at the call
+	// already was. Nine ADDED rows across two new fixtures
+	// (internal/live/identity/testdata/module-arg-hoisted and
+	// .../merge-bare-module-output); no pre-existing row moved, in class or
+	// in value - TestIdentityGolden reported "0 identities changed, 9 added,
+	// 0 removed" against the base. The equivalence the fix claims is visible
+	// in the rows themselves: module.inline and module.hoisted render
+	// byte-identical values on both of their resources.
+	// 798, up from 793 (issue #375): five ADDED rows -
+	// module.base.module.host.aws_iam_role.host[0] in merge-bare-module-output
+	// (which resolved before the fix; the fixture is the pin for the shape
+	// the issue named and did not turn out to be the blocker), plus
+	// module-arg-hoisted's inline/hoisted aws_iam_role.gated[0] pair, its
+	// module.output.aws_iam_role.gated[0] and its
+	// module.output.aws_iam_role.derived[0].
+	"CONCRETE": 798,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -468,7 +485,9 @@ var identityGoldenPin = map[string]int{
 	// not admit - and it is asserted directly, with schemas, by
 	// internal/live/check's TestStrictMarkersRecordRendersItsIdentityByValue
 	// and TestStrictMarkersRecordFailsClosedWithNoSchemas.
-	"NEEDS_DISCOVERY": 684,
+	// 686, up from 684 (issue #375): the bare aws_subnet each of the two new
+	// fixtures declares as the thing its poisoned leaf reads.
+	"NEEDS_DISCOVERY": 686,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -524,7 +543,13 @@ var identityGoldenPin = map[string]int{
 	// the target group INSTANCE the caller indexed, and three other strings
 	// would have satisfied a class check - the group's own name, the module
 	// output's name, and the type default that supplies the "elbv2" beside it.
-	"PARENT_DERIVED": 116,
+	// 118, up from 116 (issue #375): module-arg-hoisted's inline/hoisted
+	// aws_iam_role.derived[0] pair, both rendering the symbolic formula
+	// derived-${aws_subnet.s.id}. They are the negative half of the fix -
+	// the leaf that really is a live subnet ID stays a parent's value and
+	// never becomes a concrete marker - and they are byte-identical to each
+	// other, which is the equivalence the fix claims.
+	"PARENT_DERIVED": 118,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -820,7 +845,7 @@ var identityGoldenPin = map[string]int{
 // selection's effect on a rendered identity is pinned by value elsewhere,
 // with schemas: internal/live/check's
 // TestStrictMarkersRecordRendersItsIdentityByValue.
-const identityGoldenPinBodyDigest = "a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee"
+const identityGoldenPinBodyDigest = "75974dc5596671ed180187e1135eb001fd3e6139dd56ae04f020ac06e33566a0"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1294,7 +1319,10 @@ const (
 	// order to have something to select, or something to leave unselected
 	// beside it. See identityGoldenPinBodyDigest's own comment for why none
 	// of them renders as RECORD_LOCATED here.
-	identityGoldenPinInstances = 1614
+	// Then 1614 -> 1623 for GitHub issue #375: nine added rows across the two
+	// new fixtures, none modified, none removed. See the class comments
+	// above for which row is which.
+	identityGoldenPinInstances = 1623
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1416,7 +1444,14 @@ const (
 	// new limits-wing entries), and one child module swept as a root of its
 	// own. Thirteen of them declare resources; see
 	// identityGoldenPinInstances directly above.
-	identityGoldenPinDirs = 550
+	// Then 550 -> 558 dirs for GitHub issue #375: eight new configuration
+	// directories, four per fixture -
+	// internal/live/identity/testdata/module-arg-hoisted with its gate, net
+	// and secret-net child modules, and .../merge-bare-module-output with
+	// its base, network and host child modules. Each child is swept as a
+	// root of its own; the ones declaring no resource of an admitted type
+	// contribute a directory and no row.
+	identityGoldenPinDirs = 558
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
