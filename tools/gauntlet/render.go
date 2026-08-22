@@ -115,6 +115,11 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("Migration from a stock state file is lossless and a greenfield apply is")
 	w("equivalent. Everything below is that sentence made checkable.")
 	w("")
+	w("This page defines the gauntlet; it does not walk you through running it.")
+	w("The two procedures are rendered from this same tool as their own pages:")
+	w("adding an estate is `%s`, and", SiteAddPage)
+	w("contributing compute is `%s`.", SiteContribPage)
+	w("")
 	w("## The two numbers")
 	w("")
 	w("An estate is **clear** when every active stage passes. The first bar is clear")
@@ -160,23 +165,9 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("code and leaves the imported verdicts as they are. The runner is")
 	w("`go run ./tools/gauntlet run [<name>...]`, logs land in `%s/`.", LogDir)
 	w("")
-	w("## Adding an estate")
+	w("## The manifest entry")
 	w("")
-	w("```")
-	w("go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> [-core -reason \"...\"] -source \"<one line>\"")
-	w("```")
-	w("")
-	w("That writes the manifest entry in `%s` and a script stub at", ManifestPath)
-	w("`live/e2e/<name>/run.sh` with every stage wired to the protocol and marked")
-	w("`not_run`. Fill the stub in (an existing script for a similar estate is the")
-	w("best template; `live/e2e/corpus-vpc-complete/run.sh` is the fullest), run")
-	w("`go run ./tools/gauntlet run <name>`, then `go run ./tools/gauntlet render`, and")
-	w("commit the entry, the script, the artifact and the rendered docs. CI runs")
-	w("exactly the same command.")
-	w("")
-	w("Lanes: %s.", strings.Join(KnownLanes, ", "))
-	w("")
-	w("### Manifest entry")
+	w("Every estate is one entry in `%s`:", ManifestPath)
 	w("")
 	w("```json")
 	w("%s", exampleEntryJSON(m))
@@ -185,6 +176,8 @@ func renderSpec(m *Manifest, a *Artifact) string {
 	w("`set` is `core` or `growing`; `reason` is required for core; `script` defaults")
 	w("to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the")
 	w("`reference` lane.")
+	w("")
+	w("Lanes: %s.", strings.Join(KnownLanes, ", "))
 	w("")
 	w("## The core set")
 	w("")
@@ -202,9 +195,6 @@ func renderSpec(m *Manifest, a *Artifact) string {
 		w("| `%s` | %s | %s | %s |", e.Name, e.Lane, mdCell(e.Pin), mdCell(e.Reason))
 	}
 	w("")
-	w("## Contributing compute")
-	w("")
-	w("%s", contributeProse())
 	w("## The artifact")
 	w("")
 	w("`%s` carries `schema`, `commit`, `emulator`, `generated`, the `stages`", ArtifactPath)
@@ -424,12 +414,13 @@ func renderAddPage(m *Manifest) string {
 	w("on the next run.")
 	w("")
 	w("```")
-	w("go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> -source \"<one line>\"")
+	w("go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> [-core -reason \"...\"] -source \"<one line>\"")
 	w("```")
 	w("")
 	w("That writes the entry and a script stub at `live/e2e/<name>/run.sh` with every")
 	w("stage wired to the protocol and marked `not_run`. Fill the stub in, using the")
-	w("script of a similar estate as the template, then:")
+	w("script of a similar estate as the template")
+	w("(`live/e2e/corpus-vpc-complete/run.sh` is the fullest), then:")
 	w("")
 	w("```")
 	w("go run ./tools/gauntlet run <name>     # runs it against the emulator, records verdicts")
@@ -464,8 +455,8 @@ func firstSentence(s string) string {
 	return s
 }
 
-// contributeProse is the "contribute compute" text, shared by the spec and
-// the site page so the two never disagree.
+// contributeProse is the "contribute compute" how-to. It has one home, the
+// site page below; the spec names that page rather than repeating it.
 func contributeProse() string {
 	return strings.TrimSpace(`
 Anyone can move the bars by spending tokens rather than time. The loop is

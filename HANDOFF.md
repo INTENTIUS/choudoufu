@@ -82,8 +82,9 @@ numbers on the site, core estates clear and all estates clear, are read from
 
 1. `go run ./tools/gauntlet next` names the unit: the core estate closest to
    clear and the first active stage it does not pass, else the next growing
-   one. New estates enter with `go run ./tools/gauntlet add` (see
-   `live/GAUNTLET.md`). `just contribute` runs one unit unattended under
+   one. New estates enter with `go run ./tools/gauntlet add` (the procedure is
+   `site/content/docs/progress/add-an-estate.md`; `live/GAUNTLET.md` is the
+   definition). `just contribute` runs one unit unattended under
    your own key, in a worktree, and opens the PR; that is also what
    contributors run from their forks. `.claude/agents/gauntlet-orchestrator.md`
    is the brief for a session that keeps the loop running unattended: pick,
