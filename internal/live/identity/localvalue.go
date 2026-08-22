@@ -862,7 +862,11 @@ func (r *resolver) forExprElems(fe *hclsyntax.ForExpr, ident configs.StaticIdent
 		scope := instScope{vars: vars}
 
 		if fe.CondExpr != nil {
-			include, condOK := r.forCondIncludes(fe.CondExpr, scope, ident)
+			var srcElem elemBinding
+			if i < len(srcElems) {
+				srcElem = srcElems[i]
+			}
+			include, condOK := r.forCondIncludesTolerant(fe.CondExpr, fe.ValVar, srcElem, scope, ident)
 			if !condOK {
 				return nil, nil, false
 			}
@@ -1073,6 +1077,174 @@ func (r *resolver) forCondIncludes(cond hclsyntax.Expression, scope instScope, i
 		return false, false
 	}
 	return b.True(), true
+}
+
+// forCondIncludesTolerant is [resolver.forCondIncludes] widened for the
+// idiom nearly every terraform-aws-modules block uses to gate an optional
+// sub-resource: `<provable> && lookup(v, "flag", default)`, or the try()
+// spelling `try(v.flag, default)`, where v is the comprehension's OWN value
+// variable and the SOURCE element v is bound to did not prove as a whole
+// value - it carries a resource or module-output reference elsewhere, so
+// evaluating v at all fails and [resolver.forCondIncludes] can never even
+// ask whether "flag" is set. corpus-alb-complete's own
+// `aws_lb_target_group_attachment.this` is exactly this shape: `for_each = {
+// for k, v in var.target_groups : k => v if local.create &&
+// lookup(v, "create_attachment", true) }`, where var.target_groups's
+// ex-instance element carries `target_id = aws_instance.this.id`.
+//
+// The fix does not need v's value. lookup()'s and try()'s own fallback only
+// matters when the key is ABSENT, and [resolver.objectLacksKey] already
+// proves absence from an object constructor's own KEYS - which are static
+// even when its VALUES are not - for exactly this purpose on the
+// each.value.<attr> side (eachvalue.go). Reused here for a for-expression's
+// filter clause instead of a resource argument's selection: if the source
+// element's own literal provably lacks "flag", lookup()/try() take their
+// default, and the default decides the filter without touching v at all.
+//
+// Boolean connectives compose by ordinary three-valued (Kleene) logic,
+// which is what lets `local.create && lookup(v, "create_attachment", true)`
+// decide as soon as local.create alone is known, and remain correct - never
+// merely permissive - when it is local.create instead that cannot be
+// proved: AND is false whenever either side decides false, whatever the
+// other side is, and OR is true whenever either side decides true. Neither
+// half is anything to do with what for_each ranges over, so the same
+// widening reaches every for-expression filter shaped this way, over any
+// resource type.
+//
+// elem is the comprehension's value-variable binding for THIS instance
+// (srcElems[i] in [resolver.forExprElems]): its own .expr/.scope/.modInst
+// are what [resolver.objectLacksKey] and the default's own evaluation need,
+// re-entering elem.modInst exactly as [resolver.eachValueDeferredParts]
+// does for the identical reason - the element's literal was WRITTEN in the
+// module that supplied it, most often the caller across a module-call
+// boundary, not the module the for_each itself lives in.
+func (r *resolver) forCondIncludesTolerant(cond hclsyntax.Expression, valVar string, elem elemBinding, scope instScope, ident configs.StaticIdentifier) (include, ok bool) {
+	if include, ok := r.forCondIncludes(cond, scope, ident); ok {
+		return include, true
+	}
+	switch e := cond.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		return r.forCondIncludesTolerant(e.Expression, valVar, elem, scope, ident)
+
+	case *hclsyntax.UnaryOpExpr:
+		if e.Op != hclsyntax.OpLogicalNot {
+			return false, false
+		}
+		inc, ok := r.forCondIncludesTolerant(e.Val, valVar, elem, scope, ident)
+		if !ok {
+			return false, false
+		}
+		return !inc, true
+
+	case *hclsyntax.BinaryOpExpr:
+		switch e.Op {
+		case hclsyntax.OpLogicalAnd:
+			lInc, lOK := r.forCondIncludesTolerant(e.LHS, valVar, elem, scope, ident)
+			if lOK && !lInc {
+				return false, true
+			}
+			rInc, rOK := r.forCondIncludesTolerant(e.RHS, valVar, elem, scope, ident)
+			if rOK && !rInc {
+				return false, true
+			}
+			if lOK && rOK {
+				return lInc && rInc, true
+			}
+			return false, false
+
+		case hclsyntax.OpLogicalOr:
+			lInc, lOK := r.forCondIncludesTolerant(e.LHS, valVar, elem, scope, ident)
+			if lOK && lInc {
+				return true, true
+			}
+			rInc, rOK := r.forCondIncludesTolerant(e.RHS, valVar, elem, scope, ident)
+			if rOK && rInc {
+				return true, true
+			}
+			if lOK && rOK {
+				return lInc || rInc, true
+			}
+			return false, false
+		}
+		return false, false
+	}
+
+	if valVar == "" || elem.expr == nil {
+		return false, false
+	}
+	name, defaultExpr, ok := r.lookupOrTryDefaultOverVar(cond, valVar, ident)
+	if !ok {
+		return false, false
+	}
+
+	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
+	if !r.enterModuleFor(elem.modInst) {
+		return false, false
+	}
+	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
+
+	if !r.objectLacksKey(elem.expr, elem.scope, name, ident, 0) {
+		return false, false
+	}
+	dv, diags := r.evalPure(defaultExpr, elem.scope, ident)
+	if diags.HasErrors() {
+		return false, false
+	}
+	b, err := convert.Convert(dv, cty.Bool)
+	if err != nil || b.IsNull() || !b.IsKnown() || b.IsMarked() {
+		return false, false
+	}
+	return b.True(), true
+}
+
+// lookupOrTryDefaultOverVar recognizes the two spellings of "does the
+// for-comprehension's value variable have this key, and if not use this
+// default" that [resolver.eachValueSelector] already reads for the
+// each.value side: lookup(<valVar>, "key", default) and
+// try(<valVar>.key, default). Anything else answers false, so a caller
+// falls back to whatever it had before.
+func (r *resolver) lookupOrTryDefaultOverVar(expr hclsyntax.Expression, valVar string, ident configs.StaticIdentifier) (key string, defaultExpr hclsyntax.Expression, ok bool) {
+	call, isCall := expr.(*hclsyntax.FunctionCallExpr)
+	if !isCall {
+		return "", nil, false
+	}
+	switch call.Name {
+	case "lookup":
+		if len(call.Args) != 3 || call.ExpandFinal {
+			return "", nil, false
+		}
+		trav, diags := hcl.AbsTraversalForExpr(call.Args[0])
+		if diags.HasErrors() || len(trav) != 1 || trav.RootName() != valVar {
+			return "", nil, false
+		}
+		kv, kdiags := r.evalPure(call.Args[1], instScope{}, ident)
+		if kdiags.HasErrors() {
+			return "", nil, false
+		}
+		// IsMarked before AsString, which panics rather than errors on a
+		// marked value - the same guard [resolver.eachValueSelector] carries
+		// for its own key argument.
+		ks, err := convert.Convert(kv, cty.String)
+		if err != nil || ks.IsNull() || !ks.IsKnown() || ks.IsMarked() {
+			return "", nil, false
+		}
+		return ks.AsString(), call.Args[2], true
+
+	case "try":
+		if len(call.Args) != 2 || call.ExpandFinal {
+			return "", nil, false
+		}
+		trav, diags := hcl.AbsTraversalForExpr(call.Args[0])
+		if diags.HasErrors() || len(trav) != 2 || trav.RootName() != valVar {
+			return "", nil, false
+		}
+		attr, isAttr := trav[1].(hcl.TraverseAttr)
+		if !isAttr {
+			return "", nil, false
+		}
+		return attr.Name, call.Args[1], true
+	}
+	return "", nil, false
 }
 
 // ---- the local-values fix ----------------------------------------------

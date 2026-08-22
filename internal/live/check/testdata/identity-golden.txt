@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=571 instances=1660
-# shape: class CONCRETE=802
-# shape: class NEEDS_DISCOVERY=703
-# shape: class PARENT_DERIVED=131
+# shape: dirs=573 instances=1672
+# shape: class CONCRETE=808
+# shape: class NEEDS_DISCOVERY=705
+# shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=f7c13a66a20560156efcd34085d6935a22fc0bf3cb1857fd220730bcd4d91f7a
+# shape: body-sha256=f8676745a455902cd0148fce6a5357519d8f5750fc3fc23466359aa799de7436
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -378,6 +378,18 @@ internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.seco
 internal/live/identity/testdata/module-foreach-conditional-arg	aws_iam_role.secondary["bob"]	CONCRETE	secondary-bob	name=secondary-bob
 internal/live/identity/testdata/module-foreach-conditional-arg	module.user["alice"].aws_iam_user.this	CONCRETE	primary-alice	name=primary-alice
 internal/live/identity/testdata/module-foreach-conditional-arg	module.user["bob"].aws_iam_user.this	CONCRETE	primary-bob	name=primary-bob
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	aws_iam_policy.imagebuilder	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	aws_iam_policy.other	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role.target["t1"]	CONCRETE	role-one	name=role-one
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role.target["t2"]	CONCRETE	role-two	name=role-two
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role_policy_attachment.byindex["ImageBuilder"]	PARENT_DERIVED	role-one/${aws_iam_policy.imagebuilder.arn}	policy_arn=${aws_iam_policy.imagebuilder.arn},role=role-one
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role_policy_attachment.byindex["Other"]	PARENT_DERIVED	role-two/${aws_iam_policy.other.arn}	policy_arn=${aws_iam_policy.other.arn},role=role-two
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role_policy_attachment.this["ImageBuilder"]	PARENT_DERIVED	gh-image-builder/${aws_iam_policy.imagebuilder.arn}	policy_arn=${aws_iam_policy.imagebuilder.arn},role=gh-image-builder
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_role_policy_attachment.this["Other"]	PARENT_DERIVED	gh-image-builder/${aws_iam_policy.other.arn}	policy_arn=${aws_iam_policy.other.arn},role=gh-image-builder
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_user.tag["ImageBuilder"]	CONCRETE	special-ImageBuilder	name=special-ImageBuilder
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value	module.attach.aws_iam_user.tag["Other"]	CONCRETE	plain-Other	name=plain-Other
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value/attach	aws_iam_role.target["t1"]	CONCRETE	role-one	name=role-one
+internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value/attach	aws_iam_role.target["t2"]	CONCRETE	role-two	name=role-two
 internal/live/identity/testdata/module-foreach-keyonly	module.user["alice"].aws_iam_user.this	CONCRETE	alice	name=alice
 internal/live/identity/testdata/module-foreach-keyonly	module.user["bob"].aws_iam_user.this	CONCRETE	bob	name=bob
 internal/live/identity/testdata/module-foreach-keyonly	module.user["carol"].aws_iam_user.this	CONCRETE	carol	name=carol

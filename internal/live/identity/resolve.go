@@ -2273,6 +2273,24 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 // Computed-flag boundary in [resolver.siblingLiteralExpr] - unchanged.
 func (r *resolver) resolveConditional(e *hclsyntax.ConditionalExpr, scope instScope, ident configs.StaticIdentifier) ([]Part, bool) {
 	if r.isSymbolic(e.Condition, scope) {
+		// [resolver.isSymbolic]'s each.value case is blanket over the WHOLE
+		// element, not over which attribute a particular reference selects:
+		// once a for_each element carries even one poisoned leaf anywhere,
+		// every each.value.<attr> reference into it - including a plain
+		// string literal sibling, terraform-aws-modules/alb's own
+		// `try(each.value.target_type, null) == "lambda"` guard among them -
+		// is symbolic here. eachValueCondTolerant tries the same structural
+		// resolution [resolver.eachValueSelect] already gives a bare
+		// each.value.<attr> reference, for the one operator shape a
+		// for_each'd module's own guards are actually built from: an
+		// equality test (composed with &&/||/!) against a literal. See its
+		// own doc.
+		if b, ok := r.eachValueCondTolerant(e.Condition, scope, ident); ok {
+			if b {
+				return r.resolveExpr(e.TrueResult, scope, ident)
+			}
+			return r.resolveExpr(e.FalseResult, scope, ident)
+		}
 		r.errorf(e.Condition.Range(), "Identity not resolvable from configuration",
 			"%s selects between branches of a conditional expression using another resource's value. "+
 				"A resource reference contributes to an identity only as a whole reference or as an interpolation in a string template; "+
@@ -2315,6 +2333,113 @@ func (r *resolver) resolveConditional(e *hclsyntax.ConditionalExpr, scope instSc
 		return r.resolveExpr(e.TrueResult, scope, ident)
 	}
 	return r.resolveExpr(e.FalseResult, scope, ident)
+}
+
+// eachValueCondTolerant answers a conditional's condition when
+// [resolver.isSymbolic] called it symbolic only because it reads
+// each.value.<attr> against a for_each element whose value never proved
+// (scope.eachValueExpr/eachValueDeferred, not scope.vars) - never for an
+// actual managed-resource reference, which isSymbolic reports the identical
+// way and which this leaves refused exactly as before.
+//
+// The shape it decides is an equality test, composed with &&, || and !:
+// terraform-aws-modules/alb's own `try(each.value.target_type, null) ==
+// "lambda" ? null : ...` is the corpus site, and the same guard - "is this
+// attribute equal to a literal" - is how nearly every terraform-aws-modules
+// block branches on one attribute of a for_each element. Each operand is
+// resolved through [resolver.resolveExpr], the SAME machinery a bare
+// each.value.<attr> identity argument already uses (eachvalue.go), so a
+// truly unresolvable operand - the attribute actually is a sibling
+// reference, not a literal - still leaves this undecided and the caller's
+// refusal stands; only a literal comparison, previously blocked by nothing
+// but the blanket each.value blanket check, newly decides.
+//
+// Boolean connectives compose by ordinary three-valued (Kleene) logic, the
+// same rule [resolver.forCondIncludesTolerant] uses for a for-expression's
+// own filter clause: AND is false whenever either side decides false
+// whatever the other side is, and OR is true whenever either side decides
+// true.
+func (r *resolver) eachValueCondTolerant(cond hclsyntax.Expression, scope instScope, ident configs.StaticIdentifier) (bool, bool) {
+	switch e := cond.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		return r.eachValueCondTolerant(e.Expression, scope, ident)
+
+	case *hclsyntax.UnaryOpExpr:
+		if e.Op != hclsyntax.OpLogicalNot {
+			return false, false
+		}
+		b, ok := r.eachValueCondTolerant(e.Val, scope, ident)
+		if !ok {
+			return false, false
+		}
+		return !b, true
+
+	case *hclsyntax.BinaryOpExpr:
+		switch e.Op {
+		case hclsyntax.OpEqual, hclsyntax.OpNotEqual:
+			lv, lok := r.eachValueCondOperand(e.LHS, scope, ident)
+			rv, rok := r.eachValueCondOperand(e.RHS, scope, ident)
+			if !lok || !rok {
+				return false, false
+			}
+			eq := lv.RawEquals(rv)
+			if e.Op == hclsyntax.OpNotEqual {
+				return !eq, true
+			}
+			return eq, true
+
+		case hclsyntax.OpLogicalAnd:
+			lInc, lOK := r.eachValueCondTolerant(e.LHS, scope, ident)
+			if lOK && !lInc {
+				return false, true
+			}
+			rInc, rOK := r.eachValueCondTolerant(e.RHS, scope, ident)
+			if rOK && !rInc {
+				return false, true
+			}
+			if lOK && rOK {
+				return lInc && rInc, true
+			}
+			return false, false
+
+		case hclsyntax.OpLogicalOr:
+			lInc, lOK := r.eachValueCondTolerant(e.LHS, scope, ident)
+			if lOK && lInc {
+				return true, true
+			}
+			rInc, rOK := r.eachValueCondTolerant(e.RHS, scope, ident)
+			if rOK && rInc {
+				return true, true
+			}
+			if lOK && rOK {
+				return lInc || rInc, true
+			}
+			return false, false
+		}
+	}
+	return false, false
+}
+
+// eachValueCondOperand resolves one side of an equality test inside
+// [resolver.eachValueCondTolerant]. A plain literal evaluates as itself
+// through the ordinary strict evaluator; anything symbolic - most often
+// try(each.value.attr, fallback) or a bare each.value.attr - is resolved
+// through [resolver.resolveExpr], the same entry point every other identity
+// argument uses, and taken only when it lands on exactly one Literal part:
+// which branch a ternary takes has to be fully known, never a Formula
+// deferred on a sibling's own apply.
+func (r *resolver) eachValueCondOperand(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) (cty.Value, bool) {
+	if v, diags := r.evalPure(expr, scope, ident); !diags.HasErrors() && !v.IsNull() && v.IsWhollyKnown() && !v.IsMarked() {
+		return v, true
+	}
+	mark, sibMark := len(r.diags), len(r.pendingSiblingApply)
+	parts, ok := r.resolveExpr(expr, scope, ident)
+	r.diags = r.diags[:mark]
+	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+	if !ok || len(parts) != 1 || parts[0].Parent != nil {
+		return cty.NilVal, false
+	}
+	return cty.StringVal(parts[0].Literal), true
 }
 
 // resolveIndexedTraversal decomposes a reference into another resource
@@ -2379,9 +2504,29 @@ func (r *resolver) resolveIndexedTraversal(expr hcl.Expression, scope instScope,
 		return nil, false, true
 	}
 
+	mark := len(r.diags)
 	keyVal, keyOK := r.evalStatic(idx.Key, scope, ident)
 	if !keyOK {
-		// evalStatic already recorded why.
+		// The same each.value-is-blanket-symbolic wall
+		// [resolver.eachValueCondTolerant] answers for a conditional's own
+		// condition: idx.Key is very often a plain LITERAL sibling of a
+		// for_each element that carries an unrelated poisoned leaf
+		// elsewhere - terraform-aws-modules/alb's own
+		// aws_lb_target_group.this[each.value.target_group_key].arn is
+		// exactly this shape (target_group_key is a plain string in every
+		// element of var.additional_target_group_attachments; target_id, a
+		// sibling attribute, is the poisoned one). Reuse
+		// [resolver.eachValueCondOperand]'s structural resolution - the
+		// same one-Literal-part bar it already enforces - rather than
+		// leave a computed index refused merely because SOME other
+		// attribute of the same element is unprovable.
+		if v, ok := r.eachValueCondOperand(idx.Key, scope, ident); ok {
+			r.diags = r.diags[:mark]
+			keyVal, keyOK = v, true
+		}
+	}
+	if !keyOK {
+		// evalStatic (or the fallback above) already recorded why.
 		return nil, false, true
 	}
 	key, keyIsValid := indexKeyValue(keyVal)

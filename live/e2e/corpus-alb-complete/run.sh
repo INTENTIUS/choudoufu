@@ -179,12 +179,12 @@ set -uo pipefail
 #   estate and the same live floci: pre-fix, 1 diagnostic, all of it the
 #   markerless-type refusal; fixed, 0 of those and 20 others.
 #
-#   The 20 are HANDOFF's first row - choudoufu refuses where stock proceeds,
-#   which is a defect - and they are the config-language subset wall, not a
-#   type-coverage one. Every resource they BLOCK is UNTAGGABLE - six of the
-#   twenty are reported at the module call rather than at a resource, and
-#   name the module input variable they poison. That is the
-#   association/attachment/record family, whose identity is a composite
+#   The 20 were HANDOFF's first row - choudoufu refuses where stock
+#   proceeds, which is a defect - and they were the config-language subset
+#   wall, not a type-coverage one. Every resource they BLOCK is UNTAGGABLE -
+#   six of the twenty were reported at the module call rather than at a
+#   resource, and named the module input variable they poisoned. That is
+#   the association/attachment/record family, whose identity is a composite
 #   of its parents and so must be evaluable from configuration alone,
 #   because there is no tag on it to recover it from. The taggable resources
 #   over the very same expressions do NOT refuse - module.alb's
@@ -192,45 +192,118 @@ set -uo pipefail
 #   var.target_groups as aws_lb_target_group_attachment.this at line 565 and
 #   is silent, because it carries the tofu-address stage 2 wrote.
 #
-#   Two independent root causes:
+#   Two independent root causes, A (FIXED for 10 of its 12 sites,
+#   2026-08-22) and B (untouched):
 #
 #     A. A resource or module-output reference nested inside a module
-#        INPUT's object or list literal. 12 of the 20 diagnostics, across
-#        three of module.alb's inputs:
+#        INPUT's object or list literal. 12 of the original 20, across
+#        three of module.alb's inputs (var.target_groups's target_id,
+#        var.additional_target_group_attachments's target_id,
+#        var.listeners's additional_certificate_arns). The map keys are all
+#        static - only the leaves are poisoned - and internal/configs'
+#        module-call variable evaluation (EvaluateStructural,
+#        module_call.go) ALREADY substitutes an unknown for a poisoned leaf
+#        rather than refusing the whole variable, exactly as
+#        internal/live/identity/partialargs.go's own header describes for
+#        the direct-argument path. What that substitution does NOT survive
+#        is internal/live/identity's OWN, separate, syntax-level chase
+#        (localvalue.go/eachvalue.go), which exists to recover an
+#        each.value.<attr> selection when the STATIC evaluator's substituted
+#        value is not merely partially unknown but the whole for_each
+#        source failed to evaluate outright - the shape #178/#260/#301/#354
+#        already built machinery for. Three gaps in that chase, all general
+#        - none names a concrete aws_* type - and none is #375's own
+#        surface (internal/configs' module-call variable path), which
+#        turned out not to be where this wall actually lived:
 #
-#          var.target_groups          - `target_id = aws_instance.this.id`
-#                                       and `target_id =
-#                                       module.lambda_*.lambda_function_arn`
-#          var.additional_target_group_attachments
-#                                     - `target_id = aws_instance.other.id`
-#          var.listeners              - `additional_certificate_arns =
-#                                       [module.wildcard_cert.acm_certificate_arn]`
+#          1. A for-expression's own FILTER clause reading the whole
+#             for_each element (`{ for k, v in var.target_groups : k => v if
+#             local.create && lookup(v, "create_attachment", true) }`,
+#             module.alb's own aws_lb_target_group_attachment.this for_each)
+#             needed v's whole value to decide inclusion, so one poisoned
+#             element refused the WHOLE comprehension - discarding the
+#             per-key element EXPRESSIONS #260's machinery already carries
+#             forward for a bare each.value.<attr> selection, before any of
+#             them got a chance to be selected into.
+#             resolver.forCondIncludesTolerant (localvalue.go) widens the
+#             filter to fall back on exactly the same each.value absence
+#             proof (resolver.objectLacksKey) lookup()/try() already use,
+#             composing &&/||/! by ordinary three-valued (Kleene) logic so a
+#             filter half the condition cannot prove still decides when the
+#             other half can.
+#          2. Once (1) let the for_each produce instances again, a
+#             CONDITIONAL's own condition (`try(each.value.target_type,
+#             null) == "lambda" ? null : ...`,
+#             aws_lb_target_group_attachment.this's port argument) refused
+#             outright merely because it read each.value.<attr> at all -
+#             resolver.isSymbolic's each.value case is blanket over the
+#             WHOLE element once one leaf is unprovable, not over which
+#             attribute a particular reference selects, even when that
+#             attribute (target_type here) is a plain literal sitting right
+#             beside the poisoned one. resolver.eachValueCondTolerant
+#             resolves an equality test (composed the same &&/||/! way)
+#             through the ordinary resolveExpr entry point instead of
+#             refusing on sight.
+#          3. An INDEXED reference into a DIFFERENT resource, where the
+#             index itself is each.value.<attr>
+#             (aws_lb_target_group.this[each.value.target_group_key].arn,
+#             aws_lb_target_group_attachment.additional's target_group_arn)
+#             hit the identical wall one level down, inside
+#             resolver.resolveIndexedTraversal's own strict evaluation of
+#             the index expression. Same fallback, reused rather than
+#             reimplemented: resolveIndexedTraversal now tries
+#             eachValueCondOperand (built for (2)) when the strict
+#             evaluation of the index fails.
 #
-#        Each whole variable then reads as unavailable inside module.alb, so
-#        everything downstream of it collapses: the for_each on
-#        aws_lb_target_group_attachment.this, local.lambda_target_groups and
-#        the aws_lambda_permission.this for_each built from it,
-#        aws_lb_target_group_attachment.additional's target_group_arn and
-#        port, and aws_lb_listener_certificate.this's certificate_arn.
+#        Verified by a real run against the same migrated estate and the
+#        same live floci (not merely the new unit tests
+#        TestModuleForeachFilterOverPoisonedValueResolves pins by value):
+#        target_id (x3, aws_lb_target_group_attachment.this), port (x1,
+#        the same resource's "ex-instance" key, whose target_type is not
+#        "lambda"), target_group_arn and port (both,
+#        aws_lb_target_group_attachment.additional) all stopped refusing.
+#        Two of the twelve remain, for reasons distinct from all three
+#        fixes above and NOT attempted here:
 #
-#        Note what IS available: the map keys are all static - only the
-#        leaves are poisoned - and every poisoned leaf is an identity
-#        attribute of a resource stage 2 successfully stamped
-#        (aws_instance.this.id, aws_lambda_function.this[0].arn,
-#        aws_acm_certificate.this[0].arn). internal/live/identity/
-#        partialargs.go already substitutes a poisoned leaf inside an object
-#        constructor on the direct-argument path. The gap is the module-call
-#        variable path in internal/configs (module_call.go,
-#        static_evaluator.go, static_scope.go), which is the same surface
-#        choudoufu #375 names for the sibling shape on the module-OUTPUT
-#        side.
+#          - var.listeners's additional_certificate_arns
+#            (module.wildcard_cert.acm_certificate_arn, a MODULE OUTPUT
+#            reference rather than a resource reference) still refuses
+#            aws_lb_listener_certificate.this's certificate_arn. The module
+#            output itself is
+#            `try(aws_acm_certificate_validation.this[0].certificate_arn,
+#            aws_acm_certificate.this[0].arn, "")`
+#            (terraform-aws-modules/acm's own outputs.tf) - a try() whose
+#            FIRST candidate names aws_acm_certificate_validation, a type
+#            this fork's identity resolution does not model at all (it is
+#            "admitted by the provider's own identity schema" per the
+#            warning below, not by this fork's own table), so the try()
+#            never reaches its second, resolvable candidate. Whether an
+#            arm naming an unmodeled type should be treated as absent
+#            (fall through) or unresolvable (refuse, the current and
+#            conservative answer, which eachvalue.go's own doc explains the
+#            hazard of getting backwards) is its own design question, not a
+#            widening of the three fixes above.
+#          - local.lambda_target_groups's value clause
+#            (`merge(v, { lambda_function_name = split(":", v.target_id)[6]
+#            })`, feeding aws_lambda_permission.this's function_name) is not
+#            isBareVar (forExprElems, localvalue.go): it is a FUNCTION CALL
+#            over v, not v itself, so even once (1) lets the comprehension's
+#            FILTER decide, resolver.loopVarUnbound still drops the value
+#            clause's own expression because v is read inside it and
+#            nothing here binds v as a value. Recovering this needs
+#            substituting the source element's own structural expression for
+#            v INSIDE the merge() call syntactically - a genuinely new piece
+#            of machinery this package does not have anywhere today (every
+#            existing chase walks INTO a known container shape; none
+#            rewrites one), and it is its own unit.
 #
 #     B. A server-produced attribute driving an untaggable child's identity.
-#        8 of the 20 diagnostics, 4 for each of the two certificate module
-#        instances. terraform-aws-modules/acm's local.validation_domains is
-#        built from aws_acm_certificate.this[0].domain_validation_options,
-#        and aws_route53_record.validation[0]'s name and type are elements
-#        of it. domain_validation_options is minted by ACM; no static
+#        8 of the original 20, 4 for each of the two certificate module
+#        instances, untouched by this pass. terraform-aws-modules/acm's
+#        local.validation_domains is built from
+#        aws_acm_certificate.this[0].domain_validation_options, and
+#        aws_route53_record.validation[0]'s name and type are elements of
+#        it. domain_validation_options is minted by ACM; no static
 #        evaluation can produce it, and stock only manages because it reads
 #        it back out of the state file this stage deliberately deleted. The
 #        answer for this shape is the record rung (HANDOFF's fourth row,
@@ -238,15 +311,15 @@ set -uo pipefail
 #        every untaggable instance rather than recording one, so replanning
 #        from nothing has nothing to bind these records to.
 #
-#   Neither is attempted in this pass. Both touch load-bearing surfaces
-#   (internal/configs' static evaluation for A, live-import's skip/record
-#   split for B), and neither can satisfy HANDOFF's safety rule from this
-#   script alone - the run never gets far enough to render the affected
-#   identities, so there is no value to assert. Each is its own unit.
+#   B is not attempted in this pass: it touches live-import's skip/record
+#   split, a different load-bearing surface from A's, and cannot satisfy
+#   HANDOFF's safety rule from this script alone - the run never gets far
+#   enough to render the affected identities, so there is no value to
+#   assert. It is its own unit.
 #
 #   Checked against #313 (corpus-security-group-complete's
 #   data.aws_availability_zones-feeding-a-nested-module-for_each wall):
-#   none of the 20 diagnostics mentions data.aws_availability_zones.
+#   none of the 12 remaining diagnostics mentions data.aws_availability_zones.
 #   Different wall; #313 does not reach this estate.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
@@ -271,7 +344,8 @@ set -uo pipefail
 #                          than skipped) and correctly skips 28. Asserted
 #                          against live-import's own report AND confirmed
 #                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at 20 diagnostics in the
+#   stage 3  test plan     BLOCKED, for real, at 12 diagnostics (was 20; 10
+#                          of family A's 12 sites fixed 2026-08-22) in the
 #                          config-language subset, all of them on untaggable
 #                          resources, in the two families above. #309's
 #                          markerless-type site is GONE and stage 3 asserts
@@ -640,35 +714,40 @@ grep -qF 'aws_cognito_user_pool_client' <<< "$PLAN_OUT" \
 log "  3a  0 markerless-type refusals; aws_cognito_user_pool_client does not"
 log "      appear in live-plan's output at all. #309's last site is gone."
 
-# ── 3b. what the cleared wall was masking ─────────────────────────────────
+# ── 3b. what the cleared wall was masking, and what's fixed since ─────────
 # internal/command/live_plan.go runs lint.CheckWith first and returns on the
 # first error-severity issue, so while that one refusal stood it was the only
 # diagnostic this estate could print. Measured 2026-08-22 against the same
 # migrated estate and the same live floci: the pre-fix binary (80666bc1c0^)
-# printed 1 diagnostic and nothing else; the fixed one prints these 20.
+# printed 1 diagnostic and nothing else; the markerless-type fix alone
+# printed 20 more; this pass's own fix (below) is down to these 12.
 #
-# All 20 are HANDOFF's first row - choudoufu refuses where stock proceeds,
-# which is a defect - and every resource they BLOCK is UNTAGGABLE, whose
-# identity has to come from configuration because there is no tag to recover
-# it from. Six of the twenty are reported at the module call rather than at a
-# resource, and name the module input variable they poison.
+# All 12 are still HANDOFF's first row - choudoufu refuses where stock
+# proceeds, which is a defect - and every resource they BLOCK is UNTAGGABLE,
+# whose identity has to come from configuration because there is no tag to
+# recover it from.
 # Two independent root causes, A (a resource or module-output reference
-# nested inside a module input's object/list literal, 12) and B (a
-# server-produced attribute driving an untaggable child's identity, 8). The
-# header carries the full trace of both.
-WANT_DIAG_N=20
+# nested inside a module input's object/list literal - 10 of its original 12
+# sites FIXED 2026-08-22, 2 remaining) and B (a server-produced attribute
+# driving an untaggable child's identity, 8, untouched). The header carries
+# the full trace of both, including what the three general fixes for A were
+# and why the remaining 2 are distinct from them.
+WANT_DIAG_N=12
 declare -a WANT_SITES=(
-  # A: the poisoned leaves, at the module call
-  'Unable to use aws_instance.this in static context'
-  'module.lambda_with_allowed_triggers.lambda_function_arn'
-  'module.lambda_without_allowed_triggers.lambda_function_arn'
-  # A: what collapses inside module.alb once the variable is unavailable
-  'module.alb:aws_lb_target_group_attachment.this for_each depends on'
-  'module.alb:aws_lambda_permission.this for_each depends on'
-  'module.alb:local.lambda_target_groups depends on'
-  'module.alb.aws_lb_target_group_attachment.additional["ex-instance-other"].target_group_arn'
-  'module.alb.aws_lb_target_group_attachment.additional["ex-instance-other"].port'
+  # A, still refused - 2 of the original 12; see header for what fixed the
+  # other 10 (a for-expression filter clause, a conditional's own condition,
+  # and an indexed reference into another resource, all three widening
+  # each.value's existing #260/#301/#354 machinery, none naming a concrete
+  # aws_* type) and for what is different about these two.
   'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
+  'module.alb.aws_lambda_permission.this["ex-lambda-without-trigger"].function_name'
+  # Adjacent to A, exposed only once the fix above stopped refusing the
+  # WHOLE resource outright: a genuinely null port for a lambda-type target,
+  # which AWS's own API has none of. Not a poisoned-leaf collapse and not
+  # attempted here - see whether this should be an omittable identity
+  # component rather than a hard refusal is its own question.
+  'module.alb.aws_lb_target_group_attachment.this["ex-lambda-with-trigger"].port'
+  'module.alb.aws_lb_target_group_attachment.this["ex-lambda-without-trigger"].port'
   # B: the ACM DNS-validation records, once per certificate module instance
   'Unable to use aws_acm_certificate.this[0] in static context'
   'module.acm.aws_route53_record.validation[0].name'
@@ -709,11 +788,10 @@ while read -r want summary; do
   got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
   [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
 done <<'SUMMARIES'
-7 Dynamic value in static context
-7 Unable to compute static value
-4 Module output not supported in static context
-1 Non-static identity argument
-1 Identity not resolvable from configuration
+4 Dynamic value in static context
+2 Non-static identity argument
+2 Null identity argument
+4 Unable to compute static value
 SUMMARIES
 
 # The asymmetry that says this is the untaggable family and not a
@@ -733,7 +811,7 @@ log "diagnostics on untaggable resources (families A and B, see header). The"
 log "markerless-type wall that used to be the only thing this estate could"
 log "print is gone, and these were behind it."
 log ""
-gauntlet_stage test_plan fail "the markerless-type wall is GONE: identity.LocatedType's credential veto was narrowed to the recorded identity (commit 80666bc1c0, #365 population 2) and aws_cognito_user_pool_client's identity is user_pool_id/id, which never touched client_secret; 0 markerless-type refusals and the type's name does not appear in the output at all. lint.CheckWith returns on the first error-severity issue, so that one refusal was masking everything else: measured against the same migrated estate and the same live floci, the pre-fix binary printed 1 diagnostic and the fixed one prints $DIAG_N. All $DIAG_N are HANDOFF's first row (choudoufu refuses where stock proceeds) and every resource they BLOCK is UNTAGGABLE (six of the twenty are reported at the module call rather than at a resource, and name the module input variable they poison). Family A, 12: a resource or module-output reference nested inside a module input's object/list literal (aws_instance.this.id and module.lambda_*.lambda_function_arn in var.target_groups, aws_instance.other.id in var.additional_target_group_attachments, module.wildcard_cert.acm_certificate_arn in var.listeners) makes the whole variable unavailable inside module.alb, collapsing aws_lb_target_group_attachment.this's for_each, local.lambda_target_groups and aws_lambda_permission.this's for_each, aws_lb_target_group_attachment.additional's target_group_arn and port, and aws_lb_listener_certificate.this's certificate_arn - the map keys are all static and every poisoned leaf is an identity attribute of a resource stage 2 stamped, so this is the module-call variable path in internal/configs, the same surface #375 names for the module-OUTPUT side. Family B, 8: aws_acm_certificate.this[0].domain_validation_options is minted by ACM and drives aws_route53_record.validation[0]'s name and type in both certificate module instances; no evaluator can produce it, so the answer is the record rung (#364) and live-import's SKIP-every-untaggable behaviour is what has to change. Neither attempted here; each is its own unit"
+gauntlet_stage test_plan fail "the markerless-type wall is GONE (0 refusals, aws_cognito_user_pool_client's name absent from the output) and family A's module-input-poisoning wall is down from 20 to 12 diagnostics: measured against the same migrated estate and the same live floci, the pre-fix binary printed 1 diagnostic, the markerless-type fix alone printed 20 more, and this pass's own generic widening of internal/live/identity's each.value machinery (resolver.forCondIncludesTolerant for a for-expression's own filter clause, resolver.eachValueCondTolerant for a conditional's own condition, resolver.resolveIndexedTraversal's reuse of the same fallback for an indexed reference into another resource - none names a concrete aws_* type, composed by ordinary three-valued/Kleene logic, verified by TestModuleForeachFilterOverPoisonedValueResolves and by this real run) is down to these 12: target_id (x3), the additional resource's target_group_arn and port, and the this resource's port for a non-lambda target all stopped refusing. 2 of family A's original 12 sites remain, for two DISTINCT reasons neither of the three fixes reaches - var.listeners's certificate_arn refuses because the module OUTPUT it reads (terraform-aws-modules/acm's own try(aws_acm_certificate_validation.this[0].certificate_arn, aws_acm_certificate.this[0].arn, \"\")) tries a type (aws_acm_certificate_validation) this fork's identity resolution does not model before its resolvable second candidate, and local.lambda_target_groups's function_name is dropped because its value clause is merge(v, {...}), a function call over v rather than v itself, which needs a not-yet-built substitution of v's own structural expression into the call. Family B, 8, untouched: aws_acm_certificate.this[0].domain_validation_options is minted by ACM and drives aws_route53_record.validation[0]'s name and type in both certificate module instances; no evaluator can produce it, so the answer is the record rung (#364) and live-import's SKIP-every-untaggable behaviour is what has to change. Neither of the 2 remaining family-A sites nor family B is attempted here; each is its own unit"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
