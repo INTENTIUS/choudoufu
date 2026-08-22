@@ -9,12 +9,13 @@ commit. Adding one is a manifest entry and a script, and the site picks it up
 on the next run.
 
 ```
-go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> -source "<one line>"
+go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> [-core -reason "..."] -source "<one line>"
 ```
 
 That writes the entry and a script stub at `live/e2e/<name>/run.sh` with every
 stage wired to the protocol and marked `not_run`. Fill the stub in, using the
-script of a similar estate as the template, then:
+script of a similar estate as the template
+(`live/e2e/corpus-vpc-complete/run.sh` is the fullest), then:
 
 ```
 go run ./tools/gauntlet run <name>     # runs it against the emulator, records verdicts

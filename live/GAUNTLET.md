@@ -12,6 +12,11 @@ The promise it measures: if OpenTofu runs an estate, choudoufu runs it too.
 Migration from a stock state file is lossless and a greenfield apply is
 equivalent. Everything below is that sentence made checkable.
 
+This page defines the gauntlet; it does not walk you through running it.
+The two procedures are rendered from this same tool as their own pages:
+adding an estate is `site/content/docs/progress/add-an-estate.md`, and
+contributing compute is `site/content/docs/progress/contribute.md`.
+
 ## The two numbers
 
 An estate is **clear** when every active stage passes. The first bar is clear
@@ -159,23 +164,9 @@ that never prints the protocol line is legacy: the runner records its exit
 code and leaves the imported verdicts as they are. The runner is
 `go run ./tools/gauntlet run [<name>...]`, logs land in `live/gauntlet/logs/`.
 
-## Adding an estate
+## The manifest entry
 
-```
-go run ./tools/gauntlet add <name> <repo-url> <tag-or-commit> -lane <lane> [-core -reason "..."] -source "<one line>"
-```
-
-That writes the manifest entry in `live/gauntlet/estates.json` and a script stub at
-`live/e2e/<name>/run.sh` with every stage wired to the protocol and marked
-`not_run`. Fill the stub in (an existing script for a similar estate is the
-best template; `live/e2e/corpus-vpc-complete/run.sh` is the fullest), run
-`go run ./tools/gauntlet run <name>`, then `go run ./tools/gauntlet render`, and
-commit the entry, the script, the artifact and the rendered docs. CI runs
-exactly the same command.
-
-Lanes: terraform-popular, opentofu-native, reference, published-deployment.
-
-### Manifest entry
+Every estate is one entry in `live/gauntlet/estates.json`:
 
 ```json
 {
@@ -192,6 +183,8 @@ Lanes: terraform-popular, opentofu-native, reference, published-deployment.
 `set` is `core` or `growing`; `reason` is required for core; `script` defaults
 to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the
 `reference` lane.
+
+Lanes: terraform-popular, opentofu-native, reference, published-deployment.
 
 ## The core set
 
@@ -227,37 +220,6 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-xancloud-iac` | opentofu-native | v0.2.0 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
 | `reference-ec2-vpc` | reference |  | the plainest hand-written reference shape, kept in this repository |
 
-## Contributing compute
-
-Anyone can move the bars by spending tokens rather than time. The loop is
-deterministic, so it needs no coordinator:
-
-```
-go run ./tools/gauntlet next        # the next unit: an estate and the first active stage it does not pass
-just contribute [max-usd]           # one worker run on that unit, in a fresh worktree, with your own key
-```
-
-`just contribute` runs Claude Code headless under the brief in
-`.claude/agents/gauntlet-worker.md`, which does exactly one unit: run the estate, classify every
-difference from stock with the four-row table in HANDOFF.md, fix it generically,
-re-run, render, and open a pull request whose title carries the unit ID. It
-never merges. The same thing runs on GitHub Actions from your fork:
-`.github/workflows/contribute.yml` is `workflow_dispatch`, reads your fork's
-`ANTHROPIC_API_KEY` secret, and opens the pull request against this repository when
-a `CONTRIBUTE_TOKEN` with pull-request scope is present, or prints the compare URL
-when it is not. There is no hosted path; every worker runs under the key of
-whoever started it.
-
-Two contributors picking the same unit is expected. The worker checks for an
-open pull request carrying the unit ID before starting and takes the next unit
-if one exists. A pull request that changes only the artifact and the rendered
-docs (a re-run that moved verdicts) is merged automatically once CI passes
-(`.github/workflows/automerge-artifact.yml`); anything that changes code waits for a
-maintainer.
-
-Providers are lanes. A GCP or Azure estate enters the same manifest with its
-own lane, runs the same stages against its own emulator, and `next` picks it up
-like any other; an emulator gap is a unit in the emulator's repository.
 ## The artifact
 
 `live/gauntlet.json` carries `schema`, `commit`, `emulator`, `generated`, the `stages`
