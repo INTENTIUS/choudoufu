@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -464,6 +465,13 @@ func TestLocatedTypePopulation(t *testing.T) {
 //     secret) does not survive, and admitting such a type trades a refusal
 //     for a silent loss stock does not have.
 //
+// The per-attribute facts each line now carries are
+// [sensitiveAttrFacts]', added when that last bullet was measured for the
+// whole population rather than for one type - see
+// [TestNoSchemaFactSeparatesASurvivingSecretFromALostOne] for what the
+// measurement found and why the facts on this line, which are every fact a
+// schema has to offer, do not decide the question.
+//
 // It names no resource type; every name in its output is derived.
 func credentialWallDetail(schemas map[string]providers.Schema, credential []string) []string {
 	out := make([]string, 0, len(credential))
@@ -478,17 +486,11 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 				sensitive = append(sensitive, "?")
 			}
 		})
-		var topSensitive []string
-		for attrName, a := range schema.Block.Attributes {
-			if a != nil && a.Sensitive && !a.Deprecated {
-				topSensitive = append(topSensitive, attrName)
-			}
-		}
-		sort.Strings(topSensitive)
+		topSensitive := sensitiveAttrFacts(schema.Block)
 
 		plan, recordable := LocatedIdentityPlanFor(name, schema)
 		if !recordable {
-			out = append(out, name+": identity not recordable, so the credential veto is not the sole wall; top-level sensitive "+fmt.Sprint(topSensitive))
+			out = append(out, name+": identity not recordable, so the credential veto is not the sole wall; sensitive "+fmt.Sprint(topSensitive))
 			continue
 		}
 		var recorded []string
@@ -511,9 +513,238 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 		if identitySensitive {
 			bucket = "identity itself sensitive"
 		}
-		out = append(out, fmt.Sprintf("%s: sole wall, %s; would record %v; top-level sensitive %v (%d sensitive attributes in all)",
+		out = append(out, fmt.Sprintf("%s: sole wall, %s; would record %v; sensitive %v (%d sensitive attributes in all)",
 			name, bucket, recorded, topSensitive, len(sensitive)))
 	}
 	sort.Strings(out)
 	return out
+}
+
+// sensitiveAttrFacts describes every attribute of b the provider marks
+// Sensitive and does not mark Deprecated, with the three schema facts that
+// bear on what a located record could do about it:
+//
+//	settable   the attribute is Required or Optional, so a CONFIGURATION
+//	           holds the value and a prior that lost it is a plan
+//	           difference rather than a lost value.
+//	minted     the attribute is Computed and nothing else, so the only copy
+//	           that ever existed outside the cloud is the one in prior
+//	           state. Stock keeps that copy in its state file.
+//	top/nested whether internal/live/projection's residue mechanism could
+//	           carry it at all. residueCandidates reads top-level
+//	           attributes only, so a sensitive value inside a block or a
+//	           nested object type is out of every record's reach.
+//	write-only the plugin protocol forbids a provider ever returning it, so
+//	           no mechanism on either side can check a stored copy against
+//	           the object it describes.
+//
+// The path is the attribute's own, dotted, so a nested one is legible as
+// nested. It names no resource type.
+func sensitiveAttrFacts(b *configschema.Block) []string {
+	var out []string
+	var walkBlock func(*configschema.Block, string, bool)
+	var walkObj func(*configschema.Object, string)
+
+	describe := func(path string, a *configschema.Attribute, top bool) {
+		kind := "minted"
+		if a.Required || a.Optional {
+			kind = "settable"
+		}
+		where := "nested"
+		if top {
+			where = "top"
+		}
+		if a.WriteOnly {
+			where += ",write-only"
+		}
+		out = append(out, fmt.Sprintf("%s(%s,%s)", path, kind, where))
+	}
+	walkObj = func(o *configschema.Object, prefix string) {
+		if o == nil {
+			return
+		}
+		for name, a := range o.Attributes {
+			if a == nil {
+				continue
+			}
+			if a.Sensitive && !a.Deprecated {
+				describe(prefix+name, a, false)
+			}
+			walkObj(a.NestedType, prefix+name+".")
+		}
+	}
+	walkBlock = func(blk *configschema.Block, prefix string, top bool) {
+		if blk == nil {
+			return
+		}
+		for name, a := range blk.Attributes {
+			if a == nil {
+				continue
+			}
+			if a.Sensitive && !a.Deprecated {
+				describe(prefix+name, a, top)
+			}
+			walkObj(a.NestedType, prefix+name+".")
+		}
+		for name, nested := range blk.BlockTypes {
+			if nested == nil {
+				continue
+			}
+			walkBlock(&nested.Block, prefix+name+".", false)
+		}
+	}
+	walkBlock(b, "", true)
+	sort.Strings(out)
+	return out
+}
+
+// TestNoSchemaFactSeparatesASurvivingSecretFromALostOne is the measurement
+// GitHub issue #365's slice 3 named as the one thing missing before
+// [LocatedType]'s condition 2 could be narrowed, taken and reported here
+// because its answer is a refutation rather than a go-ahead.
+//
+// # The question
+//
+// A located record holds an identity and nothing else. So for every type
+// [credentialMaterial] refuses whose IDENTITY is clean - nine of the eleven
+// at hashicorp/aws 6.59.0 - the veto is only earning its keep if the type's
+// sensitive attributes would be LOST by the import-and-read a located
+// instance is rebuilt from. Where the provider's own read returns the value,
+// nothing is lost, the refusal buys nothing, and the veto is over-broad.
+// That was the hypothesis, and it is a fact about a provider's Read at
+// runtime, not about a schema.
+//
+// # The measurement
+//
+// Taken directly, on 2026-08-22, with STOCK terraform, the pinned floci
+// image and hashicorp/aws 6.59.0. Apply the resource; null its sensitive
+// attributes in the state file - which is exactly the prior a located
+// instance is rebuilt with, internal/live/projection's identityOnly; run
+// `terraform apply -refresh-only`; read the state back:
+//
+//	aws_cognito_user_pool_client.client_secret       RESTORED by the read
+//	aws_appsync_api_key.key                          RESTORED by the read
+//	aws_appconfig_hosted_configuration_version
+//	  .content                                       RESTORED by the read
+//	aws_iam_access_key.secret                        stayed null
+//	aws_iam_access_key.ses_smtp_password_v4          stayed null
+//	aws_codebuild_source_credential.token            stayed null
+//
+// # What it refutes
+//
+// Every one of those six is Sensitive and not Deprecated, and the schema
+// facts that could distinguish them do not:
+//
+//	                          read restores it   read loses it
+//	Computed only (minted)    client_secret      secret
+//	Required (settable)       content            token
+//
+// All four cells are occupied. So no predicate over the schema - not
+// Sensitive, not Computed-versus-settable, not top-level-versus-nested, not
+// the identity check [sensitiveIdentityAttr] already applies - can tell a
+// type whose secret survives the round trip from one whose secret does not.
+// The property that decides it is provider Read behaviour, which the
+// protocol gives a schema no way to state.
+//
+// Narrowing the veto to the recorded identity, the shape slice 3 named,
+// would therefore admit aws_iam_access_key on exactly the same evidence
+// that admits aws_cognito_user_pool_client, and lose its secret where a
+// stock state file keeps it.
+//
+// The settable half is worse than a lost value and that was not predicted:
+// with token null in the prior and present in the configuration, stock's own
+// plan for aws_codebuild_source_credential is `Plan: 1 to add, 0 to change,
+// 1 to destroy` - the attribute forces replacement, so the located route
+// would not merely differ from stock's plan, it would destroy and rebuild
+// the credential on every run. Nothing in a schema says an attribute forces
+// replacement either; that is the provider's PlanResourceChange.
+//
+// # What would settle it, and where that already lives
+//
+// The discriminator this needs is a runtime one, and this fork already has
+// it: internal/live/projection's classifyResidue proves, from two reads at
+// apply time, whether the provider sources an attribute from the remote or
+// merely preserves the prior - which is the same experiment the table above
+// reports by hand. Residue is therefore the mechanism that could carry the
+// three lost values, and it can only answer AFTER an apply, whereas
+// LocatedType answers at the configuration. That is the gap, and it is
+// structural rather than a missing measurement.
+//
+// This test pins the refutation rather than the numbers: it builds the two
+// schema shapes the table's two rows share and shows they are
+// indistinguishable, so a future narrowing written against a schema fact
+// fails here rather than in an estate.
+//
+// Reproduce the runtime half:
+//
+//	docker run -d --rm -p 4933:4566 "$(cat live/floci-image)"
+//	# apply a config with the resource, null its sensitive attributes in
+//	# terraform.tfstate, then:
+//	terraform apply -refresh-only -auto-approve
+func TestNoSchemaFactSeparatesASurvivingSecretFromALostOne(t *testing.T) {
+	typeName := aMarkerlessType(t)
+
+	// The minted row: a provider-minted secret beside a clean identity. One
+	// of these survives the read and one does not; the schemas are equal.
+	survivingMinted := locatedSchema(map[string]*configschema.Attribute{
+		"client_secret": {Type: cty.String, Computed: true, Sensitive: true},
+	})
+	lostMinted := locatedSchema(map[string]*configschema.Attribute{
+		"secret": {Type: cty.String, Computed: true, Sensitive: true},
+	})
+	// The settable row, likewise.
+	survivingSettable := locatedSchema(map[string]*configschema.Attribute{
+		"content": {Type: cty.String, Required: true, Sensitive: true},
+	})
+	lostSettable := locatedSchema(map[string]*configschema.Attribute{
+		"token": {Type: cty.String, Required: true, Sensitive: true},
+	})
+
+	for label, pair := range map[string][2]providers.Schema{
+		"provider-minted": {survivingMinted, lostMinted},
+		"settable":        {survivingSettable, lostSettable},
+	} {
+		surviving, lost := pair[0], pair[1]
+		survivingPlan, survivingRecordable := LocatedIdentityPlanFor(typeName, surviving)
+		lostPlan, lostRecordable := LocatedIdentityPlanFor(typeName, lost)
+
+		// Every schema fact a narrowing could read, asked of both. If any of
+		// them ever differs, a schema-derived narrowing has become possible
+		// and this test should be revisited rather than deleted.
+		if got, want := survivingRecordable, lostRecordable; got != want {
+			t.Errorf("%s: recordable differs (%v vs %v)", label, got, want)
+		}
+		if got, want := sensitiveIdentityAttr(survivingPlan, surviving), sensitiveIdentityAttr(lostPlan, lost); got != want {
+			t.Errorf("%s: sensitiveIdentityAttr differs (%q vs %q)", label, got, want)
+		}
+		survivingFacts := sensitiveAttrFacts(surviving.Block)
+		lostFacts := sensitiveAttrFacts(lost.Block)
+		if len(survivingFacts) != 1 || len(lostFacts) != 1 {
+			t.Fatalf("%s: expected one sensitive attribute each, got %v and %v", label, survivingFacts, lostFacts)
+		}
+		// Only the attribute NAME differs, and a rule that reads a name is
+		// the hand-wired type list live/derivation_guard_test.go exists to
+		// keep out.
+		survivingShape := survivingFacts[0][strings.Index(survivingFacts[0], "("):]
+		lostShape := lostFacts[0][strings.Index(lostFacts[0], "("):]
+		if survivingShape != lostShape {
+			t.Errorf("%s: the schema facts differ (%s vs %s), so a schema-derived narrowing may now be possible - re-read this test's doc comment before changing it",
+				label, survivingShape, lostShape)
+		}
+
+		// And the veto refuses both, which is the behaviour this measurement
+		// leaves standing.
+		for name, schema := range map[string]providers.Schema{"surviving": surviving, "lost": lost} {
+			if LocatedType(typeName, map[string]providers.Schema{typeName: schema}) {
+				t.Errorf("%s/%s: LocatedType admitted a type carrying credential material. The measurement in this test's doc comment found no schema fact that tells a secret the provider's read restores from one it does not, so admitting on a schema fact admits both.", label, name)
+			}
+		}
+	}
+
+	// The control: with no sensitive attribute at all the same shape IS
+	// admitted, so the refusals above are the credential veto and not some
+	// other condition failing first.
+	if !LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(nil)}) {
+		t.Fatal("the control schema is not admitted either, so the assertions above prove nothing about the credential veto")
+	}
 }
