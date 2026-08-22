@@ -468,7 +468,18 @@ var identityGoldenPin = map[string]int{
 	// not admit - and it is asserted directly, with schemas, by
 	// internal/live/check's TestStrictMarkersRecordRendersItsIdentityByValue
 	// and TestStrictMarkersRecordFailsClosedWithNoSchemas.
-	"NEEDS_DISCOVERY": 684,
+	// 688, up from 684 (the corpus-rds-complete-postgres routing fix,
+	// internal/live/identity/computedselect.go): four ADDED rows, every one
+	// of them a bare server-assigned aws_vpc or aws_security_group that the
+	// controls added to
+	// internal/live/identity/testdata/deferred-through-module-list need in
+	// order to point at something - a second aws_vpc.other, so that an
+	// uncomputable lookup() fallback is a different object from the leaf the
+	// caller wrote, and the new sgtyped module's own aws_security_group -
+	// each counted twice because the child directory is swept as a root of
+	// its own. Incidental for the same reason as #346's, #354's and #368's:
+	// a deferred read needs a real resource to point at.
+	"NEEDS_DISCOVERY": 688,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -820,7 +831,23 @@ var identityGoldenPin = map[string]int{
 // selection's effect on a rendered identity is pinned by value elsewhere,
 // with schemas: internal/live/check's
 // TestStrictMarkersRecordRendersItsIdentityByValue.
-const identityGoldenPinBodyDigest = "a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee"
+// Then re-pinned for the corpus-rds-complete-postgres routing fix
+// (internal/live/identity/computedselect.go): "0 identities changed, 4
+// added, 0 removed" over 551 directories, read before this line was edited.
+// Every added row is a bare server-assigned resource the new controls in
+// testdata/deferred-through-module-list need to point at, and every one
+// renders an empty value.
+//
+// The zero is again the load-bearing half, and it is what a reader should be
+// most suspicious of here, because this change DOES widen a resolution
+// route. It holds for the same reason #368's did: every identity the fold
+// produces is a deferred parent read, [resolver.parentPart] gates one on
+// r.stringAttrInSchema, and this sweep runs without provider schemas - so
+// the fold resolves the reference and then declines at the last hop, exactly
+// as it did before. The identities it renders WITH schemas are pinned by
+// value, against a lookup that hands back a real CIDR, in
+// internal/live/identity's deferred_through_module_list_test.go.
+const identityGoldenPinBodyDigest = "7d0a962b1937cc94c8b583db23c402054bec540b07f2831bd3ef6b6fc24ecbfa"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1294,7 +1321,17 @@ const (
 	// order to have something to select, or something to leave unselected
 	// beside it. See identityGoldenPinBodyDigest's own comment for why none
 	// of them renders as RECORD_LOCATED here.
-	identityGoldenPinInstances = 1614
+	//
+	// Then 1614 -> 1618 for the corpus-rds-complete-postgres routing fix:
+	// four added rows, nothing modified. Each is a plain server-assigned
+	// resource the new negative controls in
+	// internal/live/identity/testdata/deferred-through-module-list need in
+	// order to have something to point at - a second aws_vpc so that an
+	// uncomputable lookup() fallback is a different object from the leaf the
+	// caller wrote, and the new sgtyped module's own security group - and
+	// each is counted twice because the child directory is swept as a root
+	// of its own.
+	identityGoldenPinInstances = 1618
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1416,7 +1453,11 @@ const (
 	// new limits-wing entries), and one child module swept as a root of its
 	// own. Thirteen of them declare resources; see
 	// identityGoldenPinInstances directly above.
-	identityGoldenPinDirs = 550
+	// Then 550 -> 551 for the corpus-rds-complete-postgres routing fix: one
+	// new configuration directory, internal/live/identity/testdata/
+	// deferred-through-module-list/sgtyped, the module whose three variable
+	// declarations are the declared-type gate's own controls.
+	identityGoldenPinDirs = 551
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

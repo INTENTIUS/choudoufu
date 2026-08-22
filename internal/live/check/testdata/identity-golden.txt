@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=550 instances=1614
+# shape: dirs=551 instances=1618
 # shape: class CONCRETE=793
-# shape: class NEEDS_DISCOVERY=684
+# shape: class NEEDS_DISCOVERY=688
 # shape: class PARENT_DERIVED=116
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee
+# shape: body-sha256=7d0a962b1937cc94c8b583db23c402054bec540b07f2831bd3ef6b6fc24ecbfa
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -201,8 +201,12 @@ internal/live/identity/testdata/count-length-unrecognized	aws_eip.pool[1]	NEEDS_
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.loud	CONCRETE	team-bus/capture-signin-custom	event_bus_name=team-bus,name=capture-signin-custom
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.quiet	CONCRETE	default/capture-signin	event_bus_name=default,name=capture-signin
 internal/live/identity/testdata/deferred-through-module-list	module.sg.aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list	module.sg_typed.aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list	module.vpc.aws_vpc.other[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list/sg	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/sgtyped	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/vpc	aws_vpc.other[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/disabled-lifecycle	aws_s3_bucket.on	CONCRETE	estate-on	bucket=estate-on
 internal/live/identity/testdata/docdb-family	aws_docdb_cluster.main	CONCRETE	prod-docdb	cluster_identifier=prod-docdb
