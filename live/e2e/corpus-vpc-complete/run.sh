@@ -79,9 +79,35 @@ set -uo pipefail
 #   BREAK         set to 1 to corrupt an expected identity string and a
 #                 drift assertion, proving both are load-bearing.
 #
-# WHERE THIS ESTATE STANDS, re-verified 2026-08-22 by a real run against
-# ghcr.io/lex00/floci@sha256:0afd26480833a5081cbf3dc473dc0b688dccc03ee975616c3d57a8ea0fc303de
-# (the pin bump that fixed lex00/floci#97's NAT gateway and VPN gateway read
+# WHERE THIS ESTATE STANDS, re-verified 2026-08-22, SAME DAY, AGAINST A
+# SECOND NEW IMAGE
+# (ghcr.io/lex00/floci@sha256:dcd57a44da855e65e0c910f81e3a9e87b3b2a5d701f4d95945351ca7ea2ca9b9,
+# published for lex00/floci#99):
+# **all five stages pass.** CreateVpcEndpoint never parsed
+# SubnetConfiguration.N.SubnetId/.Ipv4/.Ipv6 at all - it silently dropped
+# the requested address and synthesized its own, which is why only the ecs
+# endpoint (the one interface endpoint that pins ipv4 = cidrhost(subnet_cidr,
+# 10) explicitly; see "THE REMAINING ONE" below) ever showed a diff. #99
+# parses and honours a pinned Ipv4 for interface endpoints; a real run with
+# FLOCI_IMAGE overridden to that digest reaches test_plan EMPTY, with the
+# same three sampled identities re-read by value off the AWS CLI, and
+# test_apply and drift_reconverge both pass for real behind it (log:
+# `GAUNTLET stage=test_plan verdict=pass`, `stage=test_apply verdict=pass`,
+# `stage=drift_reconverge verdict=pass`). This is NOT yet the estate's
+# default result: `live/floci-image` (this script's fallback below) still
+# pins the pre-#99 digest, because repinning is a shared-layer change that
+# forces a re-measure of every clear estate (live/GAUNTLET.md's engine
+# section, "the emulator is wrong" row) and is a maintainer call, not this
+# unit's. Reproduce with:
+#   FLOCI_IMAGE=ghcr.io/lex00/floci@sha256:dcd57a44da855e65e0c910f81e3a9e87b3b2a5d701f4d95945351ca7ea2ca9b9 \
+#     bash live/e2e/corpus-vpc-complete/run.sh
+# Everything below this paragraph, up to "THE REMAINING ONE", was written
+# against the still-pinned image and is kept for its history; it describes
+# what this script still shows until the pin moves.
+#
+# WHERE THIS ESTATE STOOD, as of the still-pinned image
+# (ghcr.io/lex00/floci@sha256:0afd26480833a5081cbf3dc473dc0b688dccc03ee975616c3d57a8ea0fc303de,
+# the pin bump that fixed lex00/floci#97's NAT gateway and VPN gateway read
 # gaps, and most of its VPC-endpoint read gaps - see below): stages 1 and 2
 # PASS. Stage 1 cold-deploys all 62 resources ("Apply complete! Resources:
 # 62 added"); stage 2 stamps 40 of them, skips 22 as untaggable, fails none,
@@ -164,21 +190,34 @@ set -uo pipefail
 # creation for every interface endpoint, so a faithful DescribeVpcEndpoints
 # read of an object created from that exact configuration must report *.10
 # back, the same as the other three interface endpoints in this estate
-# (ecr_api, ecr_dkr, rds) already do cleanly. floci reports *.201 for this one
-# endpoint instead: a read-fidelity gap in the vpc-endpoint family, in the
-# same family as lex00/floci#97 but a different shape (policy/
+# (ecr_api, ecr_dkr, rds) already do cleanly. floci reported *.201 for this
+# one endpoint instead: a read-fidelity gap in the vpc-endpoint family, in
+# the same family as lex00/floci#97 but a different shape (policy/
 # route_table_ids/subnet_ids/cidr_blocks reading empty, none of which appear
 # in this diff any more, #97 is substantially resolved for this estate). Not
-# yet filed as its own lex00/floci issue as of this writing - that is the
-# next step, not a fix owed by this repository. Not choudoufu's: it is a
-# for_each resource, never a tofu-slot candidate, and every other object in
-# this 62-resource estate reads back exactly what stock would expect.
+# choudoufu's: it is a for_each resource, never a tofu-slot candidate, and
+# every other object in this 62-resource estate reads back exactly what
+# stock would expect.
 #
-# So stage 3 fails on one thing, and it is not choudoufu's. Nothing here is
-# routed around (no -target, no resource removed from the example): the
-# script runs the real module and reports the real result, per this goal's
-# own standing rule that a partial, accurate failure is worth more than a
-# green run that does not hold up.
+# FIXED, 2026-08-22, lex00/floci#99: root-caused to CreateVpcEndpoint never
+# parsing SubnetConfiguration.N.SubnetId/.Ipv4/.Ipv6 at all - the requested
+# address was silently dropped and floci synthesized its own instead, which
+# is exactly the *.201-instead-of-*.10 shape above and exactly why only the
+# one endpoint that pins an explicit ipv4 (ecs) ever showed a diff while the
+# other three, which let the address be whatever came back, did not. #99
+# parses and honours a pinned Ipv4 for interface endpoints. Fixed image:
+# ghcr.io/lex00/floci@sha256:dcd57a44da855e65e0c910f81e3a9e87b3b2a5d701f4d95945351ca7ea2ca9b9
+# (see "WHERE THIS ESTATE STANDS" above for the real run against it - all
+# five stages pass). The fail() detail two blocks below this comment still
+# describes the plan body this script actually sees against the still-
+# pinned image; it will stop firing the moment live/floci-image moves past
+# #99's fix.
+#
+# So stage 3 fails on one thing against the still-pinned image, and it was
+# never choudoufu's. Nothing here is routed around (no -target, no resource
+# removed from the example): the script runs the real module and reports
+# the real result, per this goal's own standing rule that a partial,
+# accurate failure is worth more than a green run that does not hold up.
 #
 # ALSO ESTABLISHED, 2026-08-21, still true 2026-08-22: the "39 objects carry
 # tofu-estate after migration" line below disagrees with the "40 stamped"
@@ -467,7 +506,7 @@ if [ -n "$CHANGED_HEADERS" ]; then
   grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT" \
     && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT"
          fail "the plan proposes a tofu-slot change on $N_CHANGED object(s). choudoufu #372 settles the slot at migrate time for every count-expanded instance of a server-assigned type, and every count instance in this estate is one, so no tofu-slot may appear in this plan at all - not as an addition and not as a removal."; }
-  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
+  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family (CreateVpcEndpoint never parsed SubnetConfiguration.N.Ipv4/.SubnetId/.Ipv6, so the requested address was silently dropped and floci synthesized its own), confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. FIXED 2026-08-22 in lex00/floci#99 (image ghcr.io/lex00/floci@sha256:dcd57a44da855e65e0c910f81e3a9e87b3b2a5d701f4d95945351ca7ea2ca9b9); this fail() only fires against a floci image older than that fix - see live/floci-image and this script's header. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
 fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
