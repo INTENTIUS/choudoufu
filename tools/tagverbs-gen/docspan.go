@@ -24,12 +24,12 @@ import (
 var markers = mdspan.For("tagverbs-gen")
 
 const (
-	referenceMDRel = "site/content/reference.md"
+	referenceMDRel = "site/content/docs/use/reference.md"
 	spanTagVerbs   = "tag-verbs"
 )
 
 // renderTagVerbSpan writes the roster of distinct tagging operations into
-// site/content/reference.md.
+// site/content/docs/use/reference.md.
 //
 // Operations rather than services: an operator writing a role needs the
 // action names, and 205 service rows collapse to a handful of verbs because
@@ -43,6 +43,22 @@ func renderTagVerbSpan(root string, rows []Row) error {
 		return fmt.Errorf("reading %s: %w", referenceMDRel, err)
 	}
 
+	body := renderTagVerbTable(rows)
+
+	out, err := markers.Replace(referenceMDRel, string(doc), spanTagVerbs, body)
+	if err != nil {
+		return err
+	}
+	if out == string(doc) {
+		return nil
+	}
+	return os.WriteFile(path, []byte(out), 0o644) //nolint:gosec // a committed doc
+}
+
+// renderTagVerbTable builds the span's body from rows alone - no file I/O -
+// so docspan_test.go's drift guard can render the same bytes renderTagVerbSpan
+// would write without touching the filesystem.
+func renderTagVerbTable(rows []Row) string {
 	byOp := map[string][]string{}
 	var noVerb int
 	for _, r := range rows {
@@ -78,12 +94,5 @@ func renderTagVerbSpan(root string, rows []Row) error {
 	fmt.Fprintf(&b, "\n%d services carry an unambiguous tagging verb. %d do not, and a run cannot stamp a marker on those.\n",
 		len(rows)-noVerb, noVerb)
 
-	out, err := markers.Replace(referenceMDRel, string(doc), spanTagVerbs, b.String())
-	if err != nil {
-		return err
-	}
-	if out == string(doc) {
-		return nil
-	}
-	return os.WriteFile(path, []byte(out), 0o644) //nolint:gosec // a committed doc
+	return b.String()
 }

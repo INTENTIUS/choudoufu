@@ -626,7 +626,7 @@ grant to create *into this estate* rather than a grant to create anything.
 
 The actions above are illustrative, not the full scope: a real
 grant names the actions the estate's own types need, which
-[`site/content/reference.md`](https://intentius.io/choudoufu/docs/use/reference/)
+[`site/content/docs/use/reference.md`](https://intentius.io/choudoufu/docs/use/reference/)
 lists per stage, and the resource types the configuration declares.
 
 **Handover is two IAM changes and no tag writes.** Attach that policy to the
