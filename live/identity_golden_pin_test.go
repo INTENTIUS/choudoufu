@@ -324,7 +324,13 @@ var identityGoldenPin = map[string]int{
 	// "sumaform-default-0" and "eu-west-1a-0", each spelled in a different
 	// file from the resource that renders it. See
 	// identityGoldenPinBodyDigest.
-	"CONCRETE": 802,
+	// 802 -> 808 for corpus-alb-complete's Family A fix (GitHub issue #375's
+	// module-INPUT twin - see identityGoldenPinBodyDigest for the fixture
+	// and which rows are which): the new fixture's two aws_iam_role.target
+	// instances, swept both from the fixture root (module.attach.aws_iam_role.target)
+	// and again from its own child module directory (aws_iam_role.target),
+	// plus its two aws_iam_user.tag instances.
+	"CONCRETE": 808,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -523,7 +529,11 @@ var identityGoldenPin = map[string]int{
 	// 700 -> 703 for corpus-sumaform-aws's static count() wall: the three
 	// aws_subnet blocks the new fixture declares, which are
 	// server-assigned and resolve exactly as every other subnet does.
-	"NEEDS_DISCOVERY": 703,
+	// 703 -> 705 for corpus-alb-complete's Family A fix: the new fixture's
+	// two aws_iam_policy instances (imagebuilder, other), whose arn is what
+	// every poisoned leaf in the fixture reads and which nothing here can
+	// discover without the cloud.
+	"NEEDS_DISCOVERY": 705,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -614,7 +624,14 @@ var identityGoldenPin = map[string]int{
 	// resources whose names read a SUBSTITUTED member of the tolerated
 	// value. Their rows carry the reference unrendered, which is the
 	// adversarial half of that change.
-	"PARENT_DERIVED": 131,
+	// 131 -> 135 for corpus-alb-complete's Family A fix: the new fixture's
+	// two aws_iam_role_policy_attachment.this instances (a plain each.value
+	// selection over the poisoned element, once the for-expression filter
+	// that used to refuse the whole comprehension can decide) and its two
+	// aws_iam_role_policy_attachment.byindex instances (an indexed reference
+	// into a sibling resource, where the index itself is a plain-literal
+	// attribute of the same poisoned element). See identityGoldenPinBodyDigest.
+	"PARENT_DERIVED": 135,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -1026,7 +1043,48 @@ var identityGoldenPin = map[string]int{
 // rows carry `derived-${aws_subnet.live.id}` and
 // `profiled-${module.base.aws_subnet.inner.id}` unrendered - the substituted
 // members, refused exactly where they should be.
-const identityGoldenPinBodyDigest = "f7c13a66a20560156efcd34085d6935a22fc0bf3cb1857fd220730bcd4d91f7a"
+//
+// 2026-08-22 (corpus-alb-complete's Family A wall, GitHub issue #375's
+// module-INPUT twin): dirs 571 -> 573, instances 1660 -> 1672, "0 identities
+// changed, 12 added, 0 removed" read off the -update run's own report. The
+// new fixture, internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value
+// (its ./attach child swept as a root of its own too), is corpus-alb-complete's
+// shape reduced: a module call argument's object literal has one poisoned
+// leaf (a sibling resource's identity attribute) beside plain-literal
+// siblings, and the child module's own for_each over that argument is
+// FILTERED by a lookup() on the whole element - so the filter needed the
+// poisoned element's whole value just as much as any each.value.<attr>
+// selection inside the resource block does. Three widenings, all in
+// internal/live/identity (localvalue.go, resolve.go), none naming a
+// concrete aws_* type:
+//
+//   - resolver.forCondIncludesTolerant: a for-expression's own filter
+//     clause (lookup(v, "key", default) or try(v.key, default), composed
+//     with &&/||/! by ordinary three-valued/Kleene logic) falls back to the
+//     same each.value absence proof (resolver.objectLacksKey) lookup()/
+//     try() already use for a bare each.value.<attr> selection, instead of
+//     refusing the WHOLE comprehension the moment v's value cannot be
+//     proven.
+//   - resolver.eachValueCondTolerant: a conditional's own condition
+//     (an equality test, composed the same way) is resolved through the
+//     ordinary resolveExpr entry point instead of refusing outright merely
+//     because it reads each.value.<attr> at all - isSymbolic's each.value
+//     case is blanket over the WHOLE element once one leaf is unprovable,
+//     not over which attribute a reference selects.
+//   - resolver.resolveIndexedTraversal: an indexed reference into a
+//     DIFFERENT resource, where the index itself is each.value.<attr>, now
+//     tries the same eachValueCondOperand fallback when its own strict
+//     evaluation of the index fails.
+//
+// Every added row is either a bare server-assigned aws_iam_policy the
+// poisoned leaves read (NEEDS_DISCOVERY, nothing here can discover it
+// without the cloud) or a resolution one of the three widenings newly
+// reaches (CONCRETE for a plain literal read through the now-decidable
+// filter, PARENT_DERIVED for the two resources whose identity is composed
+// with a sibling's). TestModuleForeachFilterOverPoisonedValueResolves
+// (internal/live/identity) pins the same three shapes by value; this
+// digest is the confirmation that nothing else in the fixture corpus moved.
+const identityGoldenPinBodyDigest = "f8676745a455902cd0148fce6a5357519d8f5750fc3fc23466359aa799de7436"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1541,7 +1599,10 @@ const (
 	// added rows, none changed, none removed. See
 	// identityGoldenPinBodyDigest's own note for which fixtures and what
 	// their rendered values are.
-	identityGoldenPinInstances = 1660
+	// Then 1660 -> 1672 for corpus-alb-complete's Family A wall: twelve
+	// added rows, none changed, none removed. See identityGoldenPinBodyDigest's
+	// own note for the fixture and which rows are which.
+	identityGoldenPinInstances = 1672
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1703,7 +1764,12 @@ const (
 	// internal/live/identity/testdata/tolerant-module-output and its three
 	// submodules (base, host, net) - one fixture, four directories, because
 	// the sweep enters each module directory that loads on its own.
-	identityGoldenPinDirs = 571
+	// Then 571 -> 573 for corpus-alb-complete's Family A wall:
+	// internal/live/identity/testdata/module-foreach-forexpr-filter-sibling-value
+	// and its ./attach child module - one fixture, two directories, the
+	// child swept as a root of its own the same way tolerant-module-output's
+	// submodules are.
+	identityGoldenPinDirs = 573
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
