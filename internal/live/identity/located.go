@@ -97,16 +97,6 @@ func recordStoreConfiguredIn(cfg *configs.Config) bool {
 //     reachable from the block, nested attribute types and nested blocks
 //     included, minus the deprecated ones.
 //
-//     It is BROADER than the identity check the operator-selected route
-//     applies ([sensitiveIdentityAttr]), and narrowing it to that check is
-//     the standing proposal. It was measured on 2026-08-22 and the
-//     measurement refuted it:
-//     [TestNoSchemaFactSeparatesASurvivingSecretFromALostOne] carries the
-//     numbers, the refutation and how to reproduce it. In one line - whether
-//     a type's secret survives the import-and-read a located instance is
-//     rebuilt from is a fact about the provider's Read, not about its
-//     schema, and both answers occur under identical schema facts.
-//
 //  3. The type has an identity this mechanism can record IN FULL - which is
 //     the top-level string [locatedImportIDAttr] for a type whose whole
 //     identity is server-minted, and every component of the provider's own
