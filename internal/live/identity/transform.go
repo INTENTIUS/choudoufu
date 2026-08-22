@@ -279,10 +279,16 @@ func (r *resolver) resolveTransformCall(expr hcl.Expression, scope instScope, id
 		return decline()
 	}
 
+	// Nothing is rolled back on the way out. Every probe this function made
+	// that FAILED restored itself ([resolver.staticString],
+	// [resolver.staticIndex]), so what is left between mark and here is
+	// whatever the source's own successful resolution recorded - a
+	// pending sibling-apply refusal, say - and that belongs to the caller
+	// exactly as it would had the author written the source on its own.
+	// Truncating here would turn one of those into silence, which is the
+	// failure mode this repository has shipped green more than once.
 	ref := *got[0].Parent
 	ref.Transform = ops
-	r.diags = r.diags[:mark]
-	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 	return []Part{{Parent: &ref}}, true, true
 }
 
