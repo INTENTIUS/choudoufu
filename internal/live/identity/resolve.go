@@ -1245,7 +1245,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
-		attr := firstPresent(attrs, comp.Attrs)
+		attr := r.firstApplicablePresent(comp, attrs, scope, addr)
 		if attr == nil {
 			if comp.OmitIfAbsent {
 				// The provider's own grammar says this segment - and any
@@ -4554,6 +4554,117 @@ func firstPresent(attrs hcl.Attributes, names []string) *hcl.Attribute {
 		}
 	}
 	return nil
+}
+
+// firstApplicablePresent is [firstPresent], narrowed for a
+// [Component.SoleElement] alternation (GitHub issue #369): a candidate whose
+// own expression is a statically known list/set/tuple with ZERO elements is
+// not "which of the alternation's members applies is unclear" - zero is
+// never ambiguous, it is this member contributing nothing, the identical
+// fact [Component.OmitIfAbsent] already gives a name to when the argument is
+// missing from the body entirely. aws_security_group_rule's own
+// prefix_list_ids/cidr_blocks/ipv6_cidr_blocks/source_security_group_id
+// alternation is exactly this shape: a computed_ingress_with_source_security_group_id
+// block (terraform-aws-modules/security-group's own main.tf) sets
+// source_security_group_id to a real value and prefix_list_ids to
+// var.ingress_prefix_list_ids, which defaults to []. Reading the empty list
+// as though it were the member that determines this instance's identity -
+// what [firstPresent] alone does, since it only asks whether the NAME was
+// written, never what the value turned out to be - raised "Ambiguous
+// list-valued identity argument" for zero elements on a resource whose
+// identity a sibling member already settles.
+//
+// So the search moves to the next name in Attrs instead of stopping, and if
+// every candidate turns out to be a definite empty list (or absent
+// entirely), this returns nil exactly as [firstPresent] would for an
+// all-absent alternation - the caller's existing "no candidate present"
+// handling (OmitIfAbsent, Default, ServerAssignedIfAbsent, the *_prefix
+// convention, or "Identity argument not set") applies unchanged, because a
+// set of members that each definitely contribute nothing IS an alternation
+// with nothing set. A candidate this cannot prove empty - a real value, a
+// non-static or symbolic expression, or a collection with one or more than
+// one element - is returned exactly as [firstPresent] would return it, so
+// every diagnostic the rest of this package already raises for it
+// (including the genuine ambiguity of MORE than one element, which never
+// changes) fires exactly as before: this only ever demotes a proven-empty
+// list from "present" to "absent", it never resolves or picks a value
+// itself.
+func (r *resolver) firstApplicablePresent(comp Component, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) *hcl.Attribute {
+	if !comp.SoleElement {
+		return firstPresent(attrs, comp.Attrs)
+	}
+	remaining := comp.Attrs
+	for len(remaining) > 0 {
+		attr := firstPresent(attrs, remaining)
+		if attr == nil {
+			return nil
+		}
+		ident := r.identifier(addr, attr.Name, attr.Range)
+		if !r.definitelyEmptyList(attr.Expr, scope, ident) {
+			return attr
+		}
+		next := make([]string, 0, len(remaining)-1)
+		for _, n := range remaining {
+			if n != attr.Name {
+				next = append(next, n)
+			}
+		}
+		remaining = next
+	}
+	return nil
+}
+
+// definitelyEmptyList reports whether expr - one member of a
+// [Component.SoleElement] alternation - is a statically known
+// list/set/tuple with exactly zero elements, without leaving behind any
+// diagnostic of its own: it is a probe [resolver.firstApplicablePresent]
+// uses to decide whether a candidate should be skipped, not a resolution,
+// and every other outcome (a scalar, a symbolic or non-static expression, a
+// collection this cannot count cleanly, one element, or more than one) is
+// reported false and left for [resolver.soleElementExpr] and
+// [resolver.soleElementFromValue] to resolve or refuse exactly as they
+// always have - this duplicates none of their diagnostics, it only ever
+// answers "definitely nothing here".
+//
+// An impure call is excluded on purpose, the same reason [resolver.evalStatic]
+// refuses one outright for an identity argument: a value that can change
+// between runs must never silently decide which alternation member this
+// package skips.
+func (r *resolver) definitelyEmptyList(expr hcl.Expression, scope instScope, ident configs.StaticIdentifier) bool {
+	if elems, diags := hcl.ExprList(expr); !diags.HasErrors() && elems != nil {
+		return len(elems) == 0
+	}
+	if len(impureCallsIn(expr)) > 0 {
+		return false
+	}
+	if r.isSymbolic(expr, scope) {
+		return false
+	}
+	val, diags := r.evalPure(expr, scope, ident)
+	if diags.HasErrors() || val == cty.NilVal {
+		retried, ok := r.tolerantRetry(expr, scope, ident)
+		if !ok {
+			return false
+		}
+		val = retried
+	}
+	return isEmptyCollection(val)
+}
+
+// isEmptyCollection reports whether val is a known, unmarked list, set or
+// tuple with zero elements - the same shape test
+// [resolver.soleElementFromValue] applies before counting, kept separate so
+// [resolver.definitelyEmptyList] never has to raise, or risk raising, any of
+// that function's own diagnostics.
+func isEmptyCollection(val cty.Value) bool {
+	ty := val.Type()
+	if !ty.IsListType() && !ty.IsSetType() && !ty.IsTupleType() {
+		return false
+	}
+	if val.IsNull() || !val.IsWhollyKnown() || val.IsMarked() {
+		return false
+	}
+	return val.LengthInt() == 0
 }
 
 // firstPrefixSibling is [firstPresent] for the "<name>_prefix" convention
