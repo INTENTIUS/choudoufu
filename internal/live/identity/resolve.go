@@ -1786,6 +1786,16 @@ func (r *resolver) soleElementExpr(expr hcl.Expression, scope instScope, attr *h
 		if narrowed, ok, applicable := r.soleElementFromValue(expr, scope, attr, ident); applicable {
 			return narrowed, ok
 		}
+		// #368: a collection this package cannot count at all until the
+		// value exists, because it is a pure function of a value only a
+		// live read supplies - `compact(split(",", <a parent's
+		// cidr_block>))`. Neither narrowing above can reach it: there is no
+		// syntactic list, and evaluation cannot produce one either. See
+		// [resolver.soleElementDeferred] for why deferring the count is not
+		// the same as guessing it.
+		if wrapped, applicable := r.soleElementDeferred(expr, scope, ident); applicable {
+			return wrapped, true
+		}
 		return expr, true
 	}
 	if len(elems) != 1 {
@@ -1970,6 +1980,18 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 			return parts, selOK
 		}
 
+		// #368: a pure function applied to a value only known at render
+		// time - `try(element(split("/", var.cluster_arn), 1), "")` over a
+		// module output that is another resource's arn. Like the two
+		// branches above it, this arrives here rather than at the symbolic
+		// switch because [resolver.isSymbolic] reads traversal ROOTS and
+		// `var` is never one of the symbolic ones; the managed resource is
+		// behind the name. See transform.go.
+		if parts, tOK, applicable := r.resolveTransformCall(expr, scope, ident); applicable {
+			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
+			return parts, tOK
+		}
+
 		// Last of all, and only where every route above has already
 		// returned false: the value is in the caller's configuration, but
 		// a module argument this module's caller built out of a literal
@@ -2055,6 +2077,13 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok, applicable := r.resolveLookupCall(e, scope, ident); applicable {
 			return parts, ok
 		}
+		// #368: split/compact/element/one applied to a single deferred
+		// parent read - see transform.go. Last of the call handlers, so
+		// every shape one of the others already owns keeps its own answer;
+		// this one only ever sees a call none of them claimed.
+		if parts, ok, applicable := r.resolveTransformCall(e, scope, ident); applicable {
+			return parts, ok
+		}
 	case *hclsyntax.IndexExpr:
 		// concat(A[*].attr, B[*].attr, ..., [literal])[N] where N is not a
 		// literal (count.index, a local) - see splat.go's
@@ -2063,6 +2092,10 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		// anything but an index into a concat() call, which falls through
 		// to the generic refusal below exactly as it always has.
 		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// #368: `split(sep, <deferred read>)[N]` - see transform.go.
+		if parts, ok, applicable := r.resolveTransformCall(e, scope, ident); applicable {
 			return parts, ok
 		}
 	case *hclsyntax.RelativeTraversalExpr:
@@ -2081,6 +2114,16 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		// applicable=false and falls through to resolveIndexedTraversal
 		// unchanged.
 		if parts, ok, applicable := r.resolveConcatIndex(e, scope, ident); applicable {
+			return parts, ok
+		}
+		// #368: the same `split(sep, <deferred read>)[0]` shape with a
+		// constant index, which HCL folds into a traversal step exactly as
+		// it folds concat(...)[0] above. It cannot claim
+		// [resolver.resolveIndexedTraversal]'s own R[idx].attr shape: that
+		// one's single traversal step is a TraverseAttr, and
+		// [resolver.peelTransform] recognizes only a TraverseIndex, so the
+		// pipeline comes back empty and this declines.
+		if parts, ok, applicable := r.resolveTransformCall(e, scope, ident); applicable {
 			return parts, ok
 		}
 	}
