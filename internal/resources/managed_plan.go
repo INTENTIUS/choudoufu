@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -405,6 +406,28 @@ func (rt *ManagedResourceType) filteredRequiresReplace(returned []cty.Path, curr
 			// (This particular thing is something that both OpenTofu and
 			// its predecessor historically enforced, so it's safe for us to
 			// continue enforcing it here.)
+			if plans.RequiresReplacePathIsDegenerate(path) {
+				// An attribute step with an empty name cannot correspond to
+				// any real attribute in any schema: the provider is not
+				// telling us WHICH attribute forces replacement, so there is
+				// nothing here to safely act on. See the sibling handling
+				// in internal/tofu/node_resource_abstract_instance.go for
+				// the full reasoning; this is the same rule applied to this
+				// package's own copy of the same filtering logic. The entry
+				// is dropped rather than added to ret, and reported as a
+				// warning rather than aborting the whole plan; every other
+				// attribute is still compared for real changes on its own.
+				diags = diags.Append(tfdiags.AttributeValue(
+					tfdiags.Warning,
+					"Provider produced a malformed requires-replacement path",
+					fmt.Sprintf(
+						"Provider %q has indicated \"requires replacement\" for an attribute path (%#v) that names no attribute in any schema, so choudoufu cannot tell which value it means.\n\nThis is a bug in the provider, which should be reported in the provider's own issue tracker. choudoufu is proceeding without treating this as a forced replacement.",
+						rt.providerAddr, path,
+					),
+					path,
+				))
+				continue
+			}
 			diags = diags.Append(tfdiags.AttributeValue(
 				tfdiags.Error,
 				"Provider produced invalid plan",

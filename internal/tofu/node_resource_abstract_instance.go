@@ -1409,6 +1409,35 @@ func (n *NodeAbstractResourceInstance) plan(
 			if plannedPathDiags.HasErrors() && priorPathDiags.HasErrors() {
 				// This means the path was invalid in both the prior and new
 				// values, which is an error with the provider itself.
+				if plans.RequiresReplacePathIsDegenerate(path) {
+					// The path itself carries no information: an attribute
+					// step with an empty name cannot correspond to any real
+					// attribute in any schema, so the provider is not
+					// telling us WHICH attribute forces replacement - there
+					// is nothing to safely act on, and nothing safe to
+					// assume it means either "replace the whole object"
+					// (that is the zero-length path, not this) or "replace
+					// nothing" would be reading intent into a signal that
+					// carries none. What is safe: this one signal cannot be
+					// honored, so it is dropped from the replace set below
+					// rather than aborting the entire plan, and the drop is
+					// reported loudly as a provider defect rather than
+					// silently swallowed. Nothing else here changes: the
+					// resource's real attributes are still compared for
+					// changes on their own, independently of this path, so
+					// a genuine difference elsewhere still surfaces and
+					// still forces a replace when a well-formed path says
+					// so.
+					diags = diags.Append(tfdiags.Sourceless(
+						tfdiags.Warning,
+						"Provider produced a malformed requires-replacement path",
+						fmt.Sprintf(
+							"Provider %q has indicated \"requires replacement\" on %s for an attribute path (%#v) that names no attribute in any schema, so choudoufu cannot tell which value it means.\n\nThis is a bug in the provider, which should be reported in the provider's own issue tracker. choudoufu is proceeding without treating this as a forced replacement; if %s does genuinely need to be replaced, force it explicitly with the -replace option.",
+							n.ResolvedProvider.ProviderConfig.InstanceString(n.ResolvedProviderKey), n.Addr, path, n.Addr,
+						),
+					))
+					continue
+				}
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
 					"Provider produced invalid plan",

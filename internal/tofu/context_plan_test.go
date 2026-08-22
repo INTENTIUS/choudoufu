@@ -4325,6 +4325,190 @@ func TestContext2Plan_requiresReplace(t *testing.T) {
 	}
 }
 
+// TestContext2Plan_requiresReplaceMalformedPathDropped covers a provider
+// that indicates "requires replacement" with a path that names no attribute
+// in any schema: a single cty.GetAttrStep whose Name is the empty string.
+// This is the exact shape hashicorp/aws 6.59.0 sends for
+// aws_vpc_security_group_ingress_rule when it cannot say which of its
+// mutually exclusive source attributes (cidr_ipv4/cidr_ipv6/prefix_list_id/
+// referenced_security_group_id) triggered replacement - confirmed against
+// real stock terraform in live/e2e/corpus-security-group-complete/run.sh's
+// step 1c.
+//
+// No schema ever defines an attribute named the empty string, so this path
+// can never resolve against either the prior or the planned value - that is
+// exactly the condition that used to make node_resource_abstract_instance.go
+// abort the whole plan with a fatal "Provider produced invalid plan" error.
+// The fix is to recognize this specific, self-evidently degenerate shape and
+// drop just that one entry (never adding it to the replace set) with a
+// warning instead, while leaving every genuine attribute comparison
+// untouched - so a real, differently-signaled change on the same resource
+// would still show up and would still force a replace on its own.
+func TestContext2Plan_requiresReplaceMalformedPathDropped(t *testing.T) {
+	SkipExperimental(t, ExperimentalFlagUnknown)
+
+	m := testModule(t, "plan-requires-replace")
+	p := testProvider("test")
+	p.GetProviderSchemaResponse = &providers.GetProviderSchemaResponse{
+		Provider: providers.Schema{
+			Block: &configschema.Block{},
+		},
+		ResourceTypes: map[string]providers.Schema{
+			"test_thing": {
+				Block: &configschema.Block{
+					Attributes: map[string]*configschema.Attribute{
+						"v": {
+							Type:     cty.String,
+							Required: true,
+						},
+					},
+				},
+			},
+		},
+	}
+	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{
+			PlannedState: req.ProposedNewState,
+			RequiresReplace: []cty.Path{
+				// The malformed shape: one step, no name.
+				{cty.GetAttrStep{Name: ""}},
+			},
+		}
+	}
+
+	state := states.NewState()
+	root := state.EnsureModule(addrs.RootModuleInstance)
+	root.SetResourceInstanceCurrent(
+		mustResourceInstanceAddr("test_thing.foo").Resource,
+		&states.ResourceInstanceObjectSrc{
+			Status:    states.ObjectReady,
+			AttrsJSON: []byte(`{"v":"hello"}`),
+		},
+		mustProviderConfig(`provider["registry.opentofu.org/hashicorp/test"]`),
+		addrs.NoKey,
+	)
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+	})
+
+	plan, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+
+	var found bool
+	for _, d := range diags {
+		if d.Description().Summary == "Provider produced a malformed requires-replacement path" {
+			found = true
+			if got, want := d.Severity(), tfdiags.Warning; got != want {
+				t.Errorf("wrong diagnostic severity %#v; want %#v", got, want)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected a warning about a malformed requires-replacement path; got %s", diags.Err())
+	}
+
+	schema := p.GetProviderSchemaResponse.ResourceTypes["test_thing"]
+
+	if got, want := len(plan.Changes.Resources), 1; got != want {
+		t.Fatalf("got %d changes; want %d", got, want)
+	}
+
+	res := plan.Changes.Resources[0]
+	ric, err := res.Decode(&schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The dropped path never forces a replace, and the resource's real
+	// attribute ("v") did change - from "hello" to "goodbye" - so this
+	// must still be an ordinary in-place update, never a destroy/create,
+	// and never a silent no-op either.
+	if got, want := ric.Action, plans.Update; got != want {
+		t.Errorf("wrong action\ngot:  %s\nwant: %s", got, want)
+	}
+	checkVals(t, objectVal(t, schema.Block, map[string]cty.Value{
+		"v": cty.StringVal("hello"),
+	}), ric.Before)
+	checkVals(t, objectVal(t, schema.Block, map[string]cty.Value{
+		"v": cty.StringVal("goodbye"),
+	}), ric.After)
+}
+
+// TestContext2Plan_requiresReplaceBogusNamedPathStillErrors is the negative
+// control for TestContext2Plan_requiresReplaceMalformedPathDropped: a path
+// that names a real (if wrong) attribute identifier is not the degenerate
+// empty-step shape, and must keep failing the plan exactly as before - the
+// new handling is narrowly scoped to paths that carry no information at
+// all, not to every path a provider gets wrong.
+func TestContext2Plan_requiresReplaceBogusNamedPathStillErrors(t *testing.T) {
+	SkipExperimental(t, ExperimentalFlagUnknown)
+
+	m := testModule(t, "plan-requires-replace")
+	p := testProvider("test")
+	p.GetProviderSchemaResponse = &providers.GetProviderSchemaResponse{
+		Provider: providers.Schema{
+			Block: &configschema.Block{},
+		},
+		ResourceTypes: map[string]providers.Schema{
+			"test_thing": {
+				Block: &configschema.Block{
+					Attributes: map[string]*configschema.Attribute{
+						"v": {
+							Type:     cty.String,
+							Required: true,
+						},
+					},
+				},
+			},
+		},
+	}
+	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{
+			PlannedState: req.ProposedNewState,
+			RequiresReplace: []cty.Path{
+				cty.GetAttrPath("bogus"),
+			},
+		}
+	}
+
+	state := states.NewState()
+	root := state.EnsureModule(addrs.RootModuleInstance)
+	root.SetResourceInstanceCurrent(
+		mustResourceInstanceAddr("test_thing.foo").Resource,
+		&states.ResourceInstanceObjectSrc{
+			Status:    states.ObjectReady,
+			AttrsJSON: []byte(`{"v":"hello"}`),
+		},
+		mustProviderConfig(`provider["registry.opentofu.org/hashicorp/test"]`),
+		addrs.NoKey,
+	)
+
+	ctx := testContext2(t, &ContextOpts{
+		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
+			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
+		}, nil),
+	})
+
+	_, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
+	if !diags.HasErrors() {
+		t.Fatalf("expected an error, got none")
+	}
+	var found bool
+	for _, d := range diags {
+		if d.Description().Summary == "Provider produced invalid plan" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a \"Provider produced invalid plan\" error; got %s", diags.Err())
+	}
+}
+
 func TestContext2Plan_actionInteractions(t *testing.T) {
 	// The intention of this test is to prove that we can successfully plan
 	// various combinations of actions between two resource instances that
