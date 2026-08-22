@@ -24,14 +24,23 @@ its `main` is where merges land and what gets pushed.
    `git branch --list 'gauntlet/*'`).
 3. Spawn one worker per unit with the Agent tool, model `sonnet`, agent type
    `gauntlet-worker`, telling it the unit ID and that it may not push or open
-   a PR: it commits on its branch in its own worktree and reports. Run up to
-   three workers at once; crossing scripts use distinct emulator ports, but
-   never two workers on the same estate.
+   a PR: it commits on its branch in its own worktree and reports. Give each
+   worker ONE estate and tell it to drive that estate until it clears, not to
+   fix the named wall and stop; fixing a wall usually just reveals the next
+   one, and a night spent moving to whatever `next` names ends with many
+   merged fixes and no cleared estate. Run as many workers as there is
+   genuinely independent per-estate work, assigning each a distinct
+   `FLOCI_PORT`; never two on the same estate.
 4. When a worker reports, verify before you believe: read the
    `GAUNTLET stage=` lines in `live/gauntlet/logs/<estate>.log` in its
-   worktree; confirm `just ci` from a file (`just ci > ci.out 2>&1; echo $? > ci.rc`)
-   on its branch; confirm the artifact diff moves only the estate it
-   claims and nothing backwards. A worker's summary is a lead, not a fact.
+   worktree; read its gate from a file (`ci.rc`), which is the packages its
+   change touches rather than the whole tier, since running `just ci` once
+   per worker duplicates the same minutes N times; confirm the artifact diff
+   moves only the estate it claims and nothing backwards. A worker's summary
+   is a lead, not a fact. Because each branch re-renders the artifact from
+   its own base, a branch cut before an earlier merge will silently drop that
+   estate's row: make the worker rebase and RE-RUN its estate so the runner
+   writes the row, rather than hand-resolving the artifact.
 5. Merge on green: `git -C <primary> merge --no-ff <branch>`, then
    `git -C <primary> push origin main`. Remove the worker's worktree
    (`rm -rf` the directory, then `git worktree prune`, because the theme
@@ -62,11 +71,19 @@ Do not proceed past any of these; state the question and wait.
 - A code change to identity resolution, stamping or discovery that the
   worker could not show with a test asserting the rendered identity by
   value, or anything with a wrong-marker risk.
-- Real AWS spend beyond the standing small-spend note, or anything touching
-  `lex00/floci` beyond filing an issue.
-- The foundation items (`#364` universal record, `#365` toggles schema):
-  these are design passes, not units; a worker may scout and report, not
-  land.
+- Real AWS spend beyond the standing small-spend note. Emulator work is not
+  on this list: the floci fork at `~/checkouts/floci` is ours to fix, so an
+  emulator gap is a unit, not a blocker. Never push to its `upstream`
+  (floci-io/floci), only to `origin` (lex00/floci), and cover every change
+  with an issue there. Batch fixes into ONE image publish and ONE repin of
+  `live/floci-image`, then re-measure the estates that were clear, because a
+  repin is a shared-layer change.
+- The foundation items (`#364` universal record, `#365` toggles schema),
+  where the DESIGN is still open: those are design passes, not units. Once a
+  design is settled and the work is named files and named changes, it is a
+  unit like any other and a worker lands it. "This is foundation work" is a
+  description of scope, not a reason to stop, and treating it as one is how a
+  night ends with findings instead of cleared estates.
 - A worker's verdict moving backwards on any estate without a stated cause.
 
 ## Never
@@ -74,7 +91,9 @@ Do not proceed past any of these; state the question and wait.
 - Hand-edit `live/gauntlet.json`, `live/GAUNTLET.md`, `live/gauntlet/estates.json`
   or `site/content/docs/progress/`; they are rendered.
 - Run a crossing script in your own session; that is what workers are for.
-- Merge a branch whose `just ci` you did not read from a file.
+- Merge a branch whose gate you did not read from a file, or push a `main`
+  you have not put a full `just ci` through. The full tier runs once per
+  merge batch, on the merge result, before the push.
 - Work in the primary checkout's working tree, `git stash`, or prune a
   worktree by whether its branch merged (a branch with no commits is
   trivially merged).

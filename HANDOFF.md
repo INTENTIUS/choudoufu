@@ -64,19 +64,30 @@ rendered identity by value.
 **Stock is the oracle.** The gauntlet (`tools/gauntlet`, contract in
 `live/GAUNTLET.md`) runs real, popular estates through fixed stages side by
 side with stock OpenTofu against the pinned emulator, and diffs the plans and
-the cloud. Every difference is one of four things, each with a fixed action
+the cloud. Every difference is one of five things, each with a fixed action
 and no ruling:
 
 | Difference | Action |
 |---|---|
 | choudoufu refuses where stock proceeds | defect; fix it |
 | the plans or the resulting cloud differ | defect; fix it |
-| stock fails too | record it against stock and move on |
+| stock fails too | the estate still has to clear: either choudoufu handles what stock cannot, or the stage's oracle is wrong and the oracle is what gets fixed |
+| the emulator is wrong | fix it in the floci fork, file the issue there, publish the image, repin and re-measure |
 | handling it would write a wrong marker | drop the instance to the record rung, proceed, open a rung ticket |
 
-The unit of progress is **an estate clearing every active stage**. The two
-numbers on the site, core estates clear and all estates clear, are read from
-`live/gauntlet.json`, which only the runner writes.
+None of those five rows ends the work. Stock failing is not a ceiling:
+`cold_deploy` passes for every estate in the manifest, so stock runs them
+all, and what it fails at is a later stage. Where stock cannot replan an
+estate that it applied, choudoufu handling it anyway is a feature, not a
+divergence to apologise for; `plan_approval` already commits to being
+stricter than stock, and this is the same licence pointed the other way. An
+emulator gap is not a ceiling either, because the emulator is ours to fix.
+
+The unit of progress is **an estate clearing every active stage**, and that
+is the only thing a unit may end on. A finding written down is a note on an
+unfinished unit, never a finished one. An estate stays on the list until it
+clears. The two numbers on the site, core estates clear and all estates
+clear, are read from `live/gauntlet.json`, which only the runner writes.
 
 ## The loop
 
