@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
+  "commit": "4c2e4a2380bedeba667802081e095050bf87d689",
   "emulator": "ghcr.io/lex00/floci@sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9",
-  "generated": "2026-08-21T22:11:29Z",
+  "generated": "2026-08-21T23:25:27Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 25,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -173,9 +173,9 @@
           "not_run": 25
         },
         "drift_reconverge": {
-          "pass": 15,
+          "pass": 16,
           "fail": 0,
-          "not_run": 10
+          "not_run": 9
         },
         "greenfield": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 24,
-      "clear": 14,
+      "clear": 15,
       "stages": {
         "cold_deploy": {
           "pass": 24,
@@ -250,9 +250,9 @@
           "not_run": 24
         },
         "drift_reconverge": {
-          "pass": 14,
+          "pass": 15,
           "fail": 0,
-          "not_run": 10
+          "not_run": 9
         },
         "greenfield": {
           "pass": 0,
@@ -1189,7 +1189,7 @@
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "plan_approval": "not_run",
@@ -1197,15 +1197,15 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
-        "date": "2026-08-21T22:12:17Z",
+        "commit": "4c2e4a2380bedeba667802081e095050bf87d689",
+        "date": "2026-08-21T23:26:24Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "not yet written - stage 4 only just started passing in this run",
+          "drift_reconverge": "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
           "migrate": "live-import -approve completed cleanly against the cold state",
           "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 20",
           "test_plan": "no resource change proposed"
