@@ -165,7 +165,7 @@ policy {
 ```
 
 `untag` removes this estate's marker and leaves the resource alone. `keep`
-leaves both untouched. [Day-2 operations]({{< relref "/docs/use/day2" >}}) covers the rest of the
+leaves both untouched. [The ownership policy matrix]({{< relref "/docs/use/ownership-policy" >}}) covers the rest of the
 matrix.
 
 ## Getting back out
