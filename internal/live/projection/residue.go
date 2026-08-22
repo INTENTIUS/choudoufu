@@ -449,13 +449,71 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 // prior against a marked planned value is the perpetual sensitivity-only
 // update sensitivepaths.go's header describes.
 //
-// Nested blocks and nested object attributes are out of scope, and that is
-// a stated bound rather than an oversight: the classifier's discriminator
-// compares a whole attribute value before and after, which a block whose
-// nesting mode is a set or a map does not have a stable per-element form
-// for. aws_lambda_function.vpc_config is the case that would want it; on
-// the crossing that ran for issue #275 it is also a floci gap, so nothing
-// yet demands it. A block-shaped residue is its own piece of work.
+// # Nested blocks, and which of them are in scope
+//
+// Nested object ATTRIBUTES (attr.NestedType) are out of scope, and so is
+// every block whose nesting mode is a list, a set, a map or a group. That
+// is a stated bound rather than an oversight, and the bound's reason is
+// specific: the classifier's discriminator compares a whole attribute value
+// before and after, which a collection-nested block has no stable
+// per-element form for. aws_lambda_function.vpc_config is the case that
+// would want the collection half; on the crossing that ran for issue #275
+// it is also a floci gap, so nothing yet demands it.
+//
+// [configschema.NestingSingle] blocks ARE in scope, because the bound's
+// reason does not reach them. A single-nested block is one value in the
+// implied object type, exactly like a flat attribute, so "compare the whole
+// value before and after" is as well defined for it as for a string. The
+// crossing that demanded it is corpus-rds-complete-postgres: terraform-aws-
+// modules writes `timeouts { create = "10m" delete = "15m" }` on its
+// security group and its default route table, a block the provider's Read
+// never sources from the remote and only ever preserves from the prior it
+// was handed. A stock state file holds it; a stateless prior state had
+// nowhere to hold it, so every replan after a clean migrate proposed
+// `+ timeouts {...}` on those instances forever, against a stock plan that
+// shows the same block unchanged. Nothing about the rule names a type or a
+// block: `timeouts` is simply the single-nested block hashicorp/aws puts on
+// most of its resources, and any other config-only single-nested block
+// rides the same path.
+//
+// Safety is unchanged and still comes from [classifyResidue], not from
+// here. A single-nested block the provider really does source from the
+// remote fails read A's test; one the provider does not preserve fails read
+// B's. aws_default_network_acl's `egress`/`ingress` are the worked example
+// of why widening the filter does not silence drift: they are
+// [configschema.NestingSet], so they never reach this list at all - and
+// even if they did, floci returning no rules makes read B disagree with the
+// applied value, which is a skip.
+//
+// # Why the block half does not take the secrets setting
+//
+// [singleNestedResidueBlock] refuses a block with anything sensitive or
+// write-only anywhere inside it, and it refuses it under BOTH settings.
+// That is not an oversight and it is not a stricter reading of the toggle:
+// both of its reasons are the two things named just above as the ones the
+// setting cannot reach.
+//
+// Write-only is the protocol rule. A block is refused for containing one
+// anywhere exactly as an attribute is refused for being one, and for the
+// identical reason - the provider may never return the value, so no stored
+// copy could ever be checked against the object it claims to describe.
+//
+// Sensitive INSIDE a block is the mark question, not the policy question. A
+// sensitive flat attribute may be recorded under [strict.Store] only
+// because there is an exact proof that its mark comes back: one mark, on
+// the whole attribute value, which [markSchemaSensitive] reproduces from
+// the schema and which [residueMarkRecoverable] checks for by value. A
+// sensitive attribute inside a single-nested block puts its mark at a path
+// INSIDE the block's value, which is the one shape residueMarkRecoverable
+// names as unrecoverable, and there is no per-path equivalent of that
+// proof. So such a block stays out under `secrets = "store"` for the mark
+// reason and under `secrets = "refuse"` for the policy reason: one verdict
+// with two independent supports, which is why no setting is threaded into
+// the predicate. It fails in the safe direction - the estate keeps
+// proposing that block on every plan, which is loud - rather than filling a
+// value back without the sensitivity the planned value carries, which is
+// the perpetual sensitivity-only update sensitivepaths.go's header
+// describes.
 //
 // # Required, Optional and Computed are not asked here
 //
@@ -523,8 +581,110 @@ func residueCandidates(schema providers.Schema, applied cty.Value, secrets stric
 		}
 		out = append(out, name)
 	}
+	for name := range schema.Block.BlockTypes {
+		if identityAttrs[name] || !singleNestedResidueBlock(schema.Block, name) {
+			continue
+		}
+		if !applied.Type().HasAttribute(name) {
+			continue
+		}
+		v := applied.GetAttr(name)
+		if v.IsNull() || !v.IsWhollyKnown() {
+			continue
+		}
+		// The same recoverability predicate the flat attributes are put to,
+		// with nil for "no attribute to read a Sensitive flag off". For a
+		// block that means unmarked or nothing, DEEPLY - see
+		// [residueMarkRecoverable]'s own note on why a shallow IsMarked is
+		// the wrong question about a block value.
+		if !residueMarkRecoverable(nil, v) {
+			continue
+		}
+		out = append(out, name)
+	}
 	sort.Strings(out)
 	return out
+}
+
+// singleNestedResidueBlock reports whether name is a block type on this
+// schema that residue may carry, and it is the ONE place that question is
+// answered - [residueCandidates] asks it to decide what may be recorded and
+// [fillResidue] asks it to decide what may be filled, so the two populations
+// cannot drift apart.
+//
+// Two conditions, both from [residueCandidates]'s doc comment:
+//
+//   - The nesting mode is [configschema.NestingSingle], so the block is one
+//     value in the implied object type and the classifier's whole-value
+//     discriminator is defined for it. NestingGroup is excluded along with
+//     the collections: it also renders as a single value, but an absent
+//     group reads back as a block full of zero values rather than a null,
+//     so "read A carries no information" cannot be told apart from "the
+//     group is really empty".
+//   - Nothing sensitive or write-only anywhere inside it. That is the same
+//     rule the flat-attribute filter applies through attr.Sensitive and
+//     attr.WriteOnly, asked over a whole nested schema because a block has
+//     no single flag to read.
+func singleNestedResidueBlock(block *configschema.Block, name string) bool {
+	if block == nil {
+		return false
+	}
+	blk := block.BlockTypes[name]
+	if blk == nil || blk.Nesting != configschema.NestingSingle {
+		return false
+	}
+	return !blk.ContainsSensitive() && !containsWriteOnly(&blk.Block)
+}
+
+// containsWriteOnly reports whether a block schema carries a write-only
+// attribute anywhere inside it. [configschema.Block.ContainsSensitive] is
+// the same walk for the sensitive flag and already exists; there is no
+// value-free equivalent for write-only ([configschema.Block.WriteOnlyPaths]
+// needs a value), so this is it.
+func containsWriteOnly(b *configschema.Block) bool {
+	if b == nil {
+		return false
+	}
+	for _, attr := range b.Attributes {
+		if attr == nil {
+			continue
+		}
+		if attr.WriteOnly {
+			return true
+		}
+		if attr.NestedType != nil && nestedContainsWriteOnly(attr.NestedType) {
+			return true
+		}
+	}
+	for _, blk := range b.BlockTypes {
+		if blk == nil {
+			continue
+		}
+		if containsWriteOnly(&blk.Block) {
+			return true
+		}
+	}
+	return false
+}
+
+// nestedContainsWriteOnly is [containsWriteOnly] over a nested object
+// attribute's own schema.
+func nestedContainsWriteOnly(o *configschema.Object) bool {
+	if o == nil {
+		return false
+	}
+	for _, attr := range o.Attributes {
+		if attr == nil {
+			continue
+		}
+		if attr.WriteOnly {
+			return true
+		}
+		if attr.NestedType != nil && nestedContainsWriteOnly(attr.NestedType) {
+			return true
+		}
+	}
+	return false
 }
 
 // residueMarkRecoverable reports whether v's marks are exactly the ones
@@ -556,10 +716,38 @@ func residueCandidates(schema providers.Schema, applied cty.Value, secrets stric
 // Nested attribute types never reach here ([residueCandidates] excludes
 // them), so "the whole attribute value" is the only path a schema mark can
 // land on.
+//
+// # attr may be nil, and that is the single-nested BLOCK case
+//
+// [residueCandidates]'s second loop asks this question about a block value,
+// where there is no [configschema.Attribute] to read a Sensitive flag off.
+// nil is the honest way to say so, and the answer it produces is the right
+// one: only the first of the three answers above is available, so any mark
+// on or inside a block value refuses the candidate.
+//
+// That is not a conservative default, it is the exact rule.
+// [singleNestedResidueBlock] has already established that nothing inside
+// this block is Sensitive by the schema, so [configschema.Block.ValueMarks]
+// puts nothing back inside it and [markSchemaSensitive] cannot restore any
+// mark it carries. A mark reaching here therefore came from somewhere the
+// schema cannot be read back out of - a `sensitive = true` variable feeding
+// one of the block's arguments is the case that produces it - which is the
+// third answer's own reasoning arriving by a different door.
+//
+// The deep walk matters here in a way it does not for a flat attribute.
+// cty's Value.IsMarked is shallow: it reports a mark on the value itself
+// and says nothing about a mark on an argument inside a block. An earlier
+// form of the block loop asked IsMarked and would have recorded a block
+// whose inner argument carried a variable's sensitivity, then filled it
+// back unmarked. UnmarkDeepWithPaths is what closes that, and it is why
+// both populations ask this one function rather than two spellings of it.
 func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 	_, pvms := v.UnmarkDeepWithPaths()
 	if len(pvms) == 0 {
 		return true
+	}
+	if attr == nil {
+		return false
 	}
 	if !attr.Sensitive || len(pvms) != 1 {
 		return false
@@ -1166,6 +1354,15 @@ func identityOnly(obj cty.Value, identityAttrs map[string]bool) (cty.Value, erro
 // wrote for the same attribute of the same instance; nothing about the
 // record's age makes it a different value.
 //
+// Neither flag reaches the single-nested BLOCK half of the switch, and it
+// is the same asymmetry [residueCandidates]' doc comment sets out: a block
+// is admitted by [singleNestedResidueBlock], which refuses one containing
+// anything sensitive or write-only under EITHER setting, so there is no
+// remaining flag here for the setting to move. The re-asking is the point
+// that survives - singleNestedResidueBlock is asked again on the way out,
+// against today's schema, so a block recorded before a provider release put
+// a sensitive argument inside it stops being filled that day.
+//
 // The caller is what puts the sensitivity mark back - see
 // [builder.fillResidueFor], which re-marks from the schema after this
 // returns. This function deliberately deals in unmarked values on both
@@ -1205,9 +1402,18 @@ func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.
 		curPlain, _ := cur.UnmarkDeep()
 		rec, recorded := attrs[name]
 		schemaAttr := block.Attributes[name]
+		// A name the schema carries as a single-nested BLOCK rather than an
+		// attribute is fillable on exactly the terms [residueCandidates]
+		// let it be recorded on, and on no others. The two populations are
+		// derived from the same schema here rather than trusted to match,
+		// because the record is a file on disk that outlives the run that
+		// wrote it: a record written when a name was in scope must stop
+		// being filled the day the schema moves it out of scope.
+		fillableBlock := schemaAttr == nil && singleNestedResidueBlock(block, name)
 		switch {
-		case !recorded, !carriesNoInformation(curPlain), schemaAttr == nil,
-			schemaAttr.Sensitive && refusesSecrets, schemaAttr.WriteOnly,
+		case !recorded, !carriesNoInformation(curPlain),
+			schemaAttr == nil && !fillableBlock,
+			schemaAttr != nil && ((schemaAttr.Sensitive && refusesSecrets) || schemaAttr.WriteOnly),
 			rec.IsNull(), !rec.IsWhollyKnown(), rec.IsMarked(),
 			!rec.Type().Equals(ty):
 			out[name] = cur
