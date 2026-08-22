@@ -194,12 +194,19 @@ type Request struct {
 	// there is no per-run universe for a hint to narrow there.
 	Guided bool
 
-	// HintStore is the estate's record store, the one carrier the guided
-	// hint has (issue #109) - ordinarily the same store [Request]'s caller
-	// opened from the live block's record_store block. Read through
-	// [projection.ReadHintStore], at the key [projection.HintKey](Estate)
-	// derives. Nil disables the hint read, which under Guided means every
-	// pass falls back to full enumeration.
+	// HintStore is the estate's record store, ordinarily the same store
+	// [Request]'s caller opened from the live block's record_store block. It
+	// carries the guided hint (issue #109, read through
+	// [projection.ReadHintStore] at the key [projection.HintKey](Estate)
+	// derives) and, independent of Guided, backs
+	// [scanTypeLocatedFallback]'s per-instance identity lookups for a type
+	// with no tags argument and no list route: [projection.NewLocatedStore]
+	// wraps it the same way internal/command's projection build does. A
+	// caller sets this whether or not it also turns Guided on - the two
+	// consume the same handle for two different questions, and a nil value
+	// disables both: the hint read falls back to full enumeration, and the
+	// located fallback finds nothing to consult, exactly as before either
+	// existed.
 	HintStore staterecord.Store
 
 	// GuidedMaxAge is how old a hint may be before guided discovery treats
@@ -1228,6 +1235,19 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		// it always has, unweakened.
 		if !sweep && typeTaggable(schemas, typeName) {
 			if fbDiags, ok := scanTypeMarkerFallback(ctx, req, decl, typeName, res); ok {
+				return diags.Append(fbDiags)
+			}
+		}
+
+		// [scanTypeMarkerFallback]'s untaggable companion. A type with no
+		// tags argument at all could never carry a marker for the index
+		// above to find, but untaggable does not mean unidentifiable (see
+		// .claude/agents/live-markers.md's invariant): a migration already
+		// reads such an object once, for residue (#341), and writes the
+		// identity it read into the estate's record store. See
+		// [scanTypeLocatedFallback]'s doc comment.
+		if !sweep && !typeTaggable(schemas, typeName) {
+			if fbDiags, ok := scanTypeLocatedFallback(ctx, req, decl, typeName, res); ok {
 				return diags.Append(fbDiags)
 			}
 		}
@@ -2679,25 +2699,26 @@ func problemDiag(res *Result, p Problem) tfdiags.Diagnostic {
 }
 
 var problemSummaries = map[ProblemKind]string{
-	ProblemCollision:              "Two live resources claiming one address",
-	ProblemMalformedMarker:        "Malformed ownership marker",
-	ProblemDisplacedMarker:        "Live resource displaced from the address it is marked for",
-	ProblemNeedsSlotMarkers:       "Indistinguishable instances without per-instance markers",
-	ProblemMixedSlots:             "Partial slot markers on a count set",
-	ProblemMalformedSlot:          "Malformed slot marker",
-	ProblemDuplicateSlot:          "Two live resources claiming one slot",
-	ProblemSlotExhausted:          "No slot left to mint",
-	ProblemNoIdentity:             "Listed resource with no identity",
-	ProblemNoTags:                 "Listed resource with no tags",
-	ProblemTypeNotListable:        "Unlistable marker-discovered type",
-	ProblemUnresolvedAccount:      "No AWS account ID from the provider",
-	ProblemListFailed:             "Failed to list a resource type",
-	ProblemUncomposableIdentifier: "Cloud Control identifier could not be composed",
-	ProblemAmbiguousUniqueName:    "Unique name matched more than one resource",
-	ProblemUnreadableUniqueName:   "Listed resource with no readable name",
-	ProblemUnresolvedTaggedARN:    "Tagged resource's ARN could not be joined to a resource type",
-	ProblemUnsweepableOwnedType:   "Owned resource of a type the sweep cannot cover",
-	ProblemAmbiguousTagJoin:       "Listed resource matched more than one tagged resource",
-	ProblemUnreadableMarker:       "Unbound instance with unreadable live markers of its type",
-	ProblemAmbiguousContentMatch:  "Content match found more than one live candidate",
+	ProblemCollision:               "Two live resources claiming one address",
+	ProblemMalformedMarker:         "Malformed ownership marker",
+	ProblemDisplacedMarker:         "Live resource displaced from the address it is marked for",
+	ProblemNeedsSlotMarkers:        "Indistinguishable instances without per-instance markers",
+	ProblemMixedSlots:              "Partial slot markers on a count set",
+	ProblemMalformedSlot:           "Malformed slot marker",
+	ProblemDuplicateSlot:           "Two live resources claiming one slot",
+	ProblemSlotExhausted:           "No slot left to mint",
+	ProblemNoIdentity:              "Listed resource with no identity",
+	ProblemNoTags:                  "Listed resource with no tags",
+	ProblemTypeNotListable:         "Unlistable marker-discovered type",
+	ProblemLocatedRecordUnreadable: "Located identity record unreadable",
+	ProblemUnresolvedAccount:       "No AWS account ID from the provider",
+	ProblemListFailed:              "Failed to list a resource type",
+	ProblemUncomposableIdentifier:  "Cloud Control identifier could not be composed",
+	ProblemAmbiguousUniqueName:     "Unique name matched more than one resource",
+	ProblemUnreadableUniqueName:    "Listed resource with no readable name",
+	ProblemUnresolvedTaggedARN:     "Tagged resource's ARN could not be joined to a resource type",
+	ProblemUnsweepableOwnedType:    "Owned resource of a type the sweep cannot cover",
+	ProblemAmbiguousTagJoin:        "Listed resource matched more than one tagged resource",
+	ProblemUnreadableMarker:        "Unbound instance with unreadable live markers of its type",
+	ProblemAmbiguousContentMatch:   "Content match found more than one live candidate",
 }

@@ -682,6 +682,17 @@ const (
 	// merely absent would be a lie.
 	ProblemTypeNotListable ProblemKind = "TYPE_NOT_LISTABLE"
 
+	// ProblemLocatedRecordUnreadable is [scanTypeLocatedFallback]'s own
+	// failure: a type with no tags argument and no list route of any kind
+	// has nowhere to be found except the estate's record store, and reading
+	// that store failed - a corrupt record, a store the process can no
+	// longer reach, or a version this build does not understand
+	// ([projection.LocatedStore.Get]'s own refusals). It is never "no
+	// record exists yet" - that answer is not a problem, it is an ordinary
+	// absence, and the instance is left unbound so the plan proposes a
+	// create.
+	ProblemLocatedRecordUnreadable ProblemKind = "LOCATED_RECORD_UNREADABLE"
+
 	// ProblemUnresolvedAccount is the owner-id trap: every listed identity
 	// of a type came back with an empty account ID, which means the
 	// provider resolved none and the owner-id filter it appends to a
@@ -926,6 +937,15 @@ const (
 	// type's own [TypeScan] still records what its share of that one call
 	// produced.
 	SourceTagging EnumerationSource = "TAGGING_API"
+
+	// SourceRecordStore is the estate's own record store, consulted by
+	// [scanTypeLocatedFallback] for a type with no tags argument and no list
+	// route of any kind - the one population none of the other three
+	// sources can ever reach, because there is no tag to index and nothing
+	// to list. It never enumerates: each declared instance is a single
+	// point lookup by its own address, so "Listed" here counts records
+	// found, not objects returned by one call.
+	SourceRecordStore EnumerationSource = "RECORD_STORE"
 )
 
 // TypeScan is what happened for one resource type.
@@ -1026,6 +1046,8 @@ func (s TypeScan) String() string {
 		source = fmt.Sprintf(" source=tagging(%s)", s.CFNType)
 	case SourceProvider:
 		source = " source=provider"
+	case SourceRecordStore:
+		source = " source=record-store"
 	}
 	joined := ""
 	if s.Joined > 0 {
