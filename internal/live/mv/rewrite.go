@@ -81,42 +81,61 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 		))
 	}
 
-	// The configuration value a fully-specified configuration for this
-	// resource would produce: everything the object carries, minus the
-	// attributes only the provider can set. Providers read this back
-	// (SDKv2's GetRawConfig, the framework's Config), so handing them the
-	// live object with its computed attributes filled in would be telling
-	// them something a configuration never says.
-	configVal := configValue(m.schema.Block, desired)
-	proposed := objchange.ProposedNew(m.schema.Block, priorVal, configVal)
-
-	planResp := m.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
-		TypeName:         m.res.TypeName,
-		PriorState:       priorVal,
-		ProposedNewState: proposed,
-		Config:           configVal,
-		PriorPrivate:     prior.Private,
-		// A null of the dynamic pseudo-type rather than the zero cty.Value,
-		// for the same reason the projection's read passes one: the plugin
-		// client marshals ProviderMeta whenever the provider declares a
-		// provider_meta schema, and a value with no type at all panics the
-		// conformance check. A rename has no provider_meta block to
-		// evaluate, so null is also the correct answer.
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-		PriorIdentity: prior.Identity,
-	})
-	if planResp.Diagnostics.HasErrors() {
-		return diags.Append(planResp.Diagnostics.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot plan the marker rewrite",
-			fmt.Sprintf("The provider failed while planning the tag change on the %s at %s. Nothing was written.", m.res.TypeName, m.res.LiveID),
-		)))
+	// The renamed resource has no configuration here, so one is synthesized.
+	// Providers read it back (SDKv2's GetRawConfig, the framework's Config),
+	// and there is more than one honest answer to what it should say about
+	// the arguments a provider fills in for itself: handing over the live
+	// object with every computed attribute filled in tells the provider
+	// something a configuration never says, and omitting them tells a
+	// provider that injects one that it has changed. [syntheticConfigs]
+	// offers both, least claim first; each is planned in turn and the first
+	// plan that is a clean tags-only change wins. [mover.checkPlan] is what
+	// "clean" means, unchanged, so trying a second configuration widens what
+	// can be rewritten without widening what may be.
+	var (
+		configVal cty.Value
+		planResp  providers.PlanResourceChangeResponse
+		refused   tfdiags.Diagnostics
+	)
+	for _, candidate := range syntheticConfigs(m.schema.Block, desired) {
+		resp := m.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
+			TypeName:         m.res.TypeName,
+			PriorState:       priorVal,
+			ProposedNewState: objchange.ProposedNew(m.schema.Block, priorVal, candidate),
+			Config:           candidate,
+			PriorPrivate:     prior.Private,
+			// A null of the dynamic pseudo-type rather than the zero cty.Value,
+			// for the same reason the projection's read passes one: the plugin
+			// client marshals ProviderMeta whenever the provider declares a
+			// provider_meta schema, and a value with no type at all panics the
+			// conformance check. A rename has no provider_meta block to
+			// evaluate, so null is also the correct answer.
+			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			PriorIdentity: prior.Identity,
+		})
+		if resp.Diagnostics.HasErrors() {
+			// Kept, not returned: if no candidate produces a clean plan, the
+			// LAST refusal is the one reported, so the message an operator
+			// reads is the one for the configuration that asserts most - the
+			// only one this path used to send at all.
+			refused = resp.Diagnostics.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot plan the marker rewrite",
+				fmt.Sprintf("The provider failed while planning the tag change on the %s at %s. Nothing was written.", m.res.TypeName, m.res.LiveID),
+			))
+			continue
+		}
+		if checkDiags := m.checkPlan(priorVal, resp); checkDiags.HasErrors() {
+			refused = resp.Diagnostics.Append(checkDiags)
+			continue
+		}
+		configVal, planResp, refused = candidate, resp, nil
+		break
+	}
+	if refused.HasErrors() {
+		return diags.Append(refused)
 	}
 	diags = diags.Append(planResp.Diagnostics)
-
-	if checkDiags := m.checkPlan(priorVal, planResp); checkDiags.HasErrors() {
-		return diags.Append(checkDiags)
-	}
 
 	applyResp := m.provider.ApplyResourceChange(ctx, providers.ApplyResourceChangeRequest{
 		TypeName:        m.res.TypeName,
@@ -335,15 +354,77 @@ func withTags(block *configschema.Block, obj cty.Value, tags map[string]string) 
 // Deriving a configuration value from a live object
 // ---------------------------------------------------------------------------
 
-// configValue is the live object as a configuration would express it: every
-// attribute the provider alone can set is nulled, and everything else is
-// carried across as it stands.
+// assertedTagAttr is the one argument a tags-only write claims as set in the
+// configuration it synthesizes, exempt from [computedForProvider] so a
+// provider that ever declares tags optional+computed does not turn every
+// rename into a silent no-op. See internal/live/liveimport's tags.go, which
+// carries the full reasoning for both this and [computedForProvider].
+const assertedTagAttr = "tags"
+
+// configClaim is how much of the live object a synthetic configuration
+// claims the operator wrote down. The two readings of "what would the HCL
+// have said" disagree about the attributes a provider may fill in for
+// itself, and no property of the schema separates the cases; internal/live/
+// liveimport's tags.go carries the full reasoning and the measurements.
+type configClaim int
+
+const (
+	// claimTagsOnly nulls every Computed attribute, not only the
+	// Computed-only ones - an optional+computed argument the operator never
+	// wrote is null in real HCL, and a provider that gates a CustomizeDiff
+	// on finding one known and non-null in the raw config refuses a tag
+	// write that never touched it (GitHub issue #373).
+	claimTagsOnly configClaim = iota
+
+	// claimEverythingSettable nulls only what a configuration cannot set at
+	// all, which is what this file did before #373 - still right where a
+	// provider INJECTS an optional+computed attribute rather than reading
+	// it, and reads its absence from the config as a change.
+	claimEverythingSettable
+)
+
+// syntheticConfigs is the configurations a tags-only write may offer the
+// provider for one object, least claim first. The caller plans each in turn
+// and takes the first whose plan is a clean tags-only change, judged by the
+// same guards that already stood between a plan and an apply. When the two
+// agree - every type with no optional+computed attribute - there is one.
+func syntheticConfigs(block *configschema.Block, val cty.Value) []cty.Value {
+	least := configValue(block, val, claimTagsOnly)
+	most := configValue(block, val, claimEverythingSettable)
+	if least.RawEquals(most) {
+		return []cty.Value{least}
+	}
+	return []cty.Value{least, most}
+}
+
+// computedForProvider reports whether a synthetic configuration making the
+// given claim must leave an attribute null rather than carry the live
+// object's value across. An optional+computed attribute with a NestedType
+// recurses instead of being nulled under either claim, because objchange
+// reads a null config for one of those as a removal and would move the plan.
+// internal/live/liveimport's copy carries the reasoning.
+func computedForProvider(attr *configschema.Attribute, claim configClaim) bool {
+	switch {
+	case !attr.Computed:
+		return false
+	case !attr.Optional && !attr.Required:
+		return true
+	case claim != claimTagsOnly:
+		return false
+	default:
+		return attr.NestedType == nil
+	}
+}
+
+// configValue is the live object as the configuration for a tags-only write
+// would express it: the tag map this run is asserting, plus every argument
+// only a configuration can supply, and nothing else.
 //
 // This is what makes the plan below a tags-only change rather than an
-// assertion that the operator wrote down every computed attribute the
-// provider filled in. Types are never altered - only values are nulled - so
+// assertion that the operator wrote down every value the provider is free to
+// fill in for itself. Types are never altered - only values are nulled - so
 // the result still conforms to the schema's implied type.
-func configValue(block *configschema.Block, val cty.Value) cty.Value {
+func configValue(block *configschema.Block, val cty.Value, claim configClaim) cty.Value {
 	if block == nil || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -352,10 +433,12 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 	for name, attr := range block.Attributes {
 		v := val.GetAttr(name)
 		switch {
-		case attr.Computed && !attr.Optional && !attr.Required:
+		case name == assertedTagAttr:
+			vals[name] = v
+		case computedForProvider(attr, claim):
 			vals[name] = cty.NullVal(v.Type())
 		case attr.NestedType != nil:
-			vals[name] = configNestedObject(attr.NestedType, v)
+			vals[name] = configNestedObject(attr.NestedType, v, claim)
 		default:
 			vals[name] = v
 		}
@@ -364,10 +447,10 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 		v := val.GetAttr(name)
 		switch nested.Nesting {
 		case configschema.NestingSingle, configschema.NestingGroup:
-			vals[name] = configValue(&nested.Block, v)
+			vals[name] = configValue(&nested.Block, v, claim)
 		default:
 			vals[name] = mapElements(v, func(elem cty.Value) cty.Value {
-				return configValue(&nested.Block, elem)
+				return configValue(&nested.Block, elem, claim)
 			})
 		}
 	}
@@ -376,7 +459,7 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 
 // configNestedObject is configValue for an attribute whose type is a nested
 // object rather than a block.
-func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
+func configNestedObject(obj *configschema.Object, val cty.Value, claim configClaim) cty.Value {
 	if val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -389,10 +472,10 @@ func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
 		for name, attr := range obj.Attributes {
 			av := v.GetAttr(name)
 			switch {
-			case attr.Computed && !attr.Optional && !attr.Required:
+			case computedForProvider(attr, claim):
 				vals[name] = cty.NullVal(av.Type())
 			case attr.NestedType != nil:
-				vals[name] = configNestedObject(attr.NestedType, av)
+				vals[name] = configNestedObject(attr.NestedType, av, claim)
 			default:
 				vals[name] = av
 			}

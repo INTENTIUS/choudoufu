@@ -8,11 +8,13 @@ package liveimport
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
@@ -98,6 +100,37 @@ type StampOutcome struct {
 type StampReport struct {
 	Estate   string
 	Outcomes []StampOutcome
+}
+
+// notATagsOnlyPlan is the whole of what stands between a planned tag write
+// and an apply: the sentence to report if this plan must not be applied, or
+// "" if it may be.
+//
+// The three refusals are the ones approveOne has always made inline, lifted
+// into one function because a stamp now plans more than once - see
+// [syntheticConfigs] - and a second candidate configuration must be judged by
+// exactly the same rules as the first, not by a copy of them that drifts.
+// Nothing here is new but the named attribute paths on the replacement
+// refusal, which internal/live/mv's checkPlan has always printed.
+func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName string, resp providers.PlanResourceChangeResponse) string {
+	if resp.Diagnostics.HasErrors() {
+		return fmt.Sprintf("The provider failed while planning the tag write: %s. Nothing was written.", resp.Diagnostics.Err())
+	}
+	if len(resp.RequiresReplace) > 0 {
+		paths := make([]string, 0, len(resp.RequiresReplace))
+		for _, p := range resp.RequiresReplace {
+			paths = append(paths, tfdiags.FormatCtyPath(p))
+		}
+		sort.Strings(paths)
+		return fmt.Sprintf("Stamping this %s would require replacing it, according to the provider (%s). A migration never destroys anything; nothing was written.", typeName, strings.Join(paths, ", "))
+	}
+	if resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull() {
+		return "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
+	}
+	if extra := changedOutsideTags(block, prior, resp.PlannedState); len(extra) > 0 {
+		return fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", typeName, strings.Join(extra, ", "))
+	}
+	return ""
 }
 
 // Approve stamps this estate's markers - tofu-estate and tofu-address, and
@@ -360,42 +393,48 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		return out
 	}
 
-	configVal := configValue(e.schema.Block, desired)
-	proposed := objchange.ProposedNew(e.schema.Block, e.applied, configVal)
-
-	planResp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
-		TypeName:         e.typeName,
-		PriorState:       e.applied,
-		ProposedNewState: proposed,
-		Config:           configVal,
-		PriorPrivate:     e.private,
-		// A null of the dynamic pseudo-type, not the zero cty.Value: the
-		// plugin client marshals ProviderMeta whenever the provider declares
-		// a provider_meta schema, and a value with no type at all panics the
-		// conformance check. See mv's rewrite.go, same call.
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-		PriorIdentity: e.identity,
-	})
-	if planResp.Diagnostics.HasErrors() {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("The provider failed while planning the tag write: %s. Nothing was written.", planResp.Diagnostics.Err())
-		return out
+	// The resource being stamped has no configuration - that is what a
+	// migration is - so one is synthesized, and there is more than one honest
+	// answer to "what would the HCL have said about the arguments the
+	// provider fills in for itself". [syntheticConfigs] offers them least
+	// claim first; each is planned in turn and the first plan that is a
+	// clean tags-only change wins. [notATagsOnlyPlan] is what "clean" means,
+	// and it is the same three guards that already stood between a plan and
+	// an apply - so trying a second configuration widens what can be written
+	// without widening what may be written. See tags.go's configClaim.
+	var (
+		configVal cty.Value
+		planResp  providers.PlanResourceChangeResponse
+		refusal   string
+	)
+	for _, candidate := range syntheticConfigs(e.schema.Block, desired) {
+		resp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
+			TypeName:         e.typeName,
+			PriorState:       e.applied,
+			ProposedNewState: objchange.ProposedNew(e.schema.Block, e.applied, candidate),
+			Config:           candidate,
+			PriorPrivate:     e.private,
+			// A null of the dynamic pseudo-type, not the zero cty.Value: the
+			// plugin client marshals ProviderMeta whenever the provider declares
+			// a provider_meta schema, and a value with no type at all panics the
+			// conformance check. See mv's rewrite.go, same call.
+			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			PriorIdentity: e.identity,
+		})
+		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp); why != "" {
+			// Kept, not returned: if no candidate produces a clean plan, the
+			// LAST refusal is the one reported, so the message an operator
+			// reads is the one for the configuration that asserts most - the
+			// only one this path used to send at all.
+			refusal = why
+			continue
+		}
+		configVal, planResp, refusal = candidate, resp, ""
+		break
 	}
-
-	if len(planResp.RequiresReplace) > 0 {
+	if refusal != "" {
 		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Stamping this %s would require replacing it, according to the provider. A migration never destroys anything; nothing was written.", e.typeName)
-		return out
-	}
-	planned := planResp.PlannedState
-	if planned == cty.NilVal || planned.IsNull() {
-		out.Outcome = OutcomeFailed
-		out.Detail = "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
-		return out
-	}
-	if extra := changedOutsideTags(e.schema.Block, e.applied, planned); len(extra) > 0 {
-		out.Outcome = OutcomeFailed
-		out.Detail = fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", e.typeName, strings.Join(extra, ", "))
+		out.Detail = refusal
 		return out
 	}
 

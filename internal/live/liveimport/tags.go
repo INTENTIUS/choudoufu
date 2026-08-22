@@ -116,12 +116,132 @@ func withTags(block *configschema.Block, obj cty.Value, tags map[string]string) 
 	return cty.ObjectVal(vals), nil
 }
 
-// configValue is the live object as a configuration would express it: every
-// attribute the provider alone can set is nulled, and everything else is
-// carried across as it stands. This is what makes the plan below a
-// tags-only change rather than an assertion that the operator wrote down
-// every computed attribute the provider filled in.
-func configValue(block *configschema.Block, val cty.Value) cty.Value {
+// assertedTagAttr is the one argument a tags-only write claims as set in the
+// configuration it synthesizes. It is the same attribute [taggable] and
+// [withTags] act on, named once here so [configValue]'s rule can be stated as
+// "everything the provider may compute is null except the argument being
+// written".
+//
+// Not merely defensive: [markers.TagSurface] admits a tags map that is
+// Optional AND Computed - only a Computed-only one is refused - so a provider
+// release that marks tags optional+computed would otherwise have
+// [computedForProvider] null out the very tag map the write exists to set,
+// turning every stamp on that type into a silent no-op. No type in
+// hashicorp/aws 6.59.0 declares tags that way today; the exemption is what
+// keeps that from becoming a discovery made in production.
+const assertedTagAttr = "tags"
+
+// configClaim is how much of the live object a synthetic configuration
+// claims the operator wrote down. There is no way to know: the resource
+// being written has no configuration, which is the whole reason this file
+// invents one, and the two honest readings of "what would the HCL have said"
+// disagree about the attributes a provider may fill in for itself.
+// [syntheticConfigs] offers both, least first, and lets the provider decide.
+type configClaim int
+
+const (
+	// claimTagsOnly nulls every Computed attribute, not only the
+	// Computed-only ones. An optional+computed argument the operator never
+	// wrote is null in real HCL and the provider computes it; carrying its
+	// read-back value across asserts the opposite, that the operator wrote
+	// down whatever the cloud happens to hold. Providers read the config
+	// back (SDKv2's GetRawConfig, the framework's Config) and some gate on
+	// it: a CustomizeDiff that refuses an argument as "not supported with"
+	// some other setting reads known-and-non-null as "explicitly set" and
+	// refuses a tag write that never touched the argument. GitHub issue
+	// #373, on a NAT gateway whose secondary_private_ip_address_count came
+	// back populated once the emulator's read grew accurate enough to
+	// return it, on an estate whose HCL has never mentioned the argument
+	// and which stock plans and applies without complaint.
+	claimTagsOnly configClaim = iota
+
+	// claimEverythingSettable nulls only the attributes a configuration
+	// cannot set at all, and carries every settable one across. It is what
+	// this file did before #373, and it is still right for the other half
+	// of the problem: an optional+computed attribute a provider INJECTS
+	// rather than reads - hashicorp/aws 6's per-resource `region`, on every
+	// regional type - goes unknown in a plugin-framework plan when the
+	// config omits it, and the provider's own force-new-if-region-changes
+	// check reads unknown-against-a-known-state as a change. Measured: a
+	// claimTagsOnly config makes aws_batch_job_queue plan
+	// `.region` as requiring replacement on corpus-overture-tiles, an
+	// estate whose HCL sets no region and which stock replans empty.
+	claimEverythingSettable
+)
+
+// syntheticConfigs is the configurations a tags-only write may offer the
+// provider for one object, in the order to try them: the one claiming least
+// first.
+//
+// Neither claim is right for every provider, and no property of the schema
+// separates the two cases above - `region` and
+// secondary_private_ip_address_count are both optional+computed scalars, and
+// the only thing that distinguishes them is what the provider does with the
+// config it reads back. So this asks rather than guesses. The caller plans
+// each in turn and takes the first whose plan is a clean tags-only change;
+// the guards that decide "clean" - no replacement, nothing changed outside
+// the tags - are the same ones that already stood between a plan and an
+// apply, so a configuration can only be accepted here on the same terms as
+// before. When the two agree, which is every type with no optional+computed
+// attribute at all, there is one.
+func syntheticConfigs(block *configschema.Block, val cty.Value) []cty.Value {
+	least := configValue(block, val, claimTagsOnly)
+	most := configValue(block, val, claimEverythingSettable)
+	if least.RawEquals(most) {
+		return []cty.Value{least}
+	}
+	return []cty.Value{least, most}
+}
+
+// computedForProvider reports whether a synthetic configuration making the
+// given claim must leave an attribute null rather than carry the live
+// object's value across.
+//
+// Under [claimEverythingSettable] that is "a configuration could not have set
+// this": Computed and neither Optional nor Required. Under [claimTagsOnly] it
+// widens to "the provider is free to fill this in for itself", which is every
+// Computed attribute.
+//
+// One exception, and it is about objchange rather than about providers: an
+// optional+computed attribute with a NestedType is left to
+// [configNestedObject] instead of nulled wholesale, because
+// objchange.optionalValueNotComputable treats a null config for such an
+// attribute whose prior holds any non-computed value as a deliberate removal
+// and proposes null. That moves the plan, and a moved plan is refused rather
+// than applied - so nulling the container could only ever cost this path the
+// write. Recursing nulls the computed leaves inside it and leaves the
+// container asserted, which is what a configuration that wrote the block
+// says.
+func computedForProvider(attr *configschema.Attribute, claim configClaim) bool {
+	switch {
+	case !attr.Computed:
+		return false
+	case !attr.Optional && !attr.Required:
+		// Provider-only. Nulled whatever its shape, nested types included,
+		// under either claim, exactly as this function's predecessor did.
+		return true
+	case claim != claimTagsOnly:
+		return false
+	default:
+		return attr.NestedType == nil
+	}
+}
+
+// configValue is the live object as a configuration making the given claim
+// would express it. Types are never altered - only values are nulled - so the
+// result still conforms to the schema's implied type.
+//
+// [assertedTagAttr] is the one argument a tags-only write is always claiming
+// as set, whatever the claim; everything else follows
+// [computedForProvider].
+//
+// Nulling a Computed attribute cannot move the plan on its own:
+// [objchange.ProposedNew] answers the prior value for a Computed attribute
+// whose config is null, so the proposed object - and therefore the planned
+// object, and therefore what is written - is the same under either claim.
+// What changes is the raw config the provider reads back, and what the
+// provider then decides to do about it.
+func configValue(block *configschema.Block, val cty.Value, claim configClaim) cty.Value {
 	if block == nil || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -130,10 +250,12 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 	for name, attr := range block.Attributes {
 		v := val.GetAttr(name)
 		switch {
-		case attr.Computed && !attr.Optional && !attr.Required:
+		case name == assertedTagAttr:
+			vals[name] = v
+		case computedForProvider(attr, claim):
 			vals[name] = cty.NullVal(v.Type())
 		case attr.NestedType != nil:
-			vals[name] = configNestedObject(attr.NestedType, v)
+			vals[name] = configNestedObject(attr.NestedType, v, claim)
 		default:
 			vals[name] = v
 		}
@@ -142,10 +264,10 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 		v := val.GetAttr(name)
 		switch nested.Nesting {
 		case configschema.NestingSingle, configschema.NestingGroup:
-			vals[name] = configValue(&nested.Block, v)
+			vals[name] = configValue(&nested.Block, v, claim)
 		default:
 			vals[name] = mapElements(v, func(elem cty.Value) cty.Value {
-				return configValue(&nested.Block, elem)
+				return configValue(&nested.Block, elem, claim)
 			})
 		}
 	}
@@ -153,8 +275,9 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 }
 
 // configNestedObject is configValue for an attribute whose type is a nested
-// object rather than a block.
-func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
+// object rather than a block. There is no tag map inside a nested object -
+// the marker surface is a top-level attribute - so it has no exemption.
+func configNestedObject(obj *configschema.Object, val cty.Value, claim configClaim) cty.Value {
 	if val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -167,10 +290,10 @@ func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
 		for name, attr := range obj.Attributes {
 			av := v.GetAttr(name)
 			switch {
-			case attr.Computed && !attr.Optional && !attr.Required:
+			case computedForProvider(attr, claim):
 				vals[name] = cty.NullVal(av.Type())
 			case attr.NestedType != nil:
-				vals[name] = configNestedObject(attr.NestedType, av)
+				vals[name] = configNestedObject(attr.NestedType, av, claim)
 			default:
 				vals[name] = av
 			}
