@@ -44,12 +44,12 @@ import (
 //     exempts that reason precisely because it is supposed to mean "the
 //     resource HAS its markers", so nothing downstream reports it either.
 //
-// The two tests below pin each half by value. They assert the CURRENT,
+// The test below pins the marker loss by value. It asserts the CURRENT,
 // defective behaviour deliberately: this is a finding, not a fix, and a pin
 // that says what the code does today is what makes the next change to it
 // visible. Whichever way #378 is eventually closed - by threading the module
 // instance's address into the child so a correct per-instance marker can be
-// written, or by dropping the instance to the record rung - these two
+// written, or by dropping the instance to the record rung - these
 // assertions have to be edited by hand, with the new values spelled out.
 //
 // The contrast subtest is the load-bearing half. It is the same module, the
@@ -57,6 +57,20 @@ import (
 // its rendered tags carry both markers by exact value. So the difference is
 // the keyed ancestor and nothing else - not the type, not the tags idiom,
 // not the count on the resource.
+//
+// The second half this file used to pin - that the same skip silenced the
+// unmarked-apply refusal for a type that can ONLY be found by its marker -
+// is GitHub issue #379, and it is fixed: modulekeyed_untrusted_test.go pins
+// the refusal, and the hand-written case that must stay trusted, in its
+// place. #378's own population is untouched by that fix, and the fixture
+// below is why: an aws_cloudwatch_log_group is imported by the name this
+// configuration states (live/survey-full.json: required_for_import is
+// ["name"]), so it is findable without a marker and NeedsDiscovery is empty
+// here exactly as it is for the corpus estate. Stamping still trusts the body
+// below and the plan still proposes deleting the markers live-import wrote,
+// which is what the subtests here still assert. Losing a marker on a resource
+// that can be found again is #378's subject; losing one on a resource that
+// cannot is #379's, and only the second is an error.
 
 // TestModuleKeyedTagsFromAVariableRenderNoMarker is #378 itself: the desired
 // tag set a plan computes for a taggable resource under a for_each'd module
@@ -162,61 +176,6 @@ module "container_definition" {
 			TagAddress: "module.container_definition.aws_cloudwatch_log_group.this:0",
 		})
 	})
-}
-
-// TestModuleKeyedTagsFromAVariableAreSilentForAMarkerOnlyType is the second
-// half, and the one with teeth beyond #378's own symptom.
-//
-// SkipModuleKeyedTrusted is exempt from internal/command's statelessStampGaps
-// check by name, on the stated ground that "the resource HAS its markers"
-// (internal/command/live_plan.go). When the tags argument is `tags =
-// var.tags` that ground is false, and the exemption then covers a
-// server-assigned type - one whose instances can ONLY ever be found by their
-// marker - applying with no marker on it at all.
-//
-// This test asserts the stamping half by value: with the block named in
-// NeedsDiscovery, so [stamper.mustStamp] is true for it, Stamp still emits
-// no diagnostic of any severity. Compare [TestStamp_unstampableIsAnError]'s
-// population, where the same must-stamp condition produces the "applying
-// this unmarked creates a resource you can never find again" error.
-func TestModuleKeyedTagsFromAVariableAreSilentForAMarkerOnlyType(t *testing.T) {
-	cfg := loadTree(t, map[string]string{
-		"main.tf": `
-module "sites" {
-  source   = "./impl"
-  for_each = toset(["a", "b"])
-  tags     = { Example = "x" }
-}
-`,
-		"impl/main.tf": `
-variable "tags" { type = map(string) }
-
-resource "aws_eip" "app" {
-  tags = var.tags
-}
-`,
-	})
-
-	res, diags := Stamp(t.Context(), Request{
-		Estate:         "repeat-unit",
-		Config:         cfg,
-		Schemas:        testSchemas(),
-		NeedsDiscovery: needsDiscovery("module.sites.aws_eip.app"),
-	})
-
-	if len(diags) != 0 {
-		t.Fatalf("#378's severity half has moved: Stamp now reports %d diagnostic(s) for a marker-only type inside a for_each'd module call whose tags come from a variable:\n%s",
-			len(diags), diags.Err())
-	}
-	if !hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyedTrusted) {
-		t.Errorf("want %s, got %+v", SkipModuleKeyedTrusted, res.Skipped)
-	}
-	got := evalTags(t, cfg.Children["sites"], "aws_eip.app", map[string]cty.Value{
-		"var": cty.ObjectVal(map[string]cty.Value{
-			"tags": cty.MapVal(map[string]cty.Value{"Example": cty.StringVal("x")}),
-		}),
-	})
-	assertTags(t, got, map[string]string{"Example": "x"})
 }
 
 // withCountIndex adds count.index to a variable scope, for a fixture whose
