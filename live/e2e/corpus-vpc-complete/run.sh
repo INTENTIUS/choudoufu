@@ -109,23 +109,38 @@ set -uo pipefail
 #     refusals that used to block this stage from running at all, remain
 #     fixed; neither diagnostic appears in a run any more.
 #
-#   - choudoufu #372 took 27 of the remaining 29 to zero. Those 27 were pure
-#     tofu-slot: the only change in each of their plan bodies was
-#     `tags`/`tags_all` gaining `tofu-slot`, because live-import wrote only
-#     tofu-estate and tofu-address and left the third marker to the first
-#     replan (live/e2e/corpus-iam-policy/run.sh's "THE TOFU-SLOT FINDING").
-#     live-import now settles the slot itself for a count-expanded instance
-#     of a server-assigned type whose live set carries no slots - the
-#     assignment being slot i for index i, which is what the per-instance
-#     tofu-address it is writing in the same call already says. Every count
-#     instance in this estate is one, so stage 2 below reads the VPC's own
-#     tofu-slot back off EC2 by value, and stage 3 refuses to pass if the plan
-#     proposes a tofu-slot change at all, in either direction.
+#   - choudoufu #372 took 28 of the remaining 29 to zero. Those 28, including
+#     module.vpc_endpoints.aws_security_group.this[0], were pure tofu-slot:
+#     the only change in each of their plan bodies was `tags`/`tags_all`
+#     gaining `tofu-slot`, because live-import wrote only tofu-estate and
+#     tofu-address and left the third marker to the first replan (live/e2e/
+#     corpus-iam-policy/run.sh's "THE TOFU-SLOT FINDING"). live-import now
+#     settles the slot itself for a count-expanded instance of a
+#     server-assigned type whose live set carries no slots - the assignment
+#     being slot i for index i, which is what the per-instance tofu-address it
+#     is writing in the same call already says. Every count instance in this
+#     estate is one, so stage 2 below reads the VPC's own tofu-slot back off
+#     EC2 by value, and stage 3 refuses to pass if the plan proposes a
+#     tofu-slot change at all, in either direction.
 #
-#   - module.vpc_endpoints.aws_security_group.this[0]'s
-#     `+ revoke_rules_on_delete = false` is gone too, and it went with the
-#     27: it was the only OTHER change in a plan body that was otherwise its
-#     tofu-slot tag, and it no longer appears at all.
+#   - CORRECTION, checked by A/B rather than assumed: an earlier version of
+#     this comment credited #372 with also removing module.vpc_endpoints.
+#     aws_security_group.this[0]'s `+ revoke_rules_on_delete = false`. That
+#     was wrong. Built and ran the binary at this branch's own base commit
+#     (0119227197, before #372's slot.go existed at all) against this same
+#     script and config: the plan still shows 29 objects changing, and
+#     `revoke_rules_on_delete` appears in NONE of them - the security group's
+#     body there is already pure tofu-slot, exactly like the other 27.
+#     `revoke_rules_on_delete` was fixed before this branch even started, by
+#     56e807062e/b5bb09d27e ("liveimport: record GitHub issue #275 residue
+#     during migrate, fixing #327", merged 2026-08-19), which made live-import
+#     record every eligible instance's residue - the arguments the provider
+#     never echoes back - at migrate time instead of leaving it to the first
+#     apply. The "29 objects... all but 2 are pure tofu-slot" characterization
+#     this estate's artifact entry carried into this branch was itself stale
+#     by the time #372 branched: #327's fix already applied to this security
+#     group, and the true pre-#372 shape here was 28 pure-tofu-slot objects
+#     plus the one endpoint below, not 27 plus two others.
 #
 # THE REMAINING ONE: module.vpc_endpoints.aws_vpc_endpoint.this["ecs"] - the
 # only one of the four interface endpoints (ecr_api, ecr_dkr, rds, ecs) that
@@ -452,7 +467,7 @@ if [ -n "$CHANGED_HEADERS" ]; then
   grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT" \
     && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT"
          fail "the plan proposes a tofu-slot change on $N_CHANGED object(s). choudoufu #372 settles the slot at migrate time for every count-expanded instance of a server-assigned type, and every count instance in this estate is one, so no tofu-slot may appear in this plan at all - not as an addition and not as a removal."; }
-  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 27 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
+  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
 fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
