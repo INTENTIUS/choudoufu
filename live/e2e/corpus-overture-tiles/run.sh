@@ -153,6 +153,20 @@ set -uo pipefail
 #      the name is no longer unique with the orphan present) rather than
 #      trusting the empty replan alone. #249 stays open.
 #
+#   5. FLOCI GAP, filed (lex00/floci#98) - resourcegroupstaggingapi
+#      GetResources does not index CloudWatch Logs log groups. Of the 16
+#      objects stage 2 stamps, this estate's one aws_cloudwatch_log_group is
+#      the sole omission from the cross-service tag search used to count
+#      objects for stage 4's no-op-apply check, even though the log group's
+#      own tag API (logs list-tags-log-group) reads its markers back
+#      correctly. corpus-lambda-simple's own STAGE 4 hit the identical gap
+#      first and routed around it without filing, noting it would be worth
+#      an issue "if a later estate needs the cross-service search itself" -
+#      this crossing is that later estate, so the gap is filed rather than
+#      silently re-routed-around a second time. Stage 4 below counts the
+#      cross-service search's own result PLUS one direct read of the log
+#      group's own tag API, not the cross-service search alone.
+#
 # CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean, and its
 # own provider block is UNCHANGED (`skip_requesting_account_id = true`
 # still, since plain OpenTofu never imports by identity ARN and there is no
@@ -166,10 +180,13 @@ set -uo pipefail
 # includes STAGE 2d, the tofu-slot/OAC convergence apply (item 4 above).
 # Stage 3 (test plan) is genuinely EMPTY: live-plan exits 0 with "No
 # changes.", and the S3 bucket and OAC identities are re-checked by value
-# against the AWS CLI one more time, fresh off that same plan. Stages 4 and
-# 5 are still left not_run: a genuinely empty first test_plan is new as of
-# this unit, and test_apply/drift_reconverge are the next units, not
-# attempted here.
+# against the AWS CLI one more time, fresh off that same plan. Stage 4 (test
+# apply) is now written and PASSES: the empty plan applies as a genuine
+# no-op (0 added, 0 changed, 0 destroyed), the tagged-object count is
+# unchanged (item 5 above), and the S3 bucket and OAC identities are
+# re-checked one more time, fresh off this apply. Stage 5 is still left
+# not_run: test_apply just started passing this unit, and drift_reconverge
+# is the next one, not attempted here.
 #
 # What crosses cleanly, and is asserted below: cold deploy (26 real
 # resources, unmodified module), then 16 of those 26 stamped correctly, 0
@@ -197,9 +214,15 @@ set -uo pipefail
 #                     live-plan` - PASS: genuinely empty ("No changes."),
 #                     with the S3 bucket's tofu-address and the OAC's own Id
 #                     re-checked against the AWS CLI, fresh off this plan.
-#   4/5.             NOT_RUN - a genuinely empty first test_plan is new as of
-#                     this unit; test_apply and drift_reconverge are the
-#                     next units, not attempted here.
+#   4. TEST APPLY    apply the empty plan - PASS: genuine no-op (0 added, 0
+#                     changed, 0 destroyed), the 16-object tagged count
+#                     unchanged (resourcegroupstaggingapi plus one direct
+#                     log-group tag read - lex00/floci#98, item 5 above), and
+#                     the S3 bucket's tofu-address and the OAC's own Id
+#                     re-checked one more time, fresh off this apply.
+#   5. DRIFT/RECONVERGE  NOT_RUN - test_apply just started passing this
+#                     unit; drift_reconverge is the next one, not attempted
+#                     here.
 #
 # BREAK=1 corrupts the S3 bucket's expected tofu-address ahead of stage 2's
 # AWS-CLI re-read, proving that assertion is load-bearing.
@@ -698,10 +721,85 @@ log ""
 gauntlet_stage test_plan pass "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
 CURRENT_STAGE=""
 
-gauntlet_stage test_apply not_run "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; test_apply is the next unit"
-gauntlet_stage drift_reconverge not_run "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; drift_reconverge is the next unit after test_apply"
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 4: TEST APPLY - apply the empty plan; assert a genuine no-op both by
+# tagged-object count and by re-checking the two identities stage 3 already
+# checked, fresh off this apply rather than reused.
+#
+# floci's resourcegroupstaggingapi GetResources does not index CloudWatch
+# Logs log groups (lex00/floci#98, filed by this unit). Confirmed directly
+# against this estate: the cross-service search returns 15 of the 16 objects
+# stage 2 stamped, the log group the sole omission, even though the log
+# group's OWN tag API (logs list-tags-log-group / list-tags-for-resource)
+# reads tofu-estate/tofu-address back correctly. corpus-lambda-simple's own
+# STAGE 4 first found and routed around this exact gap without filing it,
+# noting it would be "worth one if a later estate needs the cross-service
+# search itself" - this is that later estate, so the issue is now filed
+# rather than re-routed-around silently a second time. The count below is
+# the cross-service search PLUS one direct read of the log group's own tag
+# API, not the cross-service search alone: a smaller count would silently
+# under-report, which is worse than a slower, honest one.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=test_apply
+log "=== STAGE 4: test apply (apply the empty plan; object count and identities unchanged) ==="
+
+LOGGROUP_NAME="/aws/batch/${ESTATE_NAME}"
+
+# tagged_object_count: resourcegroupstaggingapi's own cross-service count,
+# plus the one object it cannot see (floci#98, see header above), read
+# directly through its own service instead.
+tagged_object_count() {
+  local n
+  n="$(awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  local lg_estate
+  lg_estate="$(awsl logs list-tags-log-group --log-group-name "$LOGGROUP_NAME" --query 'tags."tofu-estate"' --output text 2>/dev/null)"
+  [ "$lg_estate" = "$ESTATE_NAME" ] && n=$((n + 1))
+  printf '%s\n' "$n"
+}
+
+BEFORE_N="$(tagged_object_count)"
+[ "$BEFORE_N" = "16" ] || fail "expected 16 tagged objects before the no-op apply (the 16 stamped in stage 2: 15 via resourcegroupstaggingapi + the log group read directly, floci#98), got $BEFORE_N"
+
+NOOP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
+[ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed|No changes' <<< "$NOOP_APPLY_OUT" \
+  || { grep -E 'Apply complete|Plan: ' <<< "$NOOP_APPLY_OUT"; fail "the no-op apply was not a genuine no-op"; }
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "the no-op apply left a state file behind"
+
+AFTER_N="$(tagged_object_count)"
+[ "$AFTER_N" = "$BEFORE_N" ] || fail "the tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+
+# The same two identities stage 3 checked, re-checked one more time, fresh off
+# THIS apply - not reused. HANDOFF: an empty plan (or a no-op apply) alone is
+# not enough; a wrong identity can converge, or survive, just as quietly as a
+# right one.
+GOT_BUCKET_ADDR3="$(awsl s3api get-bucket-tagging --bucket "$BUCKET_NAME" --query "TagSet[?Key=='tofu-address'].Value | [0]" --output text)"
+[ "$GOT_BUCKET_ADDR3" = "module.overture_tiles.aws_s3_bucket.tiles:0" ] \
+  || fail "the S3 bucket's tofu-address moved to $GOT_BUCKET_ADDR3 across the no-op apply"
+GOT_OAC_ID3="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "DistributionConfig.Origins.Items[0].OriginAccessControlId" --output text)"
+[ "$GOT_OAC_ID3" = "$GOT_OAC_ID" ] \
+  || fail "the OAC's own Id moved from $GOT_OAC_ID to $GOT_OAC_ID3 across the no-op apply"
+
+# The record store itself survived a run with nothing to change - not
+# silently dropped by a write-back after a no-op.
+[ -d "$ESTATE/.tofu-records" ] || fail "the record store directory is gone after the no-op apply"
+[ -n "$(find "$ESTATE/.tofu-records" -type f 2>/dev/null)" ] || fail "the record store holds no files after the no-op apply"
+
+log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after (resourcegroupstaggingapi + log group direct read, floci#98), no state file"
+log "  identities re-checked: bucket $GOT_BUCKET_ADDR3, OAC $GOT_OAC_ID3; record store intact"
+
+log ""
+log "STAGE 4 (test apply): PASS - genuine no-op; object count and identities unchanged"
+log ""
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact"
+CURRENT_STAGE=""
+
+gauntlet_stage drift_reconverge not_run "not yet exercised by this script - test_apply just started passing this unit; drift_reconverge is the next unit"
 gauntlet_end
 
 log ""
 log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 PASS (empty plan, S3 bucket"
-log "=== and OAC identities verified by value); stages 4-5 NOT_RUN (not yet exercised) ==="
+log "=== and OAC identities verified by value); stage 4 PASS (no-op apply, object"
+log "=== count and identities unchanged); stage 5 NOT_RUN (not yet exercised) ==="
