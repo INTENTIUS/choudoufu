@@ -128,15 +128,8 @@ this page.
 
 ## See it prove itself
 
-The demo is also the test suite. It stands up a real estate against a local AWS
-emulator, hands it to its markers partway through, and shows the plans stay
-exact across the handover. Needs Docker, about two minutes.
-
-```
-bash live/e2e/run.sh --expect 5
-```
-
-The exit code is the verdict. `live/e2e/README.md` lists what each step proves.
+Before pointing this at your own AWS account, watch the whole thing happen
+against a local emulator instead: [Tutorial: see markers work]({{< relref "/docs/tutorial" >}}).
 
 ## Next
 
