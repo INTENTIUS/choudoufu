@@ -153,14 +153,22 @@ func TestStamp_markersRecordIsNotHonouredWithoutASchema(t *testing.T) {
 // TestStamp_markersRecordIsNotHonouredForAnUnrecordableType is claim 3's
 // second half, and the one that matters most.
 //
-// aws_cognito_user_pool_client is in identity.IDNotProvenWholeTypes: its
-// documented import string is composite and nothing proves its exported `id`
-// is the whole of it. An operator may select it - the grammar has no opinion
-// - and this pass must refuse to act on the selection, because a resource
-// with no marker whose record would hold a FRAGMENT of an identity is worse
-// than one with a marker. internal/live/lint refuses the configuration
-// outright; this is the independent leg, since this package never sees
-// lint's verdict.
+// aws_glue_partition is in identity.IDNotProvenWholeTypes and has no
+// identity.DocumentedImportIDs grammar: its documented import string is
+// composite, nothing proves its exported `id` is the whole of it, and the
+// page names one segment as the prose phrase "partition values" rather than
+// as a token, which tools/row-gen/docimportid.go refuses to read by rule. An
+// operator may select it - the grammar has no opinion - and this pass must
+// refuse to act on the selection, because a resource with no marker whose
+// record would hold a FRAGMENT of an identity is worse than one with a
+// marker. internal/live/lint refuses the configuration outright; this is the
+// independent leg, since this package never sees lint's verdict.
+//
+// The subject was aws_cognito_user_pool_client until 2026-08-22, when
+// tools/importdocs-gen learned to read its page's possessive-of import
+// sentence and gave it a grammar; a type with one is recordable, so it
+// stopped being an example of this refusal. Both halves of the premise are
+// asserted below rather than assumed.
 //
 // The schema it is given is a fully taggable one with a top-level string
 // "id", so nothing about the schema is what refuses it. If a provider
@@ -168,9 +176,13 @@ func TestStamp_markersRecordIsNotHonouredWithoutASchema(t *testing.T) {
 // test starts failing and the fix is to pick another member of the set, not
 // to relax the assertion.
 func TestStamp_markersRecordIsNotHonouredForAnUnrecordableType(t *testing.T) {
-	const typeName = "aws_cognito_user_pool_client"
+	const typeName = "aws_glue_partition"
 	if _, unproven := identity.IDNotProvenWholeTypes[typeName]; !unproven {
 		t.Skipf("%s left identity.IDNotProvenWholeTypes; pick another member for this test", typeName)
+	}
+	if _, described := identity.DocumentedImportIDs[typeName]; described {
+		t.Skipf("%s gained a documented import grammar, so a record can hold its whole identity; "+
+			"pick another member of identity.IDNotProvenWholeTypes that has none", typeName)
 	}
 
 	source := fmt.Sprintf(`
@@ -189,14 +201,14 @@ terraform {
 }
 
 resource %q "app" {
-  user_pool_id = "us-east-1_abc"
-  name         = "app"
+  database_name = "db"
+  table_name    = "tbl"
 }
 `, typeName, typeName)
 
 	cfg := loadSource(t, source)
 
-	schemas := testSchemaSource{typeName: taggedSchema("id", "user_pool_id", "name")}
+	schemas := testSchemaSource{typeName: taggedSchema("id", "database_name", "table_name")}
 
 	_, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: schemas})
 	assertNoErrors(t, diags)

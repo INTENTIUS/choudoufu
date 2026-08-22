@@ -1,12 +1,19 @@
 # GitHub issue #365, slice 2: the selection an operator may not have.
 #
-# aws_cognito_user_pool_client's Import section documents a composite string
-# and nothing corroborates that its exported `id` is the whole of it, so it is
-# in identity.IDNotProvenWholeTypes and LocatedIdentityPlanFor refuses it. A
+# aws_glue_partition's Import section documents a composite string and nothing
+# corroborates that its exported `id` is the whole of it, so it is in
+# identity.IDNotProvenWholeTypes and LocatedIdentityPlanFor refuses it. A
 # record written from `id` alone would hold a fragment, and a fragment handed
 # back to a later import is a WRONG identity rather than a missing one -
 # invisible to every verdict-level check until that import fails, with the
 # object already live.
+#
+# The subject was aws_cognito_user_pool_client until 2026-08-22, when
+# tools/importdocs-gen learned to read its page's possessive-of import
+# sentence and identity.DocumentedImportIDs gained a grammar for it. This type
+# has none, and the reason is a rule rather than a gap: its page names one
+# segment as the prose phrase "partition values", which
+# tools/row-gen/docimportid.go refuses to turn into a name.
 #
 # So the selection is refused, and it is refused rather than quietly not
 # applied: an operator who believes a tag has been freed will spend it
@@ -27,7 +34,7 @@ terraform {
 
     strict {
       markers "record" {
-        types = ["aws_cognito_user_pool_client"]
+        types = ["aws_glue_partition"]
       }
     }
   }

@@ -45,10 +45,10 @@ not know an instrument's blind spots will read its zeroes as evidence.
 | quantity | now | bound | denominator | tracker |
 | --- | ---: | ---: | --- | --- |
 | [`mapping-unclassified`](#mapping-unclassified) | 13 | at most 13 | `live/mapping.json row count` at 1699, floor 1600 | #53 |
-| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 158, floor 100 | #249 |
+| [`markerless-veto-admitted-overlap`](#markerless-veto-admitted-overlap) | 0 | at most 0 | `internal/live/identity.MarkerlessTypes` at 159, floor 100 | #249 |
 | [`rowgen-annotation-rulings`](#rowgen-annotation-rulings) | 151 | at most 151 | `live/rowgen-convergence.json summary.admitted_total` at 1042, floor 850 | #132 |
 | [`rowgen-unannotated-mismatches`](#rowgen-unannotated-mismatches) | 0 | at most 0 | `live/rowgen-convergence.json summary.compared` at 1023, floor 800 | #132 |
-| [`unreached-types`](#unreached-types) | 464 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
+| [`unreached-types`](#unreached-types) | 463 | at most 613 | `live/survey-full.json counts.types` at 1699, floor 1600 | #245, #246 |
 
 <a id="mapping-unclassified"></a>
 ### `mapping-unclassified`
@@ -86,7 +86,7 @@ veto reason: the provider mints this type's identity and the type has no tags ar
 - Measured on internal/live/identity.DefaultTable.
 - Held against internal/live/identity.MarkerlessTypes, and through it live/survey-full.json's signals.taggable. The two rosters are different derivations from different evidence even though one -emit run writes both: the table's rows come from the ratified rows plus the import-doc grammar, the veto from the provider survey's own taggability signal. internal/live/stamp's TestPinnedTaggabilityMatchesTheSurvey ties that signal to the run-time marker writer, so the chain ends at the provider schema rather than at another row-gen output.
 - Instrument: two in-process Go maps intersected. No artifact, no provider, no network.
-- Denominator `internal/live/identity.MarkerlessTypes`, measured at 158 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
+- Denominator `internal/live/identity.MarkerlessTypes`, measured at 159 against a floor of 100. The overlap goes to zero two ways: by retracting the offending rows, which is the point, or by emptying the veto roster, which is not. The rule vetoes 150 types on the pinned release and that population is a property of how many provider types have no tags argument, so a collapse to double digits is a rule change and not a provider one.
 
 What the instrument cannot see:
 
@@ -163,9 +163,9 @@ Where the bound has been:
 
 Every type the pinned provider serves is in one of three rosters - admitted by internal/live/identity.DefaultTable, vetoed by hand in tools/row-gen/rejected.json, or vetoed by the derived markerless rule. This counts the ones in none of them, where naming the type in a configuration is a hard resolve error with no ledger entry saying why.
 
-Now **464 provider resource types**, at most **613**, so the bound is stale by 149 and should be lowered to the measurement.
+Now **463 provider resource types**, at most **613**, so the bound is stale by 150 and should be lowered to the measurement.
 
-1042 admitted, 100 hand-vetoed, 158 markerless-vetoed, over a roster of 1699.
+1042 admitted, 100 hand-vetoed, 159 markerless-vetoed, over a roster of 1699.
 
 - Measured on internal/live/identity.DefaultTable, tools/row-gen/rejected.json and internal/live/identity.MarkerlessTypes.
 - Held against live/survey-full.json. tools/survey-gen writes it from the provider's own GetProviderSchema response, and none of the three rosters under test contributes a type to it. No edit to the admission table or either veto ledger can make this measurement agree with itself.
