@@ -114,37 +114,105 @@ set -uo pipefail
 #      re-running this exact estate on the post-#353 tree: the connection-
 #      block error no longer appears, only the ignore_changes refusal
 #      below does. Unrelated work fixed this crossing's own finding; nice.
-#   2. Both aws_instance.instance and aws_ebs_volume.data_disk carry
-#      `lifecycle { ignore_changes = [tags] }` - sumaform's own
+#   2. [RESOLVED by #365 slice 2's `markers = record`, kept here for the
+#      history] Both aws_instance.instance and aws_ebs_volume.data_disk
+#      carry `lifecycle { ignore_changes = [tags] }` - sumaform's own
 #      WORKAROUND comment names why: "SUSE internal openbare AWS accounts
 #      add special tags... After the first apply, terraform removes those
 #      tags." A real, legitimate need at authoring time, but it ignores
 #      the WHOLE tags argument, which is exactly where this mode's own
-#      tofu-estate/tofu-address markers live - internal/live/lint's
-#      ignore-changes rule refuses it for the reason its own error text
-#      gives: the update that would write the markers is planned and then
-#      silently discarded, so an adopted resource can never actually be
-#      re-tagged. The message even names the fix - `ignore_changes =
-#      [tags["Owner"]]`, not the whole argument - but making it is an
-#      edit to sumaform's own module, which this crossing does not make.
-#      This one is not #353's shape: it is HANDOFF.md's fourth row,
-#      "handling it would write a wrong marker" - honouring stock's
-#      ignore_changes = [tags] here would plan the marker write and then
-#      silently discard it, so the resource is left unmarked, exactly
-#      the failure mode the rule exists to prevent. The escape is the
-#      record rung (per-resource identity held in the record store
-#      instead of tags), but that rung has no fallback path yet for a
-#      tag-marker-backed type under a whole-argument ignore_changes on
-#      tags; building one is a real feature, not a script fix, and is not
-#      this unit's to add.
+#      tofu-estate/tofu-address markers live, so internal/live/lint's
+#      ignore-changes rule used to refuse it: HANDOFF.md's fourth row,
+#      "handling it would write a wrong marker". The escape IS the record
+#      rung: write_main_tf's live block below now carries `strict {
+#      marker_repair = "never"; markers "record" { types = ["aws_instance",
+#      "aws_ebs_volume"] } }`, and both types are recordable (their whole
+#      identity is a single non-composite, non-sensitive `id` - see
+#      internal/live/identity/table_generated.go's rows for both). Confirmed
+#      by re-running this exact estate: "Error: Ownership markers would be
+#      ignored" goes from 2 occurrences to 0, for real against floci.
 #
-# Because both live in the ONE leaf module every role shares, this is not
-# an artifact of this crossing's own reduced slice: module.mirror,
-# module.minion, and module.base's own bastion would hit the identical
-# ignore_changes refusal the moment any of them is actually instantiated.
-# A real, generalizable finding about this real, popular project's
-# compatibility with choudoufu today, not a corner this script backed
-# itself into.
+#      One gap this surfaced, NOT this unit's to fix: `choudoufu live-import`
+#      (stage 2 above) does not honour the selection. Its stamping path
+#      (internal/live/liveimport/stamp.go) is a separate implementation from
+#      the one internal/live/stamp and internal/live/lint's ignore-changes
+#      check both read (identity.SelectionFor / identity.SelectedLocatedType)
+#      - it never imports internal/live/stamp at all - so both resources
+#      were still tag-stamped normally during migrate (stage 2's own
+#      assertion text is unchanged: still "9 resource(s) newly stamped ...
+#      2 skipped", and assert_tag below still finds a real tofu-address tag
+#      on the instance). Only the LATER live-plan's lint check treats them
+#      as record-based. That is an inconsistency in #365 slice 2's own
+#      completeness (the migration path was never wired to the selection),
+#      not something this crossing's script can paper over, and not
+#      something this unit forced a fix for: wiring markers = record into
+#      live-import's own stamping is a real, separate feature slice.
+#   3. THE NEW WALL, reached only now that #2 is out of the way: a static
+#      count() expression in the SAME leaf module, on THREE OTHER resources
+#      - aws_eip.host_eip, aws_eip_association.eip_assoc and
+#      aws_route53_record.dns_record (none of them aws_instance or
+#      aws_ebs_volume). Their counts are `local.host_eip ? var.quantity : 0`
+#      and `local.route53_domain == null ? 0 : 1`, and every value they read
+#      is, in this estate, a genuine literal - host_eip and quantity are
+#      false/0/1 from literal provider_settings maps, route53_domain is null
+#      because nothing sets it. Stock proceeds (stage 1 above applies this
+#      exact estate cleanly with plain tofu, computing all three counts as
+#      0) - HANDOFF.md's first row, choudoufu refuses where stock proceeds.
+#
+#      Root cause, isolated with a from-scratch repro (not this estate's own
+#      files, to rule out anything this script's own reduction introduced):
+#      backend_modules/aws/base/main.tf's `local.configuration_output` is a
+#      `merge()` whose SECOND ARGUMENT is a bare sibling-module-output
+#      reference (`module.network.configuration`), passed straight through
+#      as `base_configuration` to module.bastion/module.server's host chain.
+#      internal/live/identity/partialargs.go's tolerant-substitution machinery
+#      (documented at length in that file) rebuilds an OBJECT CONSTRUCTOR leaf
+#      by leaf when ONE of its leaves is unresolvable, and runs a function
+#      call through a tolerant evaluator when its ARGUMENTS were already
+#      substituted that way one module up - both confirmed working in
+#      isolation (a bare object-constructor argument with one poisoned leaf,
+#      even three, resolves fine; a `merge()` of two SEPARATE object literals
+#      each with one poisoned leaf also resolves fine). What does NOT work,
+#      confirmed with a from-scratch repro reproducing this estate's own
+#      shape: when a `merge()` call's argument is a BARE module-output
+#      reference (not an object constructor with poisoned leaves - the WHOLE
+#      argument, structurally, is unavailable), evaluating that merge() fails
+#      outright, and - more surprisingly - a call to a DIFFERENT module in the
+#      SAME module tree, passing an ENTIRELY UNRELATED argument
+#      (`quantity = local.create_network ? 1 : 0`, where local.create_network
+#      has no dependency on configuration_output or module.network at all)
+#      ALSO starts failing as "Unable to compute static value" the moment
+#      module.network's output is merged in elsewhere in the same module -
+#      confirmed by removing it and watching local.create_network resolve
+#      cleanly again, then reproducing the failure again by putting it back,
+#      each time from a from-scratch minimal module tree, not this estate's
+#      own files. That cross-argument, cross-module-call poisoning is the
+#      part that looks like a real defect rather than a documented boundary
+#      (the file explicitly says a CALL like merge() is never reconstructed,
+#      by design - but that is a statement about not guessing what merge()
+#      does to an unknown LEAF, not about one call's hard failure reaching an
+#      unrelated call's unrelated argument).
+#
+#      This was NOT fixed in this unit. The exact mechanism moving the
+#      failure between unrelated call sites was not pinned down to a single
+#      line - only the boundary (present with the merge+module-output shape,
+#      absent without it) was confirmed by repro, across roughly a dozen
+#      reduced test configurations built and discarded in scratch space, not
+#      committed here. A fix would touch internal/configs' module-call
+#      static-variable evaluation (module_call.go's VariablesUsing /
+#      static_evaluator.go / static_scope.go), which every module call in
+#      the whole tool goes through - too load-bearing to change on a guess,
+#      and HANDOFF.md's safety rule ("assert the rendered identity by value")
+#      could not be honoured here because the run never gets far enough to
+#      render an identity for anything backend_modules/aws/host declares.
+#      Recorded here as this estate's real, current blocker.
+#
+# Because all three live in the ONE leaf module every role shares, none of
+# this is an artifact of this crossing's own reduced slice: module.mirror,
+# module.minion, and module.base's own bastion would hit the identical walls
+# the moment any of them is actually instantiated. A real, generalizable
+# finding about this real, popular project's compatibility with choudoufu
+# today, not a corner this script backed itself into.
 #
 # Stages 4 and 5 are unwritten, the same discipline
 # live/e2e/corpus-lambda-simple/run.sh's own header uses for its own
@@ -435,6 +503,12 @@ write_main_tf "$ESTATE" '
     record_store "local" {
       path = ".tofu-records"
     }
+    strict {
+      marker_repair = "never"
+      markers "record" {
+        types = ["aws_instance", "aws_ebs_volume"]
+      }
+    }
   }'
 log "  estate copied out of .corpus/sumaform (modules/, backend_modules/ only) into $PLAIN and $ESTATE"
 
@@ -574,22 +648,45 @@ PLAN_RC=$?
 # original gap was.
 grep -qF 'Error: Provisioners are not available under live resource markers' <<< "$PLAN_OUT" \
   && { printf '%s\n' "$PLAN_OUT" | tail -60; fail "the connection-block refusal is back - #353's record_store admission (internal/live/lint.go's recordStoreConfigured gate) has regressed"; }
-[ "$(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")" = "2" ] \
-  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected exactly 2 ignore-changes refusals (aws_instance.instance and aws_ebs_volume.data_disk), got $(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")"; }
-grep -qF 'lifecycle { ignore_changes =' <<< "$PLAN_OUT" || fail "expected the ignore-changes refusal detail"
-log "  confirmed: exactly the 2 known refusals fired (ignore_changes[tags] on aws_instance.instance"
-log "  and aws_ebs_volume.data_disk) - the connection-block refusal this script used to also expect"
-log "  is gone, fixed generically by #353 (record_store gives every instance a home for the tainted"
-log "  bit, not only RECORD_ADMITTED types). Both remaining refusals live in backend_modules/aws/host,"
-log "  the ONE leaf module every AWS host role in this estate shares. See this script's header for"
-log "  why the ignore_changes refusal is not routed around."
+
+# The ignore_changes refusal this script used to hit here (item 2 in the
+# header) is GONE, for real, as of the estate's own `strict { marker_repair =
+# "never"; markers "record" { types = ["aws_instance", "aws_ebs_volume"] } }`
+# block in write_main_tf above (GitHub issue #365 slice 2). Assert it stays
+# gone rather than merely absent by accident.
+[ "$(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")" = "0" ] \
+  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected 0 ignore-changes refusals now that aws_instance and aws_ebs_volume are markers=record selected, got $(grep -cF 'Error: Ownership markers would be ignored' <<< "$PLAN_OUT")"; }
+log "  confirmed: the ignore_changes[tags] refusal on aws_instance.instance and aws_ebs_volume.data_disk"
+log "  is gone - the markers = record selection above clears it for real against floci."
+
+# THE NEXT WALL, reached only now that the ignore_changes refusal is out of
+# the way: a static count() expression backend_modules/aws/host/main.tf's
+# OTHER resources carry (aws_eip.host_eip, aws_eip_association.eip_assoc,
+# aws_route53_record.dns_record - none of them aws_instance or
+# aws_ebs_volume). See this script's header for the root cause, which is NOT
+# what it first looks like (a bad count() expression) - every value involved
+# genuinely reduces to a literal, and stock's own dynamic graph walk computes
+# all three counts as 0 without complaint (confirmed: stage 1 above applies
+# cleanly with plain tofu). This is HANDOFF.md's first row - choudoufu
+# refuses where stock proceeds - but the fix is core static-evaluator surgery
+# (internal/configs' module-call variable evaluation), not a script change,
+# and not safely attemptable inside this unit's budget: see the header for
+# the isolated repro and why it was left alone.
+grep -qF 'Error: Unable to compute static value' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | tail -60; fail "expected the known static-count wall (aws_eip.host_eip / aws_eip_association.eip_assoc / aws_route53_record.dns_record) - has it been fixed upstream? update this script's header and stages 3-5 if so"; }
+grep -qF 'aws_eip.host_eip' <<< "$PLAN_OUT" || fail "expected the static-count wall to name aws_eip.host_eip"
+grep -qF 'aws_route53_record.dns_record' <<< "$PLAN_OUT" || fail "expected the static-count wall to name aws_route53_record.dns_record"
+log "  confirmed: the estate now blocks on a DIFFERENT, previously-unreached wall - a static count()"
+log "  expression in backend_modules/aws/host/main.tf's aws_eip.host_eip, aws_eip_association.eip_assoc"
+log "  and aws_route53_record.dns_record. See this script's header for the root cause and why it is"
+log "  left as this estate's real blocker rather than routed around."
 
 log ""
 log "STAGE 3 (test plan): BLOCKED (real, structural - see header). Stages 4-5 unwritten:"
 log "nothing runs yet for them to exercise. Stopping here rather than forcing a plan"
 log "this script cannot honestly call empty."
 log ""
-gauntlet_stage test_plan fail "2 known refusals: ignore_changes[tags] on aws_instance.instance and aws_ebs_volume.data_disk (the connection-block refusal this script used to also expect is fixed generically by #353)"
+gauntlet_stage test_plan fail "the ignore_changes refusal on aws_instance/aws_ebs_volume is fixed (markers = record, #365 slice 2); the estate now blocks on a static count() wall in backend_modules/aws/host/main.tf's aws_eip.host_eip, aws_eip_association.eip_assoc and aws_route53_record.dns_record (see this script's header)"
 gauntlet_stage test_apply not_run "stage 3 blocks structurally; stages 4-5 unwritten"
 gauntlet_stage drift_reconverge not_run "stage 3 blocks structurally; stages 4-5 unwritten"
 CURRENT_STAGE=""
