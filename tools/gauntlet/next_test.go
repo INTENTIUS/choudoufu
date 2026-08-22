@@ -114,7 +114,7 @@ func checkBriefCitations(t *testing.T, root, brief string) {
 	if seen < 6 {
 		t.Fatalf("found only %d citations in the brief; the extraction is broken", seen)
 	}
-	musts := []string{"never merge", "[gauntlet:", "four-row", "not_run"}
+	musts := []string{"never merge", "[gauntlet:", "five-row", "not_run"}
 	if brief == OrchestratorBriefPath {
 		musts = []string{"stop and ask", "merge on green", "[gauntlet:", "render"}
 	}

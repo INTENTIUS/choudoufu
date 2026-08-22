@@ -469,7 +469,7 @@ just contribute [max-usd]           # one worker run on that unit, in a fresh wo
 
 ` + "`just contribute`" + ` runs Claude Code headless under the brief in
 ` + "`" + WorkerBriefPath + "`" + `, which does exactly one unit: run the estate, classify every
-difference from stock with the four-row table in HANDOFF.md, fix it generically,
+difference from stock with the five-row table in HANDOFF.md, fix it generically,
 re-run, render, and open a pull request whose title carries the unit ID. It
 never merges. The same thing runs on GitHub Actions from your fork:
 ` + "`.github/workflows/contribute.yml`" + ` is ` + "`workflow_dispatch`" + `, reads your fork's
