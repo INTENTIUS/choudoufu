@@ -357,8 +357,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "ddf90332167eb932b56e3cf3481cce8f0d827219",
-        "date": "2026-08-21T20:53:37Z",
+        "commit": "4c2e4a2380bedeba667802081e095050bf87d689",
+        "date": "2026-08-21T23:33:44Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",

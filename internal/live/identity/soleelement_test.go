@@ -8,6 +8,7 @@ package identity
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -48,5 +49,47 @@ func TestSoleElementFromValue(t *testing.T) {
 	}
 	if foundNonString {
 		t.Fatalf("var.many should refuse as an ambiguous collection, not reach stringValue as a whole non-string value: %v", diags)
+	}
+}
+
+// TestSoleElementZeroIsNotAmbiguous is GitHub issue #369: a
+// Component.SoleElement alternation member that is a definite ZERO-element
+// list must not read as "unclear which member applies" when another member
+// of the SAME alternation already carries a value - the identity is fully
+// settled by the sibling, and the empty list means "this leg doesn't
+// apply", not ambiguity. The reverse must still hold: when every member of
+// the alternation is a definite empty list and nothing else is set, that is
+// the ordinary all-absent case ("Identity argument not set"), never a
+// resolved guess - HANDOFF's "never write a wrong marker" rule leaves no
+// room for treating "nothing was set" as though something had been.
+func TestSoleElementZeroIsNotAmbiguous(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "sole-element-from-value"), nil)
+
+	result, diags := Resolve(context.Background(), cfg)
+
+	res := resolutionAt(t, result, "aws_security_group_rule.resolved_by_sibling")
+	if res.Class != ClassConcrete {
+		t.Fatalf("resolved_by_sibling resolved %s; source_security_group_id is a literal and prefix_list_ids is a definite empty list, which must defer to it", res.Class)
+	}
+	want := "sg-0123456789abcdef0_ingress_tcp_80_80_sg-fedcba9876543210f"
+	if res.ImportID != want {
+		t.Errorf("resolved_by_sibling resolved to %q, want %q", res.ImportID, want)
+	}
+	for _, d := range diags {
+		if strings.Contains(d.Description().Detail, "resolved_by_sibling") {
+			t.Errorf("resolved_by_sibling left a diagnostic behind: %s: %s", d.Description().Summary, d.Description().Detail)
+		}
+	}
+
+	if _, ok := result.Get(mustAddr(t, "aws_security_group_rule.all_empty_no_sibling")); ok {
+		t.Fatalf("aws_security_group_rule.all_empty_no_sibling resolved; every alternation member is a definite empty list, so none of them settles the identity")
+	}
+	if !hasDiag(diags, "Identity argument not set", "all_empty_no_sibling") {
+		t.Fatalf("expected all_empty_no_sibling to refuse as %q (every member proven empty, none set), got: %v", "Identity argument not set", diags)
+	}
+	for _, d := range diags {
+		if strings.Contains(d.Description().Detail, "all_empty_no_sibling") && d.Description().Summary == "Ambiguous list-valued identity argument" {
+			t.Fatalf("all_empty_no_sibling raised %q; zero elements is never ambiguous, it is nothing set: %s", d.Description().Summary, d.Description().Detail)
+		}
 	}
 }
