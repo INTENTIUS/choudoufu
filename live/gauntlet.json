@@ -198,9 +198,9 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 16,
+          "pass": 17,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "test_plan": {
           "pass": 17,
@@ -275,9 +275,9 @@
           "not_run": 24
         },
         "test_apply": {
-          "pass": 15,
+          "pass": 16,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "test_plan": {
           "pass": 16,
@@ -868,20 +868,20 @@
         "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
+        "test_apply": "pass",
         "test_plan": "pass"
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a485d4f7df4c4128903905a908958d6cbd524c36",
-        "date": "2026-08-21T20:50:26Z",
+        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
+        "date": "2026-08-21T22:17:31Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; drift_reconverge is the next unit after test_apply",
+          "drift_reconverge": "not yet exercised by this script - test_apply just started passing this unit; drift_reconverge is the next unit",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
-          "test_apply": "not yet exercised by this script - a genuinely empty first test_plan is new as of this unit; test_apply is the next unit",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact",
           "test_plan": "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
         }
       },
