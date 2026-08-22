@@ -783,9 +783,79 @@ if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 #     proceed, open a rung ticket"): an instance that can be neither tagged
 #     nor listed belongs on the record rung, and choudoufu #364's OTHER
 #     half - "removing admission as a gate: a type with no table row lands
-#     on the record rung instead of refusing" - is where that lands. Not
-#     attempted here; it is foundation work, not a per-estate fix, and this
-#     script does not paper over it.
+#     on the record rung instead of refusing" - is where that lands.
+#
+#     Re-confirmed for real 2026-08-22 (base 8c0cc5c8dd): live-import's own
+#     output shows this instance's identity IS known at migrate time
+#     (state carries the live launch configuration name directly, e.g.
+#     "aws_launch_configuration live id: test-eks-...-worker-group-..."),
+#     it is simply never captured anywhere, because Approve's OutcomeSkipped
+#     branch for an untaggable type (stamp.go) records argument residue
+#     (issue #341) but not identity, and #364's implied record store is
+#     wired only to [identity.TypeIdentity.RecordBacked] types - a
+#     type-level fact for a value that IS its own identity with no live
+#     object at all, which aws_launch_configuration is not. Extending that
+#     same mechanism to this shape would be a category error, not a reuse:
+#     RecordBacked licenses skipping cloud observation entirely (see
+#     internal/live/lint/logical_type.go's ClassRecordAdmitted doc), which
+#     is false for a real cloud object. The correct shape is narrower - the
+#     record stands in only for the missing LIST call (an identity index),
+#     and a normal provider Read still verifies the object once its
+#     identity is known - which is a new leg, not an existing one:
+#       1. discovery.Request needs a record-store handle (internal/command's
+#          live_plan.go already opens one, as [hintStore], for guided
+#          discovery's cost hint alone - the same handle reaches
+#          statelessDiscoverOne already and would only need passing
+#          through);
+#       2. scanType's declared-instance branch (internal/live/discovery/
+#          discovery.go, right where scanTypeMarkerFallback's taggable leg
+#          sits) needs a companion untaggable leg that checks the record
+#          for each declared address before refusing, binding what it finds
+#          and refusing (never "propose create") what it does not - the
+#          same non-guess discipline scanTypeMarkerFallback already follows
+#          for a working-but-empty tag index;
+#       3. internal/live/liveimport/stamp.go's Approve needs to seed that
+#          record at migrate time for such an instance, from the same
+#          object Ratify already read for residue purposes (issue #341's
+#          [residuable]) - the identity is already in hand, only the write
+#          is missing.
+#     Also checked and ruled out as a shortcut: live/mapping.json maps
+#     aws_launch_configuration to AWS::AutoScaling::LaunchConfiguration via
+#     "former2" (community-sourced), and live/registry.json's own handlers
+#     say that CFN type's List needs no input - roster.Listable(...) and
+#     roster.Taggable(...), read directly, answer true and false, matching
+#     this estate's wall exactly. But
+#     internal/live/registry/roster.go's Roster.CloudControlType /
+#     EnumerationSource deliberately excludes every via:former2 row from
+#     enumeration regardless (only name/alias/service-alias produce a hit;
+#     former2 rows still answer CloudControlTypeOrService for parent
+#     derivation, a materially weaker claim than "list this and trust what
+#     comes back" - its own doc comment calls former2 rows "not Cloud
+#     Control enumerable", which this measurement shows is not literally
+#     true of THIS row's raw registry facts, so the exclusion reads as a
+#     deliberate blanket policy over the whole former2 tier - lower
+#     confidence in the tf_type/cfn_type pairing itself, community-sourced
+#     and accepted only because no other heuristic found anything - rather
+#     than a per-row listability check). Widening that gate to unblock this
+#     one type would silently change discovery for all 14 other
+#     via:former2, untaggable, unlistable admitted types at once with no
+#     independent per-type confirmation that Cloud Control's population for
+#     each one actually matches what the TF type name claims - exactly the
+#     guess HANDOFF's fourth row exists to forbid, not a derivation from a
+#     measured property. Left to whoever owns that policy to confirm or
+#     relax; not changed here.
+#
+#     Not attempted here; it is foundation work spanning discovery,
+#     live-import and the record store together, not a per-estate fix, and
+#     this script does not paper over it. The structural property behind
+#     it - an admitted type with no tags argument at all AND no working
+#     list route (native, content-match or Cloud Control) - reaches 215 of
+#     today's admitted AWS types by the same measurement (computed from
+#     live/survey-full.json's taggable/list_resource signals joined against
+#     the identity table, live/mapping.json and the registry roster), so
+#     the fix is generic in exactly the sense HANDOFF requires: derived
+#     from a property every one of those types shares, not a name checked
+#     in control flow.
 LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
 # The kubernetes_* lines that are NOT a refusal: the tag sweep's own
@@ -849,7 +919,7 @@ log "  exactly 1 Error diagnostic total: aws_launch_configuration is"
 log "  marker-discovered and the provider cannot list it, so its 2 declared"
 log "  instances cannot be found again. Was 8 diagnostics, then 4, now 1."
 
-gauntlet_stage test_plan fail "1 Error diagnostic: aws_launch_configuration is marker-discovered and unlistable, so its 2 instances cannot be found again; the 4 logical-resource refusals are FIXED by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go"
+gauntlet_stage test_plan fail "1 Error diagnostic: aws_launch_configuration is marker-discovered and unlistable, so its 2 instances cannot be found again; the 4 logical-resource refusals are FIXED by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go. Re-confirmed 2026-08-22: the identity IS known at migrate time (state carries the live launch configuration name) but nothing persists it, because #364's record store is wired to RecordBacked types only, a different shape (no live object at all) than an untaggable-but-real one. HANDOFF row 4; the generic property (no tags argument, no working list route) reaches 215 admitted AWS types; fixing it needs discovery wired to the record store plus a migrate-time identity write - foundation work, not attempted here (see this script's header)"
 gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
 gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
 CURRENT_STAGE=""
