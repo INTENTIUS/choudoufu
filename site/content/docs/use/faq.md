@@ -120,7 +120,7 @@ write. A record is written only if it still holds the version the writer read.
 A losing writer gets a named failure rather than a blocking wait or a silent
 overwrite.
 
-[Day-2 operations]({{< relref "/docs/use/day2#running-this-with-other-people" >}}) has the
+[Two runs at once]({{< relref "/docs/model/concurrency" >}}) has the
 case-by-case table.
 
 ## How does this relate to upstream OpenTofu?
