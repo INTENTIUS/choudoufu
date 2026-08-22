@@ -180,18 +180,23 @@ set -uo pipefail
 # and every line of it is now MEASURED rather than read off the plan and
 # attributed by eye, which is what the 2026-08-22 pass changed:
 #
-#   22 instances want the tofu-slot marker live-import does not write.
-#      choudoufu #372, corpus-ecs-fargate's own pinned unit, hit here
-#      independently and confirmed to be the identical root cause rather
-#      than a look-alike: live-import performs no discovery pass, a slot is
-#      the discovery pass's answer (internal/live/discovery's SlotMigrated
-#      origin), so the migration writes tofu-estate and tofu-address and
-#      leaves the slot to the first ordinary live-plan. See
-#      internal/live/liveimport/doc.go's closing paragraph and
-#      internal/live/stamp/doc.go's "tofu-slot comes in from outside".
-#      corpus-iam-policy's crossing folds a converging apply into its own
-#      stage 2; this estate cannot, because its plan is not slot-only - an
-#      apply here would also act on the two replacements below.
+#    3 instances want the tofu-slot marker live-import does not write. That
+#      was 22 until choudoufu #372 landed. The claim #372 rests on: for a
+#      live count set carrying NO slot at all there is nothing for a
+#      discovery pass to discover, because the assignment discovery reaches
+#      is internal/live/slots.Sequential - slot i for index i, frozen from
+#      the same per-instance tofu-address values the migration is already
+#      writing in the same call. So live-import writes it, gated on the
+#      type being server-assigned, which is the one half of "is this
+#      instance ClassNeedsDiscovery" the type table settles without a
+#      resolution pass. The 19 that went were the VPC and security-group
+#      submodules' count instances; the 3 that stayed - aws_db_subnet_group,
+#      aws_default_network_acl, aws_iam_role.enhanced_monitoring - are
+#      client-named types whose class depends on their own configuration.
+#      Writing a slot for those anyway is not merely unhelpful, it is
+#      wrong: measured on corpus-overture-tiles and
+#      corpus-dynamodb-table-basic, the next plan proposes REMOVING it.
+#      See internal/live/liveimport/slot.go's gate 4.
 #    1 aws_db_parameter_group is created, and the reason is the EMULATOR,
 #      not the name_prefix sentence the plan prints. name_prefix is why no
 #      import identity exists; marker discovery is what would find the
@@ -303,9 +308,9 @@ set -uo pipefail
 #                          through choudoufu's own report. What blocks the
 #                          stage now is a different set entirely, counted by
 #                          cause and each one now MEASURED against its own
-#                          oracle: 22 instances missing tofu-slot (choudoufu
-#                          #372, corpus-ecs-fargate's pinned unit, confirmed
-#                          same root cause), 1 name_prefix parameter group
+#                          oracle: 3 instances missing tofu-slot, down from
+#                          22 (choudoufu #372's remainder - client-named
+#                          count instances only), 1 name_prefix parameter group
 #                          whose marker can never land because floci
 #                          implements no RDS 'pg' tagging and returns no
 #                          DBParameterGroupArn (step 3f asks floci), and 2
@@ -653,9 +658,18 @@ WANT_ERR_N=0
 # "will be created". None may.
 WANT_RULE_ACTIONS=0
 # What IS left, none of it identity, each with its own cause:
-#   22 instances want the tofu-slot marker live-import does not write. This
-#      is the same unit corpus-ecs-fargate's own crossing pinned when #368
-#      cleared its identity diagnostics; it is not this estate's to fix.
+#    3 instances want the tofu-slot marker live-import does not write, down
+#      from 22. choudoufu #372 landed: live-import settles the slot itself
+#      for a count-expanded instance whose live set carries no slots AND
+#      whose type is server-assigned, which is every count instance in the
+#      VPC and security-group submodules this estate leans on. The three
+#      left - aws_db_subnet_group, aws_default_network_acl and
+#      aws_iam_role.enhanced_monitoring - are count instances of
+#      CLIENT-NAMED types, where whether the plan wants a slot depends on
+#      whether that instance's own name is statically computable, which is
+#      a question about configuration a migration reading a state file
+#      cannot answer. See internal/live/liveimport/slot.go's gate 4; the
+#      remainder is #372's own follow-up and not this estate's to fix.
 #    1 aws_db_parameter_group is created because it is named through
 #      name_prefix: the provider appends a random suffix at create time, so
 #      no import identity exists until marker discovery finds it. The plan
@@ -667,10 +681,10 @@ WANT_RULE_ACTIONS=0
 #      defaults. An emulator gap, not a plan defect.
 #    1 aws_db_subnet_group and 1 aws_default_network_acl are the same
 #      round-trip gap in tags and in rule blocks respectively.
-WANT_SLOT_N=22
+WANT_SLOT_N=3
 WANT_CREATE_N=1
 WANT_REPLACE_N=2
-WANT_UPDATE_N=21
+WANT_UPDATE_N=3
 # THE BLOCK-SHAPED RESIDUE FINDING, this crossing's own, and the one thing
 # in the residue that was choudoufu's. terraform-aws-modules/security-group
 # and terraform-aws-modules/vpc both write a `timeouts` block:
@@ -709,10 +723,10 @@ if [ "${BREAK:-}" = "1" ]; then
   WANT_CASCADE_N=1
   WANT_ERR_N=1
   WANT_RULE_ACTIONS=1
-  WANT_SLOT_N=21
+  WANT_SLOT_N=2
   WANT_CREATE_N=0
   WANT_REPLACE_N=1
-  WANT_UPDATE_N=20
+  WANT_UPDATE_N=2
   log "  BREAK=1: expecting one of every refusal this estate no longer has"
   log "           (#304's count-index-in-tag, #305's unadmitted-type,"
   log "           #321+#324's Identity-not-resolvable, and the"
@@ -825,17 +839,30 @@ TIMEOUTS_N="$(grep -cE '^[[:space:]]*\+ timeouts \{$' <<< "$PLAN_OUT")"
 [ "$TIMEOUTS_N" = "$WANT_TIMEOUTS_N" ] || {
   grep -nE '^  # |^[[:space:]]*\+ timeouts \{$' <<< "$PLAN_OUT"
   fail "expected $WANT_TIMEOUTS_N '+ timeouts {' proposals - a config-only NestingSingle block the provider never reads back belongs in the residue record, not in every replan - got $TIMEOUTS_N"; }
+# Since choudoufu #372 both of these objects are usually out of the plan
+# ENTIRELY - their only remaining diff was the tofu-slot tag live-import now
+# writes at migrate time - and an object with no plan body at all is a
+# strictly stronger statement than one whose timeouts block renders
+# unchanged. So the check is conditional on the object being in the plan,
+# and the "did the block vanish from the record" worry the comment above
+# names is covered by TIMEOUTS_N: a block that stopped being recorded comes
+# back as "+ timeouts {", which is asserted to be 0 a few lines up.
 for addr in 'module.security_group.aws_security_group.this_name_prefix[0]' \
             'module.vpc.aws_default_route_table.default[0]'; do
   # index() rather than a regex: these addresses carry [0], and an address
   # spliced into a dynamic awk regex would read it as a character class.
+  BLOCK_PRESENT="$(awk -v a="  # $addr " 'index($0, a) == 1 { print "YES"; exit }' <<< "$PLAN_OUT")"
+  if [ "$BLOCK_PRESENT" != "YES" ]; then
+    log "  $addr is not in the plan at all - stronger than an unchanged-block render"
+    continue
+  fi
   BLOCK_HIT="$(awk -v a="  # $addr " '
     index($0, "  # ") == 1 { inblock = (index($0, a) == 1) }
     inblock && index($0, "# (1 unchanged block hidden)") > 0 { print "HIT"; exit }
   ' <<< "$PLAN_OUT")"
   [ "$BLOCK_HIT" = "HIT" ] \
     || { awk -v a="  # $addr " 'index($0,"  # ")==1 { inblock=(index($0,a)==1) } inblock' <<< "$PLAN_OUT"
-         fail "$addr no longer renders its timeouts block as '(1 unchanged block hidden)' - which is exactly what stock's own plan renders for it, and the point of recording the block was to agree with that"; }
+         fail "$addr is in the plan and no longer renders its timeouts block as '(1 unchanged block hidden)' - which is exactly what stock's own plan renders for it, and the point of recording the block was to agree with that"; }
 done
 log "  the block-shaped residue is closed for real: 0 '+ timeouts {'"
 log "  proposals, and both blocks that declare one render '(1 unchanged"
@@ -922,7 +949,7 @@ log "STAGE 3 (test_plan): the identity layer is CLEAR for real - 0 refusals"
 log "of any kind, where this estate stood at 7, then 33, then 14, then 2."
 log "The plan is not empty, and nothing left in it is identity - and after"
 log "this run, nothing left in it is choudoufu's either:"
-log "  $SLOT_N instances want the tofu-slot marker live-import does not write"
+log "  $SLOT_N instances want the tofu-slot marker live-import does not write (was 22 before choudoufu #372)"
 log "     (the same unit corpus-ecs-fargate's crossing pinned, choudoufu #372)"
 log "  $CREATE_N create - the name_prefix parameter group. floci implements no"
 log "     tagging for the RDS 'pg' type and returns no DBParameterGroupArn,"
@@ -934,7 +961,7 @@ log "     line, asserted at step 3g. HANDOFF's third row."
 log "  0 '+ timeouts {' proposals, was 2 - the block-shaped residue gap this"
 log "     crossing found, fixed generically for NestingSingle blocks"
 log ""
-gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The rule names no type and reaches every NestingSingle block with nothing sensitive or write-only inside it. Nothing left in the plan is choudoufu's: $SLOT_N instances missing tofu-slot (live-import does not write it - choudoufu #372, corpus-ecs-fargate's own unit), 1 name_prefix parameter group whose marker can never land because floci implements no tagging for the RDS 'pg' type and returns no DBParameterGroupArn (asserted against floci's own API at step 3f), and $REPLACE_N replacements stock terraform proposes identically on its own state file, forced by the same storage_encrypted = false -> true line because floci's DescribeDBInstances returns no StorageEncrypted at all (asserted at step 3g - HANDOFF's third row)"
+gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The rule names no type and reaches every NestingSingle block with nothing sensitive or write-only inside it. Nothing left in the plan is choudoufu's: $SLOT_N instances missing tofu-slot, down from 22 (choudoufu #372 landed - live-import now settles the slot for a slotless count set of a SERVER-ASSIGNED type, which cleared the VPC and security-group submodules here and took corpus-vpc-complete's whole plan from 29 objects to 1; the 3 left are count instances of client-named types, whose identity class is a question about configuration a migrate cannot answer without a resolution pass - #372's own remainder), 1 name_prefix parameter group whose marker can never land because floci implements no tagging for the RDS 'pg' type and returns no DBParameterGroupArn (asserted against floci's own API at step 3f), and $REPLACE_N replacements stock terraform proposes identically on its own state file, forced by the same storage_encrypted = false -> true line because floci's DescribeDBInstances returns no StorageEncrypted at all (asserted at step 3g - HANDOFF's third row)"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="

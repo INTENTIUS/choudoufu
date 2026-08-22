@@ -186,6 +186,13 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	// GitHub issue #372: the third marker key, for the count sets where this
+	// migration can settle it without a discovery pass. Computed once for the
+	// whole ratification because a slot is a fact about a SET and Approve's
+	// loop is per instance - see [Ratification.migrationSlots], which is also
+	// where the three cases it declines to compute are written down.
+	slotFor := r.migrationSlots()
+
 	rep := &StampReport{Estate: r.Estate}
 	for _, entry := range r.Entries {
 		if rec, ok := r.recordable[entry.Addr.String()]; ok {
@@ -213,7 +220,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, r.residuable[entry.Addr.String()]))
 			continue
 		}
-		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig))
+		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()]))
 		diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, &elig.residuable))
 	}
 
@@ -330,7 +337,15 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secre
 // approveOne is the tags-only write for one resource, from the object
 // Ratify already read. See tags.go's package comment for why this mirrors
 // mv's rewrite.go rather than calling it.
-func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstance, e *eligible) StampOutcome {
+//
+// slot is the tofu-slot value [Ratification.migrationSlots] settled for this
+// instance, or "" for the instances it declined to settle - which is every
+// instance that is not a member of a slotless count set, and was every
+// instance at all before GitHub issue #372. It rides in the same tags write as
+// the other two markers rather than in one of its own: it is the same claim
+// about the same object made by the same run, and a second write would be a
+// second chance to half-mark the resource.
+func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstance, e *eligible, slot string) StampOutcome {
 	out := StampOutcome{Addr: addr, TypeName: e.typeName}
 
 	wantAddress := discovery.EscapeAddress(addr.String())
@@ -358,9 +373,16 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	// re-run of live-import over it has to see "already stamped" rather
 	// than "carries a different address" - see that function's doc comment.
 	addressMatches := gotAddress != "" && discovery.AddressMatches(gotAddress, addr.String())
+	// Issue #372. "Already carries this estate's markers" has to mean all
+	// three of them, or a re-run over an estate migrated before slots were
+	// written here would report ALREADY_STAMPED and leave the slot for the
+	// plan to propose forever. It costs nothing in the ordinary case: an
+	// estate whose set already carries slots classifies ModeAll, so slot is ""
+	// and this clause is exactly what it was.
+	slotMatches := slot == "" || tags[discovery.TagSlot] == slot
 
 	switch {
-	case gotEstate == estate && addressMatches && !corrupt:
+	case gotEstate == estate && addressMatches && slotMatches && !corrupt:
 		out.Outcome = OutcomeAlreadyStamped
 		out.Detail = "Already carries this estate's markers; nothing written."
 		return out
@@ -385,6 +407,9 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	desiredTags[discovery.TagEstate] = estate
 	for i, chunk := range chunks {
 		desiredTags[discovery.AddressTagKey(i)] = chunk
+	}
+	if slot != "" {
+		desiredTags[discovery.TagSlot] = slot
 	}
 
 	desired, err := withTags(e.schema.Block, e.applied, desiredTags)
@@ -456,9 +481,13 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 
 	out.Outcome = OutcomeStamped
 	out.Detail = "Wrote tofu-estate and tofu-address."
+	if slot != "" {
+		out.Detail = fmt.Sprintf("Wrote tofu-estate, tofu-address and tofu-slot = %q.", slot)
+	}
 	newTags, newOK := tagsFromObject(e.schema, applyResp.NewState)
 	newRaw, newCorrupt := discovery.GatherAddress(newTags)
-	if !newOK || newCorrupt || discovery.EscapeAddress(newRaw) != wantAddress || newTags[discovery.TagEstate] != estate {
+	if !newOK || newCorrupt || discovery.EscapeAddress(newRaw) != wantAddress || newTags[discovery.TagEstate] != estate ||
+		(slot != "" && newTags[discovery.TagSlot] != slot) {
 		// A mismatch here is a warning, not a failure: the write itself
 		// reported no error, and some providers do not serve tags back on
 		// the read that follows an apply (mv's e2e notes call this #5).

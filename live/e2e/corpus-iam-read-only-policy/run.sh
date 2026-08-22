@@ -29,12 +29,16 @@ set -uo pipefail
 #   1. COLD DEPLOY   plain `terraform apply` (real HashiCorp terraform, not
 #                     choudoufu), no live block anywhere.
 #   2. MIGRATE        `choudoufu live-import -state=<cold state> -estate=...
-#                     -approve`, then ONE ordinary `choudoufu apply` with no
-#                     state file present, to converge tofu-slot (see
-#                     corpus-iam-policy/run.sh's header - the module's
+#                     -approve`, the policy's tofu-slot read back off IAM by
+#                     value, then ONE ordinary `choudoufu apply` with no
+#                     state file present which must be a NO-OP. That apply
+#                     used to be the tofu-slot convergence step (the module's
 #                     aws_iam_policy declares `count = var.create &&
-#                     var.create_policy ? 1 : 0`, the same shape that needs
-#                     it).
+#                     var.create_policy ? 1 : 0`, the shape that needs a
+#                     slot); choudoufu #372 moved the slot write into
+#                     live-import itself, so the apply now proves there is
+#                     nothing left to converge. See corpus-iam-policy's
+#                     header for the whole finding.
 #   3. TEST PLAN      delete the state file (already gone), `choudoufu
 #                     live-plan`, assert no resource action is proposed *and*
 #                     re-assert the rendered identity against a live
@@ -217,11 +221,12 @@ gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
-# STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
-# ordinary apply to converge tofu-slot
+# STAGE 2: MIGRATE - choudoufu live-import against the cold state, the slot
+# it now writes read back by value, then one ordinary apply that must be a
+# no-op (choudoufu #372)
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=migrate
-log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
+log "=== STAGE 2: migrate (choudoufu live-import -approve; the following apply must be a no-op) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
 
@@ -248,19 +253,31 @@ GOT_ADDR="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?
 [ "$GOT_ADDR" = "$WANT_ADDR" ] || fail "$POLICY_ARN carries tofu-address=$GOT_ADDR, not $WANT_ADDR"
 log "  marker verified directly against IAM, not through choudoufu's own report: $POLICY_ARN -> tofu-address=$GOT_ADDR"
 
-# The tofu-slot convergence apply - see corpus-iam-policy/run.sh's header.
-# The module's aws_iam_policy declares count = var.create && var.create_policy
-# ? 1 : 0, the same shape that needs it.
+# The third marker, by value, off the live object - choudoufu #372. The
+# module's aws_iam_policy declares count = var.create && var.create_policy
+# ? 1 : 0, so it is a count set of one and must carry tofu-slot = "0" the
+# moment live-import returns. This used to be what the apply below wrote;
+# see corpus-iam-policy/run.sh's header, "THE TOFU-SLOT FINDING", for the
+# whole of what changed and why the assignment is not a guess.
+WANT_SLOT="0"
+GOT_SLOT="$(awsl iam list-policy-tags --policy-arn "$POLICY_ARN" --query "Tags[?Key=='tofu-slot'].Value | [0]" --output text)"
+[ "$GOT_SLOT" = "$WANT_SLOT" ] || fail "$POLICY_ARN carries tofu-slot=$GOT_SLOT, not $WANT_SLOT - live-import did not settle the slot for a slotless count set (choudoufu #372)"
+log "  slot verified the same way: $POLICY_ARN -> tofu-slot=$GOT_SLOT"
+
+# What used to be the tofu-slot convergence apply, kept as #372's regression
+# guard: with the slot written at migrate time there is nothing left to
+# converge, so this apply has to be a genuine no-op. If the slot write
+# regresses it reads "0 added, 1 changed, 0 destroyed" again and fails here.
 CONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
-[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the tofu-slot convergence apply failed"; }
-grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
-  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not change exactly 1 resource (expected: the policy gaining tofu-slot)"; }
-log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written)"
-[ ! -f "$EST/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
+[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the post-migration apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
+  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; grep -E '^  # .+ will be' <<< "$CONVERGE_OUT"; fail "the apply straight after live-import was not a no-op - the migration left something for a plan to finish (choudoufu #372 is about exactly this)"; }
+log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (nothing left to converge)"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the post-migration apply wrote a state file"
 
 log ""
 log "STAGE 2 (migrate): PASS"
-gauntlet_stage migrate pass "1 of 1 stamped; $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written)"
+gauntlet_stage migrate pass "1 of 1 stamped, carrying tofu-slot=$GOT_SLOT read back through IAM (choudoufu #372); $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") - nothing left to converge"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -382,8 +399,9 @@ log "A terraform-aws-modules EXAMPLE using a different iam module than"
 log "corpus-iam-policy - one that builds its policy from a generated"
 log "allowed_services matrix, instantiated three times with only one call"
 log "contributing a resource - crossed through all five stages: cold deploy"
-log "with plain terraform, choudoufu live-import adoption plus the"
-log "tofu-slot convergence apply it requires, an empty replan with the"
+log "with plain terraform, choudoufu live-import adoption - which now writes"
+log "the tofu-slot too, so the apply behind it is a no-op - an empty replan"
+log "with the"
 log "state file deleted and the rendered identity checked against IAM's own"
 log "answer, a genuine no-op apply, and drift on the one policy reconverging"
 log "and proposing a fix against the right address."

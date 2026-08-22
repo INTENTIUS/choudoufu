@@ -150,7 +150,7 @@ func TestApproveOne_SplitsLongAddressAcrossContinuationTags(t *testing.T) {
 	addr, chunks := longAddr(t)
 	e, p := vpcEligible(nil) // no existing tags: a brand new adoption
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeStamped {
 		t.Fatalf("Outcome = %s, want STAMPED (detail: %s)", out.Outcome, out.Detail)
@@ -201,7 +201,7 @@ func TestApproveOne_AlreadySplitStampedIsIdempotent(t *testing.T) {
 		discovery.ContinuationTag(2): chunks[1],
 	})
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeAlreadyStamped {
 		t.Fatalf("Outcome = %s, want ALREADY_STAMPED (detail: %s)", out.Outcome, out.Detail)
@@ -235,7 +235,7 @@ func TestApproveOne_ConflictingSplitAddressFails(t *testing.T) {
 		discovery.ContinuationTag(2): otherChunks[1],
 	})
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeFailed {
 		t.Fatalf("Outcome = %s, want FAILED (detail: %s)", out.Outcome, out.Detail)
@@ -266,7 +266,7 @@ func TestApproveOne_CorruptContinuationChainFails(t *testing.T) {
 		discovery.ContinuationTag(3): "b", // tofu-address-2 is missing.
 	})
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeFailed {
 		t.Fatalf("Outcome = %s, want FAILED (detail: %s)", out.Outcome, out.Detail)
@@ -319,7 +319,7 @@ func TestApproveOne_FrontGapBugSilentlyOverwritesStaleContinuation(t *testing.T)
 		discovery.ContinuationTag(2): "stale", // ... but tofu-address itself is missing.
 	})
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeFailed {
 		t.Errorf("Outcome = %s, want FAILED: a front-gapped continuation chain must be refused, not silently adopted over", out.Outcome)

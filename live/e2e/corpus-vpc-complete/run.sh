@@ -95,64 +95,90 @@ set -uo pipefail
 # provider's unconditional ListTagsForResource on every
 # aws_elasticache_subnet_group read 400'd).
 #
-# STAGE 3 TODAY (re-verified 2026-08-22, same run as above): live-plan exits
-# 0 and proposes 29 changed objects, all "will be updated in-place" - none
-# "must be replaced" (the fourth verb the note below added the grep for).
-# That is down from the 34 a 2026-08-21 session measured against the prior
-# pin, and the floci#97 fix reaches exactly as far as advertised: read every
-# one of the 29 plan bodies, and aws_nat_gateway.this[0] and
-# aws_vpn_gateway.this[0] each show ONLY tags/tags_all changing (their
-# allocation_id/subnet_id and availability_zone gaps are gone), and five of
-# the vpc-endpoints submodule's six endpoints (s3, dynamodb, ecr_api,
-# ecr_dkr, rds) plan completely clean - they do not appear among the 29 at
-# all. choudoufu #346 and #355, the two identity/discovery refusals that
-# used to block this stage from running at all, remain fixed; neither
-# diagnostic appears in a run any more.
+# STAGE 3 TODAY (re-verified 2026-08-22 against the same pin, with choudoufu
+# #372 landed): live-plan exits 0 and proposes ONE changed object. That is
+# down from 29, and from the 34 a 2026-08-21 session measured against the
+# prior pin. The two steps between:
 #
-# 27 of the 29 are pure tofu-slot: the only change in each of their plan
-# bodies is `tags`/`tags_all` gaining `tofu-slot`, exactly
-# live/e2e/corpus-iam-policy/run.sh's "THE TOFU-SLOT FINDING" (a slot is
-# minted from a counter over the live set, which live-import's one-state-
-# file view cannot compute) - deliberate product behavior, not drift, and no
-# longer anything to do with floci#97.
+#   - the floci#97 fix reaches exactly as far as advertised:
+#     aws_nat_gateway.this[0] and aws_vpn_gateway.this[0] each show ONLY
+#     tags/tags_all changing (their allocation_id/subnet_id and
+#     availability_zone gaps are gone), and five of the vpc-endpoints
+#     submodule's six endpoints (s3, dynamodb, ecr_api, ecr_dkr, rds) plan
+#     completely clean. choudoufu #346 and #355, the two identity/discovery
+#     refusals that used to block this stage from running at all, remain
+#     fixed; neither diagnostic appears in a run any more.
 #
-# THE REMAINING 2 ARE NOT TOFU-SLOT, AND NOT THE SAME GAP AS EACH OTHER:
+#   - choudoufu #372 took 28 of the remaining 29 to zero. Those 28, including
+#     module.vpc_endpoints.aws_security_group.this[0], were pure tofu-slot:
+#     the only change in each of their plan bodies was `tags`/`tags_all`
+#     gaining `tofu-slot`, because live-import wrote only tofu-estate and
+#     tofu-address and left the third marker to the first replan (live/e2e/
+#     corpus-iam-policy/run.sh's "THE TOFU-SLOT FINDING"). live-import now
+#     settles the slot itself for a count-expanded instance of a
+#     server-assigned type whose live set carries no slots - the assignment
+#     being slot i for index i, which is what the per-instance tofu-address it
+#     is writing in the same call already says. Every count instance in this
+#     estate is one, so stage 2 below reads the VPC's own tofu-slot back off
+#     EC2 by value, and stage 3 refuses to pass if the plan proposes a
+#     tofu-slot change at all, in either direction.
 #
-#   1. module.vpc_endpoints.aws_security_group.this[0] proposes
-#      `+ revoke_rules_on_delete = false` alongside its tofu-slot tag
-#      change. No AWS API returns this field - it is the provider's own
-#      client-side default - so per HANDOFF.md's foundation ("record: ...
-#      the arguments the provider never echoes back") this is exactly the
-#      class of value the record is supposed to carry forward from the
-#      stock state file across migrate, and here it is not. Not a floci
-#      gap: HANDOFF's second row, "the plans ... differ: defect; fix it."
-#      Left unfixed in THIS unit (a script-accuracy check that rules out
-#      touching record/stamping code); worth its own unit, including
-#      checking how many other bare-schema-default arguments it reaches.
-#   2. module.vpc_endpoints.aws_vpc_endpoint.this["ecs"] - the only one of
-#      the four interface endpoints (ecr_api, ecr_dkr, rds, ecs) that still
-#      changes - proposes replacing network_interface_ids wholesale (three
-#      ENI ids going to "(known after apply)") and swapping all three
-#      subnet_configuration blocks' ipv4 addresses (live: *.245; proposed:
-#      *.10), plus a `+ timeouts` block. This is a for_each resource, so
-#      per internal/live/stamp/doc.go ("nothing is ever stamped for
-#      for_each") it was never a tofu-slot candidate; the diff is unrelated
-#      to that mechanism. NetworkInterfaceIds and SubnetConfiguration are
-#      both fields DescribeVpcEndpoints actually returns, so this reads as
-#      a floci read-fidelity gap in the same family as lex00/floci#97 - but
-#      a different shape than what #97 filed (policy/route_table_ids/
-#      subnet_ids/cidr_blocks reading empty, none of which appear in this
-#      diff any more) and not yet confirmed against the AWS API docs or
-#      real AWS. Named here rather than folded back into #97, which this
-#      run shows is now substantially resolved for this estate.
+#   - CORRECTION, checked by A/B rather than assumed: an earlier version of
+#     this comment credited #372 with also removing module.vpc_endpoints.
+#     aws_security_group.this[0]'s `+ revoke_rules_on_delete = false`. That
+#     was wrong. Built and ran the binary at this branch's own base commit
+#     (0119227197, before #372's slot.go existed at all) against this same
+#     script and config: the plan still shows 29 objects changing, and
+#     `revoke_rules_on_delete` appears in NONE of them - the security group's
+#     body there is already pure tofu-slot, exactly like the other 27.
+#     `revoke_rules_on_delete` was fixed before this branch even started, by
+#     56e807062e/b5bb09d27e ("liveimport: record GitHub issue #275 residue
+#     during migrate, fixing #327", merged 2026-08-19), which made live-import
+#     record every eligible instance's residue - the arguments the provider
+#     never echoes back - at migrate time instead of leaving it to the first
+#     apply. The "29 objects... all but 2 are pure tofu-slot" characterization
+#     this estate's artifact entry carried into this branch was itself stale
+#     by the time #372 branched: #327's fix already applied to this security
+#     group, and the true pre-#372 shape here was 28 pure-tofu-slot objects
+#     plus the one endpoint below, not 27 plus two others.
 #
-# So stage 3 fails on three distinct things: 27 objects' deliberate,
-# documented tofu-slot addition, plus two genuinely different real
-# differences on the two objects above. Nothing here is routed around (no
-# -target, no resource removed from the example): the script runs the real
-# module and reports the real result, per this goal's own standing rule
-# that a partial, accurate failure is worth more than a green run that does
-# not hold up.
+# THE REMAINING ONE: module.vpc_endpoints.aws_vpc_endpoint.this["ecs"] - the
+# only one of the four interface endpoints (ecr_api, ecr_dkr, rds, ecs) that
+# still changes - proposes replacing network_interface_ids wholesale (three
+# ENI ids going to "(known after apply)") and swapping all three
+# subnet_configuration blocks' ipv4 addresses (live, as floci reports it:
+# *.201; proposed, matching the example's own
+# `ipv4 = cidrhost(v.cidr_block, 10)`: *.10), plus a `+ timeouts` block. This
+# is a for_each resource, so per internal/live/stamp/doc.go ("nothing is ever
+# stamped for for_each") it was never a tofu-slot candidate; the diff is
+# unrelated to that mechanism.
+#
+# CONFIRMED AGAINST THE AWS API DOCS, 2026-08-22: EC2's own
+# SubnetConfiguration reference
+# (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_SubnetConfiguration.html)
+# documents Ipv4 as "The IPv4 address to assign to the endpoint network
+# interface in the subnet" at creation, and that changing it later replaces
+# the endpoint network interface - exactly the ENI-replacement shape this
+# plan proposes, which is the real AWS provider reacting correctly to what it
+# was told changed. The example requests ipv4 = cidrhost(v.cidr_block, 10) at
+# creation for every interface endpoint, so a faithful DescribeVpcEndpoints
+# read of an object created from that exact configuration must report *.10
+# back, the same as the other three interface endpoints in this estate
+# (ecr_api, ecr_dkr, rds) already do cleanly. floci reports *.201 for this one
+# endpoint instead: a read-fidelity gap in the vpc-endpoint family, in the
+# same family as lex00/floci#97 but a different shape (policy/
+# route_table_ids/subnet_ids/cidr_blocks reading empty, none of which appear
+# in this diff any more, #97 is substantially resolved for this estate). Not
+# yet filed as its own lex00/floci issue as of this writing - that is the
+# next step, not a fix owed by this repository. Not choudoufu's: it is a
+# for_each resource, never a tofu-slot candidate, and every other object in
+# this 62-resource estate reads back exactly what stock would expect.
+#
+# So stage 3 fails on one thing, and it is not choudoufu's. Nothing here is
+# routed around (no -target, no resource removed from the example): the
+# script runs the real module and reports the real result, per this goal's
+# own standing rule that a partial, accurate failure is worth more than a
+# green run that does not hold up.
 #
 # ALSO ESTABLISHED, 2026-08-21, still true 2026-08-22: the "39 objects carry
 # tofu-estate after migration" line below disagrees with the "40 stamped"
@@ -167,11 +193,11 @@ set -uo pipefail
 # still doing its job 2026-08-22: stage 3's empty-plan assertion matched
 # `will be (created|updated|destroyed)` only. A live-plan header for a
 # forced replacement instead reads `must be replaced` - a fourth, distinct
-# verb the old pattern never matched. Today's 29 changed objects happen to
+# verb the old pattern never matched. Today's one changed object happens to
 # use only the "will be updated in-place" verb (confirmed above), so the
 # fourth verb is not load-bearing in this particular run - but the pattern
-# stays fixed to catch the day a forced replacement (e.g. from the item-2
-# gap above, if it starts producing one) shows up here, which is exactly
+# stays fixed to catch the day a forced replacement (e.g. from the vpc
+# endpoint gap above, if it starts producing one) shows up here, which is exactly
 # the silent-false-pass the "empty plan alone is not enough" oracle in
 # live/GAUNTLET.md exists to catch. The fifteen other corpus-* scripts
 # sharing the same narrower pattern (`grep -rl 'will be (created|updated|
@@ -379,6 +405,15 @@ VPC_ADDR_TAG='module.vpc.aws_vpc.this:0'
 [ "$VPC_ADDR" = "$VPC_ADDR_TAG" ] || fail "the VPC carries tofu-address=$VPC_ADDR, not $VPC_ADDR_TAG"
 log "  $VPC_ID carries tofu-address=$VPC_ADDR"
 
+# The third marker, by value, on the same object - choudoufu #372. aws_vpc is
+# count-expanded here (`aws_vpc.this[0]`) and server-assigned, so live-import
+# settles its slot at migrate time: slot 0 for index 0, the assignment its own
+# tofu-address already expresses. Before #372 this tag did not exist until an
+# apply wrote it, which is what put 27 of stage 3's 29 objects in the plan.
+VPC_SLOT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=tofu-slot" --query "Tags[0].Value" --output text)"
+[ "$VPC_SLOT" = "0" ] || fail "the VPC carries tofu-slot=$VPC_SLOT, not 0 - live-import did not settle the slot for a slotless count set of a server-assigned type (choudoufu #372)"
+log "  $VPC_ID carries tofu-slot=$VPC_SLOT, written by the migration itself (#372)"
+
 RDS_SG_ID="$(awsl ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=ex-complete-rds*" --query "SecurityGroups[0].GroupId" --output text)"
 [ -n "$RDS_SG_ID" ] && [ "$RDS_SG_ID" != "None" ] || fail "no live rds security group found by its name prefix"
 RDS_SG_ADDR="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$RDS_SG_ID" "Name=key,Values=tofu-address" --query "Tags[0].Value" --output text)"
@@ -404,7 +439,7 @@ MARKED="$(awsl resourcegroupstaggingapi get-resources \
   --tag-filters "Key=tofu-estate,Values=$ESTATE" \
   --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
 log "  $MARKED objects carry tofu-estate=$ESTATE after migration"
-gauntlet_stage migrate pass "$TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed; $MARKED objects carry tofu-estate=$ESTATE"
+gauntlet_stage migrate pass "$TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed; $MARKED objects carry tofu-estate=$ESTATE; the VPC's tofu-slot reads $VPC_SLOT off EC2, written by the migration itself (choudoufu #372)"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
@@ -427,7 +462,12 @@ CHANGED_HEADERS="$(grep -E '^  # .+ (will be (created|updated|destroyed)|must be
 if [ -n "$CHANGED_HEADERS" ]; then
   printf '%s\n' "$CHANGED_HEADERS"
   N_CHANGED="$(printf '%s\n' "$CHANGED_HEADERS" | grep -c .)"
-  fail "the plan is not empty: $N_CHANGED object(s) change - all but 2 are pure tofu-slot (deliberate; live-import cannot compute it from a single state file - see 'THE TOFU-SLOT FINDING', live/e2e/corpus-iam-policy/run.sh, and internal/live/stamp/doc.go); the other 2 are not tofu-slot and not each other's gap - module.vpc_endpoints.aws_security_group.this[0] also proposes +revoke_rules_on_delete=false (a record-preservation gap, choudoufu's, not floci's - HANDOFF's second row; see this script's header) and module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"] also proposes replacing network_interface_ids/subnet_configuration (a floci EC2 read-fidelity gap in the vpc-endpoint family, a different shape than the now-largely-fixed lex00/floci#97 and not yet confirmed against AWS - see header)"
+  # A DIFF line only, not a bare key match: a plan body that changes any
+  # attribute prints the whole tags map, unchanged entries included.
+  grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT" \
+    && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT"
+         fail "the plan proposes a tofu-slot change on $N_CHANGED object(s). choudoufu #372 settles the slot at migrate time for every count-expanded instance of a server-assigned type, and every count instance in this estate is one, so no tofu-slot may appear in this plan at all - not as an addition and not as a removal."; }
+  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 28 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
 fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
