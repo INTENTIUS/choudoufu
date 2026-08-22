@@ -62,6 +62,17 @@ const (
 	// setting for an estate where something else owns the tags, and
 	// HANDOFF.md pairs it with honouring lifecycle { ignore_changes } the
 	// way stock honours it.
+	//
+	// That pairing is not a consequence of the setting, it IS the setting.
+	// Nothing in this fork writes a marker onto a live object directly (see
+	// [Implemented]), so the only thing "never repair" can name is the
+	// ordinary tags diff, and the only way to suppress that diff is
+	// lifecycle { ignore_changes } - which internal/live/lint refuses,
+	// because a resource whose marker is neither written nor repaired has no
+	// identity left. Give it one, with a markers "record" selection, and the
+	// refusal has nothing to protect: that is what makes this setting
+	// implementable, and it is why it is implemented WITH such a selection
+	// and refused without one. See [ImplementedWithSelection].
 	Never MarkerRepair = "never"
 )
 
@@ -72,14 +83,30 @@ const (
 // on."
 const DefaultMarkerRepair = Repair
 
-// markerRepairs is the whole vocabulary, paired with whether a build
-// implements it. Both halves of every entry are needed by callers, and
-// keeping them in one table is what stops [Valid] and [Implemented] from
-// drifting apart.
-var markerRepairs = map[MarkerRepair]bool{
-	Repair: true,
-	Report: false,
-	Never:  false,
+// markerRepairSupport is one setting's row: whether a build acts on it at
+// all, and whether it acts on it for a configuration whose strict block
+// carries a markers "record" selection.
+//
+// Two columns rather than two tables, so [Valid], [Implemented] and
+// [ImplementedWithSelection] cannot drift apart - the reason the first two
+// shared one table before the second column existed.
+type markerRepairSupport struct {
+	// always is whether a build acts on the setting for every
+	// configuration, selection or no selection.
+	always bool
+
+	// withSelection is whether a build acts on it for a configuration whose
+	// strict block carries a non-empty markers "record" selection. Implied
+	// by always: a setting that works everywhere works there too.
+	withSelection bool
+}
+
+// markerRepairs is the whole vocabulary, paired with what a build does about
+// each.
+var markerRepairs = map[MarkerRepair]markerRepairSupport{
+	Repair: {always: true, withSelection: true},
+	Report: {always: false, withSelection: false},
+	Never:  {always: false, withSelection: true},
 }
 
 // Valid reports whether v is one of the three settings this fork's schema
@@ -111,15 +138,47 @@ func Valid(v MarkerRepair) bool {
 // is the per-type and per-address `markers = record` toggle, the next slice
 // of #365.
 //
-// So the honest state is: the grammar is here, the mechanism is not, and a
-// setting whose mechanism does not exist is refused loudly rather than
-// accepted silently. A silent no-op would tell an operator their estate's
-// tags are not being touched while the ordinary plan carried on touching
-// them, which is precisely the false "you are fine" this fork keeps finding
-// in itself. When the mechanism lands, the refusal is deleted and this
-// function returns true for all three.
+// So the honest state is: the grammar is here, the unconditional mechanism
+// is not, and a setting whose mechanism does not exist is refused loudly
+// rather than accepted silently. A silent no-op would tell an operator their
+// estate's tags are not being touched while the ordinary plan carried on
+// touching them, which is precisely the false "you are fine" this fork keeps
+// finding in itself.
+//
+// [Never] is where the paragraph above stopped being the whole story, and it
+// is worth being exact about why, because "the bar moved" and "the mechanism
+// arrived" look the same from a distance. Nothing changed about repair. What
+// arrived is the OTHER identity source that paragraph names as the
+// precondition: the per-type and per-address markers = record selection. A
+// resource holding its identity in the estate's record store has no marker to
+// repair and no marker to lose, so ignoring its tags costs nothing - and
+// ignoring its tags is the entire observable content of "never". See
+// [ImplementedWithSelection], which is the predicate that says so.
 func Implemented(v MarkerRepair) bool {
-	return markerRepairs[v]
+	return markerRepairs[v].always
+}
+
+// ImplementedWithSelection reports whether a build acts on v for a
+// configuration whose strict block carries a non-empty markers "record"
+// selection.
+//
+// It is a superset of [Implemented] and differs on exactly one setting,
+// [Never]. See that constant for why the selection is what gives it a
+// mechanism.
+//
+// # The half it does not cover, and why that is not a silent no-op
+//
+// A selection covers some resources and not others, so "never" honoured
+// through it reaches some resources and not others - which would be the
+// misleading half-truth [Implemented] exists to refuse, if an operator could
+// only find the boundary by reading this comment. They cannot miss it:
+// "never"'s whole effect is that internal/live/lint stops refusing
+// lifecycle { ignore_changes } over the marker tags, and it stops refusing it
+// per resource, only for the ones the selection covers. An estate-wide
+// "never" therefore meets its limit at the first resource the selection does
+// not reach, as a refusal naming that resource, on the first run.
+func ImplementedWithSelection(v MarkerRepair) bool {
+	return markerRepairs[v].withSelection
 }
 
 // Names renders the whole vocabulary for a diagnostic, sorted so the message
@@ -133,12 +192,12 @@ func Names() string {
 	return strings.Join(out, ", ")
 }
 
-// ImplementedNames renders just the settings a build acts on, in the same
-// shape [Names] uses.
+// ImplementedNames renders just the settings a build acts on unconditionally,
+// in the same shape [Names] uses.
 func ImplementedNames() string {
 	out := make([]string, 0, len(markerRepairs))
-	for v, done := range markerRepairs {
-		if done {
+	for v, s := range markerRepairs {
+		if s.always {
 			out = append(out, `"`+string(v)+`"`)
 		}
 	}

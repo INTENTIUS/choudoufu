@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -698,6 +699,7 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		schemas:     rctx.Schemas,
 		scope:       rctx.Scope,
 		recordStore: recordStoreConfiguredIn(cfg),
+		selection:   SelectionFor(cfg),
 		dataIndex:   dataIndex,
 		// Measured on the index rather than on len(rctx.ManagedResults) so
 		// that an entry the index could not use - already reported as a
@@ -791,6 +793,21 @@ type resolver struct {
 	// field would be one more thing four call sites could forget to pass.
 	// The configuration is the authority and both layers ask it directly.
 	recordStore bool
+
+	// selection is the root module's `markers "record"` selection: the
+	// resources an operator has told this run to hold in the record store
+	// instead of marking (GitHub issue #365, HANDOFF.md's third principle).
+	// Nil when the configuration declares none, which is every configuration
+	// written before the block existed.
+	//
+	// Read from the configuration here for [resolver.recordStore]'s reason,
+	// and through the same function internal/live/lint, internal/live/stamp
+	// and internal/live/projection read it with - see [SelectionFor]. The
+	// four must agree instance for instance: a resource this resolver routes
+	// to a record while stamp still marks it is merely redundant, but a
+	// resource stamp declines to mark while this resolver classifies it
+	// needs-discovery is created unfindable.
+	selection *strict.Selection
 
 	// dataIndex is [Context.DataResults] regrouped per module instance and
 	// resource, and nil when the caller passed none. See
@@ -1068,6 +1085,34 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// either, which is what makes the ordering safe - an estate that has
 	// not migrated reaches the refusal below exactly as before.
 	if r.recordStore && LocatedType(resAddr.Type, r.schemas) {
+		return Resolution{
+			Addr:  addr,
+			Class: ClassRecordLocated,
+		}, true
+	}
+
+	// The same class by the other door: an operator's `markers = record`
+	// selection (GitHub issue #365, HANDOFF.md's third principle). Above,
+	// the type has nowhere to carry a marker; here it has somewhere and the
+	// operator has spent it - a tag budget, a tag policy - and asked for the
+	// identity to live in the record store instead.
+	//
+	// It sits after the automatic route rather than before it so that a type
+	// both would admit takes the same path it takes today, and it is the
+	// same [ClassRecordLocated] rather than a class of its own because the
+	// downstream mechanism is identical: internal/live/projection's
+	// materializeLocated reads the identity out of the store and hands the
+	// instance on as an ordinary import. Adding a second class would have
+	// been a second mechanism to keep correct.
+	//
+	// [SelectedLocatedRefusal] is what keeps this safe, and what it does NOT
+	// skip is the point: a selected type still has to be importable and to
+	// have an identity a record can hold in full. internal/live/lint has
+	// already refused the configuration when either fails, with the
+	// condition named; this call is the same predicate asked again at the
+	// layer that acts, so a caller that skipped lint cannot get a wrong
+	// identity out of it - it gets today's classification instead.
+	if r.recordStore && r.selection.Selects(addr.ConfigResource()) && SelectedLocatedType(resAddr.Type, r.schemas) {
 		return Resolution{
 			Addr:  addr,
 			Class: ClassRecordLocated,

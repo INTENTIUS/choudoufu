@@ -89,6 +89,18 @@ var enforcedLimits = map[string]Rule{
 	// fixture moves to whatever the rule still catches - a value outside
 	// the vocabulary.
 	"strict-marker-repair": RuleStrictMarkerRepair,
+	// GitHub issue #365's third toggle, the markers "record" selection.
+	// Two directories because the two rules have different authors: the
+	// first fixture's block is wrong on its own terms (a selection with no
+	// record_store to hold what it moves), the second's names a type the
+	// provider will not import back, which is a fact about the provider
+	// rather than about the file.
+	//
+	// Both fixtures declare no resources at all, which is what keeps each
+	// to exactly one rule. internal/live/lint/testdata carries the rest of
+	// the matrix, including the two halves that need provider schemas.
+	"strict-markers":              RuleStrictMarkers,
+	"strict-markers-unrecordable": RuleStrictMarkersUnrecordable,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

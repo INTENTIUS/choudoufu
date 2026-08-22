@@ -1332,9 +1332,10 @@ and take the default.
 ### strict-marker-repair
 
 **Construct.** A `strict` block inside a `live` block whose `marker_repair`
-argument is anything other than `"repair"`. Two shapes reach it: a value
-outside the vocabulary altogether, and `"report"` or `"never"`, which the
-schema defines and no build implements yet.
+argument is anything other than `"repair"`. Three shapes reach it: a value
+outside the vocabulary altogether; `"report"`, which the schema defines and
+no build implements; and `"never"` in a `strict` block that carries no
+`markers "record"` selection.
 
 **Why bounded.** Marker repair is not a code path a flag can switch off,
 which is the whole of it. Nothing in this fork writes a marker tag onto a
@@ -1348,24 +1349,49 @@ configuration whose marker disagrees is a hard `Ownership marker conflict`
 rather than a rewrite.
 
 So suppressing the repair means suppressing that diff for the marker keys.
-That is what `lifecycle { ignore_changes }` does, and it is refused today
-(see "ignore-changes") because a resource whose identity is only its marker,
+That is what `lifecycle { ignore_changes }` does, and it is refused (see
+"ignore-changes") because a resource whose identity is only its marker,
 created or updated with the marker write discarded, is the "created
 unfindable" failure `HANDOFF.md`'s safety rule exists to prevent. Lifting
-the refusal safely needs somewhere else for that identity to live, which is
-the per-type and per-address `markers = record` toggle — the next slice of
-GitHub issue #365.
+the refusal safely needs somewhere else for that identity to live, and that
+is exactly what the per-type and per-address `markers = record` toggle
+provides.
 
-Refusing rather than accepting-and-ignoring is the deliberate half. A
-setting that decoded, validated and then did nothing would report an estate
-as protected from this tool while every plan carried on rewriting its
-markers. A refusal is loud and reversible; a silent no-op about marker
-safety is neither.
+So `"never"` is implemented *with* such a selection and refused *without*
+one. It is not two meanings for one setting: `"never"`'s whole observable
+content is that `ignore_changes` over the marker tags stops being refused,
+and it stops being refused per resource, only for the resources the
+selection covers. An estate-wide `"never"` therefore meets its limit at the
+first resource the selection does not reach, as an "ignore-changes" refusal
+naming that resource, on the first run — so the boundary is not something an
+operator has to read this page to find.
+
+`"report"` has no mechanism at all and stays refused. Refusing rather than
+accepting-and-ignoring is the deliberate half. A setting that decoded,
+validated and then did nothing would report an estate as protected from this
+tool while every plan carried on rewriting its markers. A refusal is loud
+and reversible; a silent no-op about marker safety is neither.
 
 **Forwarding address.** Omit the argument, or write `marker_repair =
 "repair"`, which is the same run. If something outside this configuration
-owns the tags on these resources, that is the case `"never"` is being built
-for, and GitHub issue #365 is where it is tracked.
+owns the tags on some of these resources, name those resources in a
+`markers "record"` block in the same `strict` block and keep
+`marker_repair = "never"`:
+
+```hcl
+terraform {
+  live {
+    estate = "prod"
+    record_store "ssm" {}
+    strict {
+      marker_repair = "never"
+      markers "record" {
+        addresses = ["aws_instance.worker"]
+      }
+    }
+  }
+}
+```
 
 **Enforcement.** `RuleStrictMarkerRepair`, `internal/live/lint/strict.go`
 (`checkLiveStrict`), against `internal/live/strict`'s vocabulary. Fixture at
@@ -1373,6 +1399,107 @@ for, and GitHub issue #365 is where it is tracked.
 `strict` block, are not checked at all: both resolve to
 `strict.DefaultMarkerRepair`, so every configuration written before the
 block existed keeps behaving identically.
+
+### strict-markers
+
+**Construct.** A `strict { markers "record" { ... } }` selection this build
+cannot read as a selection. Five shapes reach it:
+
+- the block names neither a type nor an address;
+- the `live` block declares no `record_store`;
+- an `addresses` entry is not a resource address in the `-target` grammar;
+- an `addresses` entry names one *instance* — `aws_instance.web[0]`,
+  `module.net["a"].aws_subnet.this` — rather than a resource block;
+- an `addresses` entry names a resource this configuration does not declare.
+
+**Why bounded.** The selection withholds an ownership marker, so every way
+it can be misread ends in the same place: a live object carrying no marker,
+with no record saying which object it is. Nothing finds that object again,
+and every plan after the first proposes creating another one, with clean
+verdicts throughout.
+
+The instance-key shape is the one worth reading twice, because the grammar
+accepts writing it and this rule then refuses it. The selection's unit is
+the resource *block*, not the instance, and that is a property of how a
+marker is written rather than a simplification. `internal/live/stamp`
+rewrites configuration: one HCL body serves every instance a `count` or
+`for_each` expands to, and the `tofu-address` it injects into that body is a
+template over `count.index` or `each.key`. There is no way to write a marker
+for instance 1 and not for instance 0, so honouring a per-instance selection
+would mean either unmarking the siblings — creating them unfindable — or
+ignoring the selection and telling the operator their tags were spared when
+they were not. Naming the whole resource is the honest form; splitting the
+one instance you mean into a resource block of its own is the other.
+
+An address naming nothing is refused rather than ignored for a quieter
+reason: the failure is invisible. The resource the entry meant to name keeps
+its marker, every run works, and the tag budget the operator was buying back
+is still spent.
+
+**Forwarding address.** Give the block a `types` list, an `addresses` list,
+or both; add a `record_store` block; write each address as a whole resource,
+module-qualified where it is inside a module call
+(`module.server.aws_instance.instance`).
+
+**Enforcement.** `RuleStrictMarkers`, `internal/live/lint/strict.go`
+(`checkStrictMarkers`), against `internal/live/strict`'s `ParseSelection`.
+Fixture at `live/e2e/limits/strict-markers/` (the missing `record_store`);
+the other four shapes are in `internal/live/lint/testdata`.
+
+### strict-markers-unrecordable
+
+**Construct.** A `strict { markers "record" { ... } }` selection that reaches
+a resource type whose identity the estate's record store cannot hold. Three
+conditions, and failing any one of them is this refusal:
+
+- the provider does not support importing the type;
+- the type's documented import string is composite and nothing proves the
+  exported `id` attribute is the whole of it;
+- the one attribute a record would hold is one the provider marks sensitive.
+
+**Why bounded.** `HANDOFF.md`'s safety rule, applied to the thing an
+operator's choice is *not* allowed to override. `markers = record` skips one
+of the four conditions the automatic record-located route
+(`internal/live/identity`'s `LocatedType`) applies — the one that asks
+whether the type has anywhere else to go, which is the only one an explicit
+choice replaces. The three above stay, because each of them is a way to
+write a *wrong* identity rather than a missing one, and a wrong identity is
+invisible to every verdict-level check: the record is written, the apply
+succeeds, and the failure arrives on the next run as an import of a fragment
+or of nothing.
+
+The second condition is the one most types fail. `internal/live/identity`'s
+`IDNotProvenWholeTypes` is derived from the provider's own documentation
+over every type in the scraped import grammar — the Import section's
+separator, and the Attribute Reference's `id` bullet naming the same join
+character — and membership means *unproven*, not disproven. Some members are
+certainly whole; nothing at run time can tell which, so the whole set is
+refused.
+
+The third condition is narrower than the credential exclusion the automatic
+route applies, and deliberately so. A selected type is already admitted by
+its ratified row and already applied with every one of its attributes;
+routing it through a record changes where "which object is this" comes from
+and nothing else, so refusing the selection because some unrelated attribute
+is sensitive would refuse a trade the selection does not make. What the
+selection *does* newly write is the identity itself, into the record store,
+in clear — so that is what is checked.
+
+**Forwarding address.** Leave the resource its ownership marker: remove the
+type from `types`, or the resource from `addresses`. For the second
+condition there is no configuration edit that clears it; a provider release
+that serves an identity schema for the type, or a documentation page that
+names its import segments one token at a time, is what does.
+
+**Enforcement.** `RuleStrictMarkersUnrecordable`,
+`internal/live/lint/strict.go` (`checkStrictMarkers`), against
+`internal/live/identity.SelectedLocatedRefusal`. Fixture at
+`live/e2e/limits/strict-markers-unrecordable/`, which uses the one condition
+readable with no provider schema. The other two are checked only where the
+schemas are available to check them — a caller with none gets today's
+behavior, with every marker written exactly as before, because
+`internal/live/identity` and `internal/live/stamp` both decline to honour a
+selection they cannot verify.
 
 ## Documented, not yet enforced
 
@@ -1780,6 +1907,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
 | - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
+| - | - | lint | strict-markers | error | `internal/live/lint` | "strict-markers" |
+| - | - | lint | strict-markers-unrecordable | error | `internal/live/lint` | "strict-markers-unrecordable" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
@@ -1824,7 +1953,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**197 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**199 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

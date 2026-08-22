@@ -129,6 +129,35 @@ const (
 	// #365). See strict.go.
 	RuleStrictMarkerRepair Rule = "strict-marker-repair"
 
+	// RuleStrictMarkers covers a live block's `strict { markers "record" }`
+	// selection this build cannot read as a selection at all: an empty
+	// block, a block with no record_store to hold the identities it moves,
+	// an address entry outside the -target grammar or naming an instance
+	// rather than a resource block, and an address naming no resource this
+	// configuration declares. GitHub issue #365. See strict.go.
+	//
+	// It is a separate rule from [RuleStrictMarkersUnrecordable] because the
+	// two have different authors. This one is the block itself being wrong,
+	// which the author can read off their own file; that one is a fact about
+	// a provider resource type, which they cannot.
+	RuleStrictMarkers Rule = "strict-markers"
+
+	// RuleStrictMarkersUnrecordable covers a resource type a
+	// `markers "record"` selection reaches whose identity the estate's
+	// record store cannot hold: the provider will not import the type back,
+	// or its documented import string is composite with nothing proving the
+	// exported "id" is the whole of it, or the one attribute a record would
+	// hold is one the provider marks sensitive. GitHub issue #365, and
+	// internal/live/identity.SelectedLocatedRefusal is where the conditions
+	// live. See strict.go.
+	//
+	// Refused rather than quietly not applied, because the two failure modes
+	// are not symmetric: not applying the selection leaves the marker where
+	// it is and is invisible, while an operator who believes the tag budget
+	// they were buying back has been bought back will spend it again
+	// somewhere else.
+	RuleStrictMarkersUnrecordable Rule = "strict-markers-unrecordable"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -316,6 +345,14 @@ var ruleInfo = map[Rule]struct {
 	RuleStrictMarkerRepair: {
 		summary: "Marker repair setting is not one this build implements",
 		docsRef: `live/LIMITATIONS.md, "strict-marker-repair"`,
+	},
+	RuleStrictMarkers: {
+		summary: "Markers selection cannot be read as a selection",
+		docsRef: `live/LIMITATIONS.md, "strict-markers"`,
+	},
+	RuleStrictMarkersUnrecordable: {
+		summary: "Markers selection reaches a type no record can identify",
+		docsRef: `live/LIMITATIONS.md, "strict-markers-unrecordable"`,
 	},
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",

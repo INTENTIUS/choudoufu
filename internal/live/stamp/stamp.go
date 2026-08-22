@@ -25,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markerkey"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -290,6 +291,29 @@ const (
 	// exists at all, given that the loader is not supposed to be able to
 	// produce it.
 	SkipSharedBody SkipReason = "SHARED_BODY"
+
+	// SkipMarkersRecord is a resource a live block's
+	// `strict { markers "record" { ... } }` selection covers: the operator
+	// has asked for its identity to live in the estate's record store
+	// instead of in an ownership marker tag, and this pass therefore writes
+	// no marker for it (GitHub issue #365, HANDOFF.md's third principle).
+	//
+	// It is the one skip that is a CHOICE rather than a fact about the
+	// resource, and the one this pass makes only after checking the choice
+	// can be honoured: internal/live/identity.SelectedLocatedType has to
+	// agree that a record can hold the type's whole identity and that the
+	// provider will import it back, on the same schema this pass just read.
+	// A selection this pass cannot honour is not skipped here at all - the
+	// marker is written exactly as it always was - because the alternative
+	// is a resource with neither a marker nor a record, which is the
+	// "created unfindable" failure the safety rule exists to prevent.
+	//
+	// Distinct from [SkipUntaggable] because the type CAN carry a marker,
+	// and distinct from [SkipUntagHandWritten] because nothing about this
+	// resource's configuration is in the way: those two are the pass
+	// reporting what it found, and this is the pass reporting what it was
+	// told.
+	SkipMarkersRecord SkipReason = "MARKERS_RECORD"
 )
 
 // Unknown reports whether this skip means the pass could not TELL whether the
@@ -384,7 +408,7 @@ func Stamp(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 		))
 	}
 
-	s := &stamper{req: req, res: res}
+	s := &stamper{req: req, res: res, selection: identity.SelectionFor(req.Config)}
 
 	var pending []*rewrite
 	for _, mr := range moduleResources(ctx, req.Config) {
@@ -576,6 +600,21 @@ type stamper struct {
 	// by the resource that claimed each. Two resources reaching one body
 	// is the shape GitHub issue #280 was: see [stamper.claimBody].
 	bodies map[*hclsyntax.Body]addrs.ConfigResource
+
+	// selection is the root module's `markers "record"` selection: the
+	// resources HANDOFF.md's third principle says hold their identity in the
+	// estate's record store instead of in a marker tag (GitHub issue #365).
+	// Nil for every configuration that declares none, which is every one
+	// written before the block existed.
+	//
+	// It is read from [Request.Config] rather than passed in
+	// [Request.PolicyUntag]-style, because the two facts have different
+	// authors: which blocks the untag verb governs is worked out from the
+	// live objects' tags, which this package never reads, while this is
+	// written in the configuration this package already holds. Reading it
+	// here through identity.SelectionFor is also what keeps this pass and
+	// the resolver agreeing instance for instance - see that function.
+	selection *strict.Selection
 }
 
 // rewrite is one resource's decided mutation, held until the whole
@@ -686,6 +725,27 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			Subject:  rc.DeclRange.Ptr(),
 		})
 	}
+	// GitHub issue #365, HANDOFF.md's third principle. Checked before
+	// taggability rather than after it so that the report reads the way the
+	// operator's intent does: a resource they selected is reported as
+	// selected, not as one more untaggable type. A selection over a type
+	// that carries no tags anyway is silent either way - nothing was going
+	// to be written - and [SkipMarkersRecord] says so more precisely than
+	// [SkipUntaggable] would.
+	//
+	// The predicate is asked with this resource's own schema, in the shape
+	// internal/live/projection's writeBackLocated already asks it, so this
+	// pass and the resolver reach the same verdict for the same instance
+	// from the same evidence. Where they could not - no schema for the type
+	// - control never gets here: the SkipNoSchema branch above returned.
+	if s.selection.Selects(addr) &&
+		identity.SelectedLocatedType(rc.Type, map[string]providers.Schema{rc.Type: *schema}) {
+		s.skip(addr, SkipMarkersRecord, fmt.Sprintf(
+			"%s is covered by strict { markers \"record\" }, so its identity is held in the estate's record store and no ownership marker was written into its tags.",
+			addr))
+		return nil, diags
+	}
+
 	if !taggable(schema.Block) {
 		// Loud for a resource that has no other way to be found, where the
 		// marker is the estate's records and the resource both.

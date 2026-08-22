@@ -456,7 +456,19 @@ var identityGoldenPin = map[string]int{
 	// child directories swept as roots of their own). Incidental for the
 	// same reason as #346's and #354's: a deferred read needs a real
 	// resource to point at.
-	"NEEDS_DISCOVERY": 671,
+	// 684, up from 671 (issue #365 slice 2): thirteen ADDED rows, every one
+	// of them a bare server-assigned aws_vpc, aws_subnet or aws_ebs_volume
+	// in the thirteen new markers "record" fixtures. NEEDS_DISCOVERY rather
+	// than RECORD_LOCATED is the fact this row records and it is the one
+	// worth reading: this sweep runs WITHOUT provider schemas, and
+	// identity.SelectedLocatedRefusal's remaining conditions are schema
+	// reads, so the selection is not honoured here and every selected
+	// resource resolves through its ordinary route and keeps its marker.
+	// That is the deliberate direction - a predicate that cannot run must
+	// not admit - and it is asserted directly, with schemas, by
+	// internal/live/check's TestStrictMarkersRecordRendersItsIdentityByValue
+	// and TestStrictMarkersRecordFailsClosedWithNoSchemas.
+	"NEEDS_DISCOVERY": 684,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -791,7 +803,24 @@ var identityGoldenPin = map[string]int{
 // reached after every existing route has declined, and it declines in turn
 // unless it finds a recognized pipeline over exactly one deferred parent
 // read, so no expression that renders a marker today can be re-routed by it.
-const identityGoldenPinBodyDigest = "6c002eaceb3be996e8ac8fcb41682aa9751ff49c26ce5c1dfdc62285977f283b"
+// 2026-08-21 (issue #365, slice 2): digest moved because thirteen more rows
+// were ADDED, every one of them from the thirteen new markers "record"
+// fixtures (internal/live/lint/testdata's selection matrix,
+// internal/live/check/testdata's two by-value fixtures, and one child module
+// swept as a root of its own). TestIdentityGolden's own diff, read before
+// this line was edited, reported "0 identities changed, 13 added, 0 removed"
+// over 550 directories.
+//
+// The zero is the load-bearing half, and here it is guaranteed twice over.
+// The selected route is consulted only after the automatic located route and
+// only for a resource the configuration's own strict block names, so no
+// fixture without such a block can be re-routed by it - and this sweep holds
+// no provider schemas, so identity.SelectedLocatedType fails closed and the
+// route does not fire even in the fixtures that DO name resources. The
+// selection's effect on a rendered identity is pinned by value elsewhere,
+// with schemas: internal/live/check's
+// TestStrictMarkersRecordRendersItsIdentityByValue.
+const identityGoldenPinBodyDigest = "a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1258,7 +1287,14 @@ const (
 	// route has already declined, and each declines again unless it finds a
 	// recognized pipeline over exactly one deferred read, so nothing that
 	// renders a marker today can be re-routed by them.
-	identityGoldenPinInstances = 1601
+	//
+	// Then 1601 -> 1614 for GitHub issue #365 slice 2: thirteen added rows
+	// across the thirteen new markers "record" fixtures, nothing modified.
+	// Every one is a plain server-assigned resource the fixtures need in
+	// order to have something to select, or something to leave unselected
+	// beside it. See identityGoldenPinBodyDigest's own comment for why none
+	// of them renders as RECORD_LOCATED here.
+	identityGoldenPinInstances = 1614
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1368,7 +1404,19 @@ const (
 	// identityGoldenPinInstances' own comment directly above. #365 and #368
 	// landed independently on top of the same base and are merged here
 	// together, so this pin reflects both.
-	identityGoldenPinDirs = 535
+	//
+	// Then 535 -> 550 dirs for GitHub issue #365 slice 2's markers "record"
+	// selection: fifteen new configuration directories. Ten under
+	// internal/live/lint/testdata (the selection matrix - an empty block, no
+	// record_store, an instance-keyed address, an unknown address, a
+	// module-qualified address and its child module, an unrecordable type,
+	// marker_repair = "never" with a selection, and the three
+	// ignore_changes compositions), two under internal/live/check/testdata
+	// (the by-value identity fixtures), two under live/e2e/limits (the two
+	// new limits-wing entries), and one child module swept as a root of its
+	// own. Thirteen of them declare resources; see
+	// identityGoldenPinInstances directly above.
+	identityGoldenPinDirs = 550
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=535 instances=1601
+# shape: dirs=550 instances=1614
 # shape: class CONCRETE=793
-# shape: class NEEDS_DISCOVERY=671
+# shape: class NEEDS_DISCOVERY=684
 # shape: class PARENT_DERIVED=116
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=6c002eaceb3be996e8ac8fcb41682aa9751ff49c26ce5c1dfdc62285977f283b
+# shape: body-sha256=a801afcb2bc8efb45e22b93e0ae4c532179e73485ac0cc12e292b246f371a3ee
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -24,6 +24,9 @@ internal/live/check/testdata/managed-result-foreach-unset-var	aws_acm_certificat
 internal/live/check/testdata/managed-result-foreach-var-key	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
+internal/live/check/testdata/strict-markers-record	aws_ebs_volume.selected	NEEDS_DISCOVERY		
+internal/live/check/testdata/strict-markers-record	aws_vpc.unselected	NEEDS_DISCOVERY		
+internal/live/check/testdata/strict-markers-unrecordable	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_cache_policy.example	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_origin_request_policy.example	NEEDS_DISCOVERY		
 internal/live/check/testdata/unique-name-bound	aws_cloudfront_response_headers_policy.example	NEEDS_DISCOVERY		
@@ -729,6 +732,16 @@ internal/live/lint/testdata/receipt-value	aws_ssm_parameter.ordinary_secret	CONC
 internal/live/lint/testdata/receipt-value	aws_ssm_parameter.raw_input	CONCRETE	/tofu-receipts/stateless-e2e/raw-input	name=/tofu-receipts/stateless-e2e/raw-input
 internal/live/lint/testdata/receipt-value	aws_ssm_parameter.secure	CONCRETE	/tofu-receipts/stateless-e2e/secure	name=/tofu-receipts/stateless-e2e/secure
 internal/live/lint/testdata/schema-admitted-route-bypassed	aws_route.r	CONCRETE	rtb-0123456789abcdef0_10.0.0.0/16	destination_cidr_block=10.0.0.0/16,route_table_id=rtb-0123456789abcdef0
+internal/live/lint/testdata/strict-markers-ignore-changes	aws_subnet.private	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-ignore-changes	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-ignore-changes-no-repair	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-ignore-changes-no-selection	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-instance-address	aws_vpc.main[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-instance-address	aws_vpc.main[1]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-module-address	module.net.aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-module-address/mod	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-unknown-address	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-never-with-selection	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.east	CONCRETE	lint-undeclared-alias-east	bucket=lint-undeclared-alias-east
 internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	lint-undeclared-alias-stray	bucket=lint-undeclared-alias-stray
 internal/live/lint/testdata/undeclared-provider-alias-declared	aws_s3_bucket.west	CONCRETE	lint-declared-alias-west	bucket=lint-declared-alias-west
