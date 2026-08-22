@@ -421,7 +421,19 @@ func (r *resolver) peelTransformCall(call *hclsyntax.FunctionCallExpr, scope ins
 		return src, innerOps, true
 	}
 
-	return nil, nil, false
+	// Any other call is not a transform, so it is the SOURCE the pipeline
+	// reads - the same answer [resolver.peelTransform] gives for every other
+	// expression it does not recognize, and it has to be given here too or
+	// `compact(split(",", lookup(...)))` peels to nothing at all rather than
+	// to a lookup with two operations over it.
+	//
+	// This claims nothing about the call. The source still has to resolve to
+	// exactly one [Part] carrying a bare [ParentRef]
+	// ([resolver.resolveTransformCall]'s own bound), which is a question for
+	// [resolver.resolveExpr] and answered by whichever route already owns
+	// that call; a call no route resolves declines exactly as it did when the
+	// peel refused it here.
+	return call, nil, true
 }
 
 // soleElementDeferred is [Component.SoleElement]'s third narrowing, for a

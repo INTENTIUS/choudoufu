@@ -190,7 +190,7 @@ resource "aws_vpc" "main" {
 		}
 	})
 
-	t.Run("count > 1 is refused, not stamped with one literal", func(t *testing.T) {
+	t.Run("count > 1 is stamped per module instance, not with one literal", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
 module "sites" {
@@ -208,22 +208,38 @@ resource "aws_route53_zone" "zone" {
 		res, diags := Stamp(t.Context(), Request{Estate: "mod-unit", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.sites.aws_route53_zone.zone", SkipModuleKeyed) {
-			t.Errorf("a resource inside a count = 3 module was not skipped as %s: %+v", SkipModuleKeyed, res.Skipped)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the resource inside the count = 3 module stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
 		}
-		if len(res.Stamped) != 0 {
-			t.Fatalf("a resource inside a count = 3 module was stamped with a literal address, which is one address for three real objects: %+v", res.Stamped)
+		// Three real objects, three different markers. Before #378 the only
+		// safe answer was to write none; the module prefix makes the one
+		// shared body render one address per instance.
+		seen := map[string]bool{}
+		for i, want := range map[string]string{
+			"module.sites[0]": "module.sites:0.aws_route53_zone.zone",
+			"module.sites[1]": "module.sites:1.aws_route53_zone.zone",
+			"module.sites[2]": "module.sites:2.aws_route53_zone.zone",
+		} {
+			got := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", withModulePrefix(t, nil, i))[TagAddress]
+			if got != want {
+				t.Errorf("%s for %s = %q, want %q", TagAddress, i, got, want)
+			}
+			seen[got] = true
 		}
-		if tags := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", nil); len(tags) != 0 {
-			t.Errorf("markers reached a count-expanded module's shared body: %v", tags)
+		if len(seen) != 3 {
+			t.Errorf("three instances rendered %d distinct addresses: %v", len(seen), seen)
 		}
 	})
 
-	// The escalation, not just the skip. aws_route53_zone is found only by
-	// its marker, so an apply with no marker on it creates an object nothing
-	// can ever recover - which is the whole reason moduleKeyedResource
-	// escalates rather than staying quiet.
-	t.Run("count > 1 escalates for a marker-only type", func(t *testing.T) {
+	// The must-stamp population, which is where issue #378's fix pays off
+	// most: aws_route53_zone is found only by its marker, so before the fix
+	// a count'd module call holding one was a hard refusal - the marker could
+	// not be written, and applying it unmarked creates an object nothing can
+	// ever recover. Now it is stamped, so there is no diagnostic AND no
+	// unmarked apply. Both halves are asserted: "no error" alone would also
+	// describe the silent-unmarked outcome this refusal was protecting
+	// against.
+	t.Run("count > 1 no longer escalates for a marker-only type: it is marked", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
 module "sites" {
@@ -244,10 +260,20 @@ resource "aws_route53_zone" "zone" {
 			Schemas:        testSchemas(),
 			NeedsDiscovery: needsDiscovery("module.sites.aws_route53_zone.zone"),
 		})
-		if !diags.HasErrors() {
-			t.Fatal("a marker-only resource inside a count = 2 module was left unmarked without an error")
+		assertNoErrors(t, diags)
+		for i, want := range map[string]string{
+			"module.sites[0]": "module.sites:0.aws_route53_zone.zone",
+			"module.sites[1]": "module.sites:1.aws_route53_zone.zone",
+		} {
+			got := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", withModulePrefix(t, nil, i))
+			if got[TagAddress] != want {
+				t.Errorf("a marker-only resource inside a count = 2 module renders %s = %q for %s, want %q",
+					TagAddress, got[TagAddress], i, want)
+			}
+			if got[TagEstate] != "mod-unit" {
+				t.Errorf("%s = %q for %s, want %q", TagEstate, got[TagEstate], i, "mod-unit")
+			}
 		}
-		assertDiagContains(t, diags, "module.sites.aws_route53_zone.zone", "more than one instance")
 	})
 
 	// count = 0 is the "count = var.enabled ? 1 : 0" idiom with the switch
@@ -731,7 +757,7 @@ resource "aws_vpc" "main" {
 		{"fromvar", expansionMany, addrs.NoKey},
 		// A single-key for_each is deliberately expansionMany: the operator
 		// has a supported idiom for writing that marker by hand and
-		// moduleKeyedResource trusts it, so computing one here would start
+		// moduleKeyedHandWritten trusts it, so computing one here would start
 		// verifying hand-written markers this pass cannot always read. See
 		// childExpansion's doc comment.
 		{"keyed", expansionMany, addrs.NoKey},

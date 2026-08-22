@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=554 instances=1617
-# shape: class CONCRETE=793
-# shape: class NEEDS_DISCOVERY=684
-# shape: class PARENT_DERIVED=116
+# shape: dirs=564 instances=1632
+# shape: class CONCRETE=799
+# shape: class NEEDS_DISCOVERY=690
+# shape: class PARENT_DERIVED=119
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=df0bd8c29d6bb94b84a497bb900a6cff58da2b1f424aa94f0265b57798eefc3e
+# shape: body-sha256=8e7b14632956bef63032d3283b440dc5cef4c01f758e8620765a9eefd882cd39
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -201,8 +201,12 @@ internal/live/identity/testdata/count-length-unrecognized	aws_eip.pool[1]	NEEDS_
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.loud	CONCRETE	team-bus/capture-signin-custom	event_bus_name=team-bus,name=capture-signin-custom
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.quiet	CONCRETE	default/capture-signin	event_bus_name=default,name=capture-signin
 internal/live/identity/testdata/deferred-through-module-list	module.sg.aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list	module.sg_typed.aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list	module.vpc.aws_vpc.other[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list/sg	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/sgtyped	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/vpc	aws_vpc.other[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/deferred-through-module-list/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/disabled-lifecycle	aws_s3_bucket.on	CONCRETE	estate-on	bucket=estate-on
 internal/live/identity/testdata/docdb-family	aws_docdb_cluster.main	CONCRETE	prod-docdb	cluster_identifier=prod-docdb
@@ -350,6 +354,16 @@ internal/live/identity/testdata/managed-read-known-plus-data	aws_acm_certificate
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_cognito_risk_configuration.main	CONCRETE	us-east-1_abc123:1example23456789	client_id=1example23456789,user_pool_id=us-east-1_abc123
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_detective_member.member	CONCRETE	arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d/123456789012	account_id=123456789012,graph_arn=arn:aws:detective:us-east-1:123456789101:graph:231684d34gh74g4bae1dbc7bd807d02d
 internal/live/identity/testdata/markerless-veto-two-source-agreement	aws_lambda_function_event_invoke_config.main	CONCRETE	example:production	function_name=example,qualifier=production
+internal/live/identity/testdata/merge-bare-module-output	aws_subnet.public	NEEDS_DISCOVERY		
+internal/live/identity/testdata/merge-bare-module-output	module.base.module.host.aws_iam_role.host[0]	CONCRETE	demo-eu-west-1a-0	name=demo-eu-west-1a-0
+internal/live/identity/testdata/merge-bare-module-output	module.base.module.host.aws_iam_role.poisoned[0]	PARENT_DERIVED	role-${aws_subnet.public.id}	name=role-${aws_subnet.public.id}
+internal/live/identity/testdata/module-arg-hoisted	aws_subnet.s	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
+internal/live/identity/testdata/module-arg-hoisted	module.hoisted.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
+internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.derived[0]	PARENT_DERIVED	derived-${aws_subnet.s.id}	name=derived-${aws_subnet.s.id}
+internal/live/identity/testdata/module-arg-hoisted	module.inline.aws_iam_role.gated[0]	CONCRETE	hoisted-0	name=hoisted-0
+internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.derived[0]	CONCRETE	derived-subnet-from-output	name=derived-subnet-from-output
+internal/live/identity/testdata/module-arg-hoisted	module.output.aws_iam_role.gated[0]	CONCRETE	netout-0	name=netout-0
 internal/live/identity/testdata/module-count-var	module.user[0].aws_iam_user.this	CONCRETE	user-0	name=user-0
 internal/live/identity/testdata/module-count-var	module.user[1].aws_iam_user.this	CONCRETE	user-1	name=user-1
 internal/live/identity/testdata/module-foreach-comprehension-chase	module.wrapper.module.task["app"].aws_iam_user.this	CONCRETE	app	name=app
@@ -1608,6 +1622,7 @@ live/e2e/limits/null-resource	null_resource.trigger	RECORD_BACKED
 live/e2e/limits/overlong-address	aws_s3_bucket.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx	CONCRETE	tofu-stateless-limits-overlong-address	bucket=tofu-stateless-limits-overlong-address
 live/e2e/limits/random-password	random_password.db	RECORD_BACKED		
 live/e2e/limits/remote-exec	aws_s3_bucket.data	CONCRETE	tofu-stateless-limits-remote-exec	bucket=tofu-stateless-limits-remote-exec
+live/e2e/limits/reserved-symbol	aws_s3_bucket.reserved	CONCRETE	tofu-stateless-limits-reserved-symbol	bucket=tofu-stateless-limits-reserved-symbol
 live/e2e/limits/terraform-data	terraform_data.trigger	RECORD_BACKED		
 live/e2e/limits/time-sleep	time_sleep.wait	RECORD_BACKED		
 live/e2e/limits/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	limits-undeclared-provider-alias	bucket=limits-undeclared-provider-alias

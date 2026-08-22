@@ -207,8 +207,11 @@ type Stamped struct {
 	// - because there is no single value to report.
 	Address string
 
-	// PerInstance is true when Address is a template over count.index or
-	// each.key rather than a constant.
+	// PerInstance is true when Address is a template rather than a constant:
+	// over count.index or each.key for a resource with its own repetition,
+	// and over [markers.ModulePrefixAttr] for one declared inside a module
+	// call with more than one instance, whose ADDRESS varies per instance
+	// even where the block itself has neither meta-argument (issue #378).
 	PerInstance bool
 
 	// Merged is true when the markers were injected into a tags expression
@@ -265,18 +268,41 @@ const (
 	// argument, and there is no way to inject a different literal
 	// tofu-address into it per instance, or to safely re-evaluate an
 	// existing one that may depend on a variable the module call threads
-	// through from its own each.key. See [stamper.moduleKeyedResource].
+	// through from its own each.key.
+	//
+	// Since GitHub issue #378 that is no longer the ordinary outcome for such
+	// a resource: [markers.ModulePrefixAttr] names the module instance, so
+	// [addressExpr]'s keyed branch writes a template no literal could stand
+	// in for and the ordinary path stamps it. What still lands here is the
+	// narrow remainder [stamper.moduleKeyedHandWritten] and
+	// [stamper.moduleKeyedUnchunkable] name: a hand-written tofu-address with
+	// no tofu-estate beside it on a marker-only type, and an address whose
+	// knowable half already overruns a single tag value.
 	SkipModuleKeyed SkipReason = "MODULE_KEYED"
 
 	// SkipModuleKeyedTrusted is the benign half of the case above: the
-	// resource is inside a for_each'd module AND already declares a tags
-	// argument, so its markers are the operator's own hand-written ones and
-	// this pass leaves them alone. Nothing is missing and nothing is wrong.
+	// resource is inside a keyed module call AND writes tofu-address itself,
+	// as a literal key this run can point at ([collectVisibleTagKeys]), so
+	// the marker is the operator's own hand-written one and this pass leaves
+	// it alone.
+	//
+	// The predicate has narrowed twice, and both narrowings were safety
+	// fixes. It used to be "does this body set a tags argument at all", so
+	// `tags = var.tags` - the idiom every third-party child module writes -
+	// claimed hand-stamping about a marker nobody had written; GitHub issue
+	// #378 was the plan-level consequence (the desired tag set carried no
+	// marker, so the tags diff proposed deleting the one live-import wrote)
+	// and #379 the severity one (a marker-only resource applied unmarked,
+	// silently). #379 required both marker keys to be visible before
+	// trusting a resource [stamper.mustStamp] is true for; #378 then made
+	// the pass able to write the address itself, so a body that declares
+	// none is stamped rather than either trusted or refused. What reaches
+	// this reason now is only a body that genuinely declares tofu-address.
 	//
 	// It is a separate reason because a Skip carries no severity of its own
 	// and its consumer has to infer one. statelessStampGaps turns any
 	// unexempted skip on a needs-discovery resource into a hard error, so
-	// while both halves of moduleKeyedResource shared MODULE_KEYED, the
+	// while both halves of the keyed-module handling shared MODULE_KEYED, the
 	// hand-stamped idiom live/LIMITATIONS.md documents was indistinguishable
 	// from an unmarked resource about to be created unfindable. That went
 	// unnoticed only because a key-form bug (#111) kept statelessStampGaps
@@ -452,7 +478,9 @@ type moduleResource struct {
 	// inject two different literal tofu-address values into one shared body -
 	// only an expression that varies per real module instance could, and the
 	// two meta-arguments differ in whether the operator can even write one by
-	// hand. See [stamper.moduleKeyedResource] and [moduleExpansion].
+	// hand. See [stamper.moduleKeyedHandWritten] and [moduleExpansion] - and
+	// [addressExpr]'s keyed branch, which since issue #378 writes the
+	// expression a literal could not stand in for.
 	keyedAncestor bool
 }
 
@@ -474,7 +502,10 @@ const (
 
 	// expansionMany: the call has several instances, or a number this pass
 	// cannot determine, and they share one body. No literal is right for all
-	// of them: [stamper.moduleKeyedResource].
+	// of them, so the address is written as a template over
+	// [markers.ModulePrefixAttr] rather than as a literal (issue #378), and a
+	// body that declares its own tofu-address is left alone
+	// ([stamper.moduleKeyedHandWritten]).
 	expansionMany
 
 	// expansionNone: the call has no instances at all (count = 0). Nothing
@@ -539,7 +570,7 @@ func moduleResourcesFrom(ctx context.Context, cfg *configs.Config, modInst addrs
 // A for_each'd call is always [expansionMany], even when its key set has one
 // member, because the operator has a supported way to write the marker by
 // hand - thread the call's own each.key through as a variable and interpolate
-// it - and [stamper.moduleKeyedResource] trusts exactly that. Computing the
+// it - and [stamper.moduleKeyedHandWritten] trusts exactly that. Computing the
 // value here instead would start VERIFYING those hand-written markers, and an
 // interpolation this pass cannot read statically would become a hard
 // "uncheckable marker" error on an estate that works today.
@@ -595,6 +626,13 @@ type stamper struct {
 	// and different address prefixes.
 	mod     *configs.Module
 	modInst addrs.ModuleInstance
+
+	// keyedAncestor mirrors [moduleResource.keyedAncestor] for the resource
+	// currently being stamped, set alongside mod and modInst. It is what tells
+	// the address, chunking and slot machinery that the module-path half of
+	// this resource's address is [markers.ModulePrefixAttr]'s to supply rather
+	// than a literal this pass knows (issue #378).
+	keyedAncestor bool
 
 	// bodies are the configuration bodies already claimed for rewriting,
 	// by the resource that claimed each. Two resources reaching one body
@@ -702,6 +740,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 
 	s.mod = mod
 	s.modInst = modInst
+	s.keyedAncestor = keyedAncestor
 	addr := addrs.ConfigResource{Module: modInst.Module(), Resource: rc.Addr()}
 
 	schema, _ := s.req.Schemas.ResourceTypeConfig(rc.Provider, rc.Mode, rc.Type)
@@ -791,7 +830,13 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		return nil, diags
 	}
 	if keyedAncestor {
-		return s.moduleKeyedResource(rc, addr)
+		if handled, keyedDiags := s.moduleKeyedHandWritten(rc, addr); handled {
+			return nil, diags.Append(keyedDiags)
+		}
+		if detail, ok := s.moduleKeyedUnchunkable(rc, addr); ok {
+			s.skip(addr, SkipModuleKeyed, detail)
+			return nil, diags.Append(s.unstampable(rc, detail))
+		}
 	}
 
 	body, ok := rc.Config.(*hclsyntax.Body)
@@ -822,7 +867,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 		return nil, diags.Append(s.unstampable(rc, detail))
 	}
 
-	wantAddr, addrDisplay, perInstance, legacyAddr := addressExpr(rc, modInst)
+	wantAddr, addrDisplay, perInstance, legacyAddr := addressExpr(rc, modInst, keyedAncestor)
 	if rc.ForEach != nil {
 		if keys, ok := s.staticForEachKeys(ctx, rc); ok && forEachNeedsKeyLookup(keys) {
 			// At least one of this block's own keys is outside the pre-#210
@@ -833,7 +878,7 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 			// is precomputed for every one of them in Go instead, and the
 			// synthesized expression only has to select the right one at
 			// apply time.
-			wantAddr, addrDisplay = s.forEachLookupAddressExpr(rc, modInst, keys)
+			wantAddr, addrDisplay = s.forEachLookupAddressExpr(rc, modInst, keys, keyedAncestor)
 			legacyAddr = nil
 		}
 	}
@@ -944,54 +989,166 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 	return rw, diags
 }
 
-// moduleKeyedResource is [stamper.resource]'s whole handling of a taggable
-// resource declared inside a module call with more than one instance
-// (directly, or through an ancestor call): see [SkipModuleKeyed],
-// [moduleResource.keyedAncestor] and [childExpansion] for why neither writing
-// nor verifying a marker is attempted here.
+// moduleKeyedHandWritten is what remains of the old moduleKeyedResource
+// after issue #378: the case where a taggable resource declared inside a
+// module call with more than one instance is still left alone, and the two
+// reasons it is.
 //
-// A resource that already declares a tags argument is trusted as written -
-// the operator (or a generator such as tools/estate-gen's -module-wrap
-// keyed mode) is expected to have built its tofu-address from a variable
-// the module call threads through from its own each.key, the ordinary
-// OpenTofu idiom for a value that must vary per module instance, and
-// checking that expression would mean evaluating var.* through the static
-// evaluator with no way to supply the per-instance value it needs - the
-// same evaluation a bare reference to the module's own each.key panics on
-// (internal/configs' static scope has no repetition data at all; see
-// [ChildModuleKeys]'s doc). A resource with no tags argument at all gets
-// the ordinary must-stamp severity: a marker-discovered type applying
-// unmarked is still the unrecoverable mistake [stamper.unstampable] exists
-// to catch, module or not.
-func (s *stamper) moduleKeyedResource(rc *configs.Resource, addr addrs.ConfigResource) (*rewrite, tfdiags.Diagnostics) {
+// Until #378 this function's predecessor was [stamper.resource]'s whole
+// handling of such a resource, and it wrote nothing at all: the module's
+// instances share exactly one *hclsyntax.Body for the resource's tags
+// argument, and no LITERAL in that body is the right tofu-address for all of
+// them. That is no longer the end of the matter.
+// [markers.ModulePrefixAttr] is an expression resolving to the evaluating
+// module INSTANCE's own escaped path, so [addressExpr]'s keyed branch writes
+// a template that is right for every instance, exactly as the each.key
+// template already is for a for_each'd resource. The ordinary path handles a
+// keyed module call too now, and the deliberate gap live/LIMITATIONS.md's
+// "child-module" section described is closed for the resource's markers.
+//
+// What survives is the operator's OWN marker. A configuration that already
+// writes tofu-address as a literal key in the resource's tags - building the
+// value from a variable the module call threads through from its own
+// each.key, the idiom tools/estate-gen's -module-wrap keyed mode emits and
+// live/e2e/estate-module-keyed carries by hand - keeps being trusted as
+// written and untouched, reported as [SkipModuleKeyedTrusted] with no
+// diagnostic, exactly as before. This pass has never overwritten a
+// hand-written marker value and does not start here; and verifying one would
+// mean evaluating that var.* reference once per MODULE instance, which needs
+// the module call's own argument expressions resolved per instance, which
+// this pass does not do.
+//
+// The evidence is [collectVisibleTagKeys]'s, issue #379's shape-only reading
+// of the tags argument, deliberately not an evaluation. A value that DOES
+// evaluate statically inside a keyed module call is worse evidence rather
+// than better: one that is the same for every module instance is the same
+// tofu-address for every module instance, which is a wrong marker rather
+// than a missing one.
+//
+// #379's own refusal survives, narrowed to what #378 does not close. #379
+// found that "declares a tags argument" was being read as "declares a
+// marker", so `tags = var.tags` claimed hand-stamping and silenced the
+// unmarked-apply error for a resource that can ONLY be found by its marker.
+// Every shape it named except one is now stamped rather than refused - the
+// marker is written, so there is nothing to refuse. The one left is a body
+// that writes tofu-address by hand and does NOT write tofu-estate: this pass
+// will not touch the address, discovery lists an estate by tofu-estate
+// before it binds an instance by tofu-address, and for a marker-only type
+// that is an object applied unfindable. It gets the same refusal, wording
+// and severity as a resource with no tags argument at all.
+//
+// handled false means "not this function's case": the caller carries on down
+// the ordinary stamping path.
+func (s *stamper) moduleKeyedHandWritten(rc *configs.Resource, addr addrs.ConfigResource) (bool, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	body, ok := rc.Config.(*hclsyntax.Body)
-	hasTags := ok && body.Attributes != nil && body.Attributes[tagsArgument] != nil
-	detail := fmt.Sprintf(
-		"%s is declared inside a module call with more than one instance, so its %s and %s markers cannot be computed here: "+
-			"the module's instances share one configuration body for the resource's tags argument, and there is no single "+
-			"literal address that is right for all of them. For a for_each'd call, declare tags = { %s = ..., %s = ... } by "+
-			"hand, building the address from a variable the module call passes through from its own each.key (the ordinary "+
-			"way a value that must vary per module instance reaches a child module's resources). For a count'd call there is "+
-			"no such variable to build one from - a module call whose own arguments read count.index is itself refused - so "+
-			"replace count with for_each, or move the module's resources into the root module, or give the module an estate "+
-			"of its own. See live/LIMITATIONS.md, \"child-module\".",
-		addr, TagEstate, TagAddress, TagEstate, TagAddress,
-	)
-	if hasTags {
-		// Trusted as written; see the function doc for why this pass cannot
-		// safely check it. SkipModuleKeyedTrusted rather than
-		// SkipModuleKeyed: this outcome is benign and its consumer needs to
-		// tell it apart from the branch below, which is not.
+	if !ok {
+		// JSON syntax. The ordinary path's SkipNotHCL says so precisely; this
+		// function has nothing to add.
+		return false, diags
+	}
+	visible := make(map[string]struct{})
+	if attr, has := body.Attributes[tagsArgument]; has {
+		collectVisibleTagKeys(attr.Expr, visible)
+	}
+	if _, hasAddress := visible[TagAddress]; !hasAddress {
+		// #378: this pass can write the address now, so it does.
+		return false, diags
+	}
+	if _, hasEstate := visible[TagEstate]; hasEstate || !s.mustStamp(rc) {
 		s.skip(addr, SkipModuleKeyedTrusted, "Declared inside a for_each'd module; its markers are trusted as written, not verified.")
-		return nil, diags
+		return true, diags
 	}
-	s.skip(addr, SkipModuleKeyed, detail)
-	if !s.mustStamp(rc) {
-		return nil, diags
+	// #379's residual shape: the address by hand, no estate marker, and a
+	// type whose instances have no handle but a marker.
+	untrusted := fmt.Sprintf(
+		"%s is declared inside a module call with more than one instance and writes %s in its tags argument by hand, "+
+			"but writes no %s there. This pass leaves a hand-written %s exactly as written - it can neither compute the "+
+			"marker for the instance being applied nor read the one that is there, because the module's instances share "+
+			"one configuration body - so it will not add the missing %s beside it either. Marker discovery lists an "+
+			"estate by %s before it binds an instance by %s, so this instance would be applied with an address nothing "+
+			"looks for. Write both marker tags as literal keys - tags = { %s = ..., %s = ... }, or merge() with an object "+
+			"that sets them - or remove the hand-written %s and let this run stamp both. See live/LIMITATIONS.md, "+
+			"\"child-module\".",
+		addr, TagAddress, TagEstate, TagAddress, TagEstate, TagEstate, TagAddress, TagEstate, TagAddress, TagAddress,
+	)
+	s.skip(addr, SkipModuleKeyed, untrusted)
+	return true, diags.Append(s.unstampable(rc, untrusted))
+}
+
+// moduleKeyedUnchunkable is the one shape #378's fix refuses rather than
+// stamping, and it exists because [stamper.chunkCount] cannot split a keyed
+// module call's address across continuation tags.
+//
+// The reason it cannot is the fix's own premise: the module half of the
+// address is not knowable here, so neither is its length, and splitting on
+// an underestimate would TRUNCATE a marker - a wrong marker, not a missing
+// one. So a keyed resource gets exactly one tofu-address tag, and this
+// function refuses the case where the part that IS knowable already
+// overflows it. It is a lower bound, deliberately: the real value is this
+// long plus the module instance's own path, so anything this catches is
+// certainly too long, and something longer may still get through to be
+// refused by the provider at apply time with the value in the message.
+//
+// lint's RuleOverlongAddress is the wider ceiling above this one, and it
+// does know the module instance ([worstCaseChildKey]) - it just enforces
+// the CONTINUATION budget (MaxContinuations x MaxTagValue), which no keyed
+// resource can use. This is the narrower single-tag budget underneath it.
+func (s *stamper) moduleKeyedUnchunkable(rc *configs.Resource, addr addrs.ConfigResource) (string, bool) {
+	own := discovery.EscapeAddress(rc.Addr().String())
+	// The "." this pass writes between the prefix and the resource half. Only
+	// what is certain is counted, keeping this a lower bound rather than a
+	// guess: the module instance's own path is longer still.
+	length := len([]rune(own)) + 1
+	if length <= discovery.MaxTagValue {
+		return "", false
 	}
-	return nil, diags.Append(s.unstampable(rc, detail))
+	return fmt.Sprintf(
+		"%s is declared inside a module call with more than one instance, and the part of its %s that does not "+
+			"depend on which instance is already %d characters - past the %d a single tag value holds. A resource "+
+			"under a keyed module call carries its address in ONE tag: the module instance's own path is supplied at "+
+			"evaluation time, so its length is not known here, and splitting an address across continuation tags on a "+
+			"length this run had to guess at would truncate the marker rather than carry it. Shorten the resource "+
+			"label, or move the resource out of the keyed module call. See live/MARKERS.md, \"tofu-address "+
+			"continuation tags\", and live/LIMITATIONS.md, \"overlong-address\".",
+		addr, TagAddress, length, discovery.MaxTagValue,
+	), true
+}
+
+// collectVisibleTagKeys adds every tag key a tags expression can be read to
+// set from configuration alone into out.
+//
+// An object constructor contributes the keys that are literal
+// ([objectKeyLiteral]); a merge() contributes whatever its arguments
+// contribute, later ones no differently from earlier ones, since this asks
+// only whether a key is present and merge cannot remove one. An item whose
+// key expression is computed is simply not collected: it MIGHT evaluate to a
+// marker key, and treating a maybe as a marker is what this check exists to
+// stop. That direction is the safe one - it can only add a refusal, and a
+// refusal is loud and reversible.
+//
+// Not a variant of [literalEntries], which answers a different question and
+// has to fail whole ("is this object a destination I can append to without
+// colliding with a key I could not read"); an object with one computed key
+// and two literal marker keys is unusable as a destination and perfectly
+// readable as evidence.
+func collectVisibleTagKeys(expr hclsyntax.Expression, out map[string]struct{}) {
+	switch expr := expr.(type) {
+	case *hclsyntax.ObjectConsExpr:
+		for _, item := range expr.Items {
+			if key, ok := objectKeyLiteral(item.KeyExpr); ok {
+				out[key] = struct{}{}
+			}
+		}
+	case *hclsyntax.FunctionCallExpr:
+		if expr.Name != "merge" {
+			return
+		}
+		for _, arg := range expr.Args {
+			collectVisibleTagKeys(arg, out)
+		}
+	}
 }
 
 // mustStamp reports whether this resource's instances can only ever be found
@@ -1370,7 +1527,8 @@ func (s *stamper) staticString(ctx context.Context, rc *configs.Resource, expr h
 // the tags argument this pass evaluates as a whole in order to see the markers
 // inside it.
 //
-// [moduleKeyedResource] keeps this from ever being reached for a resource
+// [stamper.moduleKeyedHandWritten] and the keyed branches around it keep
+// this from being reached for a resource
 // declared inside a for_each'd module, but the recover guards it anyway,
 // the same defensive reason [resolver.evalPure] in internal/live/identity
 // carries one: internal/configs' static scope panics rather than errors on
@@ -1628,9 +1786,52 @@ func markerBase(rc *configs.Resource, modInst addrs.ModuleInstance) string {
 	return addrs.AbsResource{Module: modInst, Resource: rc.Addr()}.String()
 }
 
-func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance) (hclsyntax.Expression, string, bool, hclsyntax.Expression) {
-	base := markerBase(rc, modInst)
+// addressExpr's keyedAncestor branch is issue #378. Under a module call with
+// more than one instance the module-path half of [markerBase] is exactly what
+// no literal in the shared body can state, so it is not written as a literal
+// at all: [markers.ModulePrefixAttr] supplies it per module instance at
+// evaluation time and this function contributes only the resource's own
+// address beneath it. The two halves compose byte-for-byte with what
+// [discovery.EscapeAddress] would have produced for the whole address at once
+// - see [markers.ModulePrefix]'s doc for why the escaping distributes over
+// the "." that joins them - so a marker written this way is the same string
+// discovery computes for the same instance, which is the only property that
+// matters.
+//
+// legacyExpr is nil in every keyed branch. It exists to grandfather a marker
+// written by an OLDER version of this pass (see [marker.legacyExpr]), and no
+// version of this pass has ever written one here: before #378 a resource
+// under a keyed module call was skipped, never stamped.
+func addressExpr(rc *configs.Resource, modInst addrs.ModuleInstance, keyedAncestor bool) (hclsyntax.Expression, string, bool, hclsyntax.Expression) {
 	rng := rc.DeclRange
+
+	if keyedAncestor {
+		// rc.Addr(), not markerBase: everything above the resource belongs to
+		// the module instance, and only the symbol knows which instance this
+		// is. The leading "." is the separator between the two halves.
+		own := rc.Addr().String()
+		switch {
+		case rc.Count != nil:
+			suffix := "." + discovery.EscapeAddress(own+"[")
+			return modulePrefixTemplate(suffix, &hclsyntax.ScopeTraversalExpr{Traversal: countIndexTraversal(rng), SrcRange: rng}, rng),
+				markers.ModulePrefixRef + suffix + "count.index", true, nil
+		case rc.ForEach != nil:
+			suffix := "." + discovery.EscapeAddress(own+`["`)
+			return modulePrefixTemplate(suffix, eachKeyEscapedExpr(rng), rng),
+				markers.ModulePrefixRef + suffix + "each.key", true, nil
+		default:
+			// perInstance is TRUE even with no count and no for_each on the
+			// resource itself: the instance that varies is the module call's,
+			// not this block's, and perInstance is what tells every consumer
+			// (splitAddressMarker's constant path, verify's structural
+			// comparison) that this value is not a compile-time constant.
+			suffix := "." + discovery.EscapeAddress(own)
+			return modulePrefixTemplate(suffix, nil, rng),
+				markers.ModulePrefixRef + suffix, true, nil
+		}
+	}
+
+	base := markerBase(rc, modInst)
 
 	switch {
 	case rc.Count != nil:
@@ -1724,10 +1925,24 @@ func forEachNeedsKeyLookup(keys []string) bool {
 // never reaches this function - forEachNeedsKeyLookup only returns true
 // when at least one key needs Encode's help, and a key admitted before
 // issue #178 never did (see live/MARKERS.md, "for_each key migration").
-func (s *stamper) forEachLookupAddressExpr(rc *configs.Resource, modInst addrs.ModuleInstance, keys []string) (hclsyntax.Expression, string) {
+// Under a keyed module call (issue #378) the table holds only the RESOURCE
+// half of each instance's address - everything above it is
+// [markers.ModulePrefixAttr]'s to supply per module instance - and the lookup
+// is wrapped in the same two-part template [addressExpr]'s keyed branch
+// builds. The split is what makes the two mechanisms compose: Encode's hex
+// escape is a function of the for_each key alone, so precomputing the
+// resource half in Go is still exact even though the module half is not
+// knowable here at all. Without it, a keyed module call holding a for_each
+// block with an out-of-charset key would fall back to the replace()-chain
+// template, which computes a DIFFERENT string for exactly those keys - a
+// wrong marker, which is the one outcome HANDOFF.md's safety rule puts above
+// every other consideration.
+func (s *stamper) forEachLookupAddressExpr(rc *configs.Resource, modInst addrs.ModuleInstance, keys []string, keyedAncestor bool) (hclsyntax.Expression, string) {
 	rng := rc.DeclRange
-	base := markerBase(rc, modInst)
-	prefix := discovery.EscapeAddress(base + `["`)
+	prefix := discovery.EscapeAddress(markerBase(rc, modInst) + `["`)
+	if keyedAncestor {
+		prefix = "." + discovery.EscapeAddress(rc.Addr().String()+`["`)
+	}
 
 	// Sorted, so that two runs over one configuration produce identical
 	// source - for_each's own key order is not guaranteed to be stable
@@ -1756,6 +1971,9 @@ func (s *stamper) forEachLookupAddressExpr(rc *configs.Resource, modInst addrs.M
 		NameRange:       rng,
 		OpenParenRange:  rng,
 		CloseParenRange: rng,
+	}
+	if keyedAncestor {
+		return modulePrefixTemplate("", expr, rng), markers.ModulePrefixRef + prefix + "each.key (encoded)"
 	}
 	return expr, prefix + "each.key (encoded)"
 }
@@ -1882,6 +2100,25 @@ func templateChunkMarkers(full hclsyntax.Expression, display string, n int, rng 
 // as before continuation tags existed. That is a known, pre-existing gap
 // shared with lint's own overlong check, not a new one this package opens.
 func (s *stamper) chunkCount(ctx context.Context, rc *configs.Resource, modInst addrs.ModuleInstance) int {
+	if s.keyedAncestor {
+		// Issue #378: the module-instance half of this address is not known
+		// here at all - that is the whole reason the marker is a template over
+		// [markers.ModulePrefixAttr] - so its LENGTH is not known either, and
+		// modInst carries the unkeyed path, which would UNDERESTIMATE it. An
+		// underestimate is the dangerous direction: it would split a value
+		// across fewer tags than it needs and truncate the marker, which is a
+		// wrong marker rather than a missing one.
+		//
+		// So this returns 1 - the same answer chunkCount already gives for
+		// every count or for_each expression it cannot evaluate, and the same
+		// pre-#71 shape: one tofu-address tag, no continuation tags. An
+		// address that then overruns the provider's tag-value limit is
+		// refused by the provider at apply time, loudly, with the value in the
+		// message. Bounding it here instead would need the module call's own
+		// instance keys resolved per ancestor call, which is the machinery
+		// #378 deliberately did not build.
+		return 1
+	}
 	base := markerBase(rc, modInst)
 
 	var prefix string
@@ -2069,6 +2306,17 @@ func (s *stamper) slotExpr(rc *configs.Resource) (hclsyntax.Expression, string, 
 	if rc.Count == nil || len(s.req.Slots) == 0 {
 		return nil, "", false
 	}
+	if s.keyedAncestor {
+		// Issue #378. The slot table is keyed by each instance's fully
+		// qualified escaped address, and under a keyed module call s.modInst
+		// carries the module path with its keys dropped - so the prefix match
+		// below would never hit, and a match it somehow did make would be a
+		// different module instance's slot. Stated rather than left to fall
+		// out of the empty match: a slot is a claim on one live object, and
+		// claiming another instance's is the same class of mistake as writing
+		// its address.
+		return nil, "", false
+	}
 
 	rng := rc.DeclRange
 	prefix := discovery.EscapeAddress(markerBase(rc, s.modInst) + "[")
@@ -2150,6 +2398,35 @@ func instanceTemplateExpr(prefix string, value hclsyntax.Expression, rng hcl.Ran
 			value,
 		},
 		SrcRange: rng,
+	}
+}
+
+// modulePrefixTemplate builds the tofu-address template for a resource under
+// a keyed module call: [markers.ModulePrefixAttr]'s value, then a literal
+// suffix carrying the resource's own escaped address, then optionally the
+// block's own instance-key interpolation.
+//
+// value is nil for a resource with neither count nor for_each, where the
+// module instance is the only thing that varies.
+func modulePrefixTemplate(suffix string, value hclsyntax.Expression, rng hcl.Range) hclsyntax.Expression {
+	parts := []hclsyntax.Expression{
+		&hclsyntax.ScopeTraversalExpr{Traversal: modulePrefixTraversal(rng), SrcRange: rng},
+		&hclsyntax.LiteralValueExpr{Val: cty.StringVal(suffix), SrcRange: rng},
+	}
+	if value != nil {
+		parts = append(parts, value)
+	}
+	return &hclsyntax.TemplateExpr{Parts: parts, SrcRange: rng}
+}
+
+// modulePrefixTraversal is the reference this pass writes for
+// [markers.ModulePrefixAttr]. The "tofu" root rather than "terraform":
+// internal/lang/eval.go binds one map to both, so the two are the same
+// symbol, and this fork's own documents spell it tofu.
+func modulePrefixTraversal(rng hcl.Range) hcl.Traversal {
+	return hcl.Traversal{
+		hcl.TraverseRoot{Name: "tofu", SrcRange: rng},
+		hcl.TraverseAttr{Name: markers.ModulePrefixAttr, SrcRange: rng},
 	}
 }
 

@@ -115,61 +115,80 @@ set -uo pipefail
 # So stage 3 goes 7 diagnostics (masked by #304) -> 33 (revealed once #304
 # lifted the mask) -> 14 (#321+#324 clear every "Identity not resolvable"
 # site) -> 2 (#323 narrows the module-output cascade to its one genuinely
-# unknowable leaf), and stays BLOCKED at exactly 2 sites - both tracing to
-# the identical single leaf:
+# unknowable leaf) -> 0. All four of those sites traced to the identical
+# single leaf:
 #
-#   main.tf:198, in module "security_group": cidr_blocks = module.vpc.
+#   main.tf:224, in module "security_group": cidr_blocks = module.vpc.
 #   vpc_cidr_block
 #
-# module.vpc's own vpc_cidr_block output (.corpus/vpc/outputs.tf:21-24) is
-# `try(aws_vpc.this[0].cidr_block, null)` - a MANAGED RESOURCE's own
-# attribute, read through a module output rather than a data source. This
-# is #313's root cause B (see corpus-security-group-complete/run.sh's own
-# header for the full ruling): a data source is safe to read
-# unconditionally during plan - that is what a data block IS, and
-# live-plan has made real ReadDataSource calls since #179 - while a
-# managed resource's attribute may not exist yet within the same plan, so
-# it stays refused on purpose. corpus-security-group-complete hits the
-# identical family directly (aws_security_group.app.id, no module-output
-# indirection in between) and is left at 7 sites for the same reason. Two
-# independent estates, two different concrete syntaxes, one
-# maintainer-scoped boundary - see HANDOFF.md's "This is no longer a
-# one-estate question." Not attempted here: revisiting the scope of #313's
-# ruling is a maintainer design call, not a script fix.
+# and it was called #313's root cause B for two crossings running - a
+# managed resource's own attribute (module.vpc's vpc_cidr_block output is
+# `try(aws_vpc.this[0].cidr_block, null)`) read across a module boundary,
+# deliberately refused because the attribute may not exist yet within the
+# same plan. That reading was wrong for THIS estate, and the thing that
+# settled it is that the very same reference, spelled with a constant index
+# and no lookup(), resolved the whole time.
 #
-# GITHUB ISSUE #368 IS NOT THIS ESTATE'S BLOCKER, and its own framing of
-# this estate is refuted by measurement. #368 was filed on the reading that
-# what stops this configuration is the FUNCTION applied to the deferred
-# value - `cidr_blocks = compact(split(",", lookup(var.
-# ingress_with_cidr_blocks[count.index], "cidr_blocks", join(",", var.
-# ingress_cidr_blocks))))` - and that "the gap is specifically the function
-# application, not the routing". #368 landed that function application
-# (identity.ParentRef grew a render-time Transform; corpus-ecs-fargate's
-# own eight identity diagnostics went to zero on it) and this estate did
-# not move: still exactly 2 sites, same lines, same text.
+# What actually stopped it was ROUTING, and both halves are now fixed
+# (internal/live/identity/computedselect.go):
 #
-# The reduction that settles it is
-# internal/live/identity/testdata/formula-transform's sibling experiment,
-# run against a fixture carrying this estate's exact expressions with the
-# security-group module's variable declared the same way. Four variants,
-# same module output feeding the same list argument:
+#   - `var.ingress_with_cidr_blocks[count.index]` is an IndexExpr, not a
+#     traversal, so resolver.namedLeaf's hcl.AbsTraversalForExpr gate
+#     declined before the chase across the module-call boundary began. The
+#     index is now FOLDED - evaluated in this instance's own scope, exactly
+#     as resolveIndexedTraversal already evaluates one for
+#     aws_subnet.this[count.index].id.
+#   - `lookup(<a module-call argument>, "k", <default>)` had no route at
+#     all: resolveLookupCall reads each.value alone. The call is now folded
+#     into one attribute step, exactly as eachValueSelector already folds
+#     the same call for each.value.
 #
-#   [var.L[0].cidr_blocks]                        RESOLVES
-#   [var.L[count.index].cidr_blocks]              refuses (both diagnostics)
-#   compact(split(",", lookup(var.L[0], ...)))    refuses (both diagnostics)
-#   compact(split(",", lookup(var.L[count.index], ...)))  refuses - this estate
+# Both hand the result to the identical resolveNamed / resolveModuleOutput
+# chase the literal-index spelling already took, under every restriction
+# that chase already enforces, plus one it does not: a declared type that
+# does not convert the selected leaf to itself declines, because lookup()
+# answers a dropped attribute with its third argument SILENTLY and
+# rendering the caller's expression there would be a wrong marker.
 #
-# So there are TWO independent blockers here and the function application
-# is only one of them. The other is ROUTING, and it is #354's family rather
-# than #368's: `var.<list>[count.index]` is not an absolute traversal, so
-# [resolver.namedLeaf] never chases it back across the module-call boundary
-# to the caller's element expression at all, and `lookup(var.<list>[i],
-# "k", d)` is not chased either because only `lookup(each.value, ...)` has
-# a route today. Both are separate, tractable units; neither is attempted
-# here. What #368 did add is the last step this estate would need AFTER
-# them: `compact(split(",", <a deferred read>))` on a
-# [Component.SoleElement] component now resolves and renders, pinned by
-# value in TestTransformSoleElementOverADeferredList.
+# The identity is not a prediction. It is a DEFERRED read of
+# aws_vpc.this[0].cidr_block - parentPart's answer for a needs-discovery
+# parent since #346's second half - rendered off the live object, which is
+# the right answer to #313's own objection rather than an exception to it.
+# Step 3 below reads it back through the AWS CLI and asserts it by value.
+#
+# #313's root cause B itself is untouched and still stands where it really
+# is: corpus-security-group-complete's own 7 sites read
+# aws_security_group.app.id directly, with no module hop and no chase to
+# route, and this fix reaches none of them.
+#
+# GITHUB ISSUE #368 IS NOT THIS ESTATE'S BLOCKER EITHER, and its own framing
+# of this estate was refuted by measurement before this fix landed. #368 was
+# filed on the reading that what stops this configuration is the FUNCTION
+# applied to the deferred value - `cidr_blocks = compact(split(",", lookup(
+# var.ingress_with_cidr_blocks[count.index], "cidr_blocks", join(",",
+# var.ingress_cidr_blocks))))` - and that "the gap is specifically the
+# function application, not the routing". #368 landed that function
+# application (identity.ParentRef grew a render-time Transform;
+# corpus-ecs-fargate's own eight identity diagnostics went to zero on it)
+# and this estate did not move: still exactly 2 sites, same lines, same
+# text. It was the last step this estate needed AFTER the routing, not
+# instead of it, and the four-variant reduction that settles it lives in
+# internal/live/identity/testdata/deferred-through-module-list with
+# deferred_through_module_list_test.go rendering every variant by value.
+#
+# WHAT IS LEFT, none of it identity, is what step 3 now counts by cause:
+#
+#   22 instances want the tofu-slot marker live-import does not write. This
+#      is corpus-ecs-fargate's own pinned unit, hit here independently.
+#    1 aws_db_parameter_group is created because it is named through
+#      name_prefix: the provider appends a random suffix at create time, so
+#      no import identity exists until marker discovery finds it, and the
+#      plan says exactly that in its "Not read from the live system" block.
+#    2 aws_db_instance must be replaced, and aws_db_subnet_group and
+#      aws_default_network_acl want updates, because floci does not echo
+#      back what the apply set - storage_encrypted reads back false and
+#      forces replacement, tags come back empty, network ACL rules come
+#      back absent. An emulator gap, not a plan defect.
 #
 # #305 (admission: aws_default_network_acl/aws_default_route_table/
 # aws_default_security_group were unadmitted) is FIXED. aws_default_network_
@@ -216,22 +235,29 @@ set -uo pipefail
 #                          default_* trio is admitted now and stamped above.
 #                          All asserted against live-import's own report AND
 #                          confirmed independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, at exactly 2 sites (was 7,
-#                          then 33 once #304's mask lifted, then 14 once
-#                          #321+#324 cleared every "Identity not resolvable"
-#                          site, then 2 once #323 narrowed the remaining
-#                          module-output cascade) - #304, #305, #321, #324
-#                          and #323 no longer contribute any refusal. What
-#                          remains is #313's root cause B alone (a same-plan
-#                          resource attribute crossing a module boundary),
-#                          deliberately out of scope by the maintainer's own
-#                          ruling on #313. Specific counts and the exact
-#                          diagnostic text asserted against a real live-plan
-#                          run on the really-migrated estate, state file
-#                          deleted first, with a BREAK=1 negative control.
+#   stage 3  test plan     BLOCKED, for real - but the identity layer is
+#                          CLEAR: 0 refusals of any kind, where this estate
+#                          stood at 7 (masked by #304), then 33 (once the
+#                          mask lifted), then 14 (once #321+#324 cleared
+#                          every "Identity not resolvable" site), then 2
+#                          (once #323 narrowed the module-output cascade),
+#                          then 0 (once computedselect.go routed the last
+#                          two). Every ingress rule binds to the live object
+#                          its identity names, and that identity is read
+#                          back BY VALUE through the AWS CLI rather than
+#                          through choudoufu's own report. What blocks the
+#                          stage now is a different set entirely, counted by
+#                          cause: 22 instances missing tofu-slot (the same
+#                          unit corpus-ecs-fargate's crossing pinned), 1
+#                          name_prefix parameter group with no import
+#                          identity until discovery finds it, and floci
+#                          round-trip drift forcing 2 replacements and 2
+#                          tag/rule updates. None of the three is this
+#                          estate's to fix and none of them is identity.
+#                          BREAK=1 is the negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3, which does not
-#                          produce a clean plan while #313's root cause B
-#                          stands.
+#                          produce a clean plan while the tofu-slot,
+#                          name_prefix and emulator round-trip gaps stand.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
 # A partial, honestly-reported pass is the point: this is the real, current
@@ -250,13 +276,13 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt every expected stage-3 site count -
-#                #304's count-index-in-tag, #305's unadmitted-type,
-#                #321+#324's Identity-not-resolvable, and #313 root cause
-#                B's own remaining Module-output/Unable-to-compute counts -
-#                proving those assertions are load-bearing rather than a
-#                grep that always matches. Stages 1 and 2 are unaffected
-#                and still pass; stage 3 is the one that must fail.
+#   BREAK        set to 1 to corrupt every expected stage-3 count - the
+#                five refusal counts this estate no longer has, the
+#                aws_security_group_rule action count, and every residue
+#                count - proving those assertions are load-bearing rather
+#                than a grep that always matches. Stages 1 and 2 are
+#                unaffected and still pass; stage 3 is the one that must
+#                fail.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -509,13 +535,22 @@ log "  something that would otherwise be there"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #313's root cause B may be fixed too now; update this script"; }
+# The exit code now points the other way. This estate stood at exactly 2
+# identity refusals for four fixes running; both are gone, so live-plan
+# completes and prints a plan. What it prints is not empty, and the rest of
+# this stage says exactly what is in it and why none of it is identity.
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "live-plan exited $PLAN_RC - it exits 0 now that the identity layer is clear, so a non-zero exit is a new refusal"; }
 # choudoufu wraps its "In module.X, ... RESOURCE.NAME:" context lines at a
 # fixed column when captured non-interactively, sometimes splitting the
 # resource name onto its own line. Flattened to one line per diagnostic
 # clause (blank-line-separated) so a substring match is not at the mercy of
 # where the wrap happened to land.
 PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< "$PLAN_OUT")"
+# The plan's own action list, which is what "did this resource bind" is read
+# off. Every other mention of a type name in the output - the 992-type
+# not-swept list, the foreign-resource block - is not an action and must not
+# be matched.
+PLAN_ACTIONS="$(grep -E '^  # ' <<< "$PLAN_OUT")"
 
 # #304 fixed: zero count-index-in-tag sites may appear any more -
 # aws_security_group_rule.ingress_with_cidr_blocks's lookup()-into-its-
@@ -531,30 +566,65 @@ WANT_TYPES=(aws_default_network_acl aws_default_route_table aws_default_security
 # or concat(splat,...)[N] via a local, over a tagged sibling's own known
 # expansion) may appear any more.
 WANT_UNRESOLVABLE_N=0
-# #313 root cause B, deliberately UNFIXED - a same-plan resource attribute
-# (aws_vpc.this[0].cidr_block) crossing module.vpc's own output boundary
-# into module.security_group's var.ingress_with_cidr_blocks. #323 narrowed
-# this cascade from 7+7 to exactly 1+1: the module-output diagnostic
-# itself, plus the single site that actually reads the tainted leaf
-# (aws_security_group_rule.ingress_with_cidr_blocks[0].cidr_blocks) -
-# from_port/to_port/protocol on the same resource resolve fine, since
-# #323's tolerantPart now keeps every OTHER leaf of the same list-of-
-# objects argument strict.
-WANT_MODOUT_N=1
-WANT_CASCADE_N=1
+# THE UNIT THIS RUN RECORDS. #313's root cause B was never this estate's
+# wall - it was the ROUTING to it, and both halves are fixed:
+# internal/live/identity/computedselect.go folds `var.<list>[count.index]`
+# and `lookup(<a module-call argument>, "k", d)` into the traversal the
+# author would have written with a constant index, and hands the result to
+# the same resolveNamed chase the literal-index spelling already took. The
+# module output IS read - as a DEFERRED read of aws_vpc.this[0].cidr_block,
+# rendered from the live object rather than predicted from configuration -
+# which is parentPart's answer for a needs-discovery parent since #346's
+# second half. So both counts are 0 now, and every OTHER refusal is 0 too:
+# this estate's identity layer is clear.
+WANT_MODOUT_N=0
+WANT_CASCADE_N=0
+WANT_ERR_N=0
+# The rules the fix is actually about: terraform-aws-modules/security-group
+# declares one aws_security_group_rule per element of
+# ingress_with_cidr_blocks, and this estate's element reads
+# module.vpc.vpc_cidr_block. A rule that did not resolve, or resolved to a
+# string no live object carries, would appear in the plan's action list as
+# "will be created". None may.
+WANT_RULE_ACTIONS=0
+# What IS left, none of it identity, each with its own cause:
+#   22 instances want the tofu-slot marker live-import does not write. This
+#      is the same unit corpus-ecs-fargate's own crossing pinned when #368
+#      cleared its identity diagnostics; it is not this estate's to fix.
+#    1 aws_db_parameter_group is created because it is named through
+#      name_prefix: the provider appends a random suffix at create time, so
+#      no import identity exists until marker discovery finds it. The plan
+#      says so itself, in the "Not read from the live system" block.
+#    2 aws_db_instance must be replaced because floci does not echo back
+#      what the apply set - storage_encrypted comes back false and forces
+#      replacement, and backup_retention_period, port, monitoring_interval
+#      and the performance-insights trio all read back as provider
+#      defaults. An emulator gap, not a plan defect.
+#    1 aws_db_subnet_group and 1 aws_default_network_acl are the same
+#      round-trip gap in tags and in rule blocks respectively.
+WANT_SLOT_N=22
+WANT_CREATE_N=1
+WANT_REPLACE_N=2
+WANT_UPDATE_N=21
 if [ "${BREAK:-}" = "1" ]; then
   WANT_CIDX_N=1
   WANT_DEFAULT_N=1
   WANT_UNRESOLVABLE_N=1
-  WANT_MODOUT_N=2
-  WANT_CASCADE_N=2
-  log "  BREAK=1: expecting 1 count-index-in-tag site (there should be 0 -"
-  log "           #304 is fixed), 1 unadmitted-type site (there should be 0"
-  log "           - #305 is fixed), 1 Identity-not-resolvable site (there"
-  log "           should be 0 - #321+#324 are fixed), 2 Module-output-not-"
-  log "           supported sites and 2 Unable-to-compute-static-value"
-  log "           sites (one more each than the real 1+1, #313 root cause"
-  log "           B). None of these are real. This step must fail."
+  WANT_MODOUT_N=1
+  WANT_CASCADE_N=1
+  WANT_ERR_N=1
+  WANT_RULE_ACTIONS=1
+  WANT_SLOT_N=21
+  WANT_CREATE_N=0
+  WANT_REPLACE_N=1
+  WANT_UPDATE_N=20
+  log "  BREAK=1: expecting one of every refusal this estate no longer has"
+  log "           (#304's count-index-in-tag, #305's unadmitted-type,"
+  log "           #321+#324's Identity-not-resolvable, and the"
+  log "           Module-output and Unable-to-compute sites the routing"
+  log "           fix cleared), one"
+  log "           aws_security_group_rule action, and every residue count"
+  log "           off by one. None of these are real. This step must fail."
 fi
 
 CIDX_N="$(grep -c '^Error: count.index is not available in resource arguments$' <<< "$PLAN_OUT")"
@@ -592,30 +662,77 @@ log "  element(<resource>[*].id, count.index), element(coalescelist(...),"
 log "  idx) and concat(splat, splat, [literal])[N] via a local all resolve"
 log "  structurally now, confirmed absent by name above."
 
-# #313 root cause B, the sole remaining wall - deliberately UNFIXED.
+# The unit: the routing that made module.vpc.vpc_cidr_block unreachable.
 MODOUT_N="$(grep -c '^Error: Module output not supported in static context$' <<< "$PLAN_OUT")"
 CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
-[ "$MODOUT_N" = "$WANT_MODOUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODOUT_N 'Module output not supported in static context' sites (#313 root cause B), got $MODOUT_N"; }
-[ "$CASCADE_N" = "$WANT_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_CASCADE_N 'Unable to compute static value' sites (#313 root cause B's cascade), got $CASCADE_N"; }
-grep -qF 'cidr_blocks = module.vpc.vpc_cidr_block' <<< "$PLAN_OUT" \
-  || fail "expected the exact main.tf:198 'cidr_blocks = module.vpc.vpc_cidr_block' source line among the diagnostics - the corpus pin may have moved"
-log "  #313 root cause B confirmed the sole remaining wall: exactly"
-log "  $MODOUT_N Module-output-not-supported site + $CASCADE_N Unable-to-"
-log "  compute-static-value cascade site, both tracing to main.tf line 198's"
-log "  cidr_blocks = module.vpc.vpc_cidr_block - module.vpc's own"
-log "  vpc_cidr_block output reads aws_vpc.this[0].cidr_block, a managed"
-log "  resource's own attribute crossing a module boundary, deliberately"
-log "  out of scope per the maintainer's ruling on #313 (same family as"
-log "  corpus-security-group-complete's own remaining 7 sites)."
+ERR_N="$(grep -c '^Error: ' <<< "$PLAN_OUT")"
+[ "$MODOUT_N" = "$WANT_MODOUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODOUT_N 'Module output not supported in static context' sites, got $MODOUT_N"; }
+[ "$CASCADE_N" = "$WANT_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_CASCADE_N 'Unable to compute static value' sites, got $CASCADE_N"; }
+[ "$ERR_N" = "$WANT_ERR_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_ERR_N refusals of ANY kind, got $ERR_N"; }
+log "  the routing fix confirmed for real: 0 Module-output-not-supported"
+log "  sites, 0 Unable-to-compute-static-value sites, and 0 refusals of any"
+log "  kind at all. main.tf:224's cidr_blocks = module.vpc.vpc_cidr_block"
+log "  is read now - as a deferred read of aws_vpc.this[0].cidr_block, off"
+log "  the live object, not predicted from configuration."
+
+# The rule the fix is about, asserted by BINDING rather than by an absent
+# diagnostic: a resolved-but-wrong identity refuses nothing and shows up
+# here as a create.
+RULE_ACTIONS="$(grep -c 'aws_security_group_rule' <<< "$PLAN_ACTIONS")"
+[ "$RULE_ACTIONS" = "$WANT_RULE_ACTIONS" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_RULE_ACTIONS aws_security_group_rule actions in the plan - every ingress rule must bind to the live object its identity names, got $RULE_ACTIONS"; }
+
+# ...and by VALUE, against the AWS CLI rather than against choudoufu's own
+# report. The identity the fix renders is
+# <the security group's id>_ingress_tcp_5432_5432_<the VPC's cidr_block>,
+# and both halves are readable from the cloud independently. An identity
+# that had taken lookup()'s own fallback, or the caller's from_port, or the
+# module's name would not spell this - and the rule bound above, so this is
+# the string choudoufu matched the live object on.
+VPC_CIDR="$(awsl ec2 describe-vpcs --query "Vpcs[?Tags[?Key=='tofu-address' && Value=='module.vpc.aws_vpc.this:0']].CidrBlock | [0]" --output text)"
+[ -n "$VPC_CIDR" ] && [ "$VPC_CIDR" != "None" ] || fail "could not read the VPC's cidr_block through the AWS CLI"
+SG_ID="$(awsl ec2 describe-security-groups --query "SecurityGroups[?Tags[?Key=='tofu-address' && Value=='module.security_group.aws_security_group.this_name_prefix:0']].GroupId | [0]" --output text)"
+[ -n "$SG_ID" ] && [ "$SG_ID" != "None" ] || fail "could not find the security group through the AWS CLI"
+RULE_CIDR="$(awsl ec2 describe-security-groups --group-ids "$SG_ID" \
+  --query "SecurityGroups[0].IpPermissions[?FromPort==\`5432\`].IpRanges[0].CidrIp | [0]" --output text)"
+[ "$RULE_CIDR" = "$VPC_CIDR" ] || fail "the live ingress rule on $SG_ID carries CidrIp=$RULE_CIDR, but the VPC's cidr_block is $VPC_CIDR - the identity this fix renders is built from the second, so they have to agree"
+log "  identity confirmed BY VALUE through the AWS CLI: $SG_ID's port-5432"
+log "  ingress rule carries $RULE_CIDR, which is module.vpc's own"
+log "  cidr_block, which is the last component of the identity"
+log "  ${SG_ID}_ingress_tcp_5432_5432_${VPC_CIDR} that the rule bound on."
+
+# The residue, counted by cause so that a change in WHICH resources need
+# what is caught and not only the totals.
+# Per INSTANCE, not per line: tofu-slot lands twice in every block that
+# wants it, once under tags and once under tags_all.
+SLOT_N="$(awk '
+  /^  # / { if (hit) n++; hit=0; inblock=1; next }
+  inblock && /^[[:space:]]*\+[[:space:]]+"tofu-slot"/ { hit=1 }
+  END { if (hit) n++; print n+0 }
+' <<< "$PLAN_OUT")"
+CREATE_N="$(grep -c 'will be created$' <<< "$PLAN_ACTIONS")"
+REPLACE_N="$(grep -c 'must be replaced$' <<< "$PLAN_ACTIONS")"
+UPDATE_N="$(grep -c 'will be updated in-place$' <<< "$PLAN_ACTIONS")"
+[ "$SLOT_N" = "$WANT_SLOT_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_SLOT_N instances wanting the tofu-slot marker live-import does not write, got $SLOT_N"; }
+[ "$CREATE_N" = "$WANT_CREATE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_CREATE_N create (the name_prefix parameter group), got $CREATE_N"; }
+[ "$REPLACE_N" = "$WANT_REPLACE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_REPLACE_N replacements (floci does not echo back what the apply set), got $REPLACE_N"; }
+[ "$UPDATE_N" = "$WANT_UPDATE_N" ] || { printf '%s\n' "$PLAN_ACTIONS"; fail "expected $WANT_UPDATE_N in-place updates, got $UPDATE_N"; }
+grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.this\[0\] will be created$' <<< "$PLAN_ACTIONS" \
+  || { printf '%s\n' "$PLAN_ACTIONS"; fail "the one create must be the name_prefix parameter group, which has no import identity until discovery finds it"; }
+grep -qF 'name_prefix rather than "name"' <<< "$PLAN_FLAT" \
+  || fail "the plan no longer says WHY the parameter group could not be read - that sentence is the difference between a documented gap and a silent create"
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, at exactly $((MODOUT_N + CASCADE_N)) sites"
-log "(was 7, then 33 once #304's mask lifted, then 14 once #321+#324"
-log "cleared) - #304, #305, #321 and #324 are all fixed and confirmed"
-log "absent above; #313's root cause B (deliberately out of scope) is the"
-log "sole remaining wall"
+log "STAGE 3 (test_plan): the identity layer is CLEAR for real - 0 refusals"
+log "of any kind, where this estate stood at 7, then 33, then 14, then 2."
+log "The plan is not empty, and nothing left in it is identity:"
+log "  $SLOT_N instances want the tofu-slot marker live-import does not write"
+log "     (the same unit corpus-ecs-fargate's crossing pinned)"
+log "  $CREATE_N create - the name_prefix parameter group, no import identity"
+log "     until marker discovery finds it, and the plan says so itself"
+log "  $REPLACE_N replacements + the db_subnet_group and default_network_acl"
+log "     updates - floci does not echo back what the apply set"
 log ""
-gauntlet_stage test_plan fail "BLOCKED at $((MODOUT_N + CASCADE_N)) sites (was 7, then 33, then 14) - #304, #305, #321, #324 fixed; #368 landed and does NOT move this estate: measured, the blocker is var.<list>[count.index] and lookup() routing across the module-call boundary (#354's family), not the compact/split #368 was filed on - see header"
+gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2) - #313 root cause B was the routing to the module output, and computedselect.go folds var.<list>[count.index] and lookup(<a module-call argument>) into the chase the literal-index spelling already took. Remaining: $SLOT_N instances missing tofu-slot (live-import does not write it - corpus-ecs-fargate's own unit), 1 name_prefix parameter group with no import identity until discovery, and floci round-trip drift forcing $REPLACE_N replacements"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -628,7 +745,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED at 2 sites (was 7, then 33, then 14) - #304, #305, #321, #324 fixed; #313 root cause B remains (choudoufu, see header)"
+log "  stage 3  test_plan          identity CLEAR (0 refusals, was 7, then 33, then 14, then 2) - blocked instead on $SLOT_N missing tofu-slot markers, 1 name_prefix parameter group, and floci round-trip drift (see header)"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

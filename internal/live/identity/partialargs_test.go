@@ -111,7 +111,7 @@ func TestRebuildConstructorSubstitutesOnlyValues(t *testing.T) {
 	if users == nil {
 		t.Fatal("fixture module call has no users argument")
 	}
-	val, ok := rebuildConstructor(context.Background(), eval.Pure(), users.Expr, rebuildIdent("var.users", users), nil)
+	val, ok := rebuildConstructor(context.Background(), eval.Pure(), users.Expr, rebuildIdent("var.users", users), argRebuild{})
 	if !ok {
 		t.Fatal("the users argument did not rebuild")
 	}
@@ -138,7 +138,7 @@ func TestRebuildConstructorSubstitutesOnlyValues(t *testing.T) {
 	dyn := loadConfigTree(t, filepath.Join("testdata", "modulearg-partial-dynkey"), nil)
 	dynCall := dyn.Module.ModuleCalls["u"]
 	dynAttrs, _ := dynCall.Config.JustAttributes()
-	if _, ok := rebuildConstructor(context.Background(), dyn.Module.StaticEvaluator.Pure(), dynAttrs["users"].Expr, rebuildIdent("var.users", dynAttrs["users"]), nil); ok {
+	if _, ok := rebuildConstructor(context.Background(), dyn.Module.StaticEvaluator.Pure(), dynAttrs["users"].Expr, rebuildIdent("var.users", dynAttrs["users"]), argRebuild{}); ok {
 		t.Error("a constructor with an unevaluable KEY rebuilt; it must refuse, because the key is the address")
 	}
 }

@@ -295,7 +295,32 @@ var identityGoldenPin = map[string]int{
 	// actually adds needs provider schemas, which this sweep deliberately
 	// does not have, so they are pinned by value in transform_test.go
 	// instead. No pre-existing row moved.
-	"CONCRETE": 793,
+	// 2026-08-22 (issue #375): a module-call argument the caller HOISTED into
+	// a local, and one that is a child module's whole output named on its
+	// own, are now substituted the same way one written out at the call
+	// already was. Nine ADDED rows across two new fixtures
+	// (internal/live/identity/testdata/module-arg-hoisted and
+	// .../merge-bare-module-output); no pre-existing row moved, in class or
+	// in value - TestIdentityGolden reported "0 identities changed, 9 added,
+	// 0 removed" against the base. The equivalence the fix claims is visible
+	// in the rows themselves: module.inline and module.hoisted render
+	// byte-identical values on both of their resources.
+	// 798, up from 793 (issue #375): five ADDED rows -
+	// module.base.module.host.aws_iam_role.host[0] in merge-bare-module-output
+	// (which resolved before the fix; the fixture is the pin for the shape
+	// the issue named and did not turn out to be the blocker), plus
+	// module-arg-hoisted's inline/hoisted aws_iam_role.gated[0] pair, its
+	// module.output.aws_iam_role.gated[0] and its
+	// module.output.aws_iam_role.derived[0].
+	// 799, up from 798 (issue #378, the module-prefix marker symbol): one
+	// ADDED row, live/e2e/limits/reserved-symbol's aws_s3_bucket.reserved,
+	// the fixture for the new lint rule that reserves
+	// tofu.marker_module_prefix. It is incidental to the change: the rule
+	// needs a resource to hang the refused reference on, and a bucket renders
+	// its own name. Nothing #378 changes about STAMPING can move a row in this
+	// sweep at all - it changes what is written into a tags argument, and this
+	// sweep renders identities, not tags. 0 changed, 1 added, 0 removed.
+	"CONCRETE": 799,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -468,7 +493,20 @@ var identityGoldenPin = map[string]int{
 	// not admit - and it is asserted directly, with schemas, by
 	// internal/live/check's TestStrictMarkersRecordRendersItsIdentityByValue
 	// and TestStrictMarkersRecordFailsClosedWithNoSchemas.
-	"NEEDS_DISCOVERY": 684,
+	// 686, up from 684 (issue #375): the bare aws_subnet each of the two new
+	// fixtures declares as the thing its poisoned leaf reads.
+	// 690, up from 686 (the corpus-rds-complete-postgres routing fix,
+	// internal/live/identity/computedselect.go): four ADDED rows, every one
+	// of them a bare server-assigned aws_vpc or aws_security_group that the
+	// controls added to
+	// internal/live/identity/testdata/deferred-through-module-list need in
+	// order to point at something - a second aws_vpc.other, so that an
+	// uncomputable lookup() fallback is a different object from the leaf the
+	// caller wrote, and the new sgtyped module's own aws_security_group -
+	// each counted twice because the child directory is swept as a root of
+	// its own. Incidental for the same reason as #346's, #354's, #368's and
+	// #375's: a deferred read needs a real resource to point at.
+	"NEEDS_DISCOVERY": 690,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -524,7 +562,23 @@ var identityGoldenPin = map[string]int{
 	// the target group INSTANCE the caller indexed, and three other strings
 	// would have satisfied a class check - the group's own name, the module
 	// output's name, and the type default that supplies the "elbv2" beside it.
-	"PARENT_DERIVED": 116,
+	// 118, up from 116 (issue #375): module-arg-hoisted's inline/hoisted
+	// aws_iam_role.derived[0] pair, both rendering the symbolic formula
+	// derived-${aws_subnet.s.id}. They are the negative half of the fix -
+	// the leaf that really is a live subnet ID stays a parent's value and
+	// never becomes a concrete marker - and they are byte-identical to each
+	// other, which is the equivalence the fix claims.
+	// 119, up from 118 (the corpus-rds-complete-postgres routing fix): one
+	// ADDED row, and it is #375's OWN control - merge-bare-module-output's
+	// module.base.module.host.aws_iam_role.poisoned[0], whose name reads the
+	// one member of the merged map that is a live subnet ID. It now renders
+	// the symbolic formula role-${aws_subnet.public.id}, which is what that
+	// control is about rather than an exception to it: a formula names the
+	// exact parent instance and attribute, renders off the LIVE object, and
+	// carries an EMPTY import ID until that object is read. #375's own
+	// assertion - moduleargspelling_test.go, "id must be empty" - is
+	// unchanged and still passes; a CONCRETE row there would be the failure.
+	"PARENT_DERIVED": 119,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -846,7 +900,51 @@ var identityGoldenPin = map[string]int{
 // selection's effect on a rendered identity is pinned by value elsewhere,
 // with schemas: internal/live/check's
 // TestStrictMarkersRecordRendersItsIdentityByValue.
-const identityGoldenPinBodyDigest = "df0bd8c29d6bb94b84a497bb900a6cff58da2b1f424aa94f0265b57798eefc3e"
+// Then re-pinned for the corpus-rds-complete-postgres routing fix
+// (internal/live/identity/computedselect.go): "0 identities changed, 5
+// added, 0 removed" over 559 directories, read before this line was edited.
+// Four of the five are bare server-assigned resources the new controls in
+// testdata/deferred-through-module-list need to point at, each rendering an
+// empty value; the fifth is #375's own poisoned control, described under
+// PARENT_DERIVED above.
+//
+// The zero is the half worth being suspicious of, because this change DOES
+// widen a resolution route. It holds for the same reason #368's did: every
+// identity the fold produces is a deferred parent read, and this sweep runs
+// without provider schemas, so [resolver.parentPart]'s stringAttrInSchema
+// gate turns away everything that is not already a declared identity
+// attribute of the parent. The identities the fold renders WITH schemas are
+// pinned by value, against a lookup that hands back a real CIDR, in
+// internal/live/identity's deferred_through_module_list_test.go.
+//
+// Then re-pinned again for GitHub issue #378: one row added, the
+// aws_s3_bucket in the new live/e2e/limits/reserved-symbol fixture (the
+// lint rule reserving tofu.marker_module_prefix). #378's own change is to
+// what internal/live/stamp writes into a tags argument, which this
+// schema-less sweep does not render at all, so its whole effect here is the
+// fixture it brought with it. "0 identities changed, 1 added, 0 removed"
+// over 560 directories, read before this line was edited.
+//
+// Then re-pinned for GitHub issue #365 slice 3, reconciled onto the three
+// changes above rather than measured against the base it was written on:
+// three rows ADDED, all RECORD_BACKED and all rendering an EMPTY value
+// (random_password, local_sensitive_file, tls_private_key gaining a
+// SecretMaterial row in identity.DefaultTable), and four new configuration
+// directories that declare no resource at all. Read against the merged tree,
+// not against 350afb5925 - see identityGoldenPinInstances. The zero-changed
+// half holds for the reason the slice's own design gives it: the setting
+// reaches one decision, whether a SecretMaterial row is REFUSED, and never
+// resolves any instance to a different object, so no row this sweep already
+// rendered can move. Slice 3 and the three changes above touch disjoint
+// routes - nothing in identity.DefaultTable is read by computedselect.go or
+// by internal/live/stamp - so their row sets add rather than interact. The
+// reconciled regeneration, diffed against 292bff5932's own golden rather
+// than against the slice's original base, reports exactly that: three lines
+// added (internal/live/lint/testdata/logical's tls_private_key.signing,
+// live/e2e/limits/local-sensitive-file's local_sensitive_file.rendered and
+// live/e2e/limits/random-password's random_password.db), none modified and
+// none removed, over 564 directories.
+const identityGoldenPinBodyDigest = "8e7b14632956bef63032d3283b440dc5cef4c01f758e8620765a9eefd882cd39"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1320,11 +1418,32 @@ const (
 	// order to have something to select, or something to leave unselected
 	// beside it. See identityGoldenPinBodyDigest's own comment for why none
 	// of them renders as RECORD_LOCATED here.
-	// Then 1614 -> 1617 for GitHub issue #365 slice 3: three added rows, zero
-	// modified. All three are RECORD_BACKED and all three render an empty
-	// value; see the RECORD_BACKED entry in identityGoldenPinClasses for
-	// which fixtures and why the empty value is the right one.
-	identityGoldenPinInstances = 1617
+	// Then 1614 -> 1623 for GitHub issue #375: nine added rows across the two
+	// new fixtures, none modified, none removed. See the class comments
+	// above for which row is which.
+	// Then 1623 -> 1628 for the corpus-rds-complete-postgres routing fix:
+	// five added rows, none modified, none removed. Four are plain
+	// server-assigned resources the new negative controls in
+	// testdata/deferred-through-module-list need in order to have something
+	// to point at; the fifth is #375's own poisoned control, which renders a
+	// formula and an empty import ID. See the class comments above.
+	//
+	// Then 1628 -> 1629 for GitHub issue #378: one added row, the
+	// aws_s3_bucket in the new live/e2e/limits/reserved-symbol fixture.
+	// #378's own change is to what internal/live/stamp writes into a tags
+	// argument, which this sweep does not render at all, so its whole effect
+	// here is the fixture it brought with it.
+	//
+	// Then 1629 -> 1632 for GitHub issue #365 slice 3: three added rows, zero
+	// modified, zero removed. All three are RECORD_BACKED and all three
+	// render an empty value; see the RECORD_BACKED entry in
+	// identityGoldenPinClasses for which fixtures and why the empty value is
+	// the right one. The slice was originally measured as 1614 -> 1617
+	// against 350afb5925; the delta it contributes is unchanged by the three
+	// changes above, which is what the reconciled figure says - +3 either
+	// way, because the rows come from identity.DefaultTable gaining
+	// SecretMaterial entries and nothing above reads that table.
+	identityGoldenPinInstances = 1632
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1446,16 +1565,32 @@ const (
 	// new limits-wing entries), and one child module swept as a root of its
 	// own. Thirteen of them declare resources; see
 	// identityGoldenPinInstances directly above.
+	// Then 550 -> 558 dirs for GitHub issue #375: eight new configuration
+	// directories, four per fixture -
+	// internal/live/identity/testdata/module-arg-hoisted with its gate, net
+	// and secret-net child modules, and .../merge-bare-module-output with
+	// its base, network and host child modules. Each child is swept as a
+	// root of its own; the ones declaring no resource of an admitted type
+	// contribute a directory and no row.
+	// Then 558 -> 559 for the corpus-rds-complete-postgres routing fix: one
+	// new configuration directory,
+	// internal/live/identity/testdata/deferred-through-module-list/sgtyped,
+	// the module whose three variable declarations are the declared-type
+	// gate's own controls.
+	// Then 559 -> 560 for GitHub issue #378: live/e2e/limits/reserved-symbol,
+	// the fixture for the lint rule reserving tofu.marker_module_prefix.
 	//
-	// Then 550 -> 554 dirs for GitHub issue #365 slice 3's secrets toggle:
+	// Then 560 -> 564 dirs for GitHub issue #365 slice 3's secrets toggle:
 	// four new configuration directories, none of which declares a resource
 	// at all - three under internal/live/lint/testdata (the two valid
 	// spellings and one outside the vocabulary) and live/e2e/limits/
 	// strict-secrets. Every one is a terraform{live{strict{}}} block and
 	// nothing else, so none contributes a row; the three ADDED rows come
 	// from fixtures that already existed. See identityGoldenPinInstances'
-	// own comment directly above.
-	identityGoldenPinDirs = 554
+	// own comment directly above. Measured as 550 -> 554 against
+	// 350afb5925 and +4 either way, since none of the three changes above
+	// added or removed a directory this slice's fixtures sit in.
+	identityGoldenPinDirs = 564
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

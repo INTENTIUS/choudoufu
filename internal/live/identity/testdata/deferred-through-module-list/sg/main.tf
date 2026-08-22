@@ -8,6 +8,17 @@ variable "ingress_cidr_blocks" {
   default = []
 }
 
+# A fallback this package cannot compute: the caller sets it from a module
+# output over a managed resource, so an argument that lands on it refuses.
+# That is what makes the absent-key control below a control - a route that
+# rendered the caller's own cidr_blocks there would be rendering a value
+# OpenTofu never selects, and a fallback it CAN compute would hide the
+# difference behind a correct answer from another route.
+variable "fallback_cidr" {
+  type    = string
+  default = ""
+}
+
 resource "aws_security_group" "this" {
   count = 1
 
@@ -83,4 +94,24 @@ resource "aws_security_group_rule" "literal_index" {
   protocol          = "tcp"
 
   cidr_blocks = [var.ingress_with_cidr_blocks[0].cidr_blocks]
+}
+
+# Negative control for the lookup fold: the caller's element does NOT carry
+# this key, so the language answers with the third argument. Nothing here may
+# render the caller's own cidr_blocks in its place, and nothing may render
+# the fallback either - the fold declines outright when the chase finds no
+# key, which leaves the argument refused exactly as it was.
+resource "aws_security_group_rule" "absent_key_control" {
+  count = length(var.ingress_with_cidr_blocks)
+
+  security_group_id = aws_security_group.this[0].id
+  type              = "ingress"
+  from_port         = 5436
+  to_port           = 5436
+  protocol          = "tcp"
+
+  cidr_blocks = compact(split(
+    ",",
+    lookup(var.ingress_with_cidr_blocks[count.index], "not_a_key_here", var.fallback_cidr),
+  ))
 }
