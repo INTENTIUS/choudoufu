@@ -229,37 +229,47 @@ func releaseOne(ctx context.Context, provider providers.Interface, schemas map[s
 		return out
 	}
 
-	configVal := configValue(schema.Block, desiredObj)
-	proposed := objchange.ProposedNew(schema.Block, live, configVal)
-
-	planResp := provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
-		TypeName:         t.TypeName,
-		PriorState:       live,
-		ProposedNewState: proposed,
-		Config:           configVal,
-		PriorPrivate:     imported.Private,
-		// A null of the dynamic pseudo-type, not the zero cty.Value: see
-		// internal/live/liveimport's stamp.go, same call, for why a value
-		// with no type at all panics the plugin client's conformance
-		// check whenever the provider declares a provider_meta schema.
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-		PriorIdentity: imported.Identity,
-	})
-	if planResp.Diagnostics.HasErrors() {
-		out.Detail = fmt.Sprintf("The provider failed while planning the tag release: %s. Nothing was changed.", planResp.Diagnostics.Err())
-		return out
+	// The object being released has no configuration here, so one is
+	// synthesized - and there is more than one honest answer to "what would
+	// the HCL have said about the arguments the provider fills in for
+	// itself". [syntheticConfigs] offers them least claim first; each is
+	// planned in turn and the first plan that is a clean tags-only change
+	// wins. The refusals below are what "clean" means, and they are the same
+	// ones that already stood between a plan and an apply, so trying a
+	// second configuration widens what can be released without widening what
+	// may be. See tags.go's configClaim, and internal/live/liveimport for the
+	// two real cases that pull in opposite directions.
+	var (
+		configVal cty.Value
+		planResp  providers.PlanResourceChangeResponse
+		refusal   string
+	)
+	for _, candidate := range syntheticConfigs(schema.Block, desiredObj) {
+		resp := provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
+			TypeName:         t.TypeName,
+			PriorState:       live,
+			ProposedNewState: objchange.ProposedNew(schema.Block, live, candidate),
+			Config:           candidate,
+			PriorPrivate:     imported.Private,
+			// A null of the dynamic pseudo-type, not the zero cty.Value: see
+			// internal/live/liveimport's stamp.go, same call, for why a value
+			// with no type at all panics the plugin client's conformance
+			// check whenever the provider declares a provider_meta schema.
+			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			PriorIdentity: imported.Identity,
+		})
+		if why := notATagsOnlyPlan(schema.Block, live, t.TypeName, key, resp); why != "" {
+			refusal = why
+			continue
+		}
+		configVal, planResp, refusal = candidate, resp, ""
+		break
 	}
-	if len(planResp.RequiresReplace) > 0 {
-		out.Detail = fmt.Sprintf("Releasing %q from this %s would require replacing it, according to the provider. An untag never destroys or replaces anything; nothing was changed.", key, t.TypeName)
-		return out
-	}
-	planned := planResp.PlannedState
-	if planned == cty.NilVal || planned.IsNull() {
-		out.Detail = "Planning the tag release produced no object at all. This is a provider bug; nothing was changed."
-		return out
-	}
-	if extra := changedOutsideTags(schema.Block, live, planned); len(extra) > 0 {
-		out.Detail = fmt.Sprintf("Releasing %q from this %s would also change %s. An untag is a tags-only write; nothing was changed. Run a plan to see what else has drifted and resolve that first.", key, t.TypeName, strings.Join(extra, ", "))
+	if refusal != "" {
+		// The LAST refusal, so the message an operator reads is the one for
+		// the configuration that asserts most - the only one this path used
+		// to send at all.
+		out.Detail = refusal
 		return out
 	}
 

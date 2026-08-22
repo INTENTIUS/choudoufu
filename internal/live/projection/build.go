@@ -779,6 +779,20 @@ func (b *builder) normalizeIdentityAttrs(ctx context.Context, provider providers
 // same kind of question for a tags-only rewrite. Types are never altered,
 // only values are nulled, so the result still conforms to the schema's
 // implied type.
+//
+// No longer identical to those helpers, on purpose. Issue #373 widened the
+// tag-write copies to null every Computed attribute rather than only the
+// Computed-only ones, because a tags-only configuration asserts nothing but
+// the tags. This one asks a different question: it is a synthetic CREATE
+// against a null prior, and its whole job is to hand the provider the
+// identity-bearing arguments a configuration WOULD have written so the
+// provider can answer with its own canonical spelling of them. Many of those
+// - a name, a domain, a record - are optional+computed, so nulling them here
+// would replace the answer with an unknown and quietly retire GitHub issue
+// #281's normalization. Whatever this returns also decides a rendered
+// identity, which HANDOFF's safety rule puts behind by-value assertion
+// (internal/live/check's TestIdentityGolden), so a change here is its own
+// unit of work with its own evidence, not a side effect of the tag fix.
 func configValue(block *configschema.Block, val cty.Value) cty.Value {
 	if block == nil || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val

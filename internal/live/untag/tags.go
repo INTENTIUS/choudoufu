@@ -8,12 +8,14 @@ package untag
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This file is the read-and-rewrite half of a tags-only object write, the
@@ -82,12 +84,74 @@ func withTags(block *configschema.Block, obj cty.Value, tags map[string]string) 
 	return cty.ObjectVal(vals), nil
 }
 
-// configValue is the live object as a configuration would express it: every
-// attribute the provider alone can set is nulled, and everything else is
-// carried across as it stands. This is what makes the plan below a
-// tags-only change rather than an assertion that every computed attribute
-// the provider filled in was written down by hand.
-func configValue(block *configschema.Block, val cty.Value) cty.Value {
+// assertedTagAttr is the one argument a tags-only write claims as set in the
+// configuration it synthesizes, exempt from [computedForProvider] so a
+// provider that ever declares tags optional+computed does not turn every
+// release into a silent no-op. See internal/live/liveimport's tags.go, which
+// carries the full reasoning for both this and [computedForProvider].
+const assertedTagAttr = "tags"
+
+// configClaim is how much of the live object a synthetic configuration
+// claims the operator wrote down. The two readings of "what would the HCL
+// have said" disagree about the attributes a provider may fill in for
+// itself, and no property of the schema separates the cases; internal/live/
+// liveimport's tags.go carries the full reasoning and the measurements.
+type configClaim int
+
+const (
+	// claimTagsOnly nulls every Computed attribute, not only the
+	// Computed-only ones - an optional+computed argument the operator never
+	// wrote is null in real HCL, and a provider that gates a CustomizeDiff
+	// on finding one known and non-null in the raw config refuses a tag
+	// write that never touched it (GitHub issue #373).
+	claimTagsOnly configClaim = iota
+
+	// claimEverythingSettable nulls only what a configuration cannot set at
+	// all, which is what this file did before #373 - still right where a
+	// provider INJECTS an optional+computed attribute rather than reading
+	// it, and reads its absence from the config as a change.
+	claimEverythingSettable
+)
+
+// syntheticConfigs is the configurations a tags-only write may offer the
+// provider for one object, least claim first. The caller plans each in turn
+// and takes the first whose plan is a clean tags-only change, judged by the
+// same guards that already stood between a plan and an apply. When the two
+// agree - every type with no optional+computed attribute - there is one.
+func syntheticConfigs(block *configschema.Block, val cty.Value) []cty.Value {
+	least := configValue(block, val, claimTagsOnly)
+	most := configValue(block, val, claimEverythingSettable)
+	if least.RawEquals(most) {
+		return []cty.Value{least}
+	}
+	return []cty.Value{least, most}
+}
+
+// computedForProvider reports whether a synthetic configuration making the
+// given claim must leave an attribute null rather than carry the live
+// object's value across. An optional+computed attribute with a NestedType
+// recurses instead of being nulled under either claim, because objchange
+// reads a null config for one of those as a removal and would move the plan.
+// internal/live/liveimport's copy carries the reasoning.
+func computedForProvider(attr *configschema.Attribute, claim configClaim) bool {
+	switch {
+	case !attr.Computed:
+		return false
+	case !attr.Optional && !attr.Required:
+		return true
+	case claim != claimTagsOnly:
+		return false
+	default:
+		return attr.NestedType == nil
+	}
+}
+
+// configValue is the live object as the configuration for a tags-only write
+// would express it: the tag map this run is asserting, plus every argument
+// only a configuration can supply, and nothing else. This is what makes the
+// plan below a tags-only change rather than an assertion that every value the
+// provider is free to fill in for itself was written down by hand.
+func configValue(block *configschema.Block, val cty.Value, claim configClaim) cty.Value {
 	if block == nil || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -96,10 +160,12 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 	for name, attr := range block.Attributes {
 		v := val.GetAttr(name)
 		switch {
-		case attr.Computed && !attr.Optional && !attr.Required:
+		case name == assertedTagAttr:
+			vals[name] = v
+		case computedForProvider(attr, claim):
 			vals[name] = cty.NullVal(v.Type())
 		case attr.NestedType != nil:
-			vals[name] = configNestedObject(attr.NestedType, v)
+			vals[name] = configNestedObject(attr.NestedType, v, claim)
 		default:
 			vals[name] = v
 		}
@@ -108,10 +174,10 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 		v := val.GetAttr(name)
 		switch nested.Nesting {
 		case configschema.NestingSingle, configschema.NestingGroup:
-			vals[name] = configValue(&nested.Block, v)
+			vals[name] = configValue(&nested.Block, v, claim)
 		default:
 			vals[name] = mapElements(v, func(elem cty.Value) cty.Value {
-				return configValue(&nested.Block, elem)
+				return configValue(&nested.Block, elem, claim)
 			})
 		}
 	}
@@ -120,7 +186,7 @@ func configValue(block *configschema.Block, val cty.Value) cty.Value {
 
 // configNestedObject is configValue for an attribute whose type is a nested
 // object rather than a block.
-func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
+func configNestedObject(obj *configschema.Object, val cty.Value, claim configClaim) cty.Value {
 	if val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return val
 	}
@@ -133,10 +199,10 @@ func configNestedObject(obj *configschema.Object, val cty.Value) cty.Value {
 		for name, attr := range obj.Attributes {
 			av := v.GetAttr(name)
 			switch {
-			case attr.Computed && !attr.Optional && !attr.Required:
+			case computedForProvider(attr, claim):
 				vals[name] = cty.NullVal(av.Type())
 			case attr.NestedType != nil:
-				vals[name] = configNestedObject(attr.NestedType, av)
+				vals[name] = configNestedObject(attr.NestedType, av, claim)
 			default:
 				vals[name] = av
 			}
@@ -327,4 +393,27 @@ func shortValue(v cty.Value) string {
 		s = s[:117] + "..."
 	}
 	return s
+}
+
+// notATagsOnlyPlan is the whole of what stands between a planned tag release
+// and an apply: the sentence to report if this plan must not be applied, or
+// "" if it may be.
+//
+// The four refusals are the ones release.go has always made inline, lifted
+// into one function because a release now plans more than once - see
+// [syntheticConfigs] - and a second candidate configuration must be judged by
+// exactly the same rules as the first, not by a copy of them that drifts.
+func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName, key string, resp providers.PlanResourceChangeResponse) string {
+	switch {
+	case resp.Diagnostics.HasErrors():
+		return fmt.Sprintf("The provider failed while planning the tag release: %s. Nothing was changed.", resp.Diagnostics.Err())
+	case len(resp.RequiresReplace) > 0:
+		return fmt.Sprintf("Releasing %q from this %s would require replacing it, according to the provider. An untag never destroys or replaces anything; nothing was changed.", key, typeName)
+	case resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull():
+		return "Planning the tag release produced no object at all. This is a provider bug; nothing was changed."
+	}
+	if extra := changedOutsideTags(block, prior, resp.PlannedState); len(extra) > 0 {
+		return fmt.Sprintf("Releasing %q from this %s would also change %s. An untag is a tags-only write; nothing was changed. Run a plan to see what else has drifted and resolve that first.", key, typeName, strings.Join(extra, ", "))
+	}
+	return ""
 }
