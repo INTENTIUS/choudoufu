@@ -153,19 +153,29 @@ set -uo pipefail
 #      the name is no longer unique with the orphan present) rather than
 #      trusting the empty replan alone. #249 stays open.
 #
-#   5. FLOCI GAP, filed (lex00/floci#98) - resourcegroupstaggingapi
-#      GetResources does not index CloudWatch Logs log groups. Of the 16
-#      objects stage 2 stamps, this estate's one aws_cloudwatch_log_group is
-#      the sole omission from the cross-service tag search used to count
+#   5. FLOCI GAP, filed (lex00/floci#98), NOW FIXED. resourcegroupstaggingapi
+#      GetResources used not to index CloudWatch Logs log groups. Of the 16
+#      objects stage 2 stamps, this estate's one aws_cloudwatch_log_group
+#      was the sole omission from the cross-service tag search used to count
 #      objects for stage 4's no-op-apply check, even though the log group's
-#      own tag API (logs list-tags-log-group) reads its markers back
+#      own tag API (logs list-tags-log-group) read its markers back
 #      correctly. corpus-lambda-simple's own STAGE 4 hit the identical gap
 #      first and routed around it without filing, noting it would be worth
 #      an issue "if a later estate needs the cross-service search itself" -
-#      this crossing is that later estate, so the gap is filed rather than
-#      silently re-routed-around a second time. Stage 4 below counts the
-#      cross-service search's own result PLUS one direct read of the log
-#      group's own tag API, not the cross-service search alone.
+#      this crossing is that later estate, so the gap was filed rather than
+#      silently re-routed-around a second time. Fixed in floci commit
+#      c212d9e84 ("fix(resourcegroupstagging): index CloudWatch Logs log
+#      groups in GetResources"), on the path to the pin
+#      ghcr.io/lex00/floci@sha256:0afd2648...: re-measured against this pin,
+#      the cross-service search alone now returns all 16 objects, including
+#      the log group. The stage-4 workaround (count the search's own result
+#      PLUS one direct read of the log group's own tag API) is gone -
+#      keeping it after the fix would have double-counted the log group
+#      (17, not 16), which is exactly the failure this pin bump surfaced.
+#      Stage 4 below asserts the log group's ARN is present in the
+#      cross-service search's own result directly, so a future regression
+#      of #98 fails on that assertion rather than silently returning to the
+#      workaround's old count by coincidence.
 #
 # CONSEQUENCE FOR THE FIVE STAGES: stage 1 (cold deploy) is clean, and its
 # own provider block is UNCHANGED (`skip_requesting_account_id = true`
@@ -219,10 +229,11 @@ set -uo pipefail
 #                     re-checked against the AWS CLI, fresh off this plan.
 #   4. TEST APPLY    apply the empty plan - PASS: genuine no-op (0 added, 0
 #                     changed, 0 destroyed), the 16-object tagged count
-#                     unchanged (resourcegroupstaggingapi plus one direct
-#                     log-group tag read - lex00/floci#98, item 5 above), and
-#                     the S3 bucket's tofu-address and the OAC's own Id
-#                     re-checked one more time, fresh off this apply.
+#                     unchanged (resourcegroupstaggingapi's cross-service
+#                     search alone, now that lex00/floci#98 is fixed - item
+#                     5 above), and the S3 bucket's tofu-address and the
+#                     OAC's own Id re-checked one more time, fresh off this
+#                     apply.
 #   5. DRIFT/RECONVERGE  PASS - the VPC's Name tag mutated out of band via
 #                     the AWS CLI; choudoufu's plan proposes fixing exactly
 #                     module.overture_tiles.aws_vpc.batch[0] and nothing
@@ -738,19 +749,26 @@ CURRENT_STAGE=""
 # tagged-object count and by re-checking the two identities stage 3 already
 # checked, fresh off this apply rather than reused.
 #
-# floci's resourcegroupstaggingapi GetResources does not index CloudWatch
-# Logs log groups (lex00/floci#98, filed by this unit). Confirmed directly
-# against this estate: the cross-service search returns 15 of the 16 objects
-# stage 2 stamped, the log group the sole omission, even though the log
-# group's OWN tag API (logs list-tags-log-group / list-tags-for-resource)
-# reads tofu-estate/tofu-address back correctly. corpus-lambda-simple's own
-# STAGE 4 first found and routed around this exact gap without filing it,
-# noting it would be "worth one if a later estate needs the cross-service
-# search itself" - this is that later estate, so the issue is now filed
-# rather than re-routed-around silently a second time. The count below is
-# the cross-service search PLUS one direct read of the log group's own tag
-# API, not the cross-service search alone: a smaller count would silently
-# under-report, which is worse than a slower, honest one.
+# floci's resourcegroupstaggingapi GetResources used not to index CloudWatch
+# Logs log groups (lex00/floci#98, filed by this unit) - the cross-service
+# search returned 15 of the 16 objects stage 2 stamped, the log group the
+# sole omission, even though the log group's OWN tag API (logs
+# list-tags-log-group / list-tags-for-resource) read tofu-estate/tofu-address
+# back correctly. corpus-lambda-simple's own STAGE 4 first found and routed
+# around this exact gap without filing it, noting it would be "worth one if
+# a later estate needs the cross-service search itself" - this was that
+# later estate, so the issue was filed rather than re-routed-around silently
+# a second time.
+#
+# FIXED by floci commit c212d9e84 ("fix(resourcegroupstagging): index
+# CloudWatch Logs log groups in GetResources"), on the path to the pin
+# ghcr.io/lex00/floci@sha256:0afd2648...: re-measured against this pin, the
+# cross-service search alone now returns all 16 objects. The count below is
+# the cross-service search alone, with the log group's presence in it
+# asserted directly (not inferred from a count matching by coincidence) -
+# keeping the old "+1 direct read" workaround after this fix would silently
+# double-count the log group instead of under-reporting it, which is
+# exactly the failure this pin bump surfaced (BEFORE_N=17, not 16).
 # ══════════════════════════════════════════════════════════════════════════
 CURRENT_STAGE=test_apply
 log "=== STAGE 4: test apply (apply the empty plan; object count and identities unchanged) ==="
@@ -758,21 +776,35 @@ log "=== STAGE 4: test apply (apply the empty plan; object count and identities 
 LOGGROUP_NAME="/aws/batch/${ESTATE_NAME}"
 
 # tagged_object_count: resourcegroupstaggingapi's own cross-service count,
-# plus the one object it cannot see (floci#98, see header above), read
-# directly through its own service instead.
-tagged_object_count() {
-  local n
-  n="$(awsl resourcegroupstaggingapi get-resources \
+# now that lex00/floci#98 is fixed and the log group is part of it (see
+# header above). Prints the raw ARN list on the first line and the count on
+# the second, so the caller can assert the log group's presence directly
+# (not called from inside a command substitution itself, since fail() must
+# be able to report and exit the whole script, not just a subshell).
+tagged_object_count_raw() {
+  awsl resourcegroupstaggingapi get-resources \
     --tag-filters "Key=tofu-estate,Values=$ESTATE_NAME" \
-    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
-  local lg_estate
-  lg_estate="$(awsl logs list-tags-log-group --log-group-name "$LOGGROUP_NAME" --query 'tags."tofu-estate"' --output text 2>/dev/null)"
-  [ "$lg_estate" = "$ESTATE_NAME" ] && n=$((n + 1))
-  printf '%s\n' "$n"
+    --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null || true
+}
+tagged_object_count() {
+  local resources
+  resources="$(tagged_object_count_raw)"
+  if [ -z "$resources" ]; then
+    printf '0\n'
+  else
+    wc -w <<< "$resources" | tr -d ' '
+  fi
+}
+assert_log_group_indexed() {
+  local resources
+  resources="$(tagged_object_count_raw)"
+  grep -q "log-group:${LOGGROUP_NAME}\b" <<< "$resources" \
+    || fail "the log group $LOGGROUP_NAME is missing from resourcegroupstaggingapi's cross-service search - lex00/floci#98 may have regressed"
 }
 
+assert_log_group_indexed
 BEFORE_N="$(tagged_object_count)"
-[ "$BEFORE_N" = "16" ] || fail "expected 16 tagged objects before the no-op apply (the 16 stamped in stage 2: 15 via resourcegroupstaggingapi + the log group read directly, floci#98), got $BEFORE_N"
+[ "$BEFORE_N" = "16" ] || fail "expected 16 tagged objects before the no-op apply (the 16 stamped in stage 2, all via resourcegroupstaggingapi now that floci#98 is fixed), got $BEFORE_N"
 
 NOOP_APPLY_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; NOOP_APPLY_RC=$?
 [ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
@@ -799,13 +831,13 @@ GOT_OAC_ID3="$(awsl cloudfront get-distribution-config --id "$DIST_ID" --query "
 [ -d "$ESTATE/.tofu-records" ] || fail "the record store directory is gone after the no-op apply"
 [ -n "$(find "$ESTATE/.tofu-records" -type f 2>/dev/null)" ] || fail "the record store holds no files after the no-op apply"
 
-log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after (resourcegroupstaggingapi + log group direct read, floci#98), no state file"
+log "  genuine no-op: $BEFORE_N tagged objects before, $AFTER_N after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed), no state file"
 log "  identities re-checked: bucket $GOT_BUCKET_ADDR3, OAC $GOT_OAC_ID3; record store intact"
 
 log ""
 log "STAGE 4 (test apply): PASS - genuine no-op; object count and identities unchanged"
 log ""
-gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact"
+gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi's cross-service search alone, floci#98 fixed); S3 bucket and OAC identities unchanged; record store intact"
 CURRENT_STAGE=""
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -827,11 +859,13 @@ CURRENT_STAGE=""
 # mutation, same as reference-ec2-vpc's PART C and corpus-xancloud-iac's own
 # STAGE 5 (also a VPC Name-tag mutation, same module shape).
 #
-# This choice is deliberately clear of this estate's two known, already-
-# tracked gaps: #249's orphaned CloudFront OAC and floci#98's log-group
-# tagging gap are both untouched by a VPC tag mutation, so neither needs any
-# special-casing in the object-count or identity logic below - there is no
-# object count in this stage at all, only a single-address plan diff.
+# This choice is deliberately clear of this estate's known, tracked gap:
+# #249's orphaned CloudFront OAC is untouched by a VPC tag mutation, so it
+# needs no special-casing in the object-count or identity logic below -
+# there is no object count in this stage at all, only a single-address plan
+# diff. (floci#98's log-group tagging gap, the other gap this estate used
+# to route around, is fixed as of the pin this script now runs against -
+# see item 5 above.)
 #
 # The VPC is also one of the six count-toggled ([0]) resources STAGE 2d
 # cemented with a tofu-slot marker (internal/live/discovery/count.go), on top

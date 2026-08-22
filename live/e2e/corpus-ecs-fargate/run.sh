@@ -35,7 +35,22 @@ set -uo pipefail
 #                     apply, 62 added, 0 changed, 0 destroyed.
 #   2. MIGRATE       `choudoufu live-import -state=<plain's state>
 #                     -estate=... -approve`. PASS: 46 of 62 instances
-#                     eligible (28 VERIFIED + 18 DRIFTED), the other 16
+#                     eligible (30 VERIFIED + 16 DRIFTED - was 28+18 before
+#                     the floci pin ghcr.io/lex00/floci@sha256:0afd2648...;
+#                     re-measured against the new pin, module.ecs_cluster.
+#                     aws_ecs_cluster.this[0] and module.ecs_service.
+#                     aws_ecs_service.this[0] moved from DRIFTED to
+#                     VERIFIED, confirmed by re-running the identical
+#                     estate against the prior pin with today's binary -
+#                     28/18 there, 30/16 here. floci's commit edf3bf23d
+#                     ("fix(ecs): round-trip cluster settings/capacity
+#                     strategy and service fields") is on the path to the
+#                     new pin's commit and is the likely cause: the
+#                     cluster's Container Insights/capacity-provider
+#                     settings and the service's scheduling_strategy/
+#                     enable_ecs_managed_tags/etc. fields - lex00/floci#59
+#                     and #60 - now round-trip instead of silently
+#                     dropping), the other 16
 #                     UNTAGGABLE by provider schema in the dry run - of
 #                     which -approve records 1 (module.ecs_cluster's
 #                     time_sleep.this[0], record-backed since #340, seeded
@@ -177,9 +192,9 @@ set -uo pipefail
 # live objects.
 #
 # WHAT BLOCKS STAGE 3 NOW. Clearing #368's refusals let live-plan reach a
-# real diff for the first time, and the diff is "7 to add, 31 to change, 0
-# to destroy". Neither cause is an identity gap and neither is attempted
-# here:
+# real diff for the first time, and the diff is "7 to add, 30 to change, 0
+# to destroy" (was 31 to change against the prior floci pin - see below).
+# Neither cause is an identity gap and neither is attempted here:
 #
 #   1. aws_ecs_cluster.this[0] and both aws_ecs_task_definition instances
 #      read back ABSENT: "the provider reports no aws_ecs_cluster exists
@@ -190,11 +205,27 @@ set -uo pipefail
 #      aws_appautoscaling_policy instances) cascade from the cluster as
 #      PARENT_UNAVAILABLE, which is the right behaviour for an unavailable
 #      parent rather than a second fault. Whether the import read or the
-#      emulator is at fault is a unit of its own.
-#   2. All 31 in-place changes are one tag addition each, `tofu-slot =
+#      emulator is at fault is a unit of its own - filed as choudoufu #371.
+#      UNCHANGED by the floci pin move to sha256:0afd2648...: re-measured
+#      against the prior pin (sha256:cdd50ec0...) with today's binary, the
+#      same seven addresses read back ABSENT the same way. floci's own ECS
+#      round-trip fix in this pin (edf3bf23d, #59/#60) fixed the CLUSTER's
+#      and SERVICE's stamped attribute fidelity (stage 2 above), not this
+#      stateless discovery-time read.
+#   2. All 30 in-place changes are one tag addition each, `tofu-slot =
 #      "0"`, on every count/for_each-expanded instance: a marker live-plan
-#      expects and live-import does not write. No other attribute of any of
-#      the 31 differs.
+#      expects and live-import does not write - filed as choudoufu #372.
+#      Was 31 against the prior floci pin; re-measured against the prior
+#      pin with today's binary to isolate the cause, the count is
+#      genuinely pin-dependent (31 there, 30 here) rather than a
+#      choudoufu-side regression - ten aws_lb/aws_lb_listener/
+#      aws_lb_listener_rule/aws_lb_target_group/aws_vpc_security_group_
+#      egress_rule/aws_cloudwatch_log_group instances that needed the tag
+#      before no longer appear in the diff at all against the new pin. Not
+#      root-caused further here (a unit of its own, plausibly tied to the
+#      same pin's elbv2/resourcegroupstagging fixes changing what these
+#      types' identity resolution reads back); every one of the 30 that
+#      remains is still the tofu-slot tag alone, asserted below.
 #
 # BREAK=1 corrupts the expected ResourceId (it names a cluster that does
 # not exist), proving that assertion is load-bearing rather than a
@@ -241,8 +272,8 @@ SKIPPED=16
 # summary line splits.
 RECORDED=1
 APPROVE_SKIPPED=$((SKIPPED - RECORDED))
-VERIFIED_WANT=28
-DRIFTED_WANT=18
+VERIFIED_WANT=30
+DRIFTED_WANT=16
 UNTAGGABLE_WANT=16
 UNADMITTED_WANT=0
 FLUENTBIT_PARAM="/aws/service/aws-for-fluent-bit/stable"
@@ -509,7 +540,7 @@ SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fa
 [ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
 WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
 WANT_ADD_N=7
-WANT_CHANGE_N=31
+WANT_CHANGE_N=30
 if [ "${BREAK:-}" = "1" ]; then
   WANT_TARGET_RID="service/not-the-cluster/${SERVICE_NAME}"
   WANT_ADD_N=0
@@ -559,10 +590,11 @@ log "  after the state file was deleted."
 #              and both aws_appautoscaling_policy instances) cascade from
 #              the cluster as PARENT_UNAVAILABLE, which is the correct
 #              behaviour for an unavailable parent and not a second fault.
-#  31 to change. Every count/for_each-expanded instance is proposed a single
-#              tag addition, `tofu-slot = "0"`: a marker live-plan expects
-#              and live-import did not write. No other attribute of any of
-#              the 31 differs.
+#  30 to change (was 31 against the prior floci pin, see the header's
+#              generalization measurement). Every one is a single tag
+#              addition, `tofu-slot = "0"`: a marker live-plan expects and
+#              live-import did not write. No other attribute of any of the
+#              30 differs.
 ADD_N="$(sed -nE 's/^Plan: ([0-9]+) to add.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 CHANGE_N="$(sed -nE 's/^Plan: [0-9]+ to add, ([0-9]+) to change.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 [ "${ADD_N:-}" = "$WANT_ADD_N" ] || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected $WANT_ADD_N resources proposed for creation, got ${ADD_N:-none}"; }
@@ -583,11 +615,13 @@ log "  does not write and live-plan expects)."
 log ""
 log "STAGE 3 (test_plan): BLOCKED for real, on two non-identity causes -"
 log "the ECS cluster and both task definitions read back ABSENT through the"
-log "provider, and 31 expanded instances are missing the tofu-slot marker."
+log "provider (choudoufu #371, unchanged by this floci pin), and $WANT_CHANGE_N expanded"
+log "instances are missing the tofu-slot marker (choudoufu #372; was 31 against"
+log "the prior floci pin)."
 log "All eight of #368's diagnostics are gone, asserted by absence above,"
 log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "#368's 8 identity diagnostics -> 0 (asserted absent; scalable target identity $GOT_TARGET_RID confirmed by value from the live cluster ARN). BLOCKED now on two non-identity causes: aws_ecs_cluster/aws_ecs_task_definition read back ABSENT through the provider (7 to add, 4 of them PARENT_UNAVAILABLE cascade), and 31 expanded instances missing the tofu-slot marker live-import does not write"
+gauntlet_stage test_plan fail "#368's 8 identity diagnostics -> 0 (asserted absent; scalable target identity $GOT_TARGET_RID confirmed by value from the live cluster ARN). BLOCKED now on two non-identity causes, both re-measured against this floci pin: aws_ecs_cluster/aws_ecs_task_definition read back ABSENT through the provider (choudoufu #371, unchanged - 7 to add, 4 of them PARENT_UNAVAILABLE cascade), and $WANT_CHANGE_N expanded instances missing the tofu-slot marker live-import does not write (choudoufu #372; was 31 before this pin, floci's own ECS/elbv2/resourcegroupstagging fixes in it changed which types still need the tag)"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
