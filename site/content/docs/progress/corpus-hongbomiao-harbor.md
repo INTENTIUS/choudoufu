@@ -16,11 +16,11 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 
 | Stage | Verdict | Detail |
 |---|---|---|
-| Cold deploy | pass |  |
-| Migrate | pass |  |
-| Replan from nothing | pass |  |
-| No-op apply | pass |  |
-| Drift and reconverge | pass |  |
+| Cold deploy | pass | Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=hongbomiao-harbor-crossing before migration |
+| Migrate | pass | 2 of 3 stamped (bucket, user), 1 UNTAGGABLE (inline policy); bucket hongbomiao-harbor-crossing-hm-harbor -> tofu-address=module.s3_bucket_hm_harbor.aws_s3_bucket.main, user hongbomiao-harbor-crossing-hm-harbor-user -> tofu-address=module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user |
+| Replan from nothing | pass | empty plan; identity re-check: bucket and user tofu-address unchanged, inline policy's resource ARN still matches the configuration |
+| No-op apply | pass | genuine no-op: 2 objects before, 2 after, no state file either time |
+| Drift and reconverge | pass | the plan proposed fixing 1 object(s) after the out-of-band tag mutation: module.s3_bucket_hm_harbor.aws_s3_bucket.main |
 | Rename (planned) | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
@@ -31,7 +31,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Greenfield apply (planned) | not run |  |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `a9cc85b345` on 2026-08-21T19:36:58Z, exit code 1.
+Last run at commit `c03a7df010` on 2026-08-22T06:55:52Z, exit code 0.
 
 Landed 2026-08-19, the sixth estate in the OpenTofu-native lane and the fourth to clear all five stages. Sourced per HANDOFF's own suggestion to scope a second (here, third) disjoint slice of the already-crossed hongbomiao monorepo before a fresh search. Surveyed every remaining AWS environment: network/main.tofu is pure data sources (nothing to migrate); kubernetes/main.tofu builds a full terraform-aws-modules/eks cluster and every IAM module in it but one (velero_iam_role, mimir_iam_role, loki_iam_role, tempo_iam_role, label_studio_iam_role, etc., 15 total) takes amazon_eks_cluster_oidc_provider(_arn) from that same cluster - the same scope/risk class as the terraform-popular lane's already-blocked terraform-aws-eks examples/basic crossing. The one exception, the "Harbor" section (S3 bucket + IAM user + inline user policy), needs no EKS cluster, no OIDC provider, no remote state at all - self-contained like storage's own scoped slice. Nebius/Cloudflare/Snowflake environments confirmed to still exist and be real, actively-maintained infrastructure, but target non-AWS clouds floci cannot emulate. Crosses aws_iam_user/aws_iam_user_policy, a genuinely different resource pair from Labelbox's aws_iam_role/aws_iam_role_policy - both already-ratified DefaultTable rows, no schema-fallback warning. All five stages verified for real against a live floci container: cold_deploy (tofu apply, 3 resources created, confirmed 0 pre-existing tofu-estate tags), migrate (live-import verified 2 of 3 eligible - bucket + user - 1 correctly UNTAGGABLE - the inline policy; markers re-read via AWS CLI matched: module.s3_bucket_hm_harbor.aws_s3_bucket.main, module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user), test_plan (state deleted, live-plan empty, identities re-verified against the AWS CLI including the inline policy's resource ARN read directly off the live object), test_apply (genuine no-op, 2 tagged objects before and after), drift_reconverge (bucket tag tampered out of band, plan proposed fixing exactly that one object, reconverge apply restored it). BREAK=1 verified load-bearing, failing exactly at the stage-2 identity assertion. No floci or choudoufu gaps found - this crossing is clean. Merged to local main as ad2cf81cf3 (crossing itself: 0c4e16af6a); justfile gained recipe demo-corpus-hongbomiao-harbor (port 4728); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin.
 
