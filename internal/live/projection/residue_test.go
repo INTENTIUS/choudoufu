@@ -887,3 +887,226 @@ func TestResidueNamespaceRootsAreDisjoint(t *testing.T) {
 		}
 	}
 }
+
+// sgLikeSchema is aws_security_group's shape reduced to what the
+// corpus-rds-complete-postgres crossing turns on, taken from hashicorp/aws
+// 6.59.0's own schema rather than invented:
+//
+//	timeouts   a NestingSingle block, config-only, never read from the API
+//	ingress    a NestingSet block, real cloud data, read from the API
+//	egress     a NestingSet block, real cloud data, read from the API
+//
+// The two nesting modes sitting side by side is the point: the rule under
+// test admits the first and must keep refusing the other two, and it must
+// do that from the nesting mode rather than from either block's name.
+func sgLikeSchema() providers.Schema {
+	rule := configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"from_port":   {Type: cty.Number, Optional: true},
+		"to_port":     {Type: cty.Number, Optional: true},
+		"cidr_blocks": {Type: cty.List(cty.String), Optional: true},
+	}}
+	return providers.Schema{
+		Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":                     {Type: cty.String, Optional: true, Computed: true},
+				"name":                   {Type: cty.String, Optional: true, Computed: true},
+				"revoke_rules_on_delete": {Type: cty.Bool, Optional: true},
+			},
+			BlockTypes: map[string]*configschema.NestedBlock{
+				"timeouts": {
+					Nesting: configschema.NestingSingle,
+					Block: configschema.Block{Attributes: map[string]*configschema.Attribute{
+						"create": {Type: cty.String, Optional: true},
+						"delete": {Type: cty.String, Optional: true},
+					}},
+				},
+				"ingress": {Nesting: configschema.NestingSet, Block: rule},
+				"egress":  {Nesting: configschema.NestingSet, Block: rule},
+			},
+		},
+	}
+}
+
+func sgTimeoutsType() cty.Type {
+	return cty.Object(map[string]cty.Type{"create": cty.String, "delete": cty.String})
+}
+
+func sgRuleSetType() cty.Type {
+	return cty.Set(cty.Object(map[string]cty.Type{
+		"from_port":   cty.Number,
+		"to_port":     cty.Number,
+		"cidr_blocks": cty.List(cty.String),
+	}))
+}
+
+func sgApplied() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":                     cty.StringVal("sg-823b494443f0e3e7a"),
+		"name":                   cty.StringVal("complete-postgresql-d9972d37dfe1552a1323196f98"),
+		"revoke_rules_on_delete": cty.False,
+		"timeouts": cty.ObjectVal(map[string]cty.Value{
+			"create": cty.StringVal("10m"),
+			"delete": cty.StringVal("15m"),
+		}),
+		"ingress": cty.SetVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+			"from_port":   cty.NumberIntVal(5432),
+			"to_port":     cty.NumberIntVal(5432),
+			"cidr_blocks": cty.ListVal([]cty.Value{cty.StringVal("10.99.0.0/18")}),
+		})}),
+		"egress": cty.NullVal(sgRuleSetType()),
+	})
+}
+
+// sgLikeRead is the behavior the AWS provider actually shows for a security
+// group: name and ingress come back from DescribeSecurityGroups, while
+// timeouts and revoke_rules_on_delete are never touched by Read at all, so
+// whatever prior it was handed passes straight through - null included.
+func sgLikeRead(prior cty.Value) (cty.Value, error) {
+	out := map[string]cty.Value{}
+	for name, v := range prior.AsValueMap() {
+		out[name] = v
+	}
+	out["id"] = cty.StringVal("sg-823b494443f0e3e7a")
+	out["name"] = cty.StringVal("complete-postgresql-d9972d37dfe1552a1323196f98")
+	out["ingress"] = sgApplied().GetAttr("ingress")
+	return cty.ObjectVal(out), nil
+}
+
+// TestResidueCarriesASingleNestedBlockByValue is the
+// corpus-rds-complete-postgres finding in one assertion. Before this rule,
+// residueCandidates walked schema.Block.Attributes only, so
+// terraform-aws-modules' `timeouts { create = "10m" delete = "15m" }` was
+// never a candidate, never recorded, and every stateless replan after a
+// clean migrate proposed `+ timeouts {...}` on that security group forever -
+// against a stock plan that renders the identical block unchanged.
+//
+// It asserts the recorded value BY VALUE rather than "the diff went away":
+// an empty record and a record holding the wrong durations both make the
+// candidate list non-empty, and only the exact object the apply sent is a
+// pass.
+//
+// The set-nested blocks in the same schema are the negative control, and
+// they are what keeps this from being a rule about a block named
+// "timeouts": ingress is real cloud data the provider does read back, and
+// it must stay out of the record whatever this rule does to its neighbour.
+func TestResidueCarriesASingleNestedBlockByValue(t *testing.T) {
+	schema := sgLikeSchema()
+	applied := sgApplied()
+
+	candidates := residueCandidates(schema, applied)
+	want := []string{"name", "revoke_rules_on_delete", "timeouts"}
+	if !reflect.DeepEqual(candidates, want) {
+		t.Fatalf("residueCandidates = %v, want %v - a NestingSingle block is in scope and a NestingSet one is not, whatever either is called", candidates, want)
+	}
+
+	attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), sgLikeRead)
+	if !ok {
+		t.Fatal("classifyResidue recorded nothing")
+	}
+	got, held := attrs["timeouts"]
+	if !held {
+		t.Fatalf("timeouts was not recorded; recorded %v", attrs)
+	}
+	wantVal := cty.ObjectVal(map[string]cty.Value{
+		"create": cty.StringVal("10m"),
+		"delete": cty.StringVal("15m"),
+	})
+	if !got.RawEquals(wantVal) {
+		t.Fatalf("recorded timeouts = %#v, want %#v", got, wantVal)
+	}
+	if _, held := attrs["ingress"]; held {
+		t.Fatal("ingress was recorded - a block the provider reads from the remote must never reach a record")
+	}
+	if _, held := attrs["name"]; held {
+		t.Fatal("name was recorded - the filter lets it through and the classifier is what drops it, because the provider answers it")
+	}
+
+	// And the other half of the round trip: a cold read carrying no
+	// timeouts at all is filled back to exactly the same object, which is
+	// what makes the replan render "(1 unchanged block hidden)" the way
+	// stock's does.
+	cold := cty.ObjectVal(map[string]cty.Value{
+		"id":                     cty.StringVal("sg-823b494443f0e3e7a"),
+		"name":                   cty.StringVal("complete-postgresql-d9972d37dfe1552a1323196f98"),
+		"revoke_rules_on_delete": cty.NullVal(cty.Bool),
+		"timeouts":               cty.NullVal(sgTimeoutsType()),
+		"ingress":                sgApplied().GetAttr("ingress"),
+		"egress":                 cty.NullVal(sgRuleSetType()),
+	})
+	filled, n := fillResidue(cold, schema.Block, attrs)
+	if n != 2 {
+		t.Fatalf("fillResidue filled %d, want 2 (revoke_rules_on_delete and timeouts)", n)
+	}
+	if !filled.GetAttr("timeouts").RawEquals(wantVal) {
+		t.Fatalf("filled timeouts = %#v, want %#v", filled.GetAttr("timeouts"), wantVal)
+	}
+}
+
+// TestResidueRefusesASingleNestedBlockHoldingASecret holds the one
+// exclusion a block cannot express with a flag of its own: the flat-
+// attribute filter reads attr.Sensitive and attr.WriteOnly directly, and a
+// block has to be walked for the same answer. Both directions are asserted,
+// because a rule that excluded every block would also pass a test that only
+// checked the secret case.
+func TestResidueRefusesASingleNestedBlockHoldingASecret(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		attr *configschema.Attribute
+	}{
+		{"sensitive leaf", &configschema.Attribute{Type: cty.String, Optional: true, Sensitive: true}},
+		{"write-only leaf", &configschema.Attribute{Type: cty.String, Optional: true, WriteOnly: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := sgLikeSchema()
+			schema.Block.BlockTypes["timeouts"].Block.Attributes["create"] = tc.attr
+			for _, name := range residueCandidates(schema, sgApplied()) {
+				if name == "timeouts" {
+					t.Fatalf("timeouts is a residue candidate even though it holds a %s", tc.name)
+				}
+			}
+			if singleNestedResidueBlock(schema.Block, "timeouts") {
+				t.Fatalf("singleNestedResidueBlock admitted a block with a %s", tc.name)
+			}
+			// fillResidue must refuse it too, from the same predicate, so a
+			// record written before the schema grew the secret stops being
+			// filled the day it does.
+			cold := cty.ObjectVal(map[string]cty.Value{
+				"id":                     cty.StringVal("sg-1"),
+				"name":                   cty.StringVal("n"),
+				"revoke_rules_on_delete": cty.NullVal(cty.Bool),
+				"timeouts":               cty.NullVal(sgTimeoutsType()),
+				"ingress":                cty.NullVal(sgRuleSetType()),
+				"egress":                 cty.NullVal(sgRuleSetType()),
+			})
+			_, n := fillResidue(cold, schema.Block, map[string]cty.Value{
+				"timeouts": cty.ObjectVal(map[string]cty.Value{
+					"create": cty.StringVal("10m"),
+					"delete": cty.StringVal("15m"),
+				}),
+			})
+			if n != 0 {
+				t.Fatalf("fillResidue filled a block holding a %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestResidueRefusesACollectionNestedBlock is the stated bound, asserted so
+// that widening it later is a deliberate act rather than a side effect.
+// NestingList, NestingSet, NestingMap and NestingGroup all stay out: the
+// classifier's discriminator compares one whole value before and after, and
+// only NestingSingle has one.
+func TestResidueRefusesACollectionNestedBlock(t *testing.T) {
+	for _, nesting := range []configschema.NestingMode{
+		configschema.NestingList,
+		configschema.NestingSet,
+		configschema.NestingMap,
+		configschema.NestingGroup,
+	} {
+		schema := sgLikeSchema()
+		schema.Block.BlockTypes["timeouts"].Nesting = nesting
+		if singleNestedResidueBlock(schema.Block, "timeouts") {
+			t.Fatalf("singleNestedResidueBlock admitted nesting mode %v", nesting)
+		}
+	}
+}

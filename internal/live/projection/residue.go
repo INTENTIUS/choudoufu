@@ -395,13 +395,39 @@ const SummaryResidueUnreadable = "Residue record could not be read"
 //     the marker and the import, and a residue record must never be in a
 //     position to move an instance onto a different object.
 //
-// Nested blocks and nested object attributes are out of scope, and that is
-// a stated bound rather than an oversight: the classifier's discriminator
-// compares a whole attribute value before and after, which a block whose
-// nesting mode is a set or a map does not have a stable per-element form
-// for. aws_lambda_function.vpc_config is the case that would want it; on
-// the crossing that ran for issue #275 it is also a floci gap, so nothing
-// yet demands it. A block-shaped residue is its own piece of work.
+// Nested object ATTRIBUTES (attr.NestedType) are out of scope, and so is
+// every block whose nesting mode is a list, a set, a map or a group. That
+// is a stated bound rather than an oversight, and the bound's reason is
+// specific: the classifier's discriminator compares a whole attribute value
+// before and after, which a collection-nested block has no stable
+// per-element form for. aws_lambda_function.vpc_config is the case that
+// would want the collection half; on the crossing that ran for issue #275
+// it is also a floci gap, so nothing yet demands it.
+//
+// [configschema.NestingSingle] blocks ARE in scope, because the bound's
+// reason does not reach them. A single-nested block is one value in the
+// implied object type, exactly like a flat attribute, so "compare the whole
+// value before and after" is as well defined for it as for a string. The
+// crossing that demanded it is corpus-rds-complete-postgres: terraform-aws-
+// modules writes `timeouts { create = "10m" delete = "15m" }` on its
+// security group and its default route table, a block the provider's Read
+// never sources from the remote and only ever preserves from the prior it
+// was handed. A stock state file holds it; a stateless prior state had
+// nowhere to hold it, so every replan after a clean migrate proposed
+// `+ timeouts {...}` on those instances forever, against a stock plan that
+// shows the same block unchanged. Nothing about the rule names a type or a
+// block: `timeouts` is simply the single-nested block hashicorp/aws puts on
+// most of its resources, and any other config-only single-nested block
+// rides the same path.
+//
+// Safety is unchanged and still comes from [classifyResidue], not from
+// here. A single-nested block the provider really does source from the
+// remote fails read A's test; one the provider does not preserve fails read
+// B's. aws_default_network_acl's `egress`/`ingress` are the worked example
+// of why widening the filter does not silence drift: they are
+// [configschema.NestingSet], so they never reach this list at all - and
+// even if they did, floci returning no rules makes read B disagree with the
+// applied value, which is a skip.
 //
 // # Required, Optional and Computed are not asked here
 //
@@ -461,8 +487,102 @@ func residueCandidates(schema providers.Schema, applied cty.Value) []string {
 		}
 		out = append(out, name)
 	}
+	for name := range schema.Block.BlockTypes {
+		if identityAttrs[name] || !singleNestedResidueBlock(schema.Block, name) {
+			continue
+		}
+		if !applied.Type().HasAttribute(name) {
+			continue
+		}
+		v := applied.GetAttr(name)
+		if v.IsNull() || !v.IsWhollyKnown() || v.IsMarked() {
+			continue
+		}
+		out = append(out, name)
+	}
 	sort.Strings(out)
 	return out
+}
+
+// singleNestedResidueBlock reports whether name is a block type on this
+// schema that residue may carry, and it is the ONE place that question is
+// answered - [residueCandidates] asks it to decide what may be recorded and
+// [fillResidue] asks it to decide what may be filled, so the two populations
+// cannot drift apart.
+//
+// Two conditions, both from [residueCandidates]'s doc comment:
+//
+//   - The nesting mode is [configschema.NestingSingle], so the block is one
+//     value in the implied object type and the classifier's whole-value
+//     discriminator is defined for it. NestingGroup is excluded along with
+//     the collections: it also renders as a single value, but an absent
+//     group reads back as a block full of zero values rather than a null,
+//     so "read A carries no information" cannot be told apart from "the
+//     group is really empty".
+//   - Nothing sensitive or write-only anywhere inside it. That is the same
+//     rule the flat-attribute filter applies through attr.Sensitive and
+//     attr.WriteOnly, asked over a whole nested schema because a block has
+//     no single flag to read.
+func singleNestedResidueBlock(block *configschema.Block, name string) bool {
+	if block == nil {
+		return false
+	}
+	blk := block.BlockTypes[name]
+	if blk == nil || blk.Nesting != configschema.NestingSingle {
+		return false
+	}
+	return !blk.ContainsSensitive() && !containsWriteOnly(&blk.Block)
+}
+
+// containsWriteOnly reports whether a block schema carries a write-only
+// attribute anywhere inside it. [configschema.Block.ContainsSensitive] is
+// the same walk for the sensitive flag and already exists; there is no
+// value-free equivalent for write-only ([configschema.Block.WriteOnlyPaths]
+// needs a value), so this is it.
+func containsWriteOnly(b *configschema.Block) bool {
+	if b == nil {
+		return false
+	}
+	for _, attr := range b.Attributes {
+		if attr == nil {
+			continue
+		}
+		if attr.WriteOnly {
+			return true
+		}
+		if attr.NestedType != nil && nestedContainsWriteOnly(attr.NestedType) {
+			return true
+		}
+	}
+	for _, blk := range b.BlockTypes {
+		if blk == nil {
+			continue
+		}
+		if containsWriteOnly(&blk.Block) {
+			return true
+		}
+	}
+	return false
+}
+
+// nestedContainsWriteOnly is [containsWriteOnly] over a nested object
+// attribute's own schema.
+func nestedContainsWriteOnly(o *configschema.Object) bool {
+	if o == nil {
+		return false
+	}
+	for _, attr := range o.Attributes {
+		if attr == nil {
+			continue
+		}
+		if attr.WriteOnly {
+			return true
+		}
+		if attr.NestedType != nil && nestedContainsWriteOnly(attr.NestedType) {
+			return true
+		}
+	}
+	return false
 }
 
 // RecordResidueForInstance is [classifyResidue]'s classify-and-record step
@@ -1022,9 +1142,18 @@ func fillResidue(obj cty.Value, block *configschema.Block, attrs map[string]cty.
 		cur := obj.GetAttr(name)
 		rec, recorded := attrs[name]
 		schemaAttr := block.Attributes[name]
+		// A name the schema carries as a single-nested BLOCK rather than an
+		// attribute is fillable on exactly the terms [residueCandidates]
+		// let it be recorded on, and on no others. The two populations are
+		// derived from the same schema here rather than trusted to match,
+		// because the record is a file on disk that outlives the run that
+		// wrote it: a record written when a name was in scope must stop
+		// being filled the day the schema moves it out of scope.
+		fillableBlock := schemaAttr == nil && singleNestedResidueBlock(block, name)
 		switch {
-		case !recorded, !carriesNoInformation(cur), schemaAttr == nil,
-			schemaAttr.Sensitive, schemaAttr.WriteOnly,
+		case !recorded, !carriesNoInformation(cur),
+			schemaAttr == nil && !fillableBlock,
+			schemaAttr != nil && (schemaAttr.Sensitive || schemaAttr.WriteOnly),
 			rec.IsNull(), !rec.IsWhollyKnown(), rec.IsMarked(),
 			!rec.Type().Equals(ty):
 			out[name] = cur

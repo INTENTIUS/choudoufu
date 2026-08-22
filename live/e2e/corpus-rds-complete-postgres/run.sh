@@ -176,19 +176,74 @@ set -uo pipefail
 # internal/live/identity/testdata/deferred-through-module-list with
 # deferred_through_module_list_test.go rendering every variant by value.
 #
-# WHAT IS LEFT, none of it identity, is what step 3 now counts by cause:
+# WHAT IS LEFT, none of it identity, is what step 3 now counts by cause -
+# and every line of it is now MEASURED rather than read off the plan and
+# attributed by eye, which is what the 2026-08-22 pass changed:
 #
-#   22 instances want the tofu-slot marker live-import does not write. This
-#      is corpus-ecs-fargate's own pinned unit, hit here independently.
-#    1 aws_db_parameter_group is created because it is named through
-#      name_prefix: the provider appends a random suffix at create time, so
-#      no import identity exists until marker discovery finds it, and the
-#      plan says exactly that in its "Not read from the live system" block.
-#    2 aws_db_instance must be replaced, and aws_db_subnet_group and
-#      aws_default_network_acl want updates, because floci does not echo
-#      back what the apply set - storage_encrypted reads back false and
-#      forces replacement, tags come back empty, network ACL rules come
-#      back absent. An emulator gap, not a plan defect.
+#   22 instances want the tofu-slot marker live-import does not write.
+#      choudoufu #372, corpus-ecs-fargate's own pinned unit, hit here
+#      independently and confirmed to be the identical root cause rather
+#      than a look-alike: live-import performs no discovery pass, a slot is
+#      the discovery pass's answer (internal/live/discovery's SlotMigrated
+#      origin), so the migration writes tofu-estate and tofu-address and
+#      leaves the slot to the first ordinary live-plan. See
+#      internal/live/liveimport/doc.go's closing paragraph and
+#      internal/live/stamp/doc.go's "tofu-slot comes in from outside".
+#      corpus-iam-policy's crossing folds a converging apply into its own
+#      stage 2; this estate cannot, because its plan is not slot-only - an
+#      apply here would also act on the two replacements below.
+#    1 aws_db_parameter_group is created, and the reason is the EMULATOR,
+#      not the name_prefix sentence the plan prints. name_prefix is why no
+#      import identity exists; marker discovery is what would find the
+#      object anyway, and on floci it never can. Measured directly at step
+#      3f: DescribeDBParameterGroups returns NO DBParameterGroupArn for it,
+#      and AddTagsToResource on its 'pg' ARN answers "Tagging for resource
+#      type 'pg' is not yet implemented by Floci". Real RDS returns
+#      DBParameterGroupArn on every DBParameterGroup and accepts a 'pg' ARN,
+#      so the marker would land there. live-import already reports the
+#      failure honestly rather than claiming the stamp - "the write reported
+#      no error, but the object read back afterwards does not carry the new
+#      markers" - and NEEDS_DISCOVERY is the correct classification. Nothing
+#      on this side to fix; it wants a floci issue.
+#    2 aws_db_instance must be replaced, and STOCK PROPOSES THE SAME TWO.
+#      Step 3g now puts the identical question to stock terraform against
+#      its own state file and the same cloud, and asserts the answers match:
+#      the same two addresses, forced by the same line, `~ storage_encrypted
+#      = false -> true # forces replacement`. floci's DescribeDBInstances
+#      returns no StorageEncrypted at all (the AWS CLI reads it None), so
+#      both binaries read it back false. HANDOFF's third row - stock fails
+#      too - proven rather than asserted.
+#    1 aws_db_subnet_group and 1 aws_default_network_acl are the same
+#      round-trip gap in tags and in rule blocks respectively: the subnet
+#      group's Example/Name/Repository tags, set at CreateDBSubnetGroup
+#      time, are absent from ListTagsForResource afterwards, while the
+#      tofu-* tags written later through AddTagsToResource persist.
+#
+# THE ONE THING IN THAT RESIDUE THAT WAS CHOUDOUFU'S, found by this crossing
+# and FIXED in the same pass (HANDOFF's second row - the plans differ):
+# a config-only NESTED BLOCK the provider never reads back was never carried
+# in the record, so every stateless replan proposed adding it, forever.
+# terraform-aws-modules writes `timeouts { create = "10m" delete = "15m" }`
+# on its security group and `timeouts { create = "5m" update = "5m" }` on
+# the VPC's default route table; the state file holds them and stock's plan
+# renders them "(1 unchanged block hidden)", while choudoufu proposed
+# "+ timeouts {...}" on both. internal/live/projection's residueCandidates
+# walked schema.Block.Attributes only, with a doc comment stating nested
+# blocks as a deliberate bound - and the bound's own stated REASON (a set-
+# or map-nested block has no stable per-element form for a whole-value
+# comparison) does not reach NestingSingle, which is one value in the
+# implied object type exactly like a flat attribute. So the rule is now
+# "NestingSingle blocks with nothing sensitive or write-only anywhere inside
+# them", the collection modes stay out with their reason intact, and the
+# safety is unchanged: classifyResidue's two-read discriminator still
+# decides, and aws_default_network_acl's egress/ingress are the worked
+# example of a block that fails it. It names no type and no block name.
+# Measured here: "+ timeouts {" 2 -> 0, both blocks now render stock's own
+# "(1 unchanged block hidden)", and no other line of the plan moved (24
+# action headers before and after, 3 to add / 21 to change / 2 to destroy
+# both times). Asserted by value in
+# internal/live/projection/residue_test.go, and step 3e asserts BOTH
+# directions here - the proposal gone AND the block still present.
 #
 # #305 (admission: aws_default_network_acl/aws_default_route_table/
 # aws_default_security_group were unadmitted) is FIXED. aws_default_network_
@@ -247,14 +302,23 @@ set -uo pipefail
 #                          back BY VALUE through the AWS CLI rather than
 #                          through choudoufu's own report. What blocks the
 #                          stage now is a different set entirely, counted by
-#                          cause: 22 instances missing tofu-slot (the same
-#                          unit corpus-ecs-fargate's crossing pinned), 1
-#                          name_prefix parameter group with no import
-#                          identity until discovery finds it, and floci
-#                          round-trip drift forcing 2 replacements and 2
-#                          tag/rule updates. None of the three is this
-#                          estate's to fix and none of them is identity.
-#                          BREAK=1 is the negative control.
+#                          cause and each one now MEASURED against its own
+#                          oracle: 22 instances missing tofu-slot (choudoufu
+#                          #372, corpus-ecs-fargate's pinned unit, confirmed
+#                          same root cause), 1 name_prefix parameter group
+#                          whose marker can never land because floci
+#                          implements no RDS 'pg' tagging and returns no
+#                          DBParameterGroupArn (step 3f asks floci), and 2
+#                          replacements STOCK TERRAFORM PROPOSES TOO on its
+#                          own state file, forced by the same
+#                          storage_encrypted line (step 3g asks stock).
+#                          None of the three is this estate's to fix and
+#                          none of them is identity. The one residue item
+#                          that WAS choudoufu's - "+ timeouts {...}" on two
+#                          instances, a config-only NestingSingle block the
+#                          record did not carry - is fixed in this same
+#                          pass and is now 0. BREAK=1 is the negative
+#                          control.
 #   stage 4  test apply    NOT RUN - depends on stage 3, which does not
 #                          produce a clean plan while the tofu-slot,
 #                          name_prefix and emulator round-trip gaps stand.
@@ -278,9 +342,10 @@ set -uo pipefail
 #                live/floci-image.
 #   BREAK        set to 1 to corrupt every expected stage-3 count - the
 #                five refusal counts this estate no longer has, the
-#                aws_security_group_rule action count, and every residue
-#                count - proving those assertions are load-bearing rather
-#                than a grep that always matches. Stages 1 and 2 are
+#                aws_security_group_rule action count, every residue count,
+#                and the "+ timeouts {" count the block-shaped residue fix
+#                drove to zero - proving those assertions are load-bearing
+#                rather than a grep that always matches. Stages 1 and 2 are
 #                unaffected and still pass; stage 3 is the one that must
 #                fail.
 #
@@ -606,7 +671,37 @@ WANT_SLOT_N=22
 WANT_CREATE_N=1
 WANT_REPLACE_N=2
 WANT_UPDATE_N=21
+# THE BLOCK-SHAPED RESIDUE FINDING, this crossing's own, and the one thing
+# in the residue that was choudoufu's. terraform-aws-modules/security-group
+# and terraform-aws-modules/vpc both write a `timeouts` block:
+#
+#   timeouts { create = "10m" delete = "15m" }   aws_security_group
+#   timeouts { create = "5m"  update = "5m"  }   aws_default_route_table
+#
+# The provider's Read never sources that block from the API - it only
+# preserves whatever prior it was handed - so a stock state file is the only
+# thing that ever held it. internal/live/projection's residue store is what
+# holds such a value here, and it walked schema.Block.Attributes ONLY, with
+# a doc comment stating nested blocks as a deliberate bound. So the block was
+# never a candidate, never recorded, and every stateless replan proposed
+# `+ timeouts {...}` on those two instances forever, while stock's plan on
+# its own state renders the identical block "(1 unchanged block hidden)".
+# HANDOFF's second row: the plans differ, so it is a defect.
+#
+# The bound's stated REASON is that the classifier compares one whole value
+# before and after and a set- or map-nested block has no stable per-element
+# form for that. That reason does not reach NestingSingle, which is one value
+# in the implied object type exactly like a flat attribute - so the rule is
+# now "NestingSingle blocks, nothing sensitive or write-only anywhere inside
+# them", and the collection modes stay out with their reason intact. It names
+# no type and no block: `timeouts` is simply the single-nested block
+# hashicorp/aws puts on most of its resources. Asserted by value in
+# internal/live/projection/residue_test.go's
+# TestResidueCarriesASingleNestedBlockByValue, and asserted here as the
+# absence of the proposal plus the presence of stock's own rendering.
+WANT_TIMEOUTS_N=0
 if [ "${BREAK:-}" = "1" ]; then
+  WANT_TIMEOUTS_N=1
   WANT_CIDX_N=1
   WANT_DEFAULT_N=1
   WANT_UNRESOLVABLE_N=1
@@ -721,18 +816,125 @@ grep -qE '^  # module\.db\.module\.db_parameter_group\.aws_db_parameter_group\.t
 grep -qF 'name_prefix rather than "name"' <<< "$PLAN_FLAT" \
   || fail "the plan no longer says WHY the parameter group could not be read - that sentence is the difference between a documented gap and a silent create"
 
+# ── 3e. the block-shaped residue, asserted both ways ───────────────────────
+# The proposal must be gone, AND the block must still be there: an assertion
+# that only checked for the absence of "+ timeouts" would also pass if the
+# block had vanished from the plan altogether, which is a different and
+# worse outcome.
+TIMEOUTS_N="$(grep -cE '^[[:space:]]*\+ timeouts \{$' <<< "$PLAN_OUT")"
+[ "$TIMEOUTS_N" = "$WANT_TIMEOUTS_N" ] || {
+  grep -nE '^  # |^[[:space:]]*\+ timeouts \{$' <<< "$PLAN_OUT"
+  fail "expected $WANT_TIMEOUTS_N '+ timeouts {' proposals - a config-only NestingSingle block the provider never reads back belongs in the residue record, not in every replan - got $TIMEOUTS_N"; }
+for addr in 'module.security_group.aws_security_group.this_name_prefix[0]' \
+            'module.vpc.aws_default_route_table.default[0]'; do
+  # index() rather than a regex: these addresses carry [0], and an address
+  # spliced into a dynamic awk regex would read it as a character class.
+  BLOCK_HIT="$(awk -v a="  # $addr " '
+    index($0, "  # ") == 1 { inblock = (index($0, a) == 1) }
+    inblock && index($0, "# (1 unchanged block hidden)") > 0 { print "HIT"; exit }
+  ' <<< "$PLAN_OUT")"
+  [ "$BLOCK_HIT" = "HIT" ] \
+    || { awk -v a="  # $addr " 'index($0,"  # ")==1 { inblock=(index($0,a)==1) } inblock' <<< "$PLAN_OUT"
+         fail "$addr no longer renders its timeouts block as '(1 unchanged block hidden)' - which is exactly what stock's own plan renders for it, and the point of recording the block was to agree with that"; }
+done
+log "  the block-shaped residue is closed for real: 0 '+ timeouts {'"
+log "  proposals, and both blocks that declare one render '(1 unchanged"
+log "  block hidden)' - the identical line stock's plan renders. The rule is"
+log "  NestingSingle blocks with nothing sensitive or write-only inside;"
+log "  it names no type and no block name."
+
+# ── 3f. blocker 2, the parameter group, settled against floci's own API ────
+# The plan's sentence says name_prefix, and that is true but not the whole
+# reason: marker discovery is what would find a name_prefix object, and on
+# this emulator it never can, because floci implements no tagging for the
+# RDS 'pg' resource type at all and DescribeDBParameterGroups returns no
+# DBParameterGroupArn to tag by. Real RDS returns DBParameterGroupArn on
+# every DBParameterGroup and accepts a 'pg' ARN in AddTagsToResource, so
+# this is the emulator's gap and not the plan's. live-import already says so
+# for itself - "the write reported no error, but the object read back
+# afterwards does not carry the new markers" - and this asserts it against
+# the emulator directly rather than through choudoufu's own report.
+PG_NAME="$(awsl rds describe-db-parameter-groups \
+  --query "DBParameterGroups[?starts_with(DBParameterGroupName, 'complete-postgresql')].DBParameterGroupName | [0]" --output text)"
+[ -n "$PG_NAME" ] && [ "$PG_NAME" != "None" ] || fail "could not find the name_prefix parameter group through the AWS CLI"
+PG_ARN_READ="$(awsl rds describe-db-parameter-groups --db-parameter-group-name "$PG_NAME" \
+  --query 'DBParameterGroups[0].DBParameterGroupArn' --output text)"
+[ "$PG_ARN_READ" = "None" ] || [ -z "$PG_ARN_READ" ] \
+  || fail "floci now returns DBParameterGroupArn=$PG_ARN_READ for $PG_NAME - the emulator gap this stage records has been fixed, so re-measure who owns the create"
+PG_TAG_ERR="$(awsl rds add-tags-to-resource \
+  --resource-name "arn:aws:rds:${REGION}:000000000000:pg:${PG_NAME}" \
+  --tags Key=tofu-estate,Value="$ESTATE" 2>&1)" && \
+  fail "floci accepted AddTagsToResource on the RDS 'pg' ARN - the emulator gap this stage records has been fixed, so re-measure who owns the create"
+grep -qF "not yet implemented by Floci" <<< "$PG_TAG_ERR" \
+  || { printf '%s\n' "$PG_TAG_ERR"; fail "AddTagsToResource on the 'pg' ARN failed for a reason other than floci's own not-implemented answer - re-read it before recording this as an emulator gap"; }
+log "  the one create is settled against floci's own API, not inferred:"
+log "  DescribeDBParameterGroups returns no DBParameterGroupArn for $PG_NAME,"
+log "  and AddTagsToResource on its 'pg' ARN answers"
+log "  \"Tagging for resource type 'pg' is not yet implemented by Floci\"."
+log "  A marker can never land on it here, so marker discovery can never"
+log "  find it, so the plan proposes a create. NEEDS_DISCOVERY is the"
+log "  correct classification and there is nothing on this side to fix."
+
+# ── 3g. blocker 3, the two replacements, put to STOCK as the oracle ────────
+# HANDOFF's third row is "stock fails too", and it is a measurement, not a
+# reading. The plain estate from stage 1 still has its own terraform.tfstate
+# and its own .terraform, so stock can be asked the identical question
+# against the identical cloud. It proposes the SAME two replacements, forced
+# by the SAME attribute, because floci's DescribeDBInstances returns no
+# StorageEncrypted at all and the provider reads it back false on both
+# sides. Tag noise is expected in stock's plan and deliberately not asserted
+# on: stage 2 stamped markers onto objects stock's state does not know about,
+# so stock proposes removing them. Only the replacements are the oracle.
+log "=== 3g. the same question put to stock terraform (HANDOFF row 3) ==="
+STOCK_PLAN_OUT="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
+STOCK_PLAN_RC=$?
+[ "$STOCK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock terraform plan against its own state exited $STOCK_PLAN_RC - the oracle has to run for this stage to record what it records"; }
+STOCK_ACTIONS="$(grep -E '^  # ' <<< "$STOCK_PLAN_OUT")"
+STOCK_REPLACE_N="$(grep -c 'must be replaced$' <<< "$STOCK_ACTIONS")"
+[ "$STOCK_REPLACE_N" = "$WANT_REPLACE_N" ] || {
+  printf '%s\n' "$STOCK_ACTIONS"
+  fail "stock proposes $STOCK_REPLACE_N replacements against its OWN state file, choudoufu proposes $WANT_REPLACE_N - they have to be the same set for this to be HANDOFF's third row rather than a defect of ours"; }
+for addr in 'module.db.module.db_instance.aws_db_instance.this[0]' \
+            'module.db_default.module.db_instance.aws_db_instance.this[0]'; do
+  grep -qF "  # $addr must be replaced" <<< "$STOCK_ACTIONS" \
+    || { printf '%s\n' "$STOCK_ACTIONS"; fail "stock does not propose replacing $addr, but choudoufu does - that is HANDOFF's second row and ours to fix, not the third"; }
+  grep -qF "  # $addr must be replaced" <<< "$PLAN_ACTIONS" \
+    || { printf '%s\n' "$PLAN_ACTIONS"; fail "choudoufu no longer proposes replacing $addr - re-measure this stage's residue before recording stock's answer against it"; }
+done
+STOCK_FORCE_N="$(grep -cE '^[[:space:]]*~ storage_encrypted +=  *false -> true # forces replacement$' <<< "$STOCK_PLAN_OUT")"
+OURS_FORCE_N="$(grep -cE '^[[:space:]]*~ storage_encrypted +=  *false -> true # forces replacement$' <<< "$PLAN_OUT")"
+[ "$STOCK_FORCE_N" = "$WANT_REPLACE_N" ] && [ "$OURS_FORCE_N" = "$WANT_REPLACE_N" ] \
+  || fail "storage_encrypted forces $OURS_FORCE_N replacement(s) here and $STOCK_FORCE_N under stock, want $WANT_REPLACE_N each - the two binaries have to be forced by the same attribute for this to be stock's failure rather than ours"
+LIVE_ENCRYPTED="$(awsl rds describe-db-instances --db-instance-identifier complete-postgresql \
+  --query 'DBInstances[0].StorageEncrypted' --output text)"
+[ "$LIVE_ENCRYPTED" = "None" ] || [ -z "$LIVE_ENCRYPTED" ] \
+  || fail "floci now returns StorageEncrypted=$LIVE_ENCRYPTED for complete-postgresql - the round-trip gap both binaries trip on has been fixed, so re-measure who owns the replacements"
+log "  stock terraform, on its OWN state file and the same cloud, proposes"
+log "  the SAME $STOCK_REPLACE_N replacements as choudoufu, on the same two"
+log "  addresses, forced by the same line:"
+log "      ~ storage_encrypted = false -> true # forces replacement"
+log "  floci's DescribeDBInstances returns no StorageEncrypted at all"
+log "  (the AWS CLI reads it as None), so both binaries read it back false."
+log "  HANDOFF's third row: stock fails too. Recorded, not fixed."
+
 log ""
 log "STAGE 3 (test_plan): the identity layer is CLEAR for real - 0 refusals"
 log "of any kind, where this estate stood at 7, then 33, then 14, then 2."
-log "The plan is not empty, and nothing left in it is identity:"
+log "The plan is not empty, and nothing left in it is identity - and after"
+log "this run, nothing left in it is choudoufu's either:"
 log "  $SLOT_N instances want the tofu-slot marker live-import does not write"
-log "     (the same unit corpus-ecs-fargate's crossing pinned)"
-log "  $CREATE_N create - the name_prefix parameter group, no import identity"
-log "     until marker discovery finds it, and the plan says so itself"
-log "  $REPLACE_N replacements + the db_subnet_group and default_network_acl"
-log "     updates - floci does not echo back what the apply set"
+log "     (the same unit corpus-ecs-fargate's crossing pinned, choudoufu #372)"
+log "  $CREATE_N create - the name_prefix parameter group. floci implements no"
+log "     tagging for the RDS 'pg' type and returns no DBParameterGroupArn,"
+log "     so the marker can never land and discovery can never find it -"
+log "     asserted against floci's own API at step 3f"
+log "  $REPLACE_N replacements - stock terraform proposes the identical two on"
+log "     its own state file, forced by the identical storage_encrypted"
+log "     line, asserted at step 3g. HANDOFF's third row."
+log "  0 '+ timeouts {' proposals, was 2 - the block-shaped residue gap this"
+log "     crossing found, fixed generically for NestingSingle blocks"
 log ""
-gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2) - #313 root cause B was the routing to the module output, and computedselect.go folds var.<list>[count.index] and lookup(<a module-call argument>) into the chase the literal-index spelling already took. Remaining: $SLOT_N instances missing tofu-slot (live-import does not write it - corpus-ecs-fargate's own unit), 1 name_prefix parameter group with no import identity until discovery, and floci round-trip drift forcing $REPLACE_N replacements"
+gauntlet_stage test_plan fail "identity CLEAR for real: 0 refusals of any kind (was 7, then 33, then 14, then 2). The block-shaped residue gap this crossing found is FIXED: internal/live/projection's residue filter walked schema.Block.Attributes only, so a config-only NestingSingle block the provider never reads back (terraform-aws-modules' timeouts{}) was never recorded and every replan proposed adding it - '+ timeouts {' 2 -> 0 here, and both blocks now render stock's own '(1 unchanged block hidden)'. The rule names no type and reaches every NestingSingle block with nothing sensitive or write-only inside it. Nothing left in the plan is choudoufu's: $SLOT_N instances missing tofu-slot (live-import does not write it - choudoufu #372, corpus-ecs-fargate's own unit), 1 name_prefix parameter group whose marker can never land because floci implements no tagging for the RDS 'pg' type and returns no DBParameterGroupArn (asserted against floci's own API at step 3f), and $REPLACE_N replacements stock terraform proposes identically on its own state file, forced by the same storage_encrypted = false -> true line because floci's DescribeDBInstances returns no StorageEncrypted at all (asserted at step 3g - HANDOFF's third row)"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
