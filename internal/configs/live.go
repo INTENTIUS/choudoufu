@@ -97,6 +97,42 @@ type Live struct {
 	// only lifts the RECORD_ADMITTED refusal when this is non-nil. See
 	// [LiveRecordStore].
 	RecordStore *LiveRecordStore
+
+	// Strict is the optional nested "strict" block: GitHub issue #365's
+	// profile toggles, each one of the principles this fork exists for
+	// turned into a setting whose default is today's behavior. Nil when the
+	// live block sets no strict block at all, which must mean exactly what
+	// a configuration written before the block existed got - the same
+	// "absent means absent" contract Policy and RecordStore already follow,
+	// and the thing that makes HANDOFF.md's "compatible out of the box"
+	// true by construction rather than by review.
+	//
+	// Like [Live.Policy], this is the raw decode only: the literal string
+	// an author wrote, with no opinion on whether it means anything. That
+	// judgement needs internal/live/strict's vocabulary and belongs to
+	// internal/live/lint.
+	Strict *LiveStrict
+}
+
+// LiveStrict is the "strict" block nested inside a live block. See
+// [Live.Strict].
+type LiveStrict struct {
+	// MarkerRepair is the literal string an author wrote for the
+	// "marker_repair" argument - "repair", "never", or whatever they typed,
+	// valid or not. Validity is internal/live/strict's vocabulary, checked
+	// at lint time by internal/live/lint.checkLiveStrict, for the same
+	// reason [LivePolicy]'s quadrant verbs are checked there: this package
+	// does not depend on that one.
+	//
+	// MarkerRepairSet distinguishes an omitted argument, which resolves to
+	// internal/live/strict.DefaultMarkerRepair and therefore to today's
+	// behavior, from one written out.
+	MarkerRepair      string
+	MarkerRepairSet   bool
+	MarkerRepairRange hcl.Range
+
+	// DeclRange is the "strict" block's own header.
+	DeclRange hcl.Range
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
@@ -269,6 +305,13 @@ var liveBlockSchema = &hcl.BodySchema{
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "policy"},
 		{Type: "record_store", LabelNames: []string{"type"}},
+		{Type: "strict"},
+	},
+}
+
+var liveStrictSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{Name: "marker_repair"},
 	},
 }
 
@@ -354,13 +397,15 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		})
 	}
 
-	var policyBlocks, recordStoreBlocks []*hcl.Block
+	var policyBlocks, recordStoreBlocks, strictBlocks []*hcl.Block
 	for _, block := range content.Blocks {
 		switch block.Type {
 		case "policy":
 			policyBlocks = append(policyBlocks, block)
 		case "record_store":
 			recordStoreBlocks = append(recordStoreBlocks, block)
+		case "strict":
+			strictBlocks = append(strictBlocks, block)
 		}
 	}
 
@@ -407,7 +452,48 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		s.RecordStore = rs
 	}
 
+	switch len(strictBlocks) {
+	case 0:
+		// No strict block: Strict stays nil, which every reader must take
+		// as "today's behavior", the same contract Policy and RecordStore
+		// have above. See [Live.Strict].
+	case 1:
+		st, stDiags := decodeStrictBlock(strictBlocks[0])
+		diags = append(diags, stDiags...)
+		s.Strict = st
+	default:
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Duplicate strict block",
+			Detail:   "A live block may have at most one strict block.",
+			Subject:  strictBlocks[1].DefRange.Ptr(),
+		})
+		st, stDiags := decodeStrictBlock(strictBlocks[0])
+		diags = append(diags, stDiags...)
+		s.Strict = st
+	}
+
 	return s, diags
+}
+
+// decodeStrictBlock decodes a live block's nested "strict" block: GitHub
+// issue #365's profile toggles. See [LiveStrict].
+func decodeStrictBlock(block *hcl.Block) (*LiveStrict, hcl.Diagnostics) {
+	st := &LiveStrict{DeclRange: block.DefRange}
+
+	content, diags := block.Body.Content(liveStrictSchema)
+
+	if attr, exists := content.Attributes["marker_repair"]; exists {
+		st.MarkerRepairRange = attr.Range
+		val, valDiags := decodeLiteralString(attr, "marker_repair")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			st.MarkerRepair = val
+			st.MarkerRepairSet = true
+		}
+	}
+
+	return st, diags
 }
 
 // decodeRecordStoreBlock decodes a live block's nested "record_store" block:

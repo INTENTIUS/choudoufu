@@ -78,6 +78,17 @@ var enforcedLimits = map[string]Rule{
 	"policy-verb":      RulePolicyVerb,
 	"policy-scope":     RulePolicyScope,
 	"policy-threshold": RulePolicyThreshold,
+	// GitHub issue #365's first strict-profile toggle. The fixture sets
+	// marker_repair = "never", a setting the schema defines and no build
+	// implements yet; internal/live/lint/testdata carries the rest of the
+	// matrix (the default omitted, the default written out, the other
+	// unimplemented setting, and a typo).
+	//
+	// This is an entry the day the mechanism lands has to revisit rather
+	// than delete: "never" and "report" stop being refusals then, and the
+	// fixture moves to whatever the rule still catches - a value outside
+	// the vocabulary.
+	"strict-marker-repair": RuleStrictMarkerRepair,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

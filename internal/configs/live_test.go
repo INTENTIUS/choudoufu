@@ -642,3 +642,88 @@ func TestValidateRecordStoreKeyPrefix(t *testing.T) {
 		})
 	}
 }
+
+// TestModule_liveStrict covers GitHub issue #365's config surface: a "strict"
+// block nested inside "live", carrying the profile toggles as literal
+// strings. The decoder records what was written and judges none of it -
+// which strings mean something is internal/live/strict's vocabulary, checked
+// at lint time, the same layering LivePolicy's quadrant verbs already have.
+func TestModule_liveStrict(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("no strict block was decoded")
+	}
+	if !st.MarkerRepairSet {
+		t.Fatal("MarkerRepairSet is false for a block that writes marker_repair")
+	}
+	if got, want := st.MarkerRepair, "never"; got != want {
+		t.Errorf("MarkerRepair = %q, want %q", got, want)
+	}
+	if st.MarkerRepairRange.Filename == "" {
+		t.Error("MarkerRepairRange is the zero value, so a diagnostic cannot point at the argument")
+	}
+}
+
+// TestModule_liveStrictEmpty: a strict block that sets nothing decodes as a
+// non-nil block with every *Set flag false. The distinction matters because
+// "the block is there and sets nothing" and "the block is absent" must both
+// mean today's behavior, and neither may be spellable as a value.
+func TestModule_liveStrictEmpty(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-empty")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	st := mod.Live.Strict
+	if st == nil {
+		t.Fatal("an empty strict block decoded as nil")
+	}
+	if st.MarkerRepairSet {
+		t.Errorf("MarkerRepairSet is true for a strict block that writes no marker_repair (value %q)", st.MarkerRepair)
+	}
+}
+
+// TestModule_liveStrictAbsent: no strict block leaves Live.Strict nil, which
+// every reader must take as "today's behavior". This is the config-layer half
+// of HANDOFF.md's "compatible out of the box" - the same "absent means
+// absent" contract Policy and RecordStore already follow.
+func TestModule_liveStrictAbsent(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live == nil {
+		t.Fatal("no live block was decoded")
+	}
+	if mod.Live.Strict != nil {
+		t.Errorf("Strict is %+v for a live block with no strict block, want nil", mod.Live.Strict)
+	}
+}
+
+// TestModule_liveStrictRefused: everything that can be wrong with a strict
+// block's SHAPE is lexical and caught here. What is wrong with a VALUE is
+// not - "sometimes" decodes perfectly well and is refused by
+// internal/live/lint, the same division policy verbs have.
+func TestModule_liveStrictRefused(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		want string
+	}{
+		{"testdata/invalid-files/live-strict-duplicate.tf", "Duplicate strict block"},
+		{"testdata/invalid-files/live-strict-non-literal.tf", "Variables not allowed"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			parser := NewParser(nil)
+			_, diags := parser.LoadConfigFile(tc.file)
+			if !diags.HasErrors() {
+				t.Fatal("the configuration loaded with no errors")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("wrong diagnostic:\n%s", diags.Error())
+			}
+		})
+	}
+}

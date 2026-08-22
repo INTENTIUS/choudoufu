@@ -1293,7 +1293,19 @@ const (
 	// Then 521 -> 524 dirs and 1589 -> 1592 instances for GitHub issue #354:
 	// three new directories, three added rows, nothing modified. See
 	// identityGoldenPinInstances' own comment directly above.
-	identityGoldenPinDirs = 524
+	//
+	// Then 524 -> 529 dirs for GitHub issue #365's strict block: five new
+	// configuration directories, none of which declares a resource at all -
+	// four under internal/live/lint/testdata (the marker_repair matrix: the
+	// default omitted, the default written out, an unimplemented setting, a
+	// setting outside the vocabulary) and live/e2e/limits/
+	// strict-marker-repair. Every one is a terraform{live{strict{}}} block
+	// and nothing else, so none contributes a row.
+	// identityGoldenPinInstances and identityGoldenPinBodyDigest are both
+	// unchanged, confirmed by regenerating and diffing: only the header's
+	// "dirs=" line moved, and TestIdentityGolden itself reported "differs
+	// but no instance's identity did".
+	identityGoldenPinDirs = 529
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
