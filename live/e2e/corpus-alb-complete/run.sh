@@ -64,9 +64,34 @@ set -uo pipefail
 # references. See each issue for the full detail this header only
 # summarizes.
 #
-# TWO REAL FLOCI GAPS FOUND, LEFT OPEN (genuine feature builds, not
-# one-field fixes - worked around here with documented deltas/behavior so
-# this script can still stand the estate up and migrate it for real):
+# A FOURTH FLOCI GAP, FOUND HERE AND SINCE FIXED UPSTREAM:
+#
+#   lex00/floci#65 (CLOSED 2026-08-22). ELBv2 DescribeListeners/DescribeRules
+#   dropped AuthenticateCognitoConfig/AuthenticateOidcConfig entirely -
+#   Action.java's model had no fields for either action type, so
+#   CreateListener/CreateRule accepted them (stage 1's apply always succeeded
+#   cleanly) but the read path echoed back only
+#   {"Type": "authenticate-cognito"}, config gone. It surfaced in stage 2:
+#   live-import stamps ownership tags by re-planning a synthetic config built
+#   from the live-read object, and since the live-read never populated
+#   authenticate_cognito/authenticate_oidc, terraform-provider-aws correctly
+#   rejected the result as internally inconsistent ("... must be specified
+#   when type is 'authenticate-cognito'"). Four instances landed in
+#   live-import's own FAILED bucket - the two authenticate-* listeners and
+#   the two listener rules under them.
+#
+#   The fix is in the image live/floci-image pins (bumped to
+#   sha256:0afd2648... by commit 4649c73d52, whose own crossing was a
+#   different estate's), and this estate had simply not been re-crossed
+#   since. Stage 2 below now asserts the reverse: all four stamp, and the
+#   provider's validation text must NOT appear. This half of this pass's
+#   staleness is unrelated to the credential-veto change below; a worker
+#   reconciling issue #365 slice 3 measured the same 51/1/0/28 on a
+#   stock-main control binary.
+#
+# ONE FLOCI GAP FOUND, LEFT OPEN (a genuine feature build, not a one-field
+# fix - worked around here with a documented delta so this script can still
+# stand the estate up and migrate it for real):
 #
 #   lex00/floci#63 (OPEN). Cognito CreateUserPoolDomain/DescribeUserPoolDomain/
 #   DeleteUserPoolDomain are entirely unimplemented - no code anywhere in
@@ -76,106 +101,153 @@ set -uo pipefail
 #   the ALB module's authenticate-cognito/authenticate-oidc listener actions
 #   referenced it.
 #
-#   lex00/floci#65 (OPEN). ELBv2 DescribeListeners/DescribeRules drop
-#   AuthenticateCognitoConfig/AuthenticateOidcConfig entirely -
-#   Action.java's model has no fields for either action type, so
-#   CreateListener/CreateRule accept them (stage 1's apply succeeds cleanly)
-#   but the read path echoes back only {"Type": "authenticate-cognito"},
-#   config gone. This surfaces in stage 2: live-import stamps ownership tags
-#   by re-planning a synthetic config built from the live-read object, and
-#   since the live-read never populated authenticate_cognito/
-#   authenticate_oidc, terraform-provider-aws correctly rejects the result
-#   as internally inconsistent. Not a crash - live-import's own FAILED
-#   bucket, accurately asserted in stage 2 below rather than worked around,
-#   since it does not block the other 44 resources from stamping.
+# WHAT BLOCKS STAGE 3 NOW, AND WHAT USED TO:
 #
-# ONE REAL CHOUDOUFU GAP BLOCKS STAGE 3, NOT FIXED HERE:
+#   THE WALL THAT CLEARED (#309's last site, gone as of 2026-08-22).
 #
 #   #309 (CLOSED 2026-08-21, under the reframe that retired admission as a
 #   gate - HANDOFF.md). aws_cognito_user_pool_client is no longer unadmitted:
 #   the issue's own MarkerlessTypes-widening work (closing comment,
 #   2026-08-19) put it in the roster, where record_store-declared estates
-#   like this one can resolve it as identity.ClassRecordLocated
-#   (issue #270). It still blocks this estate's stage 3, one layer down and
-#   for a narrower, better-founded reason than before - the closing comment
-#   says so explicitly ("nothing in this change makes
-#   aws_cognito_user_pool_client plannable, so its one blocking diagnostic
-#   stands, with a better-founded reason behind it"). Still 1 site, but the
-#   refusal is now RuleMarkerlessType ("Resource type has nowhere to write
-#   an ownership marker"), not RuleUnadmittedType ("Resource type is outside
-#   the live-markers subset") - this script's assertions were still checking
-#   the old rule's text until this pass; updated below.
-#
-#   What actually blocks it, per identity.LocatedType (internal/live/identity/
-#   located.go): record_store IS declared here (DELTA 4), so LocatedType gets
-#   to run at all, and it answers false on TWO of its four conditions
-#   independently. Which of them the reader reaches first is an artefact of
-#   the order they are written in, and until 2026-08-21 this header, issue
-#   #309's closing comment and the stage detail below all named only the
-#   first - which sent the next worker at the wrong one.
-#
-#     condition 2, credential material. identity.credentialMaterial fires on
-#     client_secret (Sensitive, not Deprecated at 6.59.0). This is the one
-#     the closing comment scoped as a maintainer call ("Prerequisite (a) -
-#     credentialMaterial's breadth for the located path - is untouched").
+#   like this one resolve it as identity.ClassRecordLocated (issue #270).
+#   For a while it still blocked this estate's stage 3, one layer down, as
+#   RuleMarkerlessType ("Resource type has nowhere to write an ownership
+#   marker") rather than RuleUnadmittedType. identity.LocatedType
+#   (internal/live/identity/located.go) answered false on two of its
+#   conditions independently, and both are now answered:
 #
 #     condition 3, the identity cannot be recorded IN FULL. CLEARED
-#     2026-08-22 (branch gauntlet/albcomplete-importgrammar); the paragraph
-#     that used to sit here is kept below because it names the wall a reader
-#     of this file's history will otherwise go looking for.
-#
-#       WAS: the type is in IDNotProvenWholeTypes (idnotwhole_generated.go);
-#       its Import section documents a composite <user pool id>/<client id>
-#       string the exported `id` bullet does not corroborate, so `id` may be
-#       a fragment. Neither route out of that refusal was open to it -
-#       hashicorp/aws 6.59.0 serves NO wire identity schema for the type
-#       (required and optional identity attributes are both empty, measured),
-#       and it had no DocumentedImportIDs grammar, because its page names
-#       its segments in prose ("the `id` of the Cognito User Pool, and the
-#       `id` of the Cognito User Pool Client") rather than one token at a
-#       time.
-#
-#     tools/importdocs-gen now reads that sentence. The generic rule is the
-#     possessive-of one, not a Cognito one: English states a qualified name
-#     in two orders, and where the schema's order ("using the `user_pool_id`
-#     and `client_id`", which every existing reader resolves) is written the
-#     other way round, each segment is re-read owner-first and matched
-#     EXACTLY against the page's own Argument and Attribute Reference.
-#     "Cognito User Pool" + `id` is user_pool_id and nothing else; "Cognito
-#     User Pool Client" names the resource itself, so its `id` is the minted
-#     leaf. identity.DocumentedImportIDs now carries
-#     {Separator: "/", Parts: [userpoolid(argument), id]} for this type, and
+#     2026-08-22 (branch gauntlet/albcomplete-importgrammar). It was in
+#     IDNotProvenWholeTypes (idnotwhole_generated.go); its Import section
+#     documents a composite <user pool id>/<client id> string the exported
+#     `id` bullet does not corroborate, so `id` might have been a fragment.
+#     Neither route out was open - hashicorp/aws 6.59.0 serves NO wire
+#     identity schema for the type, and it had no DocumentedImportIDs
+#     grammar, because its page names its segments in prose ("the `id` of
+#     the Cognito User Pool, and the `id` of the Cognito User Pool Client")
+#     rather than one token at a time. tools/importdocs-gen now reads that
+#     sentence. The generic rule is the possessive-of one, not a Cognito
+#     one: English states a qualified name in two orders, and where the
+#     schema's order ("using the `user_pool_id` and `client_id`", which
+#     every existing reader resolves) is written the other way round, each
+#     segment is re-read owner-first and matched EXACTLY against the page's
+#     own Argument and Attribute Reference.
 #     TestPossessiveOfGrammarComposesTheDocumentedImportString pins the
 #     composed string BY VALUE against the provider's own documented import
 #     example - us-west-2_abc123/3ho4ek12345678909nh3fmhpko - because a
 #     reading that swapped the two segments would be the same shape, the
 #     same length and a different object.
 #
-#   So the two conditions have traded places, and this is the correction to
-#   the previous one. Condition 3 is answered; condition 2 is now the SOLE
-#   wall on this site, and it is the maintainer call the closing comment
-#   scoped and nobody has made. The census this header used to cite
-#   (TestLocatedTypePopulation, internal/live/identity/located_test.go,
-#   CHOUDOUFU_LIVE_SCHEMAS=1) counted this type among the two the credential
-#   veto is NOT the sole wall for; on today's tree it is one of the types it
-#   IS. Re-run the census before quoting its split. What the census records
-#   and still holds: the veto cannot simply be deleted for the located path
-#   on the argument that a located record holds only an identity, because
-#   aws_wafv2_api_key's recorded identity IS api_key, a sensitive attribute
-#   - a narrowing has to stay identity-aware.
+#     condition 2, credential material. CLEARED 2026-08-22 (commit
+#     80666bc1c0, issue #365 population 2). The veto was answering the wrong
+#     question. It asked whether the TYPE carries a secret anywhere in its
+#     schema (identity.credentialMaterial's whole-schema sweep, which is
+#     internal/live/projection's residue question, a value-preservation
+#     promise the located route makes no claim about). What this route
+#     actually writes is locatedImportIDAttr or the identity plan's own
+#     components and nothing else, so the only secret it can leak is one
+#     that IS an identity component. Narrowed to sensitiveIdentityAttr.
+#     aws_cognito_user_pool_client's recorded identity is user_pool_id/id;
+#     it never touched client_secret at all, and refusing it bought nothing.
+#     Nine of the eleven types the old veto excluded were in that position.
+#     The two whose exclusion is a dated maintainer ruling
+#     (aws_iam_access_key, aws_iot_certificate) stay refused through a named
+#     list, and aws_wafv2_api_key - whose recorded identity IS api_key -
+#     still refuses on the narrowed rule itself, which is why the narrowing
+#     had to stay identity-aware rather than be a deletion.
+#
+#   With both answered, live-plan raises ZERO markerless-type diagnostics on
+#   this estate. Stage 3 asserts that by count, and it is the load-bearing
+#   assertion that this wall is gone.
 #
 #   #305 (aws_default_network_acl/aws_default_route_table/
 #   aws_default_security_group, the VPC module's default-object adopters)
-#   is FIXED and merged as of this script's last verified run - it no
-#   longer blocks anything here; the 3 sites it used to name are now
-#   VERIFIED/DRIFTED and eligible in stage 2 like everything else.
+#   is FIXED and merged - it no longer blocks anything here; the 3 sites it
+#   used to name are now VERIFIED/DRIFTED and eligible in stage 2 like
+#   everything else.
+#
+#   WHAT THE CLEARED WALL WAS MASKING, AND IS THE STAGE-3 BLOCKER NOW.
+#
+#   internal/command/live_plan.go runs lint.CheckWith FIRST and returns on
+#   the first error-severity issue, before the static-scope evaluation and
+#   before identity resolution. So while the one markerless-type refusal
+#   stood, it was the ONLY diagnostic this estate could ever print, and this
+#   header's previous claim that "this estate's live-plan output carries
+#   exactly one distinct Error: line" was a statement about that early
+#   return, not about the estate. Measured 2026-08-22 by running the
+#   pre-fix binary (80666bc1c0^) and the fixed one against the SAME migrated
+#   estate and the same live floci: pre-fix, 1 diagnostic, all of it the
+#   markerless-type refusal; fixed, 0 of those and 20 others.
+#
+#   The 20 are HANDOFF's first row - choudoufu refuses where stock proceeds,
+#   which is a defect - and they are the config-language subset wall, not a
+#   type-coverage one. Every resource they BLOCK is UNTAGGABLE - six of the
+#   twenty are reported at the module call rather than at a resource, and
+#   name the module input variable they poison. That is the
+#   association/attachment/record family, whose identity is a composite
+#   of its parents and so must be evaluable from configuration alone,
+#   because there is no tag on it to recover it from. The taggable resources
+#   over the very same expressions do NOT refuse - module.alb's
+#   aws_lb_target_group.this for_eaches over exactly the same
+#   var.target_groups as aws_lb_target_group_attachment.this at line 565 and
+#   is silent, because it carries the tofu-address stage 2 wrote.
+#
+#   Two independent root causes:
+#
+#     A. A resource or module-output reference nested inside a module
+#        INPUT's object or list literal. 12 of the 20 diagnostics, across
+#        three of module.alb's inputs:
+#
+#          var.target_groups          - `target_id = aws_instance.this.id`
+#                                       and `target_id =
+#                                       module.lambda_*.lambda_function_arn`
+#          var.additional_target_group_attachments
+#                                     - `target_id = aws_instance.other.id`
+#          var.listeners              - `additional_certificate_arns =
+#                                       [module.wildcard_cert.acm_certificate_arn]`
+#
+#        Each whole variable then reads as unavailable inside module.alb, so
+#        everything downstream of it collapses: the for_each on
+#        aws_lb_target_group_attachment.this, local.lambda_target_groups and
+#        the aws_lambda_permission.this for_each built from it,
+#        aws_lb_target_group_attachment.additional's target_group_arn and
+#        port, and aws_lb_listener_certificate.this's certificate_arn.
+#
+#        Note what IS available: the map keys are all static - only the
+#        leaves are poisoned - and every poisoned leaf is an identity
+#        attribute of a resource stage 2 successfully stamped
+#        (aws_instance.this.id, aws_lambda_function.this[0].arn,
+#        aws_acm_certificate.this[0].arn). internal/live/identity/
+#        partialargs.go already substitutes a poisoned leaf inside an object
+#        constructor on the direct-argument path. The gap is the module-call
+#        variable path in internal/configs (module_call.go,
+#        static_evaluator.go, static_scope.go), which is the same surface
+#        choudoufu #375 names for the sibling shape on the module-OUTPUT
+#        side.
+#
+#     B. A server-produced attribute driving an untaggable child's identity.
+#        8 of the 20 diagnostics, 4 for each of the two certificate module
+#        instances. terraform-aws-modules/acm's local.validation_domains is
+#        built from aws_acm_certificate.this[0].domain_validation_options,
+#        and aws_route53_record.validation[0]'s name and type are elements
+#        of it. domain_validation_options is minted by ACM; no static
+#        evaluation can produce it, and stock only manages because it reads
+#        it back out of the state file this stage deliberately deleted. The
+#        answer for this shape is the record rung (HANDOFF's fourth row,
+#        issue #364), not a cleverer evaluator: live-import currently SKIPS
+#        every untaggable instance rather than recording one, so replanning
+#        from nothing has nothing to bind these records to.
+#
+#   Neither is attempted in this pass. Both touch load-bearing surfaces
+#   (internal/configs' static evaluation for A, live-import's skip/record
+#   split for B), and neither can satisfy HANDOFF's safety rule from this
+#   script alone - the run never gets far enough to render the affected
+#   identities, so there is no value to assert. Each is its own unit.
 #
 #   Checked against #313 (corpus-security-group-complete's
-#   data.aws_availability_zones-feeding-a-nested-module-for_each wall,
-#   filed the same session #305 landed): this estate's live-plan output
-#   carries exactly one distinct Error: line, the #309 markerless-type
-#   refusal, and never "Unable to use data.aws_availability_zones.available
-#   in static context". Different wall; #313 does not reach this estate.
+#   data.aws_availability_zones-feeding-a-nested-module-for_each wall):
+#   none of the 20 diagnostics mentions data.aws_availability_zones.
+#   Different wall; #313 does not reach this estate.
 #
 # WHAT THIS SCRIPT ACTUALLY PROVES, GIVEN ALL OF THE ABOVE:
 #
@@ -185,23 +257,28 @@ set -uo pipefail
 #   stage 2  migrate       PASS - real: 41 VERIFIED + 10 DRIFTED = 51 of 80
 #                          resource instances eligible (#305's fix moved the
 #                          default-object trio from unadmitted into this
-#                          count); 47 newly stamped + 4 FAILED (floci#65) =
-#                          51 attempted; the other 29 not eligible (28
-#                          UNTAGGABLE by provider schema + 1 UNADMITTED_TYPE,
-#                          #309, live-import's own bucket name for it) - of
+#                          count); all 51 newly stamped, 0 FAILED (floci#65
+#                          is fixed in the pinned image - it used to fail 4);
+#                          the other 29 not eligible (28 UNTAGGABLE by
+#                          provider schema + 1 UNADMITTED_TYPE, which is
+#                          live-import's own bucket name for
+#                          aws_cognito_user_pool_client - live-import has its
+#                          own knowledge question, separate from live-plan's
+#                          LocatedType route, and it still answers no) - of
 #                          which -approve records 1
 #                          (null_resource.download_package, record-backed
 #                          since #340, seeded into the record store rather
 #                          than skipped) and correctly skips 28. Asserted
 #                          against live-import's own report AND confirmed
 #                          independently through the AWS CLI.
-#   stage 3  test plan     BLOCKED, for real, by #309 alone (1 site,
-#                          markerless-type now rather than unadmitted-type -
-#                          see above) - the exact same type stage 2 already
-#                          named, specific counts and resource addresses
-#                          asserted against a real live-plan run on the
-#                          really-migrated estate, state file deleted first,
-#                          BREAK=1 negative control.
+#   stage 3  test plan     BLOCKED, for real, at 20 diagnostics in the
+#                          config-language subset, all of them on untaggable
+#                          resources, in the two families above. #309's
+#                          markerless-type site is GONE and stage 3 asserts
+#                          that by count. Specific counts, summaries and
+#                          resource addresses asserted against a real
+#                          live-plan run on the really-migrated estate, state
+#                          file deleted first, BREAK=1 negative control.
 #   stage 4  test apply    NOT RUN - depends on stage 3.
 #   stage 5  drift/reconverge  NOT RUN - depends on stages 3-4.
 #
@@ -234,16 +311,15 @@ set -uo pipefail
 #
 # Env overrides:
 #   TOFU_BIN     path to a prebuilt choudoufu binary; skips the `go build`.
-#   FLOCI_PORT   host port for the emulator (default 4722, clear of every
+#   FLOCI_PORT   host port for the emulator (default 4723, clear of every
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
-#                live/floci-image (re-pinned by this change to include
-#                #58/#61/#62).
-#   BREAK        set to 1 to corrupt the expected stage-3 site counts and
-#                one expected markerless-type name, proving those
-#                assertions are load-bearing rather than a grep that always
-#                matches. Stages 1 and 2 are unaffected and still pass;
-#                stage 3 is the one that must fail.
+#                live/floci-image.
+#   BREAK        set to 1 to corrupt the expected stage-3 diagnostic total
+#                and one expected refusal site, proving those assertions are
+#                load-bearing rather than a grep that always matches. Stages
+#                1 and 2 are unaffected and still pass; stage 3 is the one
+#                that must fail.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -273,8 +349,8 @@ DRIFTED_WANT=10
 UNTAGGABLE_WANT=28
 UNADMITTED_WANT=1
 ELIGIBLE=$((VERIFIED_WANT + DRIFTED_WANT))
-STAMPED_WANT=47
-IMPORT_FAILED_WANT=4
+STAMPED_WANT=$ELIGIBLE
+IMPORT_FAILED_WANT=0
 SKIPPED_WANT=$((UNTAGGABLE_WANT + UNADMITTED_WANT))
 # SKIPPED_WANT is the DRY RUN's own not-eligible total, which -approve then
 # splits in two (issue #340): null_resource.download_package is record-backed,
@@ -495,16 +571,27 @@ APPROVE_RC=$?
 [ "$APPROVE_RC" -eq 0 ] || { printf '%s\n' "$APPROVE_OUT" | tail -30; fail "live-import -approve exited $APPROVE_RC unexpectedly"; }
 grep -qF "$STAMPED_WANT resource(s) newly stamped, 0 already stamped, $RECORDED_WANT newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped." <<< "$APPROVE_OUT" \
   || { printf '%s\n' "$APPROVE_OUT"; fail "live-import -approve did not report exactly $STAMPED_WANT stamped / $RECORDED_WANT recorded / $IMPORT_FAILED_WANT failed / $APPROVE_SKIPPED_WANT skipped"; }
-# The FAILED sites are all lex00/floci#65 (ELBv2 dropping
-# AuthenticateCognitoConfig/AuthenticateOidcConfig on read) - asserted by
-# name, not just count, so a different failure shape would be caught.
-for addr in 'module.alb.aws_lb_listener.this["ex-cognito"]' 'module.alb.aws_lb_listener.this["ex-oidc"]' 'module.alb.aws_lb_listener_rule.this["ex-cognito/ex-oidc"]'; do
-  grep -qF "$addr" <<< "$APPROVE_OUT" || fail "expected $addr among the FAILED-to-stamp resources (floci#65)"
+# The four authenticate-cognito/authenticate-oidc sites used to be
+# live-import's whole FAILED bucket (lex00/floci#65: ELBv2 DescribeListeners
+# and DescribeRules dropped AuthenticateCognitoConfig/AuthenticateOidcConfig
+# on read, so the synthetic config live-import re-plans came back internally
+# inconsistent and terraform-provider-aws rejected it with "... must be
+# specified when type is 'authenticate-cognito'"). floci#65 is fixed and the
+# fix is in the pinned image, so they now stamp like everything else. Asserted
+# by name inside the STAMPED section, not just by count, so a regression that
+# moved them back into FAILED - or into any other bucket - is caught.
+STAMPED_BLOCK="$(awk '/^STAMPED \(/{s=1;next} /^[A-Z_]+ \([0-9]+\)/{s=0} s' <<< "$APPROVE_OUT")"
+for addr in 'module.alb.aws_lb_listener.this["ex-cognito"]' \
+            'module.alb.aws_lb_listener.this["ex-oidc"]' \
+            'module.alb.aws_lb_listener_rule.this["ex-cognito/ex-oidc"]' \
+            'module.alb.aws_lb_listener_rule.this["ex-https/ex-cognito"]'; do
+  grep -qF "$addr" <<< "$STAMPED_BLOCK" || fail "expected $addr among the STAMPED resources (floci#65 is fixed in the pinned image)"
 done
-grep -qF "must be specified when" <<< "$APPROVE_OUT" || fail "expected floci#65's provider validation error text among the FAILED details"
+grep -qF "must be specified when" <<< "$APPROVE_OUT" && fail "floci#65's provider validation error text is back in live-import's output - the emulator pin has regressed"
 log "  $STAMPED_WANT stamped, $RECORDED_WANT recorded (null_resource.download_package),"
-log "  $IMPORT_FAILED_WANT failed (floci#65, named above), $APPROVE_SKIPPED_WANT skipped - the dry run's"
+log "  $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped - the dry run's"
 log "  $SKIPPED_WANT not-eligible, one of them record-backed and so recorded rather than skipped"
+log "  the four authenticate-cognito/authenticate-oidc sites stamp now (floci#65 fixed)"
 
 log "=== 2c. the ALB's own marker, read through the AWS CLI directly ==="
 WANT_LB_ADDR="module.alb.aws_lb.this:0"
@@ -518,7 +605,7 @@ log "  confirmed independently through the AWS CLI, never through choudoufu's ow
 log ""
 log "STAGE 2 (migrate): PASS"
 log ""
-gauntlet_stage migrate pass "$STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed on floci#65"
+gauntlet_stage migrate pass "$STAMPED_WANT of $INSTANCES stamped, $RECORDED_WANT recorded, $IMPORT_FAILED_WANT failed, $APPROVE_SKIPPED_WANT skipped"
 CURRENT_STAGE=test_plan
 
 # ── 3. test plan: delete the state file, real choudoufu live-plan ──────────
@@ -529,66 +616,124 @@ log "  no local state file"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the markerless-type wall below may be fixed; update this script"; }
-
-# #309 closed under the 2026-08-21 reframe (admission as a gate is retired;
-# every type stock supports is admitted, and what varies is the instance's
-# rung). Its own MarkerlessTypes-widening work (closing comment, 2026-08-19)
-# put aws_cognito_user_pool_client IN the roster: it is no longer refused as
-# RuleUnadmittedType ("Resource type is outside the live-markers subset").
-# It is still refused, one layer down, as RuleMarkerlessType ("Resource type
-# has nowhere to write an ownership marker") - this estate DOES declare a
-# record_store (DELTA 4), so identity.LocatedType gets to run, and it
-# answers false on TWO independent conditions: client_secret is credential
-# material (condition 2), AND the type's identity cannot be recorded in full
-# (condition 3 - IDNotProvenWholeTypes, no wire identity schema, no
-# documented grammar). Condition 3 is the load-bearing one; see this
-# script's header for the measurement. So the site count below is still
-# exactly 1, just under the more precisely founded rule; the closing comment
-# says the same thing in words ("its one blocking diagnostic stands, with a
-# better-founded reason behind it").
-WANT_MARKERLESS_N=$UNADMITTED_WANT
-WANT_TYPES=(aws_cognito_user_pool_client)
-if [ "${BREAK:-}" = "1" ]; then
-  WANT_MARKERLESS_N=2
-  WANT_TYPES[1]="aws_default_dhcp_options"
-  log "  BREAK=1: expecting 2 markerless-type sites (one more than the real"
-  log "           1) and aws_default_dhcp_options among them - a real AWS"
-  log "           default-object type, same shape as the ones #305 already"
-  log "           fixed, just not one this estate's config actually"
-  log "           declares. Both wrong. This step must fail."
-fi
+[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - the config-language subset wall below is gone; update this script and push on to stage 4"; }
 
 log "  all distinct Error: lines from this live-plan run:"
 grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c | sed 's/^/    /'
+
+# ── 3a. the wall that cleared: zero markerless-type refusals ───────────────
+# identity.LocatedType's condition 2 was the last thing refusing
+# aws_cognito_user_pool_client here (condition 3 was answered by the
+# possessive-of import grammar on 2026-08-22; condition 2 by commit
+# 80666bc1c0, which narrowed the credential veto from "the type has a secret
+# anywhere in its schema" to "the identity this route would RECORD carries a
+# secret"). This type's recorded identity is user_pool_id/id and never
+# touched client_secret, so the veto was answering a question this route does
+# not ask. Asserted by count AND by absence of the type's own name anywhere
+# in the output, so a refusal that merely changed its wording is still
+# caught. See this script's header.
 MARKERLESS_SITES_N="$(grep -c '^Error: Resource type has nowhere to write an ownership marker$' <<< "$PLAN_OUT")"
-[ "$MARKERLESS_SITES_N" = "$WANT_MARKERLESS_N" ] \
-  || { fail "expected $WANT_MARKERLESS_N markerless-type sites (#309), got $MARKERLESS_SITES_N"; }
-for t in "${WANT_TYPES[@]}"; do
-  grep -qE "resource \"$t\"" <<< "$PLAN_OUT" \
-    || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|resource "'; fail "expected $t among the markerless-type refusals"; }
+[ "$MARKERLESS_SITES_N" = "0" ] \
+  || { grep -E '^Error:' <<< "$PLAN_OUT" | sort -u; fail "expected 0 markerless-type refusals (the credential veto was narrowed in 80666bc1c0), got $MARKERLESS_SITES_N"; }
+grep -qF 'aws_cognito_user_pool_client' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -F 'aws_cognito_user_pool_client'; fail "aws_cognito_user_pool_client still appears in live-plan's output - the wall this pass recorded as cleared is not cleared"; }
+log "  3a  0 markerless-type refusals; aws_cognito_user_pool_client does not"
+log "      appear in live-plan's output at all. #309's last site is gone."
+
+# ── 3b. what the cleared wall was masking ─────────────────────────────────
+# internal/command/live_plan.go runs lint.CheckWith first and returns on the
+# first error-severity issue, so while that one refusal stood it was the only
+# diagnostic this estate could print. Measured 2026-08-22 against the same
+# migrated estate and the same live floci: the pre-fix binary (80666bc1c0^)
+# printed 1 diagnostic and nothing else; the fixed one prints these 20.
+#
+# All 20 are HANDOFF's first row - choudoufu refuses where stock proceeds,
+# which is a defect - and every resource they BLOCK is UNTAGGABLE, whose
+# identity has to come from configuration because there is no tag to recover
+# it from. Six of the twenty are reported at the module call rather than at a
+# resource, and name the module input variable they poison.
+# Two independent root causes, A (a resource or module-output reference
+# nested inside a module input's object/list literal, 12) and B (a
+# server-produced attribute driving an untaggable child's identity, 8). The
+# header carries the full trace of both.
+WANT_DIAG_N=20
+declare -a WANT_SITES=(
+  # A: the poisoned leaves, at the module call
+  'Unable to use aws_instance.this in static context'
+  'module.lambda_with_allowed_triggers.lambda_function_arn'
+  'module.lambda_without_allowed_triggers.lambda_function_arn'
+  # A: what collapses inside module.alb once the variable is unavailable
+  'module.alb:aws_lb_target_group_attachment.this for_each depends on'
+  'module.alb:aws_lambda_permission.this for_each depends on'
+  'module.alb:local.lambda_target_groups depends on'
+  'module.alb.aws_lb_target_group_attachment.additional["ex-instance-other"].target_group_arn'
+  'module.alb.aws_lb_target_group_attachment.additional["ex-instance-other"].port'
+  'module.alb.aws_lb_listener_certificate.this["ex-https/0"].certificate_arn'
+  # B: the ACM DNS-validation records, once per certificate module instance
+  'Unable to use aws_acm_certificate.this[0] in static context'
+  'module.acm.aws_route53_record.validation[0].name'
+  'module.acm.aws_route53_record.validation[0].type'
+  'module.wildcard_cert.aws_route53_record.validation[0].name'
+  'module.wildcard_cert.aws_route53_record.validation[0].type'
+)
+# The break GAUNTLET.md asks stage 3 for is a corrupted expected string, and
+# this one is chosen so that a grep which "always matches" is what it
+# catches: module.alb.aws_lb_target_group.this is a resource in this very
+# configuration, for_each'd over the very same var.target_groups as
+# aws_lb_target_group_attachment.this, that does NOT refuse - because it is
+# taggable and carries the tofu-address stage 2 wrote. Expecting it among the
+# refusal sites must fail, and must fail on that string alone.
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_SITES+=('module.alb.aws_lb_target_group.this["ex-instance"].name')
+  log "  BREAK=1: also expecting a refusal on"
+  log "           module.alb.aws_lb_target_group.this[\"ex-instance\"].name,"
+  log "           which is real, is in this configuration, shares"
+  log "           var.target_groups with the attachment that DOES refuse, and"
+  log "           is nonetheless silent. Wrong. This step must fail."
+fi
+
+# By name first, so BREAK=1 fails on the string it corrupted and not on a
+# count it did not touch.
+for site in "${WANT_SITES[@]}"; do
+  grep -qF "$site" <<< "$PLAN_OUT" \
+    || { printf '%s\n' "$PLAN_OUT"; fail "expected $site among the stage-3 refusal sites"; }
 done
-log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - admitted"
-log "  to MarkerlessTypes (no longer unadmitted-type), and still refused as"
-log "  markerless-type: record_store IS declared here, but"
-log "  identity.LocatedType answers false on condition 2, credential"
-log "  material - client_secret is Sensitive and not Deprecated at 6.59.0."
-log "  Condition 3 no longer refuses it: the page's possessive-of import"
-log "  sentence is now read, so identity.DocumentedImportIDs carries"
-log "  {user_pool_id, id} joined by \"/\" and a record CAN hold the whole"
-log "  identity (pinned by value in internal/live/identity, see the header)."
-log "  So the credential veto is now the SOLE wall on this site, and its"
-log "  breadth is the open maintainer call - the reverse of what this script"
-log "  said before 2026-08-22. #305's default-object trio is fixed and no"
-log "  longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
-log "  eligible in stage 2 above)."
+
+DIAG_N="$(grep -c '^Error:' <<< "$PLAN_OUT")"
+[ "$DIAG_N" = "$WANT_DIAG_N" ] \
+  || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_DIAG_N Error diagnostics, got $DIAG_N"; }
+
+# The summaries, by count. A shift between buckets at the same total would
+# otherwise pass the check above.
+while read -r want summary; do
+  got="$(grep -c "^Error: $summary\$" <<< "$PLAN_OUT")"
+  [ "$got" = "$want" ] || fail "expected $want \"$summary\" diagnostics, got $got"
+done <<'SUMMARIES'
+7 Dynamic value in static context
+7 Unable to compute static value
+4 Module output not supported in static context
+1 Non-static identity argument
+1 Identity not resolvable from configuration
+SUMMARIES
+
+# The asymmetry that says this is the untaggable family and not a
+# type-coverage gap: aws_lb_target_group.this for_eaches over exactly the
+# same var.target_groups as aws_lb_target_group_attachment.this, and is
+# silent, because it is taggable and carries the marker stage 2 wrote. If
+# that ever starts refusing, the diagnosis in this script's header is wrong.
+grep -qF 'in resource "aws_lb_target_group" "this"' <<< "$PLAN_OUT" \
+  && fail "aws_lb_target_group.this now refuses too - it shares var.target_groups with the attachment but carries a marker, so this script's untaggable-family diagnosis needs redoing"
+log "  3b  $DIAG_N diagnostics; every resource they block is untaggable. The"
+log "      taggable aws_lb_target_group.this over the same var.target_groups"
+log "      is silent, because it carries the marker stage 2 wrote"
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site, now markerless-type"
-log "rather than unadmitted-type - see comment above); #305's 3 sites are no"
-log "longer part of this wall"
+log "STAGE 3 (test_plan): BLOCKED for real - $DIAG_N config-language-subset"
+log "diagnostics on untaggable resources (families A and B, see header). The"
+log "markerless-type wall that used to be the only thing this estate could"
+log "print is gone, and these were behind it."
 log ""
-gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: 1 aws_cognito_user_pool_client site; condition 3 is CLEARED as of 2026-08-22 - the page's possessive-of import sentence is read and DocumentedImportIDs now composes user_pool_id/id - so credentialMaterial (condition 2, client_secret) is now the SOLE wall, and its breadth for the located path is the open maintainer call; see header); #305's trio is fixed and no longer a stage-3 wall here"
+gauntlet_stage test_plan fail "the markerless-type wall is GONE: identity.LocatedType's credential veto was narrowed to the recorded identity (commit 80666bc1c0, #365 population 2) and aws_cognito_user_pool_client's identity is user_pool_id/id, which never touched client_secret; 0 markerless-type refusals and the type's name does not appear in the output at all. lint.CheckWith returns on the first error-severity issue, so that one refusal was masking everything else: measured against the same migrated estate and the same live floci, the pre-fix binary printed 1 diagnostic and the fixed one prints $DIAG_N. All $DIAG_N are HANDOFF's first row (choudoufu refuses where stock proceeds) and every resource they BLOCK is UNTAGGABLE (six of the twenty are reported at the module call rather than at a resource, and name the module input variable they poison). Family A, 12: a resource or module-output reference nested inside a module input's object/list literal (aws_instance.this.id and module.lambda_*.lambda_function_arn in var.target_groups, aws_instance.other.id in var.additional_target_group_attachments, module.wildcard_cert.acm_certificate_arn in var.listeners) makes the whole variable unavailable inside module.alb, collapsing aws_lb_target_group_attachment.this's for_each, local.lambda_target_groups and aws_lambda_permission.this's for_each, aws_lb_target_group_attachment.additional's target_group_arn and port, and aws_lb_listener_certificate.this's certificate_arn - the map keys are all static and every poisoned leaf is an identity attribute of a resource stage 2 stamped, so this is the module-call variable path in internal/configs, the same surface #375 names for the module-OUTPUT side. Family B, 8: aws_acm_certificate.this[0].domain_validation_options is minted by ACM and drives aws_route53_record.validation[0]'s name and type in both certificate module instances; no evaluator can produce it, so the answer is the record rung (#364) and live-import's SKIP-every-untaggable behaviour is what has to change. Neither attempted here; each is its own unit"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -602,10 +747,13 @@ log ""
 log "  stage 1  cold_deploy        PASS ($INSTANCES resources, once for real - see"
 log "                              header for the 3 floci fixes this needed:"
 log "                              #58, #61, #62)"
-log "  stage 2  migrate            PASS (real: $STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed on"
-log "                              floci#65, see header)"
-log "  stage 3  test_plan          BLOCKED - #309 (choudoufu, see header); #305's"
-log "                              trio is fixed and no longer a stage-3 wall here"
+log "  stage 2  migrate            PASS (real: $STAMPED_WANT of $INSTANCES stamped, $IMPORT_FAILED_WANT failed -"
+log "                              floci#65 is fixed in the pinned image and its"
+log "                              4 sites now stamp, see header)"
+log "  stage 3  test_plan          BLOCKED - $DIAG_N config-language-subset diagnostics"
+log "                              on untaggable resources. #309's markerless-type"
+log "                              site is GONE; these were behind it. See header"
+log "                              for families A and B."
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This file is HANDOFF.md's safety rule applied to the two types
@@ -121,23 +122,58 @@ func TestPossessiveOfGrammarComposesTheDocumentedImportString(t *testing.T) {
 	}
 }
 
-// TestPossessiveOfGrammarStillRefusesTheCredentialCondition records what this
-// grammar does NOT move, so nobody reads the assertion above as an admission.
+// TestPossessiveOfGrammarClearsBothConditionsWithoutRecordingTheSecret pins,
+// by value, what the located route actually records for
+// aws_cognito_user_pool_client - the type that was corpus-alb-complete's last
+// stage-3 wall.
 //
-// [LocatedType] refuses aws_cognito_user_pool_client on two independent
-// conditions. Condition 3 is the one the grammar answers - the identity can
-// now be recorded in full. Condition 2 is [credentialMaterial], which fires
-// on client_secret and is a maintainer call on the exclusion's breadth, not a
-// scrape question. So the type stays refused, and the estate that motivated
-// the grammar stays blocked.
-func TestPossessiveOfGrammarStillRefusesTheCredentialCondition(t *testing.T) {
+// [LocatedType] used to refuse it on two independent conditions, and both are
+// now answered. Condition 3 is the one the grammar above answers: the
+// identity can be recorded in full. Condition 2 was [credentialMaterial],
+// which fires on client_secret; commit 80666bc1c0 (issue #365 population 2)
+// narrowed it to [sensitiveIdentityAttr], because this route records
+// [locatedImportIDAttr] or the plan's own components and nothing else, so the
+// only secret it can leak is one that IS an identity component. This type's
+// is user_pool_id/id, which never touches client_secret.
+//
+// This test used to assert the opposite, under the name
+// ...StillRefusesTheCredentialCondition. What is kept from it is the part
+// that is still true and still worth guarding: [credentialMaterial]'s
+// whole-schema sweep DOES fire on this block, and that is the right answer to
+// internal/live/projection's residue question. The narrowing is that
+// [LocatedType] no longer asks it. If someone widens the veto back, the plan
+// assertions below go red rather than the estate quietly re-blocking.
+func TestPossessiveOfGrammarClearsBothConditionsWithoutRecordingTheSecret(t *testing.T) {
 	block := cognitoUserPoolClientBlock()
 	if !credentialMaterial(block) {
-		t.Fatal("credentialMaterial no longer fires on a block carrying a Sensitive, non-deprecated " +
-			"client_secret. If the exclusion has been narrowed, this test's premise is gone and " +
-			"corpus-alb-complete's stage-3 site should be re-measured rather than assumed.")
+		t.Error("credentialMaterial no longer fires on a block carrying a Sensitive, non-deprecated " +
+			"client_secret. That whole-schema sweep is still internal/live/projection's question; " +
+			"only the located route stopped consulting it.")
 	}
 	if _, _, ok := resolveDocumentedImportID("aws_cognito_user_pool_client", block); !ok {
-		t.Error("the documented grammar no longer resolves, so condition 3's half of the refusal is back")
+		t.Fatal("the documented grammar no longer resolves, so condition 3's half of the refusal is back")
+	}
+
+	schema := providers.Schema{Block: block}
+	plan, recordable := LocatedIdentityPlanFor("aws_cognito_user_pool_client", schema)
+	if !recordable {
+		t.Fatal("LocatedIdentityPlanFor refuses the type, so condition 3 is back")
+	}
+	// BY VALUE, and in order: a reading that swapped these two segments
+	// would be the same shape, the same length and a different object.
+	if want := []string{"user_pool_id", "id"}; !reflect.DeepEqual(plan.ImportIDParts, want) {
+		t.Errorf("recorded identity parts = %v, want %v", plan.ImportIDParts, want)
+	}
+	if plan.ImportIDSeparator != "/" {
+		t.Errorf("separator = %q, want %q", plan.ImportIDSeparator, "/")
+	}
+	if plan.Composite() {
+		t.Errorf("plan carries a provider identity object %v; 6.59.0 serves none for this type, "+
+			"so the record is the composed string and nothing else", plan.Components)
+	}
+	// The whole point of the narrowing: the record this route would write
+	// does not include client_secret, so there is no secret to refuse over.
+	if got := sensitiveIdentityAttr(plan, schema); got != "" {
+		t.Errorf("sensitiveIdentityAttr = %q, want \"\" - the recorded identity must carry no secret", got)
 	}
 }
