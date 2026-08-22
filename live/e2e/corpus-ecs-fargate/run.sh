@@ -191,41 +191,91 @@ set -uo pipefail
 # the state file is deleted, so every answer can only have come from the
 # live objects.
 #
-# WHAT BLOCKS STAGE 3 NOW. Clearing #368's refusals let live-plan reach a
-# real diff for the first time, and the diff is "7 to add, 30 to change, 0
-# to destroy" (was 31 to change against the prior floci pin - see below).
-# Neither cause is an identity gap and neither is attempted here:
+# #371, FIXED HERE, AND IT WAS THIS SCRIPT'S OWN DELTA. Until this pass the
+# diff was "7 to add, 30 to change, 0 to destroy", and the seven additions
+# were aws_ecs_cluster.this[0] and both aws_ecs_task_definition instances
+# reading back ABSENT - "the provider reports no aws_ecs_cluster exists with
+# identity \"ex-fargate\"" - over the same cluster
+# `aws ecs describe-clusters --clusters ex-fargate` answers for two stages
+# above, plus four PARENT_UNAVAILABLE cascades from the cluster. It was
+# neither a choudoufu discovery bug nor a floci gap. It was DELTA 1's
+# `skip_requesting_account_id = true`, the ordinary way to point the AWS
+# provider at a local emulator, and the same knob #345 turned for
+# corpus-overture-tiles.
 #
-#   1. aws_ecs_cluster.this[0] and both aws_ecs_task_definition instances
-#      read back ABSENT: "the provider reports no aws_ecs_cluster exists
-#      with identity "ex-fargate"", over the same cluster
-#      `aws ecs describe-clusters --clusters ex-fargate` answers for two
-#      stages above. The remaining four additions
-#      (aws_ecs_service.this[0], aws_appautoscaling_target.this[0] and both
-#      aws_appautoscaling_policy instances) cascade from the cluster as
-#      PARENT_UNAVAILABLE, which is the right behaviour for an unavailable
-#      parent rather than a second fault. Whether the import read or the
-#      emulator is at fault is a unit of its own - filed as choudoufu #371.
-#      UNCHANGED by the floci pin move to sha256:0afd2648...: re-measured
-#      against the prior pin (sha256:cdd50ec0...) with today's binary, the
-#      same seven addresses read back ABSENT the same way. floci's own ECS
-#      round-trip fix in this pin (edf3bf23d, #59/#60) fixed the CLUSTER's
-#      and SERVICE's stamped attribute fidelity (stage 2 above), not this
-#      stateless discovery-time read.
-#   2. All 30 in-place changes are one tag addition each, `tofu-slot =
-#      "0"`, on every count/for_each-expanded instance: a marker live-plan
-#      expects and live-import does not write - filed as choudoufu #372.
-#      Was 31 against the prior floci pin; re-measured against the prior
-#      pin with today's binary to isolate the cause, the count is
-#      genuinely pin-dependent (31 there, 30 here) rather than a
-#      choudoufu-side regression - ten aws_lb/aws_lb_listener/
-#      aws_lb_listener_rule/aws_lb_target_group/aws_vpc_security_group_
-#      egress_rule/aws_cloudwatch_log_group instances that needed the tag
-#      before no longer appear in the diff at all against the new pin. Not
-#      root-caused further here (a unit of its own, plausibly tied to the
-#      same pin's elbv2/resourcegroupstagging fixes changing what these
-#      types' identity resolution reads back); every one of the 30 that
-#      remains is still the tofu-slot tag alone, asserted below.
+# MEASURED, NOT ARGUED, and stock is the oracle for it. hashicorp/aws builds
+# aws_ecs_cluster's READ lookup out of region + the account it knows about
+# itself; with no account it issues DescribeClusters for
+# `arn:aws:ecs:eu-west-1::cluster/ex-fargate` - an EMPTY account segment -
+# and gets nothing back. Stock terraform fails identically on the same
+# provider block, which is what settles it:
+#
+#   $ terraform import aws_ecs_cluster.x ex-fargate     # skip=true
+#   aws_ecs_cluster.x: Refreshing state... [id=arn:aws:ecs:eu-west-1::cluster/ex-fargate]
+#   Error: Cannot import non-existent remote object
+#
+#   $ terraform import aws_ecs_cluster.x ex-fargate     # skip=false
+#   aws_ecs_cluster.x: Refreshing state... [id=arn:aws:ecs:eu-west-1:000000000000:cluster/ex-fargate]
+#   Import successful!
+#
+# aws_ecs_task_definition reaches the same wall by the identity-object door
+# rather than the ID-string one: the marker sweep hands the projection
+# {family, revision, region, account_id} and account_id is "", so the
+# provider composes the same account-less ARN. It is one root cause with two
+# faces, not two bugs, and nothing in internal/live needed changing - the
+# ARN the sweep read is right, the family and revision it split out of that
+# ARN are right, and stage 3 now asserts all three by value against the CLI.
+#
+# BOTH COPIES set it false, not just the estate copy, and that second half
+# was measured too. Setting it false on the estate copy alone takes migrate
+# from 46 of 62 eligible to 41: the cold deploy writes its state file under
+# skip=true, so five aws_vpc_security_group_{in,e}gress_rule instances carry
+# a stored identity with account_id "", and reading them back under an
+# account the provider now knows raises the provider framework's own
+# "Unexpected Identity Change: Current Identity ... account_id "" ... New
+# Identity ... account_id "000000000000"". That is two provider
+# configurations disagreeing about the same object, not a marker fault, and
+# the fix is to stop them disagreeing. With both copies false, stage 1 still
+# applies 62 clean and stage 2 still stamps 46 of 62 - the only movement is
+# one instance from DRIFTED to VERIFIED, for the same reason and in the
+# better direction. This estate declares no S3 bucket, so the S3-Control
+# account-prefixed virtual host that made #345 also move its ENDPOINT to
+# localhost.floci.io is never reached here; ENDPOINT stays a bare IP.
+#
+# WHAT BLOCKS STAGE 3 NOW: "2 to add, 31 to change, 2 to destroy", and every
+# line of it is either already tracked or is stock's own answer too.
+#
+#   1. 25 of the 31 in-place changes are one tag addition each, `tofu-slot =
+#      "0"`, on a count-expanded instance: a marker live-plan expects and
+#      live-import does not write - choudoufu #372, deliberate and known.
+#   2. The 2 adds and 2 destroys are one replacement each of
+#      module.ecs_service.aws_ecs_task_definition.this[0] and
+#      module.ecs_task_definition.aws_ecs_task_definition.this[0], forced by
+#      container_definitions: floci does not echo back the container fields
+#      the module sends (dependsOn, linuxParameters, restartPolicy,
+#      versionConsistency and a dozen more). STOCK FAILS TOO, and stage 1c
+#      records it: plain `terraform plan` on the cold-deployed state file,
+#      before a single marker exists anywhere, replaces the same two task
+#      definitions. Row 3 of HANDOFF.md's table.
+#   3. Four of the remaining six in-place changes are emulator read
+#      fidelity, all four also present in stage 1c's stock plan:
+#      aws_ecs_cluster's `configuration` block, aws_ecs_service's
+#      `deployment_configuration` block (plus its task_definition going
+#      "known after apply" behind item 2), aws_default_network_acl's
+#      egress/ingress rules, and aws_default_route_table's `timeouts`.
+#   4. The last two are a genuine choudoufu finding this pass turned up and
+#      did not fix: the two aws_cloudwatch_log_group instances inside
+#      for_each'd module calls -
+#      module.ecs_service.module.container_definition["fluent-bit"] and
+#      module.ecs_task_definition.module.container_definition["al2023"] -
+#      have live-plan proposing to REMOVE their own tofu-address and
+#      tofu-estate tags, rather than to add the tofu-slot tag their 25
+#      siblings get. live-import stamped both (the tags are on the objects,
+#      read through the AWS CLI below); the plan's desired tag set for them
+#      carries no marker at all. Every other instance in this estate under
+#      a for_each'd module call is untaggable, so these two are the whole
+#      visible population of the shape. Pinned by name below so it cannot
+#      quietly change; not root-caused here.
 #
 # BREAK=1 corrupts the expected ResourceId (it names a cluster that does
 # not exist), proving that assertion is load-bearing rather than a
@@ -243,8 +293,9 @@ set -uo pipefail
 #                other live/e2e fixture's port).
 #   FLOCI_IMAGE  the emulator image; defaults to the digest pin in
 #                live/floci-image.
-#   BREAK        set to 1 to corrupt the expected stage-3 site counts and
-#                one expected unadmitted-type name.
+#   BREAK        set to 1 to corrupt stage 3's two identity-by-value
+#                assertions (#368's scalable-target ResourceId and #371's
+#                ECS cluster ARN) and its expected plan counts.
 #
 # The corpus checkout is shared across worktrees and is NEVER written to:
 # the estate is copied out first (twice - once for the cold, unmarked
@@ -272,8 +323,15 @@ SKIPPED=16
 # summary line splits.
 RECORDED=1
 APPROVE_SKIPPED=$((SKIPPED - RECORDED))
-VERIFIED_WANT=30
-DRIFTED_WANT=16
+# 31/15, not the 30/16 this script asserted before #371: with the provider
+# knowing its own account, the one ARN-bearing instance whose stored ARN used
+# to carry an empty account segment now matches the live one on the nose. A
+# resource moving from DRIFTED to VERIFIED is the direction of travel, and it
+# is the same shape corpus-overture-tiles measured for #345 (there it moved
+# the other way, for the same reason: the two provider configurations
+# genuinely disagreed about an ARN).
+VERIFIED_WANT=31
+DRIFTED_WANT=15
 UNTAGGABLE_WANT=16
 UNADMITTED_WANT=0
 FLUENTBIT_PARAM="/aws/service/aws-for-fluent-bit/stable"
@@ -312,6 +370,22 @@ copy_tree() {
          "$dest/ecs/examples/fargate/terraform.tfstate.backup"
 }
 
+# apply_delta1 DEST SKIP_ACCOUNT_ID - DELTA 1, the onboarding delta: the
+# emulator flags on the estate's one provider block.
+#
+# skip_requesting_account_id is parameterized rather than hard-coded, which
+# is issue #371's whole fix and is the same knob #345 turned for
+# corpus-overture-tiles. BOTH copies pass `false` here, and the parameter
+# exists because getting there took two measurements, not one - see this
+# script's header, "#371", for both.
+apply_delta1() {
+  local est="$1" skip_account_id="$2"
+  perl -0pi -e "s/^(provider \"aws\" \{\n  region = local\.region\n)\}/\$1  access_key                  = \"test\" # DELTA 1\n  secret_key                  = \"test\"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = $skip_account_id\n  s3_use_path_style           = true\n}/" "$est/main.tf"
+  grep -q 'DELTA 1' "$est/main.tf" || fail "DELTA 1 did not match the provider block in $est - the corpus pin has moved"
+  grep -q "skip_requesting_account_id  = $skip_account_id" "$est/main.tf" \
+    || fail "DELTA 1 did not write skip_requesting_account_id = $skip_account_id into $est"
+}
+
 gauntlet_begin
 
 # ── 0. tools and corpus ─────────────────────────────────────────────────────
@@ -342,10 +416,11 @@ CURRENT_STAGE=cold_deploy
 # ── 1. cold deploy: plain terraform, no live block, no choudoufu ───────────
 log "=== 1. cold deploy: plain terraform, 62 real resources ==="
 
-# DELTA 1, onboarding: emulator flags on the estate's one provider block.
-perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                  = "test" # DELTA 1\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$PLAIN_EST/main.tf"
-grep -q 'DELTA 1' "$PLAIN_EST/main.tf" || fail "DELTA 1 did not match the provider block - the corpus pin has moved"
+# DELTA 1, onboarding: emulator flags on the estate's one provider block,
+# with skip_requesting_account_id = false (#371 - see the header).
+apply_delta1 "$PLAIN_EST" false
 log "  DELTA 1  emulator flags on the provider block             (onboarding)"
+log "           skip_requesting_account_id = false (#371)"
 
 log "=== 1a. floci on :$FLOCI_PORT ($FLOCI_IMAGE) ==="
 docker run -d --rm -p "${FLOCI_PORT}:4566" --name "$FLOCI_NAME" "$FLOCI_IMAGE" >/dev/null \
@@ -393,6 +468,33 @@ MARKER_COUNT="$(awsl ecs list-tags-for-resource --resource-arn "$CLUSTER_ARN" --
 [ "$MARKER_COUNT" = "0" ] || fail "the ECS cluster already carries a tofu-address tag before migration - this crossing proves nothing"
 log "  confirmed unmarked: $CLUSTER_ARN carries no tofu-address tag"
 
+# ── 1c. the stock oracle for stage 3, taken before anything is stamped ────
+#
+# live/GAUNTLET.md's stage 3 names stock's own plan as the oracle: "Stock
+# plan on the migrated state is also empty". Here it is not, and it has to
+# be read HERE rather than after stage 2, because once live-import has
+# stamped 46 objects a stock plan wants to strip every marker off them and
+# says nothing useful about anything else. This is plain terraform, on the
+# state file it wrote itself, one minute after writing it, against a cloud
+# nothing has touched. It replaces both aws_ecs_task_definition instances,
+# which is HANDOFF.md's third row - stock fails too - and is why stage 3
+# below does not count those two replacements against choudoufu.
+STOCK_REPLAN="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
+STOCK_REPLAN_RC=$?
+[ "$STOCK_REPLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_REPLAN" | tail -30; fail "the stock oracle replan exited $STOCK_REPLAN_RC"; }
+STOCK_PLAN_LINE="$(grep -E '^Plan:|^No changes' <<< "$STOCK_REPLAN" | tail -1)"
+for want_stock in \
+  'module.ecs_service.aws_ecs_task_definition.this[0] must be replaced' \
+  'module.ecs_task_definition.aws_ecs_task_definition.this[0] must be replaced'
+do
+  grep -qF "$want_stock" <<< "$STOCK_REPLAN" \
+    || { printf '%s\n' "$STOCK_REPLAN" | grep -E '^Plan:|^  # '; fail "stock's own replan no longer reports '$want_stock' - the oracle for stage 3's two replacements has moved"; }
+done
+log "  stock oracle: plain terraform replanning its own fresh state is NOT"
+log "  empty - \"$STOCK_PLAN_LINE\" - and both"
+log "  aws_ecs_task_definition instances are replaced by stock itself"
+log "  (container_definitions round-trip). HANDOFF.md row 3."
+
 log ""
 log "STAGE 1 (cold deploy): PASS"
 log ""
@@ -406,8 +508,11 @@ ADOPTED="$WORK/adopted"
 copy_tree "$ADOPTED"
 ADOPTED_EST="$ADOPTED/ecs/examples/fargate"
 # Carry the same emulator delta so the adopted config is otherwise identical
-# to what is actually standing.
-perl -0pi -e 's/^(provider "aws" \{\n  region = local\.region\n)\}/$1  access_key                  = "test" # DELTA 1\n  secret_key                  = "test"\n  skip_credentials_validation = true\n  skip_metadata_api_check     = true\n  skip_requesting_account_id  = true\n  s3_use_path_style           = true\n}/' "$ADOPTED_EST/main.tf"
+# to what is actually standing - with skip_requesting_account_id = false on
+# THIS copy alone (#371; the same shape #345 landed for
+# corpus-overture-tiles). Nothing else about the configuration differs.
+apply_delta1 "$ADOPTED_EST" false
+log "  DELTA 1  emulator flags, skip_requesting_account_id = false (#371)"
 
 # DELTA 2, onboarding: add the live block. record_store is needed for
 # module.ecs_cluster's time_sleep.this[0] (an effects-only logical
@@ -539,12 +644,16 @@ CLUSTER_NAME_FROM_ARN="$(awk -F/ '{print $2}' <<< "$CLUSTER_ARN")"
 SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fargate --query 'services[0].serviceName' --output text)"
 [ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
 WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
-WANT_ADD_N=7
-WANT_CHANGE_N=30
+WANT_ADD_N=2
+WANT_CHANGE_N=31
+WANT_DESTROY_N=2
+WANT_SLOT_N=25
 if [ "${BREAK:-}" = "1" ]; then
   WANT_TARGET_RID="service/not-the-cluster/${SERVICE_NAME}"
   WANT_ADD_N=0
   WANT_CHANGE_N=0
+  WANT_DESTROY_N=0
+  WANT_SLOT_N=0
   log "  BREAK=1: expecting the scalable target's ResourceId to name a"
   log "           cluster that does not exist, and the plan to be empty."
   log "           Neither is true. This step must fail."
@@ -575,53 +684,162 @@ log "  identity re-check: the cluster and the service still carry"
 log "  $GOT_CLUSTER_ADDR2 and $GOT_SVC_ADDR2, re-read through the AWS CLI"
 log "  after the state file was deleted."
 
+# ── 3a2. #371's ABSENT class is gone, and the three identities it was about
+#        are confirmed BY VALUE against the AWS CLI ─────────────────────────
+#
+# Absence by name first, the same discipline #368's six diagnostics get
+# above: three ABSENT readings and the four PARENT_UNAVAILABLE cascades they
+# fed. A count, not a "the plan got smaller".
+for want_gone in \
+  'The provider reports no aws_ecs_cluster exists with identity' \
+  'The provider reports no aws_ecs_task_definition exists with identity' \
+  'is not in the projection: the provider reports no aws_ecs_cluster exists'
+do
+  N="$(grep -cF "$want_gone" <<< "$PLAN_FLAT")"
+  [ "$N" = "0" ] || { printf '%s\n' "$PLAN_OUT" | sed -n '1,80p'; fail "#371 is back: expected 0 '$want_gone' readings, got $N"; }
+done
+grep -qF '[ABSENT]' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | sed -n '1,80p'; fail "#371 is back: live-plan reports an ABSENT instance"; }
+grep -qF '[PARENT_UNAVAILABLE]' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | sed -n '1,80p'; fail "#371 is back: live-plan reports a PARENT_UNAVAILABLE instance"; }
+
+# An empty ABSENT class is not enough either: a projection can read the WRONG
+# object and report nothing missing. So the three identities #371 was about
+# are compared BY VALUE, and the value compared is the one the plan itself
+# printed as PRIOR state - the ARN the provider handed back for the object
+# choudoufu actually bound - against the ARN the AWS CLI reports for the same
+# object. Character for character, three objects, both directions read
+# independently.
+TD_SVC_ARN="$(awsl ecs describe-task-definition --task-definition ex-fargate --query 'taskDefinition.taskDefinitionArn' --output text)"
+TD_STANDALONE_ARN="$(awsl ecs describe-task-definition --task-definition ex-fargate-standalone --query 'taskDefinition.taskDefinitionArn' --output text)"
+for arn in "$CLUSTER_ARN" "$TD_SVC_ARN" "$TD_STANDALONE_ARN"; do
+  [ -n "$arn" ] && [ "$arn" != "None" ] || fail "could not read one of the three #371 ARNs through the AWS CLI"
+done
+CLUSTER_ARN_ASSERT="$CLUSTER_ARN"
+if [ "${BREAK:-}" = "1" ]; then
+  CLUSTER_ARN_ASSERT="${CLUSTER_ARN}-not-the-cluster"
+  log "  BREAK=1: expecting the plan's prior ECS cluster id to be"
+  log "           $CLUSTER_ARN_ASSERT. It is not. This step must fail."
+fi
+# plan_attr BLOCK_HEADER ATTR - the value the plan printed for one attribute
+# of one resource block, read out of the plan's own rendering. Column
+# alignment inside a block depends on the longest attribute name in it, so
+# the whitespace is matched, never counted.
+plan_attr() {
+  awk -v hdr="$1" -v attr="$2" '
+    index($0, hdr) { inblk = 1; next }
+    inblk && /^  # / { inblk = 0 }
+    inblk {
+      line = $0
+      sub(/^[ \t]*[~+-]?[ \t]*/, "", line)
+      split(line, f, /[ \t]*=[ \t]*/)
+      if (f[1] == attr) {
+        v = f[2]
+        sub(/^"/, "", v); sub(/".*$/, "", v)
+        print v; exit
+      }
+    }' <<< "$PLAN_OUT"
+}
+GOT_CLUSTER_PRIOR="$(plan_attr '# module.ecs_cluster.aws_ecs_cluster.this[0] ' 'id')"
+[ "$GOT_CLUSTER_PRIOR" = "$CLUSTER_ARN_ASSERT" ] \
+  || { grep -E '^  # module\.ecs_cluster\.aws_ecs_cluster' -A 4 <<< "$PLAN_OUT"; fail "the plan's prior state for the ECS cluster is \"$GOT_CLUSTER_PRIOR\", not the live cluster ARN \"$CLUSTER_ARN_ASSERT\" - the projection bound something else, or nothing"; }
+GOT_TD_SVC_PRIOR="$(plan_attr '# module.ecs_service.aws_ecs_task_definition.this[0] ' 'arn')"
+[ "$GOT_TD_SVC_PRIOR" = "$TD_SVC_ARN" ] \
+  || { grep -E '^  # module\.ecs_service\.aws_ecs_task_definition' -A 4 <<< "$PLAN_OUT"; fail "the plan's prior state for module.ecs_service's task definition is \"$GOT_TD_SVC_PRIOR\", not the live ARN \"$TD_SVC_ARN\""; }
+GOT_TD_STANDALONE_PRIOR="$(plan_attr '# module.ecs_task_definition.aws_ecs_task_definition.this[0] ' 'arn')"
+[ "$GOT_TD_STANDALONE_PRIOR" = "$TD_STANDALONE_ARN" ] \
+  || { grep -E '^  # module\.ecs_task_definition\.aws_ecs_task_definition' -A 4 <<< "$PLAN_OUT"; fail "the plan's prior state for module.ecs_task_definition's task definition is \"$GOT_TD_STANDALONE_PRIOR\", not the live ARN \"$TD_STANDALONE_ARN\""; }
+log "  #371 FIXED, and by value, not by an empty plan: the projection's own"
+log "  prior state for the three types #371 was about is"
+log "    $CLUSTER_ARN"
+log "    $TD_SVC_ARN"
+log "    $TD_STANDALONE_ARN"
+log "  each of them read back independently through the AWS CLI. 0 ABSENT,"
+log "  0 PARENT_UNAVAILABLE, where there were 3 and 4."
+
 # ── 3b. what stage 3 is blocked on NOW, pinned exactly ────────────────────
 #
-# Clearing #368's refusals let live-plan walk all the way to a real diff for
-# the first time, and the diff is not empty. Two causes, neither of them an
-# identity gap, both asserted here so a change to either is visible:
+# "2 to add, 31 to change, 2 to destroy", every line of it accounted for.
+# See the header for the full reasoning; the assertions are the summary:
 #
-#   7 to add.  aws_ecs_cluster.this[0] and both aws_ecs_task_definition
-#              instances come back ABSENT - "the provider reports no
-#              aws_ecs_cluster exists with identity \"ex-fargate\"" - even
-#              though `aws ecs describe-clusters --clusters ex-fargate`
-#              answers for the same object two stages above. The other four
-#              (aws_ecs_service.this[0], aws_appautoscaling_target.this[0],
-#              and both aws_appautoscaling_policy instances) cascade from
-#              the cluster as PARENT_UNAVAILABLE, which is the correct
-#              behaviour for an unavailable parent and not a second fault.
-#  30 to change (was 31 against the prior floci pin, see the header's
-#              generalization measurement). Every one is a single tag
-#              addition, `tofu-slot = "0"`: a marker live-plan expects and
-#              live-import did not write. No other attribute of any of the
-#              30 differs.
+#   2 add + 2 destroy   one replacement each of the two
+#              aws_ecs_task_definition instances, forced by
+#              container_definitions. STOCK DOES THE SAME - asserted in
+#              stage 1c against a state file with no marker in it - so this
+#              is HANDOFF.md's third row, not a choudoufu difference.
+#  25 of 31 changes   a single tag addition, `tofu-slot = "0"`, on a
+#              count-expanded instance: choudoufu #372.
+#   4 of 31    emulator read fidelity, all four also in stock's own replan:
+#              the ECS cluster's `configuration` block, the ECS service's
+#              `deployment_configuration`, the default network ACL's rules,
+#              the default route table's `timeouts`.
+#   2 of 31    the finding this pass turned up: the two log groups inside
+#              for_each'd module calls have their markers proposed for
+#              REMOVAL rather than their tofu-slot tag added. Pinned by
+#              name below.
 ADD_N="$(sed -nE 's/^Plan: ([0-9]+) to add.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 CHANGE_N="$(sed -nE 's/^Plan: [0-9]+ to add, ([0-9]+) to change.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
-[ "${ADD_N:-}" = "$WANT_ADD_N" ] || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected $WANT_ADD_N resources proposed for creation, got ${ADD_N:-none}"; }
-[ "${CHANGE_N:-}" = "$WANT_CHANGE_N" ] || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected $WANT_CHANGE_N resources proposed for in-place change, got ${CHANGE_N:-none}"; }
-grep -qF 'The provider reports no aws_ecs_cluster exists with identity' <<< "$PLAN_FLAT" \
-  || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected the aws_ecs_cluster ABSENT reading - the emulator or the provider may have moved"; }
-grep -qF 'The provider reports no aws_ecs_task_definition exists with identity' <<< "$PLAN_FLAT" \
-  || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected the aws_ecs_task_definition ABSENT reading - the emulator or the provider may have moved"; }
-SLOT_N="$(grep -c '^          + "tofu-slot"' <<< "$PLAN_OUT")"
-[ "$SLOT_N" -ge "$WANT_CHANGE_N" ] \
-  || fail "expected every one of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone, found $SLOT_N such additions"
-log "  BLOCKED, and no longer on identity: $ADD_N to add (the ECS cluster,"
-log "  both task definitions, and four instances cascading from the cluster),"
-log "  $CHANGE_N to change"
-log "  (every one of them the single tag tofu-slot=\"0\", which live-import"
-log "  does not write and live-plan expects)."
+DESTROY_N="$(sed -nE 's/^Plan: [0-9]+ to add, [0-9]+ to change, ([0-9]+) to destroy.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
+[ "${ADD_N:-}" = "$WANT_ADD_N" ] || { grep -E '^Plan:|^  # .+ will be|^  # .+ must be' <<< "$PLAN_OUT"; fail "expected $WANT_ADD_N resources proposed for creation, got ${ADD_N:-none}"; }
+[ "${CHANGE_N:-}" = "$WANT_CHANGE_N" ] || { grep -E '^Plan:|^  # .+ will be|^  # .+ must be' <<< "$PLAN_OUT"; fail "expected $WANT_CHANGE_N resources proposed for in-place change, got ${CHANGE_N:-none}"; }
+[ "${DESTROY_N:-}" = "$WANT_DESTROY_N" ] || { grep -E '^Plan:|^  # .+ will be|^  # .+ must be' <<< "$PLAN_OUT"; fail "expected $WANT_DESTROY_N resources proposed for destruction, got ${DESTROY_N:-none}"; }
+for want_replaced in \
+  'module.ecs_service.aws_ecs_task_definition.this[0] must be replaced' \
+  'module.ecs_task_definition.aws_ecs_task_definition.this[0] must be replaced'
+do
+  grep -qF "$want_replaced" <<< "$PLAN_OUT" \
+    || { grep -E '^  # ' <<< "$PLAN_OUT"; fail "expected '$want_replaced' - stock replans the same replacement (stage 1c), so this is the shape stage 3 is waiting on, not a new one"; }
+done
+# How many of the in-place changes are the tofu-slot tag and nothing else.
+# Counted per resource block, not per line: the tag shows up twice in every
+# block (tags and tags_all), and "is this change only the marker" is a
+# question about the block, not about a line.
+slot_only_blocks() {
+  awk '
+    /^  # .* will be updated in-place$/ { if (blk) { if (!other) n++ } blk = 1; other = 0; next }
+    /^  # / { if (blk) { if (!other) n++ } blk = 0; other = 0; next }
+    blk {
+      if ($0 !~ /^[ \t]*[~+-][ \t]/) next            # not a diff line
+      if ($0 ~ /^  [~+-] resource /) next            # the block header
+      if ($0 ~ /tofu-slot/) next                     # the marker itself
+      if ($0 ~ /^[ \t]*~ tags(_all)?[ \t]*=/) next   # the map it sits in
+      other = 1
+    }
+    END { if (blk && !other) n++; print n + 0 }' <<< "$PLAN_OUT"
+}
+SLOT_N="$(slot_only_blocks)"
+[ "$SLOT_N" = "$WANT_SLOT_N" ] \
+  || { grep -E '^  # .+ will be updated in-place' <<< "$PLAN_OUT"; fail "expected $WANT_SLOT_N of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone (#372), found $SLOT_N"; }
+# The two for_each'd-module log groups, pinned by name AND by the marker
+# value being removed, so this cannot change shape unnoticed. It is the one
+# thing in this plan that is choudoufu's alone.
+for want_stripped in \
+  'module.ecs_service.module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0' \
+  'module.ecs_task_definition.module.container_definition:al2023.aws_cloudwatch_log_group.this:0'
+do
+  grep -qF -- "- \"tofu-address\" = \"$want_stripped\" -> null" <<< "$PLAN_OUT" \
+    || { grep -E 'container_definition.*aws_cloudwatch_log_group' -A 12 <<< "$PLAN_OUT"; fail "expected live-plan to propose removing the marker $want_stripped - if it stopped doing that, this assertion is what should be deleted"; }
+done
+log "  BLOCKED, and no longer on #371: $ADD_N to add, $CHANGE_N to change,"
+log "  $DESTROY_N to destroy. $WANT_SLOT_N of the $CHANGE_N are the tofu-slot tag alone"
+log "  (#372); the 2 adds and 2 destroys are the two task definitions stock"
+log "  itself replaces (stage 1c); 4 more are emulator read fidelity also"
+log "  present in stock's replan; and 2 are the marker-stripping finding on"
+log "  the log groups inside for_each'd module calls."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real, on two non-identity causes -"
-log "the ECS cluster and both task definitions read back ABSENT through the"
-log "provider (choudoufu #371, unchanged by this floci pin), and $WANT_CHANGE_N expanded"
-log "instances are missing the tofu-slot marker (choudoufu #372; was 31 against"
-log "the prior floci pin)."
+log "STAGE 3 (test_plan): BLOCKED, but #371 is FIXED and the wall has moved."
+log "The three types #371 was about now read back present, with their prior"
+log "identities confirmed by value against the AWS CLI. What remains: $WANT_SLOT_N"
+log "instances missing the tofu-slot marker (choudoufu #372, deliberate and"
+log "known), two task-definition replacements stock itself proposes on its own"
+log "fresh state (stage 1c - HANDOFF.md row 3), four emulator read-fidelity"
+log "diffs also in stock's replan, and two log groups inside for_each'd module"
+log "calls whose markers live-plan proposes to remove."
 log "All eight of #368's diagnostics are gone, asserted by absence above,"
 log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "#368's 8 identity diagnostics -> 0 (asserted absent; scalable target identity $GOT_TARGET_RID confirmed by value from the live cluster ARN). BLOCKED now on two non-identity causes, both re-measured against this floci pin: aws_ecs_cluster/aws_ecs_task_definition read back ABSENT through the provider (choudoufu #371, unchanged - 7 to add, 4 of them PARENT_UNAVAILABLE cascade), and $WANT_CHANGE_N expanded instances missing the tofu-slot marker live-import does not write (choudoufu #372; was 31 before this pin, floci's own ECS/elbv2/resourcegroupstagging fixes in it changed which types still need the tag)"
+gauntlet_stage test_plan fail "#371 FIXED: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1 - skip_requesting_account_id = true left hashicorp/aws composing account-less ARNs for its ECS reads, and stock terraform fails identically on the same provider block. Plan is now 2 to add, 31 to change, 2 to destroy (was 7/30/0). Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), 4 emulator read-fidelity diffs also in stock's replan, and 2 aws_cloudwatch_log_group instances inside for_each'd module calls whose tofu-address/tofu-estate markers live-plan proposes to REMOVE - a new finding, pinned by name, not root-caused"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -634,7 +852,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #368's 8 identity diagnostics are 0 and the scalable target identity $GOT_TARGET_RID is confirmed by value; blocked now on the ECS cluster/task definitions reading back ABSENT and 31 missing tofu-slot markers"
+log "  stage 3  test_plan          BLOCKED - #371 FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, four emulator read-fidelity diffs, and two markers live-plan proposes to remove"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
