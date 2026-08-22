@@ -1,6 +1,6 @@
 ---
 title: "Where things are stored"
-weight: 5
+weight: 8
 ---
 
 # Where things are stored

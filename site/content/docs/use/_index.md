@@ -13,10 +13,13 @@ surface.
 
 | Page | Question it answers |
 |------|---------------------|
-| [Will my config work?]({{< relref "compatibility" >}}) | What in a real configuration this fork accepts or refuses, and why |
+| [Compatibility reference]({{< relref "compatibility" >}}) | What in a real configuration this fork accepts or refuses |
+| [How to check a configuration before migrating]({{< relref "check-a-config" >}}) | Running `choudoufu live-check` against your own code |
 | [Migrate an existing estate]({{< relref "migrate" >}}) | How resources you already manage bind to their markers |
-| [Start a new estate]({{< relref "start" >}}) | The `live` block, from a first apply |
 | [Day-2 operations]({{< relref "day2" >}}) | What happens on removal, rename, and the settings that decide it |
-| [Where things are stored]({{< relref "storage" >}}) | State, records and receipts, and what lives where |
+| [Start a new estate]({{< relref "start" >}}) | The `live` block, from a first apply |
 | [Questions]({{< relref "faq" >}}) | Short answers to the questions that come up first |
+| [How to write markers inside a for_each'd module]({{< relref "keyed-modules" >}}) | Threading `each.key` through a wrapped module by hand |
+| [Where things are stored]({{< relref "storage" >}}) | State, records and receipts, and what lives where |
+| [How the compatibility numbers are measured]({{< relref "measurement" >}}) | Where the corpus ranking comes from, and what not to read into it |
 | [Reference]({{< relref "reference" >}}) | The fork's call surface, per stage |

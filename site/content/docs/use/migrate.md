@@ -1,6 +1,6 @@
 ---
 title: "Migrate an existing estate"
-weight: 2
+weight: 3
 ---
 
 # Migrate an existing estate
@@ -128,7 +128,7 @@ adopted.
 
 A type outside the admission table has no adoption path at all. Hand-stamping
 markers does not help, because nothing sweeps for a type this configuration
-cannot declare. [Will my config work]({{< relref "/docs/use/compatibility" >}}) covers finding yours.
+cannot declare. [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) covers finding yours.
 
 ## Moving a large estate in one go
 

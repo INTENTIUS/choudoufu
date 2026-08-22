@@ -1,51 +1,17 @@
 ---
-title: "Will my config work?"
+title: "Compatibility reference"
 weight: 1
 ---
 
-# Will my config work?
+# Compatibility reference
 
-Probably not without changes.
+What choudoufu admits and refuses: the provider and resource types, how a
+configuration must be written, and how it may be run.
 
-What stops a configuration is how it is written and run, not which resource
-types it uses. A `for_each` over a data source, a `count.index` in a resource
-name, a `backend "s3"` block, or a CI pipeline that saves a plan file. Run
-`choudoufu live-check` for a verdict on your exact code.
-
-## The one rule underneath most of it
-
-Every `count`, every `for_each`, and every identity-bearing argument must be
-computable from `var`, `local`, `path` and `terraform` alone, plus functions
-over those.
-
-No data sources. No module outputs. No attributes of other resources.
-
-Markers are written before anything is created, and a marker names which
-configuration address a live resource belongs to. If the set of instances is
-unknowable until a provider has been called, there is no marker to write.
-
-Most refusals below follow from that rule.
-
-## Ask it directly
-
-```
-choudoufu live-check ./
-```
-
-Point it at any OpenTofu configuration. No `live` block, no cloud calls, no
-requirement that the directory has heard of this fork. It prints a verdict,
-then every refusal that fired with its site count, the types responsible, and
-what to do about each.
-
-Run `choudoufu init` first if you can. With provider schemas available it
-judges types from the provider's own identity schema as well as the built-in
-table, and admits more. Without them it says the answer is pessimistic.
-
-**It checks two of five stages.** Lint and identity resolution need no
-provider, which is what makes the command fast and credential-free. Marker
-stamping, discovery and projection need a cloud and go unchecked. A clean
-result is necessary, not sufficient. Run a plan against a non-production
-account before trusting a migration.
+This is the enumerated list. For why static evaluability is the rule behind
+most of it, see [Identity]({{< relref "/docs/model/identity" >}}). To check
+your own configuration against this list, see [How to check a configuration
+before migrating]({{< relref "/docs/use/check-a-config" >}}).
 
 ## Your provider
 
@@ -70,7 +36,9 @@ three admission paths.
 
 ## How your configuration is written
 
-This is the group that catches people.
+This is the group that catches people. Every row below is a different way of
+asking an address or an identity to resolve before a provider can answer it;
+[Identity]({{< relref "/docs/model/identity" >}}) states the rule in full.
 
 ### Expansion
 
@@ -131,52 +99,14 @@ goes, so `module.app["prod"]` survives whatever happens to
 rules as a resource's own `for_each` key, because the key becomes part of every
 address inside the module.
 
-**`count` on a module call is refused permanently.** `count` renumbers every
-address inside the module on any insertion or removal above the changed index.
-Removing element zero turns `module.app[1]` into `module.app[0]`, silently
-pointing every marker beneath at the wrong live resource. A marker records an
-address, not a position, so no future work closes this. Rewrite as a keyed
+**`count` on a module call is refused permanently.** Rewrite as a keyed
 `for_each` over stable names, move the resources to the root module, or give
-the module its own estate.
+the module its own estate. [Identity]({{< relref "/docs/model/identity" >}})
+explains why no future work closes this.
 
-### Resources inside a keyed module need hand-written markers
-
-Instances of a `for_each`'d module share one HCL body for `tags`, so no single
-literal address is correct for all of them and auto-stamping cannot reach
-inside. choudoufu leaves such a resource alone when it already declares `tags`,
-and raises a must-stamp error when it declares none and its type needs
-discovery.
-
-Thread the module's own `each.key` through and build the address from it.
-
-```hcl
-# root module: the call passes its own each.key through
-module "wrapped" {
-  source   = "./wrapped"
-  for_each = toset(["a", "b"])
-  key      = each.key
-}
-```
-
-```hcl
-# wrapped module: receives it as a variable
-variable "key" {
-  type = string
-}
-```
-
-```hcl
-# wrapped module: builds its own address from the variable
-resource "aws_eip" "app" {
-  tags = {
-    tofu-estate  = local.estate_tag
-    tofu-address = "module.wrapped[\"${var.key}\"].aws_eip.app"
-  }
-}
-```
-
-`live/e2e/estate-module-keyed/` is the two-instance fixture this is drawn from,
-proven against a live emulator.
+A resource inside a `for_each`'d module needs its own marker built by hand
+from the module's own key; see [How to write markers inside a for_each'd
+module]({{< relref "/docs/use/keyed-modules" >}}).
 
 ### Crossing a module boundary
 
@@ -340,27 +270,6 @@ root module stock tooling never touches, or move its content into the sidecar,
 which is one file and zero edited lines. Declaring both forms at once is an
 error.
 
-## Where this page's ordering comes from
-
-[`live/corpus-refusals.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/corpus-refusals.json)
-measures which refusals fire and how often across the corpus. This page copies
-no count from it, because a copied count goes stale the moment the corpus
-re-runs.
-
-That measured ranking is why the static-evaluability rule leads this page.
-Several of the most frequent refusals are that one rule under different
-diagnostics.
-
-**Do not read the fixture or module-example populations as a compatibility
-rate.** Module `examples/` directories demonstrate a module's full surface, so
-they lean far harder on variables, conditionals and `dynamic` blocks than a
-configuration describing one deployment, and refuse almost across the board.
-Those populations are marked as a ranking, settled by
-[#118](https://github.com/INTENTIUS/choudoufu/issues/118). One population can
-honestly carry a rate since
-[#147](https://github.com/INTENTIUS/choudoufu/issues/147), whole deployment
-root modules published by their operators, pinned by commit, marked
-`reads_as: rate`.
-
-Run `choudoufu live-check` on your own configuration rather than inferring
-anything from the corpus.
+For how the type and refusal counts on this page are measured, and what not
+to read into them, see [How the compatibility numbers are
+measured]({{< relref "/docs/use/measurement" >}}).
