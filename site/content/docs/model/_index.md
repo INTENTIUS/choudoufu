@@ -80,4 +80,6 @@ aws resourcegroupstaggingapi get-resources \
 Prior state is rebuilt by reading the live system, so a plan does more work
 than reading a file. Identity must be knowable before anything is created,
 which bounds what a configuration may compute.
-[Will my config work]({{< relref "/docs/use/compatibility" >}}) lists what that rules out.
+[Identity]({{< relref "/docs/model/identity" >}}) states the rule, and
+[Compatibility reference]({{< relref "/docs/use/compatibility" >}}) lists
+what that rules out.

@@ -46,9 +46,34 @@ configuration names the live object, so the tag is the only way back. Discovery
 lists by tag and reads the address off what comes back.
 
 The second path is why identity arguments must be computable before a provider
-runs. If the set of instances is unknowable until after a call, there is no
-marker to write. [Will my config work]({{< relref "/docs/use/compatibility" >}}) lists what that
-rules out.
+runs. The next section states the rule in full.
+
+## The static-evaluability rule
+
+Every `count`, every `for_each`, and every identity-bearing argument must be
+computable from `var`, `local`, `path` and `terraform` alone, plus functions
+over those.
+
+No data sources. No module outputs. No attributes of other resources.
+
+Markers are written before anything is created, and a marker names which
+configuration address a live resource belongs to. If the set of instances is
+unknowable until a provider has been called, there is no marker to write.
+
+This is the rule behind most of what [Compatibility
+reference]({{< relref "/docs/use/compatibility" >}}) refuses: a `for_each`
+over a data source, a `count.index` in a resource name, an identity argument
+read from another resource's attribute. Each is a different way of asking an
+address to resolve before a plan knows what it is naming.
+
+The same rule is why **`count` on a module call is refused permanently**,
+where a keyed `for_each` is not. `count` renumbers every address inside the
+module on any insertion or removal above the changed index: removing element
+zero turns `module.app[1]` into `module.app[0]`, silently pointing every
+marker beneath at the wrong live resource. A marker records an address, not a
+position, so no future work closes this. Rewrite as a keyed `for_each` over
+stable names, move the resources to the root module, or give the module its
+own estate.
 
 ## Renaming
 
