@@ -55,9 +55,12 @@ set -uo pipefail
 #                     know this type" to "we know it, and we know precisely
 #                     why we can't verify it yet."
 #   3. TEST PLAN      choudoufu live-plan against the full 54-resource
-#                     config. REFUSES OUTRIGHT. Not "empty" and not "N to
-#                     add" - admission itself stops the run before any plan
-#                     is rendered. Re-verified 2026-08-20 with #326's fix
+#                     config. STILL REFUSES OUTRIGHT, but for half as many
+#                     reasons as it did: 4 Error diagnostics as of
+#                     2026-08-22, all of them logical-resource, down from 8.
+#                     Not "empty" and not "N to add" - admission itself stops
+#                     the run before any plan is rendered. Re-verified
+#                     2026-08-20 with #326's fix
 #                     merged: the unadmitted-type refusal on kubernetes_
 #                     config_map.aws_auth is CONFIRMED GONE - zero
 #                     occurrences of "Rule: unadmitted-type." and zero
@@ -94,15 +97,46 @@ set -uo pipefail
 #                         does not paper over the estate by adding a
 #                         record_store itself (see the note above about not
 #                         hand-patching to dodge the wall).
-#                       - count-index (4 sites): aws_route_table_association.
-#                         public/private built from `element(some_resource
-#                         [*].id, count.index)` - the checker cannot
-#                         statically prove two instances get different
-#                         route_table_ids/subnet_ids without evaluating
-#                         live resources, which is exactly the class of
-#                         defect HANDOFF.md's own count.index history warns
-#                         about getting wrong in the OTHER direction. Down
-#                         from 7 to 4 sites since #321/#324 landed.
+#                       - count-index (4 sites): FIXED 2026-08-22, and the
+#                         four sites are asserted ABSENT below as a negative
+#                         control with BREAK=1 flipping it. They were
+#                         module.vpc's aws_route_table_association.public and
+#                         .private, whose subnet_id and route_table_id are
+#                         `element(<a sibling resource's splat>, <an index
+#                         over count.index>)` (terraform-aws-modules/vpc
+#                         v6.6.1 main.tf:200-201 and 348-352). Root cause:
+#                         internal/live/lint's RuleCountIndex refused
+#                         count.index inside ANY collection accessor on
+#                         sight, whatever the collection was, so the run
+#                         never reached the two resolutions that already knew
+#                         exactly what those spellings mean
+#                         (resolveElementCall and resolveIndexedTraversal,
+#                         internal/live/identity/splat.go - whose own doc
+#                         comment names this gap and declines to attempt it).
+#                         element(R[*].attr, idx) computes nothing: it
+#                         SELECTS one instance of a sibling managed resource,
+#                         and what the identity layer builds from it is a
+#                         ParentRef, not a rendered string. The fix is
+#                         internal/live/lint/sibling_select.go: RuleCountIndex
+#                         steps aside for that shape, because the exact
+#                         question it approximates is asked again downstream
+#                         by identity's own checkCollisions, over the WHOLE
+#                         rendered identity instead of one argument at a time.
+#                         That difference is what settles the case splat.go
+#                         calls the open question - this example passes
+#                         single_nat_gateway = true, so route_table_id
+#                         collapses onto ONE route table for every instance
+#                         and only subnet_id varies, which per-argument
+#                         reasoning must refuse and which is completely safe.
+#                         Asserted by value, not by the refusal going away:
+#                         internal/live/lint/sibling_select_test.go pins the
+#                         three rendered identities as exact strings for both
+#                         spellings, and a third fixture where the selection
+#                         really does collapse onto one object is still
+#                         refused - by checkCollisions, quoting the duplicated
+#                         identity. The rule names no resource type and
+#                         reaches 574 of the 1042 admitted rows. Was 7 sites
+#                         before #321/#324, then 4, now 0.
 #   4. TEST APPLY     UNREACHABLE. Stage 3 produced no plan to apply.
 #   5. DRIFT/RECONVERGE UNREACHABLE for the same reason.
 #
@@ -673,6 +707,11 @@ if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 # flipping the expectation (proving the check is load-bearing, not
 # vacuously true because the rule never fired for any reason).
 LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
+# The four count-index sites this script used to assert as PRESENT are
+# asserted as ABSENT below. They were module.vpc's own
+# aws_route_table_association.public/private, all four of them
+# element(<a sibling resource's splat>, <an index over count.index>), and
+# internal/live/lint/sibling_select.go retired that wall - see the header.
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
 
 assert_rule_fires() {
@@ -688,7 +727,11 @@ assert_rule_fires() {
 if [ "${BREAK:-}" = "1" ]; then
   log "  BREAK=1: expecting \"Rule: unadmitted-type.\" to still fire on"
   log "           kubernetes_config_map (issue #326's own fix, deliberately"
-  log "           treated as absent). This step must fail."
+  log "           treated as absent), and \"Rule: count-index.\" to still fire"
+  log "           on aws_route_table_association (sibling_select.go's fix,"
+  log "           likewise treated as absent). Both steps must fail."
+  grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" \
+    || fail "BREAK=1 correctly detected: no count-index refusal fired anywhere - sibling_select.go's fix holds (this failure is the expected, load-bearing one)"
   grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" \
     || fail "BREAK=1 correctly detected: no unadmitted-type refusal fired anywhere - #326's fix holds (this failure is the expected, load-bearing one)"
 else
@@ -699,15 +742,30 @@ else
   log "  Confirmed: no \"Rule: unadmitted-type.\" refusal and no mention of"
   log "             kubernetes anywhere in live-plan's output - issue #326's"
   log "             fix holds for kubernetes_config_map.aws_auth"
+
+  # The count-index half of this estate's wall, asserted as a negative
+  # control the same way #326's is: the rule no longer fires, and the four
+  # sites no longer appear in the output under any rule at all. The second
+  # leg is what stops this reading as green when the wall has merely MOVED -
+  # a refusal that came back under another rule's name, or an
+  # "Unresolvable identity" on the same resource, would still print
+  # aws_route_table_association and would still be a wall.
+  grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" \
+    && { grep -E 'Rule: count-index\.' <<< "$PLAN_OUT"; fail "count-index fired unexpectedly - internal/live/lint/sibling_select.go's rule may have regressed"; }
+  grep -qE "$COUNTINDEX_SITES" <<< "$PLAN_OUT" \
+    && { grep -E "$COUNTINDEX_SITES" <<< "$PLAN_OUT"; fail "aws_route_table_association still appears in live-plan's output - it is supposed to be past the refusal wall entirely now"; }
+  log "  Confirmed: no \"Rule: count-index.\" refusal and no mention of"
+  log "             aws_route_table_association anywhere in live-plan's"
+  log "             output - module.vpc's four element(<sibling splat>,"
+  log "             count.index) sites are past the wall"
 fi
 
 assert_rule_fires "logical-resource" "$LOGICAL_SITES"
-assert_rule_fires "count-index" "$COUNTINDEX_SITES"
 ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
-[ "$ERROR_COUNT" = "8" ] || fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 8 (4 logical-resource + 4 count-index) - the refusal wall's shape has changed"
-log "  exactly 8 Error diagnostics total (4 logical-resource + 4 count-index), matching the expected shape"
+[ "$ERROR_COUNT" = "4" ] || fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 4 (the logical-resource sites; the 4 count-index sites are fixed) - the refusal wall's shape has changed"
+log "  exactly 4 Error diagnostics total, all logical-resource, matching the expected shape"
 
-gauntlet_stage test_plan fail "4 logical-resource + 4 count-index refusals, 8 Error diagnostics total"
+gauntlet_stage test_plan fail "4 logical-resource refusals (choudoufu #364's implied local record store), 4 Error diagnostics total; the 4 count-index refusals are FIXED"
 gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
 gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
 CURRENT_STAGE=""
@@ -728,17 +786,22 @@ log "           legitimately untaggable-by-design plus 1 MISSING -"
 log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
 log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
-log "  STAGE 3  REFUSES  4 logical-resource sites, all correctly refused"
-log "           pending a record_store declaration, #73 as designed (#314,"
-log "           closed, landed local_file's own fourth LogicalClass -"
-log "           EXTERNAL_ADMITTED - so it is now the same shape as the"
-log "           other 3, not a distinct gap), and 4 correctly-conservative"
-log "           count-index refusals. Issue #326's"
-log "           own unadmitted-type site (kubernetes_config_map.aws_auth)"
-log "           is CONFIRMED GONE - asserted as a negative control above."
-log "           Asserted by rule and by resource, with BREAK=1 proving"
-log "           neither the negative control nor the positive checks are"
-log "           vacuous."
+log "  STAGE 3  REFUSES  4 logical-resource sites and nothing else, down"
+log "           from 8 diagnostics. They are refused pending a record_store"
+log "           declaration, #73 as designed (#314, closed, landed"
+log "           local_file's own fourth LogicalClass - EXTERNAL_ADMITTED -"
+log "           so it is now the same shape as the other 3, not a distinct"
+log "           gap). HANDOFF.md's compatible-by-default principle says a"
+log "           local record store should be IMPLIED when none is declared,"
+log "           which is choudoufu #364's foundation work and not a"
+log "           per-estate fix; this script deliberately does not paper over"
+log "           it by declaring one. The 4 count-index sites that used to"
+log "           sit beside them are FIXED (internal/live/lint/"
+log "           sibling_select.go) and are asserted ABSENT above, alongside"
+log "           issue #326's own unadmitted-type site"
+log "           (kubernetes_config_map.aws_auth). Asserted by rule and by"
+log "           resource, with BREAK=1 proving neither negative control nor"
+log "           the positive checks are vacuous."
 log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."
 log ""
 log "Two real, generalizable floci gaps (not this module's age, not this"

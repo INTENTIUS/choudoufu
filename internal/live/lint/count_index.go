@@ -104,6 +104,19 @@ type countIndexScope struct {
 	attrs map[string]bool
 }
 
+// identityAttrsKnown reports whether this scope was narrowed from a real
+// identity table row - neither the skip that means "no argument can reach
+// this type's identity" nor the walkAll that means "nothing says which one
+// does".
+//
+// It is the population where every resolution outcome is one of the two
+// [siblingInstanceSelection] relies on: an identity
+// [identity.resolver.checkCollisions] compares exactly, or an identity no
+// configuration argument builds at all. See sibling_select.go's "The gate".
+func (s countIndexScope) identityAttrsKnown() bool {
+	return !s.skip && !s.walkAll && len(s.attrs) > 0
+}
+
 // countIndexScopeForType computes scope for one resource type, from the two
 // classifications lint.go's checkManagedResources already has in hand: lt/
 // isLogical from ClassifyLogicalType, and identity.LookupType's own table
@@ -285,7 +298,7 @@ func countIndexCandidates(body *hclsyntax.Body, topLevel bool, scope countIndexS
 				continue
 			}
 		}
-		traversals = append(traversals, unsafeCountIndexHits(attr.Expr, domain)...)
+		traversals = append(traversals, unsafeCountIndexHits(attr.Expr, domain, scope)...)
 	}
 
 	for _, block := range body.Blocks {
@@ -343,9 +356,21 @@ var markerKeysExemptFromCountIndex = map[string]bool{
 // [countIndexDomain.verdict]. That check subsumes the syntactic one
 // wherever it can run at all, so it is only consulted second because it is
 // the more expensive of the two, never because it is the weaker.
-func unsafeCountIndexHits(expr hclsyntax.Expression, domain countIndexDomain) []countIndexHit {
+//
+// A shape neither of those can prove gets one last question, and it is a
+// question about what the expression IS rather than about what it renders:
+// an expression that selects a sibling managed resource's INSTANCE, rather
+// than computing a value from the index, is not what this rule is about at
+// all, and the exact collision check the identity layer already runs over
+// whole rendered identities decides it instead. See
+// [siblingInstanceSelection] and sibling_select.go's own doc comment for the
+// argument, and for why it applies only to a narrowed scope.
+func unsafeCountIndexHits(expr hclsyntax.Expression, domain countIndexDomain, scope countIndexScope) []countIndexHit {
 	result := analyzeCountIndexSafety(expr)
 	if !result.hasIndex || result.safe {
+		return nil
+	}
+	if scope.identityAttrsKnown() && siblingInstanceSelection(expr) {
 		return nil
 	}
 	verdict := domain.verdict(expr)
