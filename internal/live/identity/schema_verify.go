@@ -254,7 +254,7 @@ func checkArguments(entry TypeIdentity, schema providers.Schema) []Finding {
 			// version fact about an override, not a broken table.
 			continue
 		}
-		if hasAny(schema.Block, c.Attrs) {
+		if hasAny(componentSchemaBlock(schema.Block, c.Block), c.Attrs) {
 			continue
 		}
 		findings = append(findings, Finding{
@@ -264,8 +264,8 @@ func checkArguments(entry TypeIdentity, schema providers.Schema) []Finding {
 			TableSide:  strings.Join(c.Attrs, " or "),
 			SchemaSide: "no such argument",
 			Detail: fmt.Sprintf(
-				"The identity table builds %s's identity from %s, and the provider's schema for %s has no argument by any of those names. No instance of this type can resolve until the table is corrected.",
-				entry.Type, joinQuoted(c.Attrs, " or "), entry.Type,
+				"The identity table builds %s's identity from %s%s, and the provider's schema for %s has no argument by any of those names. No instance of this type can resolve until the table is corrected.",
+				entry.Type, joinQuoted(c.Attrs, " or "), blockClause(c.Block), entry.Type,
 			),
 		})
 	}
@@ -546,7 +546,45 @@ func (t TypeIdentity) claim() string {
 	return strings.Join(parts, " + ")
 }
 
+// componentSchemaBlock is the configschema.Block a component's Attrs are
+// actually read from: the resource's own top-level block when blockName is
+// empty (the ordinary case), or the body of the nested block Component.Block
+// names - the same block [resolver.identityArgs] reaches into for a
+// Block-bearing component such as aws_autoscaling_traffic_source_attachment's
+// (GitHub issue #310). checkArguments used to check every component's Attrs
+// against the top-level block regardless of Block, which made a correct row
+// like that one look broken: "type" and "identifier" are real arguments, but
+// only inside the required traffic_source block, never at the top level, so
+// hasAny(schema.Block, ...) always came back false and the table was accused
+// of naming an argument the provider does not have.
+//
+// A blockName the schema has no nested block by returns nil, which hasAny
+// treats as "not found" - the missing-block case is exactly as breaking as a
+// missing argument, not a reason to fall back to the top-level block.
+func componentSchemaBlock(top *configschema.Block, blockName string) *configschema.Block {
+	if blockName == "" {
+		return top
+	}
+	nested, ok := top.BlockTypes[blockName]
+	if !ok {
+		return nil
+	}
+	return &nested.Block
+}
+
+// blockClause renders the nested-block qualifier a breaking-argument
+// message names when the component reads one, empty otherwise.
+func blockClause(blockName string) string {
+	if blockName == "" {
+		return ""
+	}
+	return fmt.Sprintf(" in its %q block", blockName)
+}
+
 func hasAny(block *configschema.Block, names []string) bool {
+	if block == nil {
+		return false
+	}
 	for _, name := range names {
 		if _, ok := block.Attributes[name]; ok {
 			return true
