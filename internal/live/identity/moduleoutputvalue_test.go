@@ -86,8 +86,6 @@ func TestModuleOutputInsideModuleCallArgumentRefuses(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ addr, why string }{
-		{"module.sg.aws_security_group_rule.b[0]",
-			"the output reads a managed resource's Optional+Computed attribute; the provider has its own path to a different value"},
 		{"module.sg.aws_security_group_rule.c[0]",
 			"the output reads a managed resource attribute, which the child module's own static evaluator cannot answer"},
 		{"module.sg.aws_security_group_rule.d[0]",
@@ -114,5 +112,60 @@ func TestModuleOutputInsideModuleCallArgumentRefuses(t *testing.T) {
 	}
 	if !sawAmbiguous {
 		t.Errorf("the two-element output refused without saying it had two elements")
+	}
+}
+
+// TestModuleOutputInsideModuleCallArgumentDefersOptComp is the case that
+// moved when computedselect.go landed, and the distinction it turns on is
+// the one this file exists to hold.
+//
+// Rule b's output is `try(aws_vpc.this[0].cidr_block, null)` over an
+// Optional+Computed attribute. What must NOT happen is what
+// [resolver.moduleOutputValue] still refuses: substituting the CONFIGURED
+// value, 10.77.0.0/16, into the rebuilt argument and calling the result
+// concrete. The provider has its own path to a different one - a normalized
+// CIDR, a value it filled in - so a marker built from what the configuration
+// asked for can name an object that does not exist.
+//
+// A DEFERRED read is the opposite answer to the same objection: the identity
+// is a formula over aws_vpc.this[0].cidr_block, rendered from the live object
+// after it is read, so whatever the provider settled on is what goes in the
+// tag. That route has been [resolver.parentPart]'s answer for a
+// needs-discovery parent since #346's second half; what changed here is only
+// that `lookup(var.rules_b[count.index], "cidr_blocks", …)` can now reach it,
+// exactly as the literal-index spelling of the same reference already could
+// (TestDeferredThroughModuleListLiteralIndexResolves).
+//
+// So the assertion is on both halves at once: PARENT_DERIVED, with an empty
+// ImportID, over that exact instance and attribute. A CONCRETE resolution
+// here - or any formula naming a different attribute - is the regression this
+// pins.
+func TestModuleOutputInsideModuleCallArgumentDefersOptComp(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "module-output-in-call-arg"), nil)
+
+	result, _ := ResolveWith(context.Background(), cfg, Context{Schemas: fakeProviderSchemas(map[string]fakeType{
+		"aws_vpc": {
+			args:     map[string]string{"id": "optcomp", "cidr_block": "optcomp", "plain_cidr": "opt", "tags": "opt"},
+			identity: map[string]string{"id": "req"},
+		},
+		"aws_security_group_rule": {
+			args: map[string]string{
+				"id": "optcomp", "security_group_id": "req", "type": "req",
+				"protocol": "req", "from_port": "req", "to_port": "req",
+				"cidr_blocks": "opt",
+			},
+		},
+	})})
+
+	res := resolutionAt(t, result, "module.sg.aws_security_group_rule.b[0]")
+	if res.Class != ClassParentDerived {
+		t.Fatalf("resolved %s, want PARENT_DERIVED - a concrete resolution here would be the configured CIDR, which the provider may not agree with", res.Class)
+	}
+	if res.ImportID != "" {
+		t.Errorf("ImportID = %q, want empty: the value is not knowable until the VPC is read", res.ImportID)
+	}
+	const wantFormula = `sg-fixed_ingress_tcp_5433_5433_${one(compact(split(",", module.vpc.aws_vpc.this[0].cidr_block)))}`
+	if got := res.Formula.String(); got != wantFormula {
+		t.Errorf("formula is %q, want %q", got, wantFormula)
 	}
 }

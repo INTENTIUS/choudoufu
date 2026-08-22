@@ -8,47 +8,42 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 )
 
-// GitHub issue #368 named two estates. This file is the measurement that
-// refutes its reading of the second one, corpus-rds-complete-postgres, and
-// says exactly what does block it instead.
+// GitHub issue #368 named two estates. This file measured the second one,
+// corpus-rds-complete-postgres, refuted #368's reading of it, and now carries
+// the fix for what it found instead.
 //
 // #368's premise: "the gap is specifically the function application, not the
 // routing (#354's fix already reaches the routing half)". The function
 // application is real and #368 landed it - see transform.go and
-// TestTransformSoleElementOverADeferredList, where
-// `compact(split(",", <a deferred read>))` on a [Component.SoleElement]
-// component resolves and renders by value. corpus-ecs-fargate's eight
-// identity diagnostics went to zero on exactly that mechanism.
+// TestTransformSoleElementOverADeferredList. The routing half was NOT
+// reached, and this fixture is what proved it: four variants of one identity
+// argument, all reading the SAME module output (module.vpc.vpc_cidr_block,
+// itself `try(aws_vpc.this[0].cidr_block, null)`) through the SAME
+// module-call list argument, of which exactly one resolved.
 //
-// This estate did not move, and the fixture beside this file says why. Four
-// variants of one identity argument, all reading the SAME module output
-// (module.vpc.vpc_cidr_block, itself `try(aws_vpc.this[0].cidr_block,
-// null)`) through the SAME module-call list argument:
+//	[var.L[0].cidr_blocks]                                RESOLVED
+//	[var.L[count.index].cidr_blocks]                      refused
+//	compact(split(",", lookup(var.L[0], "cidr_blocks", …)))          refused
+//	compact(split(",", lookup(var.L[count.index], "cidr_blocks", …))) refused  <- the estate
 //
-//	[var.L[0].cidr_blocks]                                RESOLVES
-//	[var.L[count.index].cidr_blocks]                      refuses
-//	compact(split(",", lookup(var.L[0], "cidr_blocks", …)))          refuses
-//	compact(split(",", lookup(var.L[count.index], "cidr_blocks", …))) refuses  <- the estate
+// The first line is why the other three were routing failures rather than
+// analysis gaps: the same output, the same argument, the same chase. What
+// stopped them is that neither spelling is a bare traversal, so
+// [resolver.namedLeaf]'s hcl.AbsTraversalForExpr gate declined before the
+// chase began. computedselect.go folds both spellings into the traversal the
+// author would have written with a constant index, and hands the result to
+// that same chase; all four lines now resolve, and to the same parent read.
 //
-// So the function application is one of TWO independent blockers, not the
-// blocker, and the other one is routing:
-//
-//   - `var.<list>[count.index]` is not an absolute traversal, because the
-//     index is not a constant. [resolver.namedLeaf] gates on
-//     hcl.AbsTraversalForExpr, so it never chases the reference back across
-//     the module-call boundary to the caller's element expression at all -
-//     the hop that the literal-index variant takes and resolves through.
-//   - `lookup(<a selectable expression>, "<static key>", <default>)` has no
-//     route either. [resolver.resolveLookupCall] exists but is `each.value`'s
-//     alone; a lookup over a module-call argument is a FunctionCallExpr that
-//     [resolver.namedLeaf] does not recognize and no handler claims.
-//
-// Both are #354's family (a value-shaped route that cannot carry a deferred
-// read), both are tractable, and neither is attempted here. When either is
-// fixed, the corresponding line below stops being an expected refusal and
-// this test is the thing that says so.
+// The tests below assert that BY VALUE - the rendered import ID against a
+// lookup that hands back a real CIDR - because a class check would be
+// satisfied by three strings that are wrong in a cloud tag: the fallback
+// each lookup() names, the caller's own from_port, and the module's own
+// literal name. The controls beside them are the boundaries the fold must
+// not cross.
 
 func resolveDeferredThroughModuleList(t *testing.T) *Result {
 	t.Helper()
@@ -69,57 +64,149 @@ func resolutionForPrefix(result *Result, prefix string) (Resolution, bool) {
 	return Resolution{}, false
 }
 
-// TestDeferredThroughModuleListLiteralIndexResolves is the control, and the
-// reason the three refusals below are findings rather than "a module
-// boundary stops everything". The very same module output, selected out of
-// the very same list argument with a constant index, resolves to a formula
-// over the VPC's own attribute.
-func TestDeferredThroughModuleListLiteralIndexResolves(t *testing.T) {
-	result := resolveDeferredThroughModuleList(t)
-
-	res, ok := resolutionForPrefix(result, "module.sg.aws_security_group_rule.literal_index[")
-	if !ok {
-		t.Fatal("the literal-index variant produced no resolution at all")
+// deferredListLookup answers the fixture's parent reads with what the cloud
+// holds. The CIDR is deliberately not any literal the configuration writes,
+// so a formula that predicted the value instead of reading it would render a
+// different string here rather than pass by coincidence.
+func deferredListLookup(t *testing.T) func(addrs.AbsResourceInstance, string) (string, bool) {
+	t.Helper()
+	live := map[string]string{
+		"module.vpc.aws_vpc.this[0].cidr_block":         "10.44.0.0/16",
+		"module.sg.aws_security_group.this[0].id":       "sg-0abc123",
+		"module.sg_typed.aws_security_group.this[0].id": "sg-0def456",
 	}
-	if res.Class != ClassParentDerived {
-		t.Fatalf("resolved %s, want PARENT_DERIVED", res.Class)
-	}
-	const want = "${module.sg.aws_security_group.this[0].id}_ingress_tcp_5435_5435_${module.vpc.aws_vpc.this[0].cidr_block}"
-	if got := res.Formula.String(); got != want {
-		t.Errorf("formula is %q, want %q", got, want)
+	return func(inst addrs.AbsResourceInstance, attr string) (string, bool) {
+		v, ok := live[inst.String()+"."+attr]
+		return v, ok
 	}
 }
 
-// TestDeferredThroughModuleListGapsStandRecords what does NOT resolve, and
-// which of the two routing gaps each variant isolates. Every line here is a
-// gap this repository has measured and not yet closed; a line that starts
-// passing is a fix, and updating this test is how it gets claimed.
-func TestDeferredThroughModuleListGapsStand(t *testing.T) {
+// deferredListCase asserts one variant's formula and the identity it renders.
+func deferredListCase(t *testing.T, result *Result, prefix, wantFormula, wantID string) {
+	t.Helper()
+
+	res, ok := resolutionForPrefix(result, prefix)
+	if !ok {
+		t.Fatalf("%s produced no resolution at all", prefix)
+	}
+	if res.Class != ClassParentDerived {
+		t.Fatalf("%s resolved %s, want PARENT_DERIVED", res.Addr, res.Class)
+	}
+	if got := res.Formula.String(); got != wantFormula {
+		t.Errorf("%s formula is %q, want %q", res.Addr, got, wantFormula)
+	}
+	got, rendered := res.Formula.Render(deferredListLookup(t))
+	if !rendered {
+		t.Fatalf("%s did not render against a known parent", res.Addr)
+	}
+	if got != wantID {
+		t.Errorf("%s renders %q, want %q", res.Addr, got, wantID)
+	}
+}
+
+// TestDeferredThroughModuleListLiteralIndexResolves is the control that made
+// the other three findings rather than "a module boundary stops everything",
+// and it is unchanged by the fix: the same output, selected out of the same
+// list argument with a constant index.
+func TestDeferredThroughModuleListLiteralIndexResolves(t *testing.T) {
+	deferredListCase(t, resolveDeferredThroughModuleList(t),
+		"module.sg.aws_security_group_rule.literal_index[",
+		"${module.sg.aws_security_group.this[0].id}_ingress_tcp_5435_5435_${module.vpc.aws_vpc.this[0].cidr_block}",
+		"sg-0abc123_ingress_tcp_5435_5435_10.44.0.0/16")
+}
+
+// TestDeferredThroughModuleListCountIndexResolves is the first of the two
+// routing gaps: `var.<list>[count.index]` is an IndexExpr, not a traversal,
+// so the chase was never entered. The index is folded by evaluating it in
+// this instance's own scope - the same evaluation
+// [resolver.resolveIndexedTraversal] already makes for
+// `aws_subnet.this[count.index].id` - and what it renders is byte-identical
+// to the literal-index control above, which is the point.
+func TestDeferredThroughModuleListCountIndexResolves(t *testing.T) {
+	deferredListCase(t, resolveDeferredThroughModuleList(t),
+		"module.sg.aws_security_group_rule.count_index_only[",
+		"${module.sg.aws_security_group.this[0].id}_ingress_tcp_5433_5433_${module.vpc.aws_vpc.this[0].cidr_block}",
+		"sg-0abc123_ingress_tcp_5433_5433_10.44.0.0/16")
+}
+
+// TestDeferredThroughModuleListLookupResolves is the second gap:
+// `lookup(<a module-call argument>, "key", <default>)` had no route at all,
+// because [resolver.resolveLookupCall] reads each.value alone. The call is
+// folded into one attribute step, exactly as
+// [resolver.eachValueSelector] folds the same call for each.value.
+//
+// The rendered ID is what makes this an assertion rather than a class check:
+// "" is the fallback this lookup names, and a fold that took it would render
+// nothing where 10.44.0.0/16 belongs.
+func TestDeferredThroughModuleListLookupResolves(t *testing.T) {
+	deferredListCase(t, resolveDeferredThroughModuleList(t),
+		"module.sg.aws_security_group_rule.lookup_only[",
+		`${module.sg.aws_security_group.this[0].id}_ingress_tcp_5434_5434_${one(compact(split(",", module.vpc.aws_vpc.this[0].cidr_block)))}`,
+		"sg-0abc123_ingress_tcp_5434_5434_10.44.0.0/16")
+}
+
+// TestDeferredThroughModuleListEstateShapeResolves is
+// corpus-rds-complete-postgres itself: both routing gaps at once, with #368's
+// own compact/split transform on top of them.
+func TestDeferredThroughModuleListEstateShapeResolves(t *testing.T) {
+	deferredListCase(t, resolveDeferredThroughModuleList(t),
+		"module.sg.aws_security_group_rule.estate_shape[",
+		`${module.sg.aws_security_group.this[0].id}_ingress_tcp_5432_5432_${one(compact(split(",", module.vpc.aws_vpc.this[0].cidr_block)))}`,
+		"sg-0abc123_ingress_tcp_5432_5432_10.44.0.0/16")
+}
+
+// TestDeferredThroughModuleListTypedHopsResolve is the declared-type gate
+// proving it is a rule rather than a blanket refusal. Both declarations
+// convert the selected leaf to a string, which is the identity function on
+// what the caller wrote, so both resolve to the caller's own expression -
+// and the map one is terraform-aws-modules/security-group's own declaration
+// in shape.
+func TestDeferredThroughModuleListTypedHopsResolve(t *testing.T) {
 	result := resolveDeferredThroughModuleList(t)
 
-	for _, tc := range []struct {
-		name string
-		why  string
-	}{
+	deferredListCase(t, result,
+		"module.sg_typed.aws_security_group_rule.typed_object_string[",
+		`${module.sg_typed.aws_security_group.this[0].id}_ingress_tcp_5437_5437_${one(compact(split(",", module.vpc.aws_vpc.this[0].cidr_block)))}`,
+		"sg-0def456_ingress_tcp_5437_5437_10.44.0.0/16")
+
+	deferredListCase(t, result,
+		"module.sg_typed.aws_security_group_rule.typed_map_string[",
+		`${module.sg_typed.aws_security_group.this[0].id}_ingress_tcp_5438_5438_${one(compact(split(",", module.vpc.aws_vpc.this[0].cidr_block)))}`,
+		"sg-0def456_ingress_tcp_5438_5438_10.44.0.0/16")
+}
+
+// TestDeferredThroughModuleListControlsDoNotResolve is the safety half, and
+// the reason the fold is a route rather than a licence. In both cases the
+// value OpenTofu computes is lookup()'s THIRD argument, not the caller's own
+// expression - and lookup() takes it silently, without raising, which is
+// what makes this the wrong-marker shape rather than a refusal shape.
+//
+// Both fallbacks are deliberately uncomputable here (the caller sets them
+// from a second VPC's attribute through a module output), so the right
+// verdict is a refusal and nothing else can supply a correct answer from
+// another route. With a computable fallback both of these resolve to it
+// through [resolver.tolerantPart], correctly, and neither would be a control
+// at all - which is how they were first written and why they are not now.
+//
+// Mutation-checked: making [declaredSelectionIsIdentity] answer true
+// unconditionally, and changing nothing else, resolves typed_object_missing
+// to `${module.vpc.aws_vpc.this[0].cidr_block}` - the caller's own leaf,
+// dropped by the conversion before this module ever sees it.
+func TestDeferredThroughModuleListControlsDoNotResolve(t *testing.T) {
+	result := resolveDeferredThroughModuleList(t)
+
+	for _, tc := range []struct{ prefix, why string }{
 		{
-			"count_index_only",
-			"var.<list>[count.index] is not an absolute traversal, so resolver.namedLeaf never chases it across the module-call boundary",
+			"module.sg.aws_security_group_rule.absent_key_control[",
+			"the caller's element has no such key, so the language takes lookup()'s third argument; the chase finds nothing and must decline rather than render either side",
 		},
 		{
-			"lookup_only",
-			"lookup(<a module-call argument>, \"key\", default) has no route; resolver.resolveLookupCall is each.value's alone",
-		},
-		{
-			"estate_shape",
-			"corpus-rds-complete-postgres itself: both gaps at once, plus the transform #368 landed on top of them",
+			"module.sg_typed.aws_security_group_rule.typed_object_missing[",
+			"the declared object type does not have cidr_blocks, so the conversion drops what the caller wrote and the module reads the fallback",
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			prefix := "module.sg.aws_security_group_rule." + tc.name + "["
-			if res, ok := resolutionForPrefix(result, prefix); ok {
-				t.Errorf("%s now resolves to %q / %q - if that is a fix, say so here and delete this case (%s)",
-					res.Addr, res.ImportID, res.Formula.String(), tc.why)
-			}
-		})
+		if res, ok := resolutionForPrefix(result, tc.prefix); ok {
+			t.Errorf("%s resolved to %q / %q - %s", res.Addr, res.ImportID, res.Formula.String(), tc.why)
+		}
 	}
 }

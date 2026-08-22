@@ -32,4 +32,16 @@ module "sg" {
       cidr_blocks = module.vpc.vpc_cidr_block
     },
   ]
+
+  fallback_cidr = module.vpc.other_cidr_block
+}
+
+module "sg_typed" {
+  source = "./sgtyped"
+
+  rules_object_string  = [{ from_port = 5437, cidr_blocks = module.vpc.vpc_cidr_block }]
+  rules_map_string     = [{ from_port = 5438, cidr_blocks = module.vpc.vpc_cidr_block }]
+  rules_object_missing = [{ from_port = 5439, cidr_blocks = module.vpc.vpc_cidr_block }]
+
+  fallback_cidr = module.vpc.other_cidr_block
 }

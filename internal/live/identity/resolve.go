@@ -2051,6 +2051,21 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 		if parts, ok := r.tolerantPart(expr, scope, ident, mark, sibMark); ok {
 			return parts, true
 		}
+
+		// Truly last, at the point every route above has already returned
+		// false from: a reference whose STEPS this package can read, written
+		// with something other than a bare traversal, so
+		// [resolver.namedLeaf]'s hcl.AbsTraversalForExpr gate never let it
+		// reach the chase at all. `var.ingress_with_cidr_blocks[count.index]`
+		// and `lookup(var.ingress_with_cidr_blocks[count.index],
+		// "cidr_blocks", <default>)` are the two spellings, and both are
+		// folded into the traversal the author would have written had the
+		// index been a constant. See computedselect.go, which restores
+		// r.diags itself when it declines.
+		if parts, ok := r.foldedSelect(expr, scope, ident); ok {
+			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
+			return parts, true
+		}
 		return nil, false
 	}
 
