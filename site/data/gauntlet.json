@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1d7135ffc7e87dca737bed1bf74c23659f921093",
+  "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
   "emulator": "ghcr.io/lex00/floci@sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9",
-  "generated": "2026-08-22T00:38:31Z",
+  "generated": "2026-08-22T04:02:28Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -183,8 +183,8 @@
           "not_run": 25
         },
         "migrate": {
-          "pass": 25,
-          "fail": 0,
+          "pass": 24,
+          "fail": 1,
           "not_run": 0
         },
         "plan_approval": {
@@ -260,8 +260,8 @@
           "not_run": 24
         },
         "migrate": {
-          "pass": 24,
-          "fail": 0,
+          "pass": 23,
+          "fail": 1,
           "not_run": 0
         },
         "plan_approval": {
@@ -316,8 +316,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "1d7135ffc7e87dca737bed1bf74c23659f921093",
-        "date": "2026-08-22T00:40:50Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:05:24Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "80 resources, once for real (floci fixes #58, #61, #62)",
@@ -357,8 +357,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "4c2e4a2380bedeba667802081e095050bf87d689",
-        "date": "2026-08-21T23:33:44Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:08:55Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 68 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=autoscaling-complete-crossing before migration",
@@ -396,12 +396,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:33:29Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:10:01Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=dynamodb-table-basic-crossing before migration",
-          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-decent-shad's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
+          "drift_reconverge": "one object tampered (arn:aws:dynamodb:eu-west-1:000000000000:table/my-table-chief-wasp's Terraform tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "1 resource(s) newly stamped, 0 already stamped, 1 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped.; Apply complete! Resources: 0 added, 0 changed, 1 destroyed. (tofu-slot convergence)",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
@@ -437,8 +437,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "28f73e172dafa1fc7a5069cd56eae7c5911cb9d0",
-        "date": "2026-08-22T01:36:43Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:12:23Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "62 resources, once for real",
@@ -469,7 +469,7 @@
         "day2_teardown": "not_run",
         "drift_reconverge": "not_run",
         "greenfield": "not_run",
-        "migrate": "pass",
+        "migrate": "fail",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
@@ -478,15 +478,12 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
-        "date": "2026-08-21T22:17:36Z",
-        "exit_code": 0,
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
+        "exit_code": 1,
         "detail": {
           "cold_deploy": "54 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "stage 3 produced no plan to apply or drift",
-          "migrate": "25 of 54 resource instances stamped, 25 of 25 confirmed via the AWS CLI",
-          "test_apply": "stage 3 produced no plan to apply or drift",
-          "test_plan": "4 logical-resource + 4 count-index refusals, 8 Error diagnostics total"
+          "migrate": "choudoufu init failed"
         }
       },
       "notes": "Landed 9717459fd3 (2026-08-18). Crossed by an agent whose worktree, like the original rds-complete-postgres crossing, predates the lambda-simple crossing's live-import child-module fix (cec3c4b9b1) - migrate is recorded fail here ('3 of 4 root-module resources stamped, 50 non-root instances not considered') because that's what the agent's own stale base observed. Given rds-complete-postgres's own re-verification confirmed cec3c4b9b1 generalizes cleanly to a different estate's module-nested resources, this row very likely also improves once re-verified against current main - flagged for the same re-verification treatment, not yet done. test_plan independently fails on unadmitted default_*/VPN-gateway types (overlapping #305's pattern), undeclared-record-store logical resources, and 7 correctly-conservative count-index refusals (element() over a list, which the checker cannot statically prove injective - not a defect). Two real, generalizing floci gaps found and fixed but NOT YET merged/published: EKS worker AMI discovery (AWS-owned AMI catalog lookup, owner 602401143452/801119661308, evaluated unconditionally by every terraform-aws-eks version) and AutoScalingGroup SuspendProcesses/ResumeProcesses (unimplemented, but the AWS provider calls SuspendProcesses unconditionally around ASG creation on default settings - blocks any aws_autoscaling_group apply, not just EKS's). Filed as lex00/floci#55, PR lex00/floci#56, pushed but not merged - the currently-pinned floci image predates both fixes. Follow-up pass 2026-08-19: confirmed lex00/floci#55/PR#56 (EKS worker AMI catalog, ASG SuspendProcesses/ResumeProcesses) merged and published, current pin well past that point - cold_deploy passes cleanly with no FLOCI_IMAGE override, no new floci gap found. migrate was recorded fail on stale script assertions only (checking for issue #59's old root-module-only live-import scope) - the real, current result is a clean PASS: cec3c4b9b1's child-module live-import fix (already confirmed reaching corpus-rds-complete-postgres) generalizes here too, 25 of 54 instances eligible and stamped (0 failed), 29 skipped legitimately (27 untaggable-by-design, 2 unadmitted-type). test_plan's real wall shrank sharply once migrate covers the whole module tree: #305's default_* trio and the VPN-gateway unadmitted sites are gone entirely (admitted and stamping cleanly now); real remaining causes are kubernetes_config_map.aws_auth (1 site, a non-AWS-tag provider resource with no marker/discovery path in this codebase at all - filed as #326, DEFER/design-call caliber matching #309, not attempted), 4 correctly-RULE'd logical-resource refusals (3 correct no-record_store refusals plus #314's already-tracked local_file gap), and 4 genuinely-unresolvable count-index sites (element(subnet[*].id, count.index), PARITY/RULE, correctly conservative). run.sh's own header/assertions rewritten and re-verified (clean run plus a BREAK=1 mutation check) to match this real picture. Follow-up pass 2026-08-20 (issue #326 fix, re-crossed for real): the prior handoff note claiming #326's commit (9131275487) had \"fully landed on local main\" was WRONG - it sat on an unmerged branch (live/kubernetes-table-rows) whose base predated #331, #337, #343/#344, #348, #349 and the dynamodb/autoscaling crossing work. Merged it into a fresh worktree off current local main (f294af5838), resolved the generated-artifact conflicts by combining both sides' deltas and re-running the real generators rather than hand-computing totals (852f52073f the merge, a990112e26 the regenerated derived artifacts), full fast tier green. Re-crossed this estate for real against a live floci container with that merge: kubernetes_config_map.aws_auth's \"unadmitted-type\" refusal is CONFIRMED GONE - zero occurrences of \"Rule: unadmitted-type.\" and zero mentions of \"kubernetes\" anywhere in live-plan's output, asserted as a negative control in run.sh with BREAK=1 flipping the expectation. The 4 logical-resource and 4 count-index sites are unchanged (8 Error diagnostics total, asserted by count) - test_plan stays fail, this estate does NOT reach 5/5. Migrate's own accounting is also unchanged in total (25/54 eligible, 29 skipped) but changed in KIND for this one site: kubernetes_config_map.aws_auth moves from an outright \"unadmitted\" refusal to a genuinely-attempted verification that reports MISSING with a precise, different, real reason - \"Provider ... kubernetes could not be used ... Dynamic value in static context: Unable to use data.aws_eks_cluster_auth.cluster / data.aws_eks_cluster.cluster in static context, which is required by provider.kubernetes.\" The kubernetes provider block is itself configured from another provider's live output (the EKS cluster's endpoint/token), which live-import's no-state, no-apply verification pass cannot evaluate. This is a distinct, real, narrower wall than #326's - #326 admitted the TYPE (identity resolves, plan-time refusal gone); this is a separate provider-config-from-live-data limitation, same family as #313's own out-of-scope boundary, DEFER-caliber (stock OpenTofu is never asked this question - a real plan/apply always has other resources' already-applied state to read for the same data sources). Not attempted here, not filed as a fresh issue since it blocks nothing #326 was scoped to fix and this estate's test_plan stage was already failing for the RULE/PARITY reasons above regardless. Commented on #326 with this measured outcome."
@@ -519,8 +516,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:36:58Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
         "exit_code": 1
       },
       "notes": "Landed 2026-08-19 (crossing f388f7891c, merge a749395e48), the eighth OpenTofu-native estate and the second from a commercial vendor. OpenTofu-native evidence, four independent kinds, all asserted by the script: self-description as OpenTofu's with no compatibility claim; zero .tf files in the whole pinned tree (109 .tofu, 0 .tf); .pre-commit-config.yaml running tofuutils/pre-commit-opentofu's tofu_validate/tofu_fmt with no Terraform hook; and .tofutest.hcl unit tests, the first evidence in this lane Terraform could not parse. Production code - the org's own estate-config repo calls aws/bucket from it over a setproduct() for_each. Scoped to the two of eleven AWS modules that are self-contained; nine excluded with stated reasons, aws/bucket because its name folds random_password.result (the secret-bearing twin of the random_pet wall corpus-lambda-simple already hits). One delta, asserted at exactly one line: aws/networking/main.tofu's aws constraint ~> 5.0 -> = 6.59.0 (tofu init refuses the root's own pin otherwise); aws/dynamodb byte-identical. Real run rc=0. cold_deploy: 10 instances, both for_each expansions confirmed at 3 keys. migrate: 7 of 10 stamped, 3 UNTAGGABLE route table associations. test_plan: EMPTY with the state file deleted, VPC/subnet/route-table/table markers re-read through the AWS CLI and all three untaggable associations independently confirmed as their {route_table_id}/{subnet_id} composite says. test_apply: genuine no-op, 7 objects before and after, no state file either time. drift_reconverge: exactly module.networking.aws_vpc.main proposed and fixed, marker surviving the incremental tag update. Both negative controls (BREAK=1, BREAK_STAGE5=1) verified failing in real full runs. First estate in either lane whose for_each keys fall outside the AWS tag-value charset ([A-Za-z0-9 _.:/=+@-]), so EscapeAddress is load-bearing: the marker is module.networking.aws_subnet.public:10@d0@d101@d0/24, and the expected values are hand-written from internal/live/markers/markers.go:196's own rule rather than computed by the code under test, each checked to be inside the AWS charset. No Go code touched; nothing in this estate refused - live-plan's diagnostic surface is empty, not merely small. justfile gained demo-corpus-evoteum-modules (port 4730); live/corpus-manifest.json gained the pin; HANDOFF.md section 3 updated, including a correction of its own stale 'four of six' figure to three of six (this manifest was always the source of truth and never agreed with that prose claim)."
@@ -553,8 +550,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:36:58Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
         "exit_code": 1
       },
       "notes": "Landed 2026-08-19 (crossing 0bd3ac80b7, merge 9fa0141294), the seventh OpenTofu-native estate and the first from a commercial vendor's production repository rather than a module registry, personal monorepo, or single-maintainer accelerator - Giant Swarm GmbH's own customer-facing account-prep for their managed Kubernetes offering. OpenTofu-native evidence, three independent kinds: README's opening sentence and directory index both say OpenTofu with no compatibility hedge; the CI workflow is named 'OpenTofu checks', installs via opentofu/setup-opentofu, and never mentions terraform; the crossed crossplane/ directory is genuinely .tofu-suffixed throughout (providers.tofu, role.tofu, variables.tofu), the file-level standard only the hongbomiao slices had met before (overture-tiles and xancloud-iac are both plain .tf). Scoped to crossplane/ specifically: self-contained (no remote state, no live EKS/OIDC dependency, its only data source is aws_partition which makes no API call), the other five directories in the repo excluded with stated reasons (three plain-.tf same-shape, one an account-singleton quota table, one a wrapper that only calls the others). Real run, rc=0, 548s. cold_deploy: PASS, plain tofu apply, 6 resources added, 0 pre-existing tofu-estate tags, the toset()-keyed for_each on additional_policy_attachments confirmed resolving to zero instances. migrate: PASS - 2 of 6 eligible (UNTAGGABLE 2, UNADMITTED_TYPE 2, DRIFTED 2), -approve 2 newly stamped 0 failed, both markers re-verified directly through the AWS CLI including that the module's own installation tag survived the stamp. test_plan: BLOCKED for real at exactly 2 sites, the plan's entire diagnostic surface - both Rule: unadmitted-type, on aws_iam_role_policy_attachments_exclusive and aws_iam_role_policies_exclusive, no other rule firing anywhere in the estate. A control stage (3b, not counted toward stage 4/5) cut exactly those two resource blocks and drove the rest of the pipeline for real: control test plan EMPTY, control test apply a genuine no-op (2 objects before and after), control drift-and-reconverge fixed exactly one mutated object - proving the estate's only real block is those two types, not routing around anything. Both negative controls (BREAK=1 at the stage-2 identity assertion, BREAK_STAGE3=1 expecting 3 refusal sites where the real count is 2) verified failing in real full runs. Filed as INTENTIUS/choudoufu#334: both unadmitted types have the identical import-grammar shape (single-argument, no-separator) to aws_vpc_security_group_rules_exclusive, which #307 already admitted via row-gen's tryGrammarComposite at 64cac28120, and carry the same no-CFN-counterpart mapping-gen overlay as that admitted twin - a worked ADMIT-class precedent, not attempted here; the one recorded difference (force_new on the admitted twin's security_group_id, absent on either new type's role_name) is flagged as not obviously the gate since tryGrammarComposite's single-argument branch reads no force_new field, and why row-gen's own proposal for these two is currently absent from ratified.json is the fix's first open question. No Go code touched. justfile gained demo-corpus-giantswarm-crossplane; live/corpus-manifest.json gained the pin; HANDOFF.md section 3 updated. Follow-up pass 2026-08-19/20 (#334 fixed and merged, 37957d873c/a6627543c4/20cc1774d6): the issue's own open question resolved the OPPOSITE way from what it suspected - row-gen was never declining to propose these two rows; it proposes both, byte-identical in shape to the admitted aws_vpc_security_group_rules_exclusive twin, and nobody had ever ratified the proposal. Fix is a ratified.json entry, no code change - reach is exactly these two types, stated plainly rather than dressed up as a generalization. The real finding: 316 types row-gen proposes sit unratified, 166 under this exact rule (including every other *_exclusive family member) - a ratification backlog, not a generator defect, and clearing it is a maintainer-scale call since every ratified row is a claim that touches live infrastructure. FIVE OF FIVE, run for real on the rebased tree, rc=0, 250s: stage 3 now an empty plan (identities asserted by value - the two exclusive resources carry no marker, being untaggable, so the assertion is the live content each enforces, e.g. attached policy ARN and inline-policy name); stage 4 a genuine no-op (2 tagged objects before and after, both exclusive sets independently re-read afterward so a wrongly-reconciled enforcer would be caught); stage 5 one out-of-band mutation, exactly one object proposed and fixed. Three real negative controls (BREAK=1, BREAK_STAGE3=1, BREAK_STAGE5=1) each confirmed failing at the right point. Script rewritten: stage 3 now asserts a pass instead of hard-failing by design, the 3b control retired with the block it existed to control for. Separately found, not yet fixed: every crossing script that runs more than one `terraform init` pays a real ~320s tax per extra init, because the shared plugin cache records no checksums and a directory with no `.terraform.lock.hcl` re-downloads the whole provider to compute them - seeding the lock file from stage 1's own init cuts this to ~1s and this estate's full run from several failed 10-minute-cap attempts to 250s total. Worth a sweep across every multi-init script here."
@@ -587,8 +584,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:36:58Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
         "exit_code": 1
       },
       "notes": "Landed 2026-08-19, the sixth estate in the OpenTofu-native lane and the fourth to clear all five stages. Sourced per HANDOFF's own suggestion to scope a second (here, third) disjoint slice of the already-crossed hongbomiao monorepo before a fresh search. Surveyed every remaining AWS environment: network/main.tofu is pure data sources (nothing to migrate); kubernetes/main.tofu builds a full terraform-aws-modules/eks cluster and every IAM module in it but one (velero_iam_role, mimir_iam_role, loki_iam_role, tempo_iam_role, label_studio_iam_role, etc., 15 total) takes amazon_eks_cluster_oidc_provider(_arn) from that same cluster - the same scope/risk class as the terraform-popular lane's already-blocked terraform-aws-eks examples/basic crossing. The one exception, the \"Harbor\" section (S3 bucket + IAM user + inline user policy), needs no EKS cluster, no OIDC provider, no remote state at all - self-contained like storage's own scoped slice. Nebius/Cloudflare/Snowflake environments confirmed to still exist and be real, actively-maintained infrastructure, but target non-AWS clouds floci cannot emulate. Crosses aws_iam_user/aws_iam_user_policy, a genuinely different resource pair from Labelbox's aws_iam_role/aws_iam_role_policy - both already-ratified DefaultTable rows, no schema-fallback warning. All five stages verified for real against a live floci container: cold_deploy (tofu apply, 3 resources created, confirmed 0 pre-existing tofu-estate tags), migrate (live-import verified 2 of 3 eligible - bucket + user - 1 correctly UNTAGGABLE - the inline policy; markers re-read via AWS CLI matched: module.s3_bucket_hm_harbor.aws_s3_bucket.main, module.harbor_iam_user.aws_iam_user.hm_harbor_iam_user), test_plan (state deleted, live-plan empty, identities re-verified against the AWS CLI including the inline policy's resource ARN read directly off the live object), test_apply (genuine no-op, 2 tagged objects before and after), drift_reconverge (bucket tag tampered out of band, plan proposed fixing exactly that one object, reconverge apply restored it). BREAK=1 verified load-bearing, failing exactly at the stage-2 identity assertion. No floci or choudoufu gaps found - this crossing is clean. Merged to local main as ad2cf81cf3 (crossing itself: 0c4e16af6a); justfile gained recipe demo-corpus-hongbomiao-harbor (port 4728); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
@@ -621,8 +618,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:36:58Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
         "exit_code": 1
       },
       "notes": "Landed 2026-08-18 as the second estate in the OpenTofu-native lane and the first to clear all five stages there. Stronger OpenTofu-native evidence than corpus-sumaform-aws (which only describes itself as OpenTofu-native but ships plain .tf once its .example template is copied in): every file under infrastructure/opentofu/ genuinely uses the .tofu extension, its own justfile drives init/plan/apply/refresh/destroy exclusively via `tofu`, and common_tags carries \"hm_managed_by\" = \"opentofu\" - proven rather than asserted, since the crossing script's own stock terraform init against this estate reports \"The directory has no Terraform configuration files.\" Scoped to the self-contained \"Labelbox\" slice (S3 bucket, its CORS configuration, an IAM role with an inline S3-read policy - three real leaf modules copied byte-identical from the pinned commit, diffed programmatically in the script) out of a much larger monorepo (AWS+Nebius+Cloudflare+Snowflake+EKS, cross-wired via terraform_remote_state) too large to stand up in one sitting - the same scoping convention corpus-sumaform-aws's module.base stand-in uses. All five stages verified for real: cold_deploy (tofu apply, 4 resources, confirmed unmarked via resourcegroupstaggingapi), migrate (live-import: \"2 of 4 resource instance(s) are eligible for stamping\" - 2 correctly UNTAGGABLE, the CORS config via provider-schema fallback and the inline policy via the generated table's composite ROLENAME:POLICYNAME identity; -approve stamped both taggable resources, markers verified directly via aws s3api get-bucket-tagging / aws iam list-role-tags), test_plan (state deleted, live-plan \"No changes\", identities re-checked against the AWS CLI including the two untaggable resources' own content - CORS AllowedOrigins, inline policy's Resource ARN - since they carry no tag to re-read), test_apply (genuine no-op, 2 tagged objects before and after), and drift_reconverge (the bucket's hm_team tag tampered out of band, plan proposed fixing exactly that object, apply reconverged it; BREAK=1 verified load-bearing for both stage 2's identity check and stage 5's single-object assertion, tested in isolation for stage 5 per the corpus-vpc-complete convention since the shared BREAK var fails fast at stage 2 otherwise). Two non-blocking findings documented in the script's own header rather than routed around: aws_s3_bucket/aws_iam_role report DRIFTED during verification from AWS's own deprecated cors_rule/inline_policy shadow attributes reflecting a sibling resource created after the state snapshot (harmless, resolves by plan time), and the schema-admitted aws_s3_bucket_cors_configuration triggers the already-documented \"Resource type has no orphan recovery\" warning (live/LIMITATIONS.md, not a new gap). No choudoufu or floci gaps found - nothing filed. Merged to local main as c7fb650f4c (fix itself: 30577f6a56); justfile gained recipe demo-corpus-hongbomiao-labelbox; live/corpus-manifest.json gained the pin (reproducibility only, same convention as the sumaform entry - contributes nothing to a corpus-gen number)."
@@ -655,8 +652,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:36:58Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:13:35Z",
         "exit_code": 1
       },
       "notes": "Landed 2026-08-18, the third estate in the OpenTofu-native lane and the second to clear all five stages, reusing corpus-hongbomiao-labelbox's already-pinned commit rather than a fresh sourcing search (the repo's OpenTofu-native bona fides and the pinned commit's clone were already established by that crossing). Scoped after surveying every section of the monorepo's aws/general and aws/storage files via the GitHub API against the pinned commit, no clone needed for scouting: Kafka Manager, two Amazon EMR sections and AWS Batch all read another environment's terraform_remote_state (out of scope, same reason corpus-hongbomiao-labelbox's own scoping excluded them); Amazon SageMaker was ruled out with a real, confirmed floci gap - aws sagemaker create-notebook-instance against a live floci container returns \"UnknownOperationException: Operation CreateNotebookInstance is not supported by floci\", and the type has zero entries anywhere in live/floci-capabilities.json's Cloud Control sweep - documented in the script's header as evidence for whoever picks up SageMaker next, not filed as an issue since it was routed around rather than blocking anything. The real candidate: aws/storage/main.tofu's first three module calls (hm_production_bucket, kafka_kms_key, s3_bucket_iot_data) read no remote state at all, unlike everything after them in that file - two amazon_s3_bucket module calls plus one aws_kms_key module call (aws_kms_key + aws_kms_alias). All five stages verified for real against a live floci container: cold_deploy (tofu apply, \"4 added, 0 changed, 0 destroyed\", confirmed 0 objects pre-tagged), migrate (live-import: \"3 of 4 resource instance(s) are eligible for stamping\", 1 UNTAGGABLE - the KMS alias; -approve: \"3 resource(s) newly stamped, 0 already stamped, 0 failed, 1 skipped\"; markers for all three read back via raw AWS CLI matched exactly: module.hm_production_bucket.aws_s3_bucket.main, module.s3_bucket_iot_data.aws_s3_bucket.main, module.kafka_kms_key.aws_kms_key.main), test_plan (state deleted, live-plan \"No changes\", all three identities re-verified against the AWS CLI, including the untaggable KMS alias's live target), test_apply (genuine no-op, \"0 added, 0 changed, 0 destroyed\", object count unchanged at 3), and drift_reconverge (the IoT-data bucket's tag tampered out of band, plan proposed fixing exactly module.s3_bucket_iot_data.aws_s3_bucket.main and nothing else, reconverge apply changed exactly 1 resource). BREAK=1 verified load-bearing: correctly fails the stage-2 identity assertion (asserts the KMS key's tofu-address against a deliberately wrong resource name). No choudoufu gaps found beyond the SageMaker floci evidence above - nothing filed against this repo. Merged to local main as a720266bcc (fix itself: 3335f16893); justfile gained recipe demo-corpus-hongbomiao-storage (port 4725); no new live/corpus-manifest.json entry needed, reuses the existing hongbomiao pin."
@@ -689,8 +686,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:37:55Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:14:31Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 2 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-policy-crossing before migration",
@@ -730,12 +727,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:38:49Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:15:27Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 1 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-read-only-policy-crossing before migration",
-          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-8ef1ea89eeb9dc4cab069f12d8's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
+          "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example/ex-iam-read-only-policy-5cb98fce9e9fce61d9a734b71a's Example tag), plan proposed fixing exactly module.read_only_iam_policy.aws_iam_policy.policy[0], apply changed 1 and reconverged the tag",
           "migrate": "1 of 1 stamped; Apply complete! Resources: 0 added, 1 changed, 0 destroyed. (tofu-slot written)",
           "test_apply": "genuine no-op: 1 objects before, 1 after, no state file either time",
           "test_plan": "no resource change proposed, nothing foreign; identity re-check (via the AWS CLI) unchanged"
@@ -771,8 +768,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
-        "date": "2026-08-21T22:24:59Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:16:44Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "8 resources, genuinely cold, genuinely unmarked",
@@ -812,8 +809,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:39:24Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:16:44Z",
         "exit_code": 1
       },
       "notes": "FIVE OF FIVE, real, as of 2026-08-21 (crossing 77be0bc336 base). datapoints_to_alarm DELTA applied per lex00/floci#93's own suggested workaround (explicit value = evaluation_periods on both alarms, AWS's own create-time default, so nothing about what stage 1 creates changes) - verified for real, not assumed: the '1 -> null' diff is gone from both stock `tofu plan` and `choudoufu live-plan` against the same live alarms. Getting stage 3's automated assertion to actually SEE the empty plan uncovered a second, real, unrelated choudoufu bug: `choudoufu live-plan`'s delegation to plain `choudoufu plan` when a live block is present (`plan.Run(originalArgs)`) kept originalArgs as a second slice header over live-plan's own rawArgs backing array rather than an independent copy, and arguments.ParseView's in-place compaction of recognized flags (like -no-color) silently corrupted it whenever a flag followed -no-color - -target being the realistic case, since every -target/-exclude run hits this same alias. Effect: -no-color never reached the delegate, so live-plan's output for every -target run (this estate included) carried real ANSI escape codes despite the flag, invisibly breaking any exact-string assertion like stage 3's \"No changes.\" check - not a semantics bug (a manual rerun confirmed the plan was already empty before the fix), but the automated proof of it was blind. Fixed in internal/command/live_plan.go (originalArgs := append([]string(nil), rawArgs...)), regression-tested in internal/command/live_mode_test.go (confirmed to fail without the fix, pass with it). Stage 5 then hit a third, distinct, real bug - floci's: CloudWatch PutMetricAlarm is documented (AWS CLI's own bundled help) as create-only for tags, so a real out-of-band update can never touch existing tags; floci's PutMetricAlarm wipes them instead, confirmed directly (list-tags-for-resource: two markers before, empty after an update with no --tags), destroying this crossing's ownership marker. Filed as https://github.com/lex00/floci/issues/95. Worked around in this harness only (not floci, not a change to what stage 5 tests) by re-applying the known tags via TagResource immediately after each drift call. Re-crossed for real with all three fixes/workarounds in place: cold_deploy 3 resources added; migrate 2 of 3 stamped (dashboard correctly UNTAGGABLE), both tofu-address markers verified via the AWS CLI; test_plan genuinely EMPTY with both alarms' markers and the dashboard's re-derived identity re-verified after the state file was deleted; test_apply a genuine no-op, 2 objects before and after, no state file either time; drift_reconverge proposes fixing exactly the one drifted alarm, applies it, and the live value reads back correct. `just ci` green. BREAK=1 still verified failing at stage 2's identity assertion (unchanged by this update - that check sits before stage 3 and exits the script before stage 5 is ever reached, a pre-existing property of the script's control flow, not something this update touched).\n\nEARLIER HISTORY. Landed 2026-08-21 (crossing 841d5dbdde base), the ninth OpenTofu-native estate: leynos/df12-www's modules/monitoring, a real, actively-maintained personal-site deployment (241 commits, AGPL-3.0, dependabot-active) whose README opens \"This repository contains the configuration for my static website deployment using OpenTofu\" with no compatibility claim, and whose pinned tree is 34 .tofu files to exactly 1 .tf file (a Terraform test fixture outside this module). Scoped to modules/monitoring specifically: the one leaf module needing nothing else stood up first (bucket_name/distribution_id are free-form dimension strings, never looked up; no remote state, no data source). aws_budgets_budget targeted out of every stage - confirmed genuinely unimplemented by floci (absent from this pin's floci-capabilities.json service list, absent from /_localstack/health, and a direct `aws budgets create-budget` call returns UnknownOperationException) - leaving the two aws_cloudwatch_metric_alarm resources and the one aws_cloudwatch_dashboard as the crossed set. cold_deploy: PASS for real, 3 resources added via `-target` (both alarms plus the dashboard), 0 pre-existing tofu-estate tags. UPDATE 2026-08-21 (re-pinned to sha256:d65baf42..., lex00/floci#88 fixed, build e61a987): migrate: PASS for real. live-import's dry run verifies 2 of 3 eligible (the dashboard UNTAGGABLE, no tags argument in the provider's schema); -approve stamps both alarms cleanly, and both tofu-address markers verify directly against CloudWatch through the AWS CLI, never through choudoufu's own report. test_plan: was failing for real on a real, generalizable choudoufu parity defect, and no longer fails on it. internal/command/live_plan.go threaded args.Operation.Targets only into the final core tfCtx.Plan() call, while statelessResolve/statelessDataReads/statelessDiscover/statelessStamp walked the entire configs.Config regardless of -target and refused hard on the estate's own aws_budgets_budget ('Identity argument not set ... module.monitoring.aws_budgets_budget.monthly_limit has no value for \"account_id\", so its import identity (ACCOUNT_ID:NAME) cannot be built'), a resource scoped out by -target specifically because floci does not implement AWS Budgets. Verified NOT floci's and NOT a normal admission gap before filing: a plain `tofu plan` with the identical -target set against the identical unmodified module succeeded cleanly (Plan: 3 to add, 0 to change, 0 to destroy) - stock prunes an untargeted resource out of the graph before ever evaluating it, HANDOFF.md label 2, 'OpenTofu succeeds, choudoufu refuses'. Filed as https://github.com/INTENTIUS/choudoufu/issues/352 and FIXED there 2026-08-21: the stateless pipeline now reads which resource blocks survive -target/-exclude off the plan graph's own TargetingTransformer, through a new tofu.Context.TargetedResources, and hands that scope to identity resolution and the data-read phase - so a block stock removed from the graph before evaluating it can no longer refuse the run, dependencies of a targeted resource stay in (the closure is the graph's own, not a re-derivation), and an out-of-scope block that DOES resolve keeps its resolution so the marker sweep's declared-address set stays complete. RE-CROSSED FOR REAL at the fix against the same pin (sha256:d65baf42...): that wall is gone - live-plan exits 0, resolves, discovers, stamps and renders a plan over the targeted set. test_plan is STILL 'fail', on a different wall one layer in and with a different label: both alarms render '- datapoints_to_alarm = 1 -> null' for an argument this module's config never sets, so the plan is not empty. Stock reproduces it identically - `tofu plan` in the stage-1 plain directory against the same live objects, no choudoufu in the process, proposes the same line for the same two alarms - and an ISOLATED minimal reproduction (one alarm, one directory, stock OpenTofu v1.12.5 + hashicorp/aws v5.100.0 against this same floci pin, no choudoufu at all) does not converge either: apply writes datapoints_to_alarm = 1 into state, floci's DescribeAlarms returns no DatapointsToAlarm key at all, and every later plan wants to remove it. hashicorp/aws 6.x converges cleanly on the same image, so it is specific to the 5.x line this module's own '~> 5.0' constraint resolves to. HANDOFF.md label 1, 'OpenTofu fails here too' - PARITY, an emulator gap and not this fork's defect. Filed as https://github.com/lex00/floci/issues/93. test_apply/drift_reconverge still not reached: test_plan's own empty-plan assertion is what gates them. live/e2e/corpus-leynos-monitoring/run.sh's header updated with both findings. BREAK=1 verified failing at stage 2's identity assertion in an earlier real run (unaffected by this update - BREAK's corrupted-marker check sits before stage 3)."
@@ -874,16 +871,9 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
-        "date": "2026-08-21T22:17:31Z",
-        "exit_code": 0,
-        "detail": {
-          "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "not yet exercised by this script - test_apply just started passing this unit; drift_reconverge is the next unit",
-          "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
-          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact",
-          "test_plan": "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
-        }
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:16:44Z",
+        "exit_code": 1
       },
       "notes": "Landed 2026-08-19. Sourced via GitHub code search rather than the awesome-opentofu/Powered-by-OpenTofu lists, which turned out to be pure tooling/adopter lists with no deployable estates. OpenTofu-native evidence is in its CI rather than a genuine .tofu extension (weaker self-description than corpus-hongbomiao, which ships real .tofu files): .github/workflows/ci.yml runs tofu fmt/validate/test/tflint exclusively through opentofu/setup-opentofu - terraform never appears - and its tests use OpenTofu's own mock_provider framework. A real, tagged-release module (v1.0.0->v1.2.0) from a Linux-Foundation-adjacent geospatial project backed by AWS/Meta/Microsoft/TomTom, contributor fixes as recent as 2026-05-21. cold_deploy genuinely passes (26 resources, plain tofu apply, unmodified module). migrate is BLOCKED, not clean: live-import stamps 13 of 26 cleanly, 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE (#249), and 3 AWS Batch resources fail to stamp on a real floci bug - TagResource/UntagResource/ListTagsForResource (POST /v1/tags/{resourceArn}) misroutes to AppSyncController's greedy catch-all since BatchController never registers that path. Filed as lex00/floci#72 with full evidence (checked ~/checkouts/floci first, confirmed same bug on current main, no in-progress fix) - not fixed, per this session's standing instruction. test_plan is BLOCKED, deterministically asserted (Plan: 4 to add, 7 to change, 0 to destroy, every line traced) rather than reached cleanly. Also filed INTENTIUS/choudoufu#322: aws_iam_role_policy (untaggable, ServerAssignedIfAbsent name via name_prefix) escalates a single-address unbound warning into a hard Error: Listed resource with no tags that aborts the ENTIRE live-plan, not just its own address - a real blast-radius concern (one bad site takes down the whole plan) worth prioritizing. Not fixed; worked around in this crossing via the module's own name_overrides input so the script could still assert what it could reach. Stages 4-5 not attempted - both need a genuinely empty first plan, which this estate doesn't reach yet. Confirmed informationally that applying the current non-empty plan fails safely (AWS Batch's own name-uniqueness check refuses the duplicate) rather than silently corrupting anything. Merged to local main as a233497312 (fix itself: 3c183a305a); justfile gained recipe demo-corpus-overture-tiles; live/corpus-manifest.json gained the pin. UPDATE 2026-08-20: lex00/floci#72 FIXED (floci 1d469fff, published; choudoufu re-pinned to sha256:dc246b1e) and migrate now genuinely PASSES - re-run for real against that image, not inferred: 16 of 26 newly stamped, 0 already stamped, 0 newly recorded, 0 already recorded, 0 failed, 10 skipped, where it was 13 stamped / 3 failed before. The dry run's own counts are unmoved (16 eligible, 11 VERIFIED, 5 DRIFTED, 9 UNTAGGABLE, 1 UNADMITTED_TYPE) - the bug was in the tag WRITE, never in verification. The fix is generic rather than Batch-shaped: floci already had a SharedTagsController dispatching /tags/{arn} to the TagHandler whose serviceKey matches the ARN's own service segment, and AppSync had simply claimed /v1/tags/{arn: .+} for itself; the fix lifts that dispatch into a SharedTagsDispatcher keyed on path prefix AS WELL AS service, adds a SharedTagsV1Controller, and converts AppSync into a TagHandler beside a new BatchTagHandler - so any further service on that path needs only a handler. Stage 2c now asserts three markers through the AWS CLI instead of one, including the Batch job queue's own tofu-address/tofu-estate via batch list-tags-for-resource (the very call that used to be answered by AppSync) and that the module's own create-time Project tag SURVIVED the stamp - a TagResource that replaces instead of merging is how a live object silently loses its markers. INTENTIUS/choudoufu#322 item 1 is also fixed (576990a599/b75e46c24e) and is no longer the test_plan wall. test_plan stays 'fail' but the wall MOVED and is now harder: it is no longer a non-empty plan, it is live-plan refusing to plan at all (exit 1, no plan produced), at exactly two diagnostics - 'Invalid Identity Attribute Value: Identity attribute \"arn\" contains an Account ID \"000000000000\" which does not match the provider's \"\"' followed by its consequence 'Cannot import for projection'. Filed as INTENTIUS/choudoufu#345 with full evidence. Reachable only BECAUSE the Batch resources are now stamped: projection imports one by its ARN identity and hashicorp/aws validates an identity ARN's account segment against the account the provider knows about itself, which skip_requesting_account_id = true (what every crossing script sets to reach a local emulator) leaves empty. The marker is not wrong - stage 3 re-reads the job queue's real ARN from floci through the AWS CLI and asserts the refusal names that exact string. MEASURED, NOT ASSUMED, and recorded in the script's header so it is not re-tried: setting skip_requesting_account_id = false on the estate copy alone clears this error and breaks stage 2 instead, because the provider then routes S3 bucket tag reads through S3 Control's account-prefixed virtual host (dial tcp: lookup 000000000000.127.0.0.1: no such host), taking aws_s3_bucket.tiles[0] from VERIFIED to MISSING and the estate to 15 of 26 eligible. Stages 4-5 still not attempted: they need a plan and stage 3 produces none. The script's stage 3 is rewritten to assert the new wall deterministically (nonzero exit, exactly 2 errors and no more, both texts, the ARN in them) - and a ZERO exit now fails it, so the day this is fixed the script says so instead of quietly passing. BREAK=1 (stage 2's bucket-marker control) was NOT re-run this pass; its mechanism is unchanged. UPDATE 2026-08-20 (INTENTIUS/choudoufu#345 FIXED, no floci change): the identity-ARN crash is gone. The obvious fix, skip_requesting_account_id = false on the estate copy, was re-measured for real and its earlier 'breaks stage 2 via S3 Control's account-prefixed virtual host, dial tcp: lookup 000000000000.127.0.0.1: no such host' failure is a DNS failure, not an HTTP one - confirmed by curling the same account-prefixed host directly, which fails identically before any TCP connection, so no floci server-side Host-header routing could ever have fixed it (the request never arrives). The real fix is ENDPOINT: floci already publishes localhost.floci.io as a real, public wildcard DNS domain (EmbeddedDnsServer.DEFAULT_SUFFIX, same mechanism as LocalStack's localhost.localstack.cloud) that resolves an account-ID-prefixed label to 127.0.0.1 with no floci container running at all - confirmed via dig and via curl reaching floci's S3ControlController correctly (path-based dispatch, unaffected by the account-prefixed Host). Verified against the CURRENT, unmodified floci image (be3f7ffd, sha256:8a882bcc - no re-pin, no floci commit, no floci PR). Real re-run: stage 1 PASS unchanged (26 resources). Stage 2 PASS, counts moved by exactly one resource as a direct, expected consequence (11 VERIFIED/5 DRIFTED -> 10 VERIFIED/6 DRIFTED: aws_launch_template.batch[0]'s arn now differs between the PLAIN state, written under skip_requesting_account_id = true and so account-less, and the ESTATE copy's live re-read, which now knows its account - a real difference between two provider configurations, not a wrong marker). Stage 3 (test_plan) still recorded fail by this repo's own convention (a first plan must be empty to pass) but the #345 wall itself - live-plan exiting 1 with two diagnostics and no plan at all - is gone: live-plan now exits 0 with 'Plan: 1 to add, 7 to change, 0 to destroy.', asserted deterministically address-by-address. Every line traces to an already-tracked or by-design cause, none of them new: the 1 add is the already-ruled #249 aws_cloudfront_origin_access_control UNADMITTED_TYPE gap; 6 of the 7 changes are internal/live/discovery/count.go's own documented one-time tofu-slot migration-visibility tag (bindCountByAddress's doc comment: 'visible in the plan as a tofu-slot tag being added to each member' - by design, cements on first apply), on every count-toggled ([0]) resource this module declares; the 7th, aws_s3_bucket_policy.tiles[0], is a content diff cascading from the new OAC's arn being 'known after apply' in the same plan. Verified informationally (not scored, per this repo's own convention that test_apply is scored only once test_plan is itself empty): applying the stage 3 plan succeeds (Apply complete! Resources: 1 added, 6 changed, 0 destroyed - matching the plan), and a second live-plan afterward is genuinely empty ('No changes. Your infrastructure matches the configuration.') - the estate converges in exactly one apply, confirming #345's own header claim. No Go code touched; the fix is entirely live/e2e/corpus-overture-tiles/run.sh (ENDPOINT changed from a bare IP to localhost.floci.io, skip_requesting_account_id parameterized so only the estate copy sets it false, cold deploy left untouched)."
     },
@@ -915,8 +905,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "28f73e172dafa1fc7a5069cd56eae7c5911cb9d0",
-        "date": "2026-08-22T01:45:12Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:18:46Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "39 resources, once for real",
@@ -956,8 +946,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a485d4f7df4c4128903905a908958d6cbd524c36",
-        "date": "2026-08-21T20:43:19Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:21:41Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "30 resources added by plain terraform, 4 buckets confirmed live, no tofu-address tag",
@@ -997,8 +987,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8095eba176437f1483a5d7e8fe2c6cf3733a5a89",
-        "date": "2026-08-21T19:37:42Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:22:31Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "67 resources (DELTA 2, lex00/floci#57)",
@@ -1038,8 +1028,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:47:27Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:26:05Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 instances (7 zones, 28 records) from plain terraform, 0 of 7 zones carry tofu-estate",
@@ -1079,8 +1069,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:49:17Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:27:54Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
@@ -1120,8 +1110,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a485d4f7df4c4128903905a908958d6cbd524c36",
-        "date": "2026-08-21T20:31:11Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:29:34Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
@@ -1161,8 +1151,8 @@
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a485d4f7df4c4128903905a908958d6cbd524c36",
-        "date": "2026-08-21T20:34:43Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:30:27Z",
         "exit_code": 1,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 62 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=vpc-complete-crossing before migration",
@@ -1200,16 +1190,9 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "4c2e4a2380bedeba667802081e095050bf87d689",
-        "date": "2026-08-21T23:26:24Z",
-        "exit_code": 0,
-        "detail": {
-          "cold_deploy": "28 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "one object tampered (Name tag), exactly module.vpc.aws_vpc.this[\"main\"] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured",
-          "migrate": "live-import -approve completed cleanly against the cold state",
-          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 20",
-          "test_plan": "no resource change proposed"
-        }
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:30:28Z",
+        "exit_code": 1
       },
       "notes": "Landed 2026-08-19, the fifth OpenTofu-native estate. Genuinely different from every prior crossing in this lane. OpenTofu-native evidence: README/badges state \"OpenTofu-first ... native state encryption, S3 locking without DynamoDB, no vendor lock-in\", required_version >= 1.11.0, and docs/TROUBLESHOOTING.md carries a dedicated real-usage \"OpenTofu general\" section (tofu init -upgrade) rather than just a badge - weaker than corpus-hongbomiao's genuine .tofu files (this ships plain .tf), comparable to sumaform/overture-tiles. Several other candidates evaluated and rejected first (an account-singleton-heavy 0-star repo, a devtool's test fixture masquerading as an estate, multiple 0-1-star scaffolds). cold_deploy genuinely passes (28 resources, plain tofu apply, unmodified). migrate genuinely passes: live-import 22 of 28 eligible (21 VERIFIED, 1 DRIFTED), -approve 22 newly stamped, 6 correctly UNTAGGABLE, 0 failed. test_plan BLOCKED, deterministically asserted (Plan: 2 to add, 3 to change, 1 to destroy, all 5 addresses traced to three independent, filed, evidence-backed gaps, not routed around); the VPC's own marker re-verified directly against the AWS CLI after state deletion, BREAK=1 confirmed load-bearing. Six real floci gaps filed with full evidence: lex00/floci#73 (S3Control PutPublicAccessBlock unimplemented), #74 (IAM UpdateAccountPasswordPolicy unsupported), #75 (IAM Access Analyzer - whole missing service), #76 (EC2 ModifyInstanceMetadataDefaults unsupported), #77 (CloudTrail tagging trio missing, blocks any tagged aws_cloudtrail), #78 (EC2 CreateFlowLogs ignores TagSpecifications) - none fixed, per this session's standing instruction. Two choudoufu gaps filed: INTENTIUS/choudoufu#327 (aws_nat_gateway's ForceNew args read null from a stateless prior, forcing a spurious replace), #328 (aws_default_security_group.revoke_rules_on_delete, write-only with no live representation, always diffs) - not fixed. A REAL BUG found and fixed along the way, outside this task's own estate work: #325's marker-alias fix (merged just before this crossing started) double-counted a live object when an estate declares BOTH sides of a default-adopter pair (this module does, aws_default_security_group next to an unrelated aws_security_group) - both scanType passes appended an identical claimant, producing a false \"Two live resources claiming one address\" collision on a single real object (confirmed via direct AWS CLI query). Fixed with claimantAlreadyPresent (dedupe by import ID), covered by a new regression test reproducing the exact real-world error text before the fix and passing after. Stages 4-5 not attempted - both need a genuinely empty first plan. Merged to local main as 62e63a3eb5 (crossing: 427977009a, the discovery double-count fix: 3bdceb43e3); rebased onto a concurrent sibling's internal/live/identity work mid-session, one conflict (the generated identity-golden.txt) resolved by regenerating, not hand-merging; justfile gained recipe demo-corpus-xancloud-iac; live/corpus-manifest.json gained the pin. Re-verified 2026-08-19 after #327's fix (56e807062e/b5bb09d27e, generic - reuses #275's existing residueCandidates/ResidueStore mechanism unchanged, adding one new call site: live-import's Approve now records residue for every eligible instance using the migrated state's own real prior value, not #327-specific): plan moved from 2 to add/3 to change/1 to destroy down to 1 to add/1 to change/0 to destroy - aws_nat_gateway.this[\"main-0\"] no longer proposes a spurious replace. Remaining test_plan blockers are exactly the still-unfixed floci gaps (#73-#78, S3Control/IAM password policy/IAM Access Analyzer/EC2 metadata defaults/CloudTrail tagging/EC2 flow logs), not a choudoufu-side gap. A residual, lower-severity, choudoufu-specific diff on regional_nat_gateway_address (pure-Computed set(object), harmless) remains and was deliberately not filed - residueCandidates correctly excludes pure-Computed attributes, and broadening that needs its own corpus-wide validation before it's safe (risk: masking real out-of-band drift). Follow-up pass 2026-08-20 (this session): #73/#74/#75 fixed and closed (lex00/floci commits 51c00478/08d92407/be3f7ffd - S3 account-level PutPublicAccessBlock, IAM UpdateAccountPasswordPolicy, AccessAnalyzer as a whole new service), joining #76/#77/#78 which other concurrent sessions closed the same night (all six of the floci gaps this estate originally filed are now closed). Re-pinned floci-image to be3f7ffd (sha256:8a882bcc, CI+GHCR-publish both green) and regenerated floci-capabilities.json (verified additive: one digest block added, none removed, no existing block changed). Re-crossed for real against the new pin, the script AS COMMITTED (still setting TF_VAR_cloudtrail_enabled=false and the three iam_baseline_enable_* toggles off, so the five originally-toggled-off features are not re-exercised by this run - re-enabling them is separate, larger follow-up work, not attempted here). Real result: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before); stage 3 still FAILS the script's own hard-coded assertion (which expects the stale 'Plan: 2 to add, 3 to change, 1 to destroy.' shape from before tonight's floci fixes), but the REAL diagnostic surface changed: only two addresses appear in the plan now, not five - 'module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place' (the pre-existing, previously-noted harmless regional_nat_gateway_address residual, #327 itself still holding - no force-replace) and, newly, 'module.vpc.aws_flow_log.cloudwatch[\"main\"] must be replaced' - a force-replace that could not appear before tonight because the flow log was never migrated at all (floci#78 blocked its tag write, so live-import never had a marker to find). This is very likely the same #327-shaped bug class (a ForceNew argument reading null from a stateless prior) now hitting aws_flow_log instead of aws_nat_gateway, not yet diagnosed or filed as its own issue - flagged here rather than assumed. A second confirmatory run was attempted to capture the exact 'Plan: N to add, M to change, K to destroy' totals line and pin down the flow_log diff further, but was lost to a session interruption before completing; the two-address finding above is from one complete, real, natural-exit run and was not re-confirmed a second time this session. The script's own hard-coded assertion (both the exact-string check and the per-address list) is now stale relative to the pin and needs updating by whoever picks this back up, once the flow_log diff is diagnosed. Stages 4-5 remain not_run (unchanged - both need a genuinely empty first plan, which this has not yet reached). RESOLVED as #347 (2026-08-20, 2cb473affd/27cafb1650): the flow_log diff was diagnosed - iam_role_arn (ForceNew) reads null on the stateless prior because floci's own FlowLogService never learns or emits it at all (Ec2QueryHandler.handleCreateFlowLogs ignores DeliverLogsPermissionArn; handleDescribeFlowLogs never returns it), confirmed via TF_LOG=trace straight through Ratification.Approve's residue classification (#327's residueCandidates/ResidueStore mechanism correctly DECLINES to record it, since both classification reads come back empty on any prior, not just the stateless one - the opposite of #327's shape, where the provider preserves without truly reading). Confirmed parity label 1, \"OpenTofu fails here too\": the PLAIN cold-deploy state (written by a real, non-choudoufu tofu apply) already carries iam_role_arn=\"\" immediately after apply, so a stock stateful tofu plan would show the identical perpetual diff. Filed as lex00/floci#87 (open, emulator gap, not a choudoufu defect). run.sh's stage-3 assertions were updated to match reality: 2 addresses (aws_flow_log.cloudwatch[\"main\"] must be replaced; aws_nat_gateway.this[\"main-0\"] will be updated in-place, #327's own still-harmless residual) and \"Plan: 1 to add, 1 to change, 1 to destroy.\" RE-VERIFIED 2026-08-21 (this session, worktree live/reverify-limitations, floci pinned at the current e61a987/d65baf42 image): real re-run of run.sh, exit 0, every hard-coded assertion passed byte-for-byte against the #347 shape above - same 2 addresses, same summary line, same 28/22/21+1/6/0 stage 1-2 counts. lex00/floci#87 confirmed still OPEN (not narrowed by the e61a987 re-pin, which addressed #86/#88 only). None of tonight's #331/#337/#340/#343/#344 admission/identity/record-store changes touched this estate. Wall unchanged; stages 4-5 remain not_run. UPDATE 2026-08-21 (lex00/floci#87 FIXED via lex00/floci#96, PR squash-merged as 17c7f7ef, published sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9, verified via the GHCR packages API and `docker buildx imagetools inspect` on both the :17c7f7e and :latest tags): CreateFlowLogs/DescribeFlowLogs now carry DeliverLogsPermissionArn. Re-pinned floci-image to this digest and regenerated floci-capabilities.json (verified additive: one digest block added - 87 services, 747 type rows, matching every prior digest's shape - none removed, no existing block changed). Re-crossed for real against the new pin: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before). Stage 3 (test_plan) genuinely changed shape: aws_flow_log.cloudwatch[\"main\"] no longer appears anywhere in the plan - the force-replace lex00/floci#87 caused is gone. The plan is narrower but NOT empty: 'Plan: 0 to add, 1 to change, 0 to destroy.', the sole remaining address module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place - the same pre-existing, harmless #327 regional_nat_gateway_address residual this estate has carried since before #87 was ever diagnosed. run.sh's stage-3 header and assertions rewritten to match this reality (single-address plan, exact 'Plan: 0 to add, 1 to change, 0 to destroy.' string, an explicit assertion that aws_flow_log no longer appears), re-run clean end to end (exit 0, no FAIL), and BREAK=1 re-confirmed load-bearing (the VPC identity check fails exactly as designed against a wrong expected address). test_plan stays 'fail' by this repo's own convention (a first plan must be empty to pass) - #327's own NAT-gateway residual is the estate's only remaining wall, unchanged in kind from before, just no longer sharing the plan with #87. Stages 4-5 remain not_run: both still need a genuinely empty first plan, which this estate has not yet reached. NOT a new estate at full parity - one wall cleared (lex00/floci#87), one wall (#327, already tracked, not this session's to fix) remains. UNIT gauntlet:corpus-xancloud-iac/test_plan (2026-08-21, orchestrator-run worker): stage 3 (test_plan) is now PASS. Root cause traced and fixed generically, not scoped around: aws_nat_gateway.this[\"main-0\"] regional_nat_gateway_address (Computed only - this NAT gateway has connectivity_type=public, not \"regional\", confirmed directly against floci's own DescribeNatGateways response, which carries no such field for this object at all) was showing \"+ regional_nat_gateway_address = (known after apply)\" on every stateless first plan. internal/live/projection/residue.go's residueCandidates and fillResidue used to refuse a purely-Computed attribute a residue candidacy at all (\"it cannot be set in configuration, so there is nothing to remember\") - that reasoning undercounted a real case: the provider's Read does not re-derive this attribute from a bare identity-only prior, it leaves whatever the prior held (null), and OpenTofu marks a null Computed attribute unknown forever. Fixed by dropping the Required/Optional restriction from both functions, keeping every other exclusion (identity, sensitive, write-only, NestedType) - safety comes from classifyResidue's own two-read discriminator, not from that schema-shape filter. internal/live/projection/residue_test.go and internal/live/liveimport/residue_test.go updated to match (arn, Computed-only in the lambda-like fixture, is now a legitimate candidate; a new TestFillResidueFillsAComputedOnlyAttribute pins the positive case). Re-crossed for real: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped, unchanged); stage 3 now PASS - \"No changes. Your infrastructure matches the configuration.\", BREAK=1 re-confirmed load-bearing against the VPC identity check. Stages 4-5 remain not_run: not yet written, since stage 3 only just started passing in this run - a follow-up unit's work, not attempted here."
     },
@@ -1239,8 +1222,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "a9cc85b345493776636bb2a942f0e524b078474b",
-        "date": "2026-08-21T19:53:42Z",
+        "commit": "bac351a3d857966dd657a203cbd0b89b79e313ad",
+        "date": "2026-08-22T04:32:26Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
