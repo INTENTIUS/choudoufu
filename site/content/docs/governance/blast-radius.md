@@ -1,9 +1,9 @@
 ---
-title: "The wrong config cannot reach production"
-weight: 2
+title: "How to stop a staging role reaching production"
+weight: 3
 ---
 
-# The wrong config cannot reach production
+# How to stop a staging role reaching production
 
 Pointing a staging configuration at a production account is a familiar outage.
 Nothing structurally prevents it today, because it is the same principal making
@@ -57,7 +57,7 @@ the behaviour against your own policy before relying on it.
 
 The condition is only evaluated where AWS evaluates it, and a resource can only
 carry a marker if its type takes tags.
-[Scoping a role]({{< relref "/docs/governance" >}}) has both bounds.
+[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has both bounds.
 
 This is a guardrail, not a substitute for separate accounts. It narrows what a
 mistake can reach inside an account. Production in its own account remains the
