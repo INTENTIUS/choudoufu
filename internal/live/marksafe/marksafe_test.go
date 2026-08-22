@@ -62,6 +62,7 @@ var guardedPackages = []string{
 	"slots",
 	"stamp",
 	"staterecord",
+	"strict",
 	"uniquename",
 }
 

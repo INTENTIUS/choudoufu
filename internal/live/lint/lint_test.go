@@ -176,6 +176,48 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{
+			// GitHub issue #365. A strict block that sets nothing resolves
+			// every toggle to its default, which is today's behavior.
+			name: "strict block, toggles left to their default",
+			dir:  "testdata/strict-default-omitted",
+			want: nil,
+		},
+		{
+			// #101's lesson, applied to the new block before it can be
+			// repeated: writing the documented default by hand must lint
+			// exactly as omitting it does.
+			name: "strict block, default written out explicitly",
+			dir:  "testdata/strict-default-written-out",
+			want: nil,
+		},
+		{
+			// A setting the schema defines and no build implements. Refused
+			// rather than accepted-and-ignored: see checkLiveStrict.
+			name: "strict marker_repair the build does not implement",
+			dir:  "testdata/strict-unimplemented",
+			want: []wantIssue{
+				{
+					rule:      RuleStrictMarkerRepair,
+					construct: `strict.marker_repair = "report"`,
+					file:      "testdata/strict-unimplemented/main.tf",
+					line:      10,
+				},
+			},
+		},
+		{
+			// A setting outside the vocabulary altogether: the typo case.
+			name: "strict marker_repair outside the vocabulary",
+			dir:  "testdata/strict-invalid-setting",
+			want: []wantIssue{
+				{
+					rule:      RuleStrictMarkerRepair,
+					construct: `strict.marker_repair = "sometimes"`,
+					file:      "testdata/strict-invalid-setting/main.tf",
+					line:      9,
+				},
+			},
+		},
+		{
 			name: "logical resources, one per banned prefix",
 			dir:  "testdata/logical",
 			want: []wantIssue{

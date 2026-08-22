@@ -113,6 +113,32 @@ requires a nested `scope` block bounding what a sweep may touch, through
 `services`, `types` and `regions`, each a list. Other delete verbs need none,
 including `undeclared_tagged`'s default estate-scoped sweep.
 
+### `strict` block
+
+The principles this fork exists for, each as a toggle whose default is
+today's behavior. A configuration with no `strict` block, and one whose
+`strict` block sets nothing, behave identically: that is what makes
+"compatible out of the box" true by construction rather than by review.
+Turning a toggle on is the setup step.
+
+| Argument | Values | Default | Meaning |
+|---|---|---|---|
+| `marker_repair` | `"repair"`, `"report"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. `"repair"` writes the declared value over it, as the plan's ordinary in-place tags update. `"report"` leaves it and names what it would have written. `"never"` leaves it silently, for an estate where something else owns the tags. |
+
+None of the three affects a resource being created. A create is stamped
+whatever the setting says: the safety rule has no converse permitting an
+unmarked create, and a create writes a marker that is new rather than one
+that disagrees with anything.
+
+`"report"` and `"never"` are refused by lint in this build. The grammar
+landed ahead of the mechanism, and a setting about marker safety that
+decoded and then did nothing would be worse than one that says so. The
+`strict-marker-repair` entry in
+[`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#strict-marker-repair)
+has the reason, which is that marker repair is not a switch anywhere:
+markers are repaired by the plan's ordinary tags diff, and suppressing that
+per key is the same problem `lifecycle { ignore_changes }` poses.
+
 ## Permissions a run needs
 
 choudoufu makes few AWS calls of its own. Resource reads, writes and lists go

@@ -122,7 +122,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		"registry":        true,
 		"slots":           true,
 		"staterecord":     true,
-		"untag":           true,
+		// GitHub issue #365's strict-profile vocabulary: a setting type,
+		// the valid set, the default, and which settings a build
+		// implements. It refuses nothing itself - internal/live/lint does,
+		// against this table - the same division internal/live/policy has.
+		"strict": true,
+		"untag":  true,
 		// One predicate over a documentation string, shared by two
 		// generators so both read the same rule (#272). It refuses nothing
 		// at run time and never will: what it produces is a signal in a

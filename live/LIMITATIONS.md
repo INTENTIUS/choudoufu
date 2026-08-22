@@ -1329,6 +1329,51 @@ and take the default.
 **Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
 (`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
 
+### strict-marker-repair
+
+**Construct.** A `strict` block inside a `live` block whose `marker_repair`
+argument is anything other than `"repair"`. Two shapes reach it: a value
+outside the vocabulary altogether, and `"report"` or `"never"`, which the
+schema defines and no build implements yet.
+
+**Why bounded.** Marker repair is not a code path a flag can switch off,
+which is the whole of it. Nothing in this fork writes a marker tag onto a
+live object directly. `internal/live/stamp` rewrites the *configuration*,
+injecting `tofu-estate` and `tofu-address` into a resource's `tags`
+argument, and the repair of a drifted live tag is what follows from that on
+its own: the provider's ordinary tags diff between what the configuration
+now declares and what the object carries. `stamp` itself never overwrites a
+marker — its `verify` is documented as never returning "overwrite", and a
+configuration whose marker disagrees is a hard `Ownership marker conflict`
+rather than a rewrite.
+
+So suppressing the repair means suppressing that diff for the marker keys.
+That is what `lifecycle { ignore_changes }` does, and it is refused today
+(see "ignore-changes") because a resource whose identity is only its marker,
+created or updated with the marker write discarded, is the "created
+unfindable" failure `HANDOFF.md`'s safety rule exists to prevent. Lifting
+the refusal safely needs somewhere else for that identity to live, which is
+the per-type and per-address `markers = record` toggle — the next slice of
+GitHub issue #365.
+
+Refusing rather than accepting-and-ignoring is the deliberate half. A
+setting that decoded, validated and then did nothing would report an estate
+as protected from this tool while every plan carried on rewriting its
+markers. A refusal is loud and reversible; a silent no-op about marker
+safety is neither.
+
+**Forwarding address.** Omit the argument, or write `marker_repair =
+"repair"`, which is the same run. If something outside this configuration
+owns the tags on these resources, that is the case `"never"` is being built
+for, and GitHub issue #365 is where it is tracked.
+
+**Enforcement.** `RuleStrictMarkerRepair`, `internal/live/lint/strict.go`
+(`checkLiveStrict`), against `internal/live/strict`'s vocabulary. Fixture at
+`live/e2e/limits/strict-marker-repair/`. An omitted argument, and an absent
+`strict` block, are not checked at all: both resolve to
+`strict.DefaultMarkerRepair`, so every configuration written before the
+block existed keeps behaving identically.
+
 ## Documented, not yet enforced
 
 ### duplicate-identity
@@ -1734,6 +1779,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | receipt-secret | error | `internal/live/lint` | live/RECEIPTS.md, "Secrets discipline" |
 | 0 | 0 | lint | receipt-value | error | `internal/live/lint` | live/RECEIPTS.md, "Guard 2. Hash-only values, and never SecureString" |
 | 0 | 0 | lint | state-backend | warning | `internal/live/lint` | "backend-block" / "cloud-block" |
+| - | - | lint | strict-marker-repair | error | `internal/live/lint` | "strict-marker-repair" |
 | 0 | 0 | lint | undeclared-provider-alias | error | `internal/live/lint` | "undeclared-provider-alias" |
 | - | - | projection | Argument values could not be recorded | error | `internal/live/projection` | "Argument values could not be recorded" |
 | - | - | projection | Cannot decode a persisted record | error | `internal/live/projection` | "Cannot decode a persisted record" |
@@ -1778,7 +1824,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**196 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**197 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
