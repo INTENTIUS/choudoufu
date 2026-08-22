@@ -48,6 +48,12 @@ var enforcedLimits = map[string]Rule{
 	"count-index-in-tag":   RuleCountIndex,
 	"foreach-invalid-key":  RuleForEachKey,
 	"overlong-address":     RuleOverlongAddress,
+	// GitHub issue #378's reservation. The fixture writes a tofu-address by
+	// hand out of tofu.marker_module_prefix, which is the one plausible
+	// reason an operator would ever reach for the symbol - and the one the
+	// rule most needs to refuse, because such a marker is not verified by
+	// the pass that would otherwise have written it.
+	"reserved-symbol": RuleReservedSymbol,
 	// GitHub issue #103. Its fixture carries a fourth resource that must
 	// NOT be refused - ignore_changes on a single non-marker tag key - and
 	// TestIgnoreChangesAdmitsAForeignTagKey is what pins that half.

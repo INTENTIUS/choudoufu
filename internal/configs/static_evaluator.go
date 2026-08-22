@@ -101,6 +101,14 @@ type StaticEvaluator struct {
 	// has. See [StaticEvaluator.WithRepetitionData].
 	repetition instances.RepetitionData
 
+	// moduleInstance is the module INSTANCE whose expressions are being
+	// evaluated, and moduleInstanceSet says whether a caller supplied one.
+	// The two fields are separate because addrs.ModuleInstance's zero value
+	// IS the root module instance, so the field alone cannot tell "the root"
+	// from "nobody said". See [StaticEvaluator.WithModuleInstance].
+	moduleInstance    addrs.ModuleInstance
+	moduleInstanceSet bool
+
 	// funcOverrides, when non-nil, replaces named entries of the scope's
 	// base function table. See [StaticEvaluator.WithFunctionOverrides].
 	funcOverrides map[string]function.Function
@@ -201,6 +209,43 @@ func (s *StaticEvaluator) WithRepetitionData(rd instances.RepetitionData) *Stati
 	}
 	dup := *s
 	dup.repetition = rd
+	return &dup
+}
+
+// WithModuleInstance returns a copy of the evaluator that knows WHICH
+// instance of its module it is evaluating for, and therefore can answer this
+// fork's one added evaluator symbol, [markers.ModulePrefixAttr] - see
+// [staticScopeData.GetTerraformAttr].
+//
+// It carries through nested scopes exactly as
+// [StaticEvaluator.WithRepetitionData] does, and for the same mechanical
+// reason: [newStaticScope] builds every nested scope from this same
+// *StaticEvaluator, so a local value or module-call variable reached from
+// the expression a caller hands to Evaluate sees the same instance.
+//
+// The base evaluator does NOT know its module instance, and must not guess
+// one. A StaticEvaluator belongs to a *configs.Module, and a module with a
+// for_each'd or count'd call above it has one static evaluator shared by
+// every instance of it - the exact fact issue #378 is about. Answering the
+// symbol from an evaluator nobody threaded an instance into would answer it
+// for whichever instance happened to be nearest, or for none, and a marker
+// built on that answer is a WRONG marker on a real object rather than a
+// missing one. So the refusal in GetTerraformAttr is the load-bearing half
+// of this seam, not an edge case of it: this method exists to turn that
+// refusal off for exactly the caller that has established the instance, and
+// for nobody else.
+//
+// A caller that genuinely evaluates for the root module passes
+// addrs.RootModuleInstance, which is answered as a refusal of its own (the
+// root has no module prefix; see [markers.ModulePrefix]) rather than as "not
+// threaded" - the distinction the moduleInstanceSet flag exists for.
+func (s *StaticEvaluator) WithModuleInstance(modInst addrs.ModuleInstance) *StaticEvaluator {
+	if s == nil {
+		return s
+	}
+	dup := *s
+	dup.moduleInstance = modInst
+	dup.moduleInstanceSet = true
 	return &dup
 }
 

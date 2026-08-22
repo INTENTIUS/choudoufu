@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/didyoumean"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -662,6 +663,43 @@ func (s staticScopeData) GetTerraformAttr(_ context.Context, addr addrs.Terrafor
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		return cty.DynamicVal, diags
+	case markers.ModulePrefixAttr:
+		// This fork's one addition to the "terraform"/"tofu" object, and the
+		// half of it that must fail closed. See [markers.ModulePrefixAttr]
+		// for what it means and [StaticEvaluator.WithModuleInstance] for who
+		// supplies the instance.
+		//
+		// Static evaluation has no notion of a module instance on its own: a
+		// StaticEvaluator belongs to a *Module, and every instance of a
+		// for_each'd or count'd call above it shares that one evaluator. So
+		// the ONLY honest answers here are "the instance a caller told me" and
+		// a refusal. Returning "" for the untold case - the obvious-looking
+		// default - would let internal/live/stamp's template render
+		// ".aws_x.y" and let a reader of an already-stamped configuration
+		// compare against that, either of which is a silently WRONG marker.
+		// HANDOFF.md's safety rule ranks a wrong marker strictly worse than a
+		// missing one, so this refuses.
+		if !s.eval.moduleInstanceSet {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Marker module prefix in static context",
+				Detail:   fmt.Sprintf("%s is the ownership marker prefix of one module INSTANCE, and this evaluation was not told which instance it is for. Every instance of a module call shares one static evaluator, so answering here would answer for the wrong instance. This is not an attribute to reference by hand; it is written by this fork into a resource's marker tags.", markers.ModulePrefixRef),
+				Subject:  rng.ToHCL().Ptr(),
+			})
+			return cty.DynamicVal, diags
+		}
+		prefix, ok := markers.ModulePrefix(s.eval.moduleInstance)
+		if !ok {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Marker module prefix in the root module",
+				Detail:   fmt.Sprintf("%s is the ownership marker prefix of the module instance being evaluated, and the root module has none.", markers.ModulePrefixRef),
+				Subject:  rng.ToHCL().Ptr(),
+			})
+			return cty.DynamicVal, diags
+		}
+		return cty.StringVal(prefix), diags
+
 	case "workspace":
 		workspaceName := s.eval.call.workspace
 		return cty.StringVal(workspaceName), diags

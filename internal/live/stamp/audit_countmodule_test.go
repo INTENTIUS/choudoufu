@@ -12,8 +12,9 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// TestStamp_countModuleIsRefused is [TestStamp_forEachModuleIsStillRefused]'s
-// missing twin, and it failed when it was written.
+// TestStamp_countModuleIsAddressedPerInstance is
+// [TestStamp_forEachModuleIsAddressedPerInstance]'s missing twin, and it
+// failed when it was written.
 //
 // moduleResourcesFrom decided keyedAncestor from call.ForEach alone. A module
 // call that sets count expands the same way - module.sites[0] and
@@ -33,7 +34,15 @@ import (
 // The assertions are on the EVALUATED tags, not on Result.Stamped: the pass
 // reported this resource as successfully stamped, so a verdict-level check
 // called the defect a success.
-func TestStamp_countModuleIsRefused(t *testing.T) {
+//
+// Issue #378 changed the answer from a refusal to a per-instance marker, and
+// this test's own question is unchanged by that: do module.sites[0] and
+// module.sites[1] carry the same string. [markers.ModulePrefixAttr] makes the
+// module half of the address an interpolation, so they do not - and the
+// external oracle below is still the one that matters, because it is identity
+// resolution, not this pass, that decides which addresses the live objects
+// will be searched for.
+func TestStamp_countModuleIsAddressedPerInstance(t *testing.T) {
 	t.Run("directly count'd", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
@@ -68,14 +77,31 @@ resource "aws_route53_zone" "zone" {
 		res, diags := Stamp(t.Context(), Request{Estate: "repeat-unit", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.sites.aws_route53_zone.zone", SkipModuleKeyed) {
-			t.Errorf("a resource inside a count'd module was not skipped as %s: %+v", SkipModuleKeyed, res.Skipped)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the resource inside the count'd module stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
 		}
-		if len(res.Stamped) != 0 {
-			t.Errorf("stamped a resource inside a count'd module: %+v", res.Stamped)
+
+		// One tag map per key identity resolution just produced, so the two
+		// sides of the comparison come from the same source rather than from
+		// this test's own idea of what the keys are.
+		seen := map[string]string{}
+		for _, key := range keys {
+			inst := addrs.RootModuleInstance.Child("sites", key)
+			tags := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", withModulePrefix(t, nil, inst.String()))
+			seen[inst.String()] = tags[TagAddress]
 		}
-		if tags := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", nil); len(tags) != 0 {
-			t.Errorf("markers reached a count'd module's shared body: %v - that literal is what every instance of the call would carry", tags)
+		want := map[string]string{
+			"module.sites[0]": "module.sites:0.aws_route53_zone.zone",
+			"module.sites[1]": "module.sites:1.aws_route53_zone.zone",
+		}
+		for inst, wantAddr := range want {
+			if seen[inst] != wantAddr {
+				t.Errorf("%s for %s = %q, want %q", TagAddress, inst, seen[inst], wantAddr)
+			}
+		}
+		if seen["module.sites[0]"] == seen["module.sites[1]"] {
+			t.Errorf("both instances of the count'd call carry %s = %q - two live objects, one marker, and no instance it belongs to",
+				TagAddress, seen["module.sites[0]"])
 		}
 	})
 
@@ -108,11 +134,17 @@ resource "aws_route53_zone" "zone" {
 		res, diags := Stamp(t.Context(), Request{Estate: "repeat-unit", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.sites.module.leaf.aws_route53_zone.zone", SkipModuleKeyed) {
-			t.Errorf("a resource two levels under a count'd module was not skipped as %s; keyedAncestor did not reach it: %+v", SkipModuleKeyed, res.Skipped)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the leaf resource stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
 		}
-		if tags := evalTags(t, cfg.Children["sites"].Children["leaf"], "aws_route53_zone.zone", nil); len(tags) != 0 {
-			t.Errorf("markers reached the leaf of a count'd module: %v", tags)
+		for i, want := range map[string]string{
+			"module.sites[0].module.leaf": "module.sites:0.module.leaf.aws_route53_zone.zone",
+			"module.sites[1].module.leaf": "module.sites:1.module.leaf.aws_route53_zone.zone",
+		} {
+			tags := evalTags(t, cfg.Children["sites"].Children["leaf"], "aws_route53_zone.zone", withModulePrefix(t, nil, i))
+			if tags[TagAddress] != want {
+				t.Errorf("%s for %s = %q, want %q; keyedAncestor did not reach the leaf", TagAddress, i, tags[TagAddress], want)
+			}
 		}
 	})
 

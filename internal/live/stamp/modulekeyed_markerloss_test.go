@@ -28,7 +28,7 @@ import (
 // stacked:
 //
 //  1. A resource under a module call with more than one instance is
-//     [stamper.moduleKeyedResource]'s, not [stamper.resource]'s: the
+//     handled apart from [stamper.resource]'s ordinary path: the
 //     module's instances share one configuration body for the resource's
 //     tags argument, and no expression writable in the child module can name
 //     the parent call's own instance key, so there is no single literal that
@@ -44,37 +44,43 @@ import (
 //     exempts that reason precisely because it is supposed to mean "the
 //     resource HAS its markers", so nothing downstream reports it either.
 //
-// The test below pins the marker loss by value. It asserts the CURRENT,
-// defective behaviour deliberately: this is a finding, not a fix, and a pin
-// that says what the code does today is what makes the next change to it
-// visible. Whichever way #378 is eventually closed - by threading the module
-// instance's address into the child so a correct per-instance marker can be
-// written, or by dropping the instance to the record rung - these
-// assertions have to be edited by hand, with the new values spelled out.
+// Both halves are now closed, and this file asserts the fix on the same two
+// fixtures that pinned the defect.
 //
-// The contrast subtest is the load-bearing half. It is the same module, the
-// same resource, the same `tags = var.tags`, called WITHOUT for_each, and
-// its rendered tags carry both markers by exact value. So the difference is
-// the keyed ancestor and nothing else - not the type, not the tags idiom,
-// not the count on the resource.
+// Half 1 is #378's own, and [markers.ModulePrefixAttr] is what closed it: an
+// expression that DOES name the parent call's own instance key, so the shared
+// body carries a template rather than a literal and every instance renders
+// its own address. modulekeyed_prefix_test.go is the fuller statement of it -
+// two instances of one call, two different and exactly correct tag maps, plus
+// the refusal that fires wherever the module instance is not known.
 //
-// The second half this file used to pin - that the same skip silenced the
-// unmarked-apply refusal for a type that can ONLY be found by its marker -
-// is GitHub issue #379, and it is fixed: modulekeyed_untrusted_test.go pins
-// the refusal, and the hand-written case that must stay trusted, in its
-// place. #378's own population is untouched by that fix, and the fixture
-// below is why: an aws_cloudwatch_log_group is imported by the name this
-// configuration states (live/survey-full.json: required_for_import is
-// ["name"]), so it is findable without a marker and NeedsDiscovery is empty
-// here exactly as it is for the corpus estate. Stamping still trusts the body
-// below and the plan still proposes deleting the markers live-import wrote,
-// which is what the subtests here still assert. Losing a marker on a resource
-// that can be found again is #378's subject; losing one on a resource that
-// cannot is #379's, and only the second is an error.
+// Half 2 is issue #379, and it was closed twice over. #379's own fix earned
+// the trust for the population that could not survive it being wrong: a
+// marker-only type whose tags argument merely EXISTS now gets the
+// unmarked-apply error rather than silence. #378's fix then removes the
+// premise for nearly all of that population - the resource is stamped, so it
+// is not unmarked at all. What is left of #379 in the code is one shape:
+// a body writing tofu-address by hand and NOT tofu-estate, on a marker-only
+// type, where this pass will not touch the hand-written address and discovery
+// lists an estate before it binds an address. modulekeyed_untrusted_test.go
+// pins that, and the hand-written case that must stay trusted beside it.
+//
+// The contrast subtest below is still the load-bearing half of this file. It
+// is the same module, the same resource, the same `tags = var.tags`, called
+// WITHOUT for_each, and its rendered tags carry both markers by exact value -
+// as they always did. So what the keyed ancestor changes is the SHAPE of the
+// address, not whether there is one.
+//
+// The fixture's own type matters for reading #379 against it: an
+// aws_cloudwatch_log_group is imported by the name this configuration states
+// (live/survey-full.json: required_for_import is ["name"]), so it is findable
+// without a marker and NeedsDiscovery is empty here exactly as it is for the
+// corpus estate. #379's refusal was never going to reach it; #378's fix is
+// what puts a marker on it.
 
-// TestModuleKeyedTagsFromAVariableRenderNoMarker is #378 itself: the desired
-// tag set a plan computes for a taggable resource under a for_each'd module
-// call, when that resource sets `tags = var.tags`.
+// TestModuleKeyedTagsFromAVariableRenderTheModulePrefix is #378 itself: the
+// desired tag set a plan computes for a taggable resource under a for_each'd
+// module call, when that resource sets `tags = var.tags`.
 //
 // The fixture is the corpus shape, reduced: terraform-aws-modules/ecs's
 // modules/container-definition declares
@@ -86,7 +92,7 @@ import (
 //	}
 //
 // and examples/fargate calls it with for_each over the container names.
-func TestModuleKeyedTagsFromAVariableRenderNoMarker(t *testing.T) {
+func TestModuleKeyedTagsFromAVariableRenderTheModulePrefix(t *testing.T) {
 	const impl = `
 variable "name" { type = string }
 variable "tags" { type = map(string) }
@@ -99,14 +105,15 @@ resource "aws_cloudwatch_log_group" "this" {
 }
 `
 	// The tags the module call passes down, which is every tag the child can
-	// see. evalTags is given exactly this, so what it returns is what the
-	// provider would be handed for that instance.
+	// see. evalTags is given exactly this plus the marker prefix the evaluator
+	// supplies, so what it returns is what the provider would be handed for
+	// that instance.
 	callerTags := map[string]cty.Value{"var": cty.ObjectVal(map[string]cty.Value{
 		"name": cty.StringVal("/aws/ecs/ex/fluent-bit"),
 		"tags": cty.MapVal(map[string]cty.Value{"Example": cty.StringVal("ex-fargate")}),
 	})}
 
-	t.Run("for_each'd call: no marker is rendered, and the skip claims one was written", func(t *testing.T) {
+	t.Run("for_each'd call: the marker is rendered, per module instance", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
 module "container_definition" {
@@ -122,23 +129,22 @@ module "container_definition" {
 		res, diags := Stamp(t.Context(), Request{Estate: "ecs-fargate-crossing", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.container_definition.aws_cloudwatch_log_group.this", SkipModuleKeyedTrusted) {
-			t.Errorf("want %s for a resource whose tags come from a variable inside a for_each'd module call, got %+v",
-				SkipModuleKeyedTrusted, res.Skipped)
+		if hasSkip(res, "module.container_definition.aws_cloudwatch_log_group.this", SkipModuleKeyedTrusted) {
+			t.Errorf("still reporting %s about a marker nobody wrote: %+v", SkipModuleKeyedTrusted, res.Skipped)
 		}
 
-		// The value assertion, and the whole point of this file: the desired
-		// tag set carries NO marker. live-import stamped
+		// The value assertion, and the whole point of this file. live-import
+		// stamped
 		// module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0
-		// onto the live object, so a plan whose desired tags are these three
-		// keys is a plan that removes it.
-		got := evalTags(t, cfg.Children["container_definition"], "aws_cloudwatch_log_group.this", callerTags)
-		assertTags(t, got, map[string]string{"Example": "ex-fargate"})
-		for _, key := range []string{TagEstate, TagAddress} {
-			if v, ok := got[key]; ok {
-				t.Errorf("%s = %q is rendered after all; this test's premise (and #378's) has changed and the fixed value belongs here by name", key, v)
-			}
-		}
+		// onto the live object, and this is now exactly what the plan's desired
+		// tags carry - so the replan proposes nothing rather than a deletion.
+		got := evalTags(t, cfg.Children["container_definition"], "aws_cloudwatch_log_group.this",
+			withModulePrefix(t, withCountIndex(callerTags, 0), `module.container_definition["fluent-bit"]`))
+		assertTags(t, got, map[string]string{
+			"Example":  "ex-fargate",
+			TagEstate:  "ecs-fargate-crossing",
+			TagAddress: "module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0",
+		})
 	})
 
 	t.Run("the same module without for_each: both markers, by value", func(t *testing.T) {

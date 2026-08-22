@@ -78,6 +78,15 @@ const (
 	// overlong_address.go.
 	RuleOverlongAddress Rule = "overlong-address"
 
+	// RuleReservedSymbol covers a configuration referencing
+	// tofu.marker_module_prefix (or its terraform.* spelling), the one
+	// evaluator symbol this fork adds to the language. It carries the
+	// ownership marker prefix of the module instance being evaluated and is
+	// written into a resource's marker tags by internal/live/stamp (issue
+	// #378); it is not readable from a configuration. See
+	// reserved_symbol.go.
+	RuleReservedSymbol Rule = "reserved-symbol"
+
 	// RuleReceiptLeaf covers a direct reference, from another managed
 	// resource or an output, into a resource that is statically
 	// recognizable as a receipt (live/RECEIPTS.md's naming
@@ -311,6 +320,10 @@ var ruleInfo = map[Rule]struct {
 	RuleOverlongAddress: {
 		summary: "Resource address does not fit in a marker",
 		docsRef: `live/LIMITATIONS.md, "overlong-address"`,
+	},
+	RuleReservedSymbol: {
+		summary: "This symbol is reserved for the ownership marker scheme",
+		docsRef: `live/LIMITATIONS.md, "reserved-symbol"`,
 	},
 	RuleReceiptLeaf: {
 		// No live/LIMITATIONS.md entry exists for this rule; cite the

@@ -294,6 +294,16 @@ var refusals = []Refusal{
 		Origin:  OriginHCL,
 	},
 	{
+		Summary: "Marker module prefix in static context",
+		What:    "tofu.marker_module_prefix is evaluated without a module instance threaded in. It is this fork's own symbol, written into a resource's marker tags for a resource declared inside a module call with more than one instance (issue #378), and every instance of such a call shares one static evaluator - so answering here would answer for the wrong instance. A configuration cannot reach this by hand: internal/live/lint refuses one that names the symbol.",
+		Origin:  OriginConfigs,
+	},
+	{
+		Summary: "Marker module prefix in the root module",
+		What:    "tofu.marker_module_prefix is evaluated for the root module instance, which has no module path and therefore no marker prefix. Like its sibling above, this is unreachable from a configuration a user wrote.",
+		Origin:  OriginConfigs,
+	},
+	{
 		Summary: "Missing map element",
 		What:    "A map is indexed with a key it does not contain.",
 		Origin:  OriginHCL,

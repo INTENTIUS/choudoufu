@@ -307,25 +307,32 @@ func TestPrivateBodyCoversEveryRewriteShape(t *testing.T) {
 	}
 }
 
-// TestStamp_forEachModuleIsStillRefused is the neighbouring case, and it is
-// here because it had no test of its own.
+// TestStamp_forEachModuleIsAddressedPerInstance is the neighbouring case, and
+// it is here because it had no test of its own.
 //
 // A module call that sets for_each really does give its several instances one
 // *hclsyntax.Body - there is one *configs.Config node for the call, one
 // *configs.Resource inside it, and the instances differ only at plan time -
-// so [privateBody] does nothing for it and cannot: no copy makes a literal
-// vary per instance. [moduleResource.keyedAncestor] and
-// [stamper.moduleKeyedResource] are what keeps that case from writing one
-// address onto N instances, which is issue #280's defect by a different
-// route.
+// so [privateBody] does nothing for it and cannot: no COPY makes a literal
+// vary per instance. [moduleResource.keyedAncestor] is what keeps that case
+// from writing one address onto N instances, which is issue #280's defect by
+// a different route.
 //
 // Deleting the line that propagates keyedAncestor to a child module left
 // every test in internal/live and internal/command green, which is to say
 // the mechanism guarding the for_each case was guarded by nothing. This test
-// is that guard. It asserts the two skips AND that no address literal
-// reached the shared body, because a skip filed while a marker was written
-// anyway would satisfy the first half alone.
-func TestStamp_forEachModuleIsStillRefused(t *testing.T) {
+// is that guard.
+//
+// What it asserts changed with issue #378, and the guard got stronger rather
+// than weaker. Until #378 the mechanism's answer was a refusal - skip the
+// resource, write nothing - and this test asserted that no literal reached
+// the shared body. Now the answer is [markers.ModulePrefixAttr]: a template
+// no copy is needed for, because the value varies per instance at evaluation
+// time. So the assertion is on the VALUE two different instances of the call
+// render, which is what "one address onto N instances" was ever about, and a
+// keyedAncestor that stopped propagating would fail it by rendering the same
+// string twice.
+func TestStamp_forEachModuleIsAddressedPerInstance(t *testing.T) {
 	t.Run("directly for_each'd", func(t *testing.T) {
 		cfg := loadTree(t, map[string]string{
 			"main.tf": `
@@ -347,14 +354,25 @@ resource "aws_route53_zone" "zone" {
 		res, diags := Stamp(t.Context(), Request{Estate: "repeat-unit", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.sites.aws_route53_zone.zone", SkipModuleKeyed) {
-			t.Errorf("a resource inside a for_each'd module was not skipped as %s: %+v", SkipModuleKeyed, res.Skipped)
+		if hasSkip(res, "module.sites.aws_route53_zone.zone", SkipModuleKeyed) {
+			t.Errorf("a resource inside a for_each'd module is still refused as %s; #378 made it stampable: %+v", SkipModuleKeyed, res.Skipped)
 		}
-		if len(res.Stamped) != 0 {
-			t.Fatalf("a resource inside a for_each'd module was stamped with a literal address, which is one address for every instance of the call: %+v", res.Stamped)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the one resource inside the for_each'd module stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
 		}
-		if tags := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", nil); len(tags) != 0 {
-			t.Errorf("markers reached a for_each'd module's shared body: %v", tags)
+
+		a := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", withModulePrefix(t, nil, `module.sites["a"]`))
+		b := evalTags(t, cfg.Children["sites"], "aws_route53_zone.zone", withModulePrefix(t, nil, `module.sites["b"]`))
+		assertTags(t, a, map[string]string{
+			TagEstate:  "repeat-unit",
+			TagAddress: "module.sites:a.aws_route53_zone.zone",
+		})
+		assertTags(t, b, map[string]string{
+			TagEstate:  "repeat-unit",
+			TagAddress: "module.sites:b.aws_route53_zone.zone",
+		})
+		if a[TagAddress] == b[TagAddress] {
+			t.Errorf("one address reached every instance of the for_each'd call: %q", a[TagAddress])
 		}
 	})
 
@@ -387,11 +405,22 @@ resource "aws_route53_zone" "zone" {
 		res, diags := Stamp(t.Context(), Request{Estate: "repeat-unit", Config: cfg, Schemas: testSchemas()})
 		assertNoErrors(t, diags)
 
-		if !hasSkip(res, "module.sites.module.leaf.aws_route53_zone.zone", SkipModuleKeyed) {
-			t.Errorf("a resource two levels under a for_each'd module was not skipped as %s; keyedAncestor did not reach it: %+v", SkipModuleKeyed, res.Skipped)
+		if len(res.Stamped) != 1 {
+			t.Fatalf("want the leaf resource stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
 		}
-		if len(res.Stamped) != 0 {
-			t.Fatalf("a resource two levels under a for_each'd module was stamped with a literal address: %+v", res.Stamped)
+		// keyedAncestor reaching the leaf is exactly what makes the module
+		// half of this address an interpolation rather than the literal
+		// "module.sites.module.leaf" - which would be one address for both
+		// instances of the call, and the address of neither.
+		a := evalTags(t, cfg.Children["sites"].Children["leaf"], "aws_route53_zone.zone",
+			withModulePrefix(t, nil, `module.sites["a"].module.leaf`))
+		b := evalTags(t, cfg.Children["sites"].Children["leaf"], "aws_route53_zone.zone",
+			withModulePrefix(t, nil, `module.sites["b"].module.leaf`))
+		if a[TagAddress] != "module.sites:a.module.leaf.aws_route53_zone.zone" {
+			t.Errorf("%s = %q for module.sites[\"a\"].module.leaf; keyedAncestor did not reach the leaf", TagAddress, a[TagAddress])
+		}
+		if b[TagAddress] != "module.sites:b.module.leaf.aws_route53_zone.zone" {
+			t.Errorf("%s = %q for module.sites[\"b\"].module.leaf", TagAddress, b[TagAddress])
 		}
 	})
 
