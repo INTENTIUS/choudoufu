@@ -1,6 +1,6 @@
 ---
 title: "Start a new estate"
-weight: 3
+weight: 5
 ---
 
 # Start a new estate
@@ -69,7 +69,7 @@ Stock Terraform and stock OpenTofu reject a configuration containing a `live`
 block, because `live` is this fork's addition to the `terraform` block schema.
 Any tool validating against upstream's schema does the same. The sidecar file
 avoids this, because nothing reads its extension. See
-[Will my config work]({{< relref "/docs/use/compatibility#editors-and-linters" >}}).
+[Compatibility reference]({{< relref "/docs/use/compatibility#editors-and-linters" >}}).
 {{% /hint %}}
 
 ## A first configuration
@@ -142,5 +142,5 @@ The exit code is the verdict. `live/e2e/README.md` lists what each step proves.
 
 - [Day-2 operations]({{< relref "/docs/use/day2" >}}) for renames, removals and working with other
   people.
-- [Will my config work]({{< relref "/docs/use/compatibility" >}}) for the constructs this mode
+- [Compatibility reference]({{< relref "/docs/use/compatibility" >}}) for the constructs this mode
   refuses. Read it before the configuration grows.
