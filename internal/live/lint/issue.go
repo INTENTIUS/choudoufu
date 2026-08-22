@@ -121,6 +121,14 @@ const (
 	// the marker keys inside it. See ignore_changes.go.
 	RuleIgnoreChanges Rule = "ignore-changes"
 
+	// RuleStrictMarkerRepair covers a live block's strict block whose
+	// marker_repair argument names something other than the one setting a
+	// build implements. Two shapes reach it: a value outside
+	// internal/live/strict's vocabulary altogether, and one inside it whose
+	// mechanism has not been built yet ("report" and "never", GitHub issue
+	// #365). See strict.go.
+	RuleStrictMarkerRepair Rule = "strict-marker-repair"
+
 	// RulePolicyThreshold covers a policy block's threshold argument set to
 	// zero or a negative number. It exists to be raised deliberately once a
 	// delete quadrant's roster has been reviewed, which a non-positive
@@ -304,6 +312,10 @@ var ruleInfo = map[Rule]struct {
 	RulePolicyThreshold: {
 		summary: "Policy threshold is not a positive number",
 		docsRef: `live/LIMITATIONS.md, "policy-threshold"`,
+	},
+	RuleStrictMarkerRepair: {
+		summary: "Marker repair setting is not one this build implements",
+		docsRef: `live/LIMITATIONS.md, "strict-marker-repair"`,
 	},
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",

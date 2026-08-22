@@ -167,6 +167,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
+	checkLiveStrict(mod, path, issues)
 	checkManagedResources(ctx, mod, path, schemas, signal, recordStoreConfigured, issues)
 	checkForEachKeys(ctx, cfg, path, issues)
 	checkOverlongAddresses(ctx, mod, modInst, issues)
