@@ -268,7 +268,7 @@ func TestApproveOne_ConfigGateDoesNotRefuseATagsOnlyWrite(t *testing.T) {
 	e := eligibleFor(g, map[string]string{"Name": "gw"})
 	addr := mustAddr(t, "test_gated_gateway.this")
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeStamped {
 		t.Fatalf("Outcome = %s, want STAMPED (detail: %s)", out.Outcome, out.Detail)
@@ -315,7 +315,7 @@ func TestApproveOne_FallsBackWhenTheTagsOnlyClaimIsRefused(t *testing.T) {
 	e := eligibleFor(g, map[string]string{"Name": "gw"})
 	addr := mustAddr(t, "test_gated_gateway.this")
 
-	out := approveOne(context.Background(), "acme", addr, e)
+	out := approveOne(context.Background(), "acme", addr, e, "")
 
 	if out.Outcome != OutcomeStamped {
 		t.Fatalf("Outcome = %s, want STAMPED (detail: %s)", out.Outcome, out.Detail)
@@ -337,7 +337,7 @@ func TestApproveOne_RefusesWhenNoClaimProducesACleanPlan(t *testing.T) {
 	g := newRecordingProvider(func(cty.Value) string { return "no, for reasons of its own" })
 	e := eligibleFor(g, map[string]string{"Name": "gw"})
 
-	out := approveOne(context.Background(), "acme", mustAddr(t, "test_gated_gateway.this"), e)
+	out := approveOne(context.Background(), "acme", mustAddr(t, "test_gated_gateway.this"), e, "")
 
 	if out.Outcome != OutcomeFailed {
 		t.Fatalf("Outcome = %s, want FAILED", out.Outcome)

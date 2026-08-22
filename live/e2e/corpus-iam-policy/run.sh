@@ -30,9 +30,11 @@ set -uo pipefail
 #   2. MIGRATE        `choudoufu live-import -state=<cold state> -estate=...
 #                     -approve`, then ONE ordinary `choudoufu apply` against
 #                     the now-live-blocked estate with no state file present.
-#                     That second command is not decoration - see "THE
-#                     TOFU-SLOT FINDING" below, it is required for stage 3 to
-#                     be genuinely empty.
+#                     That second command used to be the tofu-slot
+#                     convergence apply stage 3 could not be empty without;
+#                     since choudoufu #372 it is a no-op, and it stays here
+#                     as the assertion that it IS one - see "THE TOFU-SLOT
+#                     FINDING" below.
 #   3. TEST PLAN      delete the state file (already gone by this point),
 #                     `choudoufu live-plan`, assert the plan proposes no
 #                     resource action *and* re-assert both rendered
@@ -52,26 +54,46 @@ set -uo pipefail
 # to a current provider with list resources intact, and it declares no
 # cloud/backend block to remove.
 #
-# THE TOFU-SLOT FINDING, discovered building this script and not previously
-# documented in any corpus-crossing script that reached this far: live-import
-# -approve deliberately writes only tofu-estate and tofu-address (see
-# internal/live/stamp/doc.go, "tofu-slot comes in from outside" - a slot is
-# minted from a monotonic counter over the live set, a fact live-import's own
-# read-only-against-one-state-file view cannot compute). Both of this
-# estate's aws_iam_policy resources declare `count = var.create ? 1 : 0`, so
-# they are exactly the shape that needs one. Verified for real: the FIRST
-# choudoufu live-plan run immediately after live-import -approve (with the
-# state file already deleted) is NOT empty - it proposes adding
-# `tofu-slot = "0"` to both resources' tags, nothing else. Running one
-# ordinary `choudoufu apply` (live-markers, since the live block is present
-# and no state file exists) applies exactly that ("0 added, 2 changed, 0
-# destroyed") and every replan after is genuinely empty. This is real,
-# deliberate product behavior, not a defect discovered here - the doc comment
-# names the mechanism precisely - but no prior real crossing this deep had
-# both a count-based resource AND a stage 3 that actually ran to notice it.
-# It is folded into stage 2 (MIGRATE) below rather than stage 3, because it
-# is not a no-op and stage 4 (TEST APPLY) is specifically the assertion that
-# the FOLLOWING apply is one.
+# THE TOFU-SLOT FINDING, discovered building this script, and CLOSED by
+# choudoufu #372 on 2026-08-22. What it found: live-import -approve wrote only
+# tofu-estate and tofu-address, so both of this estate's aws_iam_policy
+# resources - each `count = var.create ? 1 : 0`, exactly the shape that needs
+# a slot - came out of a migration with none, and the FIRST live-plan after it
+# proposed adding `tofu-slot = "0"` to both, nothing else. One ordinary
+# `choudoufu apply` applied exactly that ("0 added, 2 changed, 0 destroyed")
+# and every replan after was empty. Deliberate product behavior at the time,
+# and folded into stage 2 rather than stage 3 because it was not a no-op.
+#
+# What #372 changed: for a count set whose live members carry NO slot at all,
+# there is nothing for a discovery pass to discover - the assignment is
+# slot i for index i (internal/live/slots.Sequential), frozen from the same
+# per-instance tofu-address values the migration is already writing. So
+# live-import now writes the slot in the same tags write, and this estate's
+# migration is complete when live-import returns. The apply below stays
+# exactly where it was and now asserts the OPPOSITE - "0 added, 0 changed, 0
+# destroyed" - which is what makes it a regression guard for #372 rather than
+# a step that could be deleted: if the slot write ever stops happening, this
+# apply changes 2 resources again and stage 2 fails here.
+#
+# It applies HERE because aws_iam_policy is server-assigned
+# (identity.TypeIdentity.ServerAssigned - the module's own use_name_prefix
+# default is why: IAM mints the suffix). That is #372's gate, and it is not
+# decoration. Discovery assigns a slot only to an instance it classifies
+# ClassNeedsDiscovery, and a server-assigned type is the one case where that
+# class is certain without resolving the configuration - which a migration,
+# reading a state file, has not got. A count instance of a client-named type
+# gets no slot here and still gets one from the first replan, exactly as
+# before; corpus-sqs-basic is that case and still runs the convergence apply
+# this script no longer needs.
+#
+# The slot values themselves are read back off both live policies through the
+# AWS CLI below, by value. Both read "0" and both are right: each policy is
+# the sole member of its own module's count set, so "0" is the whole of each
+# set. That is also why this estate cannot, on its own, prove the assignment
+# is per-set rather than a constant - the multi-member case is pinned with no
+# cloud at all in internal/live/liveimport/slot_test.go
+# (TestApprove_WritesSequentialSlotsOnASlotlessCountSet: three instances, 0,
+# 1 and 2, asserted by value on the tag map that reached the provider).
 #
 # THE OUTPUTS QUIRK, carried over from the predecessor script. This estate
 # declares root `output` blocks, and live-plan holds no state between runs,
@@ -277,18 +299,41 @@ log "  markers verified directly against IAM, not through choudoufu's own report
 log "    $POLICY1_ARN -> tofu-address=$GOT_POLICY1_ADDR"
 log "    $POLICY2_ARN -> tofu-address=$GOT_POLICY2_ADDR"
 
-# The tofu-slot convergence apply (see this script's header). Both policies
-# declare count = var.create ? 1 : 0, so both need it.
+# The third marker, by value, off the live objects (choudoufu #372). Both
+# policies declare count = var.create ? 1 : 0, so both are count sets of one
+# and both must carry tofu-slot = "0" the moment live-import returns - not
+# after an apply, which is what this estate's "TOFU-SLOT FINDING" used to
+# document. Read through IAM's own list-policy-tags, never through
+# choudoufu's report, same as the addresses above.
+# Not under BREAK: this script's BREAK corrupts an identity string ahead of
+# stage 3 and must go on failing THERE (see the header), so a second BREAK
+# site here would move which stage goes red first. What keeps these two lines
+# load-bearing instead is the no-op apply below - it changes 2 resources the
+# moment the slot write regresses - and, without a cloud at all,
+# internal/live/liveimport/slot_test.go's by-value pins.
+WANT_SLOT="0"
+GOT_POLICY1_SLOT="$(awsl iam list-policy-tags --policy-arn "$POLICY1_ARN" --query "Tags[?Key=='tofu-slot'].Value | [0]" --output text)"
+[ "$GOT_POLICY1_SLOT" = "$WANT_SLOT" ] || fail "$POLICY1_ARN carries tofu-slot=$GOT_POLICY1_SLOT, not $WANT_SLOT - live-import did not settle the slot for a slotless count set (choudoufu #372)"
+GOT_POLICY2_SLOT="$(awsl iam list-policy-tags --policy-arn "$POLICY2_ARN" --query "Tags[?Key=='tofu-slot'].Value | [0]" --output text)"
+[ "$GOT_POLICY2_SLOT" = "$WANT_SLOT" ] || fail "$POLICY2_ARN carries tofu-slot=$GOT_POLICY2_SLOT, not $WANT_SLOT - live-import did not settle the slot for a slotless count set (choudoufu #372)"
+log "    $POLICY1_ARN -> tofu-slot=$GOT_POLICY1_SLOT"
+log "    $POLICY2_ARN -> tofu-slot=$GOT_POLICY2_SLOT"
+
+# What used to be the tofu-slot convergence apply (see this script's header),
+# kept as the regression guard for #372: with the slot written at migrate
+# time there is nothing left to converge, so this apply has to be a genuine
+# no-op. If the slot write regresses, this line reads "0 added, 2 changed, 0
+# destroyed" again and stage 2 fails right here.
 CONVERGE_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; CONVERGE_RC=$?
-[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the tofu-slot convergence apply failed"; }
-grep -qE 'Resources: 0 added, 2 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
-  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; fail "the convergence apply did not change exactly 2 resources (expected: both policies gaining tofu-slot)"; }
-log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written on both)"
-[ ! -f "$EST/terraform.tfstate" ] || fail "the convergence apply wrote a state file"
+[ "$CONVERGE_RC" -eq 0 ] || { printf '%s\n' "$CONVERGE_OUT" | tail -40; fail "the post-migration apply failed"; }
+grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$CONVERGE_OUT" \
+  || { grep -E 'Apply complete' <<< "$CONVERGE_OUT"; grep -E '^  # .+ will be' <<< "$CONVERGE_OUT"; fail "the apply straight after live-import was not a no-op - the migration left something for a plan to finish (choudoufu #372 is about exactly this)"; }
+log "  $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (nothing left to converge)"
+[ ! -f "$EST/terraform.tfstate" ] || fail "the post-migration apply wrote a state file"
 
 log ""
 log "STAGE 2 (migrate): PASS"
-gauntlet_stage migrate pass "2 of 2 stamped; $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") (tofu-slot written on both)"
+gauntlet_stage migrate pass "2 of 2 stamped, both carrying tofu-slot=$GOT_POLICY1_SLOT/$GOT_POLICY2_SLOT read back through IAM (choudoufu #372); $(grep -E 'Apply complete' <<< "$CONVERGE_OUT") - nothing left to converge"
 log ""
 
 # ══════════════════════════════════════════════════════════════════════════

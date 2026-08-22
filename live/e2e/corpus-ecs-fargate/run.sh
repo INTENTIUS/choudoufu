@@ -242,12 +242,34 @@ set -uo pipefail
 # account-prefixed virtual host that made #345 also move its ENDPOINT to
 # localhost.floci.io is never reached here; ENDPOINT stays a bare IP.
 #
-# WHAT BLOCKS STAGE 3 NOW: "2 to add, 29 to change, 2 to destroy", and every
+# WHAT BLOCKS STAGE 3 NOW: "2 to add, 8 to change, 2 to destroy", and every
 # line of it is either already tracked or is stock's own answer too.
 #
-#   1. 25 of the 29 in-place changes are one tag addition each, `tofu-slot =
+#   1. 5 of the 8 in-place changes are one tag addition each, `tofu-slot =
 #      "0"`, on a count-expanded instance: a marker live-plan expects and
-#      live-import does not write - choudoufu #372, deliberate and known.
+#      live-import does not write. That was 25 before choudoufu #372, which
+#      is now half-fixed here and fixed outright for estates built of
+#      server-assigned types (corpus-vpc-complete went 29 -> 1 on it).
+#      live-import settles the slot itself when the live count set carries
+#      none AND the type is server-assigned, because only then is the
+#      instance's identity class certain without a resolution pass: a
+#      server-assigned type "always classifies as ClassNeedsDiscovery,
+#      whatever their arguments say", which is exactly the class discovery
+#      hands a slot to. The five left here are count instances of
+#      CLIENT-NAMED types (aws_iam_role, aws_ecs_cluster, aws_ecs_service
+#      and the like), where whether the plan wants a slot at all depends on
+#      whether that instance's own name is statically computable - a
+#      question about configuration, which a migration reading a state file
+#      does not have. Here the five are the module's own IAM roles
+#      (aws_iam_role.tasks[0], .task_exec[0] and
+#      .infrastructure_iam_role[0] across the two service modules), each
+#      named through a name_prefix the AWS API completes; aws_ecs_cluster
+#      and aws_ecs_service change too but not for the slot alone, which is
+#      why the two counts below do not sum. Writing one anyway is not safe:
+#      measured on
+#      corpus-overture-tiles and corpus-dynamodb-table-basic, the next plan
+#      proposes REMOVING it. See internal/live/liveimport/slot.go's gate 4;
+#      the remainder is #372's own follow-up.
 #   2. The 2 adds and 2 destroys are one replacement each of
 #      module.ecs_service.aws_ecs_task_definition.this[0] and
 #      module.ecs_task_definition.aws_ecs_task_definition.this[0], forced by
@@ -257,12 +279,15 @@ set -uo pipefail
 #      records it: plain `terraform plan` on the cold-deployed state file,
 #      before a single marker exists anywhere, replaces the same two task
 #      definitions. Row 3 of HANDOFF.md's table.
-#   3. The remaining four in-place changes are emulator read fidelity, all
-#      four also present in stage 1c's stock plan:
-#      aws_ecs_cluster's `configuration` block, aws_ecs_service's
-#      `deployment_configuration` block (plus its task_definition going
-#      "known after apply" behind item 2), aws_default_network_acl's
-#      egress/ingress rules, and aws_default_route_table's `timeouts`.
+#   3. The remaining in-place changes are emulator read fidelity, also
+#      present in stage 1c's stock plan: aws_ecs_cluster's `configuration`
+#      block, aws_ecs_service's `deployment_configuration` block (plus its
+#      task_definition going "known after apply" behind item 2), and
+#      aws_default_network_acl's egress/ingress rules. Several of these
+#      objects are ALSO in item 1's list - a block whose diff is a
+#      tofu-slot tag plus a read-fidelity attribute is counted by the
+#      "slot and nothing else" reader as NOT slot-only, which is why the
+#      two counts below do not sum to 8.
 #   4. NOTHING. The two aws_cloudwatch_log_group instances inside for_each'd
 #      module calls - module.ecs_service.module.container_definition
 #      ["fluent-bit"] and module.ecs_task_definition.module.
@@ -724,9 +749,17 @@ SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fa
 [ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
 WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
 WANT_ADD_N=2
-WANT_CHANGE_N=29
+WANT_CHANGE_N=8
 WANT_DESTROY_N=2
-WANT_SLOT_N=25
+# How many of the in-place changes are the tofu-slot tag and nothing else.
+# Was 25 before choudoufu #372; the ones that went are every count-expanded
+# instance of a SERVER-ASSIGNED type (the whole VPC submodule, the security
+# groups, the log groups' parents and so on), whose slot live-import now
+# settles at migrate time. What is left is #372's own remainder: a count
+# instance of a client-named type, whose per-instance identity class is a
+# question about configuration that a migration reading a state file cannot
+# answer - see internal/live/liveimport/slot.go's gate 4.
+WANT_SLOT_N=5
 if [ "${BREAK:-}" = "1" ]; then
   WANT_TARGET_RID="service/not-the-cluster/${SERVICE_NAME}"
   WANT_ADD_N=0
@@ -842,7 +875,7 @@ log "  0 PARENT_UNAVAILABLE, where there were 3 and 4."
 # log group's own tofu-address, and it sat after the plan-count assertions.
 # It now asserts the fix, and it runs BEFORE them, so that it is provably
 # load-bearing: run this same script against a binary built before the fix
-# and it is this block that fails, not the "29 to change" count downstream of
+# and it is this block that fails, not the "8 to change" count downstream of
 # it. Verified that way, against 44d8d573e5.
 #
 # Three ways rather than one, because "the two removal lines are gone" is
@@ -893,7 +926,7 @@ log "  AWS CLI after the replan."
 
 # ── 3d. what stage 3 is blocked on NOW, pinned exactly ────────────────────
 #
-# "2 to add, 29 to change, 2 to destroy", every line of it accounted for.
+# "2 to add, 8 to change, 2 to destroy", every line of it accounted for.
 # See the header for the full reasoning; the assertions are the summary:
 #
 #   2 add + 2 destroy   one replacement each of the two
@@ -901,9 +934,10 @@ log "  AWS CLI after the replan."
 #              container_definitions. STOCK DOES THE SAME - asserted in
 #              stage 1c against a state file with no marker in it - so this
 #              is HANDOFF.md's third row, not a choudoufu difference.
-#  25 of 29 changes   a single tag addition, `tofu-slot = "0"`, on a
-#              count-expanded instance: choudoufu #372.
-#   4 of 29    emulator read fidelity, all four also in stock's own replan:
+#   5 of 8 changes    a single tag addition, `tofu-slot = "0"`, on a
+#              count-expanded instance of a CLIENT-NAMED type: choudoufu
+#              #372's remainder (was 25 of 29 before #372 landed).
+#   3 of 8     emulator read fidelity, also in stock's own replan:
 #              the ECS cluster's `configuration` block, the ECS service's
 #              `deployment_configuration`, the default network ACL's rules,
 #              the default route table's `timeouts`.
@@ -976,7 +1010,7 @@ SLOT_N="$(slot_only_blocks)"
 log "  BLOCKED, and no longer on #371 or #378: $ADD_N to add, $CHANGE_N to change,"
 log "  $DESTROY_N to destroy. $WANT_SLOT_N of the $CHANGE_N are the tofu-slot tag alone"
 log "  (#372); the 2 adds and 2 destroys are the two task definitions stock"
-log "  itself replaces (stage 1c); the last 4 are emulator read fidelity also"
+log "  itself replaces (stage 1c); the rest are emulator read fidelity also"
 log "  present in stock's replan. Nothing left here is choudoufu's alone."
 
 log ""
@@ -986,15 +1020,15 @@ log "present, with their prior identities confirmed by value against the AWS"
 log "CLI; and the two log groups inside for_each'd module calls are no longer"
 log "in the plan at all, because stamp now writes them a per-module-instance"
 log "tofu-address through tofu.marker_module_prefix (#378). What remains:"
-log "$WANT_SLOT_N instances missing the tofu-slot marker (choudoufu #372,"
-log "deliberate and known), two task-definition replacements stock itself"
+log "$WANT_SLOT_N instances missing the tofu-slot marker (choudoufu #372's"
+log "remainder, down from 25), two task-definition replacements stock itself"
 log "proposes on its own fresh state (stage 1c - HANDOFF.md row 3), and four"
 log "emulator read-fidelity diffs also in stock's replan. Every one of those"
 log "is either tracked or stock's own answer; none is choudoufu's alone."
 log "All eight of #368's diagnostics are gone, asserted by absence above,"
 log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "#371 and #378 both FIXED. #378: the two aws_cloudwatch_log_group instances under for_each'd module calls are no longer in the plan at all - internal/live/stamp now writes them a per-module-instance tofu-address through the new tofu.marker_module_prefix evaluator symbol (internal/live/markers.ModulePrefixAttr), so the replan's desired tag set carries exactly the markers live-import wrote instead of dropping them. Plan is 2 to add, $CHANGE_N to change, 2 to destroy (was 2/31/2 with #378, 7/30/0 before #371). Asserted three ways at 3c/3d: no removal proposed for either marker by exact value, neither log group in the change list, and both markers still on the live objects through the AWS CLI after the replan. The rule names no type and reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call at any depth, count'd as well as for_each'd. Still trusted-as-written, and still not verified, is a resource declaring tofu-address by hand inside a keyed module call: choudoufu #379. #371: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), and 4 emulator read-fidelity diffs also in stock's replan"
+gauntlet_stage test_plan fail "#371 and #378 both FIXED. #378: the two aws_cloudwatch_log_group instances under for_each'd module calls are no longer in the plan at all - internal/live/stamp now writes them a per-module-instance tofu-address through the new tofu.marker_module_prefix evaluator symbol (internal/live/markers.ModulePrefixAttr), so the replan's desired tag set carries exactly the markers live-import wrote instead of dropping them. Plan is 2 to add, $CHANGE_N to change, 2 to destroy (was 2/29/2 before #372, 2/31/2 with #378, 7/30/0 before #371). Asserted three ways at 3c/3d: no removal proposed for either marker by exact value, neither log group in the change list, and both markers still on the live objects through the AWS CLI after the replan. The rule names no type and reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call at any depth, count'd as well as for_each'd. Still trusted-as-written, and still not verified, is a resource declaring tofu-address by hand inside a keyed module call: choudoufu #379. #371: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers on count instances of CLIENT-NAMED types (choudoufu #372's remainder - live-import now settles the slot for a slotless count set of a SERVER-ASSIGNED type, which took this estate's slot count from 25 to $WANT_SLOT_N and corpus-vpc-complete's whole plan from 29 objects to 1; the rest needs the per-instance identity class, which is a resolution pass a migrate deliberately does not run), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), and 4 emulator read-fidelity diffs also in stock's replan"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -1007,7 +1041,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #371 and #378 both FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value; both for_each'd-module log groups out of the plan with their markers intact); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, and four emulator read-fidelity diffs"
+log "  stage 3  test_plan          BLOCKED - #371 and #378 both FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value; both for_each'd-module log groups out of the plan with their markers intact); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, and the emulator read-fidelity diffs stock's own replan carries as well"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

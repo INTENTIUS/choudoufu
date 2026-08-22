@@ -84,10 +84,21 @@
 // to appear in
 // [github.com/intentius/choudoufu/internal/live/identity]'s admission table,
 // the same table live-mv and live-plan check against - an unlisted type is
-// reported, never guessed at. Only two marker keys are stamped, tofu-estate
-// and tofu-address; tofu-slot is a fact about a *live* count set that only a
-// marker discovery pass can construct (see the stamp package's doc comment),
-// and a migration run performs no discovery, so slot assignment for a
-// migrated count block is left to the first ordinary live-plan run
-// afterward.
+// reported, never guessed at.
+//
+// Three marker keys are stamped. tofu-estate and tofu-address always;
+// tofu-slot for a count-expanded instance of a server-assigned type whose set
+// carries no slots yet, which is [Ratification.migrationSlots] and GitHub
+// issue #372. That third one really is a fact about a live count set and a
+// migration really does run no discovery pass - what changed is the
+// observation that for a set with no slots at all there is nothing to
+// discover: the assignment is
+// [github.com/intentius/choudoufu/internal/live/slots.Sequential], slot i for
+// index i, frozen from the same per-instance addresses this run is writing
+// anyway. Every set that is anything else - already slotted, disagreeing with
+// itself, not a count block, missing an index, or of a type whose identity
+// comes out of its own configuration - is still left to the first ordinary
+// live-plan run afterward. migrationSlots' own doc comment is where each of
+// those is written down, and why the last of them is a gate rather than an
+// omission.
 package liveimport
