@@ -53,7 +53,13 @@ set -uo pipefail
 #                     for real by one remaining site: #313's own
 #                     acknowledged resource-attribute-via-module-output
 #                     scope (root cause B) and its 7-site cascade (8
-#                     diagnostics total, was 236). See below.
+#                     diagnostics total, was 236) until GitHub issue #368
+#                     made that shape expressible. Those 8 are now 0,
+#                     asserted by absence, and the identity #368 built is
+#                     confirmed BY VALUE against the AWS CLI. Still
+#                     BLOCKED, on two causes that are not identity gaps and
+#                     that clearing #368 exposed for the first time - see
+#                     "WHAT BLOCKS STAGE 3 NOW" below.
 #   4. TEST APPLY    NOT RUN - depends on stage 3.
 #   5. DRIFT/RECONVERGE  NOT RUN - depends on stages 3-4.
 #
@@ -95,23 +101,25 @@ set -uo pipefail
 #      shape - see #313's own generalization measurement (57 of 204
 #      `.corpus` entries with an eligible demanded source improved, this
 #      estate's own offline diagnostic count among them, 0 worse).
-#   B. STILL OPEN, and correctly so - this is #313's own acknowledged
-#      remaining scope, not a fresh gap. `module.ecs_cluster.arn` passed
-#      into `module "ecs_service"` as `cluster_arn = module.ecs_cluster.arn`
-#      (main.tf:68) - a module output that is itself another resource's
+#   B. FIXED (#368). `module.ecs_cluster.arn` passed into `module
+#      "ecs_service"` as `cluster_arn = module.ecs_cluster.arn`
+#      (main.tf:62) - a module output that is itself another resource's
 #      attribute (the ECS cluster's ARN, Computed in the AWS provider's own
-#      schema even though this example's cluster name is client-named and
-#      the ARN is in principle a deterministic function of account, region
-#      and name). The maintainer's ruling on #313 scoped the read phase to
-#      `data` blocks deliberately - a data source is safe to read
-#      unconditionally, a managed resource's attribute may not exist yet
-#      within the same plan - and #313's own thread found the RDS crossing's
-#      parallel case (`aws_vpc.cidr_block` reached through a module output)
-#      lands on the identity resolver's own deliberate Computed boundary
-#      (`siblingLiteralExpr`, resolve.go) even for a value a human reader
-#      can see is knowable; nobody has made the ruling this would need.
-#      Still exactly 1 site ("Module output not supported in static
-#      context").
+#      schema). The deferred READ of that attribute already worked before
+#      #368, and this estate proves it: `aws_ecs_service.this[0]`'s own
+#      identity has been `${...aws_ecs_cluster.this[0].arn}/ex-fargate` all
+#      along. What did not work was the FUNCTION applied to it -
+#      `local.cluster_name = try(element(split("/", var.cluster_arn), 1),
+#      "")`. `identity.Formula` held literals and ParentRefs with no way to
+#      say "split this parent attribute and take element 1", so the whole
+#      chain refused. #368 gave [identity.ParentRef] a Transform: a
+#      pipeline of pure functions (split, compact, element, index, sole)
+#      applied to the live value AT RENDER TIME, declining to render at all
+#      when the operation is undefined for the value it actually received.
+#      Nothing predicts the shape of an ARN; the split runs on whatever the
+#      cloud returned. Was 1 site ("Module output not supported in static
+#      context"); now 0, asserted by absence below along with its cascade.
+#
 #   C. FIXED (#315, 772bde04d8, merged 1a3d46b767). `each.value.
 #      enable_cloudwatch_logging` and `each.value.create_cloudwatch_log_group`
 #      (modules/service/main.tf:923-924, inside `module
@@ -122,21 +130,19 @@ set -uo pipefail
 #      to the one field each reference actually reads, the same way #308's
 #      fix already did for the for_each expression itself.
 #
-# With A and C both gone, B's cascade collapsed from 177+6=183 sites to 7:
+# With A and C gone, B's cascade had collapsed from 177+6=183 sites to 7,
+# and #368 then took all 8 to zero. The cascade was:
 # `aws_appautoscaling_target.this[0]`'s own `resource_id` argument
 # (modules/service/main.tf:1565) interpolates `local.cluster_name`, itself
-# derived from `var.cluster_arn` (B) via `element(split("/", var.
-# cluster_arn), 1)` - 1 "Unable to compute static value" site. That failure
-# then blocks the target resource's own identity, which
-# `aws_appautoscaling_policy.this["cpu"]` and `["memory"]` each reference
-# through three arguments (`resource_id`, `scalable_dimension`,
-# `service_namespace`, main.tf:1589-1591) - 6 "Unresolvable identity"
-# cascade sites (2 policy instances x 3 arguments each). 8 diagnostics
-# total (was 236), all under already-registered refusal classes
-# (internal/live/passthrough/refusals.go,
-# internal/live/identity/refusals.go), not new choudoufu behavior. Not
-# fixed here; stage 3's assertions below hold the exact counts so a change
-# to any of them is visible.
+# `element(split("/", var.cluster_arn), 1)` over B - 1 "Unable to compute
+# static value" site. That failure then blocked the target resource's own
+# identity, which `aws_appautoscaling_policy.this["cpu"]` and `["memory"]`
+# each reference through three arguments (`resource_id`,
+# `scalable_dimension`, `service_namespace`, main.tf:1589-1591) - 6
+# "Unresolvable identity" cascade sites (2 policy instances x 3 arguments).
+# 8 diagnostics total, from 236. Stage 3 below asserts all six diagnostic
+# classes absent BY NAME before it reads live-plan's exit code, so a
+# regression names its own root cause instead of arriving as "exited 1".
 #
 # WHY THE DRIFTED (18) BUCKET IS LARGE, AND WHY IT DOES NOT BLOCK STAGE 2:
 # live-import tolerates drift by design (it stamps DRIFTED resources same
@@ -154,23 +160,46 @@ set -uo pipefail
 # `service_connect_configuration` entirely - `scheduling_strategy` in
 # particular forces the AWS provider to propose destroying and recreating
 # the service on every plan after creation, independent of choudoufu).
-# Neither blocks this script: DRIFTED still stamps, and stage 3 refuses
-# before ever reaching a diff that would show them.
+# Neither blocks this script: DRIFTED still stamps, and neither field
+# reaches any identity stage 3 compares - the fields floci drops are ECS
+# service settings, not the cluster ARN or the scalable target's ResourceId.
 #
-# STAGE 3'S REAL BLOCKER is #313's own remaining scope alone (root cause B
-# above) plus its 7-site cascade - see the section above for the full
-# breakdown by exact rule and exact site. #305, #308, #313's root cause A
-# and #315 are all fixed and confirmed absent below, not merely omitted.
+# WHAT STAGE 3 PROVES NOW. Every identity diagnostic is gone: all six
+# classes are asserted absent BY NAME before live-plan's exit code is read,
+# so a regression names its own root cause instead of arriving as "exited
+# 1". Because an empty plan alone is not enough - a wrong identity
+# converges - the identity #368 made expressible is then compared BY VALUE
+# against the AWS CLI: the scalable target's own ResourceId as the cloud
+# reports it, against the string produced by splitting the live cluster ARN
+# on "/" and taking element 1, which is exactly what `local.cluster_name`
+# does. The cluster's and the service's tofu-address tags are re-read after
+# the state file is deleted, so every answer can only have come from the
+# live objects.
 #
-# BREAK=1 corrupts every stage-3 expected count (one unadmitted-type site
-# and one child-module for_each site that should not exist - #305 and #308
-# are both fixed - plus one Dynamic-value-in-static-context site that
-# should not exist - #313's root cause A and #315's root cause C are both
-# fixed - plus one extra site each for the Module-output, static-value-
-# cascade and Unresolvable-identity counts), proving those assertions are
-# load-bearing rather than a grep that always matches - same discipline as
-# the RDS and security-group crossings before this one. Stages 1 and 2 are
-# unaffected.
+# WHAT BLOCKS STAGE 3 NOW. Clearing #368's refusals let live-plan reach a
+# real diff for the first time, and the diff is "7 to add, 31 to change, 0
+# to destroy". Neither cause is an identity gap and neither is attempted
+# here:
+#
+#   1. aws_ecs_cluster.this[0] and both aws_ecs_task_definition instances
+#      read back ABSENT: "the provider reports no aws_ecs_cluster exists
+#      with identity "ex-fargate"", over the same cluster
+#      `aws ecs describe-clusters --clusters ex-fargate` answers for two
+#      stages above. The remaining four additions
+#      (aws_ecs_service.this[0], aws_appautoscaling_target.this[0] and both
+#      aws_appautoscaling_policy instances) cascade from the cluster as
+#      PARENT_UNAVAILABLE, which is the right behaviour for an unavailable
+#      parent rather than a second fault. Whether the import read or the
+#      emulator is at fault is a unit of its own.
+#   2. All 31 in-place changes are one tag addition each, `tofu-slot =
+#      "0"`, on every count/for_each-expanded instance: a marker live-plan
+#      expects and live-import does not write. No other attribute of any of
+#      the 31 differs.
+#
+# BREAK=1 corrupts the expected ResourceId (it names a cluster that does
+# not exist), proving that assertion is load-bearing rather than a
+# comparison that always matches - same discipline as the RDS and
+# security-group crossings before this one. Stages 1 and 2 are unaffected.
 #
 #   bash live/e2e/corpus-ecs-fargate/run.sh
 #
@@ -425,101 +454,140 @@ log "  only)"
 
 PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
 PLAN_RC=$?
-[ "$PLAN_RC" -ne 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -30; fail "live-plan succeeded - #313 may be fixed; update this script"; }
-# Flatten choudoufu's wrapped "In module.X, ... RESOURCE.NAME:" context
-# lines to one line per diagnostic clause, same discipline as the RDS and
-# security-group crossings, so a substring match is not at the mercy of
-# where the wrap happened to land.
+# Flatten choudoufu's wrapped prose to one line per paragraph, same
+# discipline as the RDS and security-group crossings, so a substring match
+# is not at the mercy of where the wrap happened to land.
 PLAN_FLAT="$(awk 'BEGIN{RS=""} {gsub(/\n/," "); print; print "@@CLAUSE@@"}' <<< "$PLAN_OUT")"
 
-# #305 and #308 are BOTH fixed: no diagnostic may read "Resource type is
-# outside the live-markers subset" (#305) or "This module call cannot be
-# expanded under live resource markers" (#308) any more, for any type or
-# module call.
-WANT_UNADMITTED_N=0
-WANT_CHILDMOD_N=0
-# #313's root cause A and #315's root cause C are BOTH fixed now too, so
-# "Dynamic value in static context" contributes nothing - see header. Only
-# #313's own remaining scope (root cause B, a module output wrapping a
-# Computed managed-resource attribute) and its cascade remain.
-WANT_DYNAMIC_N=0
-WANT_MODULE_OUTPUT_N=1
-WANT_STATIC_CASCADE_N=1
-WANT_UNRESOLVED_IDENTITY_N=6
-if [ "${BREAK:-}" = "1" ]; then
-  WANT_UNADMITTED_N=1
-  WANT_CHILDMOD_N=1
-  WANT_DYNAMIC_N=1
-  WANT_MODULE_OUTPUT_N=2
-  WANT_STATIC_CASCADE_N=2
-  WANT_UNRESOLVED_IDENTITY_N=7
-  log "  BREAK=1: expecting 1 unadmitted-type site and 1 child-module"
-  log "           for_each site (#305 and #308 are both fixed; real is 0 for"
-  log "           both), plus 1 Dynamic-value-in-static-context site (#313's"
-  log "           root cause A and #315's root cause C are both fixed; real"
-  log "           is 0), plus one extra site each for the Module-output (2"
-  log "           vs real 1), static-value-cascade (2 vs real 1) and"
-  log "           Unresolvable-identity (7 vs real 6) counts. All of these"
-  log "           are wrong. This step must fail."
-fi
-
-UNADMITTED_N="$(grep -c '^Error: Resource type is outside the live-markers subset$' <<< "$PLAN_OUT")"
-[ "$UNADMITTED_N" = "$WANT_UNADMITTED_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_UNADMITTED_N unadmitted-type sites (#305 is fixed), got $UNADMITTED_N"; }
-log "  #305 confirmed fixed: 0 unadmitted-type sites - the default-object"
-log "  adopters resolved and stamped back in stage 2 contribute no refusal"
-log "  here."
-
-CHILDMOD_N="$(grep -c '^Error: This module call cannot be expanded under live resource markers$' <<< "$PLAN_OUT")"
-[ "$CHILDMOD_N" = "$WANT_CHILDMOD_N" ] || { grep -E '^Error:' <<< "$PLAN_OUT" | sort | uniq -c; fail "expected $WANT_CHILDMOD_N child-module for_each sites (#308 is fixed), got $CHILDMOD_N"; }
-grep -qF 'In module.ecs_service, module "container_definition": for_each on a module' <<< "$PLAN_FLAT" \
-  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#308's own diagnostic (module.ecs_service's container_definition for_each) still appears - it should be fixed"; }
-log "  #308 confirmed fixed: 0 child-module for_each sites (was 1) -"
-log "  module.ecs_service's container_definition module call now expands."
-log "  Fixing it did not unblock this estate: it let live-plan walk further"
-log "  in and reach #313's own wall instead (below)."
-
-# #313's root cause A (data.aws_availability_zones) and #315's root cause C
-# (each.value) are both fixed - asserted by ABSENCE, the load-bearing half:
-# not one diagnostic may name either any more. #313's root cause B (the
-# module output wrapping a Computed resource attribute) is #313's own
-# acknowledged remaining scope and still correctly refuses.
-DYNAMIC_N="$(grep -c '^Error: Dynamic value in static context$' <<< "$PLAN_OUT")"
-MODULE_OUTPUT_N="$(grep -c '^Error: Module output not supported in static context$' <<< "$PLAN_OUT")"
-STATIC_CASCADE_N="$(grep -c '^Error: Unable to compute static value$' <<< "$PLAN_OUT")"
-UNRESOLVED_IDENTITY_N="$(grep -c '^Error: Unresolvable identity$' <<< "$PLAN_OUT")"
-[ "$DYNAMIC_N" = "$WANT_DYNAMIC_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_DYNAMIC_N 'Dynamic value in static context' sites (#313's root cause A and #315's root cause C are both fixed), got $DYNAMIC_N"; }
-[ "$MODULE_OUTPUT_N" = "$WANT_MODULE_OUTPUT_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_MODULE_OUTPUT_N 'Module output not supported in static context' site (#313's own remaining scope, root cause B), got $MODULE_OUTPUT_N"; }
-[ "$STATIC_CASCADE_N" = "$WANT_STATIC_CASCADE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_STATIC_CASCADE_N 'Unable to compute static value' cascade sites (B's cascade into aws_appautoscaling_target.this[0].resource_id), got $STATIC_CASCADE_N"; }
-[ "$UNRESOLVED_IDENTITY_N" = "$WANT_UNRESOLVED_IDENTITY_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_UNRESOLVED_IDENTITY_N 'Unresolvable identity' cascade sites (B's cascade into both aws_appautoscaling_policy instances), got $UNRESOLVED_IDENTITY_N"; }
-grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
-  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#313's root cause A (data.aws_availability_zones) still appears - it should be fixed"; }
-grep -qF 'Unable to use each.value in static context, which is required by' <<< "$PLAN_OUT" \
-  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#315's root cause C (each.value) still appears - it should be fixed"; }
+# Every diagnostic this estate used to fail on is asserted ABSENT by name
+# before the exit code is read, so a regression names its own root cause
+# instead of arriving as "live-plan exited 1".
+#
+#   #305  Resource type is outside the live-markers subset
+#   #308  This module call cannot be expanded under live resource markers
+#   #313 root cause A / #315 root cause C  Dynamic value in static context
+#   #368  Module output not supported in static context, and its cascade
+#         (Unable to compute static value, Unresolvable identity), which is
+#         what the module.ecs_cluster.arn -> element(split("/", ...), 1)
+#         chain used to produce
+for want_absent in \
+  'Resource type is outside the live-markers subset' \
+  'This module call cannot be expanded under live resource markers' \
+  'Dynamic value in static context' \
+  'Module output not supported in static context' \
+  'Unable to compute static value' \
+  'Unresolvable identity'
+do
+  N="$(grep -c "^Error: ${want_absent}\$" <<< "$PLAN_OUT")"
+  [ "$N" = "0" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected 0 '${want_absent}' sites, got $N"; }
+done
 grep -qF 'Unable to use module.ecs_cluster.arn in static context' <<< "$PLAN_OUT" \
-  || fail "expected the module.ecs_cluster.arn root cause (B, #313's own acknowledged remaining scope) among the diagnostics - the corpus pin may have moved, or B may have been fixed too"
-grep -qF 'module.ecs_service.aws_appautoscaling_target.this[0].resource_id' <<< "$PLAN_OUT" \
-  || fail "expected B's cascade into aws_appautoscaling_target.this[0].resource_id - the corpus pin may have moved"
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#368's own root cause (module.ecs_cluster.arn) is back"; }
+grep -qF 'Unable to use data.aws_availability_zones.available in static context' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#313's root cause A (data.aws_availability_zones) is back"; }
+grep -qF 'Unable to use each.value in static context, which is required by' <<< "$PLAN_OUT" \
+  && { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:|^In module'; fail "#315's root cause C (each.value) is back"; }
 
-log "  #313's root cause A (data.aws_availability_zones) and #315's root"
-log "  cause C (each.value) both confirmed fixed: 0 Dynamic-value-in-"
-log "  static-context sites (was 52)."
-log "  #313's own remaining scope (root cause B, module.ecs_cluster.arn -"
-log "  a Computed resource attribute reached through a module output)"
-log "  still correctly refuses: $MODULE_OUTPUT_N Module-output site,"
-log "  cascading to $STATIC_CASCADE_N Unable-to-compute-static-value site"
-log "  (aws_appautoscaling_target.this[0]'s own resource_id) and"
-log "  $UNRESOLVED_IDENTITY_N Unresolvable-identity sites (both"
-log "  aws_appautoscaling_policy instances' resource_id/scalable_dimension/"
-log "  service_namespace arguments, which depend on the target's own"
-log "  unresolved identity)."
+[ "$PLAN_RC" -eq 0 ] || { printf '%s\n' "$PLAN_OUT" | tail -80; fail "live-plan exited $PLAN_RC"; }
+[ ! -f "$ADOPTED_EST/terraform.tfstate" ] || fail "live-plan wrote a state file"
+# ── 3a. the identity #368 made expressible, by value, against the AWS CLI ──
+#
+# An empty plan is not enough (live/GAUNTLET.md, stage 3): a wrong identity
+# converges. The identity this estate turns on is
+# aws_appautoscaling_target.this[0]'s, because it is the one #368 made
+# expressible - `resource_id = "service/${local.cluster_name}/${...name}"`
+# where `local.cluster_name = try(element(split("/", var.cluster_arn), 1),
+# "")` and var.cluster_arn is module.ecs_cluster.arn, the ECS cluster's own
+# ARN. choudoufu derives the cluster name by SPLITTING the live ARN; the CLI
+# is asked for the same object's own ResourceId; the two are compared as
+# strings. Three other answers would satisfy a class check and be wrong in a
+# marker: the whole ARN, the configuration's own `name` (a prediction of the
+# ARN's tail rather than a reading of it), and try()'s "" fallback.
+CLUSTER_NAME_FROM_ARN="$(awk -F/ '{print $2}' <<< "$CLUSTER_ARN")"
+[ -n "$CLUSTER_NAME_FROM_ARN" ] || fail "could not split a cluster name out of $CLUSTER_ARN"
+SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fargate --query 'services[0].serviceName' --output text)"
+[ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
+WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
+WANT_ADD_N=7
+WANT_CHANGE_N=31
+if [ "${BREAK:-}" = "1" ]; then
+  WANT_TARGET_RID="service/not-the-cluster/${SERVICE_NAME}"
+  WANT_ADD_N=0
+  WANT_CHANGE_N=0
+  log "  BREAK=1: expecting the scalable target's ResourceId to name a"
+  log "           cluster that does not exist, and the plan to be empty."
+  log "           Neither is true. This step must fail."
+fi
+GOT_TARGET_RID="$(awsl application-autoscaling describe-scalable-targets --service-namespace ecs \
+  --query "ScalableTargets[?ScalableDimension=='ecs:service:DesiredCount'].ResourceId | [0]" --output text)"
+[ -n "$GOT_TARGET_RID" ] && [ "$GOT_TARGET_RID" != "None" ] \
+  || fail "could not read the ECS service's scalable target through the AWS CLI"
+[ "$GOT_TARGET_RID" = "$WANT_TARGET_RID" ] \
+  || fail "the scalable target's ResourceId is $GOT_TARGET_RID, but splitting the live cluster ARN the way this configuration does gives $WANT_TARGET_RID"
+log "  identity by value (#368): the scalable target the cloud reports is"
+log "  $GOT_TARGET_RID, and splitting"
+log "  $CLUSTER_ARN"
+log "  on \"/\" and taking element 1 - exactly what local.cluster_name does,"
+log "  and what identity.Formula could not express before #368 - reproduces"
+log "  it. The formula the resolver now builds for it is"
+log "  ecs/service/\${element(split(\"/\", <cluster>.arn), 1)}/<service>/ecs:service:DesiredCount."
+
+# The cluster's and the service's own markers, re-read after the state file
+# was deleted, so nothing above can have come from local memory.
+GOT_CLUSTER_ADDR2="$(awsl ecs list-tags-for-resource --resource-arn "$CLUSTER_ARN" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
+[ "$GOT_CLUSTER_ADDR2" = "$WANT_CLUSTER_ADDR" ] \
+  || fail "the ECS cluster's tofu-address changed across the plan: $WANT_CLUSTER_ADDR -> $GOT_CLUSTER_ADDR2"
+GOT_SVC_ADDR2="$(awsl ecs list-tags-for-resource --resource-arn "$SVC_ARN" --query "tags[?key=='tofu-address'].value | [0]" --output text)"
+[ "$GOT_SVC_ADDR2" = "$WANT_SVC_ADDR" ] \
+  || fail "the ECS service's tofu-address changed across the plan: $WANT_SVC_ADDR -> $GOT_SVC_ADDR2"
+log "  identity re-check: the cluster and the service still carry"
+log "  $GOT_CLUSTER_ADDR2 and $GOT_SVC_ADDR2, re-read through the AWS CLI"
+log "  after the state file was deleted."
+
+# ── 3b. what stage 3 is blocked on NOW, pinned exactly ────────────────────
+#
+# Clearing #368's refusals let live-plan walk all the way to a real diff for
+# the first time, and the diff is not empty. Two causes, neither of them an
+# identity gap, both asserted here so a change to either is visible:
+#
+#   7 to add.  aws_ecs_cluster.this[0] and both aws_ecs_task_definition
+#              instances come back ABSENT - "the provider reports no
+#              aws_ecs_cluster exists with identity \"ex-fargate\"" - even
+#              though `aws ecs describe-clusters --clusters ex-fargate`
+#              answers for the same object two stages above. The other four
+#              (aws_ecs_service.this[0], aws_appautoscaling_target.this[0],
+#              and both aws_appautoscaling_policy instances) cascade from
+#              the cluster as PARENT_UNAVAILABLE, which is the correct
+#              behaviour for an unavailable parent and not a second fault.
+#  31 to change. Every count/for_each-expanded instance is proposed a single
+#              tag addition, `tofu-slot = "0"`: a marker live-plan expects
+#              and live-import did not write. No other attribute of any of
+#              the 31 differs.
+ADD_N="$(sed -nE 's/^Plan: ([0-9]+) to add.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
+CHANGE_N="$(sed -nE 's/^Plan: [0-9]+ to add, ([0-9]+) to change.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
+[ "${ADD_N:-}" = "$WANT_ADD_N" ] || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected $WANT_ADD_N resources proposed for creation, got ${ADD_N:-none}"; }
+[ "${CHANGE_N:-}" = "$WANT_CHANGE_N" ] || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected $WANT_CHANGE_N resources proposed for in-place change, got ${CHANGE_N:-none}"; }
+grep -qF 'The provider reports no aws_ecs_cluster exists with identity' <<< "$PLAN_FLAT" \
+  || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected the aws_ecs_cluster ABSENT reading - the emulator or the provider may have moved"; }
+grep -qF 'The provider reports no aws_ecs_task_definition exists with identity' <<< "$PLAN_FLAT" \
+  || { grep -E '^Plan:|^  # .+ will be' <<< "$PLAN_OUT"; fail "expected the aws_ecs_task_definition ABSENT reading - the emulator or the provider may have moved"; }
+SLOT_N="$(grep -c '^          + "tofu-slot"' <<< "$PLAN_OUT")"
+[ "$SLOT_N" -ge "$WANT_CHANGE_N" ] \
+  || fail "expected every one of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone, found $SLOT_N such additions"
+log "  BLOCKED, and no longer on identity: $ADD_N to add (the ECS cluster,"
+log "  both task definitions, and four instances cascading from the cluster),"
+log "  $CHANGE_N to change"
+log "  (every one of them the single tag tofu-slot=\"0\", which live-import"
+log "  does not write and live-plan expects)."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED for real - #313's own remaining scope"
-log "(root cause B) plus its 7-site cascade, 8 diagnostics total (was 236)."
-log "#305, #308, #313's root cause A and #315 are all fixed and confirmed"
-log "absent above by direct assertion, not by omission."
+log "STAGE 3 (test_plan): BLOCKED for real, on two non-identity causes -"
+log "the ECS cluster and both task definitions read back ABSENT through the"
+log "provider, and 31 expanded instances are missing the tofu-slot marker."
+log "All eight of #368's diagnostics are gone, asserted by absence above,"
+log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "BLOCKED - #313's own remaining scope alone (root cause B, see header), 8 diagnostics (was 236); #305, #308, #313's root cause A and #315 all fixed"
+gauntlet_stage test_plan fail "#368's 8 identity diagnostics -> 0 (asserted absent; scalable target identity $GOT_TARGET_RID confirmed by value from the live cluster ARN). BLOCKED now on two non-identity causes: aws_ecs_cluster/aws_ecs_task_definition read back ABSENT through the provider (7 to add, 4 of them PARENT_UNAVAILABLE cascade), and 31 expanded instances missing the tofu-slot marker live-import does not write"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -532,7 +600,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #313's own remaining scope alone (root cause B, see header), 8 diagnostics (was 236); #305, #308, #313's root cause A and #315 all fixed"
+log "  stage 3  test_plan          BLOCKED - #368's 8 identity diagnostics are 0 and the scalable target identity $GOT_TARGET_RID is confirmed by value; blocked now on the ECS cluster/task definitions reading back ABSENT and 31 missing tofu-slot markers"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""
@@ -541,7 +609,6 @@ log "migration. Every assertion above reads live-import's or live-plan's own"
 log "output, or a tag read straight through the AWS CLI - never choudoufu's"
 log "own self-report. Two real floci gaps found and filed along the way"
 log "(lex00/floci#59, #60) do not block this script: live-import tolerates"
-log "drift by design, and stage 3 refuses on choudoufu-side gaps before ever"
-log "reaching a diff that would show them. Run again with BREAK=1: stages 1"
-log "and 2 still pass and stage 3's site-count assertions are the ones that"
-log "fail."
+log "drift by design, and neither field reaches the identities stage 3"
+log "compares. Run again with BREAK=1: stages 1 and 2 still pass and stage"
+log "3's identity-by-value assertion is the one that fails."

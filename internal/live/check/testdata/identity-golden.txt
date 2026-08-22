@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=524 instances=1593
-# shape: class CONCRETE=792
-# shape: class NEEDS_DISCOVERY=664
+# shape: dirs=530 instances=1601
+# shape: class CONCRETE=793
+# shape: class NEEDS_DISCOVERY=671
 # shape: class PARENT_DERIVED=116
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=9baddc13a248e718c033a8ae85ced20e18a9171135ddc860b63060bd1ddb6bce
+# shape: body-sha256=6c002eaceb3be996e8ac8fcb41682aa9751ff49c26ce5c1dfdc62285977f283b
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -197,6 +197,10 @@ internal/live/identity/testdata/count-length-unrecognized	aws_eip.pool[0]	NEEDS_
 internal/live/identity/testdata/count-length-unrecognized	aws_eip.pool[1]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.loud	CONCRETE	team-bus/capture-signin-custom	event_bus_name=team-bus,name=capture-signin-custom
 internal/live/identity/testdata/defaulted-identity-arg	aws_cloudwatch_event_rule.quiet	CONCRETE	default/capture-signin	event_bus_name=default,name=capture-signin
+internal/live/identity/testdata/deferred-through-module-list	module.sg.aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/sg	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/deferred-through-module-list/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/disabled-lifecycle	aws_s3_bucket.on	CONCRETE	estate-on	bucket=estate-on
 internal/live/identity/testdata/docdb-family	aws_docdb_cluster.main	CONCRETE	prod-docdb	cluster_identifier=prod-docdb
 internal/live/identity/testdata/docdb-family	aws_docdb_cluster_instance.nodes[0]	CONCRETE	prod-docdb-0	identifier=prod-docdb-0
@@ -296,6 +300,10 @@ internal/live/identity/testdata/foreach-value-proven-mutated	aws_iam_user.team["
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.admins	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["bob"]	CONCRETE	admins	name=admins
 internal/live/identity/testdata/foreach-value-sensitive	aws_iam_group.team["carol"]	CONCRETE	carol-from-config	name=carol-from-config
+internal/live/identity/testdata/formula-transform	aws_security_group.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/formula-transform	aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/formula-transform	module.cluster.aws_ecs_cluster.this[0]	CONCRETE	ex-fargate	name=ex-fargate
+internal/live/identity/testdata/formula-transform	module.svc.aws_ecs_service.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["go-offline-to-celebrate-new-year"]	CONCRETE	shared-group/go-offline-to-celebrate-new-year	autoscaling_group_name=shared-group,scheduled_action_name=go-offline-to-celebrate-new-year
