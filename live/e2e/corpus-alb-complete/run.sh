@@ -108,15 +108,43 @@ set -uo pipefail
 #
 #   What actually blocks it, per identity.LocatedType (internal/live/identity/
 #   located.go): record_store IS declared here (DELTA 4), so LocatedType gets
-#   to run at all, but identity.credentialMaterial fires on client_secret
-#   (Sensitive, not Deprecated at 6.59.0) before the identity-shape question
-#   is even reached. The closing comment names this the same way: "Prerequisite
-#   (a) - credentialMaterial's breadth for the located path - is untouched
-#   and is still the maintainer call this thread scoped it as." Narrowing
-#   credentialMaterial is exactly that maintainer call, not attempted here.
-#   (The type's identity is unproven-whole too - idnotwhole_generated.go - so
-#   even a narrower credentialMaterial would not alone clear this site; both
-#   walls would need to fall.)
+#   to run at all, and it answers false on TWO of its four conditions
+#   independently. Which of them the reader reaches first is an artefact of
+#   the order they are written in, and until 2026-08-21 this header, issue
+#   #309's closing comment and the stage detail below all named only the
+#   first - which sent the next worker at the wrong one.
+#
+#     condition 2, credential material. identity.credentialMaterial fires on
+#     client_secret (Sensitive, not Deprecated at 6.59.0). This is the one
+#     the closing comment scoped as a maintainer call ("Prerequisite (a) -
+#     credentialMaterial's breadth for the located path - is untouched").
+#
+#     condition 3, the identity cannot be recorded IN FULL. The type is in
+#     IDNotProvenWholeTypes (idnotwhole_generated.go): its Import section
+#     documents a composite <user pool id>/<client id> string that the
+#     exported `id` bullet does not corroborate, so `id` may be a fragment.
+#     Neither of the two routes out of that refusal is open to it -
+#     hashicorp/aws 6.59.0 serves NO wire identity schema for the type
+#     (required and optional identity attributes are both empty, measured),
+#     and it has no DocumentedImportIDs grammar, because its page names its
+#     segments in prose ("the `id` of the Cognito User Pool, and the `id` of
+#     the Cognito User Pool Client") rather than one token at a time, which
+#     is the form tools/importdocs-gen can read. LocatedIdentityPlanFor
+#     therefore returns recordable=false.
+#
+#   Condition 3 is the load-bearing one, and this is the correction: a
+#   NARROWED credentialMaterial - however it is narrowed - moves this site
+#   not at all. Measured against real hashicorp/aws 6.59.0 schemas by
+#   TestLocatedTypePopulation's credential-wall census (internal/live/
+#   identity/located_test.go, CHOUDOUFU_LIVE_SCHEMAS=1): of the 10 markerless
+#   types the credential veto refuses, it is the SOLE wall for 8; the two it
+#   is not the sole wall for are aws_kms_grant and this type. The same census
+#   also records why the veto cannot simply be deleted for the located path
+#   on the argument that a located record holds only an identity:
+#   aws_wafv2_api_key's recorded identity IS api_key, a sensitive attribute,
+#   so a narrowing has to stay identity-aware. Clearing this site is
+#   condition 3's work - a grammar for this type, or a source for its
+#   composite identity - not the credential ruling's.
 #
 #   #305 (aws_default_network_acl/aws_default_route_table/
 #   aws_default_security_group, the VPC module's default-object adopters)
@@ -493,12 +521,14 @@ PLAN_RC=$?
 # It is still refused, one layer down, as RuleMarkerlessType ("Resource type
 # has nowhere to write an ownership marker") - this estate DOES declare a
 # record_store (DELTA 4), so identity.LocatedType gets to run, and it
-# answers false because client_secret is credential material, a wall the
-# same closing comment names as unresolved and scoped as a maintainer call
-# (credentialMaterial's breadth for the record-located path). So the site
-# count below is still exactly 1, just under the more precisely founded
-# rule; the closing comment says the same thing in words ("its one blocking
-# diagnostic stands, with a better-founded reason behind it").
+# answers false on TWO independent conditions: client_secret is credential
+# material (condition 2), AND the type's identity cannot be recorded in full
+# (condition 3 - IDNotProvenWholeTypes, no wire identity schema, no
+# documented grammar). Condition 3 is the load-bearing one; see this
+# script's header for the measurement. So the site count below is still
+# exactly 1, just under the more precisely founded rule; the closing comment
+# says the same thing in words ("its one blocking diagnostic stands, with a
+# better-founded reason behind it").
 WANT_MARKERLESS_N=$UNADMITTED_WANT
 WANT_TYPES=(aws_cognito_user_pool_client)
 if [ "${BREAK:-}" = "1" ]; then
@@ -523,11 +553,14 @@ done
 log "  #309 confirmed: exactly 1 aws_cognito_user_pool_client site - admitted"
 log "  to MarkerlessTypes (no longer unadmitted-type), and still refused as"
 log "  markerless-type: record_store IS declared here, but"
-log "  identity.LocatedType answers false because client_secret is"
-log "  credential material (the closing comment's own open item - narrowing"
-log "  credentialMaterial for the record-located path is a maintainer call,"
-log "  not attempted here). #305's default-object trio is fixed and no"
-log "  longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
+log "  identity.LocatedType answers false on two independent conditions -"
+log "  client_secret is credential material (condition 2), AND the type's"
+log "  identity cannot be recorded in full (condition 3: IDNotProvenWholeTypes,"
+log "  no wire identity schema at 6.59.0, no DocumentedImportIDs grammar)."
+log "  Condition 3 is the load-bearing one: narrowing credentialMaterial,"
+log "  however it is narrowed, does not move this site. See the header for"
+log "  the census that measures it. #305's default-object trio is fixed and"
+log "  no longer appears as a wall site here (confirmed VERIFIED/DRIFTED and"
 log "  eligible in stage 2 above)."
 
 log ""
@@ -535,7 +568,7 @@ log "STAGE 3 (test_plan): BLOCKED for real - #309 (1 site, now markerless-type"
 log "rather than unadmitted-type - see comment above); #305's 3 sites are no"
 log "longer part of this wall"
 log ""
-gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: record_store declared, but client_secret is credential material - see header); #305's trio is fixed and no longer a stage-3 wall here"
+gauntlet_stage test_plan fail "BLOCKED - #309 (choudoufu, markerless-type: 1 aws_cognito_user_pool_client site; LocatedType refuses on two independent conditions and the load-bearing one is condition 3, the identity cannot be recorded in full - no wire identity schema at 6.59.0 and no documented import grammar. Narrowing credentialMaterial does not move it; see header); #305's trio is fixed and no longer a stage-3 wall here"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="

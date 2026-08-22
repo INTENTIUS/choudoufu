@@ -7,6 +7,7 @@ package identity
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"testing"
@@ -419,6 +420,9 @@ func TestLocatedTypePopulation(t *testing.T) {
 	t.Logf("credential material: %v", credential)
 	t.Logf("composed from the documented grammar (#337): %v", composed)
 	t.Logf("refused by the not-importable veto (#331): %v", notImportable)
+	for _, line := range credentialWallDetail(schemas, credential) {
+		t.Logf("credential wall: %s", line)
+	}
 
 	// The requirement, against the real schema rather than a fixture.
 	for typeName := range credentialFixtures {
@@ -429,4 +433,87 @@ func TestLocatedTypePopulation(t *testing.T) {
 	if len(located) == 0 {
 		t.Error("no markerless type is admitted as located against the real schemas, so the mechanism reaches nothing")
 	}
+}
+
+// credentialWallDetail reports, for each type the credential veto refuses,
+// the two facts a decision about narrowing that veto turns on: whether the
+// veto is the SOLE wall (the type's identity is otherwise recordable), and
+// which sensitive attributes the schema carries against which of them a
+// located record would actually write.
+//
+// It exists because "narrow the veto for the located path, since a located
+// record holds only the identity" is an argument about a population, and
+// until 2026-08-21 nobody had measured that population. The line this emits
+// is the measurement. It asserts nothing on its own; the numbers are for
+// whoever takes the narrowing, which is a maintainer call (see
+// live/e2e/corpus-alb-complete/run.sh's header and [credentialMaterial]).
+//
+// The three facts it separates, all of which turned out to be occupied at
+// hashicorp/aws 6.59.0:
+//
+//   - identity not recordable. The veto is NOT the sole wall; narrowing it
+//     changes nothing for this type. aws_cognito_user_pool_client, the type
+//     the argument was raised for, is in this bucket.
+//   - identity itself sensitive. A narrowed veto still has to refuse, or the
+//     record store would hold a secret in clear - so "narrow it to the
+//     recorded attributes" is not the same rule as "delete it".
+//   - identity clean. These are the types a narrowing would newly admit, and
+//     each one is a separate question about whether its sensitive attributes
+//     survive an import-and-read, because a located record holds none of
+//     them. A provider-minted secret AWS never returns (an IAM access key's
+//     secret) does not survive, and admitting such a type trades a refusal
+//     for a silent loss stock does not have.
+//
+// It names no resource type; every name in its output is derived.
+func credentialWallDetail(schemas map[string]providers.Schema, credential []string) []string {
+	out := make([]string, 0, len(credential))
+	for _, name := range credential {
+		schema := schemas[name]
+		if schema.Block == nil {
+			continue
+		}
+		var sensitive []string
+		walkSchemaAttrs(schema.Block, func(a *configschema.Attribute) {
+			if a.Sensitive && !a.Deprecated {
+				sensitive = append(sensitive, "?")
+			}
+		})
+		var topSensitive []string
+		for attrName, a := range schema.Block.Attributes {
+			if a != nil && a.Sensitive && !a.Deprecated {
+				topSensitive = append(topSensitive, attrName)
+			}
+		}
+		sort.Strings(topSensitive)
+
+		plan, recordable := LocatedIdentityPlanFor(name, schema)
+		if !recordable {
+			out = append(out, name+": identity not recordable, so the credential veto is not the sole wall; top-level sensitive "+fmt.Sprint(topSensitive))
+			continue
+		}
+		var recorded []string
+		switch {
+		case plan.Composite():
+			recorded = plan.Components
+		case plan.Composed():
+			recorded = plan.ImportIDParts
+		default:
+			recorded = []string{locatedImportIDAttr}
+		}
+		identitySensitive := false
+		for _, attrName := range recorded {
+			a := schema.Block.Attributes[attrName]
+			if a != nil && a.Sensitive && !a.Deprecated {
+				identitySensitive = true
+			}
+		}
+		bucket := "identity clean"
+		if identitySensitive {
+			bucket = "identity itself sensitive"
+		}
+		out = append(out, fmt.Sprintf("%s: sole wall, %s; would record %v; top-level sensitive %v (%d sensitive attributes in all)",
+			name, bucket, recorded, topSensitive, len(sensitive)))
+	}
+	sort.Strings(out)
+	return out
 }
