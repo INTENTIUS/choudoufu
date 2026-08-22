@@ -131,18 +131,33 @@ set -uo pipefail
 # only one of the four interface endpoints (ecr_api, ecr_dkr, rds, ecs) that
 # still changes - proposes replacing network_interface_ids wholesale (three
 # ENI ids going to "(known after apply)") and swapping all three
-# subnet_configuration blocks' ipv4 addresses (live: *.245; proposed: *.10),
-# plus a `+ timeouts` block. This is a for_each resource, so per
-# internal/live/stamp/doc.go ("nothing is ever stamped for for_each") it was
-# never a tofu-slot candidate; the diff is unrelated to that mechanism.
-# NetworkInterfaceIds and SubnetConfiguration are both fields
-# DescribeVpcEndpoints actually returns, so this reads as a floci
-# read-fidelity gap in the same family as lex00/floci#97 - but a different
-# shape than what #97 filed (policy/route_table_ids/subnet_ids/cidr_blocks
-# reading empty, none of which appear in this diff any more) and not yet
-# confirmed against the AWS API docs or real AWS. Named here rather than
-# folded back into #97, which this run shows is now substantially resolved
-# for this estate.
+# subnet_configuration blocks' ipv4 addresses (live, as floci reports it:
+# *.201; proposed, matching the example's own
+# `ipv4 = cidrhost(v.cidr_block, 10)`: *.10), plus a `+ timeouts` block. This
+# is a for_each resource, so per internal/live/stamp/doc.go ("nothing is ever
+# stamped for for_each") it was never a tofu-slot candidate; the diff is
+# unrelated to that mechanism.
+#
+# CONFIRMED AGAINST THE AWS API DOCS, 2026-08-22: EC2's own
+# SubnetConfiguration reference
+# (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_SubnetConfiguration.html)
+# documents Ipv4 as "The IPv4 address to assign to the endpoint network
+# interface in the subnet" at creation, and that changing it later replaces
+# the endpoint network interface - exactly the ENI-replacement shape this
+# plan proposes, which is the real AWS provider reacting correctly to what it
+# was told changed. The example requests ipv4 = cidrhost(v.cidr_block, 10) at
+# creation for every interface endpoint, so a faithful DescribeVpcEndpoints
+# read of an object created from that exact configuration must report *.10
+# back, the same as the other three interface endpoints in this estate
+# (ecr_api, ecr_dkr, rds) already do cleanly. floci reports *.201 for this one
+# endpoint instead: a read-fidelity gap in the vpc-endpoint family, in the
+# same family as lex00/floci#97 but a different shape (policy/
+# route_table_ids/subnet_ids/cidr_blocks reading empty, none of which appear
+# in this diff any more, #97 is substantially resolved for this estate). Not
+# yet filed as its own lex00/floci issue as of this writing - that is the
+# next step, not a fix owed by this repository. Not choudoufu's: it is a
+# for_each resource, never a tofu-slot candidate, and every other object in
+# this 62-resource estate reads back exactly what stock would expect.
 #
 # So stage 3 fails on one thing, and it is not choudoufu's. Nothing here is
 # routed around (no -target, no resource removed from the example): the
@@ -437,7 +452,7 @@ if [ -n "$CHANGED_HEADERS" ]; then
   grep -qE '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT" \
     && { grep -B 6 -A 2 -E '^[[:space:]]*[+~-][[:space:]]+"tofu-slot"' <<< "$PLAN_OUT"
          fail "the plan proposes a tofu-slot change on $N_CHANGED object(s). choudoufu #372 settles the slot at migrate time for every count-expanded instance of a server-assigned type, and every count instance in this estate is one, so no tofu-slot may appear in this plan at all - not as an addition and not as a removal."; }
-  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 27 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, a different shape than the now-largely-fixed lex00/floci#97 and not yet confirmed against the AWS API docs or real AWS. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
+  fail "the plan is not empty: $N_CHANGED object(s) change, and no tofu-slot is among them (choudoufu #372, which used to account for 27 of the 29 objects here, is fixed for this estate: live-import writes the slot for a slotless count set of a server-assigned type, asserted by value on the VPC in stage 2). What is left is module.vpc_endpoints.aws_vpc_endpoint.this[\"ecs\"], which proposes replacing network_interface_ids/subnet_configuration wholesale (three ENI ids to \"known after apply\", all three subnet_configuration blocks' ipv4 addresses swapped) - a floci EC2 read-fidelity gap in the vpc-endpoint family, confirmed against the AWS API docs (API_SubnetConfiguration.html: Ipv4 is the address assigned to the endpoint ENI at creation, and the example requests cidrhost(v.cidr_block, 10) for every interface endpoint - the other three (ecr_api, ecr_dkr, rds) read that back cleanly, only this one does not), a different shape than the now-largely-fixed lex00/floci#97. Not choudoufu's, and it is a for_each resource, so it was never a tofu-slot candidate either (internal/live/stamp/doc.go, \"nothing is ever stamped for for_each\")"
 fi
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
