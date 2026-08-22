@@ -2117,7 +2117,7 @@ func statelessTestLoadConfigWithModules(t *testing.T, dir string) *configs.Confi
 // for the defect the #111 key fix introduced and this test's predecessor
 // missed.
 //
-// stamp.moduleKeyedResource files two very different outcomes: a resource
+// stamp's keyed-module handling files two very different outcomes: a resource
 // inside a for_each'd module that ALREADY declares tags is skipped as trusted
 // (its markers are the operator's own, written by hand per the idiom
 // live/LIMITATIONS.md documents), while one declaring none gets the must-stamp

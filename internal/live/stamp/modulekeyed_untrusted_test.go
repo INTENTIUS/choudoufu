@@ -15,30 +15,43 @@ import (
 // module call, whose tags argument is set but carries no marker anyone can
 // see, used to be exempted from the unmarked-apply refusal by name.
 //
-// [stamper.moduleKeyedResource] never writes a marker into a body a module
-// call's several instances share - that is #378's subject and deliberate -
-// and files one of two skips. Which one was decided by "does this body set a
-// tags argument at all", so `tags = var.tags`, what essentially every
-// third-party child module writes, reported SkipModuleKeyedTrusted, a reason
-// whose own doc comment said the markers were the operator's hand-written
-// ones. internal/command's statelessStampGaps then exempts that reason by
-// name. For a type whose instances can only ever be found by their marker
-// that exemption covered a resource about to be created permanently
-// unfindable, with no diagnostic of any severity anywhere in the run - audit
-// finding C2's shape, reached down a different road.
+// Stamping never wrote a marker into a body a module call's several instances
+// share - that was #378's subject - and filed one of two skips. Which one was
+// decided by "does this body set a tags argument at all", so `tags =
+// var.tags`, what essentially every third-party child module writes, reported
+// SkipModuleKeyedTrusted, a reason whose own doc comment said the markers were
+// the operator's hand-written ones. internal/command's statelessStampGaps then
+// exempts that reason by name. For a type whose instances can only ever be
+// found by their marker that exemption covered a resource about to be created
+// permanently unfindable, with no diagnostic of any severity anywhere in the
+// run - audit finding C2's shape, reached down a different road.
 //
-// The fix is not a new stamping capability: nothing here can compute a
-// per-instance marker inside a keyed module call, and #379 does not try to.
-// It is that the trust has to be EARNED for the population that cannot
-// survive being wrong about it. [keyedMarkersMissing] asks whether the marker
-// keys are written as literal keys in the body; a must-stamp resource whose
-// tags argument is a variable, a function call or anything else this run
-// cannot read gets the same refusal a resource with no tags argument at all
-// has always got.
+// #379's own fix earned the trust rather than assuming it:
+// [collectVisibleTagKeys] asks whether the marker keys are written as literal
+// keys in the body, and a must-stamp resource whose tags argument is a
+// variable, a function call or anything else this run cannot read got the same
+// refusal a resource with no tags argument at all has always got.
 //
-// The tests below pin both directions by value, because only one of them is
+// #378 then removed the premise for nearly all of that population, and this
+// file moved with it. There IS a stamping capability now:
+// [markers.ModulePrefixAttr] names the module instance, so a resource whose
+// body declares no tofu-address is stamped rather than refused, and the four
+// shapes #379 refused - `tags = var.tags`, a merge() of one, an object with no
+// marker in it, an object with only tofu-estate - are all marked correctly
+// instead. Their tests below assert the rendered marker by value, which is a
+// strictly stronger statement than the refusal was.
+//
+// What is left of #379 is one shape, and it is the one #378 cannot reach: a
+// body writing tofu-address BY HAND and not tofu-estate, on a marker-only
+// type. This pass will not touch a hand-written address, and discovery lists
+// an estate by tofu-estate before it binds an instance by tofu-address, so
+// that instance would be applied with an address nothing looks for. It keeps
+// the refusal, and [TestModuleKeyedTrustIsEarned_aHalfWrittenMarkerIsRefused]
+// is what holds it.
+//
+// The tests below pin every direction by value, because only one of them is
 // the safety property: a refusal that fires everywhere is not a fix, it is an
-// outage.
+// outage, and a marker that is written but wrong is worse than both.
 
 // TestModuleKeyedTrustIsEarned_handWrittenMarkersStayTrusted is the direction
 // that must NOT move: the hand-stamped idiom live/LIMITATIONS.md documents,
@@ -124,54 +137,48 @@ resource "aws_eip" "app" {
 	}
 }
 
-// TestModuleKeyedTrustIsEarned_aVariableIsRefused is #379 itself, and the
-// direction that had to move: the same module, the same marker-only type,
-// with a tags argument nothing can read.
+// TestModuleKeyedTrustIsEarned_aVariableIsNowMarked is what #378 did to
+// #379's own population: the same module, the same marker-only type, the same
+// four tags arguments that carried no visible marker - and now a correct
+// per-module-instance marker on every one of them.
 //
-// The error is the point. There is no stamp to assert here and there will not
-// be one until #378 is closed - what this pins is that the run stops, that it
-// stops with the severity a resource that can never be found again earns, and
-// that the message says which markers are missing and what to write instead.
-// The rendered tags are asserted too, by value, so the test cannot pass on a
-// refusal that fired while a marker was in fact present.
-func TestModuleKeyedTrustIsEarned_aVariableIsRefused(t *testing.T) {
+// This test used to assert the refusal. Asserting the marker instead is
+// strictly stronger: a refusal says the run stopped, and these say what the
+// provider is handed, for two different instances of the call, by exact
+// value. A resource that can only ever be found by its marker now HAS one, so
+// there is nothing left to refuse.
+func TestModuleKeyedTrustIsEarned_aVariableIsNowMarked(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		tags string
-		want string
+		name  string
+		tags  string
+		extra map[string]string
 	}{
 		{
 			// The corpus shape: terraform-aws-modules/ecs's
 			// modules/container-definition, and near enough every other
 			// third-party child module, writes exactly this.
-			name: "tags come straight from a variable",
-			tags: `tags = var.tags`,
-			want: "no tofu-estate or tofu-address is written as a literal key",
+			name:  "tags come straight from a variable",
+			tags:  `tags = var.tags`,
+			extra: map[string]string{"Example": "x"},
 		},
 		{
-			// A merge() is readable, and reading it is what finds that the
-			// markers are not in it. The variable half could carry them; the
-			// point of the refusal is that nothing here can tell.
-			name: "a merge() of a variable and unrelated tags",
-			tags: `tags = merge(var.tags, { Name = "app" })`,
-			want: "no tofu-estate or tofu-address is written as a literal key",
+			name:  "a merge() of a variable and unrelated tags",
+			tags:  `tags = merge(var.tags, { Name = "app" })`,
+			extra: map[string]string{"Example": "x", "Name": "app"},
 		},
 		{
-			// An object literal with no marker in it. "Sets a tags argument"
-			// was the whole of the old test and this case passed it while
-			// being as unmarked as the two above.
-			name: "an object literal with no marker in it",
-			tags: `tags = { Name = "app" }`,
-			want: "no tofu-estate or tofu-address is written as a literal key",
+			name:  "an object literal with no marker in it",
+			tags:  `tags = { Name = "app" }`,
+			extra: map[string]string{"Name": "app"},
 		},
 		{
-			// Half the evidence is not evidence: discovery lists an estate by
-			// tofu-estate and binds the instance by tofu-address, so an object
-			// carrying only one of them is not findable either. The message
-			// names the half that is missing rather than both.
-			name: "only the estate marker is written",
-			tags: `tags = { tofu-estate = "repeat-unit" }`,
-			want: "no tofu-address is written as a literal key",
+			// Half the evidence was not evidence, and it is not needed as
+			// evidence any more: the estate marker the author wrote is
+			// verified as the constant it is, and the address this pass could
+			// not compute before is now written beside it.
+			name:  "only the estate marker is written",
+			tags:  `tags = { tofu-estate = "repeat-unit" }`,
+			extra: map[string]string{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -198,56 +205,104 @@ resource "aws_eip" "app" {
 				Schemas:        testSchemas(),
 				NeedsDiscovery: needsDiscovery("module.sites.aws_eip.app"),
 			})
-			if !diags.HasErrors() {
-				t.Fatalf("a marker-only resource inside a for_each'd module call with %s applied with no diagnostic; #379 has regressed and this resource would be created unfindable. Skips: %+v",
-					tc.tags, res.Skipped)
-			}
-			assertDiagContains(t, diags,
-				SummaryUnmarkedApply,
-				"module.sites.aws_eip.app",
-				tc.want,
-				// The refusal has to name what to do about it, and the
-				// unfindability that makes it an error rather than a warning.
-				"tofu-address = ...",
-				"the ownership marker is the only thing any later run can find it by",
-			)
-
-			// SkipModuleKeyed, not SkipModuleKeyedTrusted: internal/command's
-			// statelessStampGaps exempts the trusted reason by name, so the
-			// reason recorded here is the difference between this resource
-			// being reported a second time by the command and being waved
-			// through by it.
-			if !hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyed) {
-				t.Errorf("want %s, got %+v", SkipModuleKeyed, res.Skipped)
+			assertNoErrors(t, diags)
+			if hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyed) ||
+				hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyedTrusted) {
+				t.Errorf("a resource #378 can now stamp is still being skipped: %+v", res.Skipped)
 			}
 
-			// And no marker was written by the refusal: the pass still cannot
-			// compute one inside a keyed module call, which is why the honest
-			// outcome is stopping rather than stamping. #378 is the other half.
-			got := evalTags(t, cfg.Children["sites"], "aws_eip.app", map[string]cty.Value{
-				"var": cty.ObjectVal(map[string]cty.Value{
-					"tags": cty.MapVal(map[string]cty.Value{"Example": cty.StringVal("x")}),
-				}),
-			})
-			if v, ok := got[TagAddress]; ok {
-				t.Errorf("%s = %q was rendered after all, so this refusal fired over a resource that had its marker", TagAddress, v)
+			callerTags := map[string]cty.Value{"var": cty.ObjectVal(map[string]cty.Value{
+				"tags": cty.MapVal(map[string]cty.Value{"Example": cty.StringVal("x")}),
+			})}
+			for _, key := range []string{"a", "b"} {
+				want := map[string]string{
+					TagEstate:  "repeat-unit",
+					TagAddress: "module.sites:" + key + ".aws_eip.app",
+				}
+				for k, v := range tc.extra {
+					want[k] = v
+				}
+				got := evalTags(t, cfg.Children["sites"], "aws_eip.app",
+					withModulePrefix(t, callerTags, `module.sites["`+key+`"]`))
+				assertTags(t, got, want)
 			}
 		})
 	}
 }
 
-// TestModuleKeyedTrustIsEarned_findableTypesAreUnaffected holds the blast
-// radius down to the population the safety rule is about.
+// TestModuleKeyedTrustIsEarned_aHalfWrittenMarkerIsRefused is all that
+// remains of #379's refusal, and it is the shape #378's fix cannot reach.
+//
+// The author wrote tofu-address by hand. This pass does not overwrite a
+// hand-written marker value anywhere, keyed module or not, so it will not
+// replace that address with one of its own - and having declined to touch the
+// address it must not quietly add a tofu-estate beside it either, because the
+// two together are one hand-written marker and half of it is the author's
+// business. Marker discovery lists an estate by tofu-estate before it binds an
+// instance by tofu-address, so this instance would be applied with an address
+// nothing ever looks for. On a type that can only ever be found by its marker,
+// that is the unrecoverable case, so it refuses.
+func TestModuleKeyedTrustIsEarned_aHalfWrittenMarkerIsRefused(t *testing.T) {
+	cfg := loadTree(t, map[string]string{
+		"main.tf": `
+module "sites" {
+  source   = "./impl"
+  for_each = toset(["a", "b"])
+  name     = each.key
+}
+`,
+		"impl/main.tf": `
+variable "name" { type = string }
+
+resource "aws_eip" "app" {
+  tags = {
+    tofu-address = "module.sites[\"${var.name}\"].aws_eip.app"
+  }
+}
+`,
+	})
+
+	res, diags := Stamp(t.Context(), Request{
+		Estate:         "repeat-unit",
+		Config:         cfg,
+		Schemas:        testSchemas(),
+		NeedsDiscovery: needsDiscovery("module.sites.aws_eip.app"),
+	})
+	if !diags.HasErrors() {
+		t.Fatalf("a marker-only resource with a hand-written tofu-address and no tofu-estate applied with no diagnostic; #379 has regressed. Skips: %+v", res.Skipped)
+	}
+	assertDiagContains(t, diags,
+		SummaryUnmarkedApply,
+		"module.sites.aws_eip.app",
+		"writes no tofu-estate",
+		"the ownership marker is the only thing any later run can find it by",
+	)
+	// SkipModuleKeyed, not SkipModuleKeyedTrusted: internal/command's
+	// statelessStampGaps exempts the trusted reason by name, so the reason
+	// recorded here is the difference between this resource being reported a
+	// second time by the command and being waved through by it.
+	if !hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyed) {
+		t.Errorf("want %s, got %+v", SkipModuleKeyed, res.Skipped)
+	}
+	// And nothing was written over the author's own address.
+	got := evalTags(t, cfg.Children["sites"], "aws_eip.app", map[string]cty.Value{
+		"var": cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("a")}),
+	})
+	assertTags(t, got, map[string]string{TagAddress: `module.sites["a"].aws_eip.app`})
+}
+
+// TestModuleKeyedTrustIsEarned_findableTypesAreMarkedToo is the other half of
+// the blast radius, and it moved the good way.
 //
 // A resource that is NOT marker-only has another handle - a name AWS refuses
-// to issue twice, an identity this configuration states outright - and a
-// missing marker costs it nothing this pass can fix by stopping the run. The
-// #379 check therefore runs only when [stamper.mustStamp] is true, and this
-// asserts it: the identical `tags = var.tags` inside the identical for_each'd
-// module call, with no NeedsDiscovery entry, is still trusted and still
-// silent. Turning that population's skip into an error would refuse most
-// third-party module trees in existence over a marker they never needed.
-func TestModuleKeyedTrustIsEarned_findableTypesAreUnaffected(t *testing.T) {
+// to issue twice, an identity this configuration states outright - so #379's
+// refusal deliberately never fired for it: its missing marker was #378's
+// subject, not a reason to stop the run. #378 does not stop the run either.
+// It writes the marker. So the identical `tags = var.tags` inside the
+// identical for_each'd module call, with no NeedsDiscovery entry, is now
+// stamped and still silent, and this asserts the marker by value for both
+// instances of the call.
+func TestModuleKeyedTrustIsEarned_findableTypesAreMarkedToo(t *testing.T) {
 	cfg := loadTree(t, map[string]string{
 		"main.tf": `
 module "sites" {
@@ -267,10 +322,22 @@ resource "aws_eip" "app" {
 
 	res, diags := Stamp(t.Context(), Request{Estate: "repeat-unit", Config: cfg, Schemas: testSchemas()})
 	if len(diags) != 0 {
-		t.Fatalf("a resource with another way to be found now reports %d diagnostic(s) for tags = var.tags inside a for_each'd module; #379's check has escaped the must-stamp population:\n%s",
+		t.Fatalf("a resource with another way to be found now reports %d diagnostic(s) for tags = var.tags inside a for_each'd module; a check has escaped its population:\n%s",
 			len(diags), diags.Err())
 	}
-	if !hasSkip(res, "module.sites.aws_eip.app", SkipModuleKeyedTrusted) {
-		t.Errorf("want %s, got %+v", SkipModuleKeyedTrusted, res.Skipped)
+	if len(res.Stamped) != 1 {
+		t.Fatalf("want the resource stamped, got %+v (skipped: %+v)", res.Stamped, res.Skipped)
+	}
+	callerTags := map[string]cty.Value{"var": cty.ObjectVal(map[string]cty.Value{
+		"tags": cty.MapVal(map[string]cty.Value{"Example": cty.StringVal("x")}),
+	})}
+	for _, key := range []string{"a", "b"} {
+		got := evalTags(t, cfg.Children["sites"], "aws_eip.app",
+			withModulePrefix(t, callerTags, `module.sites["`+key+`"]`))
+		assertTags(t, got, map[string]string{
+			"Example":  "x",
+			TagEstate:  "repeat-unit",
+			TagAddress: "module.sites:" + key + ".aws_eip.app",
+		})
 	}
 }

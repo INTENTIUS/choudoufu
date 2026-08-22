@@ -312,7 +312,15 @@ var identityGoldenPin = map[string]int{
 	// module-arg-hoisted's inline/hoisted aws_iam_role.gated[0] pair, its
 	// module.output.aws_iam_role.gated[0] and its
 	// module.output.aws_iam_role.derived[0].
-	"CONCRETE": 798,
+	// 799, up from 798 (issue #378, the module-prefix marker symbol): one
+	// ADDED row, live/e2e/limits/reserved-symbol's aws_s3_bucket.reserved,
+	// the fixture for the new lint rule that reserves
+	// tofu.marker_module_prefix. It is incidental to the change: the rule
+	// needs a resource to hang the refused reference on, and a bucket renders
+	// its own name. Nothing #378 changes about STAMPING can move a row in this
+	// sweep at all - it changes what is written into a tags argument, and this
+	// sweep renders identities, not tags. 0 changed, 1 added, 0 removed.
+	"CONCRETE": 799,
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -882,7 +890,15 @@ var identityGoldenPin = map[string]int{
 // attribute of the parent. The identities the fold renders WITH schemas are
 // pinned by value, against a lookup that hands back a real CIDR, in
 // internal/live/identity's deferred_through_module_list_test.go.
-const identityGoldenPinBodyDigest = "ad009ce81dc4a2d2b76812bd65d9f160c1cb1536c1d86551afc222b1a36b7217"
+//
+// Then re-pinned again for GitHub issue #378: one row added, the
+// aws_s3_bucket in the new live/e2e/limits/reserved-symbol fixture (the
+// lint rule reserving tofu.marker_module_prefix). #378's own change is to
+// what internal/live/stamp writes into a tags argument, which this
+// schema-less sweep does not render at all, so its whole effect here is the
+// fixture it brought with it. "0 identities changed, 1 added, 0 removed"
+// over 560 directories, read before this line was edited.
+const identityGoldenPinBodyDigest = "9bfc2d3a86632189ce34b0cdad68017350a3adf4fe6668214c3d8da1bdab06a4"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1365,7 +1381,13 @@ const (
 	// testdata/deferred-through-module-list need in order to have something
 	// to point at; the fifth is #375's own poisoned control, which renders a
 	// formula and an empty import ID. See the class comments above.
-	identityGoldenPinInstances = 1628
+	//
+	// Then 1628 -> 1629 for GitHub issue #378: one added row, the
+	// aws_s3_bucket in the new live/e2e/limits/reserved-symbol fixture.
+	// #378's own change is to what internal/live/stamp writes into a tags
+	// argument, which this sweep does not render at all, so its whole effect
+	// here is the fixture it brought with it.
+	identityGoldenPinInstances = 1629
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1499,7 +1521,9 @@ const (
 	// internal/live/identity/testdata/deferred-through-module-list/sgtyped,
 	// the module whose three variable declarations are the declared-type
 	// gate's own controls.
-	identityGoldenPinDirs = 559
+	// Then 559 -> 560 for GitHub issue #378: live/e2e/limits/reserved-symbol,
+	// the fixture for the lint rule reserving tofu.marker_module_prefix.
+	identityGoldenPinDirs = 560
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

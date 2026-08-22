@@ -242,10 +242,10 @@ set -uo pipefail
 # account-prefixed virtual host that made #345 also move its ENDPOINT to
 # localhost.floci.io is never reached here; ENDPOINT stays a bare IP.
 #
-# WHAT BLOCKS STAGE 3 NOW: "2 to add, 31 to change, 2 to destroy", and every
+# WHAT BLOCKS STAGE 3 NOW: "2 to add, 29 to change, 2 to destroy", and every
 # line of it is either already tracked or is stock's own answer too.
 #
-#   1. 25 of the 31 in-place changes are one tag addition each, `tofu-slot =
+#   1. 25 of the 29 in-place changes are one tag addition each, `tofu-slot =
 #      "0"`, on a count-expanded instance: a marker live-plan expects and
 #      live-import does not write - choudoufu #372, deliberate and known.
 #   2. The 2 adds and 2 destroys are one replacement each of
@@ -257,53 +257,57 @@ set -uo pipefail
 #      records it: plain `terraform plan` on the cold-deployed state file,
 #      before a single marker exists anywhere, replaces the same two task
 #      definitions. Row 3 of HANDOFF.md's table.
-#   3. Four of the remaining six in-place changes are emulator read
-#      fidelity, all four also present in stage 1c's stock plan:
+#   3. The remaining four in-place changes are emulator read fidelity, all
+#      four also present in stage 1c's stock plan:
 #      aws_ecs_cluster's `configuration` block, aws_ecs_service's
 #      `deployment_configuration` block (plus its task_definition going
 #      "known after apply" behind item 2), aws_default_network_acl's
 #      egress/ingress rules, and aws_default_route_table's `timeouts`.
-#   4. The last two are a genuine choudoufu finding: the two
-#      aws_cloudwatch_log_group instances inside for_each'd module calls -
-#      module.ecs_service.module.container_definition["fluent-bit"] and
-#      module.ecs_task_definition.module.container_definition["al2023"] -
-#      have live-plan proposing to REMOVE their own tofu-address and
-#      tofu-estate tags, rather than to add the tofu-slot tag their 25
-#      siblings get. live-import stamped both (the tags are on the objects,
-#      read through the AWS CLI below); the plan's desired tag set for them
-#      carries no marker at all. Every other instance in this estate under
-#      a for_each'd module call is untaggable, so these two are the whole
-#      visible population of the shape. Pinned by name below so it cannot
-#      quietly change.
+#   4. NOTHING. The two aws_cloudwatch_log_group instances inside for_each'd
+#      module calls - module.ecs_service.module.container_definition
+#      ["fluent-bit"] and module.ecs_task_definition.module.
+#      container_definition["al2023"] - used to be here, with live-plan
+#      proposing to REMOVE their own tofu-address and tofu-estate tags
+#      rather than to add the tofu-slot tag their 25 siblings get. That was
+#      issue #378, and it is FIXED: they are now absent from the plan
+#      entirely, which is what "the desired tag set equals the live one"
+#      looks like. Asserted by absence below, by the exact marker value, so
+#      it cannot come back unnoticed.
 #
-#      ROOT-CAUSED, issue #378, and not fixed here. It is internal/live/stamp
-#      and nothing in this estate. The pass injects markers into
-#      CONFIGURATION, so the plan's desired tags are whatever the stamped
-#      configuration says, and there is no layer between "the pass declined
-#      to stamp" and "the provider is handed a desired tag set" that
-#      preserves a marker the pass did not write. A resource under a module
-#      call with more than one instance is stamper.moduleKeyedResource's:
-#      the call's instances share one HCL body for the resource's tags
-#      argument and no expression writable in the child can name the parent
-#      call's own instance key, so nothing is injected (deliberate, and
-#      live/LIMITATIONS.md's "child-module"). Which of the two skips it then
-#      gets is decided by hasTags - "does this body set a tags argument at
-#      all" - not by whether that argument carries a marker, so terraform-
-#      aws-modules/ecs's `tags = var.tags` reports MODULE_KEYED_TRUSTED,
-#      "its markers are trusted as written", about a marker nobody wrote,
-#      and internal/command's statelessStampGaps exempts that reason by name.
-#      Pinned by value, with no cloud, in
-#      internal/live/stamp/modulekeyed_markerloss_test.go: the same module,
-#      the same `tags = var.tags`, called with and without for_each, renders
-#      {Example} and {Example, tofu-estate, tofu-address} respectively.
-#      The rule names no type: it reaches all 847 taggable types of
-#      hashicorp/aws 6.59.0 (live/survey-full.json), under any keyed module
-#      call at any depth. Closing it needs either a way to carry the module
-#      instance's own address into the child module, or a record rung that
-#      also stops the tags diff deleting what it finds - and the record rung
-#      as it stands has the same property (TestStamp_markersRecordWithholds-
-#      OnlyTheSelectedMarker: a selected resource gains no marker, so an
-#      already-marked live object would have its marker planned away too).
+#      That absence is worth more than "no diff": it is a by-value
+#      cross-check between two INDEPENDENT producers of the same string,
+#      through a real emulator. Stage 2's live-import wrote the tag from
+#      identity resolution's own address for the instance; stage 3's plan
+#      computes the desired tag from stamp's tofu.marker_module_prefix
+#      template, evaluated by the ordinary plan-time evaluator. The plan
+#      proposes no change only if those two agree byte for byte, and stage
+#      2d already read the live side off the wire with the AWS CLI.
+#
+#      The fix is internal/live/stamp and nothing in this estate. The pass
+#      injects markers into CONFIGURATION, so the plan's desired tags are
+#      whatever the stamped configuration says, and there is no layer
+#      between "the pass declined to stamp" and "the provider is handed a
+#      desired tag set" that preserves a marker the pass did not write. A
+#      resource under a module call with more than one instance was skipped,
+#      because the call's instances share one HCL body for the resource's
+#      tags argument and no expression writable in the child could name the
+#      parent call's own instance key. There is one now:
+#      tofu.marker_module_prefix (internal/live/markers, ModulePrefixAttr)
+#      evaluates to the module INSTANCE's own escaped path, so stamp writes
+#      a template instead of a literal and each instance renders its own
+#      address. The rule names no type - it reaches all 847 taggable types
+#      of hashicorp/aws 6.59.0 (live/survey-full.json) under any keyed
+#      module call at any depth, and count'd calls as well as for_each'd
+#      ones, since a module instance path carries an integer key exactly as
+#      naturally as a string one. Pinned by value, with no cloud, in
+#      internal/live/stamp/modulekeyed_prefix_test.go: two instances of one
+#      for_each'd call, one shared tags body, two different and exactly
+#      correct tag maps.
+#
+#      What stayed put, deliberately: a resource that already DECLARES
+#      tofu-address by hand - the each.key-threaded-through-a-variable idiom
+#      live/e2e/estate-module-keyed carries - is still trusted as written
+#      and still not verified. That remainder is issue #379.
 #
 # BREAK=1 corrupts the expected ResourceId (it names a cluster that does
 # not exist), proving that assertion is load-bearing rather than a
@@ -720,7 +724,7 @@ SERVICE_NAME="$(awsl ecs describe-services --cluster ex-fargate --services ex-fa
 [ -n "$SERVICE_NAME" ] && [ "$SERVICE_NAME" != "None" ] || fail "could not read the ECS service name through the AWS CLI"
 WANT_TARGET_RID="service/${CLUSTER_NAME_FROM_ARN}/${SERVICE_NAME}"
 WANT_ADD_N=2
-WANT_CHANGE_N=31
+WANT_CHANGE_N=29
 WANT_DESTROY_N=2
 WANT_SLOT_N=25
 if [ "${BREAK:-}" = "1" ]; then
@@ -832,9 +836,64 @@ log "    $TD_STANDALONE_ARN"
 log "  each of them read back independently through the AWS CLI. 0 ABSENT,"
 log "  0 PARENT_UNAVAILABLE, where there were 3 and 4."
 
-# ── 3b. what stage 3 is blocked on NOW, pinned exactly ────────────────────
+# ── 3b. issue #378, asserted by absence and by value ──────────────────────
 #
-# "2 to add, 31 to change, 2 to destroy", every line of it accounted for.
+# This block used to assert the DEFECT: live-plan proposing to remove each
+# log group's own tofu-address, and it sat after the plan-count assertions.
+# It now asserts the fix, and it runs BEFORE them, so that it is provably
+# load-bearing: run this same script against a binary built before the fix
+# and it is this block that fails, not the "29 to change" count downstream of
+# it. Verified that way, against 44d8d573e5.
+#
+# Three ways rather than one, because "the two removal lines are gone" is
+# also satisfiable by the resource vanishing from the projection entirely,
+# which would be a different and worse bug:
+#
+#   1. no removal is proposed for either marker value, by exact string;
+#   2. neither log group appears in the plan's change list at all, which is
+#      what a desired tag set equal to the live one looks like;
+#   3. the markers are still on the live objects afterwards, re-read through
+#      the AWS CLI below (3c), so nothing was silently untagged.
+#
+# The values are stage 2d's own, which came off the wire after live-import.
+for want_kept in "$WANT_LG_FLUENTBIT_ADDR" "$WANT_LG_AL2023_ADDR"
+do
+  grep -qF -- "- \"tofu-address\" = \"$want_kept\" -> null" <<< "$PLAN_OUT" \
+    && { grep -E 'container_definition.*aws_cloudwatch_log_group' -A 12 <<< "$PLAN_OUT"; fail "#378 is back: live-plan proposes removing the marker $want_kept"; }
+done
+for lg_block in \
+  'module.ecs_service.module.container_definition["fluent-bit"].aws_cloudwatch_log_group.this[0]' \
+  'module.ecs_task_definition.module.container_definition["al2023"].aws_cloudwatch_log_group.this[0]'
+do
+  grep -qF -- "  # $lg_block " <<< "$PLAN_OUT" \
+    && { grep -F -A 12 -e "$lg_block" <<< "$PLAN_OUT"; fail "#378: $lg_block is proposed for a change again - the marker removal was the only thing it was ever in the plan for"; }
+done
+log "  #378 FIXED: neither for_each'd-module log group is in the plan at all,"
+log "  and no removal is proposed for either marker -"
+log "  $WANT_LG_FLUENTBIT_ADDR"
+log "  $WANT_LG_AL2023_ADDR"
+log "  are the values stage 2d read off the wire, and the replan's desired"
+log "  tag set now carries exactly them."
+
+# ── 3c. and they are still on the live objects after the replan ───────────
+#
+# "The plan proposes nothing" and "the marker is still there" are different
+# claims, and only the second one is about the cloud. log_group_tag is stage
+# 2d's own reader, so the two stages compare the same bytes from the same
+# source.
+for lg in "$LOG_GROUP_FLUENTBIT:$WANT_LG_FLUENTBIT_ADDR" "$LOG_GROUP_AL2023:$WANT_LG_AL2023_ADDR"; do
+  LG_NAME="${lg%%:*}"
+  LG_WANT="${lg#*:}"
+  LG_AFTER="$(log_group_tag "$LG_NAME" tofu-address)"
+  [ "$LG_AFTER" = "$LG_WANT" ] \
+    || fail "after the replan, $LG_NAME carries tofu-address=$LG_AFTER, not $LG_WANT - the plan proposed no removal, but the marker moved anyway"
+done
+log "  and both markers are still on the live objects, re-read through the"
+log "  AWS CLI after the replan."
+
+# ── 3d. what stage 3 is blocked on NOW, pinned exactly ────────────────────
+#
+# "2 to add, 29 to change, 2 to destroy", every line of it accounted for.
 # See the header for the full reasoning; the assertions are the summary:
 #
 #   2 add + 2 destroy   one replacement each of the two
@@ -842,16 +901,18 @@ log "  0 PARENT_UNAVAILABLE, where there were 3 and 4."
 #              container_definitions. STOCK DOES THE SAME - asserted in
 #              stage 1c against a state file with no marker in it - so this
 #              is HANDOFF.md's third row, not a choudoufu difference.
-#  25 of 31 changes   a single tag addition, `tofu-slot = "0"`, on a
+#  25 of 29 changes   a single tag addition, `tofu-slot = "0"`, on a
 #              count-expanded instance: choudoufu #372.
-#   4 of 31    emulator read fidelity, all four also in stock's own replan:
+#   4 of 29    emulator read fidelity, all four also in stock's own replan:
 #              the ECS cluster's `configuration` block, the ECS service's
 #              `deployment_configuration`, the default network ACL's rules,
 #              the default route table's `timeouts`.
-#   2 of 31    the finding this pass turned up: the two log groups inside
-#              for_each'd module calls have their markers proposed for
-#              REMOVAL rather than their tofu-slot tag added. Pinned by
-#              name below.
+#   0 of 29    the two log groups inside for_each'd module calls, which
+#              carried the previous two entries here. #378 is fixed: their
+#              desired tags now equal the live ones, so they are absent
+#              from the plan altogether. Pinned by absence, by value, in
+#              3b above - deliberately before this block, so it is 3b that
+#              fails against a pre-fix binary rather than these counts.
 ADD_N="$(sed -nE 's/^Plan: ([0-9]+) to add.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 CHANGE_N="$(sed -nE 's/^Plan: [0-9]+ to add, ([0-9]+) to change.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
 DESTROY_N="$(sed -nE 's/^Plan: [0-9]+ to add, [0-9]+ to change, ([0-9]+) to destroy.*/\1/p' <<< "$PLAN_OUT" | tail -1)"
@@ -869,10 +930,18 @@ done
 # Counted per resource block, not per line: the tag shows up twice in every
 # block (tags and tags_all), and "is this change only the marker" is a
 # question about the block, not about a line.
+# The resource-block section of a plan ends at the first line in column 0
+# after it ("Plan: ..." or "Changes to Outputs:"). Both readers below take
+# that as a block terminator, not only the next "  # " header: without it the
+# LAST in-place block absorbs the "  ~ output_name = ..." lines of the
+# Changes-to-Outputs section, and whichever resource happens to sort last
+# reads as "changed more than its marker" for a reason that has nothing to do
+# with it.
 slot_only_blocks() {
   awk '
-    /^  # .* will be updated in-place$/ { if (blk) { if (!other) n++ } blk = 1; other = 0; next }
-    /^  # / { if (blk) { if (!other) n++ } blk = 0; other = 0; next }
+    /^  # .* will be updated in-place$/ { if (blk && !other) n++; blk = 1; other = 0; next }
+    /^  # / { if (blk && !other) n++; blk = 0; other = 0; next }
+    /^[^ ]/ { if (blk && !other) n++; blk = 0; other = 0; next }
     blk {
       if ($0 !~ /^[ \t]*[~+-][ \t]/) next            # not a diff line
       if ($0 ~ /^  [~+-] resource /) next            # the block header
@@ -882,41 +951,50 @@ slot_only_blocks() {
     }
     END { if (blk && !other) n++; print n + 0 }' <<< "$PLAN_OUT"
 }
+# The complement, with each offending block's own diff lines: "found 24,
+# wanted 25" is not actionable and "this block also changed these three
+# attributes" is.
+non_slot_blocks() {
+  awk '
+    function flush() { if (blk && other) { printf "%s", buf } blk = 0; other = 0; buf = "" }
+    /^  # .* will be updated in-place$/ { flush(); blk = 1; buf = $0 "\n"; next }
+    /^  # / { flush(); next }
+    /^[^ ]/ { flush(); next }
+    blk {
+      if ($0 !~ /^[ \t]*[~+-][ \t]/) next
+      if ($0 ~ /^  [~+-] resource /) next
+      buf = buf $0 "\n"
+      if ($0 ~ /tofu-slot/) next
+      if ($0 ~ /^[ \t]*~ tags(_all)?[ \t]*=/) next
+      other = 1
+    }
+    END { flush() }' <<< "$PLAN_OUT"
+}
 SLOT_N="$(slot_only_blocks)"
 [ "$SLOT_N" = "$WANT_SLOT_N" ] \
-  || { grep -E '^  # .+ will be updated in-place' <<< "$PLAN_OUT"; fail "expected $WANT_SLOT_N of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone (#372), found $SLOT_N"; }
-# The two for_each'd-module log groups, pinned by name AND by the marker
-# value being removed, so this cannot change shape unnoticed. It is the one
-# thing in this plan that is choudoufu's alone.
-for want_stripped in \
-  'module.ecs_service.module.container_definition:fluent-bit.aws_cloudwatch_log_group.this:0' \
-  'module.ecs_task_definition.module.container_definition:al2023.aws_cloudwatch_log_group.this:0'
-do
-  grep -qF -- "- \"tofu-address\" = \"$want_stripped\" -> null" <<< "$PLAN_OUT" \
-    || { grep -E 'container_definition.*aws_cloudwatch_log_group' -A 12 <<< "$PLAN_OUT"; fail "expected live-plan to propose removing the marker $want_stripped - if it stopped doing that, this assertion is what should be deleted"; }
-done
-log "  BLOCKED, and no longer on #371: $ADD_N to add, $CHANGE_N to change,"
+  || { log "  blocks changing MORE than the tofu-slot tag:"; non_slot_blocks; fail "expected $WANT_SLOT_N of the $WANT_CHANGE_N in-place changes to be the tofu-slot tag alone (#372), found $SLOT_N"; }
+log "  BLOCKED, and no longer on #371 or #378: $ADD_N to add, $CHANGE_N to change,"
 log "  $DESTROY_N to destroy. $WANT_SLOT_N of the $CHANGE_N are the tofu-slot tag alone"
 log "  (#372); the 2 adds and 2 destroys are the two task definitions stock"
-log "  itself replaces (stage 1c); 4 more are emulator read fidelity also"
-log "  present in stock's replan; and 2 are the marker-stripping finding on"
-log "  the log groups inside for_each'd module calls."
+log "  itself replaces (stage 1c); the last 4 are emulator read fidelity also"
+log "  present in stock's replan. Nothing left here is choudoufu's alone."
 
 log ""
-log "STAGE 3 (test_plan): BLOCKED, but #371 is FIXED and the wall has moved."
-log "The three types #371 was about now read back present, with their prior"
-log "identities confirmed by value against the AWS CLI. What remains: $WANT_SLOT_N"
-log "instances missing the tofu-slot marker (choudoufu #372, deliberate and"
-log "known), two task-definition replacements stock itself proposes on its own"
-log "fresh state (stage 1c - HANDOFF.md row 3), four emulator read-fidelity"
-log "diffs also in stock's replan, and two log groups inside for_each'd module"
-log "calls whose markers live-plan proposes to remove - choudoufu #378, now"
-log "root-caused to internal/live/stamp's moduleKeyedResource and pinned by"
-log "value in internal/live/stamp/modulekeyed_markerloss_test.go."
+log "STAGE 3 (test_plan): BLOCKED, but #371 and #378 are both FIXED and the"
+log "wall has moved twice. The three types #371 was about now read back"
+log "present, with their prior identities confirmed by value against the AWS"
+log "CLI; and the two log groups inside for_each'd module calls are no longer"
+log "in the plan at all, because stamp now writes them a per-module-instance"
+log "tofu-address through tofu.marker_module_prefix (#378). What remains:"
+log "$WANT_SLOT_N instances missing the tofu-slot marker (choudoufu #372,"
+log "deliberate and known), two task-definition replacements stock itself"
+log "proposes on its own fresh state (stage 1c - HANDOFF.md row 3), and four"
+log "emulator read-fidelity diffs also in stock's replan. Every one of those"
+log "is either tracked or stock's own answer; none is choudoufu's alone."
 log "All eight of #368's diagnostics are gone, asserted by absence above,"
 log "and the identity #368 made expressible is confirmed by value."
 log ""
-gauntlet_stage test_plan fail "#371 FIXED: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1 - skip_requesting_account_id = true left hashicorp/aws composing account-less ARNs for its ECS reads, and stock terraform fails identically on the same provider block. Plan is now 2 to add, 31 to change, 2 to destroy (was 7/30/0). Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), 4 emulator read-fidelity diffs also in stock's replan, and 2 aws_cloudwatch_log_group instances inside for_each'd module calls whose tofu-address/tofu-estate markers live-plan proposes to REMOVE - choudoufu #378, now root-caused to internal/live/stamp and pinned by value in internal/live/stamp/modulekeyed_markerloss_test.go: a resource under a keyed module call is never stamped (its instances share one tags body), and stamper.moduleKeyedResource decides between MODULE_KEYED and MODULE_KEYED_TRUSTED on whether a tags argument EXISTS rather than on whether it carries a marker, so terraform-aws-modules' \`tags = var.tags\` is reported as trusted hand-stamping and internal/command's statelessStampGaps exempts it. The desired tag set therefore carries no marker and the ordinary tags diff renders the difference as a deletion. Not fixed: no type is named by the rule and it reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call"
+gauntlet_stage test_plan fail "#371 and #378 both FIXED. #378: the two aws_cloudwatch_log_group instances under for_each'd module calls are no longer in the plan at all - internal/live/stamp now writes them a per-module-instance tofu-address through the new tofu.marker_module_prefix evaluator symbol (internal/live/markers.ModulePrefixAttr), so the replan's desired tag set carries exactly the markers live-import wrote instead of dropping them. Plan is 2 to add, $CHANGE_N to change, 2 to destroy (was 2/31/2 with #378, 7/30/0 before #371). Asserted three ways at 3c/3d: no removal proposed for either marker by exact value, neither log group in the change list, and both markers still on the live objects through the AWS CLI after the replan. The rule names no type and reaches all 847 taggable hashicorp/aws 6.59.0 types under any keyed module call at any depth, count'd as well as for_each'd. Still trusted-as-written, and still not verified, is a resource declaring tofu-address by hand inside a keyed module call: choudoufu #379. #371: the ABSENT class is 0 (was 3 ABSENT + 4 PARENT_UNAVAILABLE), root-caused to this script's own DELTA 1. Identities confirmed by value against the AWS CLI: $CLUSTER_ARN, $TD_SVC_ARN, $TD_STANDALONE_ARN, and #368's scalable target $GOT_TARGET_RID. What remains: $WANT_SLOT_N tofu-slot markers (choudoufu #372), 2 task-definition replacements stock itself proposes on its own fresh state (stage 1c, HANDOFF row 3), and 4 emulator read-fidelity diffs also in stock's replan"
 log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
 gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
 log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
@@ -929,7 +1007,7 @@ log "=== SUMMARY (partial pass, reported honestly) ==="
 log ""
 log "  stage 1  cold_deploy        PASS"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          BLOCKED - #371 FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, four emulator read-fidelity diffs, and two markers live-plan proposes to remove (#378, root-caused)"
+log "  stage 3  test_plan          BLOCKED - #371 and #378 both FIXED (0 ABSENT, 0 PARENT_UNAVAILABLE, three identities confirmed by value; both for_each'd-module log groups out of the plan with their markers intact); blocked now on $WANT_SLOT_N missing tofu-slot markers (#372), two task-definition replacements stock proposes too, and four emulator read-fidelity diffs"
 log "  stage 4  test_apply         NOT RUN"
 log "  stage 5  drift_reconverge   NOT RUN"
 log ""

@@ -1218,10 +1218,14 @@ func statelessStampGaps(res *stamp.Result, needsDiscovery map[string]identity.Bl
 		// marker, and stamping reported MODULE_KEYED_TRUSTED for any of them
 		// that merely SET a tags argument - `tags = var.tags` included - so a
 		// server-assigned resource about to be created with no marker on it
-		// was exempted by name. [stamp.SkipModuleKeyedTrusted] now checks the
-		// marker keys are visible in the body before it claims them for a
-		// must-stamp resource, which is what makes reading the reason alone
-		// honest here. Do not re-derive that check in this function: one
+		// was exempted by name. [stamp.SkipModuleKeyedTrusted] now requires
+		// tofu-address to be written as a literal key in the body before it
+		// claims the marker as the operator's, and GitHub issue #378 narrowed
+		// it further in the other direction: a keyed-module resource that
+		// declares no tofu-address is now STAMPED, through the module-prefix
+		// symbol, rather than skipped at all. So the population reaching this
+		// exemption is exactly the one that really does carry a hand-written
+		// marker. Do not re-derive either check in this function: one
 		// decision, in the pass that read the body, is the shape #111 taught.
 		//
 		// [stamp.SkipReason.Unknown] is exempt for a different reason, and
