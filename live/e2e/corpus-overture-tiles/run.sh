@@ -184,9 +184,12 @@ set -uo pipefail
 # apply) is now written and PASSES: the empty plan applies as a genuine
 # no-op (0 added, 0 changed, 0 destroyed), the tagged-object count is
 # unchanged (item 5 above), and the S3 bucket and OAC identities are
-# re-checked one more time, fresh off this apply. Stage 5 is still left
-# not_run: test_apply just started passing this unit, and drift_reconverge
-# is the next one, not attempted here.
+# re-checked one more time, fresh off this apply. Stage 5 (drift and
+# reconverge) now PASSES too: the VPC's own Name tag is mutated out of band
+# via the AWS CLI, choudoufu's plan proposes fixing exactly that one object,
+# the stock oracle (plain tofu, the same live VPC via $PLAIN's own untouched
+# state) proposes the identical change, and the reconverging apply restores
+# the configured value.
 #
 # What crosses cleanly, and is asserted below: cold deploy (26 real
 # resources, unmodified module), then 16 of those 26 stamped correctly, 0
@@ -220,12 +223,19 @@ set -uo pipefail
 #                     log-group tag read - lex00/floci#98, item 5 above), and
 #                     the S3 bucket's tofu-address and the OAC's own Id
 #                     re-checked one more time, fresh off this apply.
-#   5. DRIFT/RECONVERGE  NOT_RUN - test_apply just started passing this
-#                     unit; drift_reconverge is the next one, not attempted
-#                     here.
+#   5. DRIFT/RECONVERGE  PASS - the VPC's Name tag mutated out of band via
+#                     the AWS CLI; choudoufu's plan proposes fixing exactly
+#                     module.overture_tiles.aws_vpc.batch[0] and nothing
+#                     else; the stock oracle ($PLAIN, the same live VPC)
+#                     proposes the identical change with marker tags
+#                     (tofu-address/tofu-estate/tofu-slot) normalised out of
+#                     both plans; the reconverging apply restores the
+#                     configured value.
 #
 # BREAK=1 corrupts the S3 bucket's expected tofu-address ahead of stage 2's
-# AWS-CLI re-read, proving that assertion is load-bearing.
+# AWS-CLI re-read, proving that assertion is load-bearing. BREAK_STAGE5=1
+# tampers a second live object (the internet gateway's Name tag) ahead of
+# stage 5's own mutation, proving its single-object assertion is load-bearing.
 #
 #   bash live/e2e/corpus-overture-tiles/run.sh
 #
@@ -241,6 +251,8 @@ set -uo pipefail
 #   FLOCI_IMAGE   the emulator image; defaults to the digest pin in
 #                 live/floci-image.
 #   BREAK         set to 1 to corrupt stage 2's identity assertion.
+#   BREAK_STAGE5  set to 1 to tamper a second live object ahead of stage 5,
+#                 proving its single-object assertion is load-bearing.
 #   DEBUG_KEEP    set to 1 to skip the exit trap: the floci container and
 #                 the WORK directory are left behind for inspection.
 
@@ -796,10 +808,300 @@ log ""
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); $BEFORE_N tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact"
 CURRENT_STAGE=""
 
-gauntlet_stage drift_reconverge not_run "not yet exercised by this script - test_apply just started passing this unit; drift_reconverge is the next unit"
+# ══════════════════════════════════════════════════════════════════════════
+# STAGE 5: DRIFT AND RECONVERGE
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The same $ESTATE estate, already stamped and already proven to plan and
+# apply empty (stages 2-4), is the natural place to prove the OTHER
+# direction: one live object changed out of band, directly through the AWS
+# CLI, is detected and the fix is scoped to exactly that object - not "the
+# whole estate looks different." The mutated attribute is the VPC's own Name
+# tag (module.overture_tiles.aws_vpc.batch[0]): "${ESTATE_NAME}-vpc" in the
+# config, changed live to "tampered-out-of-band" via `aws ec2 create-tags` -
+# never through choudoufu. $PLAIN is still a plain-tofu working directory
+# with its own state file from stage 1's cold apply, untouched since; because
+# STAGE 2's live-import BOUND (not recreated) this exact VPC - it is one of
+# the 10 VERIFIED resources - $PLAIN's state still names the very same live
+# object, which is what makes it a legitimate stock oracle for this
+# mutation, same as reference-ec2-vpc's PART C and corpus-xancloud-iac's own
+# STAGE 5 (also a VPC Name-tag mutation, same module shape).
+#
+# This choice is deliberately clear of this estate's two known, already-
+# tracked gaps: #249's orphaned CloudFront OAC and floci#98's log-group
+# tagging gap are both untouched by a VPC tag mutation, so neither needs any
+# special-casing in the object-count or identity logic below - there is no
+# object count in this stage at all, only a single-address plan diff.
+#
+# The VPC is also one of the six count-toggled ([0]) resources STAGE 2d
+# cemented with a tofu-slot marker (internal/live/discovery/count.go), on top
+# of the tofu-address/tofu-estate every stamped resource carries. $PLAIN's
+# own state knows none of the three, so its replan proposes removing them
+# from the VPC's tags in addition to reverting the Name-tag mutation - marker
+# noise, not the out-of-band mutation under test, and exactly the "marker
+# tags normalised out of both plans" the stage's oracle text calls for.
+# ══════════════════════════════════════════════════════════════════════════
+CURRENT_STAGE=drift_reconverge
+log "=== STAGE 5: drift and reconverge ==="
+
+VPC_NAME_TAG="${ESTATE_NAME}-vpc"
+IGW_NAME_TAG="${ESTATE_NAME}-igw"
+
+# changed_addrs_excluding_markers: reads a `plan -no-color` transcript on
+# stdin, prints one changed resource address per line, EXCLUDING any address
+# whose only proposed change is the tofu-address/tofu-estate/tofu-slot marker
+# tags. The stock oracle below plans against infra that choudoufu's own
+# migrate and converge steps (stages 2 and 2d) already tagged for real,
+# through the AWS API - stock's own state knows nothing about those tags, so
+# its replan proposes removing them from every one of the 16 resources
+# choudoufu stamped, which is marker noise, not the out-of-band mutation
+# under test. Same rule as live/e2e/corpus-lambda-simple/run.sh's and
+# live/e2e/corpus-xancloud-iac/run.sh's own stage 5, with tofu-slot added to
+# the marker-key set (this estate's drift target is one of the count-toggled
+# resources STAGE 2d cemented a tofu-slot onto), plus two rules
+# corpus-xancloud-iac's own stage 5 already established for this exact
+# shape: a data source with a pending-change dependency is excluded outright
+# ("will be read during apply" - it holds no live state of its own to
+# drift), and any OTHER top-level attribute whose own diff resolves to
+# "(known after apply)" is propagated uncertainty from elsewhere in the
+# graph, not a concrete drift on the object itself.
+#
+# This estate needs one rule beyond either precedent: EXCLUDE_ADDRS, a fixed
+# skip list for the ONE address this crossing already knows is permanently
+# out of step between $PLAIN and $ESTATE for a reason that has nothing to do
+# with drift. module.overture_tiles.aws_cloudfront_distribution.tiles[0] is
+# the single live distribution both copies share (STAGE 2's live-import
+# bound it), but its own origin.origin_access_control_id has pointed at
+# TWO DIFFERENT live OACs since STAGE 2d: $PLAIN's config still names its
+# own cold-deploy OAC (the orphan #249 leaves behind), while $ESTATE's own
+# apply already re-pointed the live distribution at the OAC IT created and
+# bound. That is a real, concrete, CONCRETE-valued difference (both OAC ids
+# are known, not "known after apply"), so the propagation rule above cannot
+# safely exclude it - and it is not the mutation stage 5 is testing, so this
+# unit does not want it counted either way. It is #249's own already-ruled
+# gap surfacing in a new comparison, not a new one: excluding it here is a
+# test-harness scoping decision (which address this comparison is ABOUT),
+# not a change to how choudoufu resolves or admits any type.
+FILTER_MARKERS_PY="$WORK/filter_changed_addrs.py"
+cat > "$FILTER_MARKERS_PY" <<'PY'
+# Reads a `plan -no-color` transcript on stdin, prints one changed resource
+# address per line, EXCLUDING any address whose only proposed change is the
+# tofu-address/tofu-estate/tofu-slot marker tags, propagated
+# "(known after apply)" uncertainty, or the one already-known #249 OAC
+# divergence named in EXCLUDE_ADDRS. A file, not a `python3 - <<PY` heredoc:
+# the latter feeds the script itself to python3's stdin, leaving nothing
+# left on stdin for sys.stdin.read() below to read.
+import re, sys
+
+text = sys.stdin.read()
+lines = text.split("\n")
+header_re = re.compile(r'^  # (\S+) will be (.+)$')
+headers = [(i, m.group(1), m.group(2)) for i, line in enumerate(lines) for m in [header_re.match(line)] if m]
+
+MARKER_KEYS = ("tofu-address", "tofu-estate", "tofu-slot")
+EXCLUDE_ADDRS = {"module.overture_tiles.aws_cloudfront_distribution.tiles[0]"}
+ATTR_RE = re.compile(r'^      [~+-] ')
+PURE_CLOSE_RE = re.compile(r'^\s*[)}\]]+,?\s*$')
+COMMENT_RE = re.compile(r'^\s*#')
+
+changed = []
+for idx, (i, addr, verb) in enumerate(headers):
+    end = headers[idx + 1][0] if idx + 1 < len(headers) else len(lines)
+    if addr in EXCLUDE_ADDRS:
+        continue
+    if verb.startswith("read during apply"):
+        # A data source has no live state of its own to drift; this fires
+        # purely because it depends on a resource with a pending change
+        # (here, always marker-tag noise on the resource it reads).
+        continue
+    block = lines[i:end]
+
+    # Group into top-level attribute diffs: OpenTofu's plan renderer indents
+    # a resource's own direct attributes exactly 6 spaces, so a line at that
+    # indent starting a change is a new attribute's own diff. Its OWN extent
+    # is found by bracket balance, not "until the next 6-space line": a
+    # scalar attribute (no bracket characters) is exactly its one line, while
+    # a list/map/jsonencode value's own lines keep the group open until its
+    # own opening brackets close back to zero. Stopping at the next 6-space
+    # line instead would occasionally pull in an UNRELATED unchanged sibling
+    # attribute's own context line - OpenTofu prints one of those with no
+    # symbol whenever it sits between two attributes that ARE shown, rather
+    # than folding it into "N unchanged attributes hidden" - which would
+    # then wrongly become this group's own "last substantive line" and hide
+    # a real, concrete change behind it (caught on aws_launch_template.
+    # batch[0]'s latest_version, whose one line was followed by exactly such
+    # a "name = ..." context line here).
+    attr_starts = [j for j, l in enumerate(block) if ATTR_RE.match(l)]
+    def bracket_delta(s):
+        return sum(s.count(c) for c in "({[") - sum(s.count(c) for c in ")}]")
+    groups = []
+    for s in attr_starts:
+        depth = 0
+        j = s
+        while True:
+            depth += bracket_delta(block[j])
+            j += 1
+            if depth <= 0 or j >= len(block):
+                break
+        groups.append(block[s:j])
+
+    real_change = False
+    for group in groups:
+        head = group[0].strip()
+        m = re.match(r'^[~+-]\s*(\S+)', head)
+        attr_name = m.group(1) if m else ""
+        if attr_name in ("tags", "tags_all"):
+            # Marker-only churn inside a tags map is expected noise on every
+            # tagged resource in the stock oracle; any OTHER key changing is
+            # a real change.
+            for line in group[1:]:
+                stripped = line.strip()
+                if not stripped or not re.match(r'^[~+-]', stripped):
+                    continue
+                if any(k in stripped for k in MARKER_KEYS):
+                    continue
+                real_change = True
+            continue
+        # Any other top-level attribute: if its own diff's last substantive
+        # line (skipping bare closing punctuation and comments, which are
+        # structure, not content) reads "(known after apply)", the
+        # attribute's resolved value is UNKNOWN - propagated uncertainty,
+        # never a concrete before/after drift on this object itself.
+        # Otherwise it is a real, concrete change.
+        substantive = [l for l in group if l.strip() and not COMMENT_RE.match(l) and not PURE_CLOSE_RE.match(l)]
+        if substantive and "(known after apply)" in substantive[-1]:
+            continue
+        real_change = True
+
+    if real_change:
+        changed.append(addr)
+
+print("\n".join(sorted(set(changed))))
+PY
+changed_addrs_excluding_markers() {
+  python3 "$FILTER_MARKERS_PY"
+}
+
+# block_for_addr <addr>: reads a `plan -no-color` transcript on stdin, prints
+# just the one resource's own diff block. Every taggable resource in this
+# module carries a "Name" tag, so a flat grep for '"Name"' across the whole
+# transcript would also match every OTHER changed resource's own unchanged
+# Name value wherever its tags map is rendered at all - scoping to the one
+# address under test is what keeps the comparison below about the actual
+# mutation, not incidental formatting.
+BLOCK_FOR_ADDR_PY="$WORK/block_for_addr.py"
+cat > "$BLOCK_FOR_ADDR_PY" <<'PY'
+import re, sys
+addr = sys.argv[1]
+lines = sys.stdin.read().split("\n")
+header_re = re.compile(r'^  # (\S+) will be ')
+starts = [i for i, l in enumerate(lines) if header_re.match(l)]
+for idx, i in enumerate(starts):
+    if header_re.match(lines[i]).group(1) == addr:
+        end = starts[idx + 1] if idx + 1 < len(starts) else len(lines)
+        print("\n".join(lines[i:end]))
+        break
+PY
+block_for_addr() {
+  python3 "$BLOCK_FOR_ADDR_PY" "$1"
+}
+
+log "--- 5a: mutate one live object out of band, directly via the AWS CLI ---"
+if [ "${BREAK_STAGE5:-}" = "1" ]; then
+  IGW_ID="$(awsl ec2 describe-internet-gateways \
+    --filters "Name=tag:Name,Values=$IGW_NAME_TAG" \
+    --query 'InternetGateways[0].InternetGatewayId' --output text)"
+  [ -n "$IGW_ID" ] && [ "$IGW_ID" != "None" ] || fail "BREAK_STAGE5=1: no live internet gateway found by its Name tag"
+  awsl ec2 create-tags --resources "$IGW_ID" --tags Key=Name,Value=tampered-by-BREAK >/dev/null
+  log "  BREAK_STAGE5=1: also tampered $IGW_ID's Name tag - stage 5 must now see TWO"
+  log "           drifted objects and fail the single-object assertion"
+fi
+
+VPC_ID="$(awsl ec2 describe-vpcs \
+  --filters "Name=tag:Name,Values=$VPC_NAME_TAG" \
+  --query 'Vpcs[0].VpcId' --output text)"
+[ -n "$VPC_ID" ] && [ "$VPC_ID" != "None" ] || fail "no live VPC found by its Name tag ($VPC_NAME_TAG)"
+awsl ec2 create-tags --resources "$VPC_ID" --tags Key=Name,Value=tampered-out-of-band >/dev/null
+DRIFTED_VALUE="$(awsl ec2 describe-tags \
+  --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+  --query "Tags[0].Value" --output text)"
+[ "$DRIFTED_VALUE" = "tampered-out-of-band" ] || fail "the out-of-band tag mutation did not take"
+log "  mutated $VPC_ID's Name tag to \"tampered-out-of-band\" (config says $VPC_NAME_TAG) directly via the AWS CLI - never through choudoufu"
+
+log "--- 5b: choudoufu plan proposes fixing exactly that one object ---"
+DRIFT_PLAN_OUT="$(cd "$ESTATE" && "$TOFU" live-plan -input=false -no-color 2>&1)"; DRIFT_PLAN_RC=$?
+[ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -60; fail "the drift-detection plan exited $DRIFT_PLAN_RC"; }
+[ ! -f "$ESTATE/terraform.tfstate" ] || fail "live-plan wrote a state file"
+
+CHANGED_ADDRS="$(changed_addrs_excluding_markers <<< "$DRIFT_PLAN_OUT")"
+N_CHANGED="$(printf '%s\n' "$CHANGED_ADDRS" | grep -c . || true)"
+
+if [ "${BREAK_STAGE5:-}" = "1" ]; then
+  [ "$N_CHANGED" = "1" ] \
+    && fail "BREAK_STAGE5=1 set (two objects tampered), but choudoufu's plan proposes fixing only 1 - this assertion is not load-bearing"
+  log "  BREAK_STAGE5=1: the plan proposes fixing $N_CHANGED objects, correctly more"
+  log "           than one - the single-object assertion below is skipped"
+else
+  [ "$N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix, got $N_CHANGED"; }
+  [ "$CHANGED_ADDRS" = "module.overture_tiles.aws_vpc.batch[0]" ] \
+    || fail "choudoufu's plan proposes fixing $CHANGED_ADDRS, not module.overture_tiles.aws_vpc.batch[0]"
+  log "  choudoufu's plan proposes fixing exactly one object: $CHANGED_ADDRS"
+
+  log "--- 5c: the stock oracle: the identical mutation, plain tofu ---"
+  # $PLAIN is still a plain-tofu working directory, pointed at the same floci
+  # endpoint, with its own state file from stage 1's cold apply - zero
+  # choudoufu involvement, and (per this block's header) the SAME live VPC,
+  # since STAGE 2's live-import bound rather than recreated it.
+  STOCK_DRIFT_PLAN_OUT="$(cd "$PLAIN" && tofu plan -input=false -no-color -detailed-exitcode 2>&1)"; STOCK_DRIFT_PLAN_RC=$?
+  case "$STOCK_DRIFT_PLAN_RC" in
+    0) fail "the stock oracle replans EMPTY after the same mutation - this control is not load-bearing" ;;
+    2) ;;
+    *) printf '%s\n' "$STOCK_DRIFT_PLAN_OUT" | tail -60; fail "the stock oracle's plan failed to run at all (exit $STOCK_DRIFT_PLAN_RC)" ;;
+  esac
+  STOCK_CHANGED_ADDRS="$(changed_addrs_excluding_markers <<< "$STOCK_DRIFT_PLAN_OUT")"
+  STOCK_N_CHANGED="$(printf '%s\n' "$STOCK_CHANGED_ADDRS" | grep -c . || true)"
+  [ "$STOCK_N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$STOCK_DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected stock tofu's own plan to propose fixing exactly 1 object too, got $STOCK_N_CHANGED"; }
+  [ "$STOCK_CHANGED_ADDRS" = "module.overture_tiles.aws_vpc.batch[0]" ] \
+    || fail "stock tofu's plan proposes fixing $STOCK_CHANGED_ADDRS, not module.overture_tiles.aws_vpc.batch[0] - choudoufu and stock disagree about which object drifted"
+
+  # The oracle comparison itself: the Name-tag diff line, choudoufu's against
+  # stock's - the actual change under test, not incidental formatting. Both
+  # plans read the same live tampered value off the same VPC and the same
+  # target value off byte-identical configuration (module.overture_tiles's
+  # own name_prefix), so a real agreement is not just "both saw a change."
+  CHOUDOUFU_NAME_DIFF="$(block_for_addr 'module.overture_tiles.aws_vpc.batch[0]' <<< "$DRIFT_PLAN_OUT" | grep -E '"Name"' | sed -E 's/^[[:space:]]*[~+-]?[[:space:]]*//; s/[[:space:]]+/ /g' | sort -u)"
+  STOCK_NAME_DIFF="$(block_for_addr 'module.overture_tiles.aws_vpc.batch[0]' <<< "$STOCK_DRIFT_PLAN_OUT" | grep -E '"Name"' | sed -E 's/^[[:space:]]*[~+-]?[[:space:]]*//; s/[[:space:]]+/ /g' | sort -u)"
+  [ -n "$CHOUDOUFU_NAME_DIFF" ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -B2 -A10 'will be updated'; fail "choudoufu's plan proposes fixing the object but names no Name-tag diff line"; }
+  [ "$CHOUDOUFU_NAME_DIFF" = "$STOCK_NAME_DIFF" ] \
+    || fail "choudoufu says \"$CHOUDOUFU_NAME_DIFF\", stock says \"$STOCK_NAME_DIFF\" - same object, different proposed change"
+  log "  the stock oracle proposes fixing the identical object with the identical change: $CHOUDOUFU_NAME_DIFF"
+
+  log "--- 5d: apply the reconverging plan; the drift is gone ---"
+  RECONVERGE_OUT="$(cd "$ESTATE" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -60; fail "the reconverge apply failed"; }
+  [ ! -f "$ESTATE/terraform.tfstate" ] || fail "the reconverge apply left a state file behind"
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  FIXED_VALUE="$(awsl ec2 describe-tags \
+    --filters "Name=resource-id,Values=$VPC_ID" "Name=key,Values=Name" \
+    --query "Tags[0].Value" --output text)"
+  [ "$FIXED_VALUE" = "$VPC_NAME_TAG" ] \
+    || fail "the VPC's Name tag is \"$FIXED_VALUE\" after reconverging, not $VPC_NAME_TAG"
+  log "  reconverged: $VPC_ID's Name tag is back to \"$VPC_NAME_TAG\", read via the AWS CLI"
+
+  log ""
+  log "STAGE 5 (drift and reconverge): PASS"
+  log ""
+  gauntlet_stage drift_reconverge pass "one object tampered (VPC Name tag), exactly module.overture_tiles.aws_vpc.batch[0] proposed by both choudoufu and stock with the identical change, apply changed 1 and the Name tag reads back as configured"
+fi
+CURRENT_STAGE=""
+
 gauntlet_end
 
 log ""
 log "=== SUMMARY: stage 1 PASS; stage 2 PASS; stage 3 PASS (empty plan, S3 bucket"
 log "=== and OAC identities verified by value); stage 4 PASS (no-op apply, object"
-log "=== count and identities unchanged); stage 5 NOT_RUN (not yet exercised) ==="
+log "=== count and identities unchanged); stage 5 PASS (VPC Name-tag drift"
+log "=== detected and reconverged, verified against the stock oracle) ==="

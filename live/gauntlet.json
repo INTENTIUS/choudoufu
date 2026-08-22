@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "1d7135ffc7e87dca737bed1bf74c23659f921093",
+  "commit": "d00cdedd0f74b07f255e6c7ae10fcc7f45c3e60c",
   "emulator": "ghcr.io/lex00/floci@sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9",
-  "generated": "2026-08-22T00:38:31Z",
+  "generated": "2026-08-22T03:28:33Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,7 +135,7 @@
     "all": {
       "label": "All estates",
       "estates": 25,
-      "clear": 16,
+      "clear": 17,
       "stages": {
         "cold_deploy": {
           "pass": 25,
@@ -173,9 +173,9 @@
           "not_run": 25
         },
         "drift_reconverge": {
-          "pass": 16,
+          "pass": 17,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "greenfield": {
           "pass": 0,
@@ -212,7 +212,7 @@
     "core": {
       "label": "Core estates",
       "estates": 24,
-      "clear": 15,
+      "clear": 16,
       "stages": {
         "cold_deploy": {
           "pass": 24,
@@ -250,9 +250,9 @@
           "not_run": 24
         },
         "drift_reconverge": {
-          "pass": 15,
+          "pass": 16,
           "fail": 0,
-          "not_run": 9
+          "not_run": 8
         },
         "greenfield": {
           "pass": 0,
@@ -863,7 +863,7 @@
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "plan_approval": "not_run",
@@ -871,15 +871,14 @@
         "test_apply": "pass",
         "test_plan": "pass"
       },
-      "clear": false,
+      "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "b83695419da9abceac61ad0f5893724da0e78f18",
-        "date": "2026-08-21T22:17:31Z",
+        "commit": "d00cdedd0f74b07f255e6c7ae10fcc7f45c3e60c",
+        "date": "2026-08-22T03:30:44Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "26 resources, genuinely cold, genuinely unmarked",
-          "drift_reconverge": "not yet exercised by this script - test_apply just started passing this unit; drift_reconverge is the next unit",
           "migrate": "16 of 26 stamped, 0 failed; the other 10 correctly UNTAGGABLE or already-ruled UNADMITTED_TYPE",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); 16 tagged objects before and after (resourcegroupstaggingapi + log group direct read - floci#98); S3 bucket and OAC identities unchanged; record store intact",
           "test_plan": "live-plan empty after the STAGE 2d convergence apply; S3 bucket and OAC identities re-checked by value against the AWS CLI"
