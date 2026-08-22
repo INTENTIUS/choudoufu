@@ -31,12 +31,12 @@ coming before anything fires.
 
 [Why they are separate, and what it changes]({{< relref "/docs/model" >}}).
 
-- [The wrong config cannot reach production]({{< relref "/docs/governance/blast-radius" >}}). The mistake fails at the cloud, not at review.
-- [One policy for every team]({{< relref "/docs/governance/abac" >}}). A new team costs a session tag, not a policy.
-- [Nothing is created unowned]({{< relref "/docs/governance/unowned" >}}). Ownership becomes a precondition of existing.
+- [How to stop a staging role reaching production]({{< relref "/docs/governance/blast-radius" >}}). The mistake fails at the cloud, not at review.
+- [How to cover every team with one policy]({{< relref "/docs/governance/abac" >}}). A new team costs a session tag, not a policy.
+- [How to deny creating anything unowned]({{< relref "/docs/governance/unowned" >}}). Ownership becomes a precondition of existing.
 - Nothing to lock. Concurrent runs settle at the API.
 
-[The policies that do these]({{< relref "/docs/governance" >}}), and where AWS honours the condition they rest on.
+[The policies that do these]({{< relref "/docs/governance/scope-a-role" >}}), and [where AWS honours the condition they rest on]({{< relref "/docs/governance/reach" >}}).
 
 ## How far it goes
 

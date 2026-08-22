@@ -1,9 +1,9 @@
 ---
-title: "One policy for every team"
-weight: 3
+title: "How to cover every team with one policy"
+weight: 4
 ---
 
-# One policy for every team
+# How to cover every team with one policy
 
 This is attribute-based access control, ABAC, applied to the resources your
 configuration manages.
@@ -64,4 +64,4 @@ condition to read.
 
 The condition is only evaluated where AWS evaluates it, and a resource can only
 carry a marker if its type takes tags.
-[Scoping a role]({{< relref "/docs/governance" >}}) has both bounds.
+[Where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has both bounds.

@@ -43,7 +43,8 @@ how to split their state, and the answer has always shaped the repository
 rather than the system. That argument goes away when the permission boundary
 stops having to match the file.
 
-[Scoping a role]({{< relref "/docs/governance" >}}) has the policies, and the two limits that
+[How to scope a role to an estate]({{< relref "/docs/governance/scope-a-role" >}}) has the policies,
+and [where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has the two limits that
 decide whether this works for your estate.
 
 ## Why they are separate
@@ -62,8 +63,8 @@ Values and effects stay small. Most estates declare no record store at all.
 
 **Your IAM governs your state.** Reading ownership is a tagging API call.
 Reading a record is a `GetParameter`. Both authorize per resource through
-policies you already run. [Scoping a role]({{< relref "/docs/governance" >}}) has the mechanism
-and its limits.
+policies you already run. [How to scope a role to an estate]({{< relref "/docs/governance/scope-a-role" >}}) has the mechanism,
+and [where AWS honours the condition]({{< relref "/docs/governance/reach" >}}) has its limits.
 
 **Handover is granting a role.** No export, no migration, no file to move.
 
