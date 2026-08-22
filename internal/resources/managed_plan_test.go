@@ -681,3 +681,176 @@ This is a bug in the provider, which should be reported in the provider's own is
 		})
 	}
 }
+
+// TestManagedResourceTypePlanChanges_requiresReplaceMalformedPathDropped
+// covers internal/resources/managed_plan.go's own copy of the malformed-
+// RequiresReplace-path filtering logic (filteredRequiresReplace), the
+// second of the two call sites internal/plans.RequiresReplacePathIsDegenerate
+// serves. This package's ManagedResourceType.PlanChanges is not yet wired
+// into the live engine (internal/tofu/node_resource_abstract_instance.go's
+// plan() is, and carries the sibling test
+// TestContext2Plan_requiresReplaceMalformedPathDropped), which is exactly
+// why this copy needs its own direct coverage rather than borrowing the
+// other engine's: an unwired twin that silently drifts wrong is a real
+// replace quietly becoming an in-place update the day something wires it
+// in, discovered only when a resource that should have been destroyed and
+// recreated was not.
+//
+// A provider returning RequiresReplace with a single cty.GetAttrStep whose
+// Name is empty - the exact shape hashicorp/aws 6.59.0 sends for
+// aws_vpc_security_group_ingress_rule when it cannot say which of its
+// mutually exclusive source attributes forced replacement - must be
+// dropped from the replace set (never forcing a destroy/create) and
+// reported as a warning, not a fatal error, while the resource's one real
+// attribute change ("name") still applies as an ordinary in-place update.
+func TestManagedResourceTypePlanChanges_requiresReplaceMalformedPathDropped(t *testing.T) {
+	nameSchema := &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"name": {
+				Type:     cty.String,
+				Optional: true,
+			},
+		},
+	}
+	providerClient := &fakeProviderClient{
+		schema: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{
+				"test_thing": {
+					Block: nameSchema,
+				},
+			},
+		},
+		planResourceChange: func(_ context.Context, req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+			return providers.PlanResourceChangeResponse{
+				PlannedState: req.ProposedNewState,
+				RequiresReplace: []cty.Path{
+					// The malformed shape: one step, no name.
+					{cty.GetAttrStep{Name: ""}},
+				},
+			}
+		},
+	}
+	resourceType := NewManagedResourceType(
+		addrs.NewBuiltInProvider("test"),
+		"test_thing",
+		providerClient,
+	)
+	objAddr := addrs.Resource{
+		Mode: addrs.ManagedResourceMode,
+		Type: "test_thing",
+		Name: "test",
+	}.Absolute(addrs.RootModuleInstance).Instance(addrs.NoKey).CurrentObject()
+
+	req := &ManagedResourcePlanRequest{
+		Current: ValueWithPrivate{
+			Value: cty.ObjectVal(map[string]cty.Value{
+				"name": cty.StringVal("hello"),
+			}),
+		},
+		DesiredValue: cty.ObjectVal(map[string]cty.Value{
+			"name": cty.StringVal("goodbye"),
+		}),
+	}
+	gotResp, gotDiags := resourceType.PlanChanges(t.Context(), req, objAddr)
+
+	wantDiags := (tfdiags.Diagnostics)(nil).Append(tfdiags.AttributeValue(
+		tfdiags.Warning,
+		"Provider produced a malformed requires-replacement path",
+		`Provider "terraform.io/builtin/test" has indicated "requires replacement" for an attribute path (cty.Path{cty.GetAttrStep{Name:""}}) that names no attribute in any schema, so choudoufu cannot tell which value it means.
+
+This is a bug in the provider, which should be reported in the provider's own issue tracker. choudoufu is proceeding without treating this as a forced replacement.`,
+		cty.Path{cty.GetAttrStep{Name: ""}},
+	))
+	if diff := cmp.Diff(wantDiags.ForRPC(), gotDiags.ForRPC(), ctydebug.CmpOptions); diff != "" {
+		t.Error("wrong diagnostics\n" + diff)
+	}
+
+	if gotResp == nil {
+		t.Fatal("nil response")
+	}
+	// The dropped path must never appear in the replace set: that is the
+	// whole point of "dropped", and the thing that would go wrong first if
+	// this logic ever widened by mistake.
+	if !gotResp.RequiresReplace.Empty() {
+		t.Errorf("RequiresReplace is not empty: %#v", gotResp.RequiresReplace.List())
+	}
+	// The resource's real, well-formed attribute change is untouched by the
+	// dropped path: "name" still changed from "hello" to "goodbye", so this
+	// must still plan as an ordinary update, not a silent no-op either.
+	wantPlanned := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("goodbye")})
+	if diff := cmp.Diff(wantPlanned, gotResp.Planned.Value, ctydebug.CmpOptions); diff != "" {
+		t.Error("wrong planned value\n" + diff)
+	}
+}
+
+// TestManagedResourceTypePlanChanges_requiresReplaceBogusNamedPathStillErrors
+// is the negative control for the test above, at the same call site: a
+// path naming a real (if wrong) attribute identifier is not the degenerate
+// empty-step shape, and PlanChanges must keep failing hard on it exactly as
+// it did before RequiresReplacePathIsDegenerate existed. The new handling
+// is narrowly scoped to paths that carry no information at all, not to
+// every path a provider gets wrong.
+func TestManagedResourceTypePlanChanges_requiresReplaceBogusNamedPathStillErrors(t *testing.T) {
+	nameSchema := &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"name": {
+				Type:     cty.String,
+				Optional: true,
+			},
+		},
+	}
+	providerClient := &fakeProviderClient{
+		schema: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{
+				"test_thing": {
+					Block: nameSchema,
+				},
+			},
+		},
+		planResourceChange: func(_ context.Context, req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+			return providers.PlanResourceChangeResponse{
+				PlannedState: req.ProposedNewState,
+				RequiresReplace: []cty.Path{
+					cty.GetAttrPath("bogus"),
+				},
+			}
+		},
+	}
+	resourceType := NewManagedResourceType(
+		addrs.NewBuiltInProvider("test"),
+		"test_thing",
+		providerClient,
+	)
+	objAddr := addrs.Resource{
+		Mode: addrs.ManagedResourceMode,
+		Type: "test_thing",
+		Name: "test",
+	}.Absolute(addrs.RootModuleInstance).Instance(addrs.NoKey).CurrentObject()
+
+	req := &ManagedResourcePlanRequest{
+		Current: ValueWithPrivate{
+			Value: cty.ObjectVal(map[string]cty.Value{
+				"name": cty.StringVal("rumpelstiltskin"),
+			}),
+		},
+		DesiredValue: cty.ObjectVal(map[string]cty.Value{
+			"name": cty.StringVal("rumpelstiltskin"),
+		}),
+	}
+	_, gotDiags := resourceType.PlanChanges(t.Context(), req, objAddr)
+
+	wantDiags := (tfdiags.Diagnostics)(nil).Append(tfdiags.AttributeValue(
+		tfdiags.Error,
+		"Provider produced invalid plan",
+		`Provider "terraform.io/builtin/test" has indicated "requires replacement" for a non-existent attribute path cty.Path{cty.GetAttrStep{Name:"bogus"}}.
+
+This is a bug in the provider, which should be reported in the provider's own issue tracker.`,
+		cty.GetAttrPath("bogus"),
+	))
+	if diff := cmp.Diff(wantDiags.ForRPC(), gotDiags.ForRPC(), ctydebug.CmpOptions); diff != "" {
+		t.Error("wrong diagnostics\n" + diff)
+	}
+	if !gotDiags.HasErrors() {
+		t.Fatal("expected an error, got none")
+	}
+}
