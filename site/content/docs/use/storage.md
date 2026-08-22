@@ -11,11 +11,12 @@ is why they get confused. They do different jobs and have different owners.
 | What | Where it lives | Who reads it | Losing it costs |
 |---|---|---|---|
 | Ownership markers | Two tags on the resource itself | choudoufu, and you, with any cloud tool | The resource goes invisible and the next plan proposes a duplicate |
-| Micro-state records | A `record_store` you declare, backed by a local dir, SSM, or S3 | choudoufu only | Churn, since the effect re-runs or its value regenerates |
+| Micro-state records | A local directory beside the module unless you declare a `record_store` on SSM or S3 | choudoufu only | Churn, since the effect re-runs or its value regenerates |
 | Receipts | Ordinary resources *you* declare, by convention SSM parameters | You, your reviewers, your incident responder | Nothing structural. It is your data, in your configuration |
 
-The first is the product. The second is plumbing you turn on when needed. The
-third you write yourself, and choudoufu only lints it.
+The first is the product. The second is plumbing that is there by default and
+that you point somewhere else when a team needs to share it. The third you
+write yourself, and choudoufu only lints it.
 
 ## Ownership markers
 
@@ -37,8 +38,13 @@ Some resources have no cloud twin. Nothing in AWS knows a `null_resource` ran
 a script, a `time_static` captured a timestamp, or a `random_pet` generated a
 name, so no marker can recover them.
 
-Those persist as **micro-state**, one small record each. Declare a store and
-they are admitted. Without one they are refused.
+Those persist as **micro-state**, one small record each. Every estate has a
+store for them: a `live` block that names no `record_store` gets a local one,
+a `.tofu-records` directory beside the module, the way stock OpenTofu implies
+a local state file. Nothing to turn on.
+
+Declare a `record_store` when you want the records somewhere a team shares,
+or somewhere that survives the working copy.
 
 ```hcl
 # estate.chdf.hcl

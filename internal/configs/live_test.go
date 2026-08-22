@@ -523,12 +523,25 @@ func TestModule_liveRecordStore(t *testing.T) {
 	})
 }
 
-// TestModule_liveRecordStoreAbsent: no record_store block leaves
-// Live.RecordStore nil, which is what internal/live/lint reads as "GitHub
-// issue #73's RECORD_ADMITTED logical types stay refused" - the same
-// "no attribute -> nothing" contract every other optional live-block
-// feature follows.
-func TestModule_liveRecordStoreAbsent(t *testing.T) {
+// TestModule_liveRecordStoreImplied is GitHub issue #364's config surface,
+// and the whole of its mechanism: a live block with no record_store block
+// gets the implied local one, so that HANDOFF.md's "a configuration that
+// works on stock OpenTofu works here with a live block added and nothing
+// else" is true by construction rather than by review.
+//
+// Every field is asserted BY VALUE rather than "it is non-nil", because the
+// values are what internal/live/projection.NewRecordStore then acts on: an
+// empty Path is what resolves to ".tofu-records" beside the module, and a
+// Type of anything but "local" would send this to the SSM or S3 branch and
+// try to open an AWS client for a configuration that named no cloud store
+// at all.
+//
+// This test replaced TestModule_liveRecordStoreAbsent, which pinned the
+// opposite ("RecordStore is nil for a live block with no record_store").
+// That was the behavior #364 exists to change; the nil case that survives
+// is a module with no live block, pinned by
+// TestModule_noLiveBlockImpliesNoRecordStore below.
+func TestModule_liveRecordStoreImplied(t *testing.T) {
 	mod, diags := testModuleFromDir("testdata/valid-modules/live")
 	if diags.HasErrors() {
 		t.Fatalf("unexpected diagnostics: %s", diags.Error())
@@ -536,8 +549,66 @@ func TestModule_liveRecordStoreAbsent(t *testing.T) {
 	if mod.Live == nil {
 		t.Fatal("no live block was decoded")
 	}
-	if mod.Live.RecordStore != nil {
-		t.Errorf("RecordStore is %+v for a live block with no record_store, want nil", mod.Live.RecordStore)
+	rs := mod.Live.RecordStore
+	if rs == nil {
+		t.Fatal("RecordStore is nil for a live block with no record_store; issue #364 says the local store is implied")
+	}
+	if got, want := rs.Type, "local"; got != want {
+		t.Errorf("Type = %q, want %q", got, want)
+	}
+	if !rs.Implied {
+		t.Errorf("Implied = false for a store nobody declared: %+v", rs)
+	}
+	if rs.Path != "" || rs.PathSet {
+		t.Errorf("Path = %q (set=%v), want the empty default so projection.NewRecordStore resolves it to .tofu-records beside the module", rs.Path, rs.PathSet)
+	}
+	if rs.BucketSet || rs.KeyPrefixSet || rs.RegionSet {
+		t.Errorf("the implied store carries bucket/key_prefix/region, which only the cloud backends have: %+v", rs)
+	}
+	// The implied store points at the live block, which is the nearest
+	// thing the author actually wrote, so a diagnostic about it lands
+	// somewhere real instead of on a zero range.
+	if rs.DeclRange != mod.Live.DeclRange {
+		t.Errorf("DeclRange = %s, want the live block's own header %s", rs.DeclRange, mod.Live.DeclRange)
+	}
+}
+
+// TestModule_liveRecordStoreDeclaredIsNeverImplied is the other half of
+// [LiveRecordStore.Implied]: a store the author wrote out carries
+// Implied=false, whatever its backend. internal/live/lint's strict-markers
+// check is the one reader that tells the two apart, and it refuses on
+// Implied being true - so a declared store mis-flagged as implied would
+// refuse a configuration that is correct.
+func TestModule_liveRecordStoreDeclaredIsNeverImplied(t *testing.T) {
+	for _, dir := range []string{
+		"testdata/valid-modules/live-record-store-local",
+		"testdata/valid-modules/live-record-store-ssm",
+		"testdata/valid-modules/live-record-store-s3",
+	} {
+		mod, diags := testModuleFromDir(dir)
+		if diags.HasErrors() {
+			t.Fatalf("%s: unexpected diagnostics: %s", dir, diags.Error())
+		}
+		if mod.Live.RecordStore.Implied {
+			t.Errorf("%s: a declared record_store block carries Implied=true", dir)
+		}
+	}
+}
+
+// TestModule_noLiveBlockImpliesNoRecordStore is the one nil case left. A
+// module with no live block has no estate, so there is nothing to imply a
+// store for, and every reader that treats a nil RecordStore as "no store"
+// (internal/live/lint's recordStoreConfiguredIn, internal/live/identity's
+// copy of it, internal/command's three NewRecordStore call sites) keeps
+// getting exactly that answer for exactly this configuration. `live-check`
+// analysing an unadopted stock configuration is the case that reaches it.
+func TestModule_noLiveBlockImpliesNoRecordStore(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/empty")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if mod.Live != nil {
+		t.Fatalf("this fixture is supposed to have no live block, but decoded %+v; the assertion below would be vacuous", mod.Live)
 	}
 }
 

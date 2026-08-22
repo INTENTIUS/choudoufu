@@ -752,8 +752,10 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 				"flag - so the next plan replaces it and runs the provisioner again. A live " +
 				"resource marker cannot carry that bit: the marker is written before the " +
 				"object is created, so a marked object says nothing about whether its " +
-				"provisioner ran. Declare a record_store in this configuration's live block " +
-				"to give that bit a home, or remove the provisioner",
+				"provisioner ran. This configuration's estate record store is where that bit " +
+				"lives, and this configuration has no live block to have one. Add a live " +
+				"block - which implies a local record store, or names a record_store of its " +
+				"own - or remove the provisioner",
 			Subject: provisioner.DeclRange,
 		})
 	}
@@ -767,9 +769,11 @@ func checkProvisioners(resource *configs.Resource, addr string, path addrs.Modul
 			Construct: fmt.Sprintf("connection block on %s", addr),
 			Module:    path,
 			Detail: "a connection block configures how provisioners reach the resource, and a " +
-				"provisioner needs a record_store declared in this configuration's live block " +
-				"before it can run under live resource markers. Declare one, or remove the " +
-				"connection block",
+				"provisioner needs the estate's record store to hold its tainted bit before it " +
+				"can run under live resource markers. This configuration has no live block, so " +
+				"it has no estate and no store - implied or declared. Add a live block, which " +
+				"implies a local record store unless it names a record_store of its own, or " +
+				"remove the connection block",
 			Subject: conn.DeclRange,
 		})
 	}

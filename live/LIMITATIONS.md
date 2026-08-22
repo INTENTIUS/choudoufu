@@ -32,6 +32,18 @@ The recurring justification, stated once here rather than in every entry
 below, is that every banned feature exists to maintain or repair the store.
 That is the test for edge cases.
 
+Several entries below are phrased "in an estate whose root module declares
+**no `record_store`**", which since choudoufu #364 names a configuration that
+cannot exist. Every `live` block gets an implied local record store
+(`internal/configs.impliedRecordStore`: `record_store "local"` with no path,
+a `.tofu-records` directory beside the module, the way stock implies a local
+state file), so declaring one is no longer a step anybody takes to reach
+these constructs. Read that phrase as **no `live` block at all** wherever it
+appears here: that is the one remaining configuration with no record store,
+and it is what `choudoufu live-check` reads on a stock configuration nobody
+has adopted. The limits-wing fixtures under `live/e2e/limits/` declare no
+live block for exactly this reason, which is why they still refuse.
+
 A third kind of entry lives further down, under "Every refusal, enumerated".
 Those are generated from the registries that define the refusals rather than
 written here, and they cover the refusals that never had a hand-written entry

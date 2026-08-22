@@ -17,31 +17,71 @@ import (
 // tainted flag a failed create-time provisioner sets), and admitted when it
 // does.
 //
-// The three fixtures below differ in exactly one line - the record_store
-// block - which is the mutation check built into the test's own shape
-// rather than bolted on afterwards: if the gate stopped reading that
-// declaration, the "admitted" case and the "refused" case would agree, and
-// one of the two subtests fails whichever way the gate broke.
+// Issue #364 moved where the line falls without moving the gate itself.
+// "Nowhere to keep it" used to mean "a live block with no record_store
+// block in it"; it now means "no live block at all", because every live
+// block implies a local record store
+// (internal/configs.impliedRecordStore). The gate still reads
+// cfg.Module.Live.RecordStore and still refuses exactly when it is nil -
+// what changed is which configurations produce a nil.
+//
+// The three fixtures below differ in exactly one thing - what the live
+// block says about a store - which is the mutation check built into the
+// test's own shape rather than bolted on afterwards: if the gate stopped
+// reading that declaration, the "admitted" cases and the "refused" case
+// would agree, and one of the subtests fails whichever way the gate broke.
+
+// provisionerStore is what a [provisionerFixture] says about its record
+// store. The three values are the three configurations that exist after
+// issue #364, and every one of them is a shape a real user writes.
+type provisionerStore int
+
+const (
+	// provisionerNoLiveBlock is a configuration with no live block at all:
+	// not an estate, nothing to imply a store for, and the one remaining
+	// way to reach a nil RecordStore. This is what `choudoufu live-check`
+	// reads when it analyses a stock configuration before anyone has
+	// adopted it, which is why the refusal it produces still matters.
+	provisionerNoLiveBlock provisionerStore = iota
+	// provisionerImpliedStore is a live block with no record_store block:
+	// the implied local store, and the shape HANDOFF.md's "a configuration
+	// that works on stock OpenTofu works here with a live block added and
+	// nothing else" names.
+	provisionerImpliedStore
+	// provisionerDeclaredStore is a live block with a record_store block
+	// written out longhand. It must behave identically to
+	// provisionerImpliedStore - that is what implying it means.
+	provisionerDeclaredStore
+)
 
 // provisionerFixture renders a configuration with all three provisioner
-// types issue #353 admits uniformly, plus a connection block, optionally
-// with a record_store declared.
-func provisionerFixture(withStore bool) string {
-	store := ""
-	if withStore {
-		store = `
-    record_store "local" {
-      path = "./records"
-    }
-`
-	}
-	return `
+// types issue #353 admits uniformly, plus a connection block.
+func provisionerFixture(store provisionerStore) string {
+	var live string
+	switch store {
+	case provisionerNoLiveBlock:
+		live = ""
+	case provisionerImpliedStore:
+		live = `
 terraform {
   live {
     estate = "provisioner-gate"
-` + store + `  }
+  }
 }
-
+`
+	case provisionerDeclaredStore:
+		live = `
+terraform {
+  live {
+    estate = "provisioner-gate"
+    record_store "local" {
+      path = "./records"
+    }
+  }
+}
+`
+	}
+	return live + `
 resource "aws_instance" "web" {
   ami           = "ami-1234"
   instance_type = "t3.micro"
@@ -67,22 +107,29 @@ resource "aws_instance" "web" {
 `
 }
 
-func loadProvisionerFixture(t *testing.T, withStore bool) string {
+func loadProvisionerFixture(t *testing.T, store provisionerStore) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(provisionerFixture(withStore)), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(provisionerFixture(store)), 0o600); err != nil {
 		t.Fatalf("writing the fixture: %s", err)
 	}
 	return dir
 }
 
-// TestProvisionerRefusedWithoutARecordStore is the unchanged half. Without
-// a record_store there is nowhere for the tainted bit to live, so all three
-// provisioner types and the connection block are refused - and the refusal
-// has to NAME the declaration that would change the answer, or an operator
-// reading it learns only that they must delete their configuration.
+// TestProvisionerRefusedWithoutARecordStore is the unchanged half, on the
+// one configuration that still has no record store after issue #364: no
+// live block at all. There is nowhere for the tainted bit to live, so all
+// three provisioner types and the connection block are refused - and the
+// refusal has to NAME the declaration that would change the answer, or an
+// operator reading it learns only that they must delete their
+// configuration.
+//
+// This is `live-check`'s reading of a configuration nobody has adopted yet,
+// and the reason the branch is still worth having: the answer it gives is
+// "add a live block and this is admitted", which is now literally the whole
+// setup step.
 func TestProvisionerRefusedWithoutARecordStore(t *testing.T) {
-	cfg := loadConfigDir(t, loadProvisionerFixture(t, false))
+	cfg := loadConfigDir(t, loadProvisionerFixture(t, provisionerNoLiveBlock))
 	issues := CheckContext(t.Context(), cfg)
 
 	var got []Issue
@@ -120,17 +167,26 @@ func TestProvisionerRefusedWithoutARecordStore(t *testing.T) {
 }
 
 // TestProvisionerAdmittedWithARecordStore is the new half, and the whole of
-// issue #353's lint change. The SAME configuration with a record_store
-// declared is admitted outright: the three provisioner types are admitted
-// uniformly because the predicate ("does this instance have somewhere to
-// carry a tainted bit") has nothing in it that could tell them apart.
+// issue #353's lint change, now asserted for BOTH stores. The three
+// provisioner types are admitted uniformly because the predicate ("does
+// this instance have somewhere to carry a tainted bit") has nothing in it
+// that could tell them apart - and the implied store and the declared one
+// have nothing in them that could tell each other apart either, which is
+// issue #364's own claim.
 func TestProvisionerAdmittedWithARecordStore(t *testing.T) {
-	cfg := loadConfigDir(t, loadProvisionerFixture(t, true))
+	for name, store := range map[string]provisionerStore{
+		"declared record_store":      provisionerDeclaredStore,
+		"implied local record store": provisionerImpliedStore,
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := loadConfigDir(t, loadProvisionerFixture(t, store))
 
-	for _, issue := range CheckContext(t.Context(), cfg) {
-		if issue.Rule == RuleProvisioner {
-			t.Errorf("a provisioner was refused despite a record_store being declared: %s", issue)
-		}
+			for _, issue := range CheckContext(t.Context(), cfg) {
+				if issue.Rule == RuleProvisioner {
+					t.Errorf("a provisioner was refused with a %s: %s", name, issue)
+				}
+			}
+		})
 	}
 }
 
@@ -143,37 +199,56 @@ func TestProvisionerAdmittedWithARecordStore(t *testing.T) {
 // RuleLogicalResource refusal it always did, and no RuleProvisioner issue
 // on top of it - "one verdict per resource", which is the property the
 // isLogical branch exists to keep.
+//
+// Since issue #364 the refusing half of this needs a configuration with no
+// live block, which is the only remaining nil-store shape; the second
+// subtest is the same resource under the implied store, where BOTH counts
+// must be zero. That pairing is what keeps the guard honest: a change that
+// made checkProvisioners fire on logical types would show up as a non-zero
+// provisioner count in either half.
 func TestProvisionerGateDoesNotDisturbTheLogicalPath(t *testing.T) {
-	const src = `
-terraform {
-  live {
-    estate = "provisioner-gate"
-  }
-}
-
+	const resource = `
 resource "null_resource" "effect" {
   provisioner "local-exec" {
     command = "echo hello"
   }
 }
 `
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
-		t.Fatalf("writing the fixture: %s", err)
-	}
-	cfg := loadConfigDir(t, dir)
+	const liveBlock = `
+terraform {
+  live {
+    estate = "provisioner-gate"
+  }
+}
+`
+	for _, tc := range []struct {
+		name        string
+		src         string
+		wantLogical int
+	}{
+		{"no live block: one logical refusal and nothing else", resource, 1},
+		{"implied local record store: admitted, and still no provisioner verdict", liveBlock + resource, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(tc.src), 0o600); err != nil {
+				t.Fatalf("writing the fixture: %s", err)
+			}
+			cfg := loadConfigDir(t, dir)
 
-	var logical, provisioner int
-	for _, issue := range CheckContext(t.Context(), cfg) {
-		switch issue.Rule {
-		case RuleLogicalResource:
-			logical++
-		case RuleProvisioner:
-			provisioner++
-			t.Errorf("a record-backed logical type also got a provisioner refusal: %s", issue)
-		}
-	}
-	if logical != 1 {
-		t.Errorf("got %d RuleLogicalResource issues, want exactly 1", logical)
+			var logical, provisioner int
+			for _, issue := range CheckContext(t.Context(), cfg) {
+				switch issue.Rule {
+				case RuleLogicalResource:
+					logical++
+				case RuleProvisioner:
+					provisioner++
+					t.Errorf("a record-backed logical type also got a provisioner refusal: %s", issue)
+				}
+			}
+			if logical != tc.wantLogical {
+				t.Errorf("got %d RuleLogicalResource issues, want exactly %d", logical, tc.wantLogical)
+			}
+		})
 	}
 }

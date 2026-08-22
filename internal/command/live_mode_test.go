@@ -248,6 +248,15 @@ func TestStatelessMode_livePlanIsAnAlias(t *testing.T) {
 // rejected it is named. This exercises statelessRunner.PriorState's lint
 // call rather than live-plan's own, which is the half of #45 this issue
 // (#50) brings the live block up to.
+//
+// The out-of-subset construct is lifecycle { ignore_changes = all }, which
+// discards the update that writes the ownership markers. It was a
+// provisioner until choudoufu #364 made every live block
+// imply a local record store, which is where a provisioner's tainted bit
+// lives - so #353 admits provisioners under the very live block this fixture
+// needs, and the fixture stopped being rejected at all. See the fixture's own
+// header for what a replacement has to satisfy (no second provider, no
+// provider schema).
 func TestStatelessMode_lintFatal(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block-lint"), td)
@@ -263,10 +272,10 @@ func TestStatelessMode_lintFatal(t *testing.T) {
 	}
 
 	stderr := output.Stderr()
-	if !strings.Contains(stderr, "Provisioners are not available under live resource markers") {
-		t.Errorf("no lint diagnostic for the provisioner:\n%s", stderr)
+	if !strings.Contains(stderr, "Ownership markers would be ignored") {
+		t.Errorf("no lint diagnostic for the lifecycle block:\n%s", stderr)
 	}
-	if !strings.Contains(stderr, "provisioner") {
+	if !strings.Contains(stderr, "ignore_changes") {
 		t.Errorf("the diagnostic does not name the rule that fired:\n%s", stderr)
 	}
 	if !strings.Contains(stderr, "aws_s3_bucket.data") {

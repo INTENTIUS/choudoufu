@@ -355,6 +355,32 @@ func admitsUnder(lt LogicalType, secrets strict.Secrets) bool {
 // so rewording the claim means editing the test on purpose.
 const recordStoreSupportExists = "That support exists"
 
+// impliedRecordStoreRemedy is what an operator does about any of the
+// refusals that read "there is nowhere to keep this instance's record".
+//
+// Since GitHub issue #364 that is one step, not two. Every live block
+// implies a local record store (internal/configs.impliedRecordStore), so
+// the only configuration that still reaches these refusals is one with no
+// live block at all - `live-check` reading a stock configuration nobody has
+// adopted. Telling that reader to "declare a record_store", which is what
+// these details said before, names a block they do not need and hides the
+// one they do.
+//
+// The cloud backends are still named, because the implied store is a local
+// directory and a team sharing an estate wants to know the other two exist
+// before their first apply rather than after it.
+const impliedRecordStoreRemedy = "Add a live block and it is admitted:\n\n" +
+	"  terraform {\n" +
+	"    live {\n" +
+	"      estate = \"my-estate\"\n" +
+	"    }\n" +
+	"  }\n\n" +
+	"That is the whole setup step: a live block with no record_store block of its own gets an " +
+	"implied local record store - a \".tofu-records\" directory beside the module, the way stock " +
+	"implies a local state file. To keep the records somewhere a team shares instead, name the " +
+	"backend: record_store \"ssm\" {}, record_store \"s3\" { bucket = \"...\" }, or " +
+	"record_store \"local\" { path = \"...\" }."
+
 func logicalResourceDetail(resourceType string, lt LogicalType, secrets strict.Secrets, recordStoreConfigured bool) string {
 	switch lt.Class {
 	case ClassRecordAdmitted:
@@ -363,18 +389,10 @@ func logicalResourceDetail(resourceType string, lt LogicalType, secrets strict.S
 				"no secret material (%s), so a persisted micro-state record can hold "+
 				"its value where no cloud observation could. "+recordStoreSupportExists+" - "+
 				"GitHub issue #73's record-backed identity - and this configuration "+
-				"has simply not turned it on, which is the only reason %s is refused "+
-				"here. Declare a record_store in the live block and it is admitted, "+
-				"running through the stock provider lifecycle against a record "+
-				"hydrated from and written back to that store:\n\n"+
-				"  terraform {\n"+
-				"    live {\n"+
-				"      estate = \"my-estate\"\n"+
-				"      record_store \"ssm\" {}\n"+
-				"    }\n"+
-				"  }\n\n"+
-				"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket "+
-				"argument), or \"local\" (a directory beside the module). If you would "+
+				"has no live block, which is the only reason %s is refused here. Under "+
+				"one it runs through the stock provider lifecycle against a record "+
+				"hydrated from and written back to the estate's record store. "+
+				impliedRecordStoreRemedy+" If you would "+
 				"rather keep no record at all, pass the value in as a variable or a "+
 				"local, or read it from a resource that really exists",
 			resourceType, lt.Evidence, resourceType,
@@ -386,19 +404,11 @@ func logicalResourceDetail(resourceType string, lt LogicalType, secrets strict.S
 				"prior state where no cloud observation could - and unlike a "+
 				"RECORD_ADMITTED type, the record is not the whole of what this "+
 				"resource is (%s). "+recordStoreSupportExists+" - GitHub issue #73's "+
-				"record-backed identity - and this configuration has simply not turned "+
-				"it on, which is the only reason %s is refused here. Declare a "+
-				"record_store in the live block and it is admitted, running through the "+
-				"stock provider lifecycle against a record hydrated from and written "+
-				"back to that store:\n\n"+
-				"  terraform {\n"+
-				"    live {\n"+
-				"      estate = \"my-estate\"\n"+
-				"      record_store \"ssm\" {}\n"+
-				"    }\n"+
-				"  }\n\n"+
-				"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket "+
-				"argument), or \"local\" (a directory beside the module). One thing the "+
+				"record-backed identity - and this configuration has no live block, "+
+				"which is the only reason %s is refused here. Under one it runs through "+
+				"the stock provider lifecycle against a record hydrated from and "+
+				"written back to the estate's record store. "+
+				impliedRecordStoreRemedy+" One thing the "+
 				"record does not do for this class is make two instances of %s "+
 				"interchangeable: because an argument names the object it writes, two "+
 				"instances at distinct addresses hold distinct records and can still "+
@@ -478,16 +488,9 @@ func secretRefusedDetail(resourceType string, lt LogicalType, secrets strict.Sec
 		return fmt.Sprintf(
 			"%q is a logical resource, classified SECRET_REFUSED: %s. "+recordStoreSupportExists+" - this estate's "+
 				"record store is where a value with no cloud object behind it lives, exactly as it is for every "+
-				"other logical type - and this configuration has simply not turned it on, which is the only reason "+
-				"%s is refused here. Declare a record_store in the live block and it is admitted:\n\n"+
-				"  terraform {\n"+
-				"    live {\n"+
-				"      estate = \"my-estate\"\n"+
-				"      record_store \"ssm\" {}\n"+
-				"    }\n"+
-				"  }\n\n"+
-				"The label picks the backend: \"ssm\", \"s3\" (which needs a bucket argument), or \"local\" (a "+
-				"directory beside the module). What makes this type different from the others is what the record "+
+				"other logical type - and this configuration has no live block, which is the only reason "+
+				"%s is refused here. "+impliedRecordStoreRemedy+
+				" What makes this type different from the others is what the record "+
 				"then holds: the secret material named above, in clear, the way a stock OpenTofu state file holds "+
 				"it. If that is not a trade you want to make, set strict { secrets = %q } - which keeps this exact "+
 				"refusal - and pass the value in as a variable, or read it from a secret manager by ARN or path.",

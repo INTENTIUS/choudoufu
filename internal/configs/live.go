@@ -89,13 +89,26 @@ type Live struct {
 	// than here).
 	Policy *LivePolicy
 
-	// RecordStore is the optional nested "record_store" block: where GitHub
-	// issue #73's record-backed logical types (null_resource, terraform_data,
-	// time_*, non-sensitive random_*) persist their micro-state. Nil when the
-	// live block sets no record_store block at all, which must mean those
-	// types stay refused exactly as they were before #73 - internal/live/lint
-	// only lifts the RECORD_ADMITTED refusal when this is non-nil. See
-	// [LiveRecordStore].
+	// RecordStore is the nested "record_store" block: where GitHub issue
+	// #73's record-backed logical types (null_resource, terraform_data,
+	// time_*, non-sensitive random_*) persist their micro-state, and where
+	// issue #364's per-instance record will live.
+	//
+	// It is NEVER nil for a decoded live configuration. A live block that
+	// declares no record_store block gets the implied local one
+	// ([impliedRecordStore]): HANDOFF.md's "compatible out of the box" says
+	// "a local record store is implied when none is declared, the way stock
+	// implies local state", so declaring an estate is the whole setup step
+	// and the record rung is available to every estate from its first run.
+	// [LiveRecordStore.Implied] tells the two apart for a diagnostic that
+	// needs to point at something the author actually wrote.
+	//
+	// A configuration with no live block at all still has no record store,
+	// because a nil *Live has no fields: there is no estate, so there is
+	// nothing to imply a store for. That is the case every reader must keep
+	// treating as "no record store", and it is the only one left.
+	//
+	// See [LiveRecordStore].
 	RecordStore *LiveRecordStore
 
 	// Strict is the optional nested "strict" block: GitHub issue #365's
@@ -247,8 +260,65 @@ type LiveRecordStore struct {
 	RegionSet   bool
 	RegionRange hcl.Range
 
-	// DeclRange is the "record_store" block's own header.
+	// DeclRange is the "record_store" block's own header, or - for the
+	// implied store - the live block's own header, since that is the
+	// nearest thing the author wrote.
 	DeclRange hcl.Range
+
+	// Implied is true for the store [impliedRecordStore] fills in when the
+	// live block declares no record_store block of its own.
+	//
+	// Nothing about where a record GOES may branch on this. An implied
+	// local store and one written out as `record_store "local" {}` are the
+	// same store, holding the same records under the same keys in the same
+	// directory, and internal/live/lint's implied_record_store_test.go
+	// asserts that by value. That is the whole point of implying it: a
+	// reader deciding differently would make the default a third behavior
+	// rather than the default one.
+	//
+	// What it is for is the question "did the author ASK for a store", which
+	// is a different question and has exactly two readers today:
+	//
+	//   - internal/live/lint's strict-markers check, which refuses
+	//     `markers "record"` without a declared store. That block is an
+	//     author giving UP an available marker for a record, and naming
+	//     where the record goes stays part of turning it on.
+	//   - internal/command's statelessApplyGuidedDiscovery, which leaves
+	//     guided discovery - an opt-in cost optimization that was reached
+	//     by declaring a store - opt-in.
+	//
+	// It is also what a diagnostic reads to say "your live block has the
+	// implied local record store" rather than pointing at a block the author
+	// never wrote, and what a test reads to assert which of the two it got.
+	Implied bool
+}
+
+// impliedRecordStore is the record store a live block that declares no
+// record_store block of its own gets: the "local" backend with no path, which
+// [internal/live/projection.NewRecordStore] resolves to a ".tofu-records"
+// directory beside the module - the same default an author gets by writing
+// `record_store "local" {}` out longhand, and the same shape stock's implied
+// local state has (a file beside the module, no configuration required).
+//
+// HANDOFF.md, "The default, and the principles": "A configuration that works
+// on stock OpenTofu works here with a live block added and nothing else. That
+// means a local record store is implied when none is declared, the way stock
+// implies local state". Before this, a live block with no record_store left
+// [Live.RecordStore] nil and every record-backed construct - the
+// RECORD_ADMITTED logical types, record-located identities, provisioner taint
+// - refused by name, telling the author to declare a block. That refusal was
+// the setup step this principle removes.
+//
+// declRange is the live block's own header (or the sidecar file's start), so
+// a diagnostic about the implied store points at the live block that implied
+// it. See [LiveRecordStore.Implied].
+func impliedRecordStore(declRange hcl.Range) *LiveRecordStore {
+	return &LiveRecordStore{
+		Type:      "local",
+		TypeRange: declRange,
+		DeclRange: declRange,
+		Implied:   true,
+	}
 }
 
 // LivePolicy is the "policy" block nested inside a live block. See [Live.Policy].
@@ -509,10 +579,17 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 
 	switch len(recordStoreBlocks) {
 	case 0:
-		// No record_store block: RecordStore stays nil, which
-		// internal/live/lint reads as "GitHub issue #73's RECORD_ADMITTED
-		// logical types stay refused" - the existing behavior every
-		// configuration written before this block existed keeps getting.
+		// No record_store block: the local one is IMPLIED (issue #364).
+		// Everything downstream reads cfg.Module.Live.RecordStore and
+		// treats nil as "no store" - internal/live/lint's
+		// recordStoreConfiguredIn, internal/live/identity's copy of it,
+		// internal/command's three NewRecordStore call sites - so filling
+		// it in here is the whole change: a live block with nothing but an
+		// estate name now admits the record-backed constructs and writes
+		// its records to ".tofu-records" beside the module, the way stock
+		// writes terraform.tfstate beside the module. See
+		// [impliedRecordStore].
+		s.RecordStore = impliedRecordStore(declRange)
 	case 1:
 		rs, rsDiags := decodeRecordStoreBlock(recordStoreBlocks[0])
 		diags = append(diags, rsDiags...)

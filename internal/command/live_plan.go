@@ -945,8 +945,8 @@ const defaultAutoGuidedVerifyAge = 24 * time.Hour
 // req.Guided on, with req.HintStore, req.GuidedMaxAge and
 // req.GuidedVerifyAge populated, whenever all of the following hold -
 //
-//   - the configuration's "live" block has a record_store block, the hint's
-//     one carrier since issue #109 removed the observational snapshot;
+//   - the configuration's "live" block DECLARES a record_store block, the
+//     hint's one carrier since issue #109 removed the observational snapshot;
 //   - the caller actually opened that store (hintStore non-nil - the same
 //     handle the run's record-backed resources and hint write go through,
 //     see [statelessRunner.PriorState] and [projection.Manager.EnableHint]);
@@ -970,9 +970,29 @@ func statelessApplyGuidedDiscovery(config *configs.Config, hintStore staterecord
 	if config == nil || config.Module == nil || config.Module.Live == nil {
 		return
 	}
-	if config.Module.Live.RecordStore == nil || hintStore == nil {
-		// No record store configured (or none could be opened): there is no
-		// hint carrier, and today's full enumeration is exactly right.
+	if config.Module.Live.RecordStore == nil || config.Module.Live.RecordStore.Implied || hintStore == nil {
+		// No record store DECLARED (or none could be opened): there is no
+		// hint carrier this run was asked to use, and today's full
+		// enumeration is exactly right.
+		//
+		// The Implied clause is issue #364's blast radius held where the
+		// issue put it. Every live block now carries a record store
+		// (internal/configs.impliedRecordStore), so without this clause
+		// guided discovery - an opt-in cost optimization that was reached
+		// by declaring a store - would silently become the default for
+		// every estate that has a live block at all, which is not
+		// something #364 asked for and not something any estate's crossing
+		// has measured. It also visibly diverges the two entry points:
+		// `plan` under a live block would print discovery's
+		// hint-fallback stanza on every first run while
+		// `live-plan -estate=<name>` on the same configuration would not,
+		// and TestStatelessMode_planParity holds those two outputs
+		// identical.
+		//
+		// Whether the implied store should carry the hint too is a real
+		// question and a separate one: it is a pure cost decision (guided
+		// discovery is defined to produce byte-identical output to a full
+		// sweep), so it can be turned on later without changing any plan.
 		return
 	}
 

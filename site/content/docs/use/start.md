@@ -49,8 +49,10 @@ and that tag is how the next plan finds the resource again.
 
 That one file is the whole setup. No `.tf` changes, so stock `terraform
 validate`, `tflint` and editors keep passing. Reverting means deleting the
-file. Add a `record_store` here later if you need an effect the cloud cannot
-report back.
+file. Effects the cloud cannot report back - a `null_resource`, a
+`random_pet` - already work: the estate gets an implied local record store,
+a `.tofu-records` directory beside the module. Add a `record_store` here only
+to put those records on SSM or S3 where a team can share them.
 
 The same content can live as a `live` block inside `terraform`.
 
