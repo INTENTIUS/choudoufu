@@ -16,11 +16,11 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 
 | Stage | Verdict | Detail |
 |---|---|---|
-| Cold deploy | pass |  |
-| Migrate | pass |  |
-| Replan from nothing | pass |  |
-| No-op apply | pass |  |
-| Drift and reconverge | pass |  |
+| Cold deploy | pass | 3 resources added (2 alarms + dashboard), 0 objects carry tofu-estate=leynos-monitoring-crossing before migration |
+| Migrate | pass | 2 of 3 stamped (1 skipped, untaggable dashboard), 0 failed; both alarm markers read back via the AWS CLI |
+| Replan from nothing | pass | no resource change proposed; both alarms' tofu-address unchanged, dashboard body re-derived and matches distribution_id |
+| No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); object count unchanged at 2, no state file |
+| Drift and reconverge | pass | S3 alarm's alarm_description tampered, exactly 1 object proposed and applied, reconverged to its configured description |
 | Rename (planned) | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
@@ -31,7 +31,7 @@ Why it is in the core set: a real project built for OpenTofu specifically, so Op
 | Greenfield apply (planned) | not run |  |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `a9cc85b345` on 2026-08-21T19:39:24Z, exit code 1.
+Last run at commit `c03a7df010` on 2026-08-22T07:08:37Z, exit code 0.
 
 FIVE OF FIVE, real, as of 2026-08-21 (crossing 77be0bc336 base). datapoints_to_alarm DELTA applied per lex00/floci#93's own suggested workaround (explicit value = evaluation_periods on both alarms, AWS's own create-time default, so nothing about what stage 1 creates changes) - verified for real, not assumed: the '1 -> null' diff is gone from both stock `tofu plan` and `choudoufu live-plan` against the same live alarms. Getting stage 3's automated assertion to actually SEE the empty plan uncovered a second, real, unrelated choudoufu bug: `choudoufu live-plan`'s delegation to plain `choudoufu plan` when a live block is present (`plan.Run(originalArgs)`) kept originalArgs as a second slice header over live-plan's own rawArgs backing array rather than an independent copy, and arguments.ParseView's in-place compaction of recognized flags (like -no-color) silently corrupted it whenever a flag followed -no-color - -target being the realistic case, since every -target/-exclude run hits this same alias. Effect: -no-color never reached the delegate, so live-plan's output for every -target run (this estate included) carried real ANSI escape codes despite the flag, invisibly breaking any exact-string assertion like stage 3's "No changes." check - not a semantics bug (a manual rerun confirmed the plan was already empty before the fix), but the automated proof of it was blind. Fixed in internal/command/live_plan.go (originalArgs := append([]string(nil), rawArgs...)), regression-tested in internal/command/live_mode_test.go (confirmed to fail without the fix, pass with it). Stage 5 then hit a third, distinct, real bug - floci's: CloudWatch PutMetricAlarm is documented (AWS CLI's own bundled help) as create-only for tags, so a real out-of-band update can never touch existing tags; floci's PutMetricAlarm wipes them instead, confirmed directly (list-tags-for-resource: two markers before, empty after an update with no --tags), destroying this crossing's ownership marker. Filed as https://github.com/lex00/floci/issues/95. Worked around in this harness only (not floci, not a change to what stage 5 tests) by re-applying the known tags via TagResource immediately after each drift call. Re-crossed for real with all three fixes/workarounds in place: cold_deploy 3 resources added; migrate 2 of 3 stamped (dashboard correctly UNTAGGABLE), both tofu-address markers verified via the AWS CLI; test_plan genuinely EMPTY with both alarms' markers and the dashboard's re-derived identity re-verified after the state file was deleted; test_apply a genuine no-op, 2 objects before and after, no state file either time; drift_reconverge proposes fixing exactly the one drifted alarm, applies it, and the live value reads back correct. `just ci` green. BREAK=1 still verified failing at stage 2's identity assertion (unchanged by this update - that check sits before stage 3 and exits the script before stage 5 is ever reached, a pre-existing property of the script's control flow, not something this update touched).
 
