@@ -40,6 +40,11 @@ coming before anything fires.
 
 ## How far it goes
 
+**Core** is a fixed, representative set — the terraform-aws-modules examples
+most people actually deploy, plus real OpenTofu-native projects, plus one
+plain reference estate — pinned by tag, meant to reach 100%. **All** adds
+every other real estate as it's crossed, with no pin and no target.
+
 {{< gauntlet-bars >}}
 
 ## Check yours
