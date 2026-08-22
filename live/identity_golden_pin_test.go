@@ -506,7 +506,17 @@ var identityGoldenPin = map[string]int{
 	// each counted twice because the child directory is swept as a root of
 	// its own. Incidental for the same reason as #346's, #354's, #368's and
 	// #375's: a deferred read needs a real resource to point at.
-	"NEEDS_DISCOVERY": 690,
+	// 700, up from 690 (corpus-eks-basic's count-index wall,
+	// internal/live/lint/sibling_select.go): ten ADDED rows, every one of
+	// them a bare server-assigned aws_subnet or aws_route_table declared by
+	// the three new lint fixtures so that the aws_route_table_association
+	// instances in them have parents to SELECT - four in
+	// count-index-sibling-select, four in
+	// count-index-sibling-select-indexed, two in
+	// count-index-sibling-select-collision. Incidental for the same reason
+	// as #375's and the corpus-rds-complete-postgres routing fix's: a
+	// selection needs real resources to select from.
+	"NEEDS_DISCOVERY": 700,
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -578,7 +588,22 @@ var identityGoldenPin = map[string]int{
 	// carries an EMPTY import ID until that object is read. #375's own
 	// assertion - moduleargspelling_test.go, "id must be empty" - is
 	// unchanged and still passes; a CONCRETE row there would be the failure.
-	"PARENT_DERIVED": 119,
+	// 128, up from 119 (corpus-eks-basic's count-index wall,
+	// internal/live/lint/sibling_select.go): nine ADDED rows, three per new
+	// lint fixture, and they are the whole point of the change - the
+	// aws_route_table_association instances that terraform-aws-modules/vpc
+	// builds with element(<sibling splat>, count.index) and that
+	// RuleCountIndex refused before ever reaching resolution. Six of them
+	// are the SAME three identities twice over, once per spelling
+	// (element(R[*].attr, idx) and R[idx].attr), which is the claim those
+	// two fixtures make; the other three are deliberately identical to each
+	// other, in count-index-sibling-select-collision, and that fixture's
+	// whole job is to be refused by [resolver.checkCollisions] rather than
+	// by the lint rule. Read the values: the first six carry a route table
+	// that is the SAME instance for all three and a subnet that differs, so
+	// the pairs are distinct; the last three are byte-identical, which is
+	// what a collapse looks like when it really is one.
+	"PARENT_DERIVED": 128,
 
 	// 2026-08-19 (issue #314): 17 -> 19. The two local_file fixtures that
 	// already existed - internal/live/lint/testdata/logical and
@@ -898,7 +923,18 @@ var identityGoldenPin = map[string]int{
 // schema-less sweep does not render at all, so its whole effect here is the
 // fixture it brought with it. "0 identities changed, 1 added, 0 removed"
 // over 560 directories, read before this line was edited.
-const identityGoldenPinBodyDigest = "9bfc2d3a86632189ce34b0cdad68017350a3adf4fe6668214c3d8da1bdab06a4"
+//
+// Then re-pinned again for corpus-eks-basic's count-index wall
+// (internal/live/lint/sibling_select.go). "0 identities changed, 19 added, 0
+// removed" over 563 directories, read before this line was edited - and the
+// zero is structural here rather than lucky: the change is to what
+// internal/live/lint refuses, and this sweep calls identity.Resolve directly
+// without consulting lint at all, so no row it already held could move. What
+// the added rows are FOR is that the values the lint rule now lets a real run
+// reach are pinned by value somewhere, which is what
+// internal/live/lint/sibling_select_test.go asserts directly and what these
+// nineteen rows hold to the tree.
+const identityGoldenPinBodyDigest = "81b70f92b24f3baa884f11e7cfa938df43ec4f96fd57c5fff5d5529d5e7be285"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1387,7 +1423,17 @@ const (
 	// #378's own change is to what internal/live/stamp writes into a tags
 	// argument, which this sweep does not render at all, so its whole effect
 	// here is the fixture it brought with it.
-	identityGoldenPinInstances = 1629
+	//
+	// Then 1629 -> 1648 for corpus-eks-basic's count-index wall
+	// (internal/live/lint/sibling_select.go): nineteen added rows across
+	// three new lint fixtures, none modified, none removed. Nine are the
+	// aws_route_table_association instances the change exists to reach; ten
+	// are the aws_subnet and aws_route_table instances those associations
+	// select. The change itself is to what internal/live/lint refuses, and
+	// this sweep calls identity.Resolve directly without going through lint
+	// at all, so it could not have moved an existing row and did not: "0
+	// identities changed, 19 added, 0 removed" over 563 directories.
+	identityGoldenPinInstances = 1648
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1523,7 +1569,16 @@ const (
 	// gate's own controls.
 	// Then 559 -> 560 for GitHub issue #378: live/e2e/limits/reserved-symbol,
 	// the fixture for the lint rule reserving tofu.marker_module_prefix.
-	identityGoldenPinDirs = 560
+	// Then 560 -> 563 for corpus-eks-basic's count-index wall: three new
+	// lint fixtures under internal/live/lint/testdata -
+	// count-index-sibling-select, count-index-sibling-select-indexed and
+	// count-index-sibling-select-collision - the two spellings of a
+	// sibling-instance selection and the collapse that really is a
+	// collision. They are three directories rather than one because all
+	// three render the SAME identities, which is the claim, and a
+	// configuration holding two of them is what checkCollisions correctly
+	// refuses.
+	identityGoldenPinDirs = 563
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

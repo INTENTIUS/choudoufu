@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=560 instances=1629
+# shape: dirs=563 instances=1648
 # shape: class CONCRETE=799
-# shape: class NEEDS_DISCOVERY=690
-# shape: class PARENT_DERIVED=119
+# shape: class NEEDS_DISCOVERY=700
+# shape: class PARENT_DERIVED=128
 # shape: class RECORD_BACKED=21
-# shape: body-sha256=9bfc2d3a86632189ce34b0cdad68017350a3adf4fe6668214c3d8da1bdab06a4
+# shape: body-sha256=81b70f92b24f3baa884f11e7cfa938df43ec4f96fd57c5fff5d5529d5e7be285
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -669,6 +669,25 @@ internal/live/lint/testdata/count-index-pure-scalar	aws_route53_record.format_fu
 internal/live/lint/testdata/count-index-pure-scalar	aws_route53_record.format_function[2]	CONCRETE	Z0123456789ABCDEFGHI_record-2.example.com_A	name=record-2.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index-pure-scalar	aws_route53_record.template[0]	CONCRETE	Z0123456789ABCDEFGHI_record-0.example.com_A	name=record-0.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
 internal/live/lint/testdata/count-index-pure-scalar	aws_route53_record.template[1]	CONCRETE	Z0123456789ABCDEFGHI_record-1.example.com_A	name=record-1.example.com,type=A,zone_id=Z0123456789ABCDEFGHI
+internal/live/lint/testdata/count-index-sibling-select	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select	aws_route_table_association.private[0]	PARENT_DERIVED	${aws_subnet.private[0].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select	aws_route_table_association.private[1]	PARENT_DERIVED	${aws_subnet.private[1].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select	aws_route_table_association.private[2]	PARENT_DERIVED	${aws_subnet.private[2].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select	aws_subnet.private[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select	aws_subnet.private[1]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select	aws_subnet.private[2]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-collision	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-collision	aws_route_table_association.collapsed[0]	PARENT_DERIVED	${aws_subnet.only[0].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-collision	aws_route_table_association.collapsed[1]	PARENT_DERIVED	${aws_subnet.only[0].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-collision	aws_route_table_association.collapsed[2]	PARENT_DERIVED	${aws_subnet.only[0].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-collision	aws_subnet.only[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_route_table.private[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_route_table_association.indexed[0]	PARENT_DERIVED	${aws_subnet.private[0].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_route_table_association.indexed[1]	PARENT_DERIVED	${aws_subnet.private[1].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_route_table_association.indexed[2]	PARENT_DERIVED	${aws_subnet.private[2].id}/${aws_route_table.private[0].id}	
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_subnet.private[0]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_subnet.private[1]	NEEDS_DISCOVERY		
+internal/live/lint/testdata/count-index-sibling-select-indexed	aws_subnet.private[2]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_cloudwatch_log_group.from_variable["from-a-variable"]	CONCRETE	/tofu/from-a-variable	name=/tofu/from-a-variable
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["0"]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/foreach-key-clean	aws_subnet.this["2001:db8::/64"]	NEEDS_DISCOVERY		
