@@ -9,12 +9,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
@@ -658,4 +660,66 @@ func TestTheSecretsSettingNowReachesTheLocatedCredentialException(t *testing.T) 
 			"would either write the secret into the record store in clear or stop the run at apply with the "+
 			"object already live; refusing at the configuration is the only answer that is neither.", got)
 	}
+}
+
+// TestResolverRefusesAccessKeyOnlyUnderStrictSecrets is #365 ruling 5 proved
+// at the layer that acts, [resolver.classify]: aws_iam_access_key resolves
+// [ClassRecordLocated] under the default secrets setting (its record holds
+// only "id", never the secret - the whole reason the old exclusion was
+// retired, see located.go's own commit for the finding), and is refused at
+// resolution under strict { secrets = "refuse" }, mutation-checked here by
+// building the identical fixture under both settings.
+func TestResolverRefusesAccessKeyOnlyUnderStrictSecrets(t *testing.T) {
+	schemas := map[string]providers.Schema{"aws_iam_access_key": locatedSchema(nil)}
+
+	writeFixture := func(t *testing.T, secrets string) *configs.Config {
+		t.Helper()
+		dir := t.TempDir()
+		strictBlock := ""
+		if secrets != "" {
+			strictBlock = `
+    strict {
+      secrets = "` + secrets + `"
+    }`
+		}
+		src := `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }` + strictBlock + `
+  }
+}
+
+resource "aws_iam_access_key" "this" {
+  user = "example"
+}
+`
+		if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+			t.Fatalf("writing fixture: %s", err)
+		}
+		return loadConfig(t, dir, nil)
+	}
+
+	t.Run("default admits", func(t *testing.T) {
+		cfg := writeFixture(t, "")
+		result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+		assertNoErrors(t, diags)
+		res := resolutionAt(t, result, "aws_iam_access_key.this")
+		if res.Class != ClassRecordLocated {
+			t.Fatalf("aws_iam_access_key.this resolved %s under the default secrets setting, want %s", res.Class, ClassRecordLocated)
+		}
+	})
+
+	t.Run("refuse refuses", func(t *testing.T) {
+		cfg := writeFixture(t, "refuse")
+		_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+		if !diags.HasErrors() {
+			t.Fatal("aws_iam_access_key.this was admitted under strict { secrets = \"refuse\" }")
+		}
+		if !hasDiag(diags, "Secret-generating resource refused", "aws_iam_access_key") {
+			t.Errorf("the refusal is not the secrets one:\n%s", renderDiags(diags))
+		}
+	})
 }
