@@ -157,7 +157,10 @@ Do not proceed past any of these; state the question and wait.
 - Run a crossing script in your own session; that is what workers are for.
 - Merge a branch whose gate you did not read from a file, or push a `main`
   you have not put a full `just ci` through. The full tier runs once per
-  merge batch, on the merge result, before the push.
+  merge batch, on the merge result, before the push. Gate the push on the
+  FILE'S CONTENT, never on a command's exit: `[ "$(cat ci.rc)" = 0 ] && git
+  push ...`. On 2026-08-23 the orchestrator ran `cat ci.rc && git push`, the
+  file said `1`, `cat` exited 0, and a red `main` was pushed.
 - Work in the primary checkout's working tree, `git stash`, or prune a
   worktree by whether its branch merged (a branch with no commits is
   trivially merged). `pickup.sh`'s `MERGED/EMPTY` is the one case where
