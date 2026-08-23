@@ -292,6 +292,26 @@ func TestPrivateBodyCoversEveryRewriteShape(t *testing.T) {
 		"replace": "not a mutation target: selects between wrap's two branches",
 		"items":   "not a mutation target: freshly built per resource",
 		"rng":     "not a mutation target: a range, never written through",
+
+		// GitHub issue #380. Both are read but never allocated fresh inside
+		// apply the way items is - the difference from items is that
+		// ignoreChangesKeys is a plain []string literal built at the call
+		// site in stamp.go's resource(), so there is nothing to clone even
+		// in principle - and managed needs no privateBody copy because it
+		// is not one of the AST nodes this file's sharing bug is about: it
+		// is *configs.Resource.Managed, a fresh *ManagedResource this
+		// package never allocates, decoded once per module CALL by
+		// configs.decodeResourceBlock (see this file's own package doc,
+		// "Each call does get its own *configs.Resource"). Only the
+		// hclsyntax nodes PartialContent reuses across calls - the
+		// Attributes map and whatever hangs off the tags argument - need
+		// copying; a ManagedResource's own IgnoreChanges slice was never
+		// shared with any other call to begin with.
+		// TestStamp_markersRecordIsAddressedPerModuleCall is this claim's
+		// positive proof: two calls of one module source, each getting its
+		// own two-entry ignore_changes rather than a doubled or shared one.
+		"managed":           "not a mutation target: configs.Resource.Managed is a fresh *ManagedResource per module call, never shared",
+		"ignoreChangesKeys": "not a mutation target: a []string literal built at the call site, nothing to clone",
 	}
 
 	rt := reflect.TypeOf(rewrite{})

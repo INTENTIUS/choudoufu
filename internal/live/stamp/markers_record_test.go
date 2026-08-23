@@ -309,3 +309,71 @@ func assertIgnoreChangesTagKeys(t *testing.T, cfg *configs.Config, addr string, 
 		}
 	}
 }
+
+// TestStamp_markersRecordIsAddressedPerModuleCall is GitHub issue #280's
+// question asked of GitHub issue #380's new mechanism: does one local
+// module source called more than once give each call its own
+// ignore_changes, or does the second call's append land on the first
+// call's slice too?
+//
+// Two calls of one source, both selected by type. If
+// [configs.Resource.Managed] were shared the way the tags AST is
+// ([privateBody]'s whole subject), the second call's apply would append
+// onto the first's already-appended slice and both addresses would read
+// back four entries instead of two - or, keyed the other way, one address
+// would read back a growing list on subsequent test runs sharing a package
+// var. Neither is what a fresh *ManagedResource per decode call permits,
+// and this is that claim proven rather than assumed.
+func TestStamp_markersRecordIsAddressedPerModuleCall(t *testing.T) {
+	cfg := loadTree(t, map[string]string{
+		"main.tf": `
+terraform {
+  live {
+    estate = "stamp-unit"
+
+    record_store "local" {}
+
+    strict {
+      markers "record" {
+        types = ["aws_vpc"]
+      }
+    }
+  }
+}
+
+module "a" {
+  source = "./impl"
+}
+
+module "b" {
+  source = "./impl"
+}
+`,
+		"impl/main.tf": `
+resource "aws_vpc" "main" {
+  cidr_block = "10.42.0.0/16"
+}
+`,
+	})
+
+	res, diags := Stamp(t.Context(), Request{Estate: "stamp-unit", Config: cfg, Schemas: testSchemas()})
+	assertNoErrors(t, diags)
+
+	for _, addr := range []string{"module.a.aws_vpc.main", "module.b.aws_vpc.main"} {
+		assertSkipReason(t, res, addr, SkipMarkersRecord)
+	}
+
+	aConfig := cfg.Children["a"]
+	bConfig := cfg.Children["b"]
+	if aConfig == nil || bConfig == nil {
+		t.Fatalf("expected child configs for both module calls, got a=%v b=%v", aConfig, bConfig)
+	}
+	assertIgnoreChangesTagKeys(t, aConfig, "aws_vpc.main", []string{TagAddress, TagEstate})
+	assertIgnoreChangesTagKeys(t, bConfig, "aws_vpc.main", []string{TagAddress, TagEstate})
+
+	aManaged := aConfig.Module.ManagedResources["aws_vpc.main"].Managed
+	bManaged := bConfig.Module.ManagedResources["aws_vpc.main"].Managed
+	if aManaged == bManaged {
+		t.Fatalf("both module calls share one *ManagedResource; GitHub issue #280's sharing bug reaches lifecycle blocks too")
+	}
+}

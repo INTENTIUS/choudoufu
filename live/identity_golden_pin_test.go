@@ -596,7 +596,17 @@ var identityGoldenPin = map[string]int{
 	// directories), each an aws_acm_certificate whose identity needs a
 	// real account, the same NEEDS_DISCOVERY shape as every sibling
 	// managed-read-* fixture already contributes.
-	"NEEDS_DISCOVERY": 715,
+	// 715 -> 717 for GitHub issue #380 (strict { markers "record" }
+	// synthesizes per-key ignore_changes instead of dropping an existing
+	// marker): two ADDED rows, aws_vpc.main and aws_subnet.private, from the
+	// new lint fixture testdata/strict-markers-ignore-changes-per-key. Both
+	// are the same plain server-assigned NEEDS_DISCOVERY shape their
+	// siblings strict-markers-ignore-changes and
+	// strict-markers-ignore-changes-no-repair already contribute - this
+	// sweep runs with no schemas, so the markers "record" selection is never
+	// honoured here and neither resource renders as RECORD_LOCATED. See
+	// identityGoldenPinBodyDigest's own note.
+	"NEEDS_DISCOVERY": 717,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
@@ -1207,7 +1217,15 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against main's copy,
 // which shows exactly four added lines and nothing else changed except
 // the header's shape line.
-const identityGoldenPinBodyDigest = "ee82b073d159cb767b023a2d2e60c1195f95a87edf78c141b9129290a04eeff5"
+// Then ee82b073... -> 8d8efc8d... for GitHub issue #380: two added rows
+// (aws_vpc.main, aws_subnet.private) for the new lint fixture
+// testdata/strict-markers-ignore-changes-per-key change the hash of a file
+// whose rows they now join; no existing row's bytes moved, confirmed by
+// regenerating with -update and diffing
+// internal/live/check/testdata/identity-golden.txt against the prior copy,
+// which shows exactly two added lines and nothing else changed except the
+// header's shape line.
+const identityGoldenPinBodyDigest = "8d8efc8d97e551d50dfb675fb4d8c735f07e009033bc32f4180746a7478bba3a"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1784,7 +1802,14 @@ const (
 	// "0 identities changed, 4 added, 0 removed" confirmed by diffing
 	// testdata/identity-golden.txt before and after regenerating on the
 	// rebased tree.
-	identityGoldenPinInstances = 1689
+	//
+	// Then 1689 -> 1691 for GitHub issue #380: two new instances,
+	// aws_vpc.main and aws_subnet.private, from the new lint fixture
+	// testdata/strict-markers-ignore-changes-per-key (see
+	// identityGoldenPin's "NEEDS_DISCOVERY" note). "0 identities changed, 2
+	// added, 0 removed" confirmed by diffing testdata/identity-golden.txt
+	// before and after regenerating.
+	identityGoldenPinInstances = 1691
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1990,7 +2015,13 @@ const (
 	// tolerant-module-output's submodules are) - for corpus-alb-complete's
 	// Family B fix (server-minted ACM domain_validation_options). Rebased
 	// onto #313's 583 rather than this branch's own original base of 577.
-	identityGoldenPinDirs = 587
+	//
+	// 587 -> 588 for GitHub issue #380: one new fixture directory,
+	// internal/live/lint/testdata/strict-markers-ignore-changes-per-key,
+	// proving checkIgnoreChanges declines the per-key ignore_changes shape
+	// internal/live/stamp now synthesizes the same way it already declines
+	// the whole-tags shape.
+	identityGoldenPinDirs = 588
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
