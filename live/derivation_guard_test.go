@@ -129,20 +129,26 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 10, Code: 0,
 	},
 	"internal/live/harness/assumptions.go": {
-		Reason: "sanctionedCredentialExclusions: the four types the maintainer has ruled may sit in rejected.json, because their " +
-			"identity IS credential material and a marker goes in a tag rather than in the secret. A ruling is the one thing " +
-			"that cannot be derived - no schema records what a maintainer decided - and the assumption exists precisely to " +
-			"fail when the veto set drifts away from those four. Naming them here is the check, not the hand-wiring.",
-		Data: 4, Code: 0,
+		Reason: "sanctionedCredentialExclusions: the two types the maintainer has ruled may sit in rejected.json with no " +
+			"admission route at all, because their identity IS credential material and a marker goes in a tag rather " +
+			"than in the secret. Shrunk from four by the 2026-08-23 ruling (#365 ruling 5), which moved " +
+			"aws_iam_access_key and aws_iot_certificate to internal/live/identity/located.go's toggle-gated exclusion " +
+			"below - they are admitted by default now, through a route this ratchet's own check does not read, so " +
+			"its \"none of them is admitted\" claim would be false for them. A ruling is the one thing that cannot be " +
+			"derived - no schema records what a maintainer decided - and the assumption exists precisely to fail when " +
+			"the veto set drifts away from those two. Naming them here is the check, not the hand-wiring.",
+		Data: 2, Code: 0,
 	},
 	"internal/live/identity/located.go": {
-		Reason: "sanctionedCredentialExclusion: the two of the maintainer's four sanctioned credential exclusions " +
-			"(live/HARNESS.md's credential-exclusions-are-exactly-four ratchet) that are markerless and therefore " +
-			"reachable by the located route at all - aws_iam_access_key, aws_iot_certificate. That ratchet's own " +
-			"check reads only rejected.json and DefaultTable, the ordinary tag-admission path, because the located " +
-			"route postdates it; its prose is broader (\"none of them is admitted\"), and this list is what honors " +
-			"that here too rather than silently exempting a route the ruling's author never saw. A ruling is the " +
-			"one thing that cannot be derived.",
+		Reason: "strictSecretsLocatedExclusion: aws_iam_access_key and aws_iot_certificate, the maintainer's 2026-08-23 " +
+			"ruling (rfc/20260823-foundation-order-ruling.md, ruling 5) moving them off the four-type unconditional " +
+			"veto this file carried before (live/HARNESS.md's now-two-entry credential-exclusions ratchet) onto the " +
+			"same strict { secrets } toggle a RECORD_BACKED type's SecretMaterial already uses: stored by default, " +
+			"refused under strict.Refuse. Kept a named list rather than a schema-derived one on purpose - the " +
+			"2026-08-22 census this ruling cites (issue #365 population 2) measured against the real provider that " +
+			"no schema fact tells a type whose secret a Read restores from one whose secret a Read loses forever, so " +
+			"a generic identity.CredentialMaterial gate here would refuse types that need no refusing. A ruling is " +
+			"the one thing that cannot be derived.",
 		Data: 2, Code: 0,
 	},
 	"internal/live/identity/parent.go": {
@@ -340,7 +346,17 @@ const (
 	// honored on the located route now that its general credential veto was
 	// narrowed to the identity attributes it actually records. Two Data
 	// literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 437
+	// 437 -> 435 data, 2026-08-23 (issue #365 ruling 5): the same two
+	// literals stay in internal/live/identity/located.go (renamed
+	// sanctionedCredentialExclusion -> strictSecretsLocatedExclusion, same
+	// two names, so that file's own count is unchanged), but
+	// internal/live/harness/assumptions.go's sanctionedCredentialExclusions
+	// drops the two literal type names it carried for them - they moved off
+	// that unconditional, admission-table-wide ratchet onto a
+	// strict{secrets}-gated one, so the harness ratchet's own four-entry
+	// list shrinks to two. Two Data literals removed, no Code, nothing
+	// else moved.
+	typeLiteralDataTotal = 435
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
