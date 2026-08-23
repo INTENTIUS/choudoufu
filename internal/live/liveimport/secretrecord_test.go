@@ -120,12 +120,11 @@ func storeHoldsSecret(t *testing.T, store staterecord.Store, addr addrs.AbsResou
 func secretRatify(t *testing.T, store staterecord.Store, secrets strict.Secrets) *Ratification {
 	t.Helper()
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:          petEstate,
-		State:           secretState(),
-		Providers:       newSecretProvider(),
-		Secrets:         secrets,
-		RecordStore:     store,
-		RecordKeyPrefix: recordTestPrefix(),
+		Estate:      petEstate,
+		State:       secretState(),
+		Providers:   newSecretProvider(),
+		Secrets:     secrets,
+		RecordStore: projection.NewRecordEnvelopeStore(store, recordTestPrefix()),
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())

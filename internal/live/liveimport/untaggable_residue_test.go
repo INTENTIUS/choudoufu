@@ -191,19 +191,19 @@ func untaggableState(typeName, name string, attrsJSON string) *states.State {
 
 const routeRecordAttrs = `{"id":"ZLIVE0001_staging3.datacite.org_A","zone_id":"ZLIVE0001","name":"staging3.datacite.org","type":"A","ttl":300,"allow_overwrite":true}`
 
-func untaggableResidueStore(t *testing.T) *projection.ResidueStore {
+func untaggableResidueStore(t *testing.T) *projection.RecordStore {
 	t.Helper()
 	store, err := staterecord.NewLocalStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocalStore: %s", err)
 	}
-	return projection.NewResidueStore(store, untaggableEstate)
+	return projection.NewRecordEnvelopeStore(store, projection.RecordKeyPrefix(untaggableEstate))
 }
 
 // recordedResidue reads what the residue store actually holds for addr.
-func recordedResidue(t *testing.T, store *projection.ResidueStore, addr addrs.AbsResourceInstance) map[string]cty.Value {
+func recordedResidue(t *testing.T, store *projection.RecordStore, addr addrs.AbsResourceInstance) map[string]cty.Value {
 	t.Helper()
-	attrs, _, exists, err := store.Get(context.Background(), addr)
+	attrs, _, _, exists, err := store.GetResidue(context.Background(), addr)
 	if err != nil {
 		t.Fatalf("reading the residue record for %s: %s", addr, err)
 	}
@@ -213,13 +213,13 @@ func recordedResidue(t *testing.T, store *projection.ResidueStore, addr addrs.Ab
 	return attrs
 }
 
-func untaggableRatify(t *testing.T, store *projection.ResidueStore, state *states.State, p *untaggableProvider) *Ratification {
+func untaggableRatify(t *testing.T, store *projection.RecordStore, state *states.State, p *untaggableProvider) *Ratification {
 	t.Helper()
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:       untaggableEstate,
-		State:        state,
-		Providers:    p,
-		ResidueStore: store,
+		Estate:      untaggableEstate,
+		State:       state,
+		Providers:   p,
+		RecordStore: store,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())

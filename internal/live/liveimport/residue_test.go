@@ -86,13 +86,13 @@ func preserveFromPriorProvider() *tofu.MockProvider {
 	return p
 }
 
-func residueStore(t *testing.T) *projection.ResidueStore {
+func residueStore(t *testing.T) *projection.RecordStore {
 	t.Helper()
 	store, err := staterecord.NewLocalStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewLocalStore: %s", err)
 	}
-	return projection.NewResidueStore(store, "residue-test-estate")
+	return projection.NewRecordEnvelopeStore(store, projection.RecordKeyPrefix("residue-test-estate"))
 }
 
 // TestApprove_RecordsResidueForForceNewLikeAttribute is the positive case:
@@ -124,7 +124,7 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 				identity: cty.NilVal,
 			}},
 		},
-		residueStore: store,
+		recordStore: store,
 	}
 
 	rep, diags := rat.Approve(context.Background())
@@ -135,7 +135,7 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 		t.Fatalf("Outcomes = %+v, want one OutcomeStamped", rep.Outcomes)
 	}
 
-	attrs, _, exists, err := store.Get(context.Background(), addr)
+	attrs, _, _, exists, err := store.GetResidue(context.Background(), addr)
 	if err != nil {
 		t.Fatalf("store.Get: %s", err)
 	}
@@ -185,7 +185,7 @@ func TestApprove_SecondRunIsIdempotent(t *testing.T) {
 					identity: cty.NilVal,
 				}},
 			},
-			residueStore: store,
+			recordStore: store,
 		}
 	}
 
@@ -193,7 +193,7 @@ func TestApprove_SecondRunIsIdempotent(t *testing.T) {
 	if _, diags := buildRat().Approve(ctx); diags.HasErrors() {
 		t.Fatalf("first Approve returned errors: %s", diags.Err())
 	}
-	_, v1, exists, err := store.Get(ctx, addr)
+	_, v1, _, exists, err := store.GetResidue(ctx, addr)
 	if err != nil || !exists {
 		t.Fatalf("first Approve did not record residue: exists=%v err=%v", exists, err)
 	}
@@ -201,7 +201,7 @@ func TestApprove_SecondRunIsIdempotent(t *testing.T) {
 	if _, diags := buildRat().Approve(ctx); diags.HasErrors() {
 		t.Fatalf("second Approve returned errors: %s", diags.Err())
 	}
-	_, v2, exists, err := store.Get(ctx, addr)
+	_, v2, _, exists, err := store.GetResidue(ctx, addr)
 	if err != nil || !exists {
 		t.Fatalf("second Approve did not record residue: exists=%v err=%v", exists, err)
 	}

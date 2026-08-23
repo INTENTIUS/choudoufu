@@ -136,7 +136,9 @@ func recordedID(t *testing.T, store staterecord.Store, addr addrs.AbsResourceIns
 		return ""
 	}
 	var payload struct {
-		Attrs json.RawMessage `json:"attrs"`
+		Object struct {
+			Attrs json.RawMessage `json:"attrs"`
+		} `json:"object"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("the stored record for %s is not JSON: %s", addr, err)
@@ -144,7 +146,7 @@ func recordedID(t *testing.T, store staterecord.Store, addr addrs.AbsResourceIns
 	var attrs struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal(payload.Attrs, &attrs); err != nil {
+	if err := json.Unmarshal(payload.Object.Attrs, &attrs); err != nil {
 		t.Fatalf("the stored record's attrs for %s are not JSON: %s", addr, err)
 	}
 	return attrs.ID
@@ -153,11 +155,10 @@ func recordedID(t *testing.T, store staterecord.Store, addr addrs.AbsResourceIns
 func petRatify(t *testing.T, store staterecord.Store, state *states.State, p *petProvider) *Ratification {
 	t.Helper()
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:          petEstate,
-		State:           state,
-		Providers:       p,
-		RecordStore:     store,
-		RecordKeyPrefix: recordTestPrefix(),
+		Estate:      petEstate,
+		State:       state,
+		Providers:   p,
+		RecordStore: projection.NewRecordEnvelopeStore(store, recordTestPrefix()),
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())
@@ -349,11 +350,10 @@ func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 	store := petStore(t)
 	p := newPetProvider()
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:          petEstate,
-		State:           state,
-		Providers:       p,
-		RecordStore:     store,
-		RecordKeyPrefix: recordTestPrefix(),
+		Estate:      petEstate,
+		State:       state,
+		Providers:   p,
+		RecordStore: projection.NewRecordEnvelopeStore(store, recordTestPrefix()),
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())
@@ -372,7 +372,9 @@ func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 		t.Fatalf("reading the record: exists = %v, err = %v", exists, err)
 	}
 	var payload struct {
-		Attrs json.RawMessage `json:"attrs"`
+		Object struct {
+			Attrs json.RawMessage `json:"attrs"`
+		} `json:"object"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("the stored record is not JSON: %s", err)
@@ -380,7 +382,7 @@ func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 	var attrs struct {
 		Content string `json:"content"`
 	}
-	if err := json.Unmarshal(payload.Attrs, &attrs); err != nil {
+	if err := json.Unmarshal(payload.Object.Attrs, &attrs); err != nil {
 		t.Fatalf("the stored attrs are not JSON: %s", err)
 	}
 	if attrs.Content != "a-secret-build-plan" {
@@ -390,20 +392,22 @@ func TestApprove_RecordsAnObjectCarryingASensitiveAttribute(t *testing.T) {
 	// somewhere": the payload has to name the path that was marked, in the
 	// state file's own encoding, or projection cannot re-apply it.
 	var sens struct {
-		SensitiveAttrs json.RawMessage `json:"sensitive_attributes"`
+		Object struct {
+			SensitiveAttrs json.RawMessage `json:"sensitive_attributes"`
+		} `json:"object"`
 	}
 	if err := json.Unmarshal(raw, &sens); err != nil {
 		t.Fatalf("the stored record is not JSON: %s", err)
 	}
-	if got, want := string(sens.SensitiveAttrs), `[[{"type":"get_attr","value":"content"}]]`; got != want {
+	if got, want := string(sens.Object.SensitiveAttrs), `[[{"type":"get_attr","value":"content"}]]`; got != want {
 		t.Errorf("the record's sensitive_attributes = %s, want %s", got, want)
 	}
 	// And nothing else in the object is claimed sensitive: filename and id
 	// are not marked in the state, so a migration that marked them would be
 	// inventing sensitivity rather than carrying it.
 	for _, attr := range []string{"filename", `"id"`} {
-		if bytes.Contains(sens.SensitiveAttrs, []byte(attr)) {
-			t.Errorf("the record's sensitive_attributes names %s, which the state did not mark: %s", attr, sens.SensitiveAttrs)
+		if bytes.Contains(sens.Object.SensitiveAttrs, []byte(attr)) {
+			t.Errorf("the record's sensitive_attributes names %s, which the state did not mark: %s", attr, sens.Object.SensitiveAttrs)
 		}
 	}
 }

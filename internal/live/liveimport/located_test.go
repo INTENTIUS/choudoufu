@@ -177,15 +177,15 @@ func TestApprove_SelectedInstanceIsLocatedNotStamped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLocalStore: %s", err)
 	}
-	locatedStore := projection.NewLocatedStore(store, locatedTestEstate)
+	locatedStore := projection.NewRecordEnvelopeStore(store, projection.RecordKeyPrefix(locatedTestEstate))
 	p := newLocatedTestProvider()
 
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:       locatedTestEstate,
-		Config:       cfg,
-		State:        locatedVPCState(liveID),
-		Providers:    p,
-		LocatedStore: locatedStore,
+		Estate:      locatedTestEstate,
+		Config:      cfg,
+		State:       locatedVPCState(liveID),
+		Providers:   p,
+		RecordStore: locatedStore,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())
@@ -198,7 +198,7 @@ func TestApprove_SelectedInstanceIsLocatedNotStamped(t *testing.T) {
 	}
 
 	// Ratify never writes. The located namespace must still be empty.
-	if _, _, exists, err := locatedStore.Get(context.Background(), addr); err != nil {
+	if _, _, _, exists, err := locatedStore.GetIdentity(context.Background(), addr); err != nil {
 		t.Fatalf("reading the located store after Ratify: %s", err)
 	} else if exists {
 		t.Fatalf("Ratify wrote a located record; Ratify must never write")
@@ -220,7 +220,7 @@ func TestApprove_SelectedInstanceIsLocatedNotStamped(t *testing.T) {
 
 	// Claim 2: the RENDERED IDENTITY, read straight back out of the store,
 	// is the live object's own id - not merely "something was written".
-	rec, _, exists, err := locatedStore.Get(context.Background(), addr)
+	rec, _, _, exists, err := locatedStore.GetIdentity(context.Background(), addr)
 	if err != nil {
 		t.Fatalf("reading the located record: %s", err)
 	}
@@ -249,16 +249,16 @@ func TestApprove_UnselectedInstanceIsStampedNotLocated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLocalStore: %s", err)
 	}
-	locatedStore := projection.NewLocatedStore(store, locatedTestEstate)
+	locatedStore := projection.NewRecordEnvelopeStore(store, projection.RecordKeyPrefix(locatedTestEstate))
 	p := newLocatedTestProvider()
 
 	rat, diags := Ratify(context.Background(), Request{
 		Estate: locatedTestEstate,
 		// No Config at all: identity.SelectionFor(nil) selects nothing,
 		// which is every migration's behavior before this field existed.
-		State:        locatedVPCState(liveID),
-		Providers:    p,
-		LocatedStore: locatedStore,
+		State:       locatedVPCState(liveID),
+		Providers:   p,
+		RecordStore: locatedStore,
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())
@@ -275,7 +275,7 @@ func TestApprove_UnselectedInstanceIsStampedNotLocated(t *testing.T) {
 	if p.applyCount != 1 {
 		t.Errorf("ApplyResourceChange was called %d time(s), want exactly 1 (the tag write)", p.applyCount)
 	}
-	if _, _, exists, err := locatedStore.Get(context.Background(), addr); err != nil {
+	if _, _, _, exists, err := locatedStore.GetIdentity(context.Background(), addr); err != nil {
 		t.Fatalf("reading the located store: %s", err)
 	} else if exists {
 		t.Errorf("an unselected instance wrote a located record; it must be tag-stamped only")
@@ -300,7 +300,7 @@ func TestApprove_SelectedInstanceWithNoRecordStoreIsSkippedNotStamped(t *testing
 	if err != nil {
 		t.Fatalf("NewLocalStore: %s", err)
 	}
-	witnessStore := projection.NewLocatedStore(witness, locatedTestEstate)
+	witnessStore := projection.NewRecordEnvelopeStore(witness, projection.RecordKeyPrefix(locatedTestEstate))
 	p := newLocatedTestProvider()
 
 	rat, diags := Ratify(context.Background(), Request{
@@ -325,7 +325,7 @@ func TestApprove_SelectedInstanceWithNoRecordStoreIsSkippedNotStamped(t *testing
 	if p.applyCount != 0 {
 		t.Errorf("ApplyResourceChange was called %d time(s); a selected instance with nowhere to record its identity must not fall back to a tag write", p.applyCount)
 	}
-	if _, _, exists, err := witnessStore.Get(context.Background(), addr); err != nil {
+	if _, _, _, exists, err := witnessStore.GetIdentity(context.Background(), addr); err != nil {
 		t.Fatalf("reading the witness store: %s", err)
 	} else if exists {
 		t.Errorf("something wrote a located record to a store this run was never given")

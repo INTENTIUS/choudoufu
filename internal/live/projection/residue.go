@@ -170,7 +170,7 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 	if b.opts.RecordStore == nil || obj == nil || schema.Block == nil {
 		return
 	}
-	attrs, version, keyExists, residueFound, err := b.opts.RecordStore.getResidue(ctx, addr)
+	attrs, version, keyExists, residueFound, err := b.opts.RecordStore.GetResidue(ctx, addr)
 	if err != nil {
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueUnreadable, fmt.Sprintf(
 			"The residue record for %s could not be read: %s. The plan continues from what the provider returned, so any argument the provider does not give back will be proposed for update again on this run and every later one. Nothing was changed and nothing was written.",
@@ -691,7 +691,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 	// is what makes this matter - without a fresh read, the write would
 	// always assert "nothing recorded yet" and fail every time but the
 	// first.
-	_, version, _, _, getErr := store.getResidue(ctx, addr)
+	_, version, _, _, getErr := store.GetResidue(ctx, addr)
 	if getErr != nil {
 		return false, fmt.Errorf("reading the existing residue record for %s before writing: %w", addr, getErr)
 	}

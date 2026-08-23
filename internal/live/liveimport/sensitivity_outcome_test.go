@@ -64,11 +64,10 @@ func archivePlanState(sensitive bool) *states.State {
 func approveArchivePlan(t *testing.T, store staterecord.Store, sensitive bool) StampOutcome {
 	t.Helper()
 	rat, diags := Ratify(context.Background(), Request{
-		Estate:          petEstate,
-		State:           archivePlanState(sensitive),
-		Providers:       newPetProvider(),
-		RecordStore:     store,
-		RecordKeyPrefix: recordTestPrefix(),
+		Estate:      petEstate,
+		State:       archivePlanState(sensitive),
+		Providers:   newPetProvider(),
+		RecordStore: projection.NewRecordEnvelopeStore(store, recordTestPrefix()),
 	})
 	if diags.HasErrors() {
 		t.Fatalf("Ratify returned errors: %s", diags.Err())

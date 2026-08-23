@@ -81,7 +81,7 @@ func (s *testResidueStore) Get(ctx context.Context, addr addrs.AbsResourceInstan
 	if s == nil {
 		return nil, "", false, nil
 	}
-	attrs, version, _, found, err := s.rs.getResidue(ctx, addr)
+	attrs, version, _, found, err := s.rs.GetResidue(ctx, addr)
 	return attrs, version, found, err
 }
 

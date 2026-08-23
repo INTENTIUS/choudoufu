@@ -577,7 +577,7 @@ func (s *RecordStore) GetIdentity(ctx context.Context, addr addrs.AbsResourceIns
 
 // getResidue reads addr's Residue member - GitHub issue #275's argument
 // values. keyExists and residueFound carry [getIdentity]'s same distinction.
-func (s *RecordStore) getResidue(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
+func (s *RecordStore) GetResidue(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, keyExists bool, residueFound bool, err error) {
 	env, version, exists, err := s.getRaw(ctx, addr)
 	if err != nil {
 		return nil, "", false, false, err
