@@ -162,12 +162,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 4, Code: 0,
 	},
 	"tools/row-gen/schemafirst.go": {
-		Reason: "schemaFirstHeldByCorpus (#387): twelve schema-first drop candidates a real refusal-probe corpus sweep " +
-			"declares, verified 2026-08-23 by dropping the full candidate set and diffing before/after - each one raised " +
-			"unadmitted-type refusals or cost a resolved instance. `.corpus` is gitignored and network-fetched, so it " +
-			"cannot itself be a generator input; this is the same hand ledger tools/row-gen/annotations.json and " +
-			"rejected.json already are, cleared entry by entry by a future corpus sweep, never derived.",
-		Data: 12, Code: 0,
+		Reason: "schemaFirstHeldByCorpus (#387): six schema-first drop candidates a real refusal-probe corpus sweep " +
+			"declares that our own fixture trees do not, verified 2026-08-23 by dropping the full candidate set and " +
+			"diffing before/after - each one raised unadmitted-type refusals in the corpus sweep. `.corpus` is " +
+			"gitignored and network-fetched, so it cannot itself be a generator input; this is the same hand ledger " +
+			"tools/row-gen/annotations.json and rejected.json already are, cleared entry by entry by a future corpus " +
+			"sweep, never derived. Six more candidates the same sweep first found this way turned out to also be " +
+			"declared in our own fixtures, so goldenExercisedTypes catches them on its own and they are not here.",
+		Data: 6, Code: 0,
 	},
 	"tools/row-gen/identityattr.go": {
 		Reason: "identityAttrEvidence: the hand half of row-gen's criterion 3, every entry carrying the evidence actually " +
@@ -348,7 +350,7 @@ const (
 	// honored on the located route now that its general credential veto was
 	// narrowed to the identity attributes it actually records. Two Data
 	// literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 449
+	typeLiteralDataTotal = 443
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

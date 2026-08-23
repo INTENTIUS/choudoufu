@@ -85,7 +85,7 @@ func loadGoldenExercisedForTest(t *testing.T) map[string]bool {
 	if err != nil {
 		t.Fatalf("repoRoot: %v", err)
 	}
-	golden, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	golden, err := goldenExercisedTypes(root)
 	if err != nil {
 		t.Fatalf("goldenExercisedTypes: %v", err)
 	}

@@ -374,9 +374,9 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	// Ruling 2 (#387): the same schema-first exclusion -emit itself applies
 	// (emit.go), so a mode that measures what -emit would ship never sees a
 	// row -emit itself would drop. See schemafirst.go and goldenexercised.go.
-	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	goldenExercised, err := goldenExercisedTypes(root)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+		return nil, fmt.Errorf("scanning fixture trees for schemaFirstDrop's safety net: %w", err)
 	}
 	_, schemaReproducedDropped := schemaFirstDrop(ratified, grammar, goldenExercised)
 	excluded := setOf(append(append([]string(nil), vetoed...), schemaReproducedDropped...))

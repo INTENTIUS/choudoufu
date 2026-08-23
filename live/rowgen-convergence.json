@@ -1,11 +1,11 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1025,
-    "compared": 999,
+    "admitted_total": 1027,
+    "compared": 1001,
     "not_in_mapped_set": 26,
-    "adopted_unchanged": 853,
-    "adopted_unchanged_pct": 85.39,
+    "adopted_unchanged": 855,
+    "adopted_unchanged_pct": 85.41,
     "genuine_mismatches": 146,
     "annotated": 146,
     "unannotated_mismatches": 0,
@@ -53,9 +53,9 @@
       "adopted_unchanged_pct": 100
     },
     "ApiGateway": {
-      "compared": 17,
-      "adopted_unchanged": 15,
-      "adopted_unchanged_pct": 88.24
+      "compared": 19,
+      "adopted_unchanged": 17,
+      "adopted_unchanged_pct": 89.47
     },
     "ApiGatewayV2": {
       "compared": 4,
@@ -969,10 +969,8 @@
     }
   },
   "schema_reproduces": {
-    "count": 24,
+    "count": 22,
     "types": [
-      "aws_api_gateway_integration_response",
-      "aws_api_gateway_method_response",
       "aws_arczonalshift_zonal_autoshift_configuration",
       "aws_autoscaling_lifecycle_hook",
       "aws_cloudfrontkeyvaluestore_key",
@@ -999,6 +997,11 @@
     "candidate_count": 134,
     "held_by_golden": [
       "aws_acmpca_policy",
+      "aws_api_gateway_integration",
+      "aws_api_gateway_integration_response",
+      "aws_api_gateway_method",
+      "aws_api_gateway_method_response",
+      "aws_appautoscaling_policy",
       "aws_appautoscaling_target",
       "aws_appflow_connector_profile",
       "aws_appflow_flow",
@@ -1045,6 +1048,7 @@
       "aws_ecr_repository_policy",
       "aws_ecs_service",
       "aws_eks_access_entry",
+      "aws_eks_access_policy_association",
       "aws_eks_addon",
       "aws_eks_capability",
       "aws_eks_cluster",
@@ -1079,6 +1083,7 @@
       "aws_s3_bucket_public_access_block",
       "aws_s3_bucket_server_side_encryption_configuration",
       "aws_s3_bucket_versioning",
+      "aws_s3_directory_bucket",
       "aws_sagemaker_algorithm",
       "aws_sagemaker_endpoint_configuration",
       "aws_secretsmanager_secret_policy",
@@ -1091,6 +1096,7 @@
       "aws_sqs_queue_policy",
       "aws_ssm_parameter",
       "aws_ssm_patch_group",
+      "aws_ssoadmin_account_assignment",
       "aws_volume_attachment",
       "aws_vpc_endpoint_route_table_association",
       "aws_wafv2_web_acl_rule",
@@ -1098,17 +1104,11 @@
       "aws_xray_sampling_rule"
     ],
     "held_by_corpus": [
-      "aws_api_gateway_integration",
-      "aws_api_gateway_method",
-      "aws_appautoscaling_policy",
-      "aws_eks_access_policy_association",
       "aws_launch_configuration",
       "aws_organizations_policy_attachment",
       "aws_route53_vpc_association_authorization",
-      "aws_s3_directory_bucket",
       "aws_s3tables_table_bucket_policy",
       "aws_scheduler_schedule",
-      "aws_ssoadmin_account_assignment",
       "aws_vpc_security_group_vpc_association"
     ]
   },
@@ -1375,7 +1375,29 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_api_gateway_integration_response",
+      "service": "ApiGateway",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_api_gateway_method",
+      "service": "ApiGateway",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_api_gateway_method_response",
       "service": "ApiGateway",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",

@@ -251,9 +251,9 @@ func runConvergence(out, errOut *os.File) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
 	}
-	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	goldenExercised, err := goldenExercisedTypes(root)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+		return fmt.Errorf("scanning fixture trees for schemaFirstDrop's safety net: %w", err)
 	}
 	candidates, dropped := schemaFirstDrop(ratified, grammar, goldenExercised)
 	var heldByGolden, heldByCorpus []string

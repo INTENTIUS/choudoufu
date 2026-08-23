@@ -166,9 +166,9 @@ func runEmit(out, errOut *os.File, allowRetraction bool) error {
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", schemaFactsJSONRel, err)
 	}
-	goldenExercised, err := goldenExercisedTypes(filepath.Join(root, identityGoldenRel))
+	goldenExercised, err := goldenExercisedTypes(root)
 	if err != nil {
-		return fmt.Errorf("reading %s: %w", identityGoldenRel, err)
+		return fmt.Errorf("scanning fixture trees for schemaFirstDrop's safety net: %w", err)
 	}
 
 	files, identityPart, lintPart, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts, goldenExercised)

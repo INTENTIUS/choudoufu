@@ -6,86 +6,96 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-// identityGoldenRel is internal/live/check's own golden fixture, read here
-// as data rather than imported as a package - this file only ever reads its
-// rendered addresses, never its resolution logic.
-const identityGoldenRel = "internal/live/check/testdata/identity-golden.txt"
+// identityGoldenRoots mirrors internal/live/check's own identityGoldenRoots
+// (identitygolden_test.go): the two trees TestIdentityGolden sweeps. Kept in
+// sync by hand rather than imported, the same reason importGrammarRow and
+// the rest of this package's mirror types are re-declared instead of
+// imported - this file only ever reads fixture source text, never any of
+// check's resolution logic.
+var identityGoldenRoots = []string{"internal/live", "live"}
+
+// resourceDeclRe matches one HCL resource block's own type token:
+// `resource "aws_foo" "name" {`. The type is capture group 1.
+var resourceDeclRe = regexp.MustCompile(`(?m)^\s*resource\s+"([A-Za-z0-9_]+)"\s+"`)
 
 // goldenExercisedTypes is schemafirst.go's own safety net: every
-// provider-local resource type that appears anywhere in
-// internal/live/check's identity golden - the fixture TestIdentityGolden
-// holds byte-identical, analyzed with NO provider schemas at all (see that
-// test's own doc comment).
+// provider-local resource type this repository's own fixtures declare,
+// under either tree internal/live/check's identity golden sweeps AND
+// internal/live/flocitest.FixtureDirs' estate/cohort trees (a subtree of
+// "live") - the two independent, committed populations that hold a
+// dropped table row to account, both analyzed with NO provider schemas.
+//
+// It used to parse internal/live/check/testdata/identity-golden.txt's own
+// rendered addresses instead of scanning source, which is narrower than it
+// looks: that file lists only the instances that currently RESOLVE, so a
+// type declared in a fixture but already failing to resolve for some other,
+// unrelated reason left no address for that parse to find - exactly the gap
+// that let aws_api_gateway_integration_response and
+// aws_api_gateway_method_response through once, tripping
+// internal/live/identity's TestTableCoversFixtureTypes and
+// internal/live/lint's TestAdmissionTableCoversEstate, both of which scan
+// resource declarations directly rather than resolved output. Scanning
+// source is the union of what every consumer of this table could ever need:
+// a type with no declaration anywhere in these trees cannot be exercised by
+// any of them, resolved or not.
 //
 // Dropping a row from the emitted identity table makes
 // [identity.SynthesizeTypeIdentity] the type's only remaining resolution
 // path, and that function refuses outright the moment it is handed no
-// schemas (synthesize.go's own noSchemasRefusal). The golden's analysis is
-// exactly that schema-less case, by design, so a row this offline
-// approximation calls "reproduced" but that the golden actually exercises
-// would not merely render differently - the instance disappears from the
-// golden's output entirely, which is a real drop in what the golden's own
-// deliberately-cheap, deliberately-offline instrument can see, whatever the
-// real behaviour is once real schemas are loaded at plan time.
-//
-// So a candidate schemaFirstReproduced names is only actually dropped from
-// the emitted table when it names no type this function returns - see
-// [schemaFirstReproduced]'s own caller in emit.go and ratified.go.
-// Measured at the commit this file first landed: of 134 offline-reproducible
-// candidates, 97 are exercised somewhere in the golden and stay in the
-// table; the remaining 37 carry no fixture anywhere under internal/live or
-// live and are the ones this pass actually removes. That gap - the 97 - is
-// the concrete, load-bearing evidence that "the schema reproduces the row"
-// and "dropping the row is safe today" are two different claims: the first
-// is a fact about the provider's own schema, and the second additionally
-// depends on schemas being loaded wherever the drop is exercised, which the
-// golden's own harness deliberately never does.
-func goldenExercisedTypes(path string) (map[string]bool, error) {
-	f, err := os.Open(path) //nolint:gosec // a fixed path inside the checkout
-	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
-	}
-	defer f.Close() //nolint:errcheck // read-only, nothing to lose on close failure
-
+// schemas (synthesize.go's own noSchemasRefusal). Every schema-less
+// consumer of this table - the golden, the two coverage tests above,
+// admission itself - shares that same fallback, so a candidate declared
+// anywhere here is held back the same way regardless of which consumer
+// would have noticed first.
+func goldenExercisedTypes(root string) (map[string]bool, error) {
 	out := map[string]bool{}
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for sc.Scan() {
-		line := sc.Text()
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	for _, rel := range identityGoldenRoots {
+		base := filepath.Join(root, rel)
+		err := filepath.WalkDir(base, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil //nolint:nilerr // an unreadable subtree is skipped, not fatal
+			}
+			if d.IsDir() {
+				if d.Name() == ".terraform" {
+					return fs.SkipDir
+				}
+				return nil
+			}
+			if !hasHCLExt(path) {
+				return nil
+			}
+			data, err := os.ReadFile(path) //nolint:gosec // walking a fixed tree inside the checkout
+			if err != nil {
+				return fmt.Errorf("reading %s: %w", path, err)
+			}
+			for _, m := range resourceDeclRe.FindAllSubmatch(data, -1) {
+				out[string(m[1])] = true
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("scanning %s: %w", base, err)
 		}
-		cols := strings.Split(line, "\t")
-		if len(cols) < 2 {
-			continue
-		}
-		if t := addressType(cols[1]); t != "" {
-			out[t] = true
-		}
-	}
-	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("scanning %s: %w", identityGoldenRel, err)
 	}
 	return out, nil
 }
 
-// addressType reads the resource type off a rendered resource-instance
-// address, stripping any number of leading "module.<instance>." segments
-// first - a golden address like "module.counted[0].aws_eip.pool[0]" names
-// aws_eip, not "module".
-func addressType(addr string) string {
-	parts := strings.Split(addr, ".")
-	for len(parts) >= 2 && parts[0] == "module" {
-		parts = parts[2:]
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return parts[0]
+// hasHCLExt is the same file filter identitygolden_test.go's own sweep uses,
+// re-declared here for the reason this file's own doc comment gives - a .tf
+// or .tofu file, JSON forms included. (No fixture in either tree uses .tofu
+// or .tf.json today, but the loader accepts both, and a filter narrower than
+// what the loader reads is exactly the trap live-markers.md warns against.)
+func hasHCLExt(path string) bool {
+	return strings.HasSuffix(path, ".tf") ||
+		strings.HasSuffix(path, ".tf.json") ||
+		strings.HasSuffix(path, ".tofu") ||
+		strings.HasSuffix(path, ".tofu.json")
 }
