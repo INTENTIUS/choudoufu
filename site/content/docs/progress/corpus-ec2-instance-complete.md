@@ -12,15 +12,15 @@ Set: core. Lane: terraform-popular.
 
 Why it is in the core set: a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy
 
-**Not clear yet.**
+**Clear.** Every active stage passes.
 
 | Stage | Verdict | Detail |
 |---|---|---|
-| Cold deploy | not run |  |
-| Migrate | not run |  |
-| Replan from nothing | not run |  |
-| No-op apply | not run |  |
-| Drift and reconverge | not run |  |
+| Cold deploy | pass | 35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration |
+| Migrate | pass | 24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply |
+| Replan from nothing | pass | no resource change proposed, exactly 9 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2 |
+| No-op apply | pass | genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file |
+| Drift and reconverge | pass | one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to "ex-complete" |
 | Rename (planned) | not run |  |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
@@ -31,8 +31,7 @@ Why it is in the core set: a most-downloaded terraform-aws-modules example, pinn
 | Greenfield apply (planned) | not run |  |
 | Strict profile (planned) | not run |  |
 
-Verdicts were recorded from this estate's crossing script by hand before the
-script spoke the gauntlet protocol; the next run that does will replace them.
+Last run at commit `7d7d7cc29c` on 2026-08-23T19:39:56Z, exit code 0.
 
 ## Reproduce it
 
