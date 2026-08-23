@@ -246,6 +246,23 @@ type recordEnvelope struct {
 	// envelope to a caller.
 	Kind string `json:"kind,omitempty"`
 
+	// Provider is the managing provider instance address
+	// ([addrs.AbsProviderConfig.String]) at the moment this envelope was
+	// last written - states.Resource.ProviderConfig for write-back after
+	// an apply, or the migrated state's own recorded ProviderConfig at
+	// live-import. Ruled 2026-08-23 (#389 research): a record is the only
+	// place a DEPOSED object's managing provider can live later (#361, not
+	// this unit's scope - no deposed-object shape is added here), and it
+	// gives undeclared-resource provider selection (#69,
+	// [Options.UndeclaredProviders]) a source that is not a sweep.
+	//
+	// Empty for a v1 payload, which predates this field, and for any v2
+	// envelope written before this field existed - [decodeEnvelope]
+	// tolerates its absence exactly as it tolerates a v1 payload's absent
+	// Address: a reader treats an empty Provider as "not known from a
+	// record", the same answer it already had before this field existed.
+	Provider string `json:"provider,omitempty"`
+
 	Identity    *identityPayload   `json:"identity,omitempty"`
 	Object      *objectFields      `json:"object,omitempty"`
 	Residue     *residueFields     `json:"residue,omitempty"`
@@ -270,6 +287,19 @@ type recordEnvelope struct {
 // envelope with nothing left in it.
 func (env recordEnvelope) isEmpty() bool {
 	return env.Identity.empty() && env.Object == nil && env.Residue.empty() && env.Provisioned.empty()
+}
+
+// providerString renders p as [recordEnvelope.Provider]'s value, "" for a
+// zero-value address (no provider known - callers that never resolved one,
+// such as [recordLocatedFor]'s fallback path for an instance with no
+// carrier at all). [addrs.AbsProviderConfig] cannot be compared with ==
+// (its Module field is a slice), so this checks the one sub-field that is
+// never legitimately empty for a real provider address.
+func providerString(p addrs.AbsProviderConfig) string {
+	if p.Provider.Type == "" {
+		return ""
+	}
+	return p.String()
 }
 
 // decodeEnvelope reads raw as a [recordEnvelope], resolving a v1 payload

@@ -52,7 +52,7 @@ const SummaryLocatedIdentityNotRecorded = "Located identity could not be recorde
 // A nil store is an immediate no-op - a configuration with no record_store
 // block, where this population is left exactly where it was before this
 // mechanism existed: findable only by hand.
-func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, rec LocatedRecord) (SeedResult, error) {
+func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, rec LocatedRecord) (SeedResult, error) {
 	if store == nil {
 		return SeedUnchanged, nil
 	}
@@ -75,6 +75,7 @@ func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.
 
 	if _, putErr := store.mergeEnvelope(ctx, addr, version, func(env *recordEnvelope) {
 		env.Identity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+		env.Provider = providerString(provider)
 	}); putErr != nil {
 		return SeedUnchanged, fmt.Errorf("writing the located record for %s: %w", addr, putErr)
 	}

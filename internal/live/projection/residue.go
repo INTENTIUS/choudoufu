@@ -667,7 +667,7 @@ func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
@@ -697,6 +697,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 	}
 	if _, err := store.mergeEnvelope(ctx, addr, version, func(env *recordEnvelope) {
 		env.Residue = rf
+		env.Provider = providerString(provider)
 	}); err != nil {
 		return false, fmt.Errorf("recording residue for %s: %w", addr, err)
 	}

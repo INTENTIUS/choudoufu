@@ -130,6 +130,15 @@ type residuable struct {
 	schema   providers.Schema
 	typeName string
 
+	// providerAddr is the managing provider instance address the migrated
+	// state file recorded for this resource (states.Resource.ProviderConfig,
+	// not [impliedProviderAddr]'s rewritten namespace) - GitHub issue #389
+	// research, written into every record this migration seeds so a record
+	// is a source of that fact later (issue #361's deposed-object case, and
+	// issue #69's undeclared-resource provider selection) that is not a
+	// sweep.
+	providerAddr addrs.AbsProviderConfig
+
 	// applied is the object this instance's arguments are classified from.
 	//
 	// For a stampable instance it is the live object [Ratify] just read - the
@@ -178,6 +187,10 @@ type recordable struct {
 	value    cty.Value
 	private  []byte
 	status   states.ObjectStatus
+
+	// providerAddr is [residuable.providerAddr]'s same fact for a
+	// record-backed instance.
+	providerAddr addrs.AbsProviderConfig
 }
 
 // located is [eligible]'s sibling for an instance an operator's
@@ -558,7 +571,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 				typeName, req.Secrets, strict.DefaultSecrets)
 			return entry, carriers{}
 		}
-		return ratifyRecordBacked(entry, typeName, schema, inst)
+		return ratifyRecordBacked(entry, typeName, schema, inst, res.ProviderConfig)
 	}
 
 	// GitHub issue #365 slice 2's migrate-time half. Checked ahead of the
@@ -579,7 +592,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		identity.SelectedLocatedType(typeName, map[string]providers.Schema{typeName: schema})
 
 	if !selected && !taggable(schema.Block) {
-		return ratifyUntaggable(entry, provider, schema, typeName, inst)
+		return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
 	}
 
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
@@ -619,12 +632,13 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	}
 
 	sub := residuable{
-		provider: provider,
-		schema:   schema,
-		typeName: typeName,
-		applied:  readResp.NewState,
-		identity: readResp.NewIdentity,
-		private:  readResp.Private,
+		provider:     provider,
+		schema:       schema,
+		typeName:     typeName,
+		applied:      readResp.NewState,
+		identity:     readResp.NewIdentity,
+		private:      readResp.Private,
+		providerAddr: res.ProviderConfig,
 	}
 	if selected {
 		// The identity lives in the estate's record store, not in a marker:
@@ -676,7 +690,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 //
 // A store-less run (no live block, or a live block with no record_store)
 // builds no carrier, so it behaves exactly as it did before this existed.
-func ratifyUntaggable(entry Entry, provider providers.Interface, schema providers.Schema, typeName string, inst *states.ResourceInstance) (Entry, carriers) {
+func ratifyUntaggable(entry Entry, provider providers.Interface, schema providers.Schema, typeName string, inst *states.ResourceInstance, providerAddr addrs.AbsProviderConfig) (Entry, carriers) {
 	entry.Status = StatusUntaggable
 	entry.Detail = fmt.Sprintf("%s has no tags argument in the provider's schema, so there is nowhere on it to carry an ownership marker.", typeName)
 
@@ -695,12 +709,13 @@ func ratifyUntaggable(entry Entry, provider providers.Interface, schema provider
 	entry.LiveID = liveIDFrom(typeName, applied)
 
 	return entry, carriers{residuable: &residuable{
-		provider: provider,
-		schema:   schema,
-		typeName: typeName,
-		applied:  applied,
-		identity: prior.Identity,
-		private:  prior.Private,
+		provider:     provider,
+		schema:       schema,
+		typeName:     typeName,
+		applied:      applied,
+		identity:     prior.Identity,
+		private:      prior.Private,
+		providerAddr: providerAddr,
 	}}
 }
 
@@ -742,7 +757,7 @@ func secretMaterialType(typeName string) bool {
 // way the live system is the source of truth for a stamped resource, which
 // is the same split [projection.WriteBack] makes when it takes the final
 // state's object rather than re-reading the provider.
-func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, inst *states.ResourceInstance) (Entry, carriers) {
+func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, inst *states.ResourceInstance, providerAddr addrs.AbsProviderConfig) (Entry, carriers) {
 	prior, decErr := inst.Current.Decode(schema.Block.ImpliedType())
 	if decErr != nil {
 		entry.Status = StatusMissing
@@ -772,10 +787,11 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 	entry.LiveID = liveIDFrom(typeName, val)
 	entry.Detail = fmt.Sprintf("%s has no live object to tag: its value IS its identity, so an approved migration seeds this estate's record store from the state's own object for it rather than writing a marker.", typeName)
 	return entry, carriers{recordable: &recordable{
-		typeName: typeName,
-		value:    prior.Value,
-		private:  prior.Private,
-		status:   prior.Status,
+		typeName:     typeName,
+		value:        prior.Value,
+		private:      prior.Private,
+		status:       prior.Status,
+		providerAddr: providerAddr,
 	}}
 }
 

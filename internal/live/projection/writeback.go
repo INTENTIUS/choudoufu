@@ -197,6 +197,7 @@ func WriteBack(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
 			if _, err := req.Store.mergeEnvelope(ctx, addr, expected, func(env *recordEnvelope) {
 				env.Kind = recordKindObject
 				env.Object = of
+				env.Provider = providerString(res.ProviderConfig)
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err))
 			}
@@ -431,6 +432,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			}
 
 			_, err := req.Store.mergeEnvelope(ctx, addr, expected, func(env *recordEnvelope) {
+				env.Provider = providerString(res.ProviderConfig)
 				switch {
 				case setIdentity != nil:
 					env.Identity = setIdentity

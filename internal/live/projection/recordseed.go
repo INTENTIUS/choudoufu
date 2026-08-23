@@ -85,7 +85,7 @@ import (
 // A nil store makes this an immediate no-op - a configuration with no
 // record_store block declared, where a record-backed type is not admitted
 // for planning in the first place.
-func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, val cty.Value, private []byte, status states.ObjectStatus) (SeedResult, error) {
+func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, val cty.Value, private []byte, status states.ObjectStatus) (SeedResult, error) {
 	if store == nil {
 		return SeedUnchanged, nil
 	}
@@ -132,6 +132,7 @@ func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.A
 		if _, putErr := store.mergeEnvelope(ctx, addr, version, func(e *recordEnvelope) {
 			e.Kind = recordKindObject
 			e.Object = proposed
+			e.Provider = providerString(provider)
 		}); putErr != nil {
 			return SeedUnchanged, fmt.Errorf("adding the recorded sensitivity of %s: %w", addr, putErr)
 		}
@@ -146,6 +147,7 @@ func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.A
 	if _, putErr := store.mergeEnvelope(ctx, addr, "", func(e *recordEnvelope) {
 		e.Kind = recordKindObject
 		e.Object = proposed
+		e.Provider = providerString(provider)
 	}); putErr != nil {
 		return SeedUnchanged, fmt.Errorf("writing the record for %s: %w", addr, putErr)
 	}
