@@ -7,7 +7,11 @@ package projection
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -15,8 +19,10 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -1581,5 +1587,138 @@ func TestFillResidueSeesThroughASensitivityMark(t *testing.T) {
 	// half: this function must not launder a value on its way through.
 	if !filled.GetAttr("source_code_hash").IsMarked() == cold.GetAttr("source_code_hash").IsMarked() {
 		t.Error("an untouched attribute's marks changed on the way through fillResidue")
+	}
+}
+
+// TestResidueLandsUnderTheMergedNamespaceOnRealDisk is GitHub issue #390's
+// regression test: it is the one this package was missing, and its absence
+// is why #364 unit A1's on-disk namespace collapse could break every
+// crossing script that reads a residue record's PATH without any test in
+// this package - the one the gate runs on every unit - going red.
+//
+// #390 was bisected, by the numbers, to "corpus-mastino-dns's migrate
+// writes zero residue records" after A1 landed. Read directly against the
+// store rather than trusted from that bisection (HANDOFF.md: "read the API
+// directly, with no tofu in the loop"), the migrate wrote all fourteen
+// records, correctly. What had gone stale was live/e2e/corpus-mastino-dns/
+// run.sh's own path assertion, still pointed at the pre-A1 layout
+// (.tofu-records/tofu-residue/<estate>/<type>/<key>) that issue #364 unit
+// A1 replaced with one merged namespace
+// (tofu-records/<estate>/<type>/<key>, see [recordNamespaceRoot] and
+// [RecordKeyPrefix]) - a defect in the ORACLE, not in the write path,
+// exactly the shape HANDOFF.md's "a fixed wall makes stale scripts fail"
+// describes. Nothing here names aws_route53_record: this exercises the
+// same classifier and the same lambda-shaped fixture every other test in
+// this file uses, because the property under test - where an instance's
+// residue lands on a REAL local store - has nothing to do with which type
+// carries it.
+//
+// This uses a real [staterecord.LocalStore], not [localHintStore]'s
+// in-memory fake or a bare map: the whole point is to catch a regression in
+// the physical key layout, which only shows up once bytes actually go to a
+// filesystem through [RecordKey].
+//
+// The mutation this guards against: temporarily reverting
+// [recordNamespaceRoot] from "tofu-records" back to the pre-A1
+// "tofu-residue" literal (verified by hand while writing this test) moves
+// the file this test finds and the RawPath assertion below fails
+// immediately - loudly, in `go test`, rather than three stages deep into a
+// live gauntlet run against a real emulator.
+func TestResidueLandsUnderTheMergedNamespaceOnRealDisk(t *testing.T) {
+	ctx := context.Background()
+	const estate = "ondisk-residue-estate"
+	dir := t.TempDir()
+
+	backing, err := staterecord.NewLocalStore(dir)
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := NewRecordEnvelopeStore(backing, RecordKeyPrefix(estate))
+
+	schema := lambdaLikeSchema()
+	applied := lambdaApplied()
+	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
+
+	recorded, err := RecordResidueForInstance(ctx, store, addr, addrs.AbsProviderConfig{}, schema, applied, strict.DefaultSecrets, sdkv2LikeRead)
+	if err != nil {
+		t.Fatalf("RecordResidueForInstance: %s", err)
+	}
+	if !recorded {
+		t.Fatal("recorded=false: this fixture reproduces #275's classic shape (filename/source_code_hash/publish never echoed) and must classify as residue")
+	}
+
+	// COUNT: one instance's residue is one envelope, one file - not one file
+	// per attribute, and not zero because the classifier found nothing.
+	var files []string
+	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !strings.HasSuffix(path, ".lock") {
+			files = append(files, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walking the store directory: %s", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("found %d file(s) under the store directory, want exactly 1: %v", len(files), files)
+	}
+
+	// PATH: pins the merged single-namespace layout against a HARDCODED
+	// literal, deliberately not built through [RecordKeyPrefix] or
+	// [RecordKey] - going through the same helpers the production code uses
+	// would make this half of the test pass even if [recordNamespaceRoot]
+	// regressed to a pre-A1 value, since both sides would move together.
+	// This is the literal every crossing script that reads a residue
+	// record's path is written against, spelled out independently so a
+	// change to the constant is what this test is FOR catching.
+	wantRel := "tofu-records/" + estate + "/aws_lambda_function/" + base64.RawURLEncoding.EncodeToString([]byte(addr.String()))
+	wantPath := filepath.Join(dir, filepath.FromSlash(wantRel))
+	if files[0] != wantPath {
+		t.Fatalf("residue record written to %s, want %s (the merged tofu-records/<estate>/<type>/<key> layout) - the on-disk namespace moved", files[0], wantPath)
+	}
+
+	// VALUE: one record's attribute content, not just its existence. A
+	// record written with the wrong value produces an empty plan that is
+	// wrong, which no count-only check can see.
+	raw, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatalf("reading %s: %s", files[0], err)
+	}
+	var env struct {
+		Kind    string `json:"kind"`
+		Residue struct {
+			Attributes map[string]struct {
+				AttrType  json.RawMessage `json:"attrType"`
+				AttrValue json.RawMessage `json:"attrValue"`
+			} `json:"attributes"`
+		} `json:"residue"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("decoding the raw record: %s\nraw: %s", err, raw)
+	}
+	if env.Kind != recordKindIdentity {
+		t.Errorf("kind = %q, want %q", env.Kind, recordKindIdentity)
+	}
+	if len(env.Residue.Attributes) != 3 {
+		t.Fatalf("recorded %d residue attribute(s), want 3 (filename, source_code_hash, publish): %v", len(env.Residue.Attributes), env.Residue.Attributes)
+	}
+	filename, ok := env.Residue.Attributes["filename"]
+	if !ok {
+		t.Fatalf("no filename attribute recorded; got %v", env.Residue.Attributes)
+	}
+	if string(filename.AttrValue) != `"check_links.py.zip"` {
+		t.Errorf("filename attrValue = %s, want %q", filename.AttrValue, `"check_links.py.zip"`)
+	}
+
+	// Re-reading through the store's own API must agree with what is on
+	// disk - the two are supposed to be the same fact seen two ways.
+	attrs, _, _, found, err := store.GetResidue(ctx, addr)
+	if err != nil || !found {
+		t.Fatalf("GetResidue: found=%v err=%v", found, err)
+	}
+	if got := attrs["filename"]; !got.RawEquals(cty.StringVal("check_links.py.zip")) {
+		t.Errorf("GetResidue filename = %#v, want %#v", got, cty.StringVal("check_links.py.zip"))
 	}
 }
