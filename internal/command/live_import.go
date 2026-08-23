@@ -238,7 +238,7 @@ func liveImportReport(statePath string, rat *liveimport.Ratification) views.Stat
 }
 
 func liveImportStampReport(rep *liveimport.StampReport) views.StatelessImportStamped {
-	out := views.StatelessImportStamped{Estate: rep.Estate}
+	out := views.StatelessImportStamped{Estate: rep.Estate, IdentitiesRecorded: rep.IdentitiesRecorded}
 	for _, o := range rep.Outcomes {
 		out.Outcomes = append(out.Outcomes, views.StatelessImportOutcome{
 			Addr:     o.Addr.String(),
