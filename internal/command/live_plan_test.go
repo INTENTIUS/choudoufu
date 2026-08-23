@@ -1271,6 +1271,74 @@ func TestLivePlan_provisionerTaintIsRead(t *testing.T) {
 	}
 }
 
+// TestLivePlan_markersRecordPreservesExistingMarker is GitHub issue #380:
+// strict { markers "record" } used to withhold a selected resource's marker
+// by writing nothing into its tags at all, which is right for a resource
+// that never had one, but silently dropped one that already existed -
+// applying an in-place update that stripped tofu-address/tofu-estate off a
+// live object internal/live/stamp itself had put there before the selection
+// was added. That is HANDOFF.md's "applied unmarked / marker silently
+// disappears" failure, produced by this fork's own withholding.
+//
+// The fix (internal/live/stamp's SkipMarkersRecord branch) synthesizes
+// lifecycle { ignore_changes = [tags["tofu-estate"], tags["tofu-address"]] }
+// for the selected resource instead of writing nothing and leaving it there,
+// so an existing value on those two keys survives untouched. This is that
+// mechanism proven at the one level that can see a "live object already has
+// a marker" prior state: a real plan, not just the rewritten configuration.
+func TestLivePlan_markersRecordPreservesExistingMarker(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-plan-markers-record"), td)
+	t.Chdir(td)
+
+	const estate = "markers-record-unit"
+	cloud := newStatelessTestCloud()
+	// The live object as it looks right after migrating onto this
+	// selection: an ordinary run stamped it before strict { markers
+	// "record" } existed for it, so it still carries both marker tags.
+	cloud.putMarked("aws_vpc", "vpc-existing", estate, "aws_vpc.main", map[string]string{
+		"id": "vpc-existing", "cidr_block": "10.42.0.0/16",
+	})
+
+	// A record-located instance is bound through the estate's record store
+	// rather than through its marker (projection/located.go's
+	// materializeLocated), so the scenario needs one seeded too, or the
+	// plan would propose a CREATE instead of exercising the withholding
+	// path at all. Written by hand for the same reason
+	// TestLivePlan_provisionerTaintIsRead's taint record is: this package
+	// cannot reach projection's unexported write path, so the fixture
+	// writes the v2 wire shape directly - kind=identity with an import_id,
+	// exactly what an apply under this same selection would write back.
+	store, err := staterecord.NewLocalStore(filepath.Join(td, ".tofu-records"))
+	if err != nil {
+		t.Fatalf("opening the record store: %s", err)
+	}
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr("aws_vpc.main")
+	if addrDiags.HasErrors() {
+		t.Fatalf("parsing the address: %s", addrDiags.Err())
+	}
+	identityRecord := []byte(`{"format_version":2,"address":"` + addr.String() + `","kind":"identity","identity":{"import_id":"vpc-existing"}}`)
+	if _, err := store.PutIfAbsent(t.Context(), projection.RecordKey(projection.RecordKeyPrefix(estate), addr), identityRecord); err != nil {
+		t.Fatalf("seeding the located record: %s", err)
+	}
+
+	// No -estate flag: the live block names it, and live-plan refuses both
+	// at once.
+	c, done := newLivePlanCommand(t, cloud)
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	stdout := output.Stdout()
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0 (no changes: the existing marker must be left alone, not planned away)\nstdout:\n%s\nstderr:\n%s", code, stdout, output.Stderr())
+	}
+	if !strings.Contains(stdout, "No changes") {
+		t.Errorf("plan is not a no-op; the withheld marker was planned as a removal:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "tofu-address") || strings.Contains(stdout, "tofu-estate") {
+		t.Errorf("the plan mentions a marker tag at all, so something still proposes to touch it:\n%s", stdout)
+	}
+}
+
 // withLocalExecProvisioner gives a live-plan command a "local-exec"
 // provisioner to load a schema for. Schema loading is all it is ever asked
 // for here: live-plan never applies, so nothing in this file can run a
