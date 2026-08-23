@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "93cb51d281ba42c6470419f0191e1db6e4ed56a5",
+  "commit": "7d7d7cc29c8680625f97f2dd41f5f34f6026fba3",
   "emulator": "ghcr.io/lex00/floci@sha256:78262a598550703a53da9a856099c0421307bbccd942aa53e12d3758eff2a4bb",
-  "generated": "2026-08-23T17:40:47Z",
+  "generated": "2026-08-23T19:38:32Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -135,12 +135,12 @@
     "all": {
       "label": "All estates",
       "estates": 26,
-      "clear": 19,
+      "clear": 20,
       "stages": {
         "cold_deploy": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
           "pass": 0,
@@ -173,9 +173,9 @@
           "not_run": 26
         },
         "drift_reconverge": {
-          "pass": 20,
+          "pass": 21,
           "fail": 0,
-          "not_run": 6
+          "not_run": 5
         },
         "greenfield": {
           "pass": 0,
@@ -183,9 +183,9 @@
           "not_run": 26
         },
         "migrate": {
-          "pass": 25,
+          "pass": 26,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "plan_approval": {
           "pass": 0,
@@ -198,26 +198,26 @@
           "not_run": 26
         },
         "test_apply": {
-          "pass": 20,
+          "pass": 21,
           "fail": 0,
-          "not_run": 6
+          "not_run": 5
         },
         "test_plan": {
-          "pass": 19,
+          "pass": 20,
           "fail": 6,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
     "core": {
       "label": "Core estates",
       "estates": 25,
-      "clear": 18,
+      "clear": 19,
       "stages": {
         "cold_deploy": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_count": {
           "pass": 0,
@@ -250,9 +250,9 @@
           "not_run": 25
         },
         "drift_reconverge": {
-          "pass": 19,
+          "pass": 20,
           "fail": 0,
-          "not_run": 6
+          "not_run": 5
         },
         "greenfield": {
           "pass": 0,
@@ -260,9 +260,9 @@
           "not_run": 25
         },
         "migrate": {
-          "pass": 24,
+          "pass": 25,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "plan_approval": {
           "pass": 0,
@@ -275,14 +275,14 @@
           "not_run": 25
         },
         "test_apply": {
-          "pass": 19,
+          "pass": 20,
           "fail": 0,
-          "not_run": 6
+          "not_run": 5
         },
         "test_plan": {
-          "pass": 18,
+          "pass": 19,
           "fail": 6,
-          "not_run": 1
+          "not_run": 0
         }
       }
     }
@@ -419,23 +419,35 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
       "script": "live/e2e/corpus-ec2-instance-complete/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
+        "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
-        "migrate": "not_run",
+        "migrate": "pass",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "protocol": "legacy"
+      "clear": true,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "7d7d7cc29c8680625f97f2dd41f5f34f6026fba3",
+        "date": "2026-08-23T19:39:56Z",
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
+          "drift_reconverge": "one object tampered, exactly 1 object proposed and applied (0 added, 1 changed, 0 destroyed), tag reconverged to \"ex-complete\"",
+          "migrate": "24 of 35 eligible (11 untaggable across 5 types - aws_iam_role_policy_attachment, aws_volume_attachment, aws_security_group_rule x2, aws_route, aws_route_table_association x6 - all resolved by provider identity schema), 24 stamped, 0 failed, 11 skipped; the IAM role policy attachment's composite live id asserted by value; genuine no-op on the follow-up apply",
+          "test_apply": "genuine no-op (0 added, 0 changed, 0 destroyed); 24 objects before, 24 after, no state file",
+          "test_plan": "no resource change proposed, exactly 9 foreign objects (the instance's own root volume + floci's default-VPC bootstrap); instance tofu-address re-checked against EC2"
+        }
+      }
     },
     {
       "name": "corpus-ecs-fargate",
