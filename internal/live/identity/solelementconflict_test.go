@@ -127,7 +127,7 @@ func TestSecurityGroupRuleSourceSegmentReachesTheRecordRung(t *testing.T) {
 	// The mechanics, asserted by value: the five fixed segments resolve as
 	// before, and the sixth is now a variadic tail over the ratified
 	// family - not a refusal, and not an inferred `id`.
-	parts, variadicGroup, sep, ok := resolveDocumentedImportID("aws_security_group_rule", block)
+	parts, variadicGroup, _, sep, ok := resolveDocumentedImportID("aws_security_group_rule", block)
 	if !ok {
 		t.Fatal("resolveDocumentedImportID(real aws_security_group_rule schema) refused; want the variadic tail " +
 			"to admit it - see variadicTrailingGroup and VariadicTrailingImportIDTypes")
@@ -207,7 +207,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 			cty.ListVal([]cty.Value{cty.StringVal("::/0")}),
 			nullList, nullStr,
 		)
-		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_")
 		if !ok {
 			t.Fatal("refused an object carrying every fixed segment plus two real family members")
 		}
@@ -219,7 +219,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 
 	t.Run("a single family set, unchanged from the ordinary one-source shape", func(t *testing.T) {
 		o := obj(cty.ListVal([]cty.Value{cty.StringVal("10.0.3.0/24")}), nullList, nullList, nullStr)
-		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_")
 		if !ok {
 			t.Fatal("refused an object with exactly one family member set")
 		}
@@ -234,7 +234,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 			cty.ListVal([]cty.Value{cty.StringVal("10.1.0.0/16"), cty.StringVal("10.2.0.0/16")}),
 			nullList, nullList, nullStr,
 		)
-		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_")
 		if !ok {
 			t.Fatal("refused an object with one family carrying two elements")
 		}
@@ -249,7 +249,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 			cty.ListVal([]cty.Value{cty.StringVal("10.0.3.0/24").Mark("secret")}),
 			nullList, nullList, nullStr,
 		)
-		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_"); ok {
 			t.Errorf("composed %q from a marked element; a forcibly unmarked value must never flow into an "+
 				"identity component", got)
 		}
@@ -260,7 +260,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 			cty.ListVal([]cty.Value{cty.UnknownVal(cty.String)}),
 			nullList, nullList, nullStr,
 		)
-		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_"); ok {
 			t.Errorf("composed %q from an unknown element; this function is called on an applied object and "+
 				"an unknown value there is not a value to guess a token from", got)
 		}
@@ -268,7 +268,7 @@ func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
 
 	t.Run("every family member absent refuses on the segment-count floor", func(t *testing.T) {
 		o := obj(nullList, nullList, nullList, nullStr)
-		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, nil, "_"); ok {
 			t.Errorf("composed %q with no source at all; the real schema's AtLeastOneOf makes this "+
 				"configuration impossible, but the function must not silently compose a five-token string as "+
 				"though the sixth were optional", got)

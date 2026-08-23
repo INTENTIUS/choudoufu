@@ -305,10 +305,52 @@ func variadicTrailingGroup(resourceType string, b *configschema.Block, segmentNa
 // segment may take this path: a variadic grammar is documented as
 // "SOURCE[_SOURCE]*", always at the end, because a delimited string has no
 // other way to say "this and the following N tokens are one family".
-func resolveDocumentedImportID(resourceType string, b *configschema.Block) (parts []string, variadicGroup []string, separator string, ok bool) {
+//
+// # The any-of segment
+//
+// A segment that names no single argument can ALSO be the page's own way of
+// describing several MUTUALLY EXCLUSIVE arguments in one place - aws_route's
+// "DESTINATION" is the type this closes (GitHub issue #364): the Import
+// section's own grammar is "ROUTETABLEID_DESTINATION", and "destination" is
+// not one argument but whichever of destination_cidr_block,
+// destination_ipv6_cidr_block or destination_prefix_list_id the route
+// actually carries (an ExactlyOneOf on the real hashicorp/aws 6.59.0
+// schema). Before this existed, such a segment fell through to the same "id
+// inference" the case above makes for a genuinely absent segment - and for
+// aws_route that inference is not a guess this package failed to
+// disambiguate, it is PROVABLY WRONG: read directly from the provider's own
+// source (hashicorp/terraform-provider-aws, internal/service/ec2/id.go and
+// vpc_route.go, no terraform in the loop), `id` is
+// `fmt.Sprintf("r-%s%d", routeTableID, create.StringHashcode(destination))`
+// - an opaque hash, never the "ROUTETABLEID_DESTINATION" string the page
+// documents and routeImportID.Parse expects back. [namedAlternativeGroup]
+// is what recognises this shape instead of guessing `id`: the type's own
+// ratified [Component] for the SAME import syntax already models the
+// alternation on the config side ({Attrs: [destination_cidr_block,
+// destination_ipv6_cidr_block, destination_prefix_list_id]}), and this
+// reuses that same roster rather than re-deriving it, for
+// [variadicTrailingGroup]'s own reason: knowing a segment's name collides
+// with several schema attributes does not say WHICH several belong
+// together, and the ratified row already answers that, audited once.
+//
+// Unlike the variadic tail, an any-of segment is not restricted to the
+// grammar's last position - nothing about a single mutually-exclusive
+// choice needs the "and everything after" grammar a delimited string
+// reserves for a trailing family - but [namedAlternativeGroup]'s positional
+// correlation against the ratified row still requires the two sides to
+// agree on how many non-literal segments the import string has, so a
+// mismatched row refuses rather than guesses which position lines up with
+// which.
+//
+// resolveDocumentedImportID resolves resourceType's real value only at
+// write time - alternatives is a set of CANDIDATE attribute names for that
+// segment, not a resolved one, and [LocatedComposedImportID] is what picks
+// the single populated member off the applied object, refusing rather than
+// choosing when zero or more than one are set.
+func resolveDocumentedImportID(resourceType string, b *configschema.Block) (parts []string, variadicGroup []string, alternatives [][]string, separator string, ok bool) {
 	g, known := DocumentedImportIDs[resourceType]
 	if !known || b == nil || g.Separator == "" || len(g.Parts) < 2 {
-		return nil, nil, "", false
+		return nil, nil, nil, "", false
 	}
 
 	byName := attrsByDocName(b)
@@ -316,14 +358,16 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 	resolved := make([]string, len(g.Parts))
 	claimed := make(map[string]bool, len(g.Parts))
 	inferred := -1
+	special := false
 	for i, p := range g.Parts {
 		attr, found := byName[p.Name]
 		if !found {
-			if p.Argument || inferred >= 0 {
+			if p.Argument || special {
 				// See this function's doc comment: a named configuration
 				// argument the schema does not carry is a disagreement,
-				// and a second unresolved segment is a coin toss.
-				return nil, nil, "", false
+				// and a second unresolved segment is a coin toss - whether
+				// the first one used the id-inference or the any-of route.
+				return nil, nil, nil, "", false
 			}
 			if pluralCollectionCollision(b, p.Name) {
 				// The segment's own name, pluralized, names a real
@@ -352,16 +396,31 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 				// on the variadic tail and [variadicTrailingGroup].
 				if i == len(g.Parts)-1 {
 					if group, gok := variadicTrailingGroup(resourceType, b, p.Name); gok {
-						return resolved[:i], group, g.Separator, true
+						return resolved[:i], group, nil, g.Separator, true
 					}
 				}
-				return nil, nil, "", false
+				return nil, nil, nil, "", false
+			}
+			if group, gok := namedAlternativeGroup(resourceType, i, len(g.Parts), b); gok {
+				// See this function's doc comment, "The any-of segment":
+				// the ratified row already models this position as several
+				// mutually-exclusive arguments rather than one, so the
+				// bare-id guess below is not the best available answer -
+				// resolveAlternativeSegment picks the real one at write
+				// time, off the applied object.
+				if alternatives == nil {
+					alternatives = make([][]string, len(g.Parts))
+				}
+				alternatives[i] = group
+				special = true
+				continue
 			}
 			inferred = i
+			special = true
 			continue
 		}
 		if claimed[attr] {
-			return nil, nil, "", false
+			return nil, nil, nil, "", false
 		}
 		claimed[attr] = true
 		resolved[i] = attr
@@ -370,12 +429,72 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 	if inferred >= 0 {
 		a, has := b.Attributes[locatedImportIDAttr]
 		if !has || a == nil || a.Type != cty.String || claimed[locatedImportIDAttr] {
-			return nil, nil, "", false
+			return nil, nil, nil, "", false
 		}
 		resolved[inferred] = locatedImportIDAttr
 	}
 
-	return resolved, nil, g.Separator, true
+	return resolved, nil, alternatives, g.Separator, true
+}
+
+// namedAlternativeGroup reports the several attributes a documented import
+// segment at index `position` (of `partCount` total, non-literal segments)
+// may resolve to, when resourceType's own ratified identity-table row
+// already models that SAME position as an ANY-OF over more than one
+// argument - GitHub issue #364's aws_route is the type that exposed this;
+// see [resolveDocumentedImportID]'s "any-of segment" doc section for the
+// full account of why bare `id` is provably wrong for it.
+//
+// The correlation is POSITIONAL, not by name: [DocumentedImportIDs]' Parts
+// and the ratified row's own [TypeIdentity.Components] - with pure-Literal
+// separators dropped - describe the SAME documented import string, built by
+// two independent tools from two independent sources (docimportid-gen
+// scrapes the Import section's prose; row-gen ratifies table.go's
+// Components from the same page plus the schema), so a row whose
+// non-literal component count matches the documented part count names each
+// documented segment's real candidate set at the identical index. A row
+// with a different shape - fewer or more non-literal components than the
+// grammar has segments - refuses rather than guesses which position lines
+// up with which.
+//
+// Only a component whose Attrs names more than one attribute, and which is
+// neither [Component.SoleElement] (a list collapsed to its one element,
+// aws_security_group_rule's own different shape) nor [Component.PerElement]
+// (one segment per element of a set), is this shape: a bare, ordinary
+// alternation where the CONFIG side already picks "whichever the
+// configuration set" and this function's caller must instead pick
+// "whichever the APPLIED OBJECT set".
+//
+// Every candidate the group names must be a top-level string attribute on
+// the schema actually served, or the whole group is unsafe to render this
+// run - [variadicTrailingGroup]'s own reason.
+func namedAlternativeGroup(resourceType string, position, partCount int, b *configschema.Block) ([]string, bool) {
+	row, ok := LookupType(resourceType)
+	if !ok {
+		return nil, false
+	}
+	var attrComps []Component
+	for _, c := range row.Components {
+		if len(c.Attrs) > 0 {
+			attrComps = append(attrComps, c)
+		}
+	}
+	if len(attrComps) != partCount || position < 0 || position >= len(attrComps) {
+		return nil, false
+	}
+	comp := attrComps[position]
+	if len(comp.Attrs) < 2 || comp.SoleElement || comp.PerElement {
+		return nil, false
+	}
+	group := make([]string, 0, len(comp.Attrs))
+	for _, attr := range comp.Attrs {
+		a := b.Attributes[attr]
+		if a == nil || a.Type != cty.String {
+			return nil, false
+		}
+		group = append(group, attr)
+	}
+	return group, true
 }
 
 // attrsByDocName indexes b's top-level string and number attributes by
@@ -460,6 +579,11 @@ func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
 // string out of the attributes [resolveDocumentedImportID] named, in the
 // order it named them, followed by variadicGroup's rendering when
 // [resolveDocumentedImportID] resolved a variadic tail (nil otherwise).
+// alternatives, when non-nil, names - for the SAME indices as parts - the
+// several candidate attributes a position resolves to when
+// [namedAlternativeGroup] found an any-of segment there instead of a single
+// named one; parts[i] is then empty and resolveAlternativeSegment picks the
+// one candidate the applied object actually populated.
 //
 // It is the write-back counterpart of that resolution, and it is
 // all-or-nothing for [LocatedIdentity]'s reason: a string missing a segment
@@ -475,6 +599,12 @@ func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
 // on the real provider schema - some members being unset is the ordinary
 // case for every instance, not a defect in this one.
 //
+// An any-of segment is held to the SAME all-or-nothing rule from the other
+// direction: [resolveAlternativeSegment] refuses when zero or more than one
+// candidate is populated, because picking between two live candidates, or
+// inventing a value for none, is exactly the wrong identity this whole
+// mechanism exists to never write.
+//
 // The extra refusal here is the separator collision. A segment whose own
 // value contains the join character makes the composed string ambiguous - the
 // provider's importer splits on that character and would see more segments
@@ -485,12 +615,20 @@ func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
 // A segment [attrsByDocName] resolved against a number attribute is rendered
 // by [locatedAttrSegment], not read as a string directly - see that
 // function's doc comment for what "rendered" means and what it refuses.
-func LocatedComposedImportID(obj cty.Value, parts []string, variadicGroup []string, separator string) (string, bool) {
+func LocatedComposedImportID(obj cty.Value, parts []string, variadicGroup []string, alternatives [][]string, separator string) (string, bool) {
 	if separator == "" || (len(parts) == 0 && len(variadicGroup) == 0) {
 		return "", false
 	}
 	segments := make([]string, 0, len(parts)+len(variadicGroup))
-	for _, name := range parts {
+	for i, name := range parts {
+		if i < len(alternatives) && alternatives[i] != nil {
+			v, ok := resolveAlternativeSegment(obj, alternatives[i])
+			if !ok || strings.Contains(v, separator) {
+				return "", false
+			}
+			segments = append(segments, v)
+			continue
+		}
 		v, ok := locatedAttrSegment(obj, name)
 		if !ok || strings.Contains(v, separator) {
 			return "", false
@@ -524,6 +662,40 @@ func LocatedComposedImportID(obj cty.Value, parts []string, variadicGroup []stri
 		return "", false
 	}
 	return strings.Join(segments, separator), true
+}
+
+// resolveAlternativeSegment picks the single populated attribute out of a
+// [namedAlternativeGroup]-shaped set of candidates on an applied object,
+// refusing - rather than guessing - when zero or more than one member is
+// populated.
+//
+// This is HANDOFF's safety rule applied to a WRITE rather than a read: a
+// wrong identity is silent, and choosing between two live candidates would
+// produce exactly that with no way for a later reader to tell. Every type
+// this reaches today (aws_route, per [resolveDocumentedImportID]'s doc
+// comment) documents the group as mutually exclusive on the real provider
+// schema (ExactlyOneOf), so "more than one populated" is not a shape the
+// provider itself should ever produce - refusing it anyway, rather than
+// picking the first match, is what keeps a future schema change from
+// silently starting to guess.
+func resolveAlternativeSegment(obj cty.Value, group []string) (string, bool) {
+	value := ""
+	found := false
+	for _, name := range group {
+		v, ok := locatedAttrSegment(obj, name)
+		if !ok {
+			continue
+		}
+		if found {
+			return "", false
+		}
+		value = v
+		found = true
+	}
+	if !found {
+		return "", false
+	}
+	return value, true
 }
 
 // locatedVariadicSegments is [locatedAttrSegment]'s counterpart for one
