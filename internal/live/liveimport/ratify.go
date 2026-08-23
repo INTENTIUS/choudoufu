@@ -17,7 +17,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -255,15 +254,6 @@ type Request struct {
 	// address, keyed exactly as [states.Resource.ProviderConfig] names it.
 	Providers Providers
 
-	// ResidueStore is GitHub issue #275's argument-level residue store,
-	// opened for this estate exactly the way live-plan and a stateless apply
-	// open theirs - nil when the configuration declares no record_store.
-	// See [projection.RecordResidueForInstance]'s doc comment (issue #327)
-	// for why Approve, not Ratify, is where this gets used: recording
-	// residue is a write, and this package's whole contract is that Ratify
-	// never writes anything.
-	ResidueStore *projection.ResidueStore
-
 	// Secrets is the root module's `strict { secrets = ... }` setting,
 	// GitHub issue #365, resolved by the caller with identity.SecretsFor.
 	//
@@ -286,26 +276,32 @@ type Request struct {
 	// strict.DefaultSecrets, not the zero value. See identity.SecretsFor.
 	Secrets strict.Secrets
 
-	// RecordStore is GitHub issue #73's record store itself - the same one
-	// ResidueStore is layered over, opened by the same caller from the same
-	// record_store block - and RecordKeyPrefix is the namespace that block
-	// resolves to ([projection.RecordStoreKeyPrefix]).
+	// RecordStore is GitHub issue #364's one per-instance record store,
+	// opened by the same caller from the same record_store block: GitHub
+	// issue #73's record-backed values, issue #270's record-located
+	// identities (what [located] needed and never had before the two
+	// shared a store - without it, an instance [Config]'s selection covers
+	// has nowhere for Approve to write its identity, so it falls back to
+	// being tag-stamped exactly as it was before this field existed) and
+	// issue #275's residue (Approve, not Ratify, is where this gets used -
+	// recording residue is a write, and this package's whole contract is
+	// that Ratify never writes anything).
 	//
 	// Issue #340: a record-backed instance has no live object to tag, so its
 	// whole migration IS this write. Nil - no live block, or a live block
 	// with no record_store - makes Approve leave every record-backed
 	// instance SKIPPED exactly as it did before, which is the right answer
 	// there: without a store, internal/live/lint does not admit a
-	// record-backed type for planning either.
-	RecordStore staterecord.Store
+	// record-backed type for planning either. The same nil-safety fails
+	// every other one of these facts back to its own pre-#364 fallback -
+	// see [recordOne], [locateOne] and [recordResidueFor].
+	RecordStore *projection.RecordStore
 
-	// RecordKeyPrefix is the key namespace RecordStore's records live under.
-	// Ignored when RecordStore is nil.
-	RecordKeyPrefix string
-
-	// RootOutputStore is GitHub issue #349's root-output namespace, a sixth
-	// namespace in ordinarily the same store the other three views are
-	// layered over, opened by the same caller from the same record_store
+	// RootOutputStore is GitHub issue #349's root-output namespace, a
+	// second store rather than a member of the one above: an output names
+	// no live object at all, and RecordStore is where instance-shaped facts
+	// live, but a root output is not an instance and orphan discovery never
+	// needs to see it, opened by the same caller from the same record_store
 	// block.
 	//
 	// A migration is where an estate's remembered output values come from,
@@ -316,22 +312,9 @@ type Request struct {
 	// output with no prior value, exactly as before, which renders as
 	// "+ name = ..." on the next stateless plan.
 	//
-	// Like the record and residue stores it is used by Approve and not by
-	// Ratify: writing is what Approve is for.
+	// Like the record store it is used by Approve and not by Ratify:
+	// writing is what Approve is for.
 	RootOutputStore *projection.RootOutputStore
-
-	// LocatedStore is GitHub issue #270's record-located namespace, wrapping
-	// the same store the record, residue and root-output views layer over -
-	// opened by the same caller from the same record_store block, the way
-	// live-plan and a stateless apply both open theirs.
-	//
-	// This is what [located] needed and never had: without it, an instance
-	// [Config]'s selection covers has nowhere for Approve to write its
-	// identity, so it falls back to being tag-stamped exactly as it was
-	// before this field existed - the same fail-safe every other nil store
-	// in this package takes. See [located]'s doc comment for the gap this
-	// closes.
-	LocatedStore *projection.LocatedStore
 }
 
 // Ratification is one pass's read-only findings, plus what a later Approve
@@ -356,14 +339,15 @@ type Ratification struct {
 	// both of which embed the same thing.
 	residuable map[string]*residuable
 
-	residueStore *projection.ResidueStore
-
 	// secrets is [Request.Secrets], carried through to Approve because that
 	// is where residue is written. See that field.
 	secrets strict.Secrets
 
-	recordStore     staterecord.Store
-	recordKeyPrefix string
+	// recordStore is [Request.RecordStore], carried through because that is
+	// where a record-backed instance's value, a [located] instance's
+	// identity and every eligible instance's residue are all written -
+	// Approve, not Ratify, is where every write in this package happens.
+	recordStore *projection.RecordStore
 
 	// rootOutputStore and rootOutputs are GitHub issue #349's migration
 	// half. A stock state file holds the value every root-level `output`
@@ -388,11 +372,6 @@ type Ratification struct {
 	// [Request.Config]'s doc comment for why a zero [identity.Context] is
 	// the right input here rather than a gap.
 	resolved *identity.Result
-
-	// locatedStore is [Request.LocatedStore], carried through because that
-	// is where a [located] instance's identity is written - Approve, not
-	// Ratify, is where every write in this package happens.
-	locatedStore *projection.LocatedStore
 }
 
 // Ratify reads every managed resource instance in req.State - root module
@@ -430,13 +409,10 @@ func Ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		recordable:      make(map[string]*recordable),
 		located:         make(map[string]*located),
 		residuable:      make(map[string]*residuable),
-		residueStore:    req.ResidueStore,
 		secrets:         req.Secrets,
 		recordStore:     req.RecordStore,
-		recordKeyPrefix: req.RecordKeyPrefix,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
-		locatedStore:    req.LocatedStore,
 	}
 
 	if req.Config != nil {

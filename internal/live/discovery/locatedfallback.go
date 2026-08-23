@@ -147,7 +147,11 @@ func scanTypeLocatedFallback(ctx context.Context, req Request, decl *declared, t
 	if req.HintStore == nil {
 		return diags, false
 	}
-	located := projection.NewLocatedStore(req.HintStore, req.Estate)
+	prefix := req.KeyPrefix
+	if prefix == "" {
+		prefix = projection.RecordKeyPrefix(req.Estate)
+	}
+	located := projection.NewRecordEnvelopeStore(req.HintStore, prefix)
 
 	ti, tableOK := identity.LookupType(typeName)
 	identityAttr := "id"
@@ -165,7 +169,7 @@ func scanTypeLocatedFallback(ctx context.Context, req Request, decl *declared, t
 			continue
 		}
 
-		rec, _, exists, err := located.Get(ctx, entry.res.Addr)
+		rec, _, _, exists, err := located.GetIdentity(ctx, entry.res.Addr)
 		if err != nil {
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemLocatedRecordUnreadable,

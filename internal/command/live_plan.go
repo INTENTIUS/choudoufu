@@ -414,38 +414,34 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		UndeclaredProvider:  discoProvider,
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, pol, reconcileVerified),
-		// Issue #270. The store above is already open for the hint, and a
-		// record-located instance needs it for a different and stricter
-		// reason: without it nothing can say which live object the
-		// instance owns, so live-plan would report the resource as
-		// uncreated rather than showing what it is. NewLocatedStore(nil,
-		// ...) is nil, so a store that would not open leaves this nil and
-		// the projection raises its own named refusal - which is the right
-		// answer here, unlike for the hint, where a missing store only
-		// costs time.
-		LocatedStore: projection.NewLocatedStore(hintStore, estate),
-		// Issue #275. Same store again, third namespace. live-plan never
-		// applies, so it never WRITES residue; reading it is what makes
-		// live-plan's report agree with what `plan` would show for the same
-		// estate, rather than listing an update the real plan does not have.
-		ResidueStore: projection.NewResidueStore(hintStore, estate),
-		// Issue #353. Same store again, fourth namespace, and unreachable
-		// today for the same structural reason the two lines above are:
-		// hintStore is opened only when the root module's live block
-		// declares a record_store, and a configuration WITH a live block
-		// never reaches this function at all - Run delegates it to
-		// PlanCommand, whose own projection.Options
-		// (internal/command/live_mode.go) is the one that carries these
-		// stores for real. What arrives here is the -estate form, which by
-		// definition has no live block and therefore no record_store.
+		// GitHub issue #364: one store for GitHub issue #270's record-located
+		// instances (the reason this is wired at all - without it nothing
+		// can say which live object the instance owns, so live-plan would
+		// report the resource as uncreated rather than showing what it is),
+		// #275's residue (live-plan never applies, so it never WRITES
+		// residue; reading it is what makes live-plan's report agree with
+		// what `plan` would show for the same estate) and #353's
+		// provisioner taint - the last unreachable today for the same
+		// structural reason as before the merge: hintStore is opened only
+		// when the root module's live block declares a record_store, and a
+		// configuration WITH a live block never reaches this function at
+		// all - Run delegates it to PlanCommand, whose own
+		// projection.Options (internal/command/live_mode.go) is the one
+		// that carries this store for real. What arrives here is the
+		// -estate form, which by definition has no live block and
+		// therefore no record_store.
 		//
 		// Kept rather than omitted, and stated rather than left to be
 		// rediscovered: the day that delegation stops covering some
 		// live-block shape, a missing store here would make this report
 		// call a live, marked, half-provisioned object healthy while the
 		// real plan proposed replacing it - and this report is what every
-		// crossing's stage 3 reads.
-		ProvisionedStore: projection.NewProvisionedStore(hintStore, estate),
+		// crossing's stage 3 reads. NewRecordEnvelopeStore(nil, ...) is
+		// nil, so a hintStore that would not open leaves this nil and the
+		// projection raises its own named refusal for the located half,
+		// which is the right answer there, unlike for the hint, where a
+		// missing store only costs time.
+		RecordStore: projection.NewRecordEnvelopeStore(hintStore, recordKeyPrefixFor(config, estate)),
 	})
 	// Issue #349. Same store again, sixth namespace, and unreachable today
 	// for the same structural reason ProvisionedStore is: hintStore is
@@ -751,6 +747,18 @@ func statelessDiscover(ctx context.Context, config *configs.Config, resolutions 
 // path and each iteration of its multi-provider loop. scopeProvider is
 // [discovery.Request.ScopeProvider]; its zero value means unscoped, which is
 // what the single-provider path passes.
+// recordKeyPrefixFor is the key namespace this estate's one record envelope
+// store (GitHub issue #364) lives under - [projection.RecordKeyPrefix](estate)
+// by default, or a record_store block's key_prefix override - or "" for a
+// configuration with no live block or no record_store, matching hintStore
+// being nil in the same case.
+func recordKeyPrefixFor(config *configs.Config, estate string) string {
+	if config == nil || config.Module == nil || config.Module.Live == nil || config.Module.Live.RecordStore == nil {
+		return ""
+	}
+	return projection.RecordStoreKeyPrefix(config.Module.Live.RecordStore, estate)
+}
+
 func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutions []identity.Resolution, estate string, providerAddr, scopeProvider addrs.AbsProviderConfig, provs *statelessProviders, pol *policy.Policy, hintStore staterecord.Store, statelessView views.StatelessPlan) (*discovery.Result, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
@@ -785,6 +793,13 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		// identity into. A nil hintStore (no live block, or one that could
 		// not open its store) leaves this nil too, exactly as before.
 		HintStore: hintStore,
+		// GitHub issue #364: the located identity scanTypeLocatedFallback
+		// reads now lives in the same envelope, and the same namespace, an
+		// ordinary record-backed instance's value does - see
+		// [discovery.Request.KeyPrefix]. Empty when this config declares no
+		// record_store (recordKeyPrefixFor's own nil-safety), which matches
+		// hintStore being nil in the same case.
+		KeyPrefix: recordKeyPrefixFor(config, estate),
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 

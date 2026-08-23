@@ -18,7 +18,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -168,22 +167,15 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	if config.Module != nil && config.Module.Live != nil {
 		recordStoreCfg = config.Module.Live.RecordStore
 	}
-	// GitHub issue #340: the same store, handed over whole as well as
-	// wrapped. The residue store is a VIEW of it (one namespace inside it,
-	// for arguments a provider's Read does not give back); a record-backed
-	// resource's whole object lives in the store directly, under
+	// GitHub issue #364: one store now for GitHub issue #340's record-backed
+	// half (a record-backed resource's whole object lives directly under
 	// projection.RecordKey, and a migration is the only thing that can seed
-	// it for an estate that has never been applied by choudoufu.
-	var residueStore *projection.ResidueStore
+	// it for an estate that has never been applied by choudoufu), issue
+	// #275's residue and issue #365 slice 2's located-identity half (see
+	// [liveimport.Request.RecordStore]'s doc comment for the gap a nil
+	// value here used to leave open).
+	var recordStore *projection.RecordStore
 	var rootOutputStore *projection.RootOutputStore
-	var recordStore staterecord.Store
-	var recordKeyPrefix string
-	// locatedStore is GitHub issue #365 slice 2's migrate-time half: the
-	// same store, wrapped as the located-record view [liveimport.Ratify]
-	// needs to honour the live block's `markers "record"` selection - see
-	// that package's own [liveimport.Request.LocatedStore] doc comment for
-	// the gap a nil value here used to leave open.
-	var locatedStore *projection.LocatedStore
 	if recordStoreCfg != nil {
 		store, storeErr := projection.NewRecordStore(ctx, recordStoreCfg, args.Estate, ".")
 		if storeErr != nil {
@@ -192,19 +184,16 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 			)))
 			return nil, closer, diags
 		}
-		residueStore = projection.NewResidueStore(store, args.Estate)
-		recordStore = store
-		recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate)
-		// GitHub issue #349: the same store again, sixth namespace, and
-		// taking the ESTATE rather than recordKeyPrefix for the located,
-		// residue and provisioned namespaces' exact reason - a key_prefix
-		// override must not be able to move one of these keys under the
-		// record root, where orphan discovery's listing would find it and
-		// the plan would propose destroying whatever it names. An output
-		// names nothing at all, so that would be a destroy proposal for a
-		// resource that never existed.
+		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
+		// GitHub issue #349: the same underlying store again, its own
+		// namespace rather than a member of the envelope - an output names
+		// no live object at all and orphan discovery never needs to see
+		// it, so it keeps the ESTATE rather than the envelope's key prefix
+		// for the reason it always did: a key_prefix override must not be
+		// able to move it under the record root, where orphan discovery's
+		// listing would find it and the plan would propose destroying
+		// whatever it names.
 		rootOutputStore = projection.NewRootOutputStore(store, args.Estate)
-		locatedStore = projection.NewLocatedStore(store, args.Estate)
 	}
 
 	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
@@ -223,11 +212,8 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// place in the migrate path that resolution happens; see
 		// identity.SecretsFor.
 		Secrets:         identity.SecretsFor(config),
-		ResidueStore:    residueStore,
 		RecordStore:     recordStore,
-		RecordKeyPrefix: recordKeyPrefix,
 		RootOutputStore: rootOutputStore,
-		LocatedStore:    locatedStore,
 	})
 	diags = diags.Append(impDiags)
 	return rat, closer, diags

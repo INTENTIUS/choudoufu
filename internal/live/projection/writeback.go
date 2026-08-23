@@ -316,11 +316,11 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			}
 
 			var (
-				touched                                     bool
-				clearIdentity, clearResidue, clearProv       bool
-				setIdentity                                  *identityPayload
-				setResidue                                   *residueFields
-				setProv                                       *provisionedFields
+				touched                                bool
+				clearIdentity, clearResidue, clearProv bool
+				setIdentity                            *identityPayload
+				setResidue                             *residueFields
+				setProv                                *provisionedFields
 			)
 
 			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)

@@ -98,6 +98,7 @@ import (
 // same envelope [record.go] and [located.go] read and write theirs of, kept
 // safe from the destroy path by the same "kind" discipline - see
 // [recordKindIdentity]'s comment.
+
 // declaresCreateProvisioners reports whether cfg declares at least one
 // create-time provisioner on the resource block addr belongs to.
 //
@@ -208,4 +209,3 @@ func (b *builder) applyProvisionedTaint(ctx context.Context, addr addrs.AbsResou
 // have a registry entry, and the entry and the diagnostic have to name one
 // string.
 const SummaryProvisionedUnreadable = "Provisioner record could not be read"
-

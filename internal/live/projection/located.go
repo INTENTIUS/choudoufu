@@ -91,7 +91,7 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 
 	typeName := addr.Resource.Resource.Type
 
-	rec, version, keyExists, identityFound, err := b.opts.RecordStore.getIdentity(ctx, addr)
+	rec, version, keyExists, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, addr)
 	if err != nil {
 		detail := fmt.Sprintf("Reading the located record for %s failed: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a located record", detail))

@@ -708,11 +708,6 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 // sent. Named for [SummaryLocatedNoStore]'s reason.
 const SummaryResidueNotClassified = "Argument values could not be recorded"
 
-// SummaryResidueNotClassified is the summary of the warning
-// [writeBackResidue] raises when an apply could not record what it sent.
-// Named for [SummaryLocatedNoStore]'s reason.
-const SummaryResidueNotClassified = "Argument values could not be recorded"
-
 // residueProvider resolves one provider configuration once per write-back,
 // so an estate of sixty instances through one provider opens one connection
 // rather than sixty.

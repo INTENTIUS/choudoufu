@@ -200,14 +200,27 @@ type Request struct {
 	// [projection.ReadHintStore] at the key [projection.HintKey](Estate)
 	// derives) and, independent of Guided, backs
 	// [scanTypeLocatedFallback]'s per-instance identity lookups for a type
-	// with no tags argument and no list route: [projection.NewLocatedStore]
-	// wraps it the same way internal/command's projection build does. A
-	// caller sets this whether or not it also turns Guided on - the two
-	// consume the same handle for two different questions, and a nil value
-	// disables both: the hint read falls back to full enumeration, and the
-	// located fallback finds nothing to consult, exactly as before either
-	// existed.
+	// with no tags argument and no list route: [projection.NewRecordEnvelopeStore]
+	// wraps it, at [KeyPrefix], the same way internal/command's projection
+	// build does. A caller sets this whether or not it also turns Guided on
+	// - the two consume the same handle for two different questions, and a
+	// nil value disables both: the hint read falls back to full
+	// enumeration, and the located fallback finds nothing to consult,
+	// exactly as before either existed.
 	HintStore staterecord.Store
+
+	// KeyPrefix is the namespace [scanTypeLocatedFallback] reads a located
+	// identity under - ordinarily [projection.RecordKeyPrefix](Estate), or
+	// a record_store block's key_prefix override, exactly matching what the
+	// caller's own projection build used for [projection.Options.RecordStore].
+	// GitHub issue #364 merged the located, residue and provisioner-taint
+	// namespaces into the same one an ordinary record-backed instance's
+	// value lives under, so an override that moves the record namespace now
+	// moves this population with it, and the two must agree on where to
+	// look or a migration's written identity becomes invisible to this
+	// fallback. Empty resolves to [projection.RecordKeyPrefix](Estate), the
+	// only value a caller that predates this field's addition could mean.
+	KeyPrefix string
 
 	// GuidedMaxAge is how old a hint may be before guided discovery treats
 	// it exactly like a missing one: readable, but not trusted. Zero uses

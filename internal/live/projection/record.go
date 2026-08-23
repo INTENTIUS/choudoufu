@@ -246,10 +246,10 @@ type recordEnvelope struct {
 	// envelope to a caller.
 	Kind string `json:"kind,omitempty"`
 
-	Identity    *identityPayload    `json:"identity,omitempty"`
-	Object      *objectFields       `json:"object,omitempty"`
-	Residue     *residueFields      `json:"residue,omitempty"`
-	Provisioned *provisionedFields  `json:"provisioned,omitempty"`
+	Identity    *identityPayload   `json:"identity,omitempty"`
+	Object      *objectFields      `json:"object,omitempty"`
+	Residue     *residueFields     `json:"residue,omitempty"`
+	Provisioned *provisionedFields `json:"provisioned,omitempty"`
 
 	// The four fields below are v1's flat shape, decode-only. A v1
 	// record-backed payload carried these at the envelope's own top level
@@ -507,7 +507,7 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 // malformed Identity (empty overall, or an empty component) is an ERROR:
 // continuing would bind the instance to a wrong identity, which is
 // invisible to every verdict-level check.
-func (s *RecordStore) getIdentity(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
+func (s *RecordStore) GetIdentity(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, err error) {
 	env, version, exists, err := s.getRaw(ctx, addr)
 	if err != nil {
 		return LocatedRecord{}, "", false, false, err

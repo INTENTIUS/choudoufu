@@ -60,7 +60,7 @@ func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.
 		return SeedUnchanged, fmt.Errorf("refusing to record an empty identity for %s", addr)
 	}
 
-	existing, version, _, identityFound, getErr := store.getIdentity(ctx, addr)
+	existing, version, _, identityFound, getErr := store.GetIdentity(ctx, addr)
 	if getErr != nil {
 		return SeedUnchanged, fmt.Errorf("reading the existing located record for %s before writing: %w", addr, getErr)
 	}
