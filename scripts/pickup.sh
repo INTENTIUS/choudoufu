@@ -143,6 +143,15 @@ while IFS= read -r b; do
   pr="${pr:-}"
   gate=""
   if [ -n "$wt" ] && [ -f "$wt/ci.rc" ]; then gate="ci.rc=$(cat "$wt/ci.rc" 2>/dev/null | tr -d '[:space:]')"; fi
+  # Uncommitted work and recent writes: an Agent-tool worker runs inside its
+  # parent's process, so no `claude` process names it; the only liveness
+  # signal is the worktree itself. ci.out/ci.rc/.bin are a worker's scratch
+  # and do not count as work.
+  uncommitted=0; recent=""
+  if [ -n "$wt" ]; then
+    uncommitted=$(git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|\.bin[^/]*/)$' | wc -l | tr -d ' ')
+    if find "$wt" -path "$wt/.git" -prune -o -type f -mmin -15 -print 2>/dev/null | grep -q .; then recent="written in the last 15 min"; fi
+  fi
   stage=""
   if [ -n "$wt" ]; then
     est="${b#gauntlet/}"; est="${est%-*}"
@@ -155,8 +164,12 @@ while IFS= read -r b; do
     fi
   fi
   # disposition, by HANDOFF's rules
-  if git merge-base --is-ancestor "$b" main 2>/dev/null && [ "$ahead" = "0" ]; then
-    disp="MERGED/EMPTY  -> delete branch and worktree (ancestor of main with 0 commits ahead; a worker that never committed, or work already landed)"
+  if [ -n "$recent" ]; then
+    disp="ACTIVE?       -> files in this worktree were $recent; a worker may be running (Agent-tool workers show no process). Do not touch it; check .claude/scripts/agent-progress.sh or wait"
+  elif [ "$uncommitted" != "0" ]; then
+    disp="UNCOMMITTED   -> $uncommitted changed path(s) in the worktree and no recent write: a worker stopped before committing. Read the diff, commit it on this branch with the unit ID, then treat as COMMITS, NO PR"
+  elif git merge-base --is-ancestor "$b" main 2>/dev/null && [ "$ahead" = "0" ]; then
+    disp="MERGED/EMPTY  -> delete branch and worktree (ancestor of main with 0 commits ahead, nothing uncommitted, no recent write)"
   elif [ -n "$pr" ]; then
     disp="PR OPEN $pr   -> orchestrator: verify (read ci.rc, GAUNTLET lines, artifact diff) then merge on green"
   elif [ "$ahead" != "0" ]; then
@@ -168,6 +181,11 @@ while IFS= read -r b; do
   [ -n "$wt" ]    && printf '      worktree %s\n' "$wt"
   [ -n "$gate" ]  && printf '      gate     %s\n' "$gate"
   [ -n "$stage" ] && printf '      last run %s\n' "$stage"
+  if [ "$uncommitted" != "0" ]; then
+    printf '      uncommitted %s path(s):' "$uncommitted"
+    git -C "$wt" status --porcelain 2>/dev/null | grep -v -E '^\?\? (ci\.out|ci\.rc|\.bin[^/]*/)$' | head -5 | awk '{printf " %s", $2}'
+    printf '\n'
+  fi
   printf '      %s\n' "$disp"
 done < <(git for-each-ref --format='%(refname:short)' refs/heads/gauntlet refs/heads/live refs/heads/wall 2>/dev/null)
 [ "$found" = 0 ] && echo '  none'
@@ -190,7 +208,7 @@ fi
 # ------------------------------------------------------------ 6. live processes
 hr "processes"
 workers=$(pgrep -fl 'claude .*gauntlet-worker' 2>/dev/null | wc -l | tr -d ' ')
-printf 'claude workers running: %s\n' "$workers"
+printf 'headless claude workers (just contribute): %s   (Agent-tool workers run inside their parent and are NOT listed here; see each worktree line above)\n' "$workers"
 if have docker && docker info >/dev/null 2>&1; then
   floci=$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null | grep -i floci || true)
   if [ -n "$floci" ]; then printf 'floci containers:\n%s\n' "$(echo "$floci" | sed 's/^/  /')"; else echo 'floci containers: none'; fi
