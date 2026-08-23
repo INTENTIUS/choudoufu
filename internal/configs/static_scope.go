@@ -358,6 +358,18 @@ func (s staticScopeData) StaticValidateReferences(_ context.Context, refs []*add
 			if s.eval.unknownForRefused {
 				continue
 			}
+			// A caller that can evaluate the named call's own output
+			// expressions - never a guess, always a real evaluation of
+			// configuration this evaluator can reach - hands them in
+			// through [StaticEvaluator.WithModuleOutputResults]. Only a
+			// call the lookup actually covers passes; an evaluator with no
+			// lookup, or one that declines this specific call, refuses
+			// exactly as it always has. See [staticScopeData.GetModule].
+			if call, ok := moduleCallOf(subject); ok && s.eval.moduleOutputLookup != nil {
+				if _, covered := s.eval.moduleOutputLookup(call); covered {
+					continue
+				}
+			}
 			diags = diags.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Module output not supported in static context",
@@ -623,14 +635,20 @@ func (s staticScopeData) GetLocalValue(ctx context.Context, ident addrs.LocalVal
 	return val, s.enhanceDiagnostics(id, diags.Append(valDiags))
 }
 
-// GetModule answers a module-call reference from the evaluator's
-// module-output lookup, when it has one that covers the call, and with an
-// unknown when a tolerant evaluator's lookup declines.
+// GetModule answers a module-call reference from
+// [StaticEvaluator.moduleOutputLookup] when it covers the call, else from
+// the evaluator's tolerant module-output lookup when it has one, else with
+// an unknown when a tolerant evaluator's lookup declines.
 // [staticScopeData.StaticValidateReferences] refuses every module reference
-// before evaluation starts unless the evaluator is tolerant, so the panic
-// below is unreachable through this package's own scopes; it stays as the
-// same programming-error backstop the other unavailable getters keep.
+// before evaluation starts unless one of those two seams covers it, so the
+// panic below is unreachable through this package's own scopes; it stays as
+// the same programming-error backstop the other unavailable getters keep.
 func (s staticScopeData) GetModule(_ context.Context, addr addrs.ModuleCall, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	if s.eval.moduleOutputLookup != nil {
+		if val, ok := s.eval.moduleOutputLookup(addr); ok {
+			return val, nil
+		}
+	}
 	if s.eval.unknownForRefused {
 		if val, ok := s.eval.moduleOutputsFor(addr); ok {
 			return val, nil
@@ -638,6 +656,27 @@ func (s staticScopeData) GetModule(_ context.Context, addr addrs.ModuleCall, _ t
 		return cty.DynamicVal, nil
 	}
 	panic("Not Available in Static Context")
+}
+
+// moduleCallOf normalizes any of the three referenceable shapes a module
+// reference can take - the whole call (module.foo), one instance of it
+// (module.foo[0]), or one named output of one instance
+// (module.foo[0].bar) - down to the bare, unkeyed [addrs.ModuleCall] both
+// [StaticEvaluator.moduleOutputLookup] and [staticScopeData.GetModule] key
+// on. This is the same normalization internal/lang/eval.go's
+// putValueBySubject already applies at the point a reference is actually
+// evaluated; StaticValidateReferences needs its own copy because it runs
+// its coverage check earlier, over the subject as written.
+func moduleCallOf(subject addrs.Referenceable) (addrs.ModuleCall, bool) {
+	switch s := subject.(type) {
+	case addrs.ModuleCall:
+		return s, true
+	case addrs.ModuleCallInstance:
+		return s.Call, true
+	case addrs.ModuleCallInstanceOutput:
+		return s.Call.Call, true
+	}
+	return addrs.ModuleCall{}, false
 }
 
 func (s staticScopeData) GetPathAttr(_ context.Context, addr addrs.PathAttr, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {

@@ -331,7 +331,7 @@ func AnalyzeRootOutputs(ctx context.Context, cfg *configs.Config, opts Options) 
 	}
 	an := &analyzer{ctx: ctx, cfg: cfg, analysis: a, schemas: opts.Schemas, scope: opts.Scope, visiting: make(map[string]bool)}
 	if a.projectManaged {
-		an.proj = newManagedProjector(ctx, cfg, false)
+		an.proj = newManagedProjector(ctx, cfg, false, nil)
 	}
 
 	for _, want := range rootOutputDataDemand(cfg) {

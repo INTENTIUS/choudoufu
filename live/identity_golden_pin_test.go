@@ -347,7 +347,16 @@ var identityGoldenPin = map[string]int{
 	// statically computable. Its name_prefix'd sibling fixture
 	// (slot-clientnamed-config) resolves NEEDS_DISCOVERY instead; see that
 	// class's own count below.
-	"CONCRETE": 811,
+	// 811 -> 815 for the provider-configuration dependency-order wall
+	// (issue #313), rebased onto the #372 base directly above rather than
+	// measured against a stale 809: module-output-hop/child's and
+	// provider-config-demand/child's aws_eks_cluster.this, each a plain
+	// literal name argument, each swept twice for the same reason the row
+	// above is - once from its own child module directory, once as its
+	// parent's module.child.aws_eks_cluster.this. See
+	// identityGoldenPinInstances's own note.
+	"CONCRETE": 815,
+
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
 	// (aws_ecs_service.web, aws_eks_access_entry.assumed, resolved with no
@@ -576,7 +585,13 @@ var identityGoldenPin = map[string]int{
 	// measuring that a bare resolve's MARKER_FALLBACK verdict is not always
 	// what a real live-plan's two-pass resolution settles on - see that
 	// function's doc comment in internal/live/liveimport/slot.go.
-	"NEEDS_DISCOVERY": 710,
+	// 710 -> 711 for the provider-configuration dependency-order wall
+	// (issue #313), rebased onto the #372 base directly above rather than
+	// measured against a stale 706: managed-projection-live's
+	// aws_instance.web, the same "needs a real account" shape every sibling
+	// managed-projection-* fixture's own aws_instance already contributes.
+	"NEEDS_DISCOVERY": 711,
+
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
 	// aws_cloudwatch_log_group.app, whose name is
@@ -1163,7 +1178,19 @@ var identityGoldenPin = map[string]int{
 // recomputing deltas by hand: regenerated with -update on the merged tree
 // and diffed, confirming exactly these six rows added and nothing else
 // moved.
-const identityGoldenPinBodyDigest = "c83a29c6e707de3b70ee108febc89c73e484c6623f3afa12260e9bef758bb084"
+//
+// Then c83a29c6... -> ff2bcef1... for issue #313 on top of #384, rebased
+// onto main's actual current base (578/1680, c83a29c6...) rather than the
+// provider-configuration branch's own original base: five added rows
+// (managed-projection-live's aws_instance.web, and module-output-hop,
+// module-output-hop/child, provider-config-demand and
+// provider-config-demand/child's aws_eks_cluster.this rows) change the hash
+// of a file whose rows they now join; no existing row's bytes moved,
+// confirmed by regenerating with -update on the rebased tree and diffing
+// internal/live/check/testdata/identity-golden.txt against main's copy,
+// which shows exactly five added lines and nothing else changed except the
+// header's shape line. See identityGoldenPinInstances's own note.
+const identityGoldenPinBodyDigest = "ff2bcef17b77a9fde38765565aeda7d1cd4eef9514b81aac1d763a129da9ae40"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1690,7 +1717,47 @@ const (
 	// Then 1678 -> 1680, same issue, a second pass: two more added rows,
 	// slot-markerfallback-config's aws_iam_role.this[0..1] - see
 	// identityGoldenPinBodyDigest's own note.
-	identityGoldenPinInstances = 1680
+	//
+	// Then 1680 -> 1685 for the provider-configuration dependency-order
+	// wall (issue #313, corpus-eks-basic's boundary), rebased onto the
+	// #372 base directly above (577/1680) rather than issue #313's own
+	// original base of 574/1674: three new fixtures across five new
+	// directories / five new instances, none changed, none removed:
+	//   - internal/live/dataread/testdata/managed-projection-live pins
+	//     Options.LiveManagedResults (dataread's live-managed-value
+	//     fallback for a managed reference no literal argument covers, the
+	//     seam projection.ReadInstances now feeds). Its one instance,
+	//     aws_instance.web, is the same shape every sibling
+	//     managed-projection-* fixture already contributes:
+	//     NEEDS_DISCOVERY with no rendered value, since an aws_instance's
+	//     identity needs a real account.
+	//   - internal/live/dataread/testdata/module-output-hop (and its
+	//     ./child) pins configs.StaticEvaluator.WithModuleOutputResults (a
+	//     data source's own argument crossing into a child module's own
+	//     output expression, which in turn needs the same live-managed
+	//     fallback) - the two hops "provider.kubernetes { host =
+	//     data.aws_eks_cluster.cluster.endpoint }" needs, with
+	//     data.aws_eks_cluster.cluster's own "name = module.eks.cluster_id"
+	//     in between. Its child module's aws_eks_cluster.this resolves
+	//     CONCRETE/"prod-cluster" - a plain literal name argument, swept
+	//     twice (once as module-output-hop/child's own root, once as
+	//     module-output-hop's module.child.aws_eks_cluster.this), the same
+	//     "child swept as a root of its own" duplication
+	//     tolerant-module-output's own note above already explains.
+	//   - internal/live/dataread/testdata/provider-config-demand (and its
+	//     ./child) pins [dataread.AnalyzeProviderConfigs]/[dataread.
+	//     ReadProviderConfigs], the phase's third demand class: a PROVIDER
+	//     BLOCK's own argument (never an identity-bearing position, so
+	//     never probed by the other two classes) demanding a data source
+	//     that then needs both of the two seams above. Same duplication
+	//     again for the same reason: aws_eks_cluster.this swept from its
+	//     own child module directory and again as
+	//     provider-config-demand's module.child.aws_eks_cluster.this.
+	// "0 identities changed, 5 added, 0 removed" confirmed by diffing
+	// testdata/identity-golden.txt before and after regenerating, rebased
+	// onto GitHub issue #372's own two-pass total directly above (577/1680)
+	// rather than measured against a stale 574/1674 base.
+	identityGoldenPinInstances = 1685
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -1879,7 +1946,15 @@ const (
 	// one and identityGoldenPinInstances/identityGoldenPinBodyDigest below
 	// are unchanged - confirmed by diffing testdata/identity-golden.txt
 	// before and after regenerating: only the header's dirs count differs.
-	identityGoldenPinDirs = 578
+	//
+	// 578 -> 583 for issue #313 on top of #384: five new fixture
+	// directories - managed-projection-live, module-output-hop,
+	// module-output-hop/child, provider-config-demand and
+	// provider-config-demand/child - for the provider-configuration
+	// dependency-order wall. Rebased onto #384's 578 rather than #313's own
+	// original base of 574. See identityGoldenPinInstances's own note for
+	// detail.
+	identityGoldenPinDirs = 583
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.

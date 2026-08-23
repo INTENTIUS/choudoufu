@@ -156,6 +156,44 @@ func aggregateGroup(noKey *cty.Value, intKeys map[int]cty.Value, strKeys map[str
 	}
 }
 
+// DataLookupFor is [resolver.dataLookupFor] for a caller outside this
+// package's own resolution pipeline: it turns a flat, absolute-instance-
+// keyed result map - [dataread.Read]'s or a sibling entry point's own
+// output shape, "shaped for [Context.DataResults]" per that package's own
+// doc comment - into a [configs.StaticDataLookup] scoped to one module, the
+// same seam [configs.StaticEvaluator.WithDataResults] documents.
+//
+// module is assumed unkeyed ([addrs.Module.UnkeyedInstanceShim]) - the same
+// "no repeated module" simplification this package's own second pass
+// ([Context.ManagedResults] via [projection.PlanInstances]) and
+// [dataread]'s managed-live fallback both already carry, stated here rather
+// than invented here. GitHub issue #313's provider-configuration
+// dependency-order fixpoint is the first caller: a provider block is
+// almost always declared in the root module, and internal/command's own
+// providerConfigValue already restricts a non-root provider block to one
+// that declares no count/for_each/enabled/depends_on anywhere in its call
+// chain (issue #201), which is exactly the shape this assumption holds for.
+//
+// bad names every result key that did not parse as an absolute resource
+// instance address or could not be shaped into an aggregate - the same
+// caller-error [buildDataResultsIndex] already distinguishes from "nothing
+// was demanded," for a caller that wants to report it as a defect in its
+// own read rather than silently answer nothing.
+func DataLookupFor(results map[string]cty.Value, module addrs.Module) (lookup configs.StaticDataLookup, bad []string) {
+	idx, bad := buildDataResultsIndex(results)
+	if idx == nil {
+		return nil, bad
+	}
+	byRes := idx[module.UnkeyedInstanceShim().String()]
+	if len(byRes) == 0 {
+		return nil, bad
+	}
+	return func(addr addrs.Resource) (cty.Value, bool) {
+		val, ok := byRes[addr.String()]
+		return val, ok
+	}, bad
+}
+
 // dataLookupFor is the [configs.StaticDataLookup] bound to one module
 // instance: it covers exactly the data resources the phase read within that
 // instance, and nothing else. Nil when the index carries nothing for the

@@ -113,6 +113,32 @@ type managedProjector struct {
 	// the value).
 	materialize bool
 
+	// liveManaged, when non-nil, is a real, narrow live read of specific
+	// managed resource instances - [projection.ReadInstances]'s own output
+	// shape, keyed by absolute instance address exactly as
+	// [identity.Context.ManagedResults] is - supplied by a caller that has
+	// already resolved this instance's identity and read its current live
+	// object. It is the fallback for the one case this file's own doc
+	// comment names as out of reach: an attribute the block's body does not
+	// literally set (aws_vpc.this[0].id, in that comment's own example).
+	// Consulted only for a name [build] cannot already answer from the
+	// block's own arguments, and only for a block whose module path names
+	// exactly one module instance ([managedProjector.insts]) - the same
+	// "a wrong value ranks below a missing one" limitation
+	// [projection.PlanInstances]'s own doc comment states for a repeated
+	// module, applied here rather than invented here.
+	//
+	// Never populated by [Analyze]'s or [AnalyzeRootOutputs]'s own default
+	// construction, so a caller that does not opt in sees byte-identical
+	// behavior. See [Options.LiveManagedResults].
+	liveManaged map[string]cty.Value
+
+	// insts answers which module instances a module path names, for
+	// resolving [managedProjector.liveManaged]'s absolute-address keys. See
+	// [reader]'s identical field for why an analyzer is the tool for this
+	// and not a new one.
+	insts *analyzer
+
 	visiting map[string]bool
 	cache    map[string]managedProj
 }
@@ -133,14 +159,57 @@ type managedProj struct {
 	deps []SourceDep
 }
 
-func newManagedProjector(ctx context.Context, cfg *configs.Config, materialize bool) *managedProjector {
+func newManagedProjector(ctx context.Context, cfg *configs.Config, materialize bool, liveManaged map[string]cty.Value) *managedProjector {
 	return &managedProjector{
 		ctx:         ctx,
 		cfg:         cfg,
 		materialize: materialize,
+		liveManaged: liveManaged,
+		insts:       &analyzer{ctx: ctx, cfg: cfg},
 		visiting:    make(map[string]bool),
 		cache:       make(map[string]managedProj),
 	}
+}
+
+// liveAttrsFor returns the attributes [managedProjector.liveManaged] can
+// answer for one instance of a managed block, beyond what its own literal
+// arguments already cover - cty.DynamicVal per attribute when this
+// projector is not materializing (matching [managedProjector.argument]'s
+// own offline convention: coverage, not a value), the provider's real
+// per-attribute value otherwise.
+//
+// It answers nothing - not an error, an empty map - when the module path
+// names anything other than exactly one module instance, when nothing was
+// supplied, or when the live object for this exact instance was never read.
+// Every one of those is the safe direction: the caller's existing
+// literal-argument projection is untouched, and a name this returns nothing
+// for keeps refusing exactly as it did before this fallback existed.
+func (p *managedProjector) liveAttrsFor(module addrs.Module, res addrs.Resource, key addrs.InstanceKey) map[string]cty.Value {
+	if len(p.liveManaged) == 0 {
+		return nil
+	}
+	insts := p.insts.moduleInstancesOf(module)
+	if len(insts) != 1 {
+		return nil
+	}
+	addr := res.Instance(key).Absolute(insts[0])
+	obj, ok := p.liveManaged[addr.String()]
+	if !ok || obj.IsNull() || !obj.Type().IsObjectType() {
+		return nil
+	}
+	out := make(map[string]cty.Value, len(obj.Type().AttributeTypes()))
+	for name := range obj.Type().AttributeTypes() {
+		if !p.materialize {
+			out[name] = cty.DynamicVal
+			continue
+		}
+		v := obj.GetAttr(name)
+		if !v.IsWhollyKnown() {
+			continue
+		}
+		out[name] = v
+	}
+	return out
 }
 
 // project answers a managed resource reference with the block's own
@@ -230,7 +299,7 @@ func (p *managedProjector) replay(deps []SourceDep, lookup func(addrs.Module) co
 // instance carrying the arguments that evaluate, then the aggregate shape a
 // whole-resource reference evaluates to.
 func (p *managedProjector) build(module addrs.Module, res addrs.Resource, rc *configs.Resource, body *hclsyntax.Body, lookup func(addrs.Module) configs.StaticDataLookup) (cty.Value, bool) {
-	eval := liveModuleEvaluator(p.ctx, p.cfg, module, lookup)
+	eval := liveModuleEvaluator(p.ctx, p.cfg, module, lookup, p.materialize, nil)
 	if eval == nil {
 		return cty.NilVal, false
 	}
@@ -266,6 +335,17 @@ func (p *managedProjector) build(module addrs.Module, res addrs.Resource, rc *co
 		for _, name := range names {
 			val, argOK := p.argument(module, res, name, body.Attributes[name].Expr, instEval)
 			if !argOK {
+				continue
+			}
+			attrs[name] = val
+		}
+		// The live-read fallback never overrides a literal argument's own
+		// value - the block's own body is always the more direct answer
+		// when both exist - and only adds a name this loop did not already
+		// set, so a body that happens to declare an attribute of the same
+		// name as one the provider assigns is untouched.
+		for name, val := range p.liveAttrsFor(module, res, key) {
+			if _, already := attrs[name]; already {
 				continue
 			}
 			attrs[name] = val
