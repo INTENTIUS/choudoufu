@@ -1115,41 +1115,51 @@ func validateRecordStorePath(raw string) string {
 // validateRecordStoreKeyPrefix returns the reason a record_store "ssm" or
 // "s3" key_prefix may not be used, or "" when it is fine.
 //
-// The rule that matters: five namespaces beside the records must stay
-// unreachable from an override. The receipts pattern (live/RECEIPTS.md)
-// owns "/tofu-receipts/<estate>/<effect>"; guided discovery's hint
-// (issue #109) owns "tofu-hints/<estate>" in the same store - see
-// internal/live/projection's hintNamespaceRoot; and record-located
-// identities (issue #270) own "tofu-located/<estate>" - see that package's
-// locatedNamespaceRoot. The stakes differ across the three. A record
-// landing in the receipts namespace could collide with a receipt. A record
-// prefix equal to the hint namespace would make orphan discovery's listing
-// of the record namespace see the hint key and try to read it as a resource
-// record. A record prefix equal to the LOCATED namespace is the worst of
-// the three, because a record key with no configuration behind it is
-// proposed for destruction and a located key names a live cloud object the
-// record was never authority over. Namespace safety is
-// disjoint-by-construction for the default (the caller's own key prefix is
-// always rooted at a fourth literal, "tofu-records/<estate>" - see
+// The rule that matters: five literal segments beside the records'
+// own must stay unreachable from an override. The receipts pattern
+// (live/RECEIPTS.md) owns "tofu-receipts/<estate>/<effect>"; guided
+// discovery's hint (issue #109) owns "tofu-hints/<estate>" in the same
+// store - see internal/live/projection's hintNamespaceRoot, which still
+// backs a live namespace today. "tofu-located", "tofu-residue" and
+// "tofu-provisioned" are GitHub issues #270, #275 and #353's three
+// per-instance namespaces as they existed before issue #364's envelope
+// collapse folded all three (plus the record-backed namespace itself) into
+// one per-instance envelope under "tofu-records/<estate>" - see
+// internal/live/projection.RecordKeyPrefix and that package's own record.go
+// package comment for the current shape. Nothing in internal/live/projection
+// still defines a Go identifier for any of those three; they are refused
+// here purely as retired literal segments, so that a store carrying old
+// bytes under them (or an operator's key_prefix override colliding with one
+// by name) can never be read back in as today's records. "tofu-outputs"
+// (issue #349, internal/live/projection's rootOutputNamespaceRoot) is the
+// sixth and is not retired - it holds the value each root-level output
+// block settled on at the last apply, per-estate rather than per-instance,
+// and stays its own namespace after the collapse for record.go's own stated
+// reason (an output names no live object at all, so folding it into the
+// per-instance envelope would buy nothing).
+//
+// The stakes differ across the six. A record landing in the receipts
+// namespace could collide with a receipt. A record prefix equal to the hint
+// namespace would make orphan discovery's listing of the record namespace
+// see the hint key and try to read it as a resource record. A record prefix
+// equal to any of the three retired per-instance namespaces is the worst of
+// the six, because a record key with no configuration behind it is proposed
+// for destruction, and a key from any of those three names either a live
+// cloud object the record was never authority over (located, residue) or a
+// note that a shell command failed against one (provisioned) - never
+// something whose absence of configuration means "destroy this". An output
+// value collision is the same failure turned up a notch: an output names no
+// live object whatsoever, so a key of theirs read as a record would propose
+// destroying something that never existed.
+//
+// Namespace safety is disjoint-by-construction for the default (the
+// caller's own key prefix is always rooted at "tofu-records/<estate>" - see
 // internal/live/projection.RecordKeyPrefix), but an operator-supplied
 // override is checked here at the segment level, the same "/"-delimited
 // hierarchy SSM parameter names and S3 key prefixes both already use: a
 // key_prefix whose first segment is exactly "tofu-receipts", "tofu-hints",
 // "tofu-located", "tofu-residue", "tofu-provisioned" or "tofu-outputs" is
 // refused, whether or not it carries a leading or trailing slash.
-//
-// Residue (issue #275, internal/live/projection's residueNamespaceRoot) is
-// the fourth and joined for "tofu-located"'s reason rather than
-// "tofu-receipts"': it names arguments of live cloud objects the record
-// namespace has no authority over. The provisioner taint (issue #353,
-// internal/live/projection's provisionedNamespaceRoot) is the fifth and
-// joined for the same reason: it is a note that a shell command failed
-// against a live cloud object, and it must never be readable as a record
-// whose absence of configuration means "destroy this". Root output values
-// (issue #349, internal/live/projection's rootOutputNamespaceRoot) are the
-// sixth, and the reason is the same one turned up a notch: an output names no
-// live object whatsoever, so a key of theirs read as a record would propose
-// destroying something that never existed.
 func validateRecordStoreKeyPrefix(raw string) string {
 	norm := strings.Trim(raw, "/")
 	if norm == "" {
