@@ -34,9 +34,9 @@ import (
 // evaluates "a specific resource instance is desired" as an event rather
 // than a graph-node method, and the same resolver implementation must be
 // callable from there with no adaptation if this fork ever rebases onto it.
-// For the same reason this package (internal/tofu) must never import
-// internal/live: the dependency runs the other way, live implements this
-// interface and hands the tofu package an instance of it.
+// For the same reason this package must never import the fork's live-mode
+// package: the dependency runs the other way, that package implements this
+// interface and hands this package an instance of it.
 //
 // The three inputs are exactly what NodeAbstractResourceInstance.plan
 // evaluates before it calls the provider: the resource instance's address,

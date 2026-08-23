@@ -1195,6 +1195,25 @@ func (n *NodeAbstractResourceInstance) plan(
 		return nil, nil, keyData, diags
 	}
 
+	// The plan-node seam (rfc/20260823-foundation-order-ruling.md, ruling
+	// 3): a configured adjuster (nil by default, in which case this block
+	// is inert) gets to rewrite the evaluated configuration value here,
+	// before anything else touches it. This is the ONLY point this ever
+	// happens, and it must stay before n.processIgnoreChanges below and
+	// before PlanResourceChange further down: opentofu/opentofu#3016
+	// requires OpenTofu to send the provider exactly the planned new state
+	// the provider itself returned, which permanently rules out mutating
+	// anything after PlanResourceChange runs. See ConfigValueAdjuster's
+	// doc comment in resource_identity.go.
+	if adjuster := evalCtx.ConfigValueAdjuster(); adjuster != nil {
+		adjustedConfigVal, adjustDiags := adjuster.AdjustConfigValue(ctx, n.Addr, origConfigVal, *schema)
+		diags = diags.Append(adjustDiags)
+		if adjustDiags.HasErrors() {
+			return nil, nil, keyData, diags
+		}
+		origConfigVal = adjustedConfigVal
+	}
+
 	metaConfigVal, metaDiags := n.providerMetas(ctx, evalCtx)
 	diags = diags.Append(metaDiags)
 	if diags.HasErrors() {

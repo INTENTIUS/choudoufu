@@ -287,10 +287,41 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 		return diags
 	}
 
+	// The plan-node seam (rfc/20260823-foundation-order-ruling.md, ruling
+	// 3): when nothing already targets this instance for import, and it
+	// has no prior state, ask a configured resolver whether it knows this
+	// instance's identity. resolver is nil by default, which makes this
+	// whole block inert and leaves importing/instanceRefreshState exactly
+	// as the pre-existing code above computed them.
+	var resolvedImport *providers.ImportTarget
+	if !importing && n.Config != nil {
+		if resolver := evalCtx.ResourceIdentityResolver(); resolver != nil {
+			if evalCtx.State().ResourceInstance(addr) == nil {
+				configVal, resourceSchema, evalDiags := n.evaluateConfigForIdentity(ctx, evalCtx, providerSchema)
+				diags = diags.Append(evalDiags)
+				if diags.HasErrors() {
+					return diags
+				}
+				if configVal != cty.NilVal {
+					target, found, resolveDiags := resolver.ResolveResourceIdentity(ctx, addr, configVal, resourceSchema)
+					diags = diags.Append(resolveDiags)
+					if diags.HasErrors() {
+						return diags
+					}
+					if found {
+						resolvedImport = &target
+					}
+				}
+			}
+		}
+	}
+
 	// If the resource is to be imported, we now ask the provider for an Import
 	// and a Refresh, and save the resulting state to instanceRefreshState.
 	if importing {
 		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, providers.ImportTarget{ID: n.importTarget.ID, Identity: n.importTarget.Identity}, provider, providerSchema)
+	} else if resolvedImport != nil {
+		instanceRefreshState, diags = n.importState(ctx, evalCtx, addr, *resolvedImport, provider, providerSchema)
 	} else {
 		var readDiags tfdiags.Diagnostics
 		instanceRefreshState, readDiags = n.readResourceInstanceState(ctx, evalCtx, addr)
@@ -422,6 +453,11 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 				ID:       n.importTarget.ID,
 				Identity: n.importTarget.Identity,
 			}
+		} else if resolvedImport != nil {
+			change.Importing = &plans.Importing{
+				ID:       resolvedImport.ID,
+				Identity: resolvedImport.Identity,
+			}
 		}
 
 		// FIXME: here we update the change to reflect the reason for
@@ -533,6 +569,47 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 	}
 
 	return diags
+}
+
+// evaluateConfigForIdentity evaluates this instance's configuration for the
+// plan-node seam's ResourceIdentityResolver (see resource_identity.go), at a
+// point in managedResourceExecute that runs before n.plan.
+//
+// It repeats, ahead of time, exactly the evaluation
+// NodeAbstractResourceInstance.plan performs a few lines later into a local
+// it calls origConfigVal (node_resource_abstract_instance.go): call
+// evaluateForEachExpression over n.Config.ForEach to build keyData, then
+// evalCtx.EvaluateBlock over n.Config.Config and the resource's schema
+// block. managedResourceExecute has neither keyData nor origConfigVal in
+// scope yet at the point it needs to ask the resolver, so this duplicates
+// that call rather than restructuring plan() to return early; both calls
+// are the same deterministic HCL evaluation over the same inputs, so
+// n.plan's own evaluation and result are unaffected by this one running
+// first.
+//
+// Returns cty.NilVal (no error) if this resource type has no schema, which
+// callers must treat as "nothing to resolve against" rather than an error;
+// that case is already unreachable in practice because managedResourceExecute
+// has a provider and schema by the time it calls this, but a resolver must
+// never be handed a NilVal by mistake.
+func (n *NodePlannableResourceInstance) evaluateConfigForIdentity(ctx context.Context, evalCtx EvalContext, providerSchema providers.ProviderSchema) (cty.Value, providers.Schema, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	resourceSchema, _ := providerSchema.SchemaForResourceAddr(n.Addr.Resource.Resource)
+	if resourceSchema == nil {
+		return cty.NilVal, providers.Schema{}, diags
+	}
+
+	forEach, _ := evaluateForEachExpression(ctx, n.Config.ForEach, evalCtx, n.Addr)
+	keyData := EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
+
+	configVal, _, configDiags := evalCtx.EvaluateBlock(ctx, n.Config.Config, resourceSchema.Block, nil, keyData)
+	diags = diags.Append(configDiags.InConfigBody(n.Config.Config, n.Addr.String()))
+	if configDiags.HasErrors() {
+		return cty.NilVal, providers.Schema{}, diags
+	}
+
+	return configVal, *resourceSchema, diags
 }
 
 // replaceTriggered checks if this instance needs to be replace due to a change
