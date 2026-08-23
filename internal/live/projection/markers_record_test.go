@@ -237,14 +237,26 @@ func TestMarkersRecordWriteBackRecordsTheSelectedIdentity(t *testing.T) {
 	}
 }
 
-// TestMarkersRecordWriteBackIgnoresAnUnselectedResource is the guard against
-// the selection being read too widely on the write side.
+// TestMarkersRecordWriteBackIgnoresAnUnselectedResource used to be the guard
+// against the selection being read too widely on the write side: the same
+// applied object, the same type, the same store, no selection in the
+// configuration, and nothing written at all - because before GitHub issue
+// #364 unit A2, an ordinary marker-found instance's identity had no reason
+// to be in the record store, and a second, unreconciled answer to "which
+// object is this" is exactly what issue #270 exists to prevent the plan
+// side from ever reading.
 //
-// The same applied object, the same type, the same store - and no selection
-// in the configuration. Nothing may be written: this type is admitted by its
-// ratified row and found by its marker, and a located record for it would be
-// a second, unreconciled answer to "which object is this" that no plan side
-// reads.
+// The 2026-08-23 foundation-order ruling widened the record to hold every
+// instance's identity, read first by a later plan and verified against the
+// marker rather than trusted on its own (unit B, not yet landed) - so an
+// unselected, marker-bearing instance now DOES get its identity recorded,
+// through the exact same generic derivation ([LocatedRecordFrom]) a
+// selected instance's does. What the test still guards is that the two
+// routes never conflict: an unselected resource is still found by its
+// marker (nothing about ownership moved), and its record - now present -
+// holds the correct value rather than a fragment or a guess. See
+// TestApprove_UnselectedInstanceIsStampedNotLocated in
+// internal/live/liveimport for this same reversal on the migrate side.
 func TestMarkersRecordWriteBackIgnoresAnUnselectedResource(t *testing.T) {
 	dir := t.TempDir()
 	src := `
@@ -298,7 +310,14 @@ resource "` + markersRecordTestType + `" "data" {
 		Config:     cfg,
 	}))
 
-	if _, _, exists, err := located.Get(context.Background(), addr); err != nil || exists {
-		t.Errorf("an unselected, marker-bearing resource got a located record written for it (exists=%v err=%v). The write side and the read side must admit the same set.", exists, err)
+	rec, _, exists, err := located.Get(context.Background(), addr)
+	if err != nil {
+		t.Fatalf("reading back the identity record: %s", err)
+	}
+	if !exists {
+		t.Fatal("no identity record was written for an unselected instance; GitHub issue #364 unit A2 records every instance's identity, not only a selected or located one's")
+	}
+	if rec.ImportID != "vol-unselected" {
+		t.Errorf("identity record ImportID = %q, want %q (the applied object's own id)", rec.ImportID, "vol-unselected")
 	}
 }

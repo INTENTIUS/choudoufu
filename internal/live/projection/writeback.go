@@ -332,37 +332,68 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
 
-			// ---- located identity (issue #270) ----
-			if schemaPtr != nil && schemaPtr.Block != nil {
+			// ---- identity (issue #270's located route, and - since GitHub
+			// issue #364 unit A2's foundation-order ruling - every other
+			// instance too) ----
+			//
+			// automatic and selected instances are unchanged from before
+			// this issue: a located route's record is such an instance's
+			// ONLY way to be found again, so a derivation failure there
+			// stays the loud error it always was. Every other (ordinary
+			// taggable) instance now ALSO gets its identity recorded, best
+			// effort: ownership is decided by its marker regardless, so a
+			// type or instance this pass cannot derive an identity for
+			// (an unrecordable schema, an object missing a component) just
+			// keeps whatever was already recorded - from an earlier apply,
+			// or from a live-import migration - rather than failing the
+			// apply or erasing it. See writeBackRecordEnvelopes's own
+			// "residue" case just below for the same leave-alone shape.
+			switch {
+			case schemaPtr == nil || schemaPtr.Block == nil:
+				clearIdentity = true
+			default:
 				schema := *schemaPtr
 				typeSchemas := map[string]providers.Schema{typeName: schema}
 				automatic := identity.LocatedType(typeName, typeSchemas)
 				selected := selection.Selects(addr.ConfigResource()) && identity.SelectedLocatedType(typeName, typeSchemas)
-				if automatic || selected {
+
+				obj, err := ri.Current.Decode(schema.Block.ImpliedType())
+				switch {
+				case err != nil && (automatic || selected):
 					touched = true
-					obj, err := ri.Current.Decode(schema.Block.ImpliedType())
-					if err != nil {
+					diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
+						fmt.Sprintf("Recording which live %s %s owns failed: its final state could not be decoded: %s.", typeName, addr, err),
+					))
+				case err != nil:
+					// An ordinary instance this pass could not decode for
+					// identity purposes: leave whatever is recorded alone.
+					// The marker (or the record-backed loop, for a
+					// record-backed type) is this instance's real
+					// ownership carrier regardless.
+				default:
+					rec, recordable := LocatedRecordFrom(typeName, schema, obj.Value)
+					switch {
+					case recordable:
+						touched = true
+						setIdentity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+					case automatic || selected:
+						touched = true
 						diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
-							fmt.Sprintf("Recording which live %s %s owns failed: its final state could not be decoded: %s.", typeName, addr, err),
+							fmt.Sprintf(
+								"Recording which live %s %s owns failed: the applied object carries no usable identity to record. A %s carries no ownership marker, so without this record no later run can find the object again, and the next plan would propose creating a second one.",
+								typeName, addr, typeName,
+							),
 						))
-					} else {
-						rec, recordable := LocatedRecordFrom(typeName, schema, obj.Value)
-						if !recordable {
-							diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot record a located identity",
-								fmt.Sprintf(
-									"Recording which live %s %s owns failed: the applied object carries no usable identity to record. A %s carries no ownership marker, so without this record no later run can find the object again, and the next plan would propose creating a second one.",
-									typeName, addr, typeName,
-								),
-							))
-						} else {
-							setIdentity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
-						}
+					default:
+						// Not recordable (no identity this mechanism can
+						// hold in full, or a sensitive identity attribute),
+						// and not this instance's only carrier: leave
+						// whatever is recorded alone rather than clearing
+						// it - a value written by an earlier apply or a
+						// live-import migration must not be erased just
+						// because THIS pass could not re-derive it.
 					}
-				} else {
-					clearIdentity = true
 				}
-			} else {
-				clearIdentity = true
 			}
 
 			// ---- residue (issue #275) ----
