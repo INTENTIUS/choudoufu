@@ -196,6 +196,20 @@ func recordableIdentitySchema(resourceType string, schema providers.Schema) bool
 	return true
 }
 
+// RecordableIdentitySchema is [recordableIdentitySchema] exported for GitHub
+// issue #364 unit A2's writers: [internal/live/projection.LocatedRecordFrom]
+// folds this in so every one of its callers - not only [LocatedType] and
+// [RecordFallbackType], which gated it before a stamped, ordinary taggable
+// instance ever reached that function - refuses to derive an identity a
+// record must never carry, because it is either not fully recordable
+// ([LocatedIdentityPlanFor]'s own refusal) or would carry a secret
+// ([sensitiveIdentityAttr]). Named identically to the unexported function it
+// wraps so the two cannot answer differently by drifting apart; a single
+// call site keeps that true by construction.
+func RecordableIdentitySchema(resourceType string, schema providers.Schema) bool {
+	return recordableIdentitySchema(resourceType, schema)
+}
+
 // RecordFallbackType reports whether resourceType may use the record store
 // as an INSTANCE-level identity fallback when the type's own admission row
 // could not resolve one of its identity components from configuration.
