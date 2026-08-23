@@ -30,11 +30,58 @@ import "sort"
 // alternative Attrs on one component (an any-of argument) never reproduces,
 // because synthesized never builds either shape.
 
+// preferSynthesized decides, for [resolver.lookupType], whether synthesized
+// should be used instead of row, and if so, returns the exact entry to use.
+// The second return is false when it should not - the row wins, unchanged.
+//
+// The returned entry is synthesized itself, verbatim, except for one field:
+// when row claims "id" as an identity source and synthesized does not -
+// the one difference [schemaReproducesRow]'s own IdentityAttrs check
+// tolerates, since [SynthesizeTypeIdentity] never claims "id" on principle
+// - "id" is added back onto the entry actually used.
+//
+// Dropping it silently was the shape this ruling's own first schema-backed
+// refusal-probe run caught directly: sixty-nine new "Not an identity
+// attribute" refusals and several real corpus entries losing resolved
+// instances, every one a sibling resource reading a reproduced type's own
+// `.id` (aws_s3_bucket among them - IdentityAttrs [id, bucket] on the row,
+// [bucket] alone from the schema), which no schema-less instrument
+// (internal/live/check's identity golden, refusal-probe's default sweep)
+// could ever have seen, because none of their fixtures happens to reference
+// it. "Reproduces the row" and "safe to use verbatim in the row's place"
+// are different claims for exactly this reason, and this function is what
+// makes the second one true whenever the first one is.
+func preferSynthesized(row, synthesized TypeIdentity) (TypeIdentity, bool) {
+	if !schemaReproducesRow(row, synthesized) {
+		return TypeIdentity{}, false
+	}
+	if containsString(row.IdentityAttrs, "id") && !containsString(synthesized.IdentityAttrs, "id") {
+		merged := synthesized
+		merged.IdentityAttrs = append(append([]string(nil), synthesized.IdentityAttrs...), "id")
+		sort.Strings(merged.IdentityAttrs)
+		return merged, true
+	}
+	return synthesized, true
+}
+
+// containsString reports whether s appears anywhere in ss.
+func containsString(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 // schemaReproducesRow reports whether synthesized - an entry
 // [SynthesizeTypeIdentity] built from the real provider schemas - says the
 // same thing row already does. See this file's own doc comment for the
 // rule. Never called with a synthesized entry that failed
-// ([SynthesizeTypeIdentity]'s own bool already gates that).
+// ([SynthesizeTypeIdentity]'s own bool already gates that). Callers deciding
+// what to actually USE should call [preferSynthesized] instead, which also
+// carries forward the one field this comparison deliberately tolerates a
+// difference on.
 func schemaReproducesRow(row, synthesized TypeIdentity) bool {
 	rowAttrs, ok := identityBearingAttrNames(row.Components)
 	if !ok {

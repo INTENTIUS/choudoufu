@@ -858,7 +858,7 @@ type resolver struct {
 	// non-nil entry is the synthesized identity to use INSTEAD of the hand
 	// table's row, either because there is no row (the schema fallback's
 	// original job) or because there is one and the schema reproduces it
-	// (ruling 2, #387, [schemaReproducesRow]). A nil entry means "asked, and
+	// (ruling 2, #387, [preferSynthesized]). A nil entry means "asked, and
 	// the schema does not win here" - the schemas do not describe the type
 	// well enough for [SynthesizeTypeIdentity] to try (its own doc
 	// comment's refusals), or they describe something the table's row
@@ -997,11 +997,13 @@ func (r *resolver) expKey(rc *configs.Resource) string {
 // behind it: ruling 2 of rfc/20260823-foundation-order-ruling.md (#387).
 // When the caller supplied provider schemas AND [SynthesizeTypeIdentity]
 // reproduces what the hand table already says for typeName -
-// [schemaReproducesRow]'s own comparison, the same one
+// [preferSynthesized]'s own comparison, the same one
 // tools/row-gen/schemafirst.go makes offline to decide what to MEASURE -
-// the synthesized entry is used instead of the row. It already carries
-// Synthesized and Admits (synthesizeTypeIdentity sets both on every entry
-// it returns), so nothing further has to mark it.
+// the entry it returns is used instead of the row (synthesized itself,
+// carrying Synthesized and Admits as synthesizeTypeIdentity always sets
+// them, plus the row's own "id" claim if the row had one and the schema
+// does not - see [preferSynthesized]'s own doc comment for why that one
+// field is carried forward rather than dropped).
 //
 // A type the table does not cover at all still resolves through the schema
 // fallback exactly as before ([SynthesizeTypeIdentity]'s own answer is used
@@ -1022,9 +1024,13 @@ func (r *resolver) lookupType(typeName string) (TypeIdentity, bool) {
 
 	if len(r.schemas) > 0 {
 		if synthesized, ok := SynthesizeTypeIdentity(typeName, r.schemas, r.signal); ok {
-			if !hasRow || schemaReproducesRow(row, synthesized) {
+			if !hasRow {
 				r.synth[typeName] = &synthesized
 				return synthesized, true
+			}
+			if used, ok := preferSynthesized(row, synthesized); ok {
+				r.synth[typeName] = &used
+				return used, true
 			}
 		}
 	}

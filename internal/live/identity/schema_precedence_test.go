@@ -157,3 +157,53 @@ func TestSchemaPrecedenceKeepsRowWhenSchemaDisagrees(t *testing.T) {
 		t.Errorf("ImportID = %q, want %q (the row's own composite - a route_table_id-only schema would have produced \"rtb-0123456789abcdef0\" alone, silently losing the destination)", res.ImportID, want)
 	}
 }
+
+// TestPreferSynthesizedKeepsRowsIDClaim pins the fix this ruling's first
+// schema-backed refusal-probe run forced: [SynthesizeTypeIdentity] never
+// claims "id" as an identity source (its own doc comment), so a row that
+// does - aws_s3_bucket and aws_iam_role both do, "id" being the honest
+// answer for a type whose SDK-level id equals its client-supplied name -
+// must keep that claim even when the schema wins on everything else, or
+// every sibling resource reading THIS type's own `.id` stops resolving the
+// moment real schemas are present. That regression was invisible to every
+// schema-less instrument and cost real corpus instances the first time
+// this ruling's runtime inversion landed without the fix.
+func TestPreferSynthesizedKeepsRowsIDClaim(t *testing.T) {
+	row := TypeIdentity{
+		Type:          "aws_s3_bucket",
+		Components:    []Component{{Attrs: []string{"bucket"}, IdentityAttr: SameNameIdentity}},
+		IdentityAttrs: []string{"bucket", "id"},
+	}
+	synthesized := TypeIdentity{
+		Type:          "aws_s3_bucket",
+		Components:    []Component{{Attrs: []string{"bucket"}, IdentityAttr: "bucket"}},
+		IdentityAttrs: []string{"bucket"},
+		Synthesized:   true,
+		Admits:        AdmitSchema,
+	}
+
+	used, ok := preferSynthesized(row, synthesized)
+	if !ok {
+		t.Fatal("preferSynthesized refused a row the schema does reproduce")
+	}
+	if !used.Synthesized || used.Admits != AdmitSchema {
+		t.Errorf("the entry used lost its Synthesized/Admits marking: %#v", used)
+	}
+	want := []string{"bucket", "id"}
+	if !reflect.DeepEqual(used.IdentityAttrs, want) {
+		t.Errorf("IdentityAttrs = %v, want %v (the row's own \"id\" claim, carried forward)", used.IdentityAttrs, want)
+	}
+
+	// A row that never claimed "id" in the first place must not gain one:
+	// this function ADDS the row's own claim back, it never invents one the
+	// row itself never made.
+	rowNoID := row
+	rowNoID.IdentityAttrs = []string{"bucket"}
+	used2, ok := preferSynthesized(rowNoID, synthesized)
+	if !ok {
+		t.Fatal("preferSynthesized refused a row the schema does reproduce")
+	}
+	if !reflect.DeepEqual(used2.IdentityAttrs, []string{"bucket"}) {
+		t.Errorf("IdentityAttrs = %v, want [bucket] - preferSynthesized must not invent an \"id\" claim the row never made", used2.IdentityAttrs)
+	}
+}
