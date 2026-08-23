@@ -1,15 +1,6 @@
---- FAIL: TestTableCoversFixtureTypes (0.04s)
-    identity_test.go:668: a fixture uses aws_api_gateway_integration_response, which the v0 identity table does not cover
-    identity_test.go:668: a fixture uses aws_api_gateway_method_response, which the v0 identity table does not cover
-FAIL
-FAIL	github.com/intentius/choudoufu/internal/live/identity	1.521s
---- FAIL: TestAdmissionTableCoversEstate (0.03s)
-    lint_test.go:902: aws_api_gateway_method_response is used by a fixture but is missing from the v0 admission table
-    lint_test.go:902: aws_api_gateway_integration_response is used by a fixture but is missing from the v0 admission table
-FAIL
-FAIL	github.com/intentius/choudoufu/internal/live/lint	1.243s
-ok  	github.com/intentius/choudoufu/internal/live/check	364.679s
+ok  	github.com/intentius/choudoufu/internal/live/identity	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/lint	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/check	6.927s
 ok  	github.com/intentius/choudoufu/tools/row-gen	(cached)
 ok  	github.com/intentius/choudoufu/live	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/marksafe	(cached)
-FAIL
+ok  	github.com/intentius/choudoufu/internal/live/marksafe	3.137s
