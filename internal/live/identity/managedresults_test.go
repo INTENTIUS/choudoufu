@@ -129,3 +129,126 @@ func TestManagedResultRejectsADataAddress(t *testing.T) {
 func hasSummary(diags interface{ Err() error }, summary string) bool {
 	return diags.Err() != nil && strings.Contains(diags.Err().Error(), summary)
 }
+
+// TestManagedResultThroughCountLocalElement is corpus-alb-complete's own
+// carrier, reduced: terraform-aws-modules/acm's real
+// aws_route53_record.validation reaches domain_validation_options through a
+// LOCAL built with distinct()/for/merge(), indexed with count.index rather
+// than each.value -
+// `element(local.validation_domains, count.index)["resource_record_name"]`.
+// Nothing here is an each.value/for_each shape: [resolver.managedFromExpr]
+// has to chase THROUGH local.validation_domains's own defining expression to
+// find the certificate at all, and [resolver.tolerantManagedValue] has to
+// evaluate the whole argument through [resolver.tolerantEvaluator] because
+// element()/distinct()/merge() are function calls a bare traversal chase
+// never reaches.
+func TestManagedResultThroughCountLocalElement(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-count-local"), nil)
+
+	// Unlike certResult(), resource_record_name/type are UNKNOWN here - the
+	// real shape a PlanResourceChange call against the real AWS provider
+	// gives: domain_name is filled in from the certificate's own
+	// domain_name/subject_alternative_names, and resource_record_name/type
+	// are not known until ACM issues the certificate. A fully-known result
+	// (certResult() above) resolves CONCRETE, which is a different, real,
+	// but less interesting case than the one this test is about.
+	planCertResult := map[string]cty.Value{
+		"aws_acm_certificate.cert": cty.ObjectVal(map[string]cty.Value{
+			"arn":         cty.UnknownVal(cty.String),
+			"domain_name": cty.StringVal("example.com"),
+			"domain_validation_options": cty.SetVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+				"domain_name":           cty.StringVal("example.com"),
+				"resource_record_name":  cty.UnknownVal(cty.String),
+				"resource_record_type":  cty.UnknownVal(cty.String),
+				"resource_record_value": cty.UnknownVal(cty.String),
+			})}),
+		}),
+	}
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult})
+	assertNoErrors(t, diags)
+
+	res := resolutionAt(t, result, `aws_route53_record.validation[0]`)
+	if res.Class != ClassNeedsDiscovery {
+		t.Fatalf("resolved %s, want NEEDS_DISCOVERY - the record's own identity is waiting on the certificate's apply", res.Class)
+	}
+	if res.Cause.Normalize() != DiscoverySiblingApply {
+		t.Errorf("resolved with cause %s, want SIBLING_APPLY", res.Cause)
+	}
+}
+
+// TestManagedResultThroughCountLocalElementAbsentStillRefuses is the
+// refusal proof: without the certificate's read in hand, the SAME
+// configuration must still refuse - and refuse loudly, not silently
+// resolve to something plausible-looking. It does not have to keep the
+// exact wording the strict static evaluator raised before this feature
+// existed; it has to keep refusing.
+func TestManagedResultThroughCountLocalElementAbsentStillRefuses(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-count-local"), nil)
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{})
+	if !diags.HasErrors() {
+		t.Fatal("resolved with no managed result in hand; the record's name/type read an attribute nothing in the configuration sets")
+	}
+	if _, ok := result.Get(mustAddr(t, "aws_route53_record.validation[0]")); ok {
+		t.Fatal("aws_route53_record.validation[0] resolved despite its certificate reference being refused")
+	}
+}
+
+func TestManagedResultThroughCountModuleElement(t *testing.T) {
+	cfg := loadConfigTree(t, filepath.Join("testdata", "managed-read-count-module"), nil)
+
+	planCertResult := map[string]cty.Value{
+		"module.acm.aws_acm_certificate.this[0]": cty.ObjectVal(map[string]cty.Value{
+			"arn":         cty.UnknownVal(cty.String),
+			"domain_name": cty.StringVal("example.com"),
+			"domain_validation_options": cty.SetVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
+				"domain_name":           cty.StringVal("example.com"),
+				"resource_record_name":  cty.UnknownVal(cty.String),
+				"resource_record_type":  cty.UnknownVal(cty.String),
+				"resource_record_value": cty.UnknownVal(cty.String),
+			})}),
+		}),
+	}
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planCertResult})
+	assertNoErrors(t, diags)
+
+	res := resolutionAt(t, result, `module.acm.aws_route53_record.validation[0]`)
+	if res.Class != ClassNeedsDiscovery {
+		t.Fatalf("resolved %s, want NEEDS_DISCOVERY", res.Class)
+	}
+}
+
+// TestManagedFromDeclinesAmbiguousMultiResourceLocal is
+// [resolver.managedFromExprAt]'s own safety proof: a local two DIFFERENT
+// managed resources both feed - both covered, both genuinely unknown -
+// must not have its consuming identity argument attributed to EITHER one
+// arbitrarily. Picking the first hit Variables() happens to list would
+// print "waiting on X" for a resource this argument may have nothing to do
+// with, which is a wrong claim even though it is not a wrong marker. This
+// package's own rule (HANDOFF.md: a missing marker outranks a wrong one)
+// applies to an attribution exactly as it does to an identity: the
+// instance stays refused, not guessed into ClassNeedsDiscovery naming the
+// wrong sibling.
+func TestManagedFromDeclinesAmbiguousMultiResourceLocal(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "managed-read-ambiguous-local"), nil)
+
+	planResult := map[string]cty.Value{
+		"aws_acm_certificate.cert": cty.ObjectVal(map[string]cty.Value{
+			"arn": cty.UnknownVal(cty.String),
+		}),
+		"aws_cognito_user_pool_client.app": cty.ObjectVal(map[string]cty.Value{
+			"id": cty.UnknownVal(cty.String),
+		}),
+	}
+
+	result, diags := ResolveWith(context.Background(), cfg, Context{ManagedResults: planResult})
+	if !diags.HasErrors() {
+		t.Fatal("resolved with no error; an identity argument built from two different covered-but-unknown resources must not resolve or be silently classified")
+	}
+	res, ok := result.Get(mustAddr(t, "aws_route53_record.ambiguous[0]"))
+	if ok && res.Class == ClassNeedsDiscovery {
+		t.Fatalf("classified NEEDS_DISCOVERY (cause %s, args %v); an ambiguous attribution must leave the instance refused, not guess a sibling", res.Cause, res.CauseArgs)
+	}
+}

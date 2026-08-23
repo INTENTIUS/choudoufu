@@ -2187,6 +2187,22 @@ func (r *resolver) resolveExpr(expr hcl.Expression, scope instScope, ident confi
 			r.diags = append(r.diags[:mark:mark], r.diags[markAfterEval:]...)
 			return parts, true
 		}
+
+		// Truly, truly last: none of the routes above could evaluate the
+		// whole expression at all, which for a same-module local this
+		// argument reads through - not a module-call argument, not a
+		// module output - means a managed resource is buried somewhere
+		// inside THAT local's own definition and the strict evaluator
+		// refused before anything else got a chance to see it. See
+		// [resolver.tolerantManagedValue], which either resolves a value
+		// provably independent of the substitution or replaces the
+		// evaluator's own "Dynamic value in static context" /
+		// "Unable to compute static value" with the honest "Non-static
+		// identity argument" and the sibling-apply bookkeeping that comes
+		// with it - never both diagnostics standing together.
+		if parts, ok := r.tolerantManagedValue(expr, scope, ident, mark, sibMark); ok {
+			return parts, true
+		}
 		return nil, false
 	}
 
@@ -4216,7 +4232,7 @@ func (r *resolver) forEachExpansion(rc *configs.Resource) (*expansion, bool) {
 	// and the element values that came with it may be unknown until that
 	// sibling is applied. Empty for any run that supplied no managed
 	// results. See managedprovenance.go.
-	exp.managedFrom, _ = r.managedFromExpr(expr)
+	exp.managedFrom, _ = r.managedFromExpr(expr, instScope{})
 	switch {
 	case ty.IsMapType(), ty.IsObjectType():
 		elems := make(map[string]cty.Value)
