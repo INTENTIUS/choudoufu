@@ -1134,6 +1134,15 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// either, which is what makes the ordering safe - an estate that has
 	// not migrated reaches the refusal below exactly as before.
 	if r.recordStore && LocatedType(resAddr.Type, r.schemas) {
+		// GitHub issue #365 ruling 5's own version of the check
+		// ClassRecordBacked's SecretMaterial branch makes below: the
+		// schema says the route is open, and the operator's own setting
+		// is asked again anyway, so a caller that skipped lint cannot
+		// reach a record this fork was told to refuse by skipping it.
+		if detail := LocatedStrictSecretsRefusal(resAddr.Type, r.secrets); detail != "" {
+			r.errorf(rng, "Secret-generating resource refused", "%s: %s", addr.String(), detail)
+			return Resolution{}, false
+		}
 		return Resolution{
 			Addr:  addr,
 			Class: ClassRecordLocated,

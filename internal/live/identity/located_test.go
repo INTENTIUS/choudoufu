@@ -9,15 +9,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -192,31 +195,64 @@ func TestLocatedTypeFailsClosedWithoutSchemas(t *testing.T) {
 	}
 }
 
-// TestSanctionedCredentialExclusionRefusesRegardlessOfSchema pins the two
-// types [sanctionedCredentialExclusion] names by NAME, which is the one
-// place a name may appear here: the ruling is what cannot be derived, and
-// this test is what says the ruling reaches the types it names.
-//
-// Before 2026-08-22 (issue #365 population 2) this refusal came from
-// [credentialMaterial]'s whole-schema sweep, and the test proved that by a
-// counterfactual: strip the sensitive attribute and the type would be
-// admitted. That measurement showed the sweep was answering the wrong
-// question for nine of the eleven types it excluded - whether the RECORD
-// would carry a secret, not whether the type has one anywhere - so
-// condition 2 was narrowed to [sensitiveIdentityAttr]. These two names
-// survive as a standing exclusion regardless: the counterfactual would now
-// prove nothing (the refusal is unconditional, not schema-derived), so what
-// this test asserts instead is that property itself - refused even with a
-// schema [sensitiveIdentityAttr] would admit.
-func TestSanctionedCredentialExclusionRefusesRegardlessOfSchema(t *testing.T) {
-	for typeName := range sanctionedCredentialExclusion {
+// TestLocatedTypeAdmitsFormerSanctionedNamesOnSchemaAlone is the inverse of
+// what this test asserted before the maintainer's 2026-08-23 ruling
+// (rfc/20260823-foundation-order-ruling.md, ruling 5): [LocatedType] on its
+// own - no secrets context, schema only - now admits both of
+// [strictSecretsLocatedExclusion]'s names whenever a clean schema would
+// admit any other markerless type, because the veto that used to live
+// inside [recordableIdentitySchema] moved to [LocatedStrictSecretsRefusal],
+// which this predicate does not call. What still refuses aws_iam_access_key
+// and aws_iot_certificate is the operator's `strict { secrets }` setting,
+// asked separately by the three callers named in
+// [LocatedStrictSecretsRefusal]'s own doc comment - see
+// TestLocatedStrictSecretsRefusalNamesExactlyTheRuledTypes for that half.
+func TestLocatedTypeAdmitsFormerSanctionedNamesOnSchemaAlone(t *testing.T) {
+	for typeName := range strictSecretsLocatedExclusion {
 		if _, ok := MarkerlessTypes[typeName]; !ok {
-			t.Errorf("%s is no longer in MarkerlessTypes, so sanctionedCredentialExclusion no longer has a route to keep it out of. Find out what does.", typeName)
+			t.Errorf("%s is no longer in MarkerlessTypes, so this predicate has nothing to say about it. Find out what does.", typeName)
 			continue
 		}
-		if LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(nil)}) {
-			t.Errorf("LocatedType(%q) = true with a clean schema (a string id, nothing sensitive). This type is one of the maintainer's sanctioned credential exclusions and must be refused regardless of what its schema says.", typeName)
+		if NotImportable(typeName) {
+			// aws_iot_certificate: unreachable regardless, by a wholly
+			// different condition (0) - see strictSecretsLocatedExclusion's
+			// own doc comment for why it is named here anyway.
+			continue
 		}
+		if !LocatedType(typeName, map[string]providers.Schema{typeName: locatedSchema(nil)}) {
+			t.Errorf("LocatedType(%q) = false with a clean schema (a string id, nothing sensitive) and NotImportable false. "+
+				"Ruling 5 retired the unconditional veto; schema-only admission must now behave like any other markerless type.", typeName)
+		}
+	}
+}
+
+// TestLocatedStrictSecretsRefusalNamesExactlyTheRuledTypes is #365 ruling
+// 5's own pattern at the pure-function layer: the toggle refuses exactly
+// the two names it is given, under exactly the setting that asks it to, and
+// nothing else - proved by flipping both axes.
+func TestLocatedStrictSecretsRefusalNamesExactlyTheRuledTypes(t *testing.T) {
+	for typeName := range strictSecretsLocatedExclusion {
+		if got := LocatedStrictSecretsRefusal(typeName, strict.DefaultSecrets); got != "" {
+			t.Errorf("LocatedStrictSecretsRefusal(%q, %q) = %q, want \"\" - the default setting must admit, the way stock stores the value",
+				typeName, strict.DefaultSecrets, got)
+		}
+		if got := LocatedStrictSecretsRefusal(typeName, strict.Refuse); got == "" {
+			t.Errorf("LocatedStrictSecretsRefusal(%q, %q) = \"\", want a refusal naming the setting", typeName, strict.Refuse)
+		}
+	}
+
+	// A type NOT in the ruling is untouched by the toggle at either
+	// setting - the whole reason this stays a named list rather than a
+	// schema-derived rule (see strictSecretsLocatedExclusion's doc comment,
+	// and the census it cites): a generic gate here would also catch types
+	// whose secret the provider's own Read restores.
+	const other = "aws_cognito_user_pool_client"
+	if strictSecretsLocatedExclusion[other] {
+		t.Fatalf("%s is one of the ruled types; pick a different control", other)
+	}
+	if got := LocatedStrictSecretsRefusal(other, strict.Refuse); got != "" {
+		t.Errorf("LocatedStrictSecretsRefusal(%q, %q) = %q, want \"\" - the toggle must refuse exactly the two ruled types and nothing else",
+			other, strict.Refuse, got)
 	}
 }
 
@@ -327,6 +363,15 @@ func TestLocatedImportID(t *testing.T) {
 // Re-measured after issue #309 widened the markerless veto and wired
 // [IDNotProvenWholeTypes] into the admission - see this run's own log line
 // for the current split, which now has five buckets rather than three.
+//
+// Ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate off
+// [LocatedType]'s own credential wall (the "wall" bucket below no longer
+// consults [strictSecretsLocatedExclusion] - it is a secrets-setting
+// question now, asked by [LocatedStrictSecretsRefusal], not a schema
+// question this predicate can see). aws_iam_access_key moves into the
+// "located" bucket; aws_iot_certificate does not move at all, because
+// [NotImportable] already refuses it first, unconditionally. Re-measure
+// after this change before quoting the split above; it is stale by two.
 func TestLocatedTypePopulation(t *testing.T) {
 	if os.Getenv("CHOUDOUFU_LIVE_SCHEMAS") == "" {
 		t.Skip("set CHOUDOUFU_LIVE_SCHEMAS=1 to install hashicorp/aws and measure the located population against it")
@@ -355,7 +400,11 @@ func TestLocatedTypePopulation(t *testing.T) {
 		_, unproven := IDNotProvenWholeTypes[name]
 		plan, recordable := LocatedIdentityPlanFor(name, schema)
 		sensitiveID := recordable && sensitiveIdentityAttr(plan, schema) != ""
-		wall := sensitiveID || sanctionedCredentialExclusion[name]
+		// sanctionedCredentialExclusion is retired (ruling 5): the two
+		// names it held are now a secrets-setting question
+		// (LocatedStrictSecretsRefusal), not a schema-only wall this
+		// predicate can see, so wall is sensitiveID alone.
+		wall := sensitiveID
 		switch {
 		case NotImportable(name):
 			// Condition 0 (issue #331). These are the types the other
@@ -388,8 +437,8 @@ func TestLocatedTypePopulation(t *testing.T) {
 		// string id at the same time.
 		want := !NotImportable(name) && recordable && !wall
 		if LocatedType(name, schemas) != want {
-			t.Errorf("LocatedType(%q) disagrees with its own conditions (notImportable=%v recordable=%v sensitiveID=%v sanctioned=%v)",
-				name, NotImportable(name), recordable, sensitiveID, sanctionedCredentialExclusion[name])
+			t.Errorf("LocatedType(%q) disagrees with its own conditions (notImportable=%v recordable=%v sensitiveID=%v)",
+				name, NotImportable(name), recordable, sensitiveID)
 		}
 	}
 	sort.Strings(credential)
@@ -398,7 +447,7 @@ func TestLocatedTypePopulation(t *testing.T) {
 	sort.Strings(notImportable)
 	t.Logf("markerless=%d located(string id)=%d located(composite object)=%d located(composed string)=%d credential=%d unprovenID=%d noID=%d notImportable=%d",
 		len(MarkerlessTypes), len(located), len(composite), len(composed), len(credential), len(unprovenID), len(noID), len(notImportable))
-	t.Logf("credential wall (identity itself sensitive, or sanctioned by name): %v", credential)
+	t.Logf("credential wall (identity itself sensitive): %v", credential)
 	t.Logf("credential material anywhere in schema (informational only - not what LocatedType checks): %v", credentialWide)
 	t.Logf("composed from the documented grammar (#337): %v", composed)
 	t.Logf("refused by the not-importable veto (#331): %v", notImportable)
@@ -406,10 +455,16 @@ func TestLocatedTypePopulation(t *testing.T) {
 		t.Logf("credential wall detail: %s", line)
 	}
 
-	// The requirement, against the real schema rather than a fixture.
-	for typeName := range sanctionedCredentialExclusion {
-		if LocatedType(typeName, schemas) {
-			t.Errorf("LocatedType(%q) = true against the real hashicorp/aws schema", typeName)
+	// Ruling 5, against the real schema rather than a fixture: LocatedType
+	// alone (no secrets context) now ADMITS both former sanctioned
+	// exclusions whenever their own conditions otherwise clear - the
+	// inverse of what this loop asserted before the ruling.
+	for typeName := range strictSecretsLocatedExclusion {
+		if NotImportable(typeName) {
+			continue
+		}
+		if !LocatedType(typeName, schemas) {
+			t.Errorf("LocatedType(%q) = false against the real hashicorp/aws schema; ruling 5 retired the unconditional veto, so schema-only admission should behave like any other markerless type", typeName)
 		}
 	}
 	if len(located) == 0 {
@@ -500,74 +555,55 @@ func credentialWallDetail(schemas map[string]providers.Schema, credential []stri
 	return out
 }
 
-// TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto is GitHub issue
-// #365 slice 3's deliberate BOUND, written as a test because a bound nobody
-// can see is a bound the next change removes by accident.
+// TestTheSecretsSettingNowReachesTheLocatedCredentialException is what
+// TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto asserted before
+// the maintainer's 2026-08-23 ruling (rfc/20260823-foundation-order-ruling.md,
+// ruling 5), inverted where the ruling moved the ground: the setting still
+// does not reach [LocatedType]'s condition 2 (hazard one, below, is
+// unchanged), but it now DOES reach [strictSecretsLocatedExclusion]'s two
+// named types, through [LocatedStrictSecretsRefusal] rather than through
+// [LocatedType] itself.
 //
-// The slice turned this fork's three secret refusals into one setting. Two
-// of them moved: a secret-generating logical type is admitted under the
-// default and its record holds the value the way a stock state file does,
-// and a sensitive settable argument is recorded as residue under the same
-// default. This one, [LocatedType]'s condition 2, is untouched by the
-// setting on purpose: see below for why, and hazard two for what still
-// refuses regardless of it.
+// # Hazard one, unchanged: a located record has no slot for the value it never holds
 //
-// # Hazard one, resolved: a located record has no slot for the value it never holds
+// A record-LOCATED type's record holds its IDENTITY and NOTHING ELSE -
+// never a secret attribute outside it, whether the provider's read returns
+// that attribute or not. Whether such an attribute round-trips through a
+// read is [projection]'s residue question, unconditional on this route and
+// on the `secrets` setting, because residue is what would carry it if
+// anything does. Measured 2026-08-22 (issue #365 population 2, commit
+// 361e0da9ab): nine of the eleven types [credentialMaterial] excludes have
+// a clean identity - "id" is never the sensitive attribute - so the record
+// this route writes never touches such an attribute either way, under any
+// secrets setting. That is still condition 2's ground ([sensitiveIdentityAttr]),
+// and this test's control (withSecret, below) still proves it.
 //
-// This was framed as "the record cannot hold a value the provider's read
-// does not return", measured against aws_iam_access_key's secret (issue
-// #365's credential-material census, commit 29a47794f5) and used to keep the
-// whole veto blanket. The census answered a different question than the one
-// this route asks: a record-LOCATED type's record holds its IDENTITY and
-// NOTHING ELSE - never the secret attribute, whether the provider's read
-// returns it or not. Whether "secret" round-trips through a read is
-// [projection]'s residue question, unconditional on this route and on the
-// `secrets` setting, because residue is what would carry it if anything
-// does. Measured 2026-08-22 (2026-08-22 (issue #365 population 2),
-// [sanctionedCredentialExclusion]'s doc comment carries the numbers): nine
-// of the eleven types this veto excluded have a clean identity - "id" is
-// never the sensitive attribute - so the record it would write never
-// touched the secret either way, under any secrets setting. Narrowed to
-// [sensitiveIdentityAttr], which is condition 2 now. Two of the nine,
-// aws_iam_access_key and aws_iot_certificate, stay refused anyway: they are
-// two of the maintainer's four sanctioned credential exclusions
-// (live/HARNESS.md), honored here by name because that ruling predates this
-// route and its own check never reached it.
+// # What moved: the two named types are now a secrets question, not a schema wall
+//
+// Before ruling 5, [sanctionedCredentialExclusion] held aws_iam_access_key
+// and aws_iot_certificate out of [LocatedType] unconditionally - a ruling
+// baked into the schema question, so no caller could express "admit it, the
+// operator asked for stock's behaviour". Ruling 5 retired that: LocatedType
+// alone now admits both (see TestLocatedTypeAdmitsFormerSanctionedNamesOnSchemaAlone),
+// and [LocatedStrictSecretsRefusal] is where the operator's `strict {
+// secrets }` setting is asked, separately, by the three callers its own doc
+// comment names.
 //
 // # Hazard two: for at least one type the identity IS the secret
 //
-// The same census found it: a markerless type whose recorded identity is
-// itself a sensitive attribute. This test builds that shape and shows what
-// admitting it would produce - not a secret in the record, but a run that
-// stops at apply, because [locatedAttrString] refuses a marked value rather
-// than unmarking it. A lint refusal traded for an apply-time failure with
-// the object already live is the one trade this mechanism is forbidden to
-// make ([LocatedType], condition 0's own reasoning).
-//
-// The selected route already answers hazard two on its own - see
-// [sensitiveIdentityAttr], which is the blanket narrowed to exactly the
-// attributes a record would hold - and it is safe there for a reason that
-// does not transfer: a SELECTED type is already admitted by its ratified row
-// and already applied with every one of its attributes, so nothing about the
-// selection changes which values exist. An automatically-located type has no
-// other route at all.
-//
-// # What this bound cost, measured, and what it now costs
-//
-// Before 2026-08-22 this veto was the SOLE remaining wall for the
-// corpus-alb-complete gauntlet estate's test_plan stage, on one
-// aws_cognito_user_pool_client. Its other wall, condition 3, cleared when
-// [DocumentedImportIDs] learned to read the type's possessive-of import
-// sentence. With hazard one resolved, that estate's wall clears too -
-// client_secret is not the identity - and this test now asserts the setting
-// still does not reach [sanctionedCredentialExclusion]'s two names, which
-// are what a THIRD estate-independent wall (the maintainer's ruling, not a
-// schema fact) would need to name to matter here at all.
-func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
+// The 2026-08-22 census found it: a markerless type whose recorded identity
+// is itself a sensitive attribute. This test builds that shape and shows
+// what admitting it would produce - not a secret in the record, but a run
+// that stops at apply, because [locatedAttrString] refuses a marked value
+// rather than unmarking it. A lint refusal traded for an apply-time failure
+// with the object already live is the one trade this mechanism is
+// forbidden to make ([LocatedType], condition 0's own reasoning). Nothing
+// about ruling 5 touches this hazard; it is still condition 2's job.
+func TestTheSecretsSettingNowReachesTheLocatedCredentialException(t *testing.T) {
 	typeName := aMarkerlessType(t)
 
 	// A sensitive attribute outside the recorded identity is admitted -
-	// hazard one, resolved (see the doc comment above). The control proves
+	// hazard one, unchanged (see the doc comment above). The control proves
 	// this is the shape being asserted, not some other condition passing by
 	// coincidence: both schemas admit.
 	withSecret := locatedSchema(map[string]*configschema.Attribute{
@@ -583,16 +619,33 @@ func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
 		t.Fatal("the control schema is not admitted either, so the assertion above proves nothing about the " +
 			"credential veto")
 	}
+	// The generic control type must not be one of the two ruled names, or
+	// the assertions below would prove nothing about the boundary.
+	if strictSecretsLocatedExclusion[typeName] {
+		t.Skipf("aMarkerlessType picked %s, one of the ruled names; re-run - this control needs a different type", typeName)
+	}
+	if got := LocatedStrictSecretsRefusal(typeName, strict.Refuse); got != "" {
+		t.Errorf("LocatedStrictSecretsRefusal(%q, refuse) = %q, want \"\" - the toggle must reach only the two ruled names, "+
+			"not every markerless type with a sensitive attribute outside its identity", typeName, got)
+	}
 
-	// The maintainer's named exception still refuses regardless: this is
-	// the ONE place the setting could matter, since [sanctionedCredentialExclusion]
-	// is a ruling rather than a schema fact, and it does not.
-	for sanctioned := range sanctionedCredentialExclusion {
+	// The maintainer's named exception is now a SECRETS-SETTING question,
+	// asked at [LocatedStrictSecretsRefusal] rather than baked into
+	// [LocatedType]: schema-only admission succeeds for both names (ruling
+	// 5 retired the unconditional block), and the toggle is what still
+	// refuses them under strict.Refuse.
+	for sanctioned := range strictSecretsLocatedExclusion {
 		if _, ok := MarkerlessTypes[sanctioned]; !ok {
 			continue
 		}
-		if LocatedType(sanctioned, map[string]providers.Schema{sanctioned: clean}) {
-			t.Errorf("LocatedType(%q) = true even with a clean schema; the sanctioned exclusion must hold regardless of the secrets setting", sanctioned)
+		if !NotImportable(sanctioned) && !LocatedType(sanctioned, map[string]providers.Schema{sanctioned: clean}) {
+			t.Errorf("LocatedType(%q) = false with a clean schema; ruling 5 retired the unconditional veto from LocatedType itself", sanctioned)
+		}
+		if got := LocatedStrictSecretsRefusal(sanctioned, strict.DefaultSecrets); got != "" {
+			t.Errorf("LocatedStrictSecretsRefusal(%q, default) = %q, want \"\" - stored by default, the way stock stores it", sanctioned, got)
+		}
+		if got := LocatedStrictSecretsRefusal(sanctioned, strict.Refuse); got == "" {
+			t.Errorf("LocatedStrictSecretsRefusal(%q, refuse) = \"\", want a refusal naming the setting", sanctioned)
 		}
 	}
 
@@ -607,4 +660,66 @@ func TestTheSecretsSettingDoesNotReachTheLocatedCredentialVeto(t *testing.T) {
 			"would either write the secret into the record store in clear or stop the run at apply with the "+
 			"object already live; refusing at the configuration is the only answer that is neither.", got)
 	}
+}
+
+// TestResolverRefusesAccessKeyOnlyUnderStrictSecrets is #365 ruling 5 proved
+// at the layer that acts, [resolver.classify]: aws_iam_access_key resolves
+// [ClassRecordLocated] under the default secrets setting (its record holds
+// only "id", never the secret - the whole reason the old exclusion was
+// retired, see located.go's own commit for the finding), and is refused at
+// resolution under strict { secrets = "refuse" }, mutation-checked here by
+// building the identical fixture under both settings.
+func TestResolverRefusesAccessKeyOnlyUnderStrictSecrets(t *testing.T) {
+	schemas := map[string]providers.Schema{"aws_iam_access_key": locatedSchema(nil)}
+
+	writeFixture := func(t *testing.T, secrets string) *configs.Config {
+		t.Helper()
+		dir := t.TempDir()
+		strictBlock := ""
+		if secrets != "" {
+			strictBlock = `
+    strict {
+      secrets = "` + secrets + `"
+    }`
+		}
+		src := `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }` + strictBlock + `
+  }
+}
+
+resource "aws_iam_access_key" "this" {
+  user = "example"
+}
+`
+		if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+			t.Fatalf("writing fixture: %s", err)
+		}
+		return loadConfig(t, dir, nil)
+	}
+
+	t.Run("default admits", func(t *testing.T) {
+		cfg := writeFixture(t, "")
+		result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+		assertNoErrors(t, diags)
+		res := resolutionAt(t, result, "aws_iam_access_key.this")
+		if res.Class != ClassRecordLocated {
+			t.Fatalf("aws_iam_access_key.this resolved %s under the default secrets setting, want %s", res.Class, ClassRecordLocated)
+		}
+	})
+
+	t.Run("refuse refuses", func(t *testing.T) {
+		cfg := writeFixture(t, "refuse")
+		_, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+		if !diags.HasErrors() {
+			t.Fatal("aws_iam_access_key.this was admitted under strict { secrets = \"refuse\" }")
+		}
+		if !hasDiag(diags, "Secret-generating resource refused", "aws_iam_access_key") {
+			t.Errorf("the refusal is not the secrets one:\n%s", renderDiags(diags))
+		}
+	})
 }
