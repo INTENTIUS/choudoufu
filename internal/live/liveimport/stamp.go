@@ -315,7 +315,7 @@ func recordOne(ctx context.Context, store *projection.RecordStore, addr addrs.Ab
 //
 // The derivation itself is [projection.LocatedRecordFrom] - the same
 // three-way switch on [identity.LocatedIdentityPlanFor] that
-// [projection.writeBackLocated] already uses after an apply - so a type
+// [projection.WriteBack] already uses after an apply - so a type
 // admitted for the selection by [identity.SelectedLocatedType] is read for
 // its identity exactly the way the apply path would read it. Neither
 // function names a resource type.

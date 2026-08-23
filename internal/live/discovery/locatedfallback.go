@@ -89,9 +89,9 @@ import (
 // for residue (#341) - the very thing this file's own [identity.LookupType]
 // row calls the type's identity attribute is sitting right there in that
 // read - and now also writes it into the estate's record store, at
-// [projection.LocatedKey]. This function is the read side of that write.
+// [projection.RecordKey]. This function is the read side of that write.
 //
-// # Why this reuses [projection.LocatedStore] rather than a fifth namespace
+// # Why this reuses [projection.RecordStore] rather than a fifth namespace
 //
 // GitHub issue #270 already solved an adjacent problem with exactly this
 // shape: "the object exists in the cloud; what it has nowhere to carry is a
@@ -103,7 +103,7 @@ import (
 // exclusion is an IDENTITY-CLASSIFICATION decision (which [identity.Class] a
 // resolution gets) and this file makes no such decision - aws_launch_
 // configuration and its siblings keep whatever class resolve.go already
-// gives them. What is reused here is one layer down: [projection.LocatedStore]
+// gives them. What is reused here is one layer down: [projection.RecordStore]
 // itself is a type-agnostic, per-instance, point-lookup identity carrier
 // with no enumeration - built for a different POPULATION but not tied to it
 // by anything the store enforces. Building a second store with the same
