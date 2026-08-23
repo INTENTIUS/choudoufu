@@ -247,10 +247,10 @@ func buildSchemaReproducesBucket(ratified map[string]identity.TypeIdentity, gram
 	sort.Slice(notReproduced, func(i, j int) bool { return notReproduced[i].Type < notReproduced[j].Type })
 
 	return schemaReproducesBucket{
-		HasIdentitySchema: len(candidates),
-		Reproduced:        reproduced,
-		ReproducedCount:   len(reproduced),
-		NotReproduced:     notReproduced,
+		HasIdentitySchema:  len(candidates),
+		Reproduced:         reproduced,
+		ReproducedCount:    len(reproduced),
+		NotReproduced:      notReproduced,
 		NotReproducedCount: len(notReproduced),
 	}
 }
