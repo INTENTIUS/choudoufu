@@ -639,7 +639,20 @@ log "  $TAGGABLE stamped, $UNTAGGABLE skipped, 0 recorded, 0 failed"
 # returned at the taggability check before building the carrier Approve's
 # residue call took. The store is on disk, one file per key, so this reads
 # the values it actually holds rather than trusting a log line.
-RESIDUE_DIR="$EST/.tofu-records/tofu-residue/$ESTATE_NAME/aws_route53_record"
+#
+# #390: GitHub issue #364 unit A1 collapsed the four disjoint namespaces
+# ("tofu-records", "tofu-located", "tofu-residue", "tofu-provisioned") into
+# one per-instance envelope, all written under the single "tofu-records"
+# key prefix (see internal/live/projection/record.go's recordNamespaceRoot
+# and RecordKeyPrefix). This assertion still pointed at the pre-A1
+# "tofu-residue" directory, which the merge stopped writing to entirely, so
+# it read as "zero residue records" no matter what Approve actually wrote.
+# Confirmed directly against the store, no tofu in the loop: the merge
+# itself writes all 14 records correctly, with the right value, at
+# .tofu-records/tofu-records/<estate>/aws_route53_record/<encoded-addr> -
+# corpus-sumaform-aws's own residue assertion already reads the new layout
+# this way. The fix is this path, not the write path.
+RESIDUE_DIR="$EST/.tofu-records/tofu-records/$ESTATE_NAME/aws_route53_record"
 [ -d "$RESIDUE_DIR" ] \
   || fail "no residue records were written for any aws_route53_record - #341's exact symptom, and stage 3 below cannot come back empty without them"
 RESIDUE_N="$(find "$RESIDUE_DIR" -type f ! -name '*.lock' | grep -c . || true)"
