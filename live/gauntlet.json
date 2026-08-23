@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "commit": "91c1f10fc7f0b37dd79ca9b4d3ad2bc27b3fa4c0",
-  "emulator": "ghcr.io/lex00/floci@sha256:78262a598550703a53da9a856099c0421307bbccd942aa53e12d3758eff2a4bb",
-  "generated": "2026-08-23T19:54:14Z",
+  "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
+  "emulator": "ghcr.io/lex00/floci@sha256:52b819326e712c791261685ce46a03ab5f2a47fa1f221dcc91c8dad9b5f09b00",
+  "generated": "2026-08-23T20:42:20Z",
   "stages": [
     {
       "id": "cold_deploy",
@@ -437,8 +437,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "7d7d7cc29c8680625f97f2dd41f5f34f6026fba3",
-        "date": "2026-08-23T19:39:56Z",
+        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
+        "date": "2026-08-23T20:40:31Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "35 resources added across 13 types (aws_instance, aws_eip, aws_iam_role/instance_profile/role_policy_attachment, aws_ebs_volume, aws_volume_attachment, aws_security_group x2, aws_vpc_security_group_egress_rule x2, aws_security_group_rule x2, vpc/subnet/route*/igw/default_* from the vpc module), 0 objects carry tofu-estate before migration",
@@ -1169,8 +1169,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:59:28Z",
+        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
+        "date": "2026-08-23T20:43:34Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "6 resources added by plain terraform (4 queues + redrive_policy + redrive_allow_policy), 0 objects carry tofu-estate before migration",
@@ -1329,8 +1329,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:54:49Z",
+        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
+        "date": "2026-08-23T20:42:15Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
