@@ -1370,7 +1370,30 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			addTo(comp.identityAttrFor(""), got)
 			continue
 		}
-		attr := r.firstApplicablePresent(comp, attrs, scope, addr)
+		attr, conflict := r.firstApplicablePresent(comp, attrs, scope, addr)
+		if conflict != nil {
+			// #384: two members of the same [Component.SoleElement]
+			// alternation are both genuinely non-empty for this instance -
+			// the configuration does not say which one determines the
+			// object, and picking one anyway is exactly the wrong-marker
+			// shape HANDOFF's safety rule exists to stop. The record rung
+			// is the honest second chance, tried first and only where the
+			// type actually has nowhere to carry a marker and a full
+			// identity can be recorded (see [resolver.recordFallback]); it
+			// is a no-op for anything else, same as every other call site
+			// in this function.
+			if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+				return fb, true
+			}
+			r.errorf(attr.Range, "Ambiguous list-valued identity argument",
+				"%s sets more than one of %s at once (both %q and %q carry a real value). "+
+					"This component's identity can only be built when exactly one of them does; the AWS API - not this "+
+					"configuration - decides how the two compose into live objects, so this package will not guess "+
+					"which one names this instance.",
+				addr.String(), orList(comp.Attrs), attr.Name, conflict.Name)
+			fail(sibBefore, "")
+			continue
+		}
 		if attr == nil {
 			if comp.OmitIfAbsent {
 				// The provider's own grammar says this segment - and any
@@ -4926,29 +4949,60 @@ func firstPresent(attrs hcl.Attributes, names []string) *hcl.Attribute {
 // changes) fires exactly as before: this only ever demotes a proven-empty
 // list from "present" to "absent", it never resolves or picks a value
 // itself.
-func (r *resolver) firstApplicablePresent(comp Component, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) *hcl.Attribute {
+//
+// GitHub issue #384: demoting a proven-empty candidate is the SAFE half of
+// this function's job; the unsafe half was stopping at the first candidate
+// it could not prove empty, without ever looking at the others. Two
+// alternatives of the SAME alternation can be genuinely non-empty AT ONCE -
+// terraform-aws-modules/security-group's `egress_rules = ["all-all"]`
+// defaults both `egress_cidr_blocks` (-> cidr_blocks) and
+// `egress_ipv6_cidr_blocks` (-> ipv6_cidr_blocks) to a real one-element
+// list, and AWS creates two separate live rule objects for the one declared
+// instance. [Component.SoleElement]'s whole contract - "exactly one of
+// these is ever populated for a real object" - is false for that instance,
+// and the old code silently returned whichever name Attrs happened to list
+// first: a real value, so the caller went on to build a concrete identity
+// out of it, bound to the wrong live object with nothing to say so. That is
+// HANDOFF's "wrong marker" outcome by construction, not by accident, and
+// convergence never reveals it - the plan looks plausible either way.
+//
+// So this now keeps scanning past the first non-empty candidate instead of
+// returning immediately, and if a SECOND one also cannot be proven empty,
+// reports the conflict instead of a winner: conflict is non-nil and attr is
+// the first of the two (their identities as a pair, not a choice between
+// them - the caller decides what "more than one candidate is real" means,
+// this function only establishes that it is true). Determinism is not
+// correctness here: returning "the first" deterministically would only make
+// the wrong marker reproducible, which is worse, because it would look
+// trustworthy. A single non-empty candidate is unaffected - returned exactly
+// as before, with conflict nil - so every ordinary SoleElement resolution
+// (issue #369's own zero-element case included) keeps its answer.
+func (r *resolver) firstApplicablePresent(comp Component, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance) (attr *hcl.Attribute, conflict *hcl.Attribute) {
 	if !comp.SoleElement {
-		return firstPresent(attrs, comp.Attrs)
+		return firstPresent(attrs, comp.Attrs), nil
 	}
 	remaining := comp.Attrs
 	for len(remaining) > 0 {
-		attr := firstPresent(attrs, remaining)
-		if attr == nil {
-			return nil
+		cand := firstPresent(attrs, remaining)
+		if cand == nil {
+			break
 		}
-		ident := r.identifier(addr, attr.Name, attr.Range)
-		if !r.definitelyEmptyList(attr.Expr, scope, ident) {
-			return attr
+		ident := r.identifier(addr, cand.Name, cand.Range)
+		if !r.definitelyEmptyList(cand.Expr, scope, ident) {
+			if attr != nil {
+				return attr, cand
+			}
+			attr = cand
 		}
 		next := make([]string, 0, len(remaining)-1)
 		for _, n := range remaining {
-			if n != attr.Name {
+			if n != cand.Name {
 				next = append(next, n)
 			}
 		}
 		remaining = next
 	}
-	return nil
+	return attr, nil
 }
 
 // definitelyEmptyList reports whether expr - one member of a

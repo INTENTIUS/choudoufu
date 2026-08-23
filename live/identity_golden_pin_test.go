@@ -1866,7 +1866,20 @@ const (
 	// Then 576 -> 577, same issue, a second pass:
 	// internal/live/liveimport/testdata/slot-markerfallback-config, one more
 	// new fixture, its own directory.
-	identityGoldenPinDirs = 577
+	// Then 577 -> 578 for GitHub issue #384 (a Component.SoleElement
+	// alternation with two genuinely non-empty alternatives no longer binds
+	// the wrong live object): one new fixture,
+	// internal/live/identity/testdata/record-fallback-solelement-conflict,
+	// used only by a test that passes it a synthetic schema through
+	// ResolveWith - the schema-less sweep this pin covers resolves nothing
+	// in it (no record_store fallback without a schema, and the conflicting
+	// instance correctly refuses instead of guessing), and the fixture the
+	// fix's OTHER test reads, testdata/sole-element-from-value, gained a
+	// resource in the SAME directory rather than a new one. So dirs moves by
+	// one and identityGoldenPinInstances/identityGoldenPinBodyDigest below
+	// are unchanged - confirmed by diffing testdata/identity-golden.txt
+	// before and after regenerating: only the header's dirs count differs.
+	identityGoldenPinDirs = 578
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
