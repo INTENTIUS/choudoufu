@@ -318,6 +318,7 @@ type builder struct {
 }
 
 func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
+	resolutions = b.applyRecordFirst(ctx, resolutions)
 	concrete, derived, needsDiscovery, cyclic, recordBacked, located := orderWork(resolutions)
 
 	for _, r := range needsDiscovery {
@@ -374,6 +375,85 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	}
 }
 
+// applyRecordFirst is GitHub issue #364 unit B's read half: rfc/20260823-
+// foundation-order-ruling.md's ruling 1 and HANDOFF.md's "The foundation"
+// ("Binding reads the record and verifies it against the marker") applied
+// ahead of [orderWork], so that a resolution's identity.Class no longer
+// decides whether the estate's own record store gets consulted at all.
+//
+// Every resolution not already produced by the record store's own two
+// existing doors (identity.ClassRecordBacked, which has no cloud object for
+// a record to name; identity.ClassRecordLocated, which already reads and
+// trusts - or, for an operator's `markers = record` selection, deliberately
+// never verifies - the identical record through [builder.materializeLocated])
+// gets one attempt at [builder.materializeFromRecord]. An attempt that fully
+// answers the question - the instance materialized, or was terminally
+// omitted as absent, failed, or unowned - drops the resolution from what
+// [orderWork] still has to route. An attempt that finds no record, or finds
+// one but the object it names turns out stale (see
+// [builder.materializeFromRecord]), changes nothing: the resolution goes on
+// to [orderWork] exactly as it arrived, and takes whatever path its
+// identity.Class would have taken with no record store in play at all.
+func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.Resolution) []identity.Resolution {
+	if b.opts.RecordStore == nil {
+		return resolutions
+	}
+	remaining := make([]identity.Resolution, 0, len(resolutions))
+	for _, r := range resolutions {
+		switch r.Class {
+		case identity.ClassRecordBacked, identity.ClassRecordLocated:
+			remaining = append(remaining, r)
+			continue
+		}
+		if b.materializeFromRecord(ctx, r) {
+			continue
+		}
+		remaining = append(remaining, r)
+	}
+	return remaining
+}
+
+// materializeFromRecord is [builder.applyRecordFirst]'s attempt at one
+// resolution. It reports whether the address is fully handled.
+//
+// No record at all is not a failure and not reported: it is the ordinary
+// shape for an estate that has not migrated, or for an instance an apply
+// has never written back, and returning false here sends the resolution
+// through [orderWork] with nothing said about it.
+//
+// A record that exists is handed to [builder.materialize] as an ordinary
+// [wanted], exactly the way [builder.materializeLocated] already does for
+// identity.ClassRecordLocated - the same import, the same read, the same
+// dependency computation - except recordFirst is set rather than located,
+// which is what makes [builder.checkOwnership] verify a taggable type's
+// binding against the live object's own marker instead of trusting it
+// outright. A false result from [builder.materialize] means that check
+// found the record stale; [builder.checkOwnership] has already logged the
+// warning, and this function reports the address as unhandled with nothing
+// further to say.
+func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resolution) bool {
+	rec, version, keyExists, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
+	if err != nil {
+		detail := fmt.Sprintf("Reading the record for %s failed: %s.", r.Addr, err)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
+		b.omitFailed(r.Addr, detail)
+		return true
+	}
+	if !identityFound {
+		return false
+	}
+	if keyExists {
+		b.recordEnvelopeVersion(r.Addr, version)
+	}
+	return b.materialize(ctx, wanted{
+		addr:        r.Addr,
+		importID:    rec.ImportID,
+		values:      rec.Components,
+		undeclared:  r.Undeclared,
+		recordFirst: true,
+	})
+}
+
 // wanted is one instance's identity in every form this run holds it, which is
 // the input [builder.materialize] works from.
 //
@@ -412,8 +492,29 @@ type wanted struct {
 	// estate's located record store (identity.ClassRecordLocated) rather
 	// than from the configuration or from a marker sweep. See
 	// [builder.materializeLocated], and [builder.checkOwnership] for the one
-	// decision that turns on it.
+	// decision that turns on it. Its identity is trusted unconditionally
+	// once the object is found - either because the type has nowhere to
+	// carry a marker at all, or because an operator's `markers = record`
+	// selection deliberately traded marker governability for record
+	// authority (GitHub issue #365) - which is exactly the reason
+	// [recordFirst] below is a separate field rather than a second meaning
+	// for this one.
 	located bool
+
+	// recordFirst marks GitHub issue #364 unit B's universal read: this
+	// instance's identity came out of the estate's record store ahead of
+	// its identity.Class's own routing (see [builder.applyRecordFirst]),
+	// for a type that ordinarily derives its identity some other way. Unlike
+	// [located], a recordFirst binding is not trusted unconditionally: for a
+	// type that CAN carry a marker, [builder.checkOwnership] verifies the
+	// live object's own tofu-address against this address before admitting
+	// it, and a mismatch (or no marker at all) makes the record stale -
+	// [builder.materializeFromRecord] then reports the instance as
+	// unhandled, and it falls back to the marker sweep or the static
+	// evaluator exactly as if no record had existed. A type with nowhere to
+	// carry a marker has nothing to check the record against and is trusted
+	// exactly as [located] is.
+	recordFirst bool
 }
 
 // importTarget picks the form this instance's import is asked in.
@@ -1153,7 +1254,15 @@ func (b *builder) causeFor(parent addrs.AbsResourceInstance) string {
 // resource block and a dependency set read off its arguments; see
 // [Options.UndeclaredProvider] for the first, and [builder.dependencies] for
 // why the second is empty rather than guessed.
-func (b *builder) materialize(ctx context.Context, w wanted) {
+// The return is true whenever this call has said its last word on addr: the
+// instance materialized, or was terminally omitted (no configuration for a
+// declared reference, no provider, a provider or schema failure, absence, a
+// failed read, encoding failure, or an ownership refusal). It is false in
+// exactly one case: [builder.checkOwnership] found w.recordFirst's binding
+// stale. [builder.applyRecordFirst] is the only caller that reads it; every
+// other call site materializes unconditionally and has nothing further to
+// decide from the result.
+func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	addr := w.addr
 	importID := w.importID
 	typeName := addr.Resource.Resource.Type
@@ -1172,7 +1281,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Resolved instance missing from the configuration", detail))
 		b.omitFailed(addr, detail)
-		return
+		return true
 	}
 
 	providerAddr, providerOK := b.providerFor(rc, modPath, typeName, addr)
@@ -1183,7 +1292,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, "No provider for an undeclared resource", detail))
 		b.omit(addr, ReasonFailed, detail, "no provider could be found to read it through.")
-		return
+		return true
 	}
 	entry, err := b.providers.get(ctx, providerAddr)
 	if err != nil {
@@ -1192,14 +1301,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 			"Building the projection entry for %s needs provider %s, which could not be used: %s.", addr, providerAddr, detail,
 		)))
 		b.omitFailed(addr, detail)
-		return
+		return true
 	}
 
 	schema, schemaDiags := entry.resourceSchema(providerAddr, typeName)
 	if schemaDiags.HasErrors() {
 		b.diags = b.diags.Append(schemaDiags)
 		b.omitFailed(addr, schemaDiags[0].Description().Detail)
-		return
+		return true
 	}
 
 	// GitHub issue #287 item 8: seed BEFORE the read, not after, because the
@@ -1210,6 +1319,39 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	tagsSeed, tagsSeedOK := configuredTagsSeed(ctx, modEval, modPath, rc, schema)
 
 	obj, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), importID, tagsSeed, tagsSeedOK)
+
+	if w.recordFirst && (status == statusAbsent || status == statusFailed) {
+		// The record's binding did not pan out - the provider found
+		// nothing at that identity, or erred trying to read it - and for a
+		// recordFirst attempt that is not proof of anything: unlike
+		// [builder.materializeLocated]'s genuinely markerless types, this
+		// instance's identity.Class has an ordinary, proven path (a marker
+		// sweep or static derivation) that never needed this record to
+		// begin with. Reporting "absent" here as a final answer would
+		// propose a CREATE the moment a stale record merely pointed at the
+		// wrong id while the real, correctly-tagged object sits
+		// unexamined - a duplicate, not a recovery. Reporting "failed" as
+		// a hard error would abort the whole plan over an identity this
+		// run no longer trusts, when the classic path might resolve the
+		// same instance cleanly. Either way the fix is the same one
+		// ownershipStale already uses: fall back to whatever
+		// [builder.applyRecordFirst]'s caller would have done with no
+		// record in play, and say nothing terminal about it here. matDiags
+		// is deliberately dropped rather than appended - it describes what
+		// this abandoned identity did, not a fact about the estate - so a
+		// caller reading [tfdiags.Diagnostics.HasErrors] does not see this
+		// run as failed over an attempt that is about to be retried.
+		reason := "no live object"
+		if status == statusFailed {
+			reason = "an error"
+			if len(matDiags) > 0 {
+				reason = matDiags[0].Description().Summary
+			}
+		}
+		log.Printf("[TRACE] projection: %s's record-first identity %q for %s came back %q; falling back to identity.Class's own path",
+			addr, importID, typeName, reason)
+		return false
+	}
 	b.diags = b.diags.Append(matDiags)
 
 	switch status {
@@ -1221,14 +1363,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 			),
 			fmt.Sprintf("the provider reports no %s exists with identity %q.", typeName, importID),
 		)
-		return
+		return true
 	case statusFailed:
 		detail := fmt.Sprintf("Reading %s with identity %q failed.", typeName, importID)
 		if len(matDiags) > 0 {
 			detail = fmt.Sprintf("Reading %s with identity %q failed: %s.", typeName, importID, matDiags[0].Description().Summary)
 		}
 		b.omitFailed(addr, detail)
-		return
+		return true
 	}
 
 	// Adopt the provider's own spelling of an identity-bearing attribute
@@ -1266,8 +1408,16 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// does not set Undeclared for it - and that is the same block-level
 	// coarsening internal/live/stamp's PolicyUntag already documents,
 	// rather than a new one.
-	if b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located) != ownershipOK {
-		return
+	switch b.checkOwnership(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst) {
+	case ownershipStale:
+		// The record's binding did not survive being checked against the
+		// live object's own marker; checkOwnership has already logged the
+		// warning and nothing was written into the projection. The caller
+		// ([builder.applyRecordFirst]) routes addr back through whatever
+		// path its identity.Class would have taken with no record at all.
+		return false
+	case ownershipUnowned:
+		return true
 	}
 
 	// GitHub issue #275's residue, applied AFTER the ownership check and
@@ -1285,7 +1435,7 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 	// stock turns into a synthetic Replace, which re-runs the provisioner
 	// on the new object with no new execution machinery of any kind.
 	if !b.applyProvisionedTaint(ctx, addr, rc, obj) {
-		return
+		return true
 	}
 
 	if rc != nil {
@@ -1312,13 +1462,14 @@ func (b *builder) materialize(ctx context.Context, w wanted) {
 		detail := fmt.Sprintf("The object read for %s could not be encoded into the projection: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot encode a projected object", detail))
 		b.omitFailed(addr, detail)
-		return
+		return true
 	}
 
 	b.state.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, providerAddr, addrs.NoKey)
 	b.live[addr.String()] = obj.Value
 	b.materialized = append(b.materialized, addr)
 	log.Printf("[TRACE] projection: materialized %s from import identity %q", addr, importID)
+	return true
 }
 
 // materializeRecord is [builder.materialize]'s counterpart for GitHub issue

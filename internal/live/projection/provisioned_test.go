@@ -550,14 +550,24 @@ func TestUnreadableProvisionedRecordStopsTheRun(t *testing.T) {
 	if !diags.HasErrors() {
 		t.Fatal("an unreadable provisioner record produced no error; the object would be reported healthy")
 	}
+	// GitHub issue #364 unit B moved where this run first meets the garbage
+	// payload: applyRecordFirst's GetIdentity call now decodes the same
+	// envelope ahead of the class-routed path that used to reach it only
+	// through applyProvisionedTaint, so the decode failure surfaces as the
+	// generic "Cannot read a persisted record" rather than
+	// SummaryProvisionedUnreadable specifically. Both stop the run on the
+	// same garbage record with zero materialized; which of the two readers
+	// gets there first is no longer meaningful once every resolution reads
+	// the record before its identity.Class is routed.
+	const wantSummary = "Cannot read a persisted record"
 	var found bool
 	for _, d := range diags {
-		if d.Description().Summary == SummaryProvisionedUnreadable {
+		if d.Description().Summary == wantSummary {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("no %q diagnostic; got %v", SummaryProvisionedUnreadable, diags)
+		t.Errorf("no %q diagnostic; got %v", wantSummary, diags)
 	}
 	if len(res.Materialized) != 0 {
 		t.Errorf("Materialized = %v, want empty - an instance whose provisioner history cannot be read must not enter the prior state", res.Materialized)
@@ -709,16 +719,26 @@ func TestStaleTaintDoesNotSurviveAHealthyRecreate(t *testing.T) {
 
 	// Leg 2: the operator deleted the half-built object. The plan reads
 	// absence and proposes a plain create.
+	//
+	// GitHub issue #364 unit B changed what populates EnvelopeVersions here:
+	// applyRecordFirst now reads the record for every resolution - this one
+	// included, since leg 1's WriteBack wrote it an identity alongside its
+	// taint bit - BEFORE materialize ever asks the provider whether the
+	// object still exists, so the version is captured regardless of how
+	// that read comes out. It is no longer proof that the taint record was
+	// never consulted (recordEnvelopeVersion runs on the read, not on the
+	// taint check specifically), but the version it captures is exactly
+	// what leg 3's WriteBack needs to clear the record correctly, and that
+	// is what the rest of this test still exercises end to end.
 	absent, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
 		SingleProvider(provisionedTestProvider, provisionedAbsentProvider()),
 		Options{RecordStore: provisioned.rs})
 	assertNoErrors(t, diags)
 	assertOmitted(t, absent, map[string]Reason{provisionedTestType + `.web`: ReasonAbsent})
-	if len(absent.EnvelopeVersions) != 0 {
-		t.Fatalf("ProvisionedVersions = %v, want empty.\n"+
-			"An absent object returns from materialize before the taint record is consulted. If that ever changes this test stops reproducing the bug it was written for, so it is asserted rather than assumed.",
-			absent.EnvelopeVersions)
+	if len(absent.EnvelopeVersions) != 1 || absent.EnvelopeVersions[0].Addr.String() != addr.String() {
+		t.Fatalf("EnvelopeVersions = %v, want exactly one entry for %s: the record-first read (#364 unit B) captures the version whether or not the object is still there.",
+			absent.EnvelopeVersions, addr)
 	}
 
 	// Leg 3: the apply creates the object and the provisioner succeeds this
