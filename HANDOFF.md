@@ -26,7 +26,9 @@ to "where was the last session":
 
 | pickup says | it means | do |
 |---|---|---|
-| `MERGED/EMPTY` | the branch is an ancestor of `main` with nothing ahead: landed, or a worker that never committed | delete the branch and its worktree |
+| `ACTIVE?` | files in that worktree were written in the last 15 minutes; an Agent-tool worker shows no process of its own, so this is the only liveness signal | leave it alone; `.claude/scripts/agent-progress.sh` or wait |
+| `UNCOMMITTED` | changed paths in the worktree and no recent write: a worker stopped before committing | read the diff, commit it on that branch with the unit ID, then treat as `COMMITS, NO PR` |
+| `MERGED/EMPTY` | the branch is an ancestor of `main` with nothing ahead, nothing uncommitted, no recent write: landed, or a worker that never committed | delete the branch and its worktree |
 | `PR OPEN #N` | a worker finished and reported | the orchestrator verifies (reads `ci.rc`, the `GAUNTLET` lines, the artifact diff) and merges on green |
 | `COMMITS, NO PR` | a worker was mid-unit when its session ended | resume in that worktree from the last commit; never start the unit over in a new branch |
 | Agent-tool worktree, ahead > 0 | an agent's unreported work | read the commits before pruning |
