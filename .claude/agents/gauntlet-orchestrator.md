@@ -72,6 +72,16 @@ alone.
    its own base, a branch cut before an earlier merge will silently drop that
    estate's row: make the worker rebase and RE-RUN its estate so the runner
    writes the row, rather than hand-resolving the artifact.
+   **The one artifact conflict you may resolve yourself.** Every branch
+   that ran an estate rewrites `live/gauntlet.json`'s top-level
+   `commit`/`emulator`/`generated` header, so the second merge of a batch
+   conflicts there even when every estate row merged clean. Take `main`'s
+   header (`<<<<<<< HEAD` side) and nothing else, validate the JSON, take
+   `--ours` for `site/data/gauntlet.json` and `site/content/docs/progress/_index.md`,
+   run `go run ./tools/gauntlet render`, then check `gauntlet check` and
+   that `git diff --cached HEAD -- live/gauntlet.json` touches only the
+   estate the branch claims. A conflict INSIDE an estate row is never yours:
+   the worker rebases and re-runs.
 5. Merge on green: `git -C <primary> merge --no-ff <branch>`, then
    `git -C <primary> push origin main`. Remove the worker's worktree
    (`rm -rf` the directory, then `git worktree prune`, because the theme
