@@ -118,9 +118,16 @@ also asserted by value; an exit code is not a verdict.
    code path, not that the defect is upstream.
 6. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
-7. **Gate**: not the whole tier - the packages your change touches, plus
-   `./internal/live/check/`, `./tools/gauntlet/` and `./live/`, which hold the
-   identity golden, the artifact guards and the derivation registry. Several
+7. **Gate**: not the whole tier - the packages your change touches, plus the
+   ones that sweep the whole tree and so can fail on a file you never opened:
+   `./internal/live/check/` (the identity golden), `./tools/gauntlet/` (the
+   artifact and rendered-doc guards), `./live/` (the derivation registry and
+   the pins), and `./internal/live/marksafe/`, which proves every call site of
+   a mark-unsafe cty method. That last one bites anything touching identity or
+   projection: cty PANICS on a marked receiver, a sensitive input variable is
+   the ordinary way to produce one, and the fix is always a guard that REFUSES
+   - never an Unmark, because a forcibly unmarked value can flow on into an
+   identity component or a cloud tag. Several
    workers running `just ci` each repeats the same minutes N times. Write it
    from a file: `{ ...; } > ci.out 2>&1; echo $? > ci.rc`, and LEAVE BOTH FILES
    THERE. The orchestrator reads `ci.rc` itself and cannot merge what it cannot
