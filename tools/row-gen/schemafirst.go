@@ -87,21 +87,65 @@ import (
 // boundary the rule above draws - re-run -convergence's own summary
 // whenever the true source of that difference is found, rather than
 // treating either number as fixed.
+// schemaFirstHeldByCorpus is schemaFirstDrop's second safety net, alongside
+// [goldenExercisedTypes]. The golden is a committed, deterministic artifact
+// and can be a generator input; `.corpus` cannot - it is gitignored,
+// fetched from the network by tools/corpus-fetch, and absent from a fresh
+// clone, so a generated table cannot depend on it and still be
+// reproducible. This table is the same "hold pending evidence" ledger
+// tools/row-gen/annotations.json and rejected.json already are, filled in
+// by hand from a real -diff run rather than derived.
+//
+// Verified 2026-08-23 against the pinned corpus manifest's own sources
+// (`go run ./tools/corpus-fetch`, then `go run ./tools/refusal-probe -diff`
+// before/after dropping the full 134-candidate set): every key here is a
+// candidate [goldenExercisedTypes] does not catch, but that a real
+// terraform-aws-modules or published-deployment configuration declares, and
+// dropping it moved unadmitted-type refusals up - for several, costing a
+// real resolved instance (.corpus/s3-bucket/examples/directory-bucket
+// 7 -> 2, .corpus/eks/examples/basic 51 -> 49 instances among them). That is
+// exactly the loss the golden's own byte-identical bar exists to catch, from
+// an instrument that cannot sit inside the generator itself.
+//
+// A future worker with a fresher corpus sweep clears an entry by re-running
+// the same check and finding it clean; entries are never added speculatively
+// without a run backing them, and clearing a wrong entry needs a run too, not
+// a guess.
+var schemaFirstHeldByCorpus = map[string]string{
+	"aws_api_gateway_integration":               "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_api_gateway_method":                    "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_appautoscaling_policy":                 "declared in 15 corpus configs (terraform-aws-modules/eks and others); dropping it cost real resolved instances",
+	"aws_eks_access_policy_association":         "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_launch_configuration":                  "declared in 2 corpus configs; dropping it raised unadmitted-type there",
+	"aws_organizations_policy_attachment":       "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_route53_vpc_association_authorization": "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_s3_directory_bucket":                   "declared in 1 corpus config; dropping it cost a resolved instance in terraform-aws-modules/s3-bucket's directory-bucket example",
+	"aws_s3tables_table_bucket_policy":          "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_scheduler_schedule":                    "declared in 1 corpus config; dropping it raised unadmitted-type there",
+	"aws_ssoadmin_account_assignment":           "declared in 3 corpus configs; dropping it raised unadmitted-type there",
+	"aws_vpc_security_group_vpc_association":    "declared in 1 corpus config; dropping it raised unadmitted-type there",
+}
+
 // schemaFirstDrop is [schemaFirstReproduced] narrowed by
-// [goldenExercisedTypes]: candidates is the full offline-reproducible set,
-// dropped is the subset actually safe to remove from the emitted table
-// today - every candidate goldenExercised does not name. See
-// goldenexercised.go's own doc comment for why the narrowing exists: a
-// candidate the golden exercises would not merely render differently if
-// dropped, it would disappear from that schema-less instrument's output
-// entirely, which the golden's own byte-identical acceptance bar treats as
-// evidence the row was not reproducible after all.
+// [goldenExercisedTypes] and [schemaFirstHeldByCorpus]: candidates is the
+// full offline-reproducible set, dropped is the subset actually safe to
+// remove from the emitted table today - every candidate neither safety net
+// names. See goldenexercised.go's own doc comment and
+// schemaFirstHeldByCorpus's above for why the narrowing exists: a candidate
+// either one names would not merely render differently if dropped, it would
+// disappear from that schema-less instrument's output entirely, which the
+// golden's byte-identical bar and refusal-probe's zero-worse bar both treat
+// as evidence the row was not reproducible after all.
 func schemaFirstDrop(ratified map[string]identity.TypeIdentity, grammar map[string]importGrammarRow, goldenExercised map[string]bool) (candidates, dropped []string) {
 	candidates = schemaFirstReproduced(ratified, grammar)
 	for _, t := range candidates {
-		if !goldenExercised[t] {
-			dropped = append(dropped, t)
+		if goldenExercised[t] {
+			continue
 		}
+		if _, held := schemaFirstHeldByCorpus[t]; held {
+			continue
+		}
+		dropped = append(dropped, t)
 	}
 	return candidates, dropped
 }

@@ -205,6 +205,7 @@ var DiscoverableFallbackTypes = map[string]struct{}{
 	"aws_route53recoveryreadiness_resource_set":    {},
 	"aws_rum_app_monitor":                          {},
 	"aws_s3_bucket":                                {},
+	"aws_s3_directory_bucket":                      {},
 	"aws_s3control_storage_lens_configuration":     {},
 	"aws_sagemaker_algorithm":                      {},
 	"aws_sagemaker_app":                            {},

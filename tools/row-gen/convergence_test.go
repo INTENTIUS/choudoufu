@@ -225,10 +225,13 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
 	goldenExercised := loadGoldenExercisedForTest(t)
 	candidates, dropped := schemaFirstDrop(loadRatifiedForTest(t), loadImportGrammarForTest(t), goldenExercised)
-	var heldByGolden []string
+	var heldByGolden, heldByCorpus []string
 	for _, tf := range candidates {
-		if goldenExercised[tf] {
+		switch {
+		case goldenExercised[tf]:
 			heldByGolden = append(heldByGolden, tf)
+		case schemaFirstHeldByCorpus[tf] != "":
+			heldByCorpus = append(heldByCorpus, tf)
 		}
 	}
 	fresh.SchemaReproduces = schemaReproducesBucket{
@@ -236,6 +239,7 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 		Types:          dropped,
 		CandidateCount: len(candidates),
 		HeldByGolden:   heldByGolden,
+		HeldByCorpus:   heldByCorpus,
 	}
 
 	committed := loadCommittedConvergence(t)

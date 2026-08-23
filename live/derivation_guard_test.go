@@ -161,6 +161,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"any artifact. Its own doc comment already says it is hand data. Shrinks as the emulator improves.",
 		Data: 4, Code: 0,
 	},
+	"tools/row-gen/schemafirst.go": {
+		Reason: "schemaFirstHeldByCorpus (#387): twelve schema-first drop candidates a real refusal-probe corpus sweep " +
+			"declares, verified 2026-08-23 by dropping the full candidate set and diffing before/after - each one raised " +
+			"unadmitted-type refusals or cost a resolved instance. `.corpus` is gitignored and network-fetched, so it " +
+			"cannot itself be a generator input; this is the same hand ledger tools/row-gen/annotations.json and " +
+			"rejected.json already are, cleared entry by entry by a future corpus sweep, never derived.",
+		Data: 12, Code: 0,
+	},
 	"tools/row-gen/identityattr.go": {
 		Reason: "identityAttrEvidence: the hand half of row-gen's criterion 3, every entry carrying the evidence actually " +
 			"inspected. Already held exact by row-gen's own ratchet, which fails on both stale entries and undocumented " +
@@ -340,7 +348,7 @@ const (
 	// honored on the located route now that its general credential veto was
 	// narrowed to the identity attributes it actually records. Two Data
 	// literals added, no Code, nothing moved.
-	typeLiteralDataTotal = 437
+	typeLiteralDataTotal = 449
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

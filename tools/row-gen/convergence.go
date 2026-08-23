@@ -122,21 +122,24 @@ type convergenceArtifact struct {
 
 // schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape.
 // Count and Types are the rows actually dropped from the emitted table
-// today - [schemaFirstDrop]'s dropped half. CandidateCount and HeldByGolden
-// are the fuller, offline-only measurement: every config-identified row the
-// same-name comparison alone calls reproduced (schemafirst.go), and the
-// ones of those internal/live/check's identity golden still exercises and
-// so keeps in the table rather than let disappear from that schema-less
-// instrument's output (goldenexercised.go). CandidateCount - Count ==
-// len(HeldByGolden) always; HeldByGolden is the visible worklist for
-// whatever later lands the schemas that path would need to drop safely too
-// (the plan-node seam, #388, or a golden that loads them).
+// today - [schemaFirstDrop]'s dropped half. CandidateCount, HeldByGolden and
+// HeldByCorpus are the fuller, offline-only measurement: every
+// config-identified row the same-name comparison alone calls reproduced
+// (schemafirst.go), split by which safety net kept it in the table rather
+// than let it disappear from a schema-less instrument's output -
+// internal/live/check's identity golden (goldenexercised.go) or the
+// refusal-probe corpus, held by hand in schemaFirstHeldByCorpus because
+// `.corpus` cannot be a generator input. CandidateCount - Count ==
+// len(HeldByGolden) + len(HeldByCorpus) always; both lists are the visible
+// worklist for whatever later makes dropping them safe (the plan-node seam,
+// #388, or a fresh corpus sweep that clears an entry).
 type schemaReproducesBucket struct {
 	Count int      `json:"count"`
 	Types []string `json:"types"`
 
 	CandidateCount int      `json:"candidate_count"`
 	HeldByGolden   []string `json:"held_by_golden"`
+	HeldByCorpus   []string `json:"held_by_corpus"`
 }
 
 // buildConvergence runs the comparison over emitted - every row -emit would

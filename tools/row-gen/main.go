@@ -256,10 +256,13 @@ func runConvergence(out, errOut *os.File) error {
 		return fmt.Errorf("reading %s: %w", identityGoldenRel, err)
 	}
 	candidates, dropped := schemaFirstDrop(ratified, grammar, goldenExercised)
-	var heldByGolden []string
+	var heldByGolden, heldByCorpus []string
 	for _, t := range candidates {
-		if goldenExercised[t] {
+		switch {
+		case goldenExercised[t]:
 			heldByGolden = append(heldByGolden, t)
+		case schemaFirstHeldByCorpus[t] != "":
+			heldByCorpus = append(heldByCorpus, t)
 		}
 	}
 
@@ -269,6 +272,7 @@ func runConvergence(out, errOut *os.File) error {
 		Types:          dropped,
 		CandidateCount: len(candidates),
 		HeldByGolden:   heldByGolden,
+		HeldByCorpus:   heldByCorpus,
 	}
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
