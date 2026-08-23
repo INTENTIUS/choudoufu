@@ -31,9 +31,7 @@ const SummaryLocatedIdentityNotRecorded = "Located identity could not be recorde
 // property internal/live/discovery's scanTypeLocatedFallback consumes this
 // same store for), and the exact sibling of [SeedRecordForInstance]: same
 // read-before-write idiom, same refusal to clobber a different existing
-// value, different namespace and a narrower payload (an identity, not an
-// object - see [LocatedStore] and its own file's comment for why the two
-// must never share a root).
+// value, narrower payload (an identity, not an object).
 //
 // # Why an existing different identity is never overwritten
 //
@@ -54,7 +52,7 @@ const SummaryLocatedIdentityNotRecorded = "Located identity could not be recorde
 // A nil store is an immediate no-op - a configuration with no record_store
 // block, where this population is left exactly where it was before this
 // mechanism existed: findable only by hand.
-func SeedLocatedForInstance(ctx context.Context, store *LocatedStore, addr addrs.AbsResourceInstance, rec LocatedRecord) (SeedResult, error) {
+func SeedLocatedForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, rec LocatedRecord) (SeedResult, error) {
 	if store == nil {
 		return SeedUnchanged, nil
 	}
@@ -62,11 +60,11 @@ func SeedLocatedForInstance(ctx context.Context, store *LocatedStore, addr addrs
 		return SeedUnchanged, fmt.Errorf("refusing to record an empty identity for %s", addr)
 	}
 
-	existing, version, exists, getErr := store.Get(ctx, addr)
+	existing, version, _, identityFound, getErr := store.getIdentity(ctx, addr)
 	if getErr != nil {
 		return SeedUnchanged, fmt.Errorf("reading the existing located record for %s before writing: %w", addr, getErr)
 	}
-	if exists {
+	if identityFound {
 		if existing.ImportID == rec.ImportID && componentsEqual(existing.Components, rec.Components) {
 			return SeedUnchanged, nil
 		}
@@ -75,7 +73,9 @@ func SeedLocatedForInstance(ctx context.Context, store *LocatedStore, addr addrs
 			addr, displayVersion(version))
 	}
 
-	if _, putErr := store.Put(ctx, addr, rec, ""); putErr != nil {
+	if _, putErr := store.mergeEnvelope(ctx, addr, version, func(env *recordEnvelope) {
+		env.Identity = &identityPayload{ImportID: rec.ImportID, Attrs: rec.Components}
+	}); putErr != nil {
 		return SeedUnchanged, fmt.Errorf("writing the located record for %s: %w", addr, putErr)
 	}
 	return SeedWritten, nil

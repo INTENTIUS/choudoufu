@@ -25,7 +25,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -124,72 +123,27 @@ type Options struct {
 	// builds a prior state for a plan sets it. See [Ownership].
 	Ownership *Ownership
 
-	// RecordStore is where GitHub issue #73's record-backed resource
-	// instances (identity.ClassRecordBacked) read their prior state from.
-	// Nil means no store: since internal/live/lint refuses every
-	// RECORD_ADMITTED type before resolution runs unless a live block
-	// configures one, resolutions of that class ordinarily only arrive
-	// here when this is also set - see builder.materializeRecord for the
-	// defensive path when they do not.
-	RecordStore staterecord.Store
-
-	// RecordKeyPrefix is the key namespace RecordStore's keys are built
-	// under - ordinarily [RecordKeyPrefix](estate), or a record_store
-	// block's key_prefix override. Unused when RecordStore is nil.
-	RecordKeyPrefix string
-
-	// LocatedStore is where GitHub issue #270's record-located instances
-	// (identity.ClassRecordLocated) read their IMPORT IDENTITY from - not
-	// their state, which is read from the cloud like any other resource's.
+	// RecordStore is where GitHub issue #364's one per-instance envelope
+	// lives: GitHub issue #73's record-backed resource instances
+	// (identity.ClassRecordBacked, kind=object), GitHub issue #270's
+	// record-located import identities (identity.ClassRecordLocated,
+	// kind=identity), GitHub issue #275's argument-level residue and GitHub
+	// issue #353's provisioner-taint bit, the last two independent of class
+	// and of each other.
 	//
-	// It is a separate field from [Options.RecordStore], and a
-	// [*LocatedStore] rather than a [staterecord.Store], because the two
-	// answer different questions and only one of them may ever be
-	// enumerated. See located.go: a located key lives under its own
-	// namespace root and this type exposes no List, so
-	// builder.discoverOrphanedRecords - which takes a staterecord.Store -
-	// cannot be handed one and cannot be given a located key by one. The
-	// underlying store is ordinarily the same one RecordStore holds.
-	//
-	// Nil means no store, and builder.materializeLocated then raises the
-	// "Record-located instance with no record store" error rather than
-	// guessing. internal/live/lint's admission gate is supposed to make
-	// that unreachable, the same way it does for record-backed.
-	LocatedStore *LocatedStore
-
-	// ResidueStore is where GitHub issue #275's argument-level residue is
-	// read from: the values this estate last SENT for arguments the
-	// provider's Read never gives back, so that a cold replan does not
-	// re-propose sending them forever.
-	//
-	// A third namespace in ordinarily the same underlying store, a third
-	// point-lookup type with no List, and separate from both of the others
-	// for residue.go's reason: a residue key describes the arguments of a
-	// live cloud object, and the only enumeration in this package proposes
-	// destroying what it finds.
-	//
-	// Nil means no store, which is not an error at any level: an estate
-	// with no record_store block simply keeps the perpetual update it had
-	// before this mechanism existed. That is visible, which is why it is
-	// allowed to be the default.
-	ResidueStore *ResidueStore
-
-	// ProvisionedStore is where GitHub issue #353's one bit is read from:
-	// did a create-time provisioner fail on this instance the last time it
-	// was applied. See provisioned.go.
-	//
-	// A fourth namespace in ordinarily the same underlying store, a fourth
-	// point-lookup type with no List, and separate from all three others
-	// for the same reason each of them is separate from the rest: the only
-	// enumeration in this package proposes destroying what it finds, and a
-	// note that a shell command failed must never be able to reach it.
-	//
-	// Nil means no store, and an instance carrying a create-time
-	// provisioner then has nowhere to have been remembered - which is
-	// precisely why internal/live/lint still refuses one for such a run.
-	// The lint gate and this field answer the same question and must keep
-	// answering it the same way.
-	ProvisionedStore *ProvisionedStore
+	// One store rather than four: since the envelope collapse, only the
+	// "kind" a key resolves to decides whether
+	// builder.discoverOrphanedRecords may propose destroying it, not which
+	// literal namespace root it lived under - see record.go's package
+	// comment. Nil means no store: since internal/live/lint refuses every
+	// RECORD_ADMITTED or record-located type before resolution runs unless
+	// a live block configures one, a resolution of either class ordinarily
+	// only arrives here when this is also set - see builder.materializeRecord
+	// and builder.materializeLocated for the defensive path when it is not.
+	// A residue or provisioner-taint instance with no store simply keeps
+	// the behavior it had before either mechanism existed, which is
+	// visible rather than silent.
+	RecordStore *RecordStore
 }
 
 // BuildWith is [BuildFrom] with options. See [Options].
@@ -249,29 +203,21 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	sort.Slice(b.recordVersions, func(i, j int) bool {
 		return b.recordVersions[i].Addr.String() < b.recordVersions[j].Addr.String()
 	})
-	sort.Slice(b.locatedVersions, func(i, j int) bool {
-		return b.locatedVersions[i].Addr.String() < b.locatedVersions[j].Addr.String()
-	})
-	sort.Slice(b.residueVersions, func(i, j int) bool {
-		return b.residueVersions[i].Addr.String() < b.residueVersions[j].Addr.String()
-	})
-	sort.Slice(b.provisionedVersions, func(i, j int) bool {
-		return b.provisionedVersions[i].Addr.String() < b.provisionedVersions[j].Addr.String()
+	sort.Slice(b.envelopeVersions, func(i, j int) bool {
+		return b.envelopeVersions[i].Addr.String() < b.envelopeVersions[j].Addr.String()
 	})
 	sort.Slice(b.policyList, func(i, j int) bool {
 		return b.policyList[i].Addr.String() < b.policyList[j].Addr.String()
 	})
 
 	res := &Result{
-		State:               b.state,
-		Materialized:        b.materialized,
-		Omitted:             b.omissionList,
-		Unowned:             b.unownedList,
-		RecordVersions:      b.recordVersions,
-		LocatedVersions:     b.locatedVersions,
-		ResidueVersions:     b.residueVersions,
-		ProvisionedVersions: b.provisionedVersions,
-		Policy:              b.policyList,
+		State:            b.state,
+		Materialized:     b.materialized,
+		Omitted:          b.omissionList,
+		Unowned:          b.unownedList,
+		RecordVersions:   b.recordVersions,
+		EnvelopeVersions: b.envelopeVersions,
+		Policy:           b.policyList,
 	}
 	return res, diags.Append(b.diags)
 }
@@ -339,29 +285,15 @@ type builder struct {
 	// "" - a create assertion, exactly [staterecord.Store]'s own convention.
 	recordVersions []RecordVersion
 
-	// locatedVersions is recordVersions' counterpart for GitHub issue
-	// #270's located instances: the version read at plan time for every
-	// located record that already existed, so [WriteBack] can open its
-	// conditional Put with the right expected version. An instance with no
-	// entry here had no located record, which write-back reads as
-	// expectedVersion "" - a create assertion.
-	locatedVersions []RecordVersion
-
-	// residueVersions is the same field again for GitHub issue #275's
-	// residue records: the version read at plan time for every residue
-	// record that already existed, so [WriteBack]'s conditional Put opens
-	// with the right expected version. An instance with no entry here had
-	// no residue record, which write-back reads as expectedVersion "" - a
-	// create assertion.
-	residueVersions []RecordVersion
-
-	// provisionedVersions is the same field again for GitHub issue #353's
-	// provisioner-taint records: the version read at plan time for every
-	// taint record that existed, so [WriteBack]'s conditional Put or
-	// Delete opens with the right expected version. An instance with no
-	// entry here had no taint record, which is the ordinary case for every
-	// instance in an estate whose provisioners all succeeded.
-	provisionedVersions []RecordVersion
+	// envelopeVersions is GitHub issue #364's merge of what used to be
+	// three separate fields (locatedVersions, residueVersions,
+	// provisionedVersions) for GitHub issues #270, #275 and #353: the
+	// version read at plan time for every kind=identity envelope that
+	// actually existed, from whichever of materializeLocated,
+	// fillResidueFor or applyProvisionedTaint happened to read it first for
+	// a given address. See [Result.EnvelopeVersions] for why one list is
+	// correct now that the three concerns share one physical key.
+	envelopeVersions []RecordVersion
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -1468,8 +1400,7 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		return
 	}
 
-	key := RecordKey(b.opts.RecordKeyPrefix, addr)
-	payload, version, exists, err := b.opts.RecordStore.Get(ctx, key)
+	env, version, exists, err := b.opts.RecordStore.getRaw(ctx, addr)
 	if err != nil {
 		detail := fmt.Sprintf("Reading the persisted record for %s failed: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
@@ -1486,8 +1417,13 @@ func (b *builder) materializeRecord(ctx context.Context, addr addrs.AbsResourceI
 		)
 		return
 	}
-
-	val, private, status, err := decodeRecordPayload(payload)
+	if env.Object == nil {
+		detail := fmt.Sprintf("The persisted record for %s carries no object to materialize (kind %q).", addr, env.Kind)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot decode a persisted record", detail))
+		b.omitFailed(addr, detail)
+		return
+	}
+	val, private, status, err := decodeObjectValue(env.Object)
 	if err != nil {
 		detail := fmt.Sprintf("The persisted record for %s could not be read: %s.", addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot decode a persisted record", detail))
@@ -1587,7 +1523,7 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 	if b.opts.RecordStore == nil {
 		return
 	}
-	keys, err := b.opts.RecordStore.List(ctx, b.opts.RecordKeyPrefix)
+	keys, err := b.opts.RecordStore.List(ctx)
 	if err != nil {
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot list the record store",
 			fmt.Sprintf("Listing the record store to find record-backed resources whose configuration block was removed failed: %s.", err),
@@ -1595,11 +1531,32 @@ func (b *builder) discoverOrphanedRecords(ctx context.Context, known map[string]
 		return
 	}
 	for _, key := range keys {
-		addr, ok := RecordAddr(b.opts.RecordKeyPrefix, key)
+		addr, ok := RecordAddr(b.opts.RecordStore.Prefix(), key)
 		if !ok {
 			continue
 		}
 		if known[addr.String()] {
+			continue
+		}
+		// GitHub issue #364/#270: a kind=identity key is never delete
+		// authority. Before this envelope collapse, that was true by
+		// construction - the located/residue/provisioned namespaces were
+		// simply never enumerated. Now every per-instance fact shares one
+		// enumerable root, so the kind check is what keeps a lost or stale
+		// identity, residue or provisioner-taint key from being proposed
+		// for destruction the way an undeclared record-backed key is.
+		kind, kindExists, kindErr := b.opts.RecordStore.peekKind(ctx, key)
+		if kindErr != nil {
+			// A key this run cannot even read the kind of is treated the
+			// same as one it cannot decode at all - skipped, not failed:
+			// [RecordAddr]'s own doc comment already accepts that a
+			// record store's namespace is not a promise every key in it is
+			// this package's, and materializeRecord's own read a moment
+			// from now would hit the identical error and report it loudly
+			// if this address turns out to matter.
+			continue
+		}
+		if !kindExists || kind != recordKindObject {
 			continue
 		}
 		b.materializeRecord(ctx, addr, true)

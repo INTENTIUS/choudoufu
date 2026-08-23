@@ -499,27 +499,6 @@ func (s *RecordStore) currentVersion(ctx context.Context, addr addrs.AbsResource
 	return version, nil
 }
 
-// getObject reads addr's kind=object record - GitHub issue #73's
-// record-backed value. exists is false when nothing is recorded (propose a
-// create) or when a key exists but carries no Object member (an internal
-// inconsistency: object and identity/residue/provisioned addresses are
-// mutually exclusive by construction, so this should never arise from a key
-// this package wrote itself).
-func (s *RecordStore) getObject(ctx context.Context, addr addrs.AbsResourceInstance) (val cty.Value, private []byte, status states.ObjectStatus, version string, exists bool, err error) {
-	env, version, exists, err := s.getRaw(ctx, addr)
-	if err != nil || !exists {
-		return cty.NilVal, nil, 0, version, false, err
-	}
-	if env.Object == nil {
-		return cty.NilVal, nil, 0, "", false, fmt.Errorf("the record for %s carries no object to materialize (kind %q)", addr, env.Kind)
-	}
-	val, private, status, err = decodeObjectValue(env.Object)
-	if err != nil {
-		return cty.NilVal, nil, 0, "", false, err
-	}
-	return val, private, status, version, true, nil
-}
-
 // getIdentity reads addr's Identity member - GitHub issue #270's
 // record-located import identity. keyExists is true whenever the physical
 // key exists, regardless of whether Identity itself is populated (the key

@@ -52,52 +52,22 @@ type Result struct {
 	// expectedVersion "" - the store's own create/absence convention.
 	RecordVersions []RecordVersion
 
-	// LocatedVersions is RecordVersions' counterpart for GitHub issue
-	// #270's record-located instances, in address order: the version each
-	// located record carried when this projection read it. An instance with
-	// no entry here had no located record - either it has never been
-	// created, or its record was lost, which are deliberately the same
-	// answer (see [LocatedStore.Get]).
+	// EnvelopeVersions lists the store version read at plan time for every
+	// kind=identity instance whose envelope key actually existed, in
+	// address order - GitHub issue #364's merge of what used to be three
+	// separate lists (LocatedVersions, ResidueVersions,
+	// ProvisionedVersions) for GitHub issues #270, #275 and #353.
 	//
-	// It is a separate list from RecordVersions rather than a merged one so
-	// that write-back cannot use a record-backed version to open a
-	// conditional write against a located key or the reverse. The two live
-	// under different namespace roots and the versions are not
-	// interchangeable.
-	LocatedVersions []RecordVersion
-
-	// ResidueVersions is the same list again for GitHub issue #275's
-	// residue records, in address order: the version each residue record
-	// carried when this projection read it, so write-back's conditional Put
-	// opens with the right expected version. An instance with no entry here
-	// had no residue record - it has never been applied by a run that had a
-	// record_store, or the classifier proved nothing for it.
-	//
-	// Separate from both lists above for LocatedVersions' reason: three
-	// namespace roots, three sets of versions, and no way to open a
-	// conditional write against one namespace with another's version.
-	ResidueVersions []RecordVersion
-
-	// ProvisionedVersions is the same list once more for GitHub issue
-	// #353's provisioner-taint records, in address order: the version each
-	// taint record carried when this projection read it, so write-back's
-	// conditional Put or Delete opens with the right expected version.
-	//
-	// Two things about this list are unlike the three above and are worth
-	// reading as design rather than as omission. It only ever has an entry
-	// for an instance whose configuration still declares a create-time
-	// provisioner - the store is not consulted at all for anything else,
-	// so an estate with no provisioners anywhere pays no store round trips
-	// and this list is always empty for it. And an entry here means the
-	// projected object arrived TAINTED, which is exactly what makes the
-	// plan propose replacing it; there is no "read it and found it
-	// healthy" entry, because absence is the only spelling of healthy in
-	// that namespace.
-	//
-	// Separate from the three lists above for LocatedVersions' reason:
-	// four namespace roots, four sets of versions, and no way to open a
-	// conditional write against one namespace with another's version.
-	ProvisionedVersions []RecordVersion
+	// One list rather than three because the three concerns now share one
+	// physical key per instance ([RecordKey]): an import identity, argument
+	// residue and a provisioner taint bit for the SAME address live in the
+	// same envelope, so a version read while resolving any one of them is a
+	// version of the whole key, valid for a conditional write touching any
+	// of the others. An instance with no entry here had no envelope at all
+	// at plan time - it has never been created, its identity was lost
+	// (deliberately indistinguishable, see [RecordStore.getIdentity]), or
+	// nothing about it needed the store this run.
+	EnvelopeVersions []RecordVersion
 
 	// Policy lists every declared instance whose admission or tag handling
 	// GitHub issue #67's policy governed with a verb other than that
