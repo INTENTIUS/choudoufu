@@ -2011,6 +2011,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Listed resource with no readable name | error | `internal/live/discovery` | "Listed resource with no readable name" |
 | - | - | discovery | Listed resource with no tags | error | `internal/live/discovery` | "Listed resource with no tags" |
 | - | - | discovery | Live resource displaced from the address it is marked for | warning | `internal/live/discovery` | "Live resource displaced from the address it is marked for" |
+| - | - | discovery | Located identity record unreadable | error | `internal/live/discovery` | "Located identity record unreadable" |
 | - | - | discovery | Malformed ownership marker | error | `internal/live/discovery` | "Malformed ownership marker" |
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
@@ -2147,6 +2148,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Import reported absence as an error | error | `internal/live/projection` | "Import reported absence as an error" |
 | - | - | projection | Live resource marked for another address | error | `internal/live/projection` | "Live resource marked for another address" |
 | - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
+| - | - | projection | Located identity could not be recorded | error | `internal/live/projection` | "Located identity could not be recorded" |
 | - | - | projection | No configuration to project | error | `internal/live/projection` | "No configuration to project" |
 | - | - | projection | No identity resolutions to project | error | `internal/live/projection` | "No identity resolutions to project" |
 | - | - | projection | No provider access | error | `internal/live/projection` | "No provider access" |
@@ -2172,7 +2174,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 | 0 | 0 | stamp | Two resources share one configuration body | error | `internal/live/stamp` | "Two resources share one configuration body" |
 
-**204 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**206 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Three layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, and a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run. A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -2455,6 +2457,14 @@ reserved for the limits wing's fixture directories, and
 #### Live resource displaced from the address it is marked for
 
 **What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Located identity record unreadable
+
+**What.** A type with no tags argument and no list route of any kind can only be found again through the estate's record store, and reading its stored identity for one declared instance failed - a corrupt record, an unreachable store, or a record format this build does not understand.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3375,6 +3385,14 @@ reserved for the limits wing's fixture directories, and
 #### Live resource outside this estate
 
 **What.** A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Located identity could not be recorded
+
+**What.** A migration (liveimport's Approve) read the identity of an untaggable, unlistable resource but could not write it into the estate's record store: a write conflict with a different identity already there, or a store failure. The instance stays findable only by hand until this is resolved; nothing in the live system changed.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

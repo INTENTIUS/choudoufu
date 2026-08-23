@@ -62,28 +62,107 @@ set -uo pipefail
 #                     know this type" to "we know it, and we know precisely
 #                     why we can't verify it yet."
 #   3. TEST PLAN      choudoufu live-plan against the full 54-resource
-#                     config. STILL FAILS, but the wall is a different and
-#                     much deeper one than it was, and there is exactly ONE
-#                     of it: 1 Error diagnostic as of 2026-08-22, down from
-#                     8, then 4. What is left is "Unlistable
-#                     marker-discovered type" on aws_launch_configuration -
-#                     nothing was refused for want of a declaration, the run
-#                     reached marker discovery and found a type the provider
-#                     cannot enumerate at all, so the 2 declared instances
-#                     (untaggable by design, no `tags` argument) can be
-#                     neither tagged nor listed and therefore cannot be
-#                     found again. That is HANDOFF.md's fourth row - handling
-#                     it would write a wrong marker, so the instance belongs
-#                     on the record rung - and it is choudoufu #364's OTHER
-#                     half ("removing admission as a gate: a type with no
-#                     table row lands on the record rung instead of
-#                     refusing"), not attempted here.
+#                     config. STILL FAILS, but the wall keeps moving deeper:
+#                     there is exactly ONE Error diagnostic as of 2026-08-22
+#                     (unchanged in count from the previous measurement, but
+#                     a DIFFERENT one - see below), down from 8, then 4.
 #
-#                     Three earlier walls are asserted ABSENT below as
-#                     negative controls, each flipped by BREAK=3 (BREAK=1
-#                     mutates stage 2 as well and exits there, so it never
-#                     reaches these three - see the BREAK entry under
-#                     "Environment" below):
+#                     aws_launch_configuration's "Unlistable marker-
+#                     discovered type" wall - untaggable by design (no
+#                     `tags` argument) and no list route of any kind, so its
+#                     2 declared instances could be neither tagged nor
+#                     listed and therefore never found again - is FIXED,
+#                     2026-08-22, choudoufu #364's other half ("removing
+#                     admission as a gate: a type with no table row lands on
+#                     the record rung instead of refusing"). The identity
+#                     was already known at migrate time (state carries the
+#                     live launch configuration name directly) but nothing
+#                     persisted it; now three things do, together:
+#                       1. internal/live/liveimport/stamp.go's Approve
+#                          writes it - the same object Ratify already reads
+#                          for residue (#341) - into the estate's record
+#                          store as a "located" record
+#                          (internal/live/projection/locatedseed.go,
+#                          SeedLocatedForInstance), the exact point-lookup,
+#                          no-enumeration mechanism issue #270 already built
+#                          for "object exists, nowhere to carry a marker" -
+#                          reused for a different type population (this one
+#                          keeps its ordinary ServerAssigned-shaped
+#                          admission; #270's own LocatedType explicitly
+#                          excludes any type with a ratified row, so nothing
+#                          about identity CLASSIFICATION changed here).
+#                       2. internal/live/discovery/locatedfallback.go's
+#                          scanTypeLocatedFallback - [scanTypeMarkerFallback]'s
+#                          untaggable companion - reads that record back for
+#                          each declared instance and binds it if present,
+#                          never guessing "create" for an instance the store
+#                          has nothing for (exactly [scanTypeMarkerFallback]'s
+#                          own discipline for an empty tag-index answer).
+#                       3. discovery.Request.HintStore, which
+#                          internal/command/live_plan.go already opened as
+#                          hintStore for the guided-sweep cost hint alone,
+#                          now reaches the Request unconditionally rather
+#                          than only when statelessApplyGuidedDiscovery's
+#                          cost-decision gate turns Guided on (which it
+#                          deliberately never does for an IMPLIED record
+#                          store - #364's own blast-radius containment - so
+#                          this estate would otherwise never have reached
+#                          it).
+#                     The generic property behind it - an admitted type with
+#                     no tags argument and no list route of any kind
+#                     (native, content-match or Cloud Control) - reaches 215
+#                     of today's admitted AWS types; aws_launch_configuration
+#                     is the instance that found the wall, not a special case
+#                     of the fix. Confirmed by the plan output carrying zero
+#                     mentions of aws_launch_configuration or "Unlistable"
+#                     anywhere, asserted as a fourth negative control below.
+#
+#                     What surfaced once that wall cleared is a DIFFERENT,
+#                     already-known one, previously hidden behind it:
+#                     "Provider unavailable for marker discovery" for
+#                     provider.kubernetes, whose own configuration
+#                     (`insecure = true` aside, its `host` and `token`
+#                     arguments) reads data.aws_eks_cluster.cluster and
+#                     data.aws_eks_cluster_auth.cluster - data sources whose
+#                     own config depends on aws_eks_cluster.this[0], a
+#                     MANAGED resource this same run has not yet read a
+#                     value out of. internal/configs/static_scope.go's
+#                     evaluator - what internal/command/live_plan.go uses to
+#                     configure a provider before discovery can run at all -
+#                     has no state, no apply and no dependency graph to walk;
+#                     it can only resolve var/local/path/terraform, so a
+#                     provider configured from another provider's live
+#                     output is exactly what it cannot do. Stock OpenTofu
+#                     never asks this question: its plan graph refreshes
+#                     aws_eks_cluster.this[0] (from state, or via the
+#                     graph's own dependency order on a first apply) and
+#                     evaluates data.aws_eks_cluster.cluster BEFORE
+#                     provider.kubernetes is ever configured, in one
+#                     coherent walk that choudoufu's stateless discovery
+#                     does not build. This is the exact shape issue #313
+#                     already named and deferred ("live-value-through-
+#                     provider-config boundary") from the OTHER direction
+#                     (live-import's own no-state verification pass hitting
+#                     the identical data sources at migrate time - see stage
+#                     2 above); this estate is simply the first live crossing
+#                     to reach it from live-plan's side too. Fixing it
+#                     generically would mean teaching the stateless path to
+#                     sequence AWS discovery/read ahead of a dependent
+#                     provider's own configuration for ANY provider pair a
+#                     configuration names this way, not a per-type table -
+#                     a real, novel piece of the stateless engine (a
+#                     provider-configuration dependency order it does not
+#                     have today), not a discovery, stamping or identity
+#                     fix, and not attempted here. See #313.
+#
+#                     Four earlier walls are asserted ABSENT below as
+#                     negative controls, three of them flipped by BREAK=3
+#                     (BREAK=1 mutates stage 2 as well and exits there, so
+#                     it never reaches these - see the BREAK entry under
+#                     "Environment" below); the fourth (aws_launch_
+#                     configuration) is a plain string-absence check with no
+#                     BREAK lever of its own, since it names no lint rule to
+#                     flip:
 #                       - unadmitted-type on kubernetes_config_map.aws_auth,
 #                         fixed by issue #326 (merged 852f52073f/a990112e26,
 #                         2026-08-20). Its identity - metadata.name/namespace,
@@ -736,11 +815,13 @@ if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 # support at all), and every other corpus-* script in this repo already
 # avoids them for exactly that reason.
 #
-# THREE WALLS ARE ASSERTED ABSENT HERE, and one is asserted present.
+# FOUR WALLS ARE ASSERTED ABSENT HERE, and one is asserted present.
 #
-# Absent (each was this estate's stage-3 wall at some point, each is a
-# negative control with BREAK=3 flipping it, so none of them can read as
-# green merely because the rule stopped firing for an unrelated reason):
+# Absent (each was this estate's stage-3 wall at some point; the first
+# three are negative controls with BREAK=3 flipping them, so none of them
+# can read as green merely because the rule stopped firing for an unrelated
+# reason - the fourth, aws_launch_configuration, names no lint rule for
+# BREAK to flip and is checked by plain string absence instead):
 #
 #   - unadmitted-type on kubernetes_config_map.aws_auth. Fixed by issue
 #     #326 (merged 852f52073f/a990112e26, 2026-08-20); its identity
@@ -768,96 +849,57 @@ if [ -n "${DUMP_PLAN:-}" ]; then printf '%s\n' "$PLAN_OUT" > "$DUMP_PLAN"; fi
 #     the way stock implies local state" arriving. Stage 2 above shows the
 #     other end of the same change: the same instances are now SEEDED into
 #     that store by live-import instead of skipped.
+#   - "Unlistable marker-discovered type" on aws_launch_configuration.
+#     FIXED 2026-08-22, choudoufu #364's other half. See this script's
+#     header for the full three-file shape
+#     (internal/live/discovery/locatedfallback.go,
+#     internal/live/projection/locatedseed.go,
+#     internal/live/liveimport/stamp.go's Approve, plus
+#     discovery.Request.HintStore reaching internal/command/live_plan.go's
+#     stateless path unconditionally). The generic property - no tags
+#     argument and no list route of any kind - reaches 215 admitted AWS
+#     types; this is the instance that found it, not a special case of the
+#     fix. No BREAK lever: this is a plain absence check below
+#     (LAUNCHCONFIG_SITES), since there is no "Rule: ..." name to flip the
+#     way the three lint-driven controls above have.
 #
-# Present, and this estate's current wall:
+# Present, and this estate's current wall - a different one, uncovered by
+# fixing the one above:
 #
-#   - "Unlistable marker-discovered type" on aws_launch_configuration. The
-#     two declared instances are untaggable by design (the type has no
-#     tags argument), so they can only be found again by marker discovery,
-#     and the provider cannot list the type at all - so there is no sweep
-#     that could find them. This is a DIFFERENT and deeper wall than the
-#     admission ones above: nothing was refused for want of a declaration,
-#     the run got all the way to discovery and found a type it cannot
-#     enumerate. It is the shape HANDOFF.md's fourth row covers ("handling
-#     it would write a wrong marker - drop the instance to the record rung,
-#     proceed, open a rung ticket"): an instance that can be neither tagged
-#     nor listed belongs on the record rung, and choudoufu #364's OTHER
-#     half - "removing admission as a gate: a type with no table row lands
-#     on the record rung instead of refusing" - is where that lands.
+#   - "Provider unavailable for marker discovery" for provider.kubernetes.
+#     Its configuration (`insecure = true` aside, its `host` and `token`
+#     arguments) reads data.aws_eks_cluster.cluster and
+#     data.aws_eks_cluster_auth.cluster, whose own configuration depends on
+#     aws_eks_cluster.this[0] - a managed resource this run has not read a
+#     value out of yet. internal/configs/static_scope.go, what
+#     internal/command/live_plan.go uses to configure a provider before
+#     discovery can even run, resolves only var/local/path/terraform - no
+#     state, no apply, no dependency graph - so a provider configured from
+#     ANOTHER provider's live output is exactly what it cannot evaluate:
+#     "Dynamic value in static context: Unable to use
+#     data.aws_eks_cluster.cluster in static context, which is required by
+#     provider.kubernetes." Stock OpenTofu never asks this question: its
+#     plan graph refreshes aws_eks_cluster.this[0] and evaluates the data
+#     sources BEFORE configuring provider.kubernetes, in one coherent walk
+#     choudoufu's stateless discovery does not build.
 #
-#     Re-confirmed for real 2026-08-22 (base 8c0cc5c8dd): live-import's own
-#     output shows this instance's identity IS known at migrate time
-#     (state carries the live launch configuration name directly, e.g.
-#     "aws_launch_configuration live id: test-eks-...-worker-group-..."),
-#     it is simply never captured anywhere, because Approve's OutcomeSkipped
-#     branch for an untaggable type (stamp.go) records argument residue
-#     (issue #341) but not identity, and #364's implied record store is
-#     wired only to [identity.TypeIdentity.RecordBacked] types - a
-#     type-level fact for a value that IS its own identity with no live
-#     object at all, which aws_launch_configuration is not. Extending that
-#     same mechanism to this shape would be a category error, not a reuse:
-#     RecordBacked licenses skipping cloud observation entirely (see
-#     internal/live/lint/logical_type.go's ClassRecordAdmitted doc), which
-#     is false for a real cloud object. The correct shape is narrower - the
-#     record stands in only for the missing LIST call (an identity index),
-#     and a normal provider Read still verifies the object once its
-#     identity is known - which is a new leg, not an existing one:
-#       1. discovery.Request needs a record-store handle (internal/command's
-#          live_plan.go already opens one, as [hintStore], for guided
-#          discovery's cost hint alone - the same handle reaches
-#          statelessDiscoverOne already and would only need passing
-#          through);
-#       2. scanType's declared-instance branch (internal/live/discovery/
-#          discovery.go, right where scanTypeMarkerFallback's taggable leg
-#          sits) needs a companion untaggable leg that checks the record
-#          for each declared address before refusing, binding what it finds
-#          and refusing (never "propose create") what it does not - the
-#          same non-guess discipline scanTypeMarkerFallback already follows
-#          for a working-but-empty tag index;
-#       3. internal/live/liveimport/stamp.go's Approve needs to seed that
-#          record at migrate time for such an instance, from the same
-#          object Ratify already read for residue purposes (issue #341's
-#          [residuable]) - the identity is already in hand, only the write
-#          is missing.
-#     Also checked and ruled out as a shortcut: live/mapping.json maps
-#     aws_launch_configuration to AWS::AutoScaling::LaunchConfiguration via
-#     "former2" (community-sourced), and live/registry.json's own handlers
-#     say that CFN type's List needs no input - roster.Listable(...) and
-#     roster.Taggable(...), read directly, answer true and false, matching
-#     this estate's wall exactly. But
-#     internal/live/registry/roster.go's Roster.CloudControlType /
-#     EnumerationSource deliberately excludes every via:former2 row from
-#     enumeration regardless (only name/alias/service-alias produce a hit;
-#     former2 rows still answer CloudControlTypeOrService for parent
-#     derivation, a materially weaker claim than "list this and trust what
-#     comes back" - its own doc comment calls former2 rows "not Cloud
-#     Control enumerable", which this measurement shows is not literally
-#     true of THIS row's raw registry facts, so the exclusion reads as a
-#     deliberate blanket policy over the whole former2 tier - lower
-#     confidence in the tf_type/cfn_type pairing itself, community-sourced
-#     and accepted only because no other heuristic found anything - rather
-#     than a per-row listability check). Widening that gate to unblock this
-#     one type would silently change discovery for all 14 other
-#     via:former2, untaggable, unlistable admitted types at once with no
-#     independent per-type confirmation that Cloud Control's population for
-#     each one actually matches what the TF type name claims - exactly the
-#     guess HANDOFF's fourth row exists to forbid, not a derivation from a
-#     measured property. Left to whoever owns that policy to confirm or
-#     relax; not changed here.
-#
-#     Not attempted here; it is foundation work spanning discovery,
-#     live-import and the record store together, not a per-estate fix, and
-#     this script does not paper over it. The structural property behind
-#     it - an admitted type with no tags argument at all AND no working
-#     list route (native, content-match or Cloud Control) - reaches 215 of
-#     today's admitted AWS types by the same measurement (computed from
-#     live/survey-full.json's taggable/list_resource signals joined against
-#     the identity table, live/mapping.json and the registry roster), so
-#     the fix is generic in exactly the sense HANDOFF requires: derived
-#     from a property every one of those types shares, not a name checked
-#     in control flow.
+#     This is the exact shape issue #313 already named and deferred
+#     ("live-value-through-provider-config boundary"), reached here from a
+#     new direction: #313 and stage 2's own MISSING finding on
+#     kubernetes_config_map.aws_auth are live-import's no-state
+#     VERIFICATION pass hitting these same two data sources at migrate
+#     time; this is live-plan's own provider-configuration bootstrap
+#     hitting them before discovery runs at all. Fixing it generically
+#     would mean teaching the stateless path a provider-configuration
+#     dependency order - sequence AWS discovery/read ahead of a dependent
+#     provider's own configuration for any provider pair a configuration
+#     names this way - which is a real, novel piece of the stateless
+#     engine's design that does not exist today in any form, not a
+#     discovery, stamping or identity fix, and not attempted here. Left to
+#     #313.
 LOGICAL_SITES='random_string\.suffix|random_pet\.workers|null_resource\.wait_for_cluster|local_file\.kubeconfig'
 COUNTINDEX_SITES='aws_route_table_association\.(public|private)'
+LAUNCHCONFIG_SITES='aws_launch_configuration|Unlistable marker-discovered type'
 # The kubernetes_* lines that are NOT a refusal: the tag sweep's own
 # "no CFN type in the ARN join table" warnings. Excluded by exact shape
 # rather than by the provider prefix, so a real kubernetes refusal - which
@@ -874,52 +916,73 @@ assert_rule_absent() {
 }
 
 if [ "${BREAK:-}" = "1" ] || [ "${BREAK:-}" = "3" ]; then
-  log "  BREAK=${BREAK}: expecting \"Rule: unadmitted-type.\", \"Rule: count-index.\""
-  log "           and \"Rule: logical-resource.\" to still fire (issue #326's"
-  log "           fix, sibling_select.go's fix and #364's implied record"
-  log "           store, each deliberately treated as absent). All three"
-  log "           must be reported as detected."
+  log "  BREAK=${BREAK}: expecting \"Rule: unadmitted-type.\", \"Rule: count-index.\","
+  log "           \"Rule: logical-resource.\" and aws_launch_configuration's"
+  log "           unlistable-type wall to still fire (issue #326's fix,"
+  log "           sibling_select.go's fix, #364's implied record store and"
+  log "           #364's located-record discovery fallback, each deliberately"
+  log "           treated as absent). All four must be reported as detected."
   # Collected rather than checked one `fail` at a time, because `fail` exits:
-  # a sequence of three would only ever prove the FIRST control, and the run
-  # would look like a passing mutation check while two of the three
-  # assertions above stayed unexercised. All three are named in one failure.
+  # a sequence would only ever prove the FIRST control, and the run would
+  # look like a passing mutation check while the rest stayed unexercised.
+  # All four are named in one failure.
   BREAK_HITS=""
   grep -qE 'Rule: unadmitted-type\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS unadmitted-type(#326)"
   grep -qE 'Rule: count-index\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS count-index(sibling_select.go)"
   grep -qE 'Rule: logical-resource\.' <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS logical-resource(#364)"
+  grep -qE "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" || BREAK_HITS="$BREAK_HITS aws_launch_configuration(located-fallback)"
   [ -z "$BREAK_HITS" ] \
     || fail "BREAK=${BREAK} correctly detected: no refusal fired for$BREAK_HITS - every one of those fixes holds and every negative control above is load-bearing (this failure is the expected one)"
 else
   assert_rule_absent "unadmitted-type" 'Rule: unadmitted-type\.' "issue #326's fix for kubernetes_config_map.aws_auth"
-  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vcF "$K8S_NOT_A_REFUSAL" || true)"
+  # The kubernetes provider's own configuration failure (this estate's
+  # current wall, below) DOES legitimately mention "kubernetes" outside the
+  # join-table warnings - it is not #326's regression, and this exclusion
+  # says so by shape rather than widening K8S_NOT_A_REFUSAL to hide a real
+  # unadmitted-type regression the same way.
+  K8S_REFUSALS="$(grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL" | grep -vcE 'Provider unavailable for marker discovery|cannot evaluate the configuration of provider|provider\.kubernetes|registry\.opentofu\.org/hashicorp/kubernetes' || true)"
   [ "$K8S_REFUSALS" = "0" ] || {
     grep -i 'kubernetes' <<< "$PLAN_OUT" | grep -vF "$K8S_NOT_A_REFUSAL"
-    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings - #326's fix may have regressed"
+    fail "\"kubernetes\" appears in live-plan's output somewhere other than the tag sweep's own join-table warnings and the known provider-config wall below - #326's fix may have regressed"
   }
   log "  Confirmed: the only mentions of kubernetes anywhere in live-plan's"
-  log "             output are the tag sweep's four join-table warnings, not"
-  log "             a refusal - issue #326's fix holds for"
+  log "             output are the tag sweep's four join-table warnings and"
+  log "             the known provider-config wall below, not a fresh"
+  log "             regression - issue #326's fix holds for"
   log "             kubernetes_config_map.aws_auth"
 
   assert_rule_absent "count-index" "$COUNTINDEX_SITES" "internal/live/lint/sibling_select.go's element(<sibling splat>, count.index) rule"
   assert_rule_absent "logical-resource" "$LOGICAL_SITES" "choudoufu #364's implied local record store"
+
+  grep -qE "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT" \
+    && { grep -E "$LAUNCHCONFIG_SITES" <<< "$PLAN_OUT"; fail "aws_launch_configuration's unlistable-type wall is back - the located-record discovery fallback (internal/live/discovery/locatedfallback.go) may have regressed"; }
+  log "  Confirmed: no mention of aws_launch_configuration or \"Unlistable"
+  log "  marker-discovered type\" anywhere in live-plan's output - choudoufu"
+  log "  #364's located-record discovery fallback holds"
 fi
 
-# The wall that IS here, asserted by its own words and by the type it names.
-grep -qF 'Unlistable marker-discovered type' <<< "$PLAN_OUT" \
-  || { grep -E '^Error:' <<< "$PLAN_OUT"; fail "the \"Unlistable marker-discovered type\" error is gone - this estate's wall has moved again; read the plan and rewrite this stage"; }
-grep -qE 'cannot list aws_launch_configuration' <<< "$PLAN_OUT" \
-  || fail "the unlistable-type error no longer names aws_launch_configuration - the wall has changed shape"
+# The wall that IS here NOW, asserted by its own words and by the provider
+# it names - provider.kubernetes's own configuration, not aws_launch_
+# configuration (fixed above) and not an admission refusal at all.
+grep -qF 'Provider unavailable for marker discovery' <<< "$PLAN_OUT" \
+  || { grep -E '^Error:' <<< "$PLAN_OUT"; fail "the \"Provider unavailable for marker discovery\" error is gone - this estate's wall has moved again; read the plan and rewrite this stage"; }
+grep -qE 'provider\.kubernetes' <<< "$PLAN_OUT" \
+  || fail "the provider-unavailable error no longer names provider.kubernetes - the wall has changed shape"
+grep -qE 'Dynamic value in static context' <<< "$PLAN_OUT" \
+  || fail "the provider-unavailable error no longer cites a static-context evaluation failure - the wall has changed shape"
 ERROR_COUNT="$(grep -c '^Error:' <<< "$PLAN_OUT" || true)"
 [ "$ERROR_COUNT" = "1" ] || {
   grep -E '^Error:' <<< "$PLAN_OUT"
-  fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 1 (aws_launch_configuration's unlistable-type wall; the 4 logical-resource and 4 count-index sites are fixed) - the wall's shape has changed"
+  fail "live-plan reported $ERROR_COUNT \"Error:\" diagnostics, expected exactly 1 (provider.kubernetes's static-context wall; aws_launch_configuration, the 4 logical-resource and 4 count-index sites are all fixed) - the wall's shape has changed"
 }
-log "  exactly 1 Error diagnostic total: aws_launch_configuration is"
-log "  marker-discovered and the provider cannot list it, so its 2 declared"
-log "  instances cannot be found again. Was 8 diagnostics, then 4, now 1."
+log "  exactly 1 Error diagnostic total: provider.kubernetes cannot be"
+log "  configured because its host/token arguments read data sources whose"
+log "  own configuration depends on a managed resource this stateless run"
+log "  has not read yet (issue #313). aws_launch_configuration's wall,"
+log "  the 4 logical-resource sites and the 4 count-index sites are all"
+log "  fixed; this is a different, previously-hidden wall, not a regression."
 
-gauntlet_stage test_plan fail "1 Error diagnostic: aws_launch_configuration is marker-discovered and unlistable, so its 2 instances cannot be found again; the 4 logical-resource refusals are FIXED by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go. Re-confirmed 2026-08-22: the identity IS known at migrate time (state carries the live launch configuration name) but nothing persists it, because #364's record store is wired to RecordBacked types only, a different shape (no live object at all) than an untaggable-but-real one. HANDOFF row 4; the generic property (no tags argument, no working list route) reaches 215 admitted AWS types; fixing it needs discovery wired to the record store plus a migrate-time identity write - foundation work, not attempted here (see this script's header)"
+gauntlet_stage test_plan fail "1 Error diagnostic: provider.kubernetes cannot be configured - its host/token arguments read data.aws_eks_cluster.cluster and data.aws_eks_cluster_auth.cluster, whose own configuration depends on aws_eks_cluster.this[0], a managed resource this stateless run has not read a value out of yet (issue #313's live-value-through-provider-config boundary, reached here from live-plan's provider-configuration bootstrap rather than live-import's verification pass). aws_launch_configuration's former wall is FIXED (2026-08-22, choudoufu #364's other half: internal/live/discovery/locatedfallback.go binds it from a record internal/live/liveimport/stamp.go's Approve writes at migrate time via internal/live/projection/locatedseed.go, reusing issue #270's LocatedStore for a different type population - generic property is no tags argument and no list route of any kind, reaching 215 admitted AWS types); the 4 logical-resource refusals remain fixed by choudoufu #364's implied local record store and the 4 count-index ones by sibling_select.go. The kubernetes-provider-config wall is foundation work spanning the stateless engine's provider-configuration ordering, not a discovery/stamping/identity fix, and is left to #313"
 gauntlet_stage test_apply not_run "stage 3 produced no plan to apply or drift"
 gauntlet_stage drift_reconverge not_run "stage 3 produced no plan to apply or drift"
 CURRENT_STAGE=""
@@ -942,17 +1005,21 @@ log "           kubernetes_config_map.aws_auth, admitted since #326 but"
 log "           its own provider config can't be statically verified yet"
 log "           (a distinct, narrower, DEFER-caliber wall - see stage 3)."
 log "  STAGE 3  FAILS  1 Error diagnostic and nothing else, down from 8,"
-log "           then 4. What is left is not an admission refusal at all:"
-log "           aws_launch_configuration is marker-discovered and the"
-log "           provider cannot list it, so its 2 declared instances can be"
-log "           neither tagged nor found. That is HANDOFF's fourth row - the"
-log "           instance belongs on the record rung - and it is choudoufu"
-log "           #364's other half, removing admission as a gate."
+log "           then 4, but a DIFFERENT one: provider.kubernetes cannot be"
+log "           configured, because its host/token arguments read data"
+log "           sources whose own configuration depends on a managed"
+log "           resource this stateless run has not read yet (issue #313's"
+log "           live-value-through-provider-config boundary)."
+log "           aws_launch_configuration's former wall is FIXED (choudoufu"
+log "           #364's other half): it is marker-discovered and the"
+log "           provider cannot list it, but its identity is now recorded"
+log "           at migrate time and read back by a located-record discovery"
+log "           fallback, so its 2 declared instances bind cleanly."
 log "           The 4 logical-resource sites are FIXED by #364's implied"
 log "           local record store, with no edit to this estate; the 4"
 log "           count-index sites by internal/live/lint/sibling_select.go;"
-log "           issue #326's unadmitted-type site by #326. All three are"
-log "           asserted ABSENT above, by rule and by resource, with"
+log "           issue #326's unadmitted-type site by #326. All four are"
+log "           asserted ABSENT above, by rule or by resource, with"
 log "           BREAK=3 proving neither the negative controls nor the"
 log "           positive check on the remaining wall are vacuous."
 log "  STAGES 4-5  UNREACHABLE  stage 3 produced no plan to apply or drift."

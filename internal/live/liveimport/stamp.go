@@ -218,6 +218,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// was skipped, and that is what this axis reports - so no count
 			// this run prints moves.
 			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, r.residuable[entry.Addr.String()]))
+			diags = diags.Append(recordLocatedFor(ctx, r.recordStore, r.Estate, entry.Addr, entry.LiveID))
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()]))
@@ -328,6 +329,49 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secre
 	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, secrets, read); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
+			addr, err,
+		)))
+	}
+	return diags
+}
+
+// recordLocatedFor is Approve's own half of a fix that spans three files:
+// internal/live/discovery/locatedfallback.go reads what this writes, and
+// this writes what [ratifyUntaggable] already read. See that discovery
+// file's doc comment for the whole shape; this is only the write.
+//
+// entry.LiveID is [liveIDFrom]'s answer, already computed by Ratify for
+// every untaggable instance from the same object issue #341's residue
+// classifier reads - the state's own recorded object, decoded against the
+// provider's current schema. Nothing here reads the tfstate or the live
+// system a second time; the only new call is the store write itself, the
+// same discipline [recordResidueFor] and [recordOne] both follow.
+//
+// A type this fork can still find some other way (a native list resource,
+// content-match, Cloud Control) never needs what this writes -
+// [internal/live/discovery]'s scanTypeLocatedFallback is reached only after
+// all three have already failed - so writing it unconditionally for every
+// untaggable instance costs a few unread bytes for those types and nothing
+// else. Restricting the write to the narrower "no list route either"
+// population would need this package to carry list-route knowledge
+// (listclient.Schemas, the Cloud Control roster) it has no other reason to
+// import; the untaggable gate alone is enough to be safe; discovery's own
+// read-side gate is what decides whether a given type's record is ever
+// consulted.
+//
+// A nil store (no record_store block, implied or declared - #364 means one
+// almost always exists) or an entry with no LiveID (nothing could be read,
+// or the type has no identity attribute this table knows) makes this an
+// immediate no-op via [SeedLocatedForInstance]/its own nil-store guard.
+func recordLocatedFor(ctx context.Context, store staterecord.Store, estate string, addr addrs.AbsResourceInstance, liveID string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if store == nil || liveID == "" {
+		return diags
+	}
+	located := projection.NewLocatedStore(store, estate)
+	if _, err := projection.SeedLocatedForInstance(ctx, located, addr, projection.LocatedRecord{ImportID: liveID}); err != nil {
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
+			"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
 			addr, err,
 		)))
 	}

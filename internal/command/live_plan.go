@@ -774,6 +774,17 @@ func statelessDiscoverOne(ctx context.Context, config *configs.Config, resolutio
 		Policy:           pol,
 		ScopeProvider:    scopeProvider,
 		Progress:         statelessProgress(statelessView),
+		// Independent of the Guided cost decision below: HintStore also
+		// backs discovery's per-instance located-record fallback for a type
+		// with no tags argument and no list route at all
+		// (scanTypeLocatedFallback), which has nothing to do with the
+		// estate-wide sweep's cost and must not wait on
+		// statelessApplyGuidedDiscovery's "was a record_store DECLARED,
+		// not merely implied" gate - an implied store (#364) is still a
+		// real store an earlier migration may have written a located
+		// identity into. A nil hintStore (no live block, or one that could
+		// not open its store) leaves this nil too, exactly as before.
+		HintStore: hintStore,
 	}
 	statelessApplyGuidedDiscovery(config, hintStore, &req)
 

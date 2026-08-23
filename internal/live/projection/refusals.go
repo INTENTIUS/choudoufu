@@ -170,6 +170,10 @@ var refusals = []Refusal{
 		What:    "A resource whose live object can carry no ownership marker was projected with no record_store configured, so nothing can say which live object it is. Declaring a record_store in the live block is the fix.",
 	},
 	{
+		Summary: SummaryLocatedIdentityNotRecorded,
+		What:    "A migration (liveimport's Approve) read the identity of an untaggable, unlistable resource but could not write it into the estate's record store: a write conflict with a different identity already there, or a store failure. The instance stays findable only by hand until this is resolved; nothing in the live system changed.",
+	},
+	{
 		Summary: SummaryProvisionedUnreadable,
 		What:    "An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.",
 	},

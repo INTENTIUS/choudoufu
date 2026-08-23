@@ -110,6 +110,10 @@ var refusals = []Refusal{
 		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.",
 	},
 	{
+		Summary: "Located identity record unreadable",
+		What:    "A type with no tags argument and no list route of any kind can only be found again through the estate's record store, and reading its stored identity for one declared instance failed - a corrupt record, an unreachable store, or a record format this build does not understand.",
+	},
+	{
 		Summary: "Malformed ownership marker",
 		What:    "A live resource carries a tofu-address or tofu-estate tag whose value is not in the marker grammar - hand-edited, truncated, or written by something other than this tool.",
 	},
