@@ -7,8 +7,10 @@ set -euo pipefail
 # The claim under test, in one sentence: an apply whose create-time
 # provisioner failed leaves a live, fully-marked, half-built object behind,
 # and the NEXT plan has to say so - which stock does from the tainted bit in
-# its state file, and this fork does from one record in the
-# tofu-provisioned namespace, because a live marker cannot carry that bit.
+# its state file, and this fork does from one record's Provisioned member
+# (internal/live/projection/record.go, GitHub issue #364 unit A1's merged
+# envelope - the tofu-provisioned namespace this comment used to name was
+# folded into it), because a live marker cannot carry that bit.
 #
 # Why this exists and a unit test does not replace it. Every piece can be
 # individually correct and the crossing still fail. internal/live/stamp
@@ -132,11 +134,15 @@ mkdir -p "$MAIN"
 cp "$FIXTURE/main.tf" "$MAIN/main.tf"
 RUNLOG="$MAIN/provisioner-runs.txt"
 RECORDS="$MAIN/.tofu-records"
-PROVISIONED="$RECORDS/tofu-provisioned/$ESTATE"
+# GitHub issue #364 unit A1 folded the once-separate "tofu-provisioned"
+# root into the single per-instance envelope every record now lives in,
+# under the one "tofu-records" namespace root
+# (internal/live/projection/record.go's RecordKeyPrefix and RecordKey).
+PROVISIONED="$RECORDS/tofu-records/$ESTATE"
 
-# provisioned_key reproduces internal/live/projection's ProvisionedKey
-# encoding for one instance address: unpadded base64url of the address
-# string. Spelled out rather than discovered by globbing the directory, on
+# provisioned_key reproduces internal/live/projection's RecordKey encoding
+# for one instance address: unpadded base64url of the address string.
+# Spelled out rather than discovered by globbing the directory, on
 # purpose - a step that globbed would still pass if the addresses were
 # wrong, which is precisely the failure mode where one resource's failed
 # provisioner forces a replacement of another.
@@ -209,16 +215,26 @@ grep -q '"aws_s3_bucket.app:0"' <<< "$APP_TAGS" || { printf '%s\n' "$APP_TAGS"; 
 log "  pt-e2e-app carries both ownership markers: nothing about the live object says its provisioner failed"
 
 # ── 3. the record, and exactly the record ───────────────────────────────────
-log "=== 3. the tofu-provisioned namespace ==="
+# GitHub issue #364 unit A1 folded the once-separate "tofu-provisioned"
+# namespace into the merged per-instance envelope
+# (internal/live/projection/record.go): the taint bit is now the
+# envelope's Provisioned member rather than the whole payload, and it is
+# the envelope's "kind" field - not a directory literal - that keeps this
+# key out of the listing which proposes destroying undeclared records.
+log "=== 3. the provisioner taint record, and exactly the taint bit ==="
 [ -f "$APP_REC" ] || { find "$RECORDS" -type f | sort; fail "no taint record for $APP_ADDR at $APP_REC"; }
 python3 -c '
 import json,sys
 p=json.load(open(sys.argv[1]))
 assert p["address"]==sys.argv[2], "the record names %s, not %s" % (p["address"], sys.argv[2])
-assert p["tainted"] is True, "the record does not say tainted: %r" % (p,)
-assert set(p) == {"formatVersion","address","tainted"}, "the record carries unexpected fields %r - this namespace stores ONE BIT, and a memory of the provisioner CONTENT is the design issue #353 rejected" % (sorted(p),)
+assert p["kind"]=="identity", "the record kind is %r, not identity - a provisioner taint has become delete authority" % (p.get("kind"),)
+assert p.get("identity") is None and p.get("residue") is None and p.get("object") is None, "the record carries more than a provisioner taint: %r" % (p,)
+prov = p.get("provisioned")
+assert prov is not None, "the record carries no provisioned member: %r" % (p,)
+assert prov["tainted"] is True, "the record does not say tainted: %r" % (prov,)
+assert set(prov) == {"tainted"}, "the provisioned member carries unexpected fields %r - this member stores ONE BIT, and a memory of the provisioner CONTENT is the design issue #353 rejected" % (sorted(prov),)
 ' "$APP_REC" "$APP_ADDR" || fail "the taint record's content is wrong (see above)"
-log "  $APP_ADDR has a taint record, carrying the address and one bit and nothing else"
+log "  $APP_ADDR has a taint record, carrying the address and one taint bit and nothing else"
 
 # on_failure = continue means the failure was not an error at all, so stock
 # does not taint - and neither may this. A mechanism that taints on any
@@ -397,7 +413,7 @@ LIVE="$(awsl s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t'
 grep -qw pt-e2e-app <<< "$LIVE" && fail "pt-e2e-app is still live after being destroyed"
 N="$(count_taint_records)"
 [ "$N" = "0" ] || { find "$PROVISIONED" -type f | sort; fail "$N taint record(s) survived the instance being destroyed; the key would outlive everything it describes"; }
-log "  1 destroyed, tofu-provisioned namespace empty"
+log "  1 destroyed, no taint record left"
 
 # ── 13-16. the operator deletes the half-built object by hand ───────────────
 # The severe follow-on defect, walked the way an operator walks it.

@@ -343,11 +343,16 @@ grep -qE 'Resources: 0 added, 10 changed' <<< "$APPLY_R" \
 # opinion that would make the plan go empty over real drift.
 RESKEY="$(grep -rl '"allow_overwrite"' "$EST/.tofu-records" 2>/dev/null | head -1)"
 [ -n "$RESKEY" ] || { find "$EST/.tofu-records" -type f | head -20; fail "no residue record carrying allow_overwrite was written"; }
-case "$RESKEY" in *tofu-residue*) ;; *) fail "the allow_overwrite record landed outside the tofu-residue namespace: $RESKEY";; esac
+# GitHub issue #364 unit A1 collapsed the once-separate "tofu-residue" root
+# into the single per-instance envelope every record now lives in
+# (internal/live/projection/record.go's RecordKeyPrefix), so a directory
+# name can no longer say this key is a residue key - the envelope's own
+# "residue" member does.
+grep -qF '"residue":{' "$RESKEY" || { cat "$RESKEY"; fail "the allow_overwrite record carries no residue member: $RESKEY"; }
 for forbidden in '"name"' '"type"' '"ttl"' '"records"'; do
   grep -q "$forbidden" "$RESKEY" && { cat "$RESKEY"; fail "the residue record carries $forbidden, which Route 53 answers"; }
 done
-log "  residue recorded under tofu-residue/, carrying allow_overwrite and nothing Route 53 answers"
+log "  residue recorded in the merged tofu-records envelope, carrying allow_overwrite and nothing Route 53 answers"
 
 plan_into "$WORK/plan-aow3.log" || fail "the post-record_store plan exited non-zero"
 grep -qE 'No changes|Plan: 0 to add, 0 to change, 0 to destroy' "$WORK/plan-aow3.log" \

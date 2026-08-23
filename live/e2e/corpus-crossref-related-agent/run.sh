@@ -224,11 +224,14 @@ log "  the rule lives: $RULE_LIVE"
 
 # The residue record itself, read as a file and never through choudoufu -
 # proof that DELTA 5 actually did something on this real estate, not just
-# that the plan happens to be empty. See "namespace tofu-residue" in
-# live/e2e/lambda-residue for why this directory can never collide with the
-# undeclared-record sweep.
-RESIDUE_FILE="$(find "$EST/.tofu-records/tofu-residue" -type f 2>/dev/null | head -1)"
-[ -n "$RESIDUE_FILE" ] || fail "no residue record was written under .tofu-records/tofu-residue/ - DELTA 5 had no effect"
+# that the plan happens to be empty. GitHub issue #364 unit A1 collapsed
+# the once-separate "tofu-residue" namespace into the one per-instance
+# envelope every record now lives in
+# (internal/live/projection/record.go's RecordKeyPrefix); the residue
+# member is what a residue record carries inside that shared file, checked
+# below rather than by a directory that no longer exists.
+RESIDUE_FILE="$(find "$EST/.tofu-records/tofu-records" -type f 2>/dev/null -exec grep -l '"residue":{' {} \; | head -1)"
+[ -n "$RESIDUE_FILE" ] || fail "no record carrying a residue member was written under .tofu-records/tofu-records/ - DELTA 5 had no effect"
 grep -q '"filename"' "$RESIDUE_FILE" || { cat "$RESIDUE_FILE"; fail "the residue record does not carry filename"; }
 grep -q '"source_code_hash"' "$RESIDUE_FILE" || { cat "$RESIDUE_FILE"; fail "the residue record does not carry source_code_hash"; }
 grep -q '"publish"' "$RESIDUE_FILE" || { cat "$RESIDUE_FILE"; fail "the residue record does not carry publish"; }
