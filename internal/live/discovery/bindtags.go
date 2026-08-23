@@ -126,6 +126,31 @@ type markerObject struct {
 	escaped    string
 }
 
+// JoinMarkerFromTagging is issue #266's fallback, exported for a caller
+// outside this package's own [Discover] pass that hits the identical gap:
+// internal/live/mv's live-mv sweep, which lists a type directly rather than
+// running a full discovery pass, and so never gets this join for free the
+// way an ordinary plan does.
+//
+// It answers the same question [markerIndex.join] answers - "does the
+// estate's tag index carry a resource of typeName with this import ID, and
+// if so, what are its real tags" - through a throwaway index scoped to one
+// call: tagging may be nil (no Cloud Control endpoint this run), in which
+// case it reports not found, exactly as an ordinary discovery pass
+// degrades with no Tagging client. ok is true only when exactly one tagged
+// resource matched; an ambiguous match (more than one) is reported as not
+// found here, the same way the caller already treats "not found" as its
+// answer for that identifier, so no caller of this function needs its own
+// copy of the ambiguity's diagnostic wording.
+func JoinMarkerFromTagging(ctx context.Context, tagging *cloudcontrol.Client, estate, typeName, importID string) (map[string]string, bool) {
+	if tagging == nil {
+		return nil, false
+	}
+	idx := &markerIndex{client: tagging, estate: estate}
+	tags, outcome := idx.join(ctx, typeName, importID)
+	return tags, outcome == joinBound
+}
+
 // newMarkerIndex builds the shared index for one discovery pass, or returns
 // nil when this run has no Tagging client to fill it from - a nil index is
 // usable and answers "not available" to everything, so no call site needs a

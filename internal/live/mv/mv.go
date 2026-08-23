@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
@@ -66,6 +67,18 @@ type Request struct {
 	// renaming the block. The default refusal is the ordering that leaves no
 	// window in which a marker names an address nothing declares.
 	AllowMissingConfig bool
+
+	// Tagging is the Resource Groups Tagging API client a caller builds the
+	// same way internal/command/live_plan.go does (nil when Cloud Control
+	// fallback is off, or the run named no endpoint at all). sweep uses it
+	// as issue #266's fallback, through [discovery.JoinMarkerFromTagging],
+	// for a listed object whose own tags come back empty: some list
+	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
+	// without this a needs-discovery instance of such a type can never be
+	// found by locateByList, no matter how correctly it is tagged. A nil
+	// client degrades to the pre-#266 behavior, exactly as an ordinary
+	// discovery pass degrades when it has none.
+	Tagging *cloudcontrol.Client
 }
 
 // Path is how the live resource was found.
@@ -596,6 +609,25 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema) ([]listed, 
 		tags, taggable := tagsFromListed(r.Resource)
 		if !taggable {
 			continue
+		}
+		if tags[discovery.TagEstate] == "" {
+			// Issue #266's exact gap, hit by a second code path. Some list
+			// operations drop tags entirely - iam:ListRoles and
+			// iam:ListPolicies among them, per
+			// internal/live/discovery/bindtags.go's doc comment - so an
+			// object that IS this estate's own still reads as untagged
+			// here. Ask the same estate-filtered tag index an ordinary
+			// discovery pass already consults before concluding this
+			// object is not ours: one GetResources call, tags joined back
+			// on by identifier, gated exactly as discovery.JoinMarkerFromTagging
+			// documents (a type-matching marker, this estate's own
+			// tofu-estate, and no more than one match). Only worth asking
+			// when the object's own tags say nothing at all - one that
+			// already answered honestly, even to say "not mine", needs no
+			// second opinion.
+			if joined, ok := discovery.JoinMarkerFromTagging(ctx, m.req.Tagging, m.req.Estate, m.res.TypeName, importIdentity(m.res.TypeName, r)); ok {
+				tags = joined
+			}
 		}
 		if tags[discovery.TagEstate] != m.req.Estate {
 			continue

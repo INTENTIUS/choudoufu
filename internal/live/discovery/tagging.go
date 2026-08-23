@@ -187,7 +187,24 @@ func iamRoleEntry() arnJoinEntry {
 // parameter's own name conventionally starts with "/" and the ARN's
 // "parameter/" divider swallows exactly one of them.
 var arnJoinTable = map[string]map[string]arnJoinEntry{
-	"iam": {"role": iamRoleEntry()},
+	"iam": {
+		"role": iamRoleEntry(),
+		// A managed policy's ARN resource-type segment is "policy"
+		// (arn:aws:iam::ACCOUNT:policy/NAME), unambiguous - IAM has no
+		// second CFN type sharing that segment the way "role" shares
+		// itself with a service-linked role. live/mapping.json's own row
+		// for aws_iam_policy names its CFN type "AWS::IAM::Policy" (via
+		// "name"), not the "AWS::IAM::ManagedPolicy" former2 alias also
+		// recorded there - the roster's lookup index is built from the
+		// "rows" entry, so that is the string this join has to produce.
+		// Found renaming module.iam_policy_from_data_source without this
+		// entry: the estate-wide sweep read the ARN, could not join it to
+		// any CFN type, and so could never propose destroying the live
+		// resource left behind at the retired address - the day2_rename
+		// stage's own Break control (live/GAUNTLET.md #6) went silent
+		// instead of failing loud.
+		"policy": single("AWS::IAM::Policy"),
+	},
 	"s3":  {"": single("AWS::S3::Bucket")},
 	"sns": {"": single("AWS::SNS::Topic")},
 	"ec2": {

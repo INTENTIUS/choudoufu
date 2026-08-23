@@ -395,6 +395,54 @@ func TestUnreadableMarkerNamesTheIndexedResourceWhenItHasOne(t *testing.T) {
 	}
 }
 
+// TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv is [JoinMarkerFromTagging]'s
+// own proof, at unit scale: choudoufu live-mv's sweep (internal/live/mv)
+// lists a type directly rather than running a full [Discover] pass, so it
+// never gets #266's join for free the way an ordinary plan does - this
+// exported wrapper is what closes that gap, found empirically renaming
+// aws_iam_policy against a real emulator (iam:ListPolicies drops tags the
+// same way iam:ListRoles does). Proven load-bearing three ways: a real
+// match binds, a nil client (Cloud Control fallback off) finds nothing
+// rather than panicking, and an ambiguous match - two tagged resources of
+// this type answering to the same identifier - is reported as not found
+// rather than picked at random.
+func TestJoinMarkerFromTagging_BindsAnObjectFoundByLiveMv(t *testing.T) {
+	srv := &taggingServer{}
+	markedARN(srv, "arn:aws:iam::000000000000:policy/example_from_data_source", "module.iam_policy_from_data_source.aws_iam_policy.policy:0")
+	server := srv.start(t)
+	t.Cleanup(server.Close)
+	tagging := cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: server.URL})
+
+	tags, ok := JoinMarkerFromTagging(context.Background(), tagging, estateName, "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source")
+	if !ok {
+		t.Fatalf("JoinMarkerFromTagging() did not bind a resource the tag index carries")
+	}
+	if got := tags[TagAddress]; got != "module.iam_policy_from_data_source.aws_iam_policy.policy:0" {
+		t.Errorf("joined tofu-address = %q, want the marker the index carries", got)
+	}
+	if srv.calls != 1 {
+		t.Errorf("GetResources was called %d times, want exactly 1", srv.calls)
+	}
+
+	if _, ok := JoinMarkerFromTagging(context.Background(), nil, estateName, "aws_iam_policy", "arn:aws:iam::000000000000:policy/example_from_data_source"); ok {
+		t.Errorf("a nil Tagging client bound a resource; it must degrade to not-found the way an ordinary discovery pass does with no client")
+	}
+
+	// A second tagged resource of the same type answering to the same
+	// identifier - not a shape this test's ARN scheme can hit legitimately,
+	// but markerJoinKeys indexes by resource-id segment too, so two ARNs
+	// that share one are enough to force it.
+	ambSrv := &taggingServer{}
+	markedARN(ambSrv, "arn:aws:iam::000000000000:policy/dup", "aws_iam_policy.a")
+	markedARN(ambSrv, "arn:aws:iam::111111111111:policy/dup", "aws_iam_policy.b")
+	ambServer := ambSrv.start(t)
+	t.Cleanup(ambServer.Close)
+	ambTagging := cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ambServer.URL})
+	if _, ok := JoinMarkerFromTagging(context.Background(), ambTagging, estateName, "aws_iam_policy", "dup"); ok {
+		t.Errorf("an ambiguous match (two resources answering to the same identifier) bound one at random; it must report not-found")
+	}
+}
+
 // TestMarkerJoinKeysCoverBothSpellings pins what the index is keyed on. An
 // ARN whose type IS its identity has to be reachable by the whole ARN, and
 // every other type by its resource-id segment.
