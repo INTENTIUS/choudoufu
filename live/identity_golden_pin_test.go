@@ -590,7 +590,13 @@ var identityGoldenPin = map[string]int{
 	// measured against a stale 706: managed-projection-live's
 	// aws_instance.web, the same "needs a real account" shape every sibling
 	// managed-projection-* fixture's own aws_instance already contributes.
-	"NEEDS_DISCOVERY": 711,
+	// 711 -> 715 for alb family B on top of #313 and #384: the four new
+	// managed-read-* rows (managed-read-ambiguous-local,
+	// managed-read-count-local and managed-read-count-module's two swept
+	// directories), each an aws_acm_certificate whose identity needs a
+	// real account, the same NEEDS_DISCOVERY shape as every sibling
+	// managed-read-* fixture already contributes.
+	"NEEDS_DISCOVERY": 715,
 
 	// 96, up from 95 (issue #271):
 	// internal/live/identity/testdata/managed-read-direct-arg's
