@@ -80,6 +80,158 @@ func normalizeDocName(s string) string {
 	return b.String()
 }
 
+// VariadicTrailingImportIDTypes is the ratified set of resource types whose
+// documented composite import grammar ends in a VARIADIC tail - the
+// provider's own error-message grammar for aws_security_group_rule spells
+// it literally: "SECURITYGROUPID_TYPE_PROTOCOL_FROMPORT_TOPORT_SOURCE
+// [_SOURCE]*" - one token per element of whichever of several SIBLING
+// collection or scalar arguments the configuration set, rather than one
+// token for a single named attribute. [pluralCollectionCollision] already
+// detects the shape generically (a documented segment's singular name
+// collides with a real plural collection attribute on the schema) and
+// refuses it, correctly, for every type NOT in this set: detecting the
+// shape is not the same as knowing it is SAFE to render every family member
+// as a token in a fixed, ratified order, and that second fact is not
+// readable from the schema at all - it is a fact about how the provider's
+// own IMPORT FUNCTION parses the trailing tokens back, which only the
+// provider's source states.
+//
+// # What has to be true before a type is named here, and how it was checked
+// for aws_security_group_rule
+//
+// The importer must classify each trailing token independently of its
+// POSITION, so that concatenating the sibling families in a fixed order -
+// this package always uses the order the type's own [Component.SoleElement]
+// row lists them in, which is how [variadicTrailingGroup] reads the roster -
+// is something the provider can always parse back correctly regardless of
+// which family happens to come first for a given instance. Read directly
+// from hashicorp/aws's internal/service/ec2/vpc_security_group_rule.go
+// (resourceSecurityGroupRuleImport, fetched 2026-08-23, no terraform in the
+// loop):
+//
+//	sources := parts[5:]
+//	...
+//	for _, v := range sources {
+//		switch {
+//		case v == "self":
+//			d.Set("self", true)
+//		case strings.Contains(v, "sg-"):
+//			d.Set("source_security_group_id", v)
+//		case strings.Contains(v, ":"):
+//			ipv6CIDRBlocks = append(ipv6CIDRBlocks, v)
+//		case strings.Contains(v, "pl-"):
+//			prefixListIDs = append(prefixListIDs, v)
+//		default:
+//			cidrBlocks = append(cidrBlocks, v)
+//		}
+//	}
+//
+// Every trailing token is sorted into its family by the SHAPE of its own
+// content - "sg-", a colon, "pl-", or else a bare CIDR - never by which
+// position it occupies among the other tokens. That is confirmed by the
+// documentation this package already carries in live/import-grammar.json:
+// the Import section's own second example joins four trailing tokens as
+// "10.1.0.0/16_2001:db8::/48_10.2.0.0/16_2002:db8::/48" - an IPv4 CIDR, an
+// IPv6 CIDR, a second IPv4 CIDR and a second IPv6 CIDR, interleaved rather
+// than grouped by family, which the source above shows the importer
+// re-groups on read regardless. So the CROSS-FAMILY order this package
+// picks is free; what is NOT free is the order WITHIN one family's own
+// list, because cidr_blocks/ipv6_cidr_blocks/prefix_list_ids are all
+// schema.TypeList (ordered, not a set) on the real provider schema, and the
+// importer appends each token to its bucket in the order it is encountered
+// - so [locatedVariadicSegments] preserves each family's own element order
+// and never sorts it, unlike [Component.PerElement]'s set case.
+//
+// Note what this does NOT establish: "self" (a bool, rendered as the
+// literal token "self") is part of the provider's own source-token grammar
+// but is not one of [Component.SoleElement]'s ratified Attrs for this type,
+// so an instance combining self with another family member is unaffected by
+// this mechanism either way - the same pre-existing gap
+// [Component.SoleElement]'s own row has always had, not something this
+// change widens or narrows.
+//
+// Reach: exactly the population [Component.SoleElement] itself reaches,
+// because [variadicTrailingGroup] is keyed off that same field and refuses
+// where no row names the colliding attribute as one of a SoleElement
+// family. Measured against internal/live/identity/table_generated.go
+// (`grep -c "SoleElement: true"`), that is ONE row today
+// (aws_security_group_rule); a future SoleElement row reaches this
+// mechanism automatically once its own type is added here after the same
+// verification, never automatically before it.
+var VariadicTrailingImportIDTypes = map[string]bool{
+	"aws_security_group_rule": true,
+}
+
+// variadicTrailingGroup resolves p's trailing, variadic segment to the
+// ratified family of sibling attributes resourceType's own identity-table
+// row already names - see [VariadicTrailingImportIDTypes] for the
+// provider-side verification this requires before a type may reach here at
+// all, and [Component.SoleElement] for where the family itself was
+// ratified (issue #369).
+//
+// The family is not rediscovered from the schema's own shape: knowing THAT
+// cidr_blocks collides with the documented "cidr_block" segment does not
+// say that ipv6_cidr_blocks, prefix_list_ids and source_security_group_id
+// belong in the same variadic tail rather than being separate arguments
+// that merely happen to be collections. Component.SoleElement's own Attrs
+// list already answers that question, audited once against the provider's
+// real schema (issue #369's own history), and reusing it here is reading
+// domain knowledge this package already carries rather than guessing it
+// again from naming shape alone.
+//
+// Every attribute the family names must be a top-level string, or a
+// top-level list or set of strings, on the block actually served - the
+// same "readable off the applied object" requirement every other segment
+// in this file is held to. A family member the schema does not carry in one
+// of those shapes makes the whole family unsafe to render this run, and the
+// caller refuses rather than rendering a partial one.
+func variadicTrailingGroup(resourceType string, b *configschema.Block, segmentName string) ([]string, bool) {
+	if !VariadicTrailingImportIDTypes[resourceType] {
+		return nil, false
+	}
+	row, ok := LookupType(resourceType)
+	if !ok {
+		return nil, false
+	}
+	plural := segmentName + "s"
+	for _, comp := range row.Components {
+		if !comp.SoleElement || len(comp.Attrs) < 2 {
+			continue
+		}
+		named := false
+		for _, attr := range comp.Attrs {
+			if normalizeDocName(attr) == plural {
+				named = true
+				break
+			}
+		}
+		if !named {
+			continue
+		}
+		group := make([]string, 0, len(comp.Attrs))
+		for _, attr := range comp.Attrs {
+			a := b.Attributes[attr]
+			if a == nil {
+				return nil, false
+			}
+			if a.Type == cty.String {
+				group = append(group, attr)
+				continue
+			}
+			if (a.Type.IsListType() || a.Type.IsSetType()) && a.Type.ElementType() == cty.String {
+				group = append(group, attr)
+				continue
+			}
+			// Something in the ratified family is not a shape this file
+			// knows how to render one token per element from; the family
+			// as a whole is not safe to treat as variadic on this schema.
+			return nil, false
+		}
+		return group, true
+	}
+	return nil, false
+}
+
 // resolveDocumentedImportID resolves resourceType's documented segments
 // against the schema block the provider actually serves, returning the
 // top-level string attributes to read in the documented order and the
@@ -138,10 +290,25 @@ func normalizeDocName(s string) string {
 // a refusal into an admission and can do nothing else: it is consulted only
 // where the bare-`id` rule was already refusing, so no configuration that
 // works today can be made to stop working by anything in this file.
-func resolveDocumentedImportID(resourceType string, b *configschema.Block) (parts []string, separator string, ok bool) {
+//
+// # The variadic tail
+//
+// A grammar's LAST segment is a special case when it collides with a real
+// plural collection attribute AND [VariadicTrailingImportIDTypes] has
+// ratified resourceType for the reason that map's own doc comment states:
+// rather than being inferred as the minted `id` (refused,
+// [pluralCollectionCollision]'s ordinary outcome) or resolved to one
+// attribute, it is resolved to variadicGroup - the ordered sibling
+// attributes [variadicTrailingGroup] reads off the type's own identity-table
+// row - and [LocatedComposedImportID] renders one token per element of
+// whichever of them the applied object actually sets. Only the trailing
+// segment may take this path: a variadic grammar is documented as
+// "SOURCE[_SOURCE]*", always at the end, because a delimited string has no
+// other way to say "this and the following N tokens are one family".
+func resolveDocumentedImportID(resourceType string, b *configschema.Block) (parts []string, variadicGroup []string, separator string, ok bool) {
 	g, known := DocumentedImportIDs[resourceType]
 	if !known || b == nil || g.Separator == "" || len(g.Parts) < 2 {
-		return nil, "", false
+		return nil, nil, "", false
 	}
 
 	byName := attrsByDocName(b)
@@ -156,7 +323,7 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 				// See this function's doc comment: a named configuration
 				// argument the schema does not carry is a disagreement,
 				// and a second unresolved segment is a coin toss.
-				return nil, "", false
+				return nil, nil, "", false
 			}
 			if pluralCollectionCollision(b, p.Name) {
 				// The segment's own name, pluralized, names a real
@@ -175,20 +342,26 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 				// the provider's own securityGroupRuleCreateID and
 				// resourceSecurityGroupRuleImport, not inferred. Recording
 				// `id` in the source's place would compose a string the
-				// provider's own importer refuses to parse, and the
-				// concept the segment actually names - one element of a
-				// list the configuration may set several of at once - has
-				// no single-attribute representation this package's
-				// grammar can read at all; that is new machinery, not a
-				// corroboration gap, and is refused here rather than
-				// guessed at.
-				return nil, "", false
+				// provider's own importer refuses to parse.
+				//
+				// The concept the segment actually names - one element of
+				// a list the configuration may set several of at once, or
+				// several such lists at once - IS renderable when the
+				// segment is the grammar's last one and the type is
+				// ratified variadic; see this function's own doc comment
+				// on the variadic tail and [variadicTrailingGroup].
+				if i == len(g.Parts)-1 {
+					if group, gok := variadicTrailingGroup(resourceType, b, p.Name); gok {
+						return resolved[:i], group, g.Separator, true
+					}
+				}
+				return nil, nil, "", false
 			}
 			inferred = i
 			continue
 		}
 		if claimed[attr] {
-			return nil, "", false
+			return nil, nil, "", false
 		}
 		claimed[attr] = true
 		resolved[i] = attr
@@ -197,12 +370,12 @@ func resolveDocumentedImportID(resourceType string, b *configschema.Block) (part
 	if inferred >= 0 {
 		a, has := b.Attributes[locatedImportIDAttr]
 		if !has || a == nil || a.Type != cty.String || claimed[locatedImportIDAttr] {
-			return nil, "", false
+			return nil, nil, "", false
 		}
 		resolved[inferred] = locatedImportIDAttr
 	}
 
-	return resolved, g.Separator, true
+	return resolved, nil, g.Separator, true
 }
 
 // attrsByDocName indexes b's top-level string and number attributes by
@@ -285,12 +458,22 @@ func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
 
 // LocatedComposedImportID composes an applied object's documented import
 // string out of the attributes [resolveDocumentedImportID] named, in the
-// order it named them.
+// order it named them, followed by variadicGroup's rendering when
+// [resolveDocumentedImportID] resolved a variadic tail (nil otherwise).
 //
 // It is the write-back counterpart of that resolution, and it is
 // all-or-nothing for [LocatedIdentity]'s reason: a string missing a segment
 // is not a shorter identity, it is a different one, and it would be handed to
-// a later import as though it were whole.
+// a later import as though it were whole. For the variadic tail, "missing a
+// segment" means an element [locatedVariadicSegments] cannot safely read -
+// unknown, marked, or of an unrecognised shape - refuses the object outright
+// rather than dropping just that element, for the identical reason: a
+// shortened tail is a different, not merely a smaller, identity. An entirely
+// ABSENT family member (the configuration never set it, so the applied
+// object reads it back null) is not that failure and contributes zero
+// segments, because [Component.SoleElement]'s own family is `AtLeastOneOf`
+// on the real provider schema - some members being unset is the ordinary
+// case for every instance, not a defect in this one.
 //
 // The extra refusal here is the separator collision. A segment whose own
 // value contains the join character makes the composed string ambiguous - the
@@ -302,11 +485,11 @@ func pluralCollectionCollision(b *configschema.Block, segmentName string) bool {
 // A segment [attrsByDocName] resolved against a number attribute is rendered
 // by [locatedAttrSegment], not read as a string directly - see that
 // function's doc comment for what "rendered" means and what it refuses.
-func LocatedComposedImportID(obj cty.Value, parts []string, separator string) (string, bool) {
-	if len(parts) < 2 || separator == "" {
+func LocatedComposedImportID(obj cty.Value, parts []string, variadicGroup []string, separator string) (string, bool) {
+	if separator == "" || (len(parts) == 0 && len(variadicGroup) == 0) {
 		return "", false
 	}
-	segments := make([]string, 0, len(parts))
+	segments := make([]string, 0, len(parts)+len(variadicGroup))
 	for _, name := range parts {
 		v, ok := locatedAttrSegment(obj, name)
 		if !ok || strings.Contains(v, separator) {
@@ -314,5 +497,86 @@ func LocatedComposedImportID(obj cty.Value, parts []string, separator string) (s
 		}
 		segments = append(segments, v)
 	}
+	tailTokens := 0
+	for _, name := range variadicGroup {
+		vals, ok := locatedVariadicSegments(obj, name)
+		if !ok {
+			return "", false
+		}
+		for _, v := range vals {
+			if strings.Contains(v, separator) {
+				return "", false
+			}
+			segments = append(segments, v)
+			tailTokens++
+		}
+	}
+	if len(variadicGroup) > 0 && tailTokens == 0 {
+		// Every family member came back absent. The grammar names a
+		// variadic tail because the documented import ID requires at
+		// least one source token, so a string with none - however many
+		// FIXED segments precede it - is missing the segment the
+		// provider's own importer requires, not a shorter identity for a
+		// type that happens to have none.
+		return "", false
+	}
+	if len(segments) < 2 {
+		return "", false
+	}
 	return strings.Join(segments, separator), true
+}
+
+// locatedVariadicSegments is [locatedAttrSegment]'s counterpart for one
+// member of a [variadicTrailingGroup] family: it renders zero tokens for an
+// absent (null) member, one token for a scalar string member, or one token
+// per element for a top-level list or set of strings - preserving the
+// list's OWN element order rather than sorting it, because
+// cidr_blocks/ipv6_cidr_blocks/prefix_list_ids are schema.TypeList on the
+// real provider schema (order-preserving, not a set), and
+// [VariadicTrailingImportIDTypes]' own doc comment is where that was
+// confirmed against the provider's source.
+//
+// An unknown or marked value - the member's own value or, for a
+// collection, any one element of it - refuses the whole render rather than
+// guessing or unmarking it, the same posture [locatedAttrSegment] takes:
+// this function is called only on an APPLIED object, where every value
+// should already be known, and a marked value must never flow into an
+// identity component or be forcibly unmarked to make one.
+func locatedVariadicSegments(obj cty.Value, name string) (segs []string, ok bool) {
+	if obj == cty.NilVal || obj.IsNull() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(name) {
+		return nil, false
+	}
+	v := obj.GetAttr(name)
+	if v.IsNull() {
+		// This family member was never set. [Component.SoleElement]'s own
+		// family is AtLeastOneOf on the real schema, never AllOf, so this
+		// is the ordinary case for every member but the ones actually set.
+		return nil, true
+	}
+	if !v.IsKnown() || v.IsMarked() {
+		return nil, false
+	}
+	if v.Type() == cty.String {
+		s := v.AsString()
+		if s == "" {
+			return nil, true
+		}
+		return []string{s}, true
+	}
+	if !v.Type().IsListType() && !v.Type().IsSetType() {
+		return nil, false
+	}
+	out := make([]string, 0, v.LengthInt())
+	for it := v.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+		if ev.IsNull() || !ev.IsKnown() || ev.IsMarked() || ev.Type() != cty.String {
+			return nil, false
+		}
+		s := ev.AsString()
+		if s == "" {
+			return nil, false
+		}
+		out = append(out, s)
+	}
+	return out, true
 }

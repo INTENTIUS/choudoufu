@@ -139,6 +139,19 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"the veto set drifts away from those two. Naming them here is the check, not the hand-wiring.",
 		Data: 2, Code: 0,
 	},
+	"internal/live/identity/docimportid.go": {
+		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
+			"import grammar (\"SOURCE[_SOURCE]*\") ends in a variadic tail AND whose provider-side importer has " +
+			"been verified, from hashicorp/terraform-provider-aws's own resourceSecurityGroupRuleImport source " +
+			"(GitHub issue #384), to classify each trailing token by its own content rather than by position - a " +
+			"fact about the provider's IMPORT FUNCTION that no schema and no scraped documentation states, so " +
+			"neither resolveDocumentedImportID's schema-only view nor tools/row-gen's doc-only view can derive it. " +
+			"variadicTrailingGroup, the only reader, is keyed generically off Component.SoleElement (reach: the " +
+			"SoleElement population, one row today, `grep -c \"SoleElement: true\"` in table_generated.go) and " +
+			"refuses any type not in this map regardless of shape; growing the map past this one entry is a " +
+			"per-type provider-source verification, not a schema-derivable count.",
+		Data: 1, Code: 0,
+	},
 	"internal/live/identity/located.go": {
 		Reason: "strictSecretsLocatedExclusion: aws_iam_access_key and aws_iot_certificate, the maintainer's 2026-08-23 " +
 			"ruling (rfc/20260823-foundation-order-ruling.md, ruling 5) moving them off the four-type unconditional " +
@@ -356,7 +369,14 @@ const (
 	// strict{secrets}-gated one, so the harness ratchet's own four-entry
 	// list shrinks to two. Two Data literals removed, no Code, nothing
 	// else moved.
-	typeLiteralDataTotal = 435
+	// 435 -> 436 data, 2026-08-23 (issue #384): new
+	// internal/live/identity/docimportid.go's VariadicTrailingImportIDTypes,
+	// one entry - aws_security_group_rule, the ratified allowlist recording
+	// that this type's provider-side importer is verified, from the
+	// provider's own source, to classify its documented import grammar's
+	// variadic trailing tokens by content rather than by position. One
+	// Data literal added, no Code, nothing moved.
+	typeLiteralDataTotal = 436
 	typeLiteralCodeTotal = 128
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

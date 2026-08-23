@@ -101,7 +101,7 @@ func TestPossessiveOfGrammarComposesTheDocumentedImportString(t *testing.T) {
 					"which is the order the page states and the order its example demonstrates", g.Parts, wantParts)
 			}
 
-			parts, sep, ok := resolveDocumentedImportID(subject, cognitoUserPoolClientBlock())
+			parts, variadicGroup, sep, ok := resolveDocumentedImportID(subject, cognitoUserPoolClientBlock())
 			if !ok {
 				t.Fatal("the grammar resolved against no attribute of the schema the provider serves")
 			}
@@ -109,7 +109,7 @@ func TestPossessiveOfGrammarComposesTheDocumentedImportString(t *testing.T) {
 				t.Errorf("resolved = %v, want %v", parts, wantResolved)
 			}
 
-			got, ok := LocatedComposedImportID(obj, parts, sep)
+			got, ok := LocatedComposedImportID(obj, parts, variadicGroup, sep)
 			if !ok {
 				t.Fatal("refused an applied object carrying every segment")
 			}
@@ -150,7 +150,7 @@ func TestPossessiveOfGrammarClearsBothConditionsWithoutRecordingTheSecret(t *tes
 			"client_secret. That whole-schema sweep is still internal/live/projection's question; " +
 			"only the located route stopped consulting it.")
 	}
-	if _, _, ok := resolveDocumentedImportID("aws_cognito_user_pool_client", block); !ok {
+	if _, _, _, ok := resolveDocumentedImportID("aws_cognito_user_pool_client", block); !ok {
 		t.Fatal("the documented grammar no longer resolves, so condition 3's half of the refusal is back")
 	}
 

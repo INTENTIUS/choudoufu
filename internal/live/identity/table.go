@@ -475,6 +475,21 @@ type Component struct {
 	// same reason [resolver.isSymbolic] and [resolver.evalStatic] already
 	// refuse other non-static identity arguments elsewhere in this
 	// package.
+	//
+	// Two or more Attrs genuinely non-empty AT ONCE (GitHub issue #384) is
+	// the alternation's own name proven wrong for that instance - "sole"
+	// promises exactly one is ever populated - and resolver.
+	// firstApplicablePresent's conflict return is what this main path does
+	// about it: refuse, the same as the zero-element case, rather than
+	// pick the first candidate silently. Where the type is also ratified
+	// in [VariadicTrailingImportIDTypes], resolver.recordFallback gets a
+	// second chance first: [resolveDocumentedImportID]'s variadic tail can
+	// record the whole family - one token per element of every Attrs
+	// member the instance actually sets, in this list's own order - as a
+	// documented import string, dropping the instance to the record rung
+	// instead of refusing it outright. That is a fact about the DOCUMENTED
+	// IMPORT ID machinery, not about this field: SoleElement keeps meaning
+	// exactly what it says above for every other reader of this table.
 	SoleElement bool
 
 	// PerElement is [SoleElement]'s opposite number, for the identities the

@@ -8,14 +8,16 @@
 #
 # TestSoleElementConflictNeverBindsAConcreteIdentity resolves this fixture
 # with no schemas at all, proving the instance never binds a concrete
-# identity. TestSecurityGroupRuleSourceSegmentStaysRefused resolves it again
-# against aws_security_group_rule's REAL hashicorp/aws 6.59.0 schema (numeric
-# from_port/to_port included) with a record_store declared, and proves the
-# SAME refusal holds even though the type's identity CAN now be partly
-# corroborated (issue #384's follow-up): the "cidr_block" segment of its
-# documented import string has no safe resolution, so the record rung is not
-# reached - see that test's doc comment for why, and for the deeper gap
-# (a variadic trailing-source segment) left standing.
+# identity. TestSecurityGroupRuleSourceSegmentReachesTheRecordRung resolves
+# it again against aws_security_group_rule's REAL hashicorp/aws 6.59.0
+# schema (numeric from_port/to_port included) with a record_store declared,
+# and proves the instance now drops to ClassRecordLocated instead of
+# refusing: the documented import string's variadic trailing segment
+# (issue #384's own follow-up) now resolves to the ratified
+# cidr_blocks/ipv6_cidr_blocks/prefix_list_ids/source_security_group_id
+# family, one token per element each carries, so the type's identity CAN be
+# recorded in full - see VariadicTrailingImportIDTypes for the provider-side
+# verification that makes this safe.
 terraform {
   live {
     estate = "record-fallback-solelement-conflict"

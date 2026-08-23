@@ -179,7 +179,7 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// [identity.DocumentedImportIDs] resolved every segment
 			// against this very schema. The string composed here is the
 			// documented import ID, read rather than invented.
-			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDSeparator)
+			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDVariadicGroup, plan.ImportIDSeparator)
 		default:
 			rec.ImportID, recordable = identity.LocatedImportID(obj)
 		}
