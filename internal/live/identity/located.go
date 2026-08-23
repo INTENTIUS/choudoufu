@@ -396,13 +396,26 @@ type LocatedIdentityPlan struct {
 	// and every segment of it resolves against the schema (issue #337).
 	ImportIDParts     []string
 	ImportIDSeparator string
+
+	// ImportIDVariadicGroup is set only where the documented grammar's LAST
+	// segment resolved to a variadic tail (GitHub issue #384): the ordered
+	// sibling attributes [variadicTrailingGroup] read off the type's own
+	// identity-table row, each contributing one token per element it
+	// carries on the applied object rather than one attribute contributing
+	// exactly one token. See [VariadicTrailingImportIDTypes] for which
+	// types may reach this and why, and [LocatedComposedImportID] for how
+	// it renders.
+	ImportIDVariadicGroup []string
 }
 
 // Composite reports whether p carries the provider's identity object.
 func (p LocatedIdentityPlan) Composite() bool { return len(p.Components) > 0 }
 
-// Composed reports whether p carries a documented import-string grammar.
-func (p LocatedIdentityPlan) Composed() bool { return len(p.ImportIDParts) > 0 }
+// Composed reports whether p carries a documented import-string grammar,
+// fixed or with a variadic tail.
+func (p LocatedIdentityPlan) Composed() bool {
+	return len(p.ImportIDParts) > 0 || len(p.ImportIDVariadicGroup) > 0
+}
 
 // LocatedIdentityPlanFor answers the question [locatedImportIDAttr]'s own
 // doc comment used to answer by assumption: what IS this type's identity,
@@ -506,8 +519,8 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 		// records - so the string is all there is to go on, and the
 		// question becomes whether the documentation says it is enough.
 		if _, unproven := IDNotProvenWholeTypes[resourceType]; unproven {
-			if parts, sep, ok := resolveDocumentedImportID(resourceType, schema.Block); ok {
-				return LocatedIdentityPlan{ImportIDParts: parts, ImportIDSeparator: sep}, true
+			if parts, variadicGroup, sep, ok := resolveDocumentedImportID(resourceType, schema.Block); ok {
+				return LocatedIdentityPlan{ImportIDParts: parts, ImportIDVariadicGroup: variadicGroup, ImportIDSeparator: sep}, true
 			}
 			return LocatedIdentityPlan{}, false
 		}

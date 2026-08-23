@@ -199,7 +199,7 @@ func sensitiveIdentityAttr(plan LocatedIdentityPlan, schema providers.Schema) st
 	case plan.Composite():
 		names = plan.Components
 	case plan.Composed():
-		names = plan.ImportIDParts
+		names = append(append([]string(nil), plan.ImportIDParts...), plan.ImportIDVariadicGroup...)
 	}
 	for _, name := range names {
 		a := schema.Block.Attributes[name]

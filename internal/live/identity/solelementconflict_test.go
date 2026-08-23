@@ -8,6 +8,7 @@ package identity
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -62,59 +63,12 @@ func TestSoleElementConflictNeverBindsAConcreteIdentity(t *testing.T) {
 	}
 }
 
-// TestSecurityGroupRuleSourceSegmentStaysRefused is the record-rung
-// investigation issue #384's own regression opened, resolved honestly rather
-// than rushed.
-//
-// HANDOFF's safety rule says a construct this package cannot yet resolve
-// without risking a wrong marker must drop the instance to the record rung,
-// not merely refuse it - and [resolver.recordFallback]/[RecordFallbackType]
-// already do exactly that for a type with a ratified row whose schema has
-// nowhere to carry a marker (aws_autoscaling_group's name_prefix case,
-// TestRecordFallbackClassifiesUntaggableNamePrefix). An earlier pass of this
-// test asserted the SAME wiring fires for this [Component.SoleElement]
-// conflict too, using a schema that stringified from_port/to_port to dodge
-// the real gap ([attrsByDocName] not yet admitting cty.Number) - and never
-// checked the resulting identity STRING, only the resolved CLASS.
-//
-// Fixing the number gap (this file's own change) uncovers a second,
-// unrelated problem that the earlier test's synthetic schema was
-// accidentally exercising, unchecked, the whole time: with
-// security_group_id/type/protocol/from_port/to_port all resolved, the
-// documented import string's sixth segment - "cidr_block" - is STILL
-// unresolved (the real schema carries only the LIST cidr_blocks, never a
-// scalar cidr_block), which makes it the type's one "id"-inferred segment.
-// But aws_security_group_rule's `id` is confirmed, from the provider's own
-// source (securityGroupRuleCreateID: `"sgrule-" + hash(sgID, ports,
-// protocol, type, ALL sources)`), to be a hash of the WHOLE rule, not any
-// one source - so recording it in the source's place would be a wrong
-// identity the provider's own importer refuses to parse
-// (resourceSecurityGroupRuleImport's source-format check), not a working
-// one. [pluralCollectionCollision] is the guard this file adds to stop that
-// substitution generically (see [resolveDocumentedImportID]'s doc comment
-// and TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema's
-// "collides with a real plural collection attribute" case for the guard on
-// its own), and this test is its by-value proof against the type that forced
-// it: the schema is aws_security_group_rule's REAL 6.59.0 shape (confirmed
-// via `terraform providers schema -json` against the pinned provider), not a
-// hypothetical.
-//
-// The deeper fact this leaves standing: aws_security_group_rule's
-// documented "SOURCE[_SOURCE]*" import grammar is variadic - the Import
-// section's own second example joins FOUR source tokens after one
-// FROMPORT_TOPORT pair - and [DocumentedImportIDPart]'s model is a fixed
-// one-attribute-per-segment list with no way to express "the rest of the
-// string is every element of these list arguments, in some order". Building
-// that safely means knowing the provider's importer is order-insensitive
-// over the trailing tokens, which needs its own verification and its own
-// review; it is not a corroboration gap and is not done here. Until it
-// exists, this conflict correctly stays a refusal - the same
-// "Ambiguous list-valued identity argument" diagnostic
-// TestSoleElementConflictNeverBindsAConcreteIdentity already asserts,
-// unchanged by anything in this file.
-func TestSecurityGroupRuleSourceSegmentStaysRefused(t *testing.T) {
-	cfg := loadConfig(t, filepath.Join("testdata", "record-fallback-solelement-conflict"), nil)
-
+// securityGroupRuleRealSchemaBlock is aws_security_group_rule's REAL
+// hashicorp/aws 6.59.0 top-level shape (confirmed via `terraform providers
+// schema -json` against the pinned provider) - the schema every test below
+// that needs a real, corroborable schema shares, so the shape is written
+// down once rather than drifting between them.
+func securityGroupRuleRealSchemaBlock() *configschema.Block {
 	stringAttr := func(required bool) *configschema.Attribute {
 		if required {
 			return &configschema.Attribute{Type: cty.String, Required: true}
@@ -124,7 +78,7 @@ func TestSecurityGroupRuleSourceSegmentStaysRefused(t *testing.T) {
 	numberAttr := func() *configschema.Attribute {
 		return &configschema.Attribute{Type: cty.Number, Required: true}
 	}
-	block := &configschema.Block{Attributes: map[string]*configschema.Attribute{
+	return &configschema.Block{Attributes: map[string]*configschema.Attribute{
 		"id":                       {Type: cty.String, Computed: true},
 		"security_group_id":        stringAttr(true),
 		"type":                     stringAttr(true),
@@ -136,44 +90,188 @@ func TestSecurityGroupRuleSourceSegmentStaysRefused(t *testing.T) {
 		"prefix_list_ids":          {Type: cty.List(cty.String), Optional: true},
 		"source_security_group_id": {Type: cty.String, Optional: true, Computed: true},
 	}}
+}
+
+// TestSecurityGroupRuleSourceSegmentReachesTheRecordRung is issue #384's
+// closing half.
+//
+// This test used to be named ...StaysRefused and asserted the opposite of
+// what it asserts now: at the time it was written, [DocumentedImportIDPart]
+// had no way to express "the rest of the string is every element of
+// whichever of these sibling collection arguments the configuration sets",
+// so [pluralCollectionCollision] firing on the documented "cidr_block"
+// segment (against the real cidr_blocks LIST) always refused the type,
+// unconditionally, before any instance was ever considered. Its own doc
+// comment named the missing piece precisely: knowing the provider's
+// importer is order-insensitive over the trailing tokens, verified rather
+// than assumed.
+//
+// That verification is now [VariadicTrailingImportIDTypes]' own doc
+// comment: hashicorp/aws's resourceSecurityGroupRuleImport (fetched
+// 2026-08-23, no terraform in the loop) classifies every trailing token by
+// the SHAPE of its own content - "sg-", a colon, "pl-", or else a bare
+// CIDR - never by its position, so concatenating cidr_blocks,
+// ipv6_cidr_blocks, prefix_list_ids and source_security_group_id in the
+// FIXED order [Component.SoleElement]'s own row already lists them in
+// (never sorted - each is schema.TypeList on the real provider schema, so
+// its own element order is preserved) is something the importer can always
+// parse back correctly. [variadicTrailingGroup] is what reads that family
+// off the ratified row, and this test proves the type-level admission by
+// value, then the end-to-end resolution the earlier version of this test
+// proved was refused.
+func TestSecurityGroupRuleSourceSegmentReachesTheRecordRung(t *testing.T) {
+	cfg := loadConfig(t, filepath.Join("testdata", "record-fallback-solelement-conflict"), nil)
+	block := securityGroupRuleRealSchemaBlock()
 	schemas := map[string]providers.Schema{"aws_security_group_rule": {Block: block}}
 
-	// The mechanics, asserted directly: every Argument segment now resolves
-	// (proving the number fix reached this type at all), and the grammar as
-	// a whole is still refused (proving the plural-collision guard, not
-	// some unrelated failure, is what stops it - if this were true for the
-	// wrong reason, e.g. a typo in the schema above, the case below would
-	// pass vacuously).
-	if parts, _, ok := resolveDocumentedImportID("aws_security_group_rule", block); ok {
-		t.Fatalf("resolveDocumentedImportID(real aws_security_group_rule schema) = %v, ok=true; want a refusal - "+
-			"the \"cidr_block\" segment has no safe resolution and must not be filled by inferring `id`", parts)
+	// The mechanics, asserted by value: the five fixed segments resolve as
+	// before, and the sixth is now a variadic tail over the ratified
+	// family - not a refusal, and not an inferred `id`.
+	parts, variadicGroup, sep, ok := resolveDocumentedImportID("aws_security_group_rule", block)
+	if !ok {
+		t.Fatal("resolveDocumentedImportID(real aws_security_group_rule schema) refused; want the variadic tail " +
+			"to admit it - see variadicTrailingGroup and VariadicTrailingImportIDTypes")
 	}
-	if RecordFallbackType("aws_security_group_rule", schemas) {
-		t.Fatal("RecordFallbackType(real aws_security_group_rule schema) = true, want false: the type's " +
-			"identity cannot be recorded in full while its \"cidr_block\" segment has no safe resolution, so " +
-			"the record-rung promise (\"the record can be read back as a whole, correct import identity\") " +
-			"cannot be kept for it yet")
+	if want := []string{"security_group_id", "type", "protocol", "from_port", "to_port"}; !reflect.DeepEqual(parts, want) {
+		t.Errorf("fixed parts = %v, want %v", parts, want)
+	}
+	if want := []string{"cidr_blocks", "ipv6_cidr_blocks", "prefix_list_ids", "source_security_group_id"}; !reflect.DeepEqual(variadicGroup, want) {
+		t.Errorf("variadic group = %v, want %v - the exact family order Component.SoleElement's own row states, "+
+			"never re-derived or sorted", variadicGroup, want)
+	}
+	if sep != "_" {
+		t.Errorf("separator = %q, want %q", sep, "_")
 	}
 
-	// The end-to-end behavior, unchanged from before this file's fix: the
-	// conflicting instance still resolves to no concrete identity and still
-	// raises the same operator-facing diagnostic, record_store declared or
-	// not.
+	if !RecordFallbackType("aws_security_group_rule", schemas) {
+		t.Fatal("RecordFallbackType(real aws_security_group_rule schema) = false, want true: the variadic tail " +
+			"now lets the record-rung promise (\"the record can be read back as a whole, correct import " +
+			"identity\") be kept for this type")
+	}
+
+	// The end-to-end behavior: with a record_store declared, the conflicting
+	// instance drops to ClassRecordLocated instead of raising the
+	// "Ambiguous list-valued identity argument" diagnostic
+	// TestSoleElementConflictNeverBindsAConcreteIdentity still asserts for
+	// the no-record-store case, unchanged by anything in this file.
 	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
 
-	if res, ok := result.Get(mustAddr(t, "aws_security_group_rule.egress_all_all")); ok {
-		t.Fatalf("egress_all_all resolved to Class=%s ImportID=%q; the source segment has no safe resolution, "+
-			"so it must resolve to no concrete value rather than a guessed one", res.Class, res.ImportID)
+	res, ok := result.Get(mustAddr(t, "aws_security_group_rule.egress_all_all"))
+	if !ok {
+		t.Fatalf("egress_all_all did not resolve at all; want ClassRecordLocated. diags: %v", diags)
 	}
-	var found bool
+	if res.Class != ClassRecordLocated {
+		t.Errorf("egress_all_all resolved Class=%s, want %s", res.Class, ClassRecordLocated)
+	}
+	if res.ImportID != "" {
+		t.Errorf("egress_all_all carries ImportID %q; ClassRecordLocated's identity comes from the record store, "+
+			"never from this package, and a non-empty value here would be a wrong identity nothing verified", res.ImportID)
+	}
 	for _, d := range diags {
 		if d.Description().Summary == "Ambiguous list-valued identity argument" &&
 			strings.Contains(d.Description().Detail, "egress_all_all") {
-			found = true
+			t.Errorf("still raised %q for egress_all_all even though the record rung now clears it: %s",
+				d.Description().Summary, d.Description().Detail)
 		}
 	}
-	if !found {
-		t.Fatalf("expected the %q diagnostic naming egress_all_all even with a record_store declared and the "+
-			"number gap fixed, got: %v", "Ambiguous list-valued identity argument", diags)
+}
+
+// TestLocatedComposedImportIDRendersVariadicTail is
+// TestSecurityGroupRuleSourceSegmentReachesTheRecordRung's write-back half:
+// the string [projection.LocatedRecordFrom] would actually write to the
+// record store, once a real apply has produced an object - pinned by VALUE,
+// the only assertion that can tell the right string from a plausible one.
+func TestLocatedComposedImportIDRendersVariadicTail(t *testing.T) {
+	parts := []string{"security_group_id", "type", "protocol", "from_port", "to_port"}
+	variadicGroup := []string{"cidr_blocks", "ipv6_cidr_blocks", "prefix_list_ids", "source_security_group_id"}
+
+	obj := func(cidrs, ipv6s, pls cty.Value, sgID cty.Value) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{
+			"security_group_id":        cty.StringVal("sg-6777656e646f6c796e"),
+			"type":                     cty.StringVal("egress"),
+			"protocol":                 cty.StringVal("-1"),
+			"from_port":                cty.NumberIntVal(0),
+			"to_port":                  cty.NumberIntVal(0),
+			"cidr_blocks":              cidrs,
+			"ipv6_cidr_blocks":         ipv6s,
+			"prefix_list_ids":          pls,
+			"source_security_group_id": sgID,
+		})
 	}
+	nullList := cty.NullVal(cty.List(cty.String))
+	nullStr := cty.NullVal(cty.String)
+
+	t.Run("both families set at once, the issue's own reproduction", func(t *testing.T) {
+		o := obj(
+			cty.ListVal([]cty.Value{cty.StringVal("0.0.0.0/0")}),
+			cty.ListVal([]cty.Value{cty.StringVal("::/0")}),
+			nullList, nullStr,
+		)
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		if !ok {
+			t.Fatal("refused an object carrying every fixed segment plus two real family members")
+		}
+		if want := "sg-6777656e646f6c796e_egress_-1_0_0_0.0.0.0/0_::/0"; got != want {
+			t.Errorf("composed = %q, want %q - cidr_blocks' own element(s) before ipv6_cidr_blocks' own, the "+
+				"ratified family order, never re-sorted or interleaved", got, want)
+		}
+	})
+
+	t.Run("a single family set, unchanged from the ordinary one-source shape", func(t *testing.T) {
+		o := obj(cty.ListVal([]cty.Value{cty.StringVal("10.0.3.0/24")}), nullList, nullList, nullStr)
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		if !ok {
+			t.Fatal("refused an object with exactly one family member set")
+		}
+		if want := "sg-6777656e646f6c796e_egress_-1_0_0_10.0.3.0/24"; got != want {
+			t.Errorf("composed = %q, want %q - one source renders exactly one trailing token, the same shape "+
+				"the documented single-CIDR example shows", got, want)
+		}
+	})
+
+	t.Run("one family with several elements keeps its own configured order", func(t *testing.T) {
+		o := obj(
+			cty.ListVal([]cty.Value{cty.StringVal("10.1.0.0/16"), cty.StringVal("10.2.0.0/16")}),
+			nullList, nullList, nullStr,
+		)
+		got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_")
+		if !ok {
+			t.Fatal("refused an object with one family carrying two elements")
+		}
+		if want := "sg-6777656e646f6c796e_egress_-1_0_0_10.1.0.0/16_10.2.0.0/16"; got != want {
+			t.Errorf("composed = %q, want %q - a TypeList's own element order is preserved, never sorted "+
+				"([Component.PerElement]'s sorting rule is for a SET; these are lists on the real schema", got, want)
+		}
+	})
+
+	t.Run("a marked element refuses the whole render rather than unmarking it", func(t *testing.T) {
+		o := obj(
+			cty.ListVal([]cty.Value{cty.StringVal("10.0.3.0/24").Mark("secret")}),
+			nullList, nullList, nullStr,
+		)
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+			t.Errorf("composed %q from a marked element; a forcibly unmarked value must never flow into an "+
+				"identity component", got)
+		}
+	})
+
+	t.Run("an unknown element refuses rather than guesses", func(t *testing.T) {
+		o := obj(
+			cty.ListVal([]cty.Value{cty.UnknownVal(cty.String)}),
+			nullList, nullList, nullStr,
+		)
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+			t.Errorf("composed %q from an unknown element; this function is called on an applied object and "+
+				"an unknown value there is not a value to guess a token from", got)
+		}
+	})
+
+	t.Run("every family member absent refuses on the segment-count floor", func(t *testing.T) {
+		o := obj(nullList, nullList, nullList, nullStr)
+		if got, ok := LocatedComposedImportID(o, parts, variadicGroup, "_"); ok {
+			t.Errorf("composed %q with no source at all; the real schema's AtLeastOneOf makes this "+
+				"configuration impossible, but the function must not silently compose a five-token string as "+
+				"though the sixth were optional", got)
+		}
+	})
 }
