@@ -123,6 +123,16 @@ set -uo pipefail
 #                wrong module) AND to tamper a second, unrelated policy's tag
 #                ahead of stage 5's drift assertion - proving both are
 #                load-bearing rather than a grep/count that always matches.
+#                Stage 3's corruption calls fail() and exits nonzero on
+#                purpose, so a single BREAK=1 run never reaches stage 5 or
+#                day2_rename's own break below - each is a separate,
+#                deliberate corruption, checked one at a time.
+#   BREAK_RENAME set to 1 to run day2_rename's own break control instead of
+#                the real rename checks: rename module.iam_policy_from_data_source
+#                WITHOUT a moved block, and assert the plan proposes creating
+#                the new address rather than the zero-churn update the moved
+#                block and live-mv paths produce. Independent of BREAK, for
+#                the reason above.
 #
 # Exit codes: 0 on a real pass of all five stages, non-zero on a real
 # failure. Every assertion reads command output, an exit code, or the
@@ -248,11 +258,67 @@ log "STAGE 1 (cold deploy): PASS"
 gauntlet_stage cold_deploy pass "$(grep -E 'Apply complete' <<< "$COLD_OUT"); 0 objects carry tofu-estate=$ESTATE before migration"
 log ""
 
+# day2_rename's stock oracle (live/GAUNTLET.md #6, tracked as issue #357):
+# "Stock with the same moved block plans zero churn." Run against a COPY of
+# the state cold_deploy (STAGE 1) just left, before choudoufu or live-import
+# ever touches these objects - the real terraform.tfstate stays untouched
+# here so STAGE 2's live-import below still sees the original, unmarked
+# resource names. Using the post-adoption estate instead would confound the
+# comparison: every resource would also show its ownership-marker tags
+# being stripped back out (stock's tags map only ever names what this
+# module declares), which is real but has nothing to do with the rename
+# this oracle exists to check.
+#
+# The oracle copy's directory is named "iam-policy", not "iam-policy-
+# oracle" or similar: this estate's own local.name computes
+# "ex-${basename(path.cwd)}", stamped onto every resource's Example tag, so
+# a differently-named copy would show a REAL diff in that tag that has
+# nothing to do with the rename - found empirically renaming the first
+# draft of this check, where "iam-policy-oracle" turned a true no-op oracle
+# plan into "2 to change".
+CURRENT_STAGE=day2_rename
+log "=== STAGE 1.5: day2_rename stock oracle: renaming both module calls, through moved blocks, on cold_deploy's own state ==="
+mkdir -p "$WORK/oracle-tree/iam/examples" "$WORK/oracle-tree/iam/modules"
+EST_ORACLE="$WORK/oracle-tree/iam/examples/iam-policy"
+cp -r "$EST" "$EST_ORACLE"
+cp -R "$SRC_MODULE" "$WORK/oracle-tree/iam/modules/iam-policy"
+sed -i.bak 's/module "iam_policy_from_data_source" {/module "iam_policy_renamed" {/' "$EST_ORACLE/main.tf"
+sed -i.bak 's/module "iam_policy" {/module "iam_policy_renamed2" {/' "$EST_ORACLE/main.tf"
+sed -i.bak 's/module\.iam_policy\./module.iam_policy_renamed2./g' "$EST_ORACLE/outputs.tf"
+rm -f "$EST_ORACLE/main.tf.bak" "$EST_ORACLE/outputs.tf.bak"
+cat >> "$EST_ORACLE/main.tf" <<'EOF'
+
+moved {
+  from = module.iam_policy_from_data_source
+  to   = module.iam_policy_renamed
+}
+
+moved {
+  from = module.iam_policy
+  to   = module.iam_policy_renamed2
+}
+EOF
+( cd "$EST_ORACLE" && terraform init -input=false -no-color >/dev/null 2>&1 ) || {
+  ( cd "$EST_ORACLE" && terraform init -input=false -no-color 2>&1 | tail -20 ); fail "the day2_rename stock oracle's reinit (after renaming both module calls) failed"; }
+ORACLE_PLAN_OUT="$(cd "$EST_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be destroyed' <<< "$ORACLE_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$ORACLE_PLAN_OUT"; fail "stock proposes a destroy for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qE '^  # .+ will be created' <<< "$ORACLE_PLAN_OUT" \
+  && { grep -E '^  # .+ will be' <<< "$ORACLE_PLAN_OUT"; fail "stock proposes a create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] has moved to module\.iam_policy_renamed\.aws_iam_policy\.policy\[0\]' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not report the data-source policy's move"; }
+grep -qE '^  # module\.iam_policy\.aws_iam_policy\.policy\[0\] has moved to module\.iam_policy_renamed2\.aws_iam_policy\.policy\[0\]' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -40; fail "stock's plan does not report the name_prefix policy's move"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn, no attribute diff at all - both policies report only their move, on the state cold_deploy produced"
+CURRENT_STAGE=migrate
+
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 2: MIGRATE - choudoufu live-import against the cold state, then one
 # ordinary apply to converge tofu-slot (see the TOFU-SLOT FINDING above)
 # ══════════════════════════════════════════════════════════════════════════
-CURRENT_STAGE=migrate
 log "=== STAGE 2: migrate (choudoufu live-import -approve, then converge) ==="
 perl -0pi -e 's/(required_providers \{\n    aws = \{\n      source  = "hashicorp\/aws"\n      version = ">= 6\.28"\n    \}\n  \}\n)\}/$1\n  live {\n    estate = "'"$ESTATE"'"\n  }\n}/' "$EST/versions.tf"
 grep -q "estate = \"$ESTATE\"" "$EST/versions.tf" || fail "the live block delta did not match versions.tf - the corpus pin has moved"
@@ -443,17 +509,168 @@ else
   log "STAGE 5 (drift and reconverge): PASS"
   gauntlet_stage drift_reconverge pass "one object tampered ($POLICY1_ARN's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag"
   log ""
-
-  CURRENT_STAGE=""
-  gauntlet_end
-
-  log "=== PASS ==="
-  log ""
-  log "A terraform-aws-modules EXAMPLE - the configuration a new user copies"
-  log "first - crossed through all five stages: cold deploy with plain"
-  log "terraform, choudoufu live-import adoption plus the tofu-slot"
-  log "convergence apply it requires, an empty replan with the state file"
-  log "deleted and both rendered identities checked against IAM's own answer,"
-  log "a genuine no-op apply, and drift on one policy reconverging without"
-  log "touching the other."
 fi
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6, issue #357)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (STAGE 2-5) is still marked and still converged, which
+# is exactly the state a rename needs to start from. Two mechanisms, on two
+# different module calls so a gap in either is visible: a `moved` block
+# renames module.iam_policy_from_data_source (the statically-named policy),
+# and "choudoufu live-mv" renames module.iam_policy (the name_prefix one)
+# with no moved block at all. The stock oracle for both already ran at
+# STAGE 1.5, against the state cold_deploy left before choudoufu ever
+# touched these objects.
+#
+# What this estate found, empirically, on the way to making live-mv work at
+# all: iam:ListPolicies drops tags from every listed object the same way
+# iam:ListRoles does (internal/live/discovery/bindtags.go's issue #266
+# comment names the second, not the first) - live-mv's own sweep
+# (internal/live/mv/mv.go) had no fallback to the estate's tag index the
+# way an ordinary discovery pass already does, so it could never find
+# either policy by its marker. Fixed generically: mv.Request now carries a
+# Tagging client the same way live-plan already builds one
+# (internal/command/live_mv.go), and sweep() asks
+# discovery.JoinMarkerFromTagging - the SAME estate-filtered GetResources
+# join discovery.go's own scan already falls back to - before concluding a
+# listed object carries no marker at all. Reaches every ClassNeedsDiscovery
+# type whose provider List() omits tags; the doc comment on
+# internal/live/discovery/bindtags.go already named one (aws_iam_role) and
+# this estate is the second (aws_iam_policy), found live rather than
+# inferred.
+#
+# A second, narrower gap surfaced proving this: the estate-wide tag sweep's
+# ARN-to-CFN-type join (internal/live/discovery/tagging.go's arnJoinTable)
+# had no entry for iam's "policy" ARN segment at all, so a tagged
+# aws_iam_policy could never be told apart from an untypeable ARN - "Tagged
+# resource's ARN could not be joined to a resource type" on every plan.
+# Fixed the same way every other entry in that table is: one curated row,
+# `single("AWS::IAM::Policy")` (live/mapping.json's own row for
+# aws_iam_policy, not the AWS::IAM::ManagedPolicy alias also recorded
+# there).
+#
+# What that second fix did NOT turn up is a destroy for the BREAK case
+# below. Read to the end: internal/live/discovery/discovery.go's
+# classifyOrphans withholds a destroy for exactly this shape on purpose,
+# and the reason is the same safety principle moved.go documents for the
+# alias it will not build - see the BREAK branch's own comment.
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the two live ARNs a rename must not disturb ==="
+D_POLICY1_ARN="$POLICY1_ARN"
+D_POLICY2_ARN="$POLICY2_ARN"
+log "  $D_POLICY1_ARN (module.iam_policy_from_data_source), $D_POLICY2_ARN (module.iam_policy)"
+
+if [ "${BREAK_RENAME:-}" = "1" ]; then
+  log "=== D1 (BREAK_RENAME=1). rename module.iam_policy_from_data_source -> module.iam_policy_renamed WITHOUT a moved block ==="
+  sed -i.bak 's/module "iam_policy_from_data_source" {/module "iam_policy_renamed" {/' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the BREAK_RENAME=1 rename's reinit failed"; }
+  BREAK_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -40; fail "the BREAK_RENAME=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # module\.iam_policy_renamed\.aws_iam_policy\.policy\[0\] will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK_RENAME=1: renaming without a moved block did not propose creating module.iam_policy_renamed.aws_iam_policy.policy[0] - this stage's check is not load-bearing"; }
+  log "  BREAK_RENAME=1: correctly proposes creating module.iam_policy_renamed.aws_iam_policy.policy[0] - zero churn breaks the moment the moved block is missing"
+  # No destroy of module.iam_policy_from_data_source's old address is
+  # proposed alongside it, and that is not this check failing to be
+  # load-bearing: internal/live/discovery/discovery.go's classifyOrphans
+  # WITHHOLDS a destroy whenever a declared instance of the SAME type is
+  # unbound elsewhere in the estate (here, the create above) - exactly the
+  # "possible rename, not a deletion" ambiguity moved.go's own doc comment
+  # names for the alias it refuses to build the other way: an alias built
+  # wrong destroys a live object stock would have kept. Confirmed by
+  # reading discovery.go directly (the "pending[block]" branch,
+  # classifyOrphans) rather than assumed; not fixed here, and not this
+  # estate's day2_rename claim - the moved-block and live-mv paths below
+  # are what the stage proves, and this control's job is only to show that
+  # skipping them is not free.
+  if grep -qE '^  # module\.iam_policy_from_data_source\.aws_iam_policy\.policy\[0\] will be destroyed' <<< "$BREAK_PLAN_OUT"; then
+    log "  BREAK_RENAME=1: choudoufu also proposed the destroy stock would - stronger than expected, not a failure"
+  else
+    log "  BREAK_RENAME=1: no destroy of the old address is proposed (discovery withholds it as a possible rename - see this part's header comment); the create above is what proves the check load-bearing"
+  fi
+else
+  log "=== D1. choudoufu, moved block: module.iam_policy_from_data_source -> module.iam_policy_renamed ==="
+  sed -i.bak 's/module "iam_policy_from_data_source" {/module "iam_policy_renamed" {/' "$EST/main.tf"
+  rm -f "$EST/main.tf.bak"
+  cat >> "$EST/main.tf" <<'EOF'
+
+moved {
+  from = module.iam_policy_from_data_source
+  to   = module.iam_policy_renamed
+}
+EOF
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the moved-block rename's reinit failed"; }
+  MOVED_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -40; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # module\.iam_policy_renamed\.aws_iam_policy\.policy\[0\] will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to module.iam_policy_renamed.aws_iam_policy.policy[0]"; }
+  grep -qE '^  # .+ will be (destroyed|created)' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy or a create - not zero churn"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" = "module\.iam_policy_from_data_source\.aws_iam_policy\.policy:0" -> "module\.iam_policy_renamed\.aws_iam_policy\.policy:0"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -40; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  D_POLICY1_ADDR="$(awsl iam list-policy-tags --policy-arn "$D_POLICY1_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$D_POLICY1_ADDR" = "module.iam_policy_renamed.aws_iam_policy.policy:0" ] \
+    || fail "$D_POLICY1_ARN carries tofu-address=$D_POLICY1_ADDR after the rename, not module.iam_policy_renamed.aws_iam_policy.policy:0"
+  log "  $D_POLICY1_ARN unchanged (same ARN, so the same live policy - not destroyed and recreated), tofu-address now module.iam_policy_renamed.aws_iam_policy.policy:0 - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: module.iam_policy -> module.iam_policy_renamed2, no moved block at all ==="
+  sed -i.bak 's/module "iam_policy" {/module "iam_policy_renamed2" {/' "$EST/main.tf"
+  sed -i.bak 's/module\.iam_policy\./module.iam_policy_renamed2./g' "$EST/outputs.tf"
+  rm -f "$EST/main.tf.bak" "$EST/outputs.tf.bak"
+  ( cd "$EST" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || {
+    ( cd "$EST" && "$TOFU" init -input=false -no-color 2>&1 | tail -20 ); fail "the live-mv rename's reinit failed"; }
+  MV_OUT="$(cd "$EST" && "$TOFU" live-mv -estate="$ESTATE" 'module.iam_policy.aws_iam_policy.policy[0]' 'module.iam_policy_renamed2.aws_iam_policy.policy[0]' 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -40; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"module.iam_policy.aws_iam_policy.policy:0" -> "module.iam_policy_renamed2.aws_iam_policy.policy:0"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  D_POLICY2_ADDR="$(awsl iam list-policy-tags --policy-arn "$D_POLICY2_ARN" --query "Tags[?Key=='tofu-address'].Value | [0]" --output text)"
+  [ "$D_POLICY2_ADDR" = "module.iam_policy_renamed2.aws_iam_policy.policy:0" ] \
+    || fail "$D_POLICY2_ARN carries tofu-address=$D_POLICY2_ADDR after live-mv, not module.iam_policy_renamed2.aws_iam_policy.policy:0"
+  log "  $D_POLICY2_ARN unchanged (same ARN - not destroyed and recreated), tofu-address now module.iam_policy_renamed2.aws_iam_policy.policy:0 - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$EST" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -40; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  log ""
+  log "STAGE D (day2_rename): PASS"
+  gauntlet_stage day2_rename pass "moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI"
+  log ""
+fi
+CURRENT_STAGE=""
+gauntlet_end
+
+log ""
+log "=== PASS ==="
+log ""
+log "A terraform-aws-modules EXAMPLE - the configuration a new user copies"
+log "first - crossed through all five stages: cold deploy with plain"
+log "terraform, choudoufu live-import adoption plus the tofu-slot"
+log "convergence apply it requires, an empty replan with the state file"
+log "deleted and both rendered identities checked against IAM's own answer,"
+log "a genuine no-op apply, and drift on one policy reconverging without"
+log "touching the other. Plus day2_rename (planned): the two module calls"
+log "renamed through a moved block and through choudoufu live-mv, zero"
+log "churn either way, matched against a stock oracle on cold_deploy's own"
+log "state."

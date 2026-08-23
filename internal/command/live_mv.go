@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
@@ -210,6 +211,19 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	// this run evaluated, exactly as discovery gets it in a plan.
 	region := c.liveMvRegion(ctx, config, provs, args.new, args.old)
 
+	// The same Tagging client live-plan builds (live_plan.go, around its own
+	// req.Tagging assignment), for the same issue #266 fallback: some list
+	// operations drop tags entirely (iam:ListRoles, iam:ListPolicies), and
+	// mv.Move's own sweep needs the estate's tag index to find such an
+	// object at all - see mv.Request.Tagging's doc comment. A nil client
+	// (Cloud Control fallback off, or no endpoint named) degrades live-mv to
+	// exactly its pre-fix behavior for such a type, the same way an ordinary
+	// plan already degrades with no Tagging client.
+	var tagging *cloudcontrol.Client
+	if ep, on := cloudControlTarget(); on {
+		tagging = cloudcontrol.NewTagging(cloudcontrol.Config{Endpoint: ep, Region: region})
+	}
+
 	res, moveDiags := mv.Move(ctx, mv.Request{
 		Estate:             estate,
 		Old:                args.old,
@@ -220,6 +234,7 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		Region:             region,
 		DryRun:             args.dryRun,
 		AllowMissingConfig: args.allowMissing,
+		Tagging:            tagging,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags

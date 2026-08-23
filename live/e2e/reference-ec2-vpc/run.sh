@@ -199,6 +199,142 @@ resource "aws_instance" "main" {
 EOF
 }
 
+# resource_block_sg_renamed() is resource_block() with aws_security_group.main
+# renamed to aws_security_group.renamed (and the instance's reference to it
+# updated to match) - the day2_rename stage's first half, exercised through a
+# `moved` block or through choudoufu live-mv depending on which caller adds
+# one. The internet gateway is left as "main" so the second half (D3, below)
+# has its own untouched resource to rename separately.
+resource_block_sg_renamed() {
+  cat <<'EOF'
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "ec2-reference-igw"
+  }
+}
+
+resource "aws_security_group" "renamed" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "ami-12345678"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.renamed.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+}
+EOF
+}
+
+# resource_block_both_renamed() carries resource_block_sg_renamed()'s
+# security-group rename forward and also renames aws_internet_gateway.main to
+# .renamed - the shape D3 (live-mv) and the stock oracle (D0) both plan
+# against, once the security-group rename has already landed.
+resource_block_both_renamed() {
+  cat <<'EOF'
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "ec2-reference-vpc"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "ec2-reference-subnet"
+  }
+}
+
+resource "aws_internet_gateway" "renamed" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "ec2-reference-igw"
+  }
+}
+
+resource "aws_security_group" "renamed" {
+  name        = "ec2-reference-sg"
+  description = "Allow SSH"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "ec2-reference-sg"
+  }
+}
+
+resource "aws_instance" "main" {
+  ami                    = "ami-12345678"
+  instance_type          = "t3.micro"
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.renamed.id]
+
+  tags = {
+    Name = "ec2-reference-instance"
+  }
+}
+EOF
+}
+
 provider_block() {
   cat <<'EOF'
 provider "aws" {
@@ -354,6 +490,61 @@ UNMARKED_TAGS="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 des
 [ "$UNMARKED_TAGS" = "0" ] || fail "the plain-terraform instance already carries a tofu-address tag before migration - this test proves nothing"
 log "  confirmed unmarked: $PLAIN_INSTANCE_ID carries no tofu-address tag"
 gauntlet_stage cold_deploy pass "5 resources from plain terraform, a real terraform.tfstate, zero markers"
+
+# day2_rename's stock oracle (live/GAUNTLET.md #6, tracked as issue #357):
+# "Stock with the same moved block plans zero churn." Run against a COPY of
+# the state cold_deploy (B1) just left, before choudoufu or live-import ever
+# touches these objects - the real terraform.tfstate stays untouched here so
+# B2's live-import below still sees the original, unmarked resource names.
+# Using $ADOPTED's post-adoption state instead would confound the comparison:
+# every resource would also show its ownership-marker tags being stripped
+# back out (stock's tags map only ever names "Name"), which is real but has
+# nothing to do with the rename this oracle exists to check.
+CURRENT_STAGE=day2_rename
+log "=== B1.5. day2_rename stock oracle: the same two-resource rename, through moved blocks, on cold_deploy's own state ==="
+PLAIN_ORACLE="$WORK/plain-oracle"
+cp -r "$PLAIN" "$PLAIN_ORACLE"
+{
+  cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+}
+
+EOF
+  provider_block
+  echo
+  resource_block_both_renamed
+  cat <<'EOF'
+
+moved {
+  from = aws_security_group.main
+  to   = aws_security_group.renamed
+}
+
+moved {
+  from = aws_internet_gateway.main
+  to   = aws_internet_gateway.renamed
+}
+EOF
+} > "$PLAIN_ORACLE/main.tf"
+ORACLE_PLAN_OUT="$(cd "$PLAIN_ORACLE" && terraform plan -input=false -no-color 2>&1)"; ORACLE_PLAN_RC=$?
+[ "$ORACLE_PLAN_RC" -eq 0 ] || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -30; fail "the day2_rename stock oracle plan exited $ORACLE_PLAN_RC"; }
+grep -qE '^  # .+ will be destroyed' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a destroy for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qE '^  # .+ will be created' <<< "$ORACLE_PLAN_OUT" \
+  && { printf '%s\n' "$ORACLE_PLAN_OUT" | grep -E '^  # .+ will be'; fail "stock proposes a create for a rename carried entirely by moved blocks - the oracle itself is not zero-churn"; }
+grep -qE '^  # aws_security_group\.main has moved to aws_security_group\.renamed' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT"; fail "stock's plan does not report the security-group move"; }
+grep -qE '^  # aws_internet_gateway\.main has moved to aws_internet_gateway\.renamed' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT"; fail "stock's plan does not report the internet-gateway move"; }
+grep -qF 'Plan: 0 to add, 0 to change, 0 to destroy.' <<< "$ORACLE_PLAN_OUT" \
+  || { printf '%s\n' "$ORACLE_PLAN_OUT" | tail -10; fail "stock's rename plan is not a true no-op"; }
+log "  stock: zero churn, no attribute diff at all - both resources report only their move, on the state cold_deploy produced"
 CURRENT_STAGE=migrate
 
 mkdir -p "$ADOPTED"
@@ -487,6 +678,184 @@ else
     || fail "the instance's Name tag is \"$FIXED_VALUE\" after reconverging, not ec2-reference-instance"
   log "  reconverged: $PLAIN_INSTANCE_ID's Name tag is back to \"ec2-reference-instance\", read via the AWS CLI"
   gauntlet_stage drift_reconverge pass "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured"
+fi
+CURRENT_STAGE=""
+
+# ══════════════════════════════════════════════════════════════════════════
+# PART D: RENAME (day2_rename, planned stage - live/GAUNTLET.md #6, issue #357)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The adopted estate (Part B/C) is still marked and still converged, which is
+# exactly the state a rename needs to start from. Two mechanisms, on two
+# different resources so a gap in either is visible: a `moved` block renames
+# the security group, and "choudoufu live-mv" renames the internet gateway
+# with no moved block at all. The stock oracle for both already ran in B1.5,
+# against the state cold_deploy left before choudoufu ever touched these
+# objects - see the comment there for why reusing $ADOPTED's post-adoption
+# state would confound the comparison instead.
+#
+# BREAK=1 exercises this stage's own Break control instead of the real
+# checks: renaming the security group WITHOUT a moved block, which must make
+# choudoufu propose destroying the old address and creating the new one - the
+# opposite of every other assertion in this part.
+
+CURRENT_STAGE=day2_rename
+log "=== D0. capture the two live ids a rename must not disturb ==="
+SG_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-security-groups \
+  --filters "Name=group-name,Values=ec2-reference-sg" \
+  --query "SecurityGroups[0].GroupId" --output text)"
+[ -n "$SG_ID" ] && [ "$SG_ID" != "None" ] || fail "no live security group found by its name before the rename"
+IGW_ID="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
+  --filters "Name=tag:Name,Values=ec2-reference-igw" \
+  --query "InternetGateways[0].InternetGatewayId" --output text)"
+[ -n "$IGW_ID" ] && [ "$IGW_ID" != "None" ] || fail "no live internet gateway found by its name before the rename"
+log "  security group $SG_ID, internet gateway $IGW_ID"
+
+if [ "${BREAK:-}" = "1" ]; then
+  log "=== D1 (BREAK=1). rename aws_security_group.main -> .renamed WITHOUT a moved block ==="
+  {
+    cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+    provider_block
+    echo
+    resource_block_sg_renamed
+  } > "$ADOPTED/main.tf"
+  BREAK_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; BREAK_PLAN_RC=$?
+  [ "$BREAK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$BREAK_PLAN_OUT" | tail -30; fail "the BREAK=1 rename-without-moved plan exited $BREAK_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.main will be destroyed' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose destroying aws_security_group.main - this stage's check is not load-bearing"; }
+  grep -qE '^  # aws_security_group\.renamed will be created' <<< "$BREAK_PLAN_OUT" \
+    || { printf '%s\n' "$BREAK_PLAN_OUT" | grep -E '^  # .+ will be'; fail "BREAK=1: renaming without a moved block did not propose creating aws_security_group.renamed - this stage's check is not load-bearing"; }
+  log "  BREAK=1: correctly proposes destroying aws_security_group.main and creating aws_security_group.renamed - the moved-block and live-mv checks below are skipped"
+else
+  log "=== D1. choudoufu, moved block: aws_security_group.main -> .renamed ==="
+  {
+    cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+    provider_block
+    echo
+    resource_block_sg_renamed
+    cat <<'EOF'
+
+moved {
+  from = aws_security_group.main
+  to   = aws_security_group.renamed
+}
+EOF
+  } > "$ADOPTED/main.tf"
+  MOVED_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; MOVED_PLAN_RC=$?
+  [ "$MOVED_PLAN_RC" -eq 0 ] || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -30; fail "the moved-block rename plan exited $MOVED_PLAN_RC"; }
+  grep -qE '^  # aws_security_group\.renamed will be updated in-place' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block plan does not propose an in-place update to aws_security_group.renamed"; }
+  grep -qE 'will be destroyed' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a destroy - not zero churn"; }
+  grep -qE 'will be created' <<< "$MOVED_PLAN_OUT" \
+    && { printf '%s\n' "$MOVED_PLAN_OUT" | grep -E '^  # .+ will be'; fail "the moved-block rename proposes a create - not zero churn"; }
+  grep -qF 'Plan: 0 to add, 1 to change, 0 to destroy.' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT" | tail -10; fail "the moved-block rename plan is not exactly one in-place change"; }
+  grep -qE '~ +"tofu-address" = "aws_security_group\.main" -> "aws_security_group\.renamed"' <<< "$MOVED_PLAN_OUT" \
+    || { printf '%s\n' "$MOVED_PLAN_OUT"; fail "the moved-block plan does not show the tofu-address marker being rewritten from the old address to the new one"; }
+  log "  choudoufu: zero churn, one in-place tags update - the marker rewrite the moved block completes"
+
+  MOVED_APPLY_OUT="$(cd "$ADOPTED" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"; MOVED_APPLY_RC=$?
+  [ "$MOVED_APPLY_RC" -eq 0 ] || { printf '%s\n' "$MOVED_APPLY_OUT" | tail -30; fail "the moved-block rename apply exited $MOVED_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$MOVED_APPLY_OUT" \
+    || { grep -E 'Apply complete' <<< "$MOVED_APPLY_OUT"; fail "the moved-block rename apply was not exactly one in-place change"; }
+
+  SG_ID_AFTER="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-security-groups \
+    --group-ids "$SG_ID" --query "SecurityGroups[0].GroupId" --output text 2>/dev/null || true)"
+  [ "$SG_ID_AFTER" = "$SG_ID" ] || fail "the security group's id changed across the rename ($SG_ID -> $SG_ID_AFTER) - it was destroyed and recreated, not renamed"
+  SG_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
+    --filters "Name=resource-id,Values=$SG_ID" "Name=key,Values=tofu-address" \
+    --query "Tags[0].Value" --output text)"
+  [ "$SG_ADDR_TAG" = "aws_security_group.renamed" ] || fail "the security group carries tofu-address=$SG_ADDR_TAG after the rename, not aws_security_group.renamed"
+  log "  $SG_ID unchanged, tofu-address now aws_security_group.renamed - read via the AWS CLI"
+
+  log "=== D2. choudoufu, live-mv: aws_internet_gateway.main -> .renamed, no moved block at all ==="
+  {
+    cat <<EOF
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 6.58.0"
+    }
+  }
+  live {
+    estate = "$ESTATE"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+EOF
+    provider_block
+    echo
+    resource_block_both_renamed
+    cat <<'EOF'
+
+moved {
+  from = aws_security_group.main
+  to   = aws_security_group.renamed
+}
+EOF
+  } > "$ADOPTED/main.tf"
+  MV_OUT="$(cd "$ADOPTED" && "$TOFU" live-mv -estate="$ESTATE" aws_internet_gateway.main aws_internet_gateway.renamed 2>&1)"; MV_RC=$?
+  [ "$MV_RC" -eq 0 ] || { printf '%s\n' "$MV_OUT" | tail -30; fail "choudoufu live-mv exited $MV_RC"; }
+  grep -qF 'Rewrote the ownership marker on one live resource. This was a cloud write.' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report a real write"; }
+  grep -qF '"aws_internet_gateway.main" -> "aws_internet_gateway.renamed"' <<< "$MV_OUT" \
+    || { printf '%s\n' "$MV_OUT"; fail "live-mv did not report rewriting the tofu-address marker from the old address to the new one"; }
+  log "  live-mv: $(grep -F 'live ID' <<< "$MV_OUT")"
+
+  IGW_ID_AFTER="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-internet-gateways \
+    --internet-gateway-ids "$IGW_ID" --query "InternetGateways[0].InternetGatewayId" --output text 2>/dev/null || true)"
+  [ "$IGW_ID_AFTER" = "$IGW_ID" ] || fail "the internet gateway's id changed across live-mv ($IGW_ID -> $IGW_ID_AFTER) - it was destroyed and recreated, not renamed"
+  IGW_ADDR_TAG="$(aws --endpoint-url "$ADOPT_ENDPOINT" --region "$REGION" ec2 describe-tags \
+    --filters "Name=resource-id,Values=$IGW_ID" "Name=key,Values=tofu-address" \
+    --query "Tags[0].Value" --output text)"
+  [ "$IGW_ADDR_TAG" = "aws_internet_gateway.renamed" ] || fail "the internet gateway carries tofu-address=$IGW_ADDR_TAG after live-mv, not aws_internet_gateway.renamed"
+  log "  $IGW_ID unchanged, tofu-address now aws_internet_gateway.renamed - read via the AWS CLI"
+
+  log "=== D3. one more plan: config and markers agree on both renames, nothing proposed ==="
+  FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; FINAL_PLAN_RC=$?
+  [ "$FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$FINAL_PLAN_OUT" | tail -30; fail "the post-rename plan exited $FINAL_PLAN_RC"; }
+  grep -qF "No changes. Your infrastructure matches the configuration." <<< "$FINAL_PLAN_OUT" \
+    || { grep -E '^  #' <<< "$FINAL_PLAN_OUT"; fail "the post-rename plan is not empty"; }
+  log "  No changes. Both renames are complete and invisible to the next plan."
+
+  gauntlet_stage day2_rename pass "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI"
 fi
 CURRENT_STAGE=""
 gauntlet_end

@@ -158,9 +158,9 @@
           "not_run": 26
         },
         "day2_rename": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 26
+          "not_run": 24
         },
         "day2_replace": {
           "pass": 0,
@@ -235,9 +235,9 @@
           "not_run": 25
         },
         "day2_rename": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 25
+          "not_run": 23
         },
         "day2_replace": {
           "pass": 0,
@@ -748,7 +748,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -762,11 +762,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:27:09Z",
+        "commit": "d63619b9684c37f425203a2f6351b1814f062431",
+        "date": "2026-08-23T22:22:51Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "Apply complete! Resources: 2 added, 0 changed, 0 destroyed.; 0 objects carry tofu-estate=iam-policy-crossing before migration",
+          "day2_rename": "moved block: module.iam_policy_from_data_source renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: module.iam_policy renamed with zero churn, marker rewritten in place (found and fixed live-mv's own missing issue #266 tag-index fallback and the arnJoinTable's missing iam:policy entry to get here); stock oracle over the same two-module rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both ARNs unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered (arn:aws:iam::000000000000:policy/example_from_data_source's Example tag), plan proposed fixing exactly one object, apply changed 1 and reconverged the tag",
           "migrate": "2 of 2 stamped, both carrying tofu-slot=0/0 read back through IAM (choudoufu #372); Apply complete! Resources: 0 added, 0 changed, 0 destroyed. - nothing left to converge",
           "test_apply": "genuine no-op: 2 objects before, 2 after, no state file either time",
@@ -1315,7 +1316,7 @@
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
         "drift_reconverge": "pass",
@@ -1329,11 +1330,12 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "8906529b4eb5150dbf395fb4b7c1e3fcc51078b4",
-        "date": "2026-08-23T20:42:15Z",
+        "commit": "d63619b9684c37f425203a2f6351b1814f062431",
+        "date": "2026-08-23T22:21:54Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "5 resources from plain terraform, a real terraform.tfstate, zero markers",
+          "day2_rename": "moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI",
           "drift_reconverge": "one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured",
           "greenfield": "Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet",
           "migrate": "5 of 5 verified, 5 stamped, 0 skipped",

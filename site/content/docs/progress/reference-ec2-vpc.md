@@ -19,7 +19,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Replan from nothing | pass | post-adoption plan is empty; markers read back through the AWS CLI in part A |
 | No-op apply | pass | no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at 5 |
 | Drift and reconverge | pass | one object tampered, exactly aws_instance.main proposed, apply changed 1 and the tag reads back as configured |
-| Rename (planned) | not run |  |
+| Rename (planned) | pass | moved block: aws_security_group renamed with zero churn (0 add, 1 change, 0 destroy), marker rewritten in place; live-mv: aws_internet_gateway renamed with zero churn, marker rewritten in place; stock oracle over the same two-resource rename on cold_deploy's own state also shows zero churn (0 add, 0 change, 0 destroy); both live ids unchanged, read via the AWS CLI |
 | Remove a block (planned) | not run |  |
 | Change count (planned) | not run |  |
 | Replace with create_before_destroy (planned) | not run |  |
@@ -29,7 +29,7 @@ Why it is in the core set: the plainest hand-written reference shape, kept in th
 | Greenfield apply (planned) | not run | Part A applies the estate from empty and replans empty; the object-by-object comparison with the stock cold deploy is not wired yet |
 | Strict profile (planned) | not run |  |
 
-Last run at commit `8906529b4e` on 2026-08-23T20:42:15Z, exit code 0.
+Last run at commit `d63619b968` on 2026-08-23T22:21:54Z, exit code 0.
 
 Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does).
 
