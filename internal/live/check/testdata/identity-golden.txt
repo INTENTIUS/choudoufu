@@ -8,12 +8,12 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=587 instances=1689
+# shape: dirs=588 instances=1691
 # shape: class CONCRETE=815
-# shape: class NEEDS_DISCOVERY=715
+# shape: class NEEDS_DISCOVERY=717
 # shape: class PARENT_DERIVED=135
 # shape: class RECORD_BACKED=24
-# shape: body-sha256=ee82b073d159cb767b023a2d2e60c1195f95a87edf78c141b9129290a04eeff5
+# shape: body-sha256=8d8efc8d97e551d50dfb675fb4d8c735f07e009033bc32f4180746a7478bba3a
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
@@ -802,6 +802,8 @@ internal/live/lint/testdata/strict-markers-ignore-changes	aws_subnet.private	NEE
 internal/live/lint/testdata/strict-markers-ignore-changes	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/strict-markers-ignore-changes-no-repair	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/strict-markers-ignore-changes-no-selection	aws_vpc.main	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-ignore-changes-per-key	aws_subnet.private	NEEDS_DISCOVERY		
+internal/live/lint/testdata/strict-markers-ignore-changes-per-key	aws_vpc.main	NEEDS_DISCOVERY		
 internal/live/lint/testdata/strict-markers-instance-address	aws_vpc.main[0]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/strict-markers-instance-address	aws_vpc.main[1]	NEEDS_DISCOVERY		
 internal/live/lint/testdata/strict-markers-module-address	module.net.aws_vpc.main	NEEDS_DISCOVERY		

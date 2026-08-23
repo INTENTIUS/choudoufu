@@ -334,6 +334,15 @@ const (
 	// is a resource with neither a marker nor a record, which is the
 	// "created unfindable" failure the safety rule exists to prevent.
 	//
+	// Writing no marker is not the whole story since GitHub issue #380: the
+	// same rewrite that reports this skip also appends
+	// tags["tofu-estate"]/tags["tofu-address"] to the resource's own
+	// lifecycle { ignore_changes }, so a marker the live object already
+	// carries - from before the selection was added, or from a discovery
+	// sweep - is left alone instead of being planned away as a removal.
+	// Withholding the marker and losing an existing one are different
+	// things; only the first is what this selection asked for.
+	//
 	// Distinct from [SkipUntaggable] because the type CAN carry a marker,
 	// and distinct from [SkipUntagHandWritten] because nothing about this
 	// resource's configuration is in the way: those two are the pass
@@ -694,6 +703,23 @@ type rewrite struct {
 	// items are the marker entries to add.
 	items []hclsyntax.ObjectConsItem
 
+	// managed is the resource's own decoded lifecycle configuration -
+	// present whenever ignoreChangesKeys is non-empty. GitHub issue #380:
+	// [markers "record"]'s withholding path (see [SkipMarkersRecord]) has no
+	// tags case to fall into below - nothing is written into tags at all -
+	// but still needs a deferred effect, so it gets one here rather than
+	// through body/obj/merge/wrap.
+	managed *configs.ManagedResource
+
+	// ignoreChangesKeys are the marker tag keys [apply] appends to managed's
+	// IgnoreChanges, each as its own tags["<key>"] traversal - never the
+	// whole tags argument, so any OTHER tag the resource carries still gets
+	// its ordinary diff. Built the same shape hcl.RelTraversalForExpr
+	// produces for a hand-written `ignore_changes = [tags["<key>"]]`, so
+	// internal/tofu's processIgnoreChangesIndividual treats a synthesized
+	// entry exactly like an operator's own.
+	ignoreChangesKeys []string
+
 	// rng is the range synthesized nodes point at: the resource's own
 	// declaration, so that a diagnostic about an injected value lands on the
 	// resource it was injected into.
@@ -701,6 +727,17 @@ type rewrite struct {
 }
 
 func (rw *rewrite) apply() {
+	for _, key := range rw.ignoreChangesKeys {
+		rw.managed.IgnoreChanges = append(rw.managed.IgnoreChanges, hcl.Traversal{
+			hcl.TraverseAttr{Name: tagsArgument, SrcRange: rw.rng},
+			hcl.TraverseIndex{Key: cty.StringVal(key), SrcRange: rw.rng},
+		})
+	}
+	if len(rw.items) == 0 {
+		// The markers "record" withholding path: nothing to add to tags,
+		// and the ignoreChangesKeys loop above is this rewrite's whole job.
+		return
+	}
 	switch {
 	case rw.obj != nil:
 		rw.obj.Items = append(rw.obj.Items, rw.items...)
@@ -780,9 +817,29 @@ func (s *stamper) resource(ctx context.Context, rc *configs.Resource, mod *confi
 	if s.selection.Selects(addr) &&
 		identity.SelectedLocatedType(rc.Type, map[string]providers.Schema{rc.Type: *schema}) {
 		s.skip(addr, SkipMarkersRecord, fmt.Sprintf(
-			"%s is covered by strict { markers \"record\" }, so its identity is held in the estate's record store and no ownership marker was written into its tags.",
-			addr))
-		return nil, diags
+			"%s is covered by strict { markers \"record\" }, so its identity is held in the estate's record store and no ownership marker was written into its tags. "+
+				"If the live object already carries one - stamped before this selection existed, or written out of band - it is left exactly as it is: this pass adds "+
+				"lifecycle { ignore_changes = [tags[%q], tags[%q]] } for it, so the plan never proposes removing a marker this configuration has stopped writing.",
+			addr, TagAddress, TagEstate))
+		// GitHub issue #380: withholding used to mean returning nil here,
+		// which wrote nothing - and an existing tofu-address/tofu-estate tag
+		// on the live object is then a diff between what the provider reads
+		// back and what this configuration declares (nothing), which the
+		// ordinary plan proposes removing. That is the "applied unmarked /
+		// marker silently disappears" failure HANDOFF.md's safety rule
+		// exists to prevent, pointed at a resource this pass itself put
+		// there. The fix is not to write the marker (the operator asked for
+		// the opposite) and not to keep silently dropping it either: ignore
+		// changes to exactly the two marker keys, so an existing value
+		// survives untouched and a resource with none stays with none - the
+		// same [ignoreChangesKeys] mechanism internal/live/lint's
+		// checkIgnoreChanges already declines to refuse for this exact
+		// selection.
+		return &rewrite{
+			managed:           rc.Managed,
+			ignoreChangesKeys: []string{TagEstate, TagAddress},
+			rng:               rc.DeclRange,
+		}, diags
 	}
 
 	if !taggable(schema.Block) {
