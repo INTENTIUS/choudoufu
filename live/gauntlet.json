@@ -1210,8 +1210,8 @@
       "clear": true,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "eadb0741b752a181c35e18d400bf24db03c221d8",
-        "date": "2026-08-23T03:46:47Z",
+        "commit": "bddbd095d648af8e0e8fec3ea12b1800e6582b0e",
+        "date": "2026-08-23T20:08:34Z",
         "exit_code": 0,
         "detail": {
           "cold_deploy": "11 managed resource instances, genuinely cold, genuinely unmarked",
