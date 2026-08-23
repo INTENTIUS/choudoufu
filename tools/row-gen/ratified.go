@@ -370,8 +370,8 @@ func loadEmittedTable(root string, proposals []proposal) (map[string]identity.Ty
 	}
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
 	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, schemaFacts))
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch)
-	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), setOf(secretMaterialTypes(logical)), uniqueName, grammar, survey, setOf(vetoed))
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch))
+	rows, _ := emittedRows(ratified, setOf(recordBackedTypes(logical)), setOf(secretMaterialTypes(logical)), uniqueName, grammar, survey, vetoed)
 	return rows, nil
 }
 

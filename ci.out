@@ -1,7 +1,0 @@
-ok  	github.com/intentius/choudoufu/internal/live/stamp	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/lint	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/strict	(cached)
-ok  	github.com/intentius/choudoufu/internal/live/check	5.834s
-ok  	github.com/intentius/choudoufu/internal/command	72.755s
-ok  	github.com/intentius/choudoufu/live	1.996s
-ok  	github.com/intentius/choudoufu/internal/live/marksafe	2.501s

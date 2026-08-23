@@ -236,7 +236,26 @@ func runConvergence(out, errOut *os.File) error {
 		return err
 	}
 
+	// Ruling 2 (#387): named here too, so the written artifact records the
+	// measurement even though nothing ships differently yet - see
+	// schemafirst.go's own doc comment for why the ledger itself
+	// (tools/row-gen/ratified.json) is untouched in this pass and the
+	// runtime inversion (internal/live/identity/resolve.go's lookupType,
+	// internal/live/lint's admitted()) is what actually acts on it.
+	// ratified and grammar are loaded again rather than threaded out of
+	// loadEmittedTable, matching this file's own existing style of
+	// reloading an artifact at each call site that needs it rather than
+	// widening a helper's return.
+	ratified, err := loadRatified(filepath.Join(root, ratifiedJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", ratifiedJSONRel, err)
+	}
+	grammar, err := loadImportGrammar(filepath.Join(root, importGrammarJSONRel))
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", importGrammarJSONRel, err)
+	}
 	art := buildConvergence(emitted, proposals, annotations)
+	art.SchemaReproduces = buildSchemaReproducesBucket(ratified, grammar)
 
 	if problems := validateAnnotations(art, annotations); len(problems) > 0 {
 		for _, p := range problems {

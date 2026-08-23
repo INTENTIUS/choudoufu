@@ -223,6 +223,7 @@ func TestConvergenceArtifactMatchesCommitted(t *testing.T) {
 		t.Fatalf("loadAnnotations: %v", err)
 	}
 	fresh := buildConvergence(loadEmittedTableForTest(t, proposals), proposals, annotations)
+	fresh.SchemaReproduces = buildSchemaReproducesBucket(loadRatifiedForTest(t), loadImportGrammarForTest(t))
 
 	committed := loadCommittedConvergence(t)
 

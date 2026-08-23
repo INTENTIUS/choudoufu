@@ -133,3 +133,7 @@ site/public/
 # and the per-estate run logs it captures.
 /gauntlet
 /live/gauntlet/logs/
+
+# CI gate scratch files a worker leaves in its worktree; never tracked.
+ci.out
+ci.rc

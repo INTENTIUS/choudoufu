@@ -104,7 +104,39 @@ type convergenceArtifact struct {
 	GeneratedBy string                    `json:"generated_by"`
 	Summary     convergenceSummary        `json:"summary"`
 	ByService   map[string]serviceSummary `json:"by_service"`
-	Types       []convergenceRow          `json:"types"`
+
+	// SchemaReproduces is ruling 2 of rfc/20260823-foundation-order-ruling.md
+	// (#387): issue #387's own measurement, over every config-identified
+	// ratified row the provider also serves an identity schema for - does
+	// [identity.SynthesizeTypeIdentity] say the same thing the row does?
+	// This is measurement only: nothing here removes a row from
+	// tools/row-gen/ratified.json or from the emitted table
+	// ([buildConvergence]'s own Types/Summary are computed over the emitted
+	// rows exactly as before and never consult this field). What acts on
+	// the measurement is the runtime precedence inversion in
+	// internal/live/identity/resolve.go's lookupType and
+	// internal/live/lint's admitted() - see schemafirst.go's own doc
+	// comment for why the ledger shrink itself waits for #388.
+	SchemaReproduces schemaReproducesBucket `json:"schema_reproduces"`
+
+	Types []convergenceRow `json:"types"`
+}
+
+// schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape:
+// every config-identified ratified type with a provider identity schema
+// (HasIdentitySchema, live/import-grammar.json's identity_schema_required),
+// partitioned into Reproduced (schemafirst.go's own same-name comparison
+// agrees with the row) and NotReproduced (it does not, labelled by shape -
+// see schemafirst.go's notReproducedClass). ReproducedCount +
+// NotReproducedCount == HasIdentitySchema always.
+type schemaReproducesBucket struct {
+	HasIdentitySchema int `json:"has_identity_schema"`
+
+	Reproduced      []string `json:"reproduced"`
+	ReproducedCount int      `json:"reproduced_count"`
+
+	NotReproduced      []notReproducedEntry `json:"not_reproduced"`
+	NotReproducedCount int                  `json:"not_reproduced_count"`
 }
 
 // buildConvergence runs the comparison over emitted - every row -emit would

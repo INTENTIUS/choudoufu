@@ -968,6 +968,257 @@
       "adopted_unchanged_pct": 100
     }
   },
+  "schema_reproduces": {
+    "has_identity_schema": 161,
+    "reproduced": [
+      "aws_acmpca_policy",
+      "aws_api_gateway_integration",
+      "aws_api_gateway_integration_response",
+      "aws_api_gateway_method",
+      "aws_api_gateway_method_response",
+      "aws_appautoscaling_policy",
+      "aws_appautoscaling_target",
+      "aws_appflow_connector_profile",
+      "aws_appflow_flow",
+      "aws_arczonalshift_zonal_autoshift_configuration",
+      "aws_autoscaling_group",
+      "aws_autoscaling_lifecycle_hook",
+      "aws_autoscaling_policy",
+      "aws_autoscaling_schedule",
+      "aws_backup_vault",
+      "aws_bedrockagentcore_resource_policy",
+      "aws_cloudfront_key_value_store",
+      "aws_cloudfrontkeyvaluestore_key",
+      "aws_cloudwatch_alarm_mute_rule",
+      "aws_cloudwatch_composite_alarm",
+      "aws_cloudwatch_contributor_insight_rule",
+      "aws_cloudwatch_contributor_managed_insight_rule",
+      "aws_cloudwatch_dashboard",
+      "aws_cloudwatch_event_api_destination",
+      "aws_cloudwatch_event_archive",
+      "aws_cloudwatch_event_bus",
+      "aws_cloudwatch_event_connection",
+      "aws_cloudwatch_event_endpoint",
+      "aws_cloudwatch_event_permission",
+      "aws_cloudwatch_event_target",
+      "aws_cloudwatch_log_account_policy",
+      "aws_cloudwatch_log_delivery_destination",
+      "aws_cloudwatch_log_delivery_source",
+      "aws_cloudwatch_log_destination",
+      "aws_cloudwatch_log_group",
+      "aws_cloudwatch_log_metric_filter",
+      "aws_cloudwatch_log_stream",
+      "aws_cloudwatch_log_subscription_filter",
+      "aws_cloudwatch_log_transformer",
+      "aws_cloudwatch_metric_alarm",
+      "aws_cloudwatch_metric_stream",
+      "aws_codepipeline",
+      "aws_config_config_rule",
+      "aws_config_configuration_aggregator",
+      "aws_config_conformance_pack",
+      "aws_config_organization_conformance_pack",
+      "aws_config_remediation_configuration",
+      "aws_datazone_asset_type",
+      "aws_datazone_environment_blueprint_configuration",
+      "aws_db_subnet_group",
+      "aws_dynamodb_global_secondary_index",
+      "aws_dynamodb_resource_policy",
+      "aws_dynamodb_table",
+      "aws_ecr_lifecycle_policy",
+      "aws_ecr_repository",
+      "aws_ecr_repository_policy",
+      "aws_ecs_service",
+      "aws_eks_access_entry",
+      "aws_eks_access_policy_association",
+      "aws_eks_addon",
+      "aws_eks_capability",
+      "aws_eks_cluster",
+      "aws_eks_fargate_profile",
+      "aws_eks_node_group",
+      "aws_elb",
+      "aws_glue_catalog",
+      "aws_glue_job",
+      "aws_iam_group_policy_attachment",
+      "aws_iam_instance_profile",
+      "aws_iam_role",
+      "aws_iam_role_policy",
+      "aws_iam_role_policy_attachment",
+      "aws_iam_user",
+      "aws_iam_user_policy_attachment",
+      "aws_kinesis_resource_policy",
+      "aws_kinesis_stream",
+      "aws_kms_alias",
+      "aws_lambda_capacity_provider",
+      "aws_lambda_function",
+      "aws_lambda_function_scaling_config",
+      "aws_launch_configuration",
+      "aws_msk_topic",
+      "aws_network_acl_rule",
+      "aws_networkmanager_prefix_list_association",
+      "aws_opensearchserverless_access_policy",
+      "aws_opensearchserverless_lifecycle_policy",
+      "aws_opensearchserverless_security_policy",
+      "aws_organizations_policy_attachment",
+      "aws_pinpointsmsvoicev2_event_destination",
+      "aws_pinpointsmsvoicev2_resource_policy",
+      "aws_pinpointsmsvoicev2_sender_id",
+      "aws_prometheus_scraper_logging_configuration",
+      "aws_rds_cluster",
+      "aws_rekognition_collection",
+      "aws_rekognition_project",
+      "aws_rekognition_stream_processor",
+      "aws_route53_vpc_association_authorization",
+      "aws_s3_bucket",
+      "aws_s3_bucket_lifecycle_configuration",
+      "aws_s3_bucket_policy",
+      "aws_s3_bucket_public_access_block",
+      "aws_s3_bucket_server_side_encryption_configuration",
+      "aws_s3_bucket_versioning",
+      "aws_s3_directory_bucket",
+      "aws_s3control_multi_region_access_point",
+      "aws_s3files_file_system_policy",
+      "aws_s3tables_table_bucket_policy",
+      "aws_s3vectors_vector_bucket_policy",
+      "aws_sagemaker_algorithm",
+      "aws_sagemaker_endpoint_configuration",
+      "aws_sagemaker_hub_content_reference",
+      "aws_scheduler_schedule",
+      "aws_secretsmanager_secret_policy",
+      "aws_secretsmanager_secret_rotation",
+      "aws_securityhub_configuration_policy_association",
+      "aws_securityhub_organization_admin_account",
+      "aws_securityhub_standards_control",
+      "aws_securityhub_standards_control_association",
+      "aws_sns_topic_policy",
+      "aws_sqs_queue_policy",
+      "aws_ssm_maintenance_window_target",
+      "aws_ssm_parameter",
+      "aws_ssm_patch_group",
+      "aws_ssoadmin_account_assignment",
+      "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+      "aws_ssoadmin_managed_policy_attachments_exclusive",
+      "aws_ssoadmin_region",
+      "aws_volume_attachment",
+      "aws_vpc_endpoint_route_table_association",
+      "aws_vpc_security_group_vpc_association",
+      "aws_wafv2_web_acl_rule",
+      "aws_workmail_domain",
+      "aws_xray_resource_policy",
+      "aws_xray_sampling_rule"
+    ],
+    "reproduced_count": 134,
+    "not_reproduced": [
+      {
+        "type": "aws_alb_target_group_attachment",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_cloudfront_realtime_log_config",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_cloudwatch_event_rule",
+        "class": "other"
+      },
+      {
+        "type": "aws_codeartifact_domain",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_domain_permissions_policy",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_repository",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_repository_permissions_policy",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codebuild_fleet",
+        "class": "other"
+      },
+      {
+        "type": "aws_codebuild_project",
+        "class": "other"
+      },
+      {
+        "type": "aws_codebuild_report_group",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codepipeline_webhook",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_comprehend_entity_recognizer",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_ecs_capacity_provider",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_glue_registry",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_kinesis_firehose_delivery_stream",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_lambda_permission",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_lb_target_group_attachment",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_organizations_delegated_administrator",
+        "class": "other"
+      },
+      {
+        "type": "aws_route",
+        "class": "any-of"
+      },
+      {
+        "type": "aws_route53_record",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_route53_zone_association",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_route_table_association",
+        "class": "any-of"
+      },
+      {
+        "type": "aws_s3_account_public_access_block",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_sagemaker_user_profile",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_securityhub_member",
+        "class": "other"
+      },
+      {
+        "type": "aws_sns_topic",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_sqs_queue",
+        "class": "arn-shaped"
+      }
+    ],
+    "not_reproduced_count": 27
+  },
   "types": [
     {
       "tf_type": "aws_accessanalyzer_analyzer",

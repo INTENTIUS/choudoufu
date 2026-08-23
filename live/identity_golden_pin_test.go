@@ -355,7 +355,7 @@ var identityGoldenPin = map[string]int{
 	// above is - once from its own child module directory, once as its
 	// parent's module.child.aws_eks_cluster.this. See
 	// identityGoldenPinInstances's own note.
-	"CONCRETE": 815,
+	"CONCRETE":        819,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -1225,7 +1225,7 @@ var identityGoldenPin = map[string]int{
 // internal/live/check/testdata/identity-golden.txt against the prior copy,
 // which shows exactly two added lines and nothing else changed except the
 // header's shape line.
-const identityGoldenPinBodyDigest = "8d8efc8d97e551d50dfb675fb4d8c735f07e009033bc32f4180746a7478bba3a"
+const identityGoldenPinBodyDigest = "8fa33785f6718ca82e43aabc3bf3739492d74685ad688b1699ac14e9e80a28b9"
 
 // 2026-08-17 (issue #270): dirs 412 -> 413, instances unchanged at 1385 and
 // the body digest unchanged. The new directory is
@@ -1809,7 +1809,7 @@ const (
 	// identityGoldenPin's "NEEDS_DISCOVERY" note). "0 identities changed, 2
 	// added, 0 removed" confirmed by diffing testdata/identity-golden.txt
 	// before and after regenerating.
-	identityGoldenPinInstances = 1691
+	identityGoldenPinInstances = 1695
 	// identityGoldenPinDirs moved 503 -> 504 for GitHub issue #348's fix:
 	// internal/live/projection/testdata/output-eval is a new fixture (a
 	// stub_cert resource plus root-level outputs, used to pin
@@ -2021,7 +2021,7 @@ const (
 	// proving checkIgnoreChanges declines the per-key ignore_changes shape
 	// internal/live/stamp now synthesizes the same way it already declines
 	// the whole-tags shape.
-	identityGoldenPinDirs = 588
+	identityGoldenPinDirs      = 590
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
