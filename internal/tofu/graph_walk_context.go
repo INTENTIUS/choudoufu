@@ -46,6 +46,12 @@ type ContextGraphWalker struct {
 	Encryption              encryption.Encryption
 	ProviderFunctionTracker ProviderFunctionMapping
 
+	// ResourceIdentityResolver and ConfigValueAdjuster are the plan-node
+	// seam (see resource_identity.go); nil unless a caller of NewContext
+	// set them in ContextOpts.
+	ResourceIdentityResolver ResourceIdentityResolver
+	ConfigValueAdjuster      ConfigValueAdjuster
+
 	// This is an output. Do not set this, nor read it while a graph walk
 	// is in progress.
 	NonFatalDiagnostics tfdiags.Diagnostics
@@ -116,6 +122,9 @@ func (w *ContextGraphWalker) EvalContext() EvalContext {
 		VariableValuesLock:      &w.variableValuesLock,
 		Encryption:              w.Encryption,
 		ProviderFunctionTracker: w.ProviderFunctionTracker,
+
+		ResourceIdentityResolverValue: w.ResourceIdentityResolver,
+		ConfigValueAdjusterValue:      w.ConfigValueAdjuster,
 	}
 
 	return ctx

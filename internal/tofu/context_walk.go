@@ -160,5 +160,8 @@ func (c *Context) graphWalker(operation walkOperation, opts *graphWalkOpts) *Con
 		PlanTimestamp:           opts.PlanTimeTimestamp,
 		Encryption:              c.encryption,
 		ProviderFunctionTracker: opts.ProviderFunctionTracker,
+
+		ResourceIdentityResolver: c.resourceIdentityResolver,
+		ConfigValueAdjuster:      c.configValueAdjuster,
 	}
 }

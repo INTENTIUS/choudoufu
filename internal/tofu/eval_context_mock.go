@@ -128,6 +128,9 @@ type MockEvalContext struct {
 
 	InstanceExpanderCalled   bool
 	InstanceExpanderExpander *instances.Expander
+
+	ResourceIdentityResolverValue ResourceIdentityResolver
+	ConfigValueAdjusterValue      ConfigValueAdjuster
 }
 
 // MockEvalContext implements EvalContext
@@ -350,4 +353,12 @@ func (c *MockEvalContext) InstanceExpander() *instances.Expander {
 
 func (c *MockEvalContext) GetEncryption() encryption.Encryption {
 	return encryption.Disabled()
+}
+
+func (c *MockEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {
+	return c.ResourceIdentityResolverValue
+}
+
+func (c *MockEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
+	return c.ConfigValueAdjusterValue
 }

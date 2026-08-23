@@ -177,4 +177,14 @@ type EvalContext interface {
 
 	// Returns the currently configured encryption setup
 	GetEncryption() encryption.Encryption
+
+	// ResourceIdentityResolver returns the plan-node seam's identity
+	// resolver, or nil if none was configured (the default). See
+	// resource_identity.go.
+	ResourceIdentityResolver() ResourceIdentityResolver
+
+	// ConfigValueAdjuster returns the plan-node seam's configuration value
+	// adjuster, or nil if none was configured (the default). See
+	// resource_identity.go.
+	ConfigValueAdjuster() ConfigValueAdjuster
 }

@@ -77,6 +77,12 @@ type BuiltinEvalContext struct {
 	ImportResolverValue     *ImportResolver
 	Encryption              encryption.Encryption
 	ProviderFunctionTracker ProviderFunctionMapping
+
+	// ResourceIdentityResolverValue and ConfigValueAdjusterValue are the
+	// plan-node seam (see resource_identity.go); nil unless NewContext was
+	// given one in ContextOpts.
+	ResourceIdentityResolverValue ResourceIdentityResolver
+	ConfigValueAdjusterValue      ConfigValueAdjuster
 }
 
 // BuiltinEvalContext implements EvalContext
@@ -456,4 +462,12 @@ func (c *BuiltinEvalContext) ImportResolver() *ImportResolver {
 
 func (c *BuiltinEvalContext) GetEncryption() encryption.Encryption {
 	return c.Encryption
+}
+
+func (c *BuiltinEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {
+	return c.ResourceIdentityResolverValue
+}
+
+func (c *BuiltinEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
+	return c.ConfigValueAdjusterValue
 }
