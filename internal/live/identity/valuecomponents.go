@@ -160,10 +160,19 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		if attrVal.IsNull() {
 			continue
 		}
-		if !attrVal.IsWhollyKnown() || attrVal.IsMarked() {
-			// Not absent - not yet known, or deliberately hidden. Neither
-			// is a fact this evaluator may treat as "the argument was
-			// omitted."
+		if !attrVal.IsWhollyKnown() {
+			// Not absent - not yet known. Not a fact this evaluator may
+			// treat as "the argument was omitted."
+			return "", "", "", false, true
+		}
+		// Guards attrVal for every mark-unsafe cty method this function
+		// calls on it below - LengthInt/ElementIterator inside the
+		// SoleElement branch, and (on the branch that never reassigns
+		// attrVal) the convert.Convert/AsString pair at the bottom. See
+		// internal/live/marksafe, which proves every call site of a
+		// mark-unsafe cty method: a marked value must refuse here, never
+		// flow into an identity component or a cloud-facing import call.
+		if attrVal.IsMarked() {
 			return "", "", "", false, true
 		}
 		if c.SoleElement {
@@ -177,10 +186,21 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 					_, only = it.Element()
 				}
 				attrVal = only
-				if !attrVal.IsWhollyKnown() || attrVal.IsMarked() {
+				if !attrVal.IsWhollyKnown() {
 					return "", "", "", false, true
 				}
 			}
+		}
+		// attrVal may have just been reassigned to the narrowed element
+		// above, which voids the guard at the top of this loop for
+		// whatever attrVal now holds - so a second, identical guard, at
+		// THIS block's level (not nested inside the SoleElement branch),
+		// immediately ahead of the convert.Convert/AsString pair below.
+		// See internal/live/marksafe's own doc comment on span rules: a
+		// guard nested inside an inner block only proves its subject to
+		// the end of THAT block, never past it.
+		if attrVal.IsMarked() {
+			return "", "", "", false, true
 		}
 		str, err := convert.Convert(attrVal, cty.String)
 		if err != nil {
