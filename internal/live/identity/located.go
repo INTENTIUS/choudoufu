@@ -406,6 +406,22 @@ type LocatedIdentityPlan struct {
 	// types may reach this and why, and [LocatedComposedImportID] for how
 	// it renders.
 	ImportIDVariadicGroup []string
+
+	// Attr is a single attribute, OTHER than [locatedImportIDAttr], whose
+	// value is the type's whole identity. Set only where the provider's own
+	// wire identity schema says nothing usable (the [!compositeIdentity]
+	// branch below applies) and a ratified [TypeIdentity.IdentityAttrs] row
+	// names exactly one attribute that is not "id" - GitHub issue #332's
+	// aws_default_route_table (IdentityAttrs ["vpc_id"]) is the type that
+	// exposed the gap this closes: its Import section documents import by
+	// the parent VPC's id, not by the route table's own, and
+	// internal/live/discovery already reads the same row's IdentityAttrs[0]
+	// for the identical reason (see discovery.go and locatedfallback.go).
+	// Before this field existed, every type reaching the default branch was
+	// recorded by its bare "id" regardless of what the table already knew,
+	// which is a wrong identity rather than a missing one for a type this
+	// shaped - see [namedIdentityAttr].
+	Attr string
 }
 
 // Composite reports whether p carries the provider's identity object.
@@ -416,6 +432,10 @@ func (p LocatedIdentityPlan) Composite() bool { return len(p.Components) > 0 }
 func (p LocatedIdentityPlan) Composed() bool {
 	return len(p.ImportIDParts) > 0 || len(p.ImportIDVariadicGroup) > 0
 }
+
+// Named reports whether p carries a single ratified attribute name other
+// than [locatedImportIDAttr]. See [LocatedIdentityPlan.Attr].
+func (p LocatedIdentityPlan) Named() bool { return p.Attr != "" }
 
 // LocatedIdentityPlanFor answers the question [locatedImportIDAttr]'s own
 // doc comment used to answer by assumption: what IS this type's identity,
@@ -524,6 +544,9 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 			}
 			return LocatedIdentityPlan{}, false
 		}
+		if attr, ok := namedIdentityAttr(resourceType, schema.Block); ok {
+			return LocatedIdentityPlan{Attr: attr}, true
+		}
 		return LocatedIdentityPlan{}, hasLocatedImportID(schema.Block)
 	}
 	for _, name := range required {
@@ -536,6 +559,43 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 		}
 	}
 	return LocatedIdentityPlan{Components: required}, true
+}
+
+// namedIdentityAttr reports the single, non-"id" attribute a ratified
+// identity-table row names as resourceType's whole identity, for
+// [LocatedIdentityPlanFor]'s default branch: the wire identity schema said
+// nothing usable (that branch's own precondition), so the only remaining
+// source that is not a guess is the same [TypeIdentity.IdentityAttrs] row
+// internal/live/discovery's own identical questions already read
+// (discovery.go's importIdentityAttr-shaped helpers, locatedfallback.go's
+// identityAttr) - asked here again rather than duplicated, because a type
+// admitted through either the discovery-sweep route or this
+// record-writing route must resolve to the SAME string on both, or the
+// record and a rediscovered marker would name the object two different
+// ways.
+//
+// false, meaning "no better answer than the bare id default": there is no
+// ratified row, the row is silent, the row names more than one attribute
+// (a genuine composite - the branch above this one's caller owns that
+// shape, not this one), the row names "id" itself (restating the default
+// is not overriding it), or the schema this specific provider release
+// serves does not carry that attribute as a plain top-level string (nothing
+// to read it out of, so the bare "id" guess is the safer of the two
+// available).
+func namedIdentityAttr(resourceType string, b *configschema.Block) (string, bool) {
+	ti, ok := LookupType(resourceType)
+	if !ok || len(ti.IdentityAttrs) != 1 {
+		return "", false
+	}
+	name := ti.IdentityAttrs[0]
+	if name == locatedImportIDAttr {
+		return "", false
+	}
+	a := b.Attributes[name]
+	if a == nil || a.Type != cty.String {
+		return "", false
+	}
+	return name, true
 }
 
 // compositeIdentity reports whether required - a type's required identity
@@ -644,6 +704,13 @@ func walkSchemaObjectAttrs(o *configschema.Object, visit func(*configschema.Attr
 // plan rather than from a finished apply looks like.
 func LocatedImportID(obj cty.Value) (string, bool) {
 	return locatedAttrString(obj, locatedImportIDAttr)
+}
+
+// LocatedNamedAttr reads [LocatedIdentityPlan.Attr]'s value off an applied
+// located object, the way [LocatedImportID] reads [locatedImportIDAttr] -
+// same nullability and unknown-value rules, different attribute name.
+func LocatedNamedAttr(obj cty.Value, name string) (string, bool) {
+	return locatedAttrString(obj, name)
 }
 
 // LocatedIdentity reads the whole identity of an applied record-located

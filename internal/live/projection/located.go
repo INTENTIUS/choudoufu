@@ -180,6 +180,15 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// against this very schema. The string composed here is the
 			// documented import ID, read rather than invented.
 			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDVariadicGroup, plan.ImportIDSeparator)
+		case plan.Named():
+			// The wire identity schema said nothing usable, and a ratified
+			// row names a different attribute than "id" as the type's
+			// whole identity (GitHub issue #332: aws_default_route_table
+			// imports by its parent VPC's id, not by its own). Recording
+			// the bare "id" here would be a wrong identity, invisible to
+			// every verdict-level check until the next run tries to
+			// import it and the provider says so.
+			rec.ImportID, recordable = identity.LocatedNamedAttr(obj, plan.Attr)
 		default:
 			rec.ImportID, recordable = identity.LocatedImportID(obj)
 		}
