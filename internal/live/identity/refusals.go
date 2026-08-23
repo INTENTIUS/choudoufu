@@ -95,7 +95,7 @@ func (r Refusal) DocsRef() string {
 // The third field is [Refusal.Doc], an override, not the reference itself:
 // empty means "the generated entry", which is the ordinary case.
 var refusals = []Refusal{
-	{"Ambiguous list-valued identity argument", "A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.", ""},
+	{"Ambiguous list-valued identity argument", "A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one, or more than one of the alternation's candidate arguments genuinely carries a value at once; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.", ""},
 	{"Circular for_each reference", "A resource's for_each depends on its own instances, directly or through another resource's for_each.", ""},
 	{"Circular identity reference", "A resource's identity is composed, directly or transitively, from its own identity.", ""},
 	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", ""},

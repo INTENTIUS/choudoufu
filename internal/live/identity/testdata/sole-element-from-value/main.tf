@@ -74,3 +74,26 @@ resource "aws_security_group_rule" "all_empty_no_sibling" {
   cidr_blocks        = var.empty_prefix_list_ids
   prefix_list_ids    = var.empty_prefix_list_ids
 }
+
+# GitHub issue #384: terraform-aws-modules/security-group's own
+# egress_rules = ["all-all"] expands into an instance exactly like this one
+# - both egress_cidr_blocks and egress_ipv6_cidr_blocks default to a real,
+# non-empty one-element list, so BOTH cidr_blocks and ipv6_cidr_blocks carry
+# a genuine value at once. This is not the zero-element case above: neither
+# candidate is empty, so nothing "defers to a sibling" - the two candidates
+# disagree about which live object (AWS creates one rule per IP family) this
+# one declared instance names, and picking either is a guess. This must
+# never resolve to a concrete import ID; it must refuse "Ambiguous
+# list-valued identity argument" naming both cidr_blocks and
+# ipv6_cidr_blocks (or, where a live block's record_store makes the type's
+# identity fully recordable, drop to ClassRecordLocated - see
+# solelementconflict_test.go).
+resource "aws_security_group_rule" "egress_all_all" {
+  security_group_id = "sg-0123456789abcdef0"
+  type               = "egress"
+  protocol           = "-1"
+  from_port          = 0
+  to_port            = 0
+  cidr_blocks        = ["0.0.0.0/0"]
+  ipv6_cidr_blocks   = ["::/0"]
+}

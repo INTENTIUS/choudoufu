@@ -2304,7 +2304,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Ambiguous list-valued identity argument
 
-**What.** A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.
+**What.** A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one, or more than one of the alternation's candidate arguments genuinely carries a value at once; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
