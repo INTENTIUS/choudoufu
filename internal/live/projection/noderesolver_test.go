@@ -7,6 +7,7 @@ package projection
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -168,6 +169,51 @@ func TestNodeResolver_NoSourceDefaultRefuses(t *testing.T) {
 	}
 	if !hasDiagSummary(diags, "No source for this instance's identity") {
 		t.Errorf("expected the \"No source for this instance's identity\" summary, got:\n%s", diags.Err())
+	}
+}
+
+// TestNodeResolver_ServerAssignedTypeNeverRefuses is the regression this
+// unit's own first real gauntlet run caught: reference-ec2-vpc's greenfield
+// apply (five brand-new resources, no record, no marker, no history at
+// all) failed outright with "No source for this instance's identity"
+// because an earlier version of this resolver applied ruling 4's toggle to
+// EVERY unresolved instance, not only config-identified ones. A
+// server-assigned type (aws_instance, aws_vpc: minted at create time, with
+// no configuration argument to have derived an identity from in the first
+// place) has no "source" to be missing, so a brand-new instance of one
+// must always report found=false with NO diagnostic - the ordinary create
+// path - regardless of the toggle.
+func TestNodeResolver_ServerAssignedTypeNeverRefuses(t *testing.T) {
+	for _, typeName := range []string{"aws_instance", "aws_vpc"} {
+		for _, noSourceCreate := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/NoSourceCreate=%v", typeName, noSourceCreate), func(t *testing.T) {
+				addr := locatedTestAddr(t, typeName, "new")
+				resolver := &NodeResolver{NoSourceCreate: noSourceCreate}
+
+				target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, cty.EmptyObjectVal, providers.Schema{})
+				if diags.HasErrors() {
+					t.Fatalf("a brand-new %s must never be refused: %s", typeName, diags.Err())
+				}
+				if found {
+					t.Fatalf("a brand-new %s has nothing for this resolver to have found: target=%#v", typeName, target)
+				}
+			})
+		}
+	}
+}
+
+// TestNodeResolver_UnknownTypeNeverRefuses is the same boundary for a type
+// with no table row at all.
+func TestNodeResolver_UnknownTypeNeverRefuses(t *testing.T) {
+	addr := locatedTestAddr(t, "aws_this_type_does_not_exist", "new")
+	resolver := &NodeResolver{}
+
+	target, found, diags := resolver.ResolveResourceIdentity(context.Background(), addr, cty.EmptyObjectVal, providers.Schema{})
+	if diags.HasErrors() {
+		t.Fatalf("a type absent from the table must never be refused: %s", diags.Err())
+	}
+	if found {
+		t.Fatalf("nothing should have been found: %#v", target)
 	}
 }
 

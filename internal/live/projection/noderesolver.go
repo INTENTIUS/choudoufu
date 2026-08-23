@@ -63,15 +63,27 @@ type NodeResolver struct {
 	MarkerIndex map[string]providers.ImportTarget
 
 	// NoSourceCreate is GitHub issue #365's ruling-4 toggle, read once and
-	// carried here rather than re-read per call: when every step above
-	// finds nothing, the DEFAULT (false) is today's refusal - an instance
-	// with no record, no marker and no derivable identity is not safe to
-	// assume new, because that is exactly the "create a duplicate of
-	// something real" failure HANDOFF's safety rule exists to prevent. Set
-	// true, this reports found=false with no diagnostic, which lets
+	// carried here rather than re-read per call. It governs exactly one
+	// shape: a CONFIG-IDENTIFIED type (a table row that is neither
+	// ServerAssigned nor RecordBacked, so its identity is ordinarily
+	// derivable from configuration) whose derivation nonetheless failed
+	// for this specific instance, with no record and no marker either. The
+	// DEFAULT (false) refuses that shape, because this run cannot tell
+	// "genuinely new" apart from "real, and this run simply cannot derive
+	// its identity yet," and creating a duplicate of a real object is
+	// exactly the failure HANDOFF's safety rule exists to prevent. Set
+	// true, it reports found=false with no diagnostic instead, letting
 	// managedResourceExecute fall through to stock's own behavior: plan a
-	// create. See internal/live/strict's NoSourceCreate vocabulary and
-	// internal/configs/live.go's decoding of it.
+	// create.
+	//
+	// It does NOT govern a server-assigned type (an EC2 instance, a VPC:
+	// minted at create time, with no configuration argument to derive
+	// from) or a type absent from the table altogether - those have no
+	// source to be missing in the first place, so a brand-new instance of
+	// one always reports found=false with no diagnostic, whatever this
+	// field is set to. Getting that boundary wrong once refused every
+	// greenfield resource in an estate with no history at all; see
+	// ResolveResourceIdentity's own comment and this file's tests.
 	NoSourceCreate bool
 }
 
@@ -171,7 +183,8 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 	// block's) target, which is node engine work beyond this unit's
 	// "identity only" scope. Flagged here rather than fixed so the next
 	// unit does not have to rediscover it.
-	if row, ok := identity.LookupType(addr.Resource.Resource.Type); ok {
+	row, hasRow := identity.LookupType(addr.Resource.Resource.Type)
+	if hasRow {
 		if importID, values, cok := identity.ComponentsFromValue(row, config); cok {
 			w := wanted{addr: addr, values: values}
 			if !row.IdentityObjectOnly {
@@ -183,19 +196,38 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 		}
 	}
 
-	// Nothing found. Ruling 4 (#365): a no-source instance - no record, no
-	// marker, nothing this run can derive - refuses by default, because
-	// nothing here can tell "genuinely new" apart from "real, and this run
-	// simply cannot see it yet," and creating a duplicate of a real object
-	// is the one failure HANDOFF's safety rule names as worse than a
-	// refusal. The toggle selects stock's own behavior (plan a create)
-	// instead.
+	// Nothing found. Ruling 4 (#365) governs exactly ONE shape of absence,
+	// and it is not "nothing found" in general: a CONFIG-IDENTIFIED type -
+	// one with a table row that is neither ServerAssigned nor RecordBacked,
+	// so its identity is ordinarily derivable from configuration - whose
+	// derivation nonetheless failed for this instance. That, and only
+	// that, is the ambiguity the ruling is about: this run cannot tell
+	// "genuinely new" apart from "real, and this run simply cannot derive
+	// its identity yet," and creating a duplicate of a real object is the
+	// one failure HANDOFF's safety rule names as worse than a refusal.
+	//
+	// Every other type reaching here - server-assigned (an EC2 instance, a
+	// VPC: minted at create time, with no configuration argument to have
+	// derived from in the first place), record-backed, or simply absent
+	// from the table altogether - has no such source to be missing, and a
+	// brand-new instance of one is the ORDINARY case, not an ambiguous
+	// one: found=false with no diagnostic here, so managedResourceExecute
+	// falls through to stock's own create behavior exactly as it does
+	// without this seam. Getting this wrong once, by refusing every
+	// greenfield instance in an estate that has never had ANY source, is
+	// what a real gauntlet run of reference-ec2-vpc under this flag
+	// caught - see this file's own tests, which now pin the boundary by
+	// address.
+	sourceExpected := hasRow && !row.ServerAssigned && !row.RecordBacked
+	if !sourceExpected {
+		return providers.ImportTarget{}, false, diags
+	}
 	if n.NoSourceCreate {
 		return providers.ImportTarget{}, false, diags
 	}
 	diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "No source for this instance's identity", fmt.Sprintf(
-		"%s has no record in the estate's record store, no live marker, and an identity this run cannot derive from its own evaluated configuration. Run \"choudoufu live-import\" from the stock state that already holds it, or set strict { no_source_create = \"create\" } to plan a create instead.",
-		addr,
+		"%s has no record in the estate's record store, no live marker, and an identity this run cannot derive from its own evaluated configuration, even though %s's identity is ordinarily computable from configuration. Run \"choudoufu live-import\" from the stock state that already holds it, or set strict { no_source_create = \"create\" } to plan a create instead.",
+		addr, addr.Resource.Resource.Type,
 	)))
 	return providers.ImportTarget{}, false, diags
 }
