@@ -253,21 +253,12 @@ func assertEveryExportedFieldNonZero(t *testing.T, v reflect.Value, what string)
 // them from live/logical-schemas.json and nothing about one is ratified - so
 // the expected key set is computed by that same rule rather than asserted as a
 // number.
-//
-// Ruling 2's own exception (#387): [schemaFirstDrop]'s dropped half is
-// ratified and stays ratified - this unit keeps the ledger intact and drops
-// only from the EMITTED table (schemafirst.go's own doc comment) - so a
-// stored row naming one of those types is expected to be absent from
-// DefaultTable, not a round-trip failure.
 func TestRatifiedRoundTripsEveryCommittedRow(t *testing.T) {
 	stored := loadRatifiedForTest(t)
 	want := ratifiedRowsOf(identity.DefaultTable)
-	_, dropped := schemaFirstDrop(stored, loadImportGrammarForTest(t), loadGoldenExercisedForTest(t))
-	droppedSet := setOf(dropped)
 
-	if got, wantLen := len(stored), len(want)+len(dropped); got != wantLen {
-		t.Errorf("%s holds %d rows, want %d (the non-RecordBacked half of DefaultTable, %d, plus the %d schema-first-dropped rows it still ratifies)",
-			ratifiedJSONRel, got, wantLen, len(want), len(dropped))
+	if len(stored) != len(want) {
+		t.Errorf("%s holds %d rows, the non-RecordBacked half of DefaultTable has %d", ratifiedJSONRel, len(stored), len(want))
 	}
 	for _, tf := range sortedRatifiedKeys(want) {
 		got, ok := stored[tf]
@@ -280,8 +271,8 @@ func TestRatifiedRoundTripsEveryCommittedRow(t *testing.T) {
 		}
 	}
 	for _, tf := range sortedRatifiedKeys(stored) {
-		if _, ok := want[tf]; !ok && !droppedSet[tf] {
-			t.Errorf("%s: in %s and not in DefaultTable's non-RecordBacked half (and not a schema-first drop)", tf, ratifiedJSONRel)
+		if _, ok := want[tf]; !ok {
+			t.Errorf("%s: in %s and not in DefaultTable's non-RecordBacked half", tf, ratifiedJSONRel)
 		}
 	}
 }
@@ -317,9 +308,8 @@ func TestEmitDoesNotReadTheTableItWrites(t *testing.T) {
 	survey := loadSurveyForTest(t)
 	logical := loadLogicalSchemasForTest(t)
 	schemaFacts := loadSchemaFactsForTest(t)
-	goldenExercised := loadGoldenExercisedForTest(t)
 
-	before, _, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts, goldenExercised)
+	before, _, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		t.Fatalf("buildEmitFiles over the committed tree: %v", err)
 	}
@@ -328,7 +318,7 @@ func TestEmitDoesNotReadTheTableItWrites(t *testing.T) {
 	identity.DefaultTable = map[string]identity.TypeIdentity{}
 	defer func() { identity.DefaultTable = saved }()
 
-	after, part, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts, goldenExercised)
+	after, part, _, err := buildEmitFiles(ratified, proposals, annotations, grammar, survey, logical, schemaFacts)
 	if err != nil {
 		t.Fatalf("buildEmitFiles over an EMPTIED identity.DefaultTable: %v\n"+
 			"-emit still depends on the table it writes; the corpus is supposed to be %s", err, ratifiedJSONRel)
@@ -377,11 +367,9 @@ func TestRatifiedRendersTheCommittedIdentityTable(t *testing.T) {
 	proposals := loadAllForTest(t)
 	uniqueName := uniqueNameRows(ratified, survey, proposals, grammar)
 	contentMatch := contentMatchSet(contentMatchRoster(proposals, grammar, loadSchemaFactsForTest(t)))
-	vetoed := markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch)
-	_, schemaReproducedDropped := schemaFirstDrop(ratified, grammar, loadGoldenExercisedForTest(t))
-	excluded := setOf(append(append([]string(nil), vetoed...), schemaReproducedDropped...))
+	vetoed := setOf(markerlessRoster(ratified, survey, proposals, grammar, uniqueName, contentMatch))
 
-	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, excluded)
+	rows, types := emittedRows(ratified, recordBacked, secretMaterial, uniqueName, grammar, survey, vetoed)
 	src, err := renderIdentityFile(types, rows)
 	if err != nil {
 		t.Fatalf("renderIdentityFile: %v", err)

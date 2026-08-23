@@ -1,21 +1,21 @@
 {
   "generated_by": "tools/row-gen -convergence (go run ./tools/row-gen -convergence)",
   "summary": {
-    "admitted_total": 1027,
-    "compared": 1001,
+    "admitted_total": 1049,
+    "compared": 1023,
     "not_in_mapped_set": 26,
-    "adopted_unchanged": 855,
-    "adopted_unchanged_pct": 85.41,
-    "genuine_mismatches": 146,
-    "annotated": 146,
+    "adopted_unchanged": 876,
+    "adopted_unchanged_pct": 85.63,
+    "genuine_mismatches": 147,
+    "annotated": 147,
     "unannotated_mismatches": 0,
     "scrape_gap_mismatches": 29
   },
   "by_service": {
     "(no CFN model)": {
-      "compared": 65,
-      "adopted_unchanged": 56,
-      "adopted_unchanged_pct": 86.15
+      "compared": 72,
+      "adopted_unchanged": 63,
+      "adopted_unchanged_pct": 87.5
     },
     "ACMPCA": {
       "compared": 2,
@@ -33,8 +33,8 @@
       "adopted_unchanged_pct": 100
     },
     "ARCZonalShift": {
-      "compared": 1,
-      "adopted_unchanged": 1,
+      "compared": 2,
+      "adopted_unchanged": 2,
       "adopted_unchanged_pct": 100
     },
     "AccessAnalyzer": {
@@ -108,9 +108,9 @@
       "adopted_unchanged_pct": 100
     },
     "AutoScaling": {
-      "compared": 5,
-      "adopted_unchanged": 4,
-      "adopted_unchanged_pct": 80
+      "compared": 6,
+      "adopted_unchanged": 5,
+      "adopted_unchanged_pct": 83.33
     },
     "BCMDataExports": {
       "compared": 1,
@@ -323,8 +323,8 @@
       "adopted_unchanged_pct": 100
     },
     "DynamoDB": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 5,
+      "adopted_unchanged": 5,
       "adopted_unchanged_pct": 100
     },
     "EC2": {
@@ -378,9 +378,9 @@
       "adopted_unchanged_pct": 50
     },
     "ElasticLoadBalancing": {
-      "compared": 1,
-      "adopted_unchanged": 0,
-      "adopted_unchanged_pct": 0
+      "compared": 2,
+      "adopted_unchanged": 1,
+      "adopted_unchanged_pct": 50
     },
     "ElasticLoadBalancingV2": {
       "compared": 14,
@@ -433,9 +433,9 @@
       "adopted_unchanged_pct": 100
     },
     "Glue": {
-      "compared": 17,
-      "adopted_unchanged": 12,
-      "adopted_unchanged_pct": 70.59
+      "compared": 18,
+      "adopted_unchanged": 13,
+      "adopted_unchanged_pct": 72.22
     },
     "Grafana": {
       "compared": 2,
@@ -508,8 +508,8 @@
       "adopted_unchanged_pct": 33.33
     },
     "Kinesis": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "KinesisAnalytics": {
@@ -773,9 +773,9 @@
       "adopted_unchanged_pct": 85.71
     },
     "S3": {
-      "compared": 15,
-      "adopted_unchanged": 12,
-      "adopted_unchanged_pct": 80
+      "compared": 16,
+      "adopted_unchanged": 13,
+      "adopted_unchanged_pct": 81.25
     },
     "S3Express": {
       "compared": 1,
@@ -783,8 +783,8 @@
       "adopted_unchanged_pct": 100
     },
     "S3Files": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "S3ObjectLambda": {
@@ -803,8 +803,8 @@
       "adopted_unchanged_pct": 100
     },
     "S3Vectors": {
-      "compared": 2,
-      "adopted_unchanged": 2,
+      "compared": 3,
+      "adopted_unchanged": 3,
       "adopted_unchanged_pct": 100
     },
     "SES": {
@@ -813,8 +813,8 @@
       "adopted_unchanged_pct": 100
     },
     "SMSVOICE": {
-      "compared": 4,
-      "adopted_unchanged": 4,
+      "compared": 7,
+      "adopted_unchanged": 7,
       "adopted_unchanged_pct": 100
     },
     "SNS": {
@@ -828,9 +828,9 @@
       "adopted_unchanged_pct": 50
     },
     "SSM": {
-      "compared": 7,
+      "compared": 8,
       "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 100
+      "adopted_unchanged_pct": 87.5
     },
     "SSMContacts": {
       "compared": 2,
@@ -848,9 +848,9 @@
       "adopted_unchanged_pct": 100
     },
     "SSO": {
-      "compared": 8,
-      "adopted_unchanged": 7,
-      "adopted_unchanged_pct": 87.5
+      "compared": 10,
+      "adopted_unchanged": 9,
+      "adopted_unchanged_pct": 90
     },
     "SageMaker": {
       "compared": 27,
@@ -969,33 +969,8 @@
     }
   },
   "schema_reproduces": {
-    "count": 22,
-    "types": [
-      "aws_arczonalshift_zonal_autoshift_configuration",
-      "aws_autoscaling_lifecycle_hook",
-      "aws_cloudfrontkeyvaluestore_key",
-      "aws_cloudwatch_contributor_managed_insight_rule",
-      "aws_datazone_asset_type",
-      "aws_dynamodb_global_secondary_index",
-      "aws_elb",
-      "aws_glue_catalog",
-      "aws_kinesis_resource_policy",
-      "aws_lambda_function_scaling_config",
-      "aws_pinpointsmsvoicev2_event_destination",
-      "aws_pinpointsmsvoicev2_resource_policy",
-      "aws_pinpointsmsvoicev2_sender_id",
-      "aws_s3control_multi_region_access_point",
-      "aws_s3files_file_system_policy",
-      "aws_s3vectors_vector_bucket_policy",
-      "aws_sagemaker_hub_content_reference",
-      "aws_ssm_maintenance_window_target",
-      "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
-      "aws_ssoadmin_managed_policy_attachments_exclusive",
-      "aws_ssoadmin_region",
-      "aws_workmail_domain"
-    ],
-    "candidate_count": 134,
-    "held_by_golden": [
+    "has_identity_schema": 161,
+    "reproduced": [
       "aws_acmpca_policy",
       "aws_api_gateway_integration",
       "aws_api_gateway_integration_response",
@@ -1005,15 +980,19 @@
       "aws_appautoscaling_target",
       "aws_appflow_connector_profile",
       "aws_appflow_flow",
+      "aws_arczonalshift_zonal_autoshift_configuration",
       "aws_autoscaling_group",
+      "aws_autoscaling_lifecycle_hook",
       "aws_autoscaling_policy",
       "aws_autoscaling_schedule",
       "aws_backup_vault",
       "aws_bedrockagentcore_resource_policy",
       "aws_cloudfront_key_value_store",
+      "aws_cloudfrontkeyvaluestore_key",
       "aws_cloudwatch_alarm_mute_rule",
       "aws_cloudwatch_composite_alarm",
       "aws_cloudwatch_contributor_insight_rule",
+      "aws_cloudwatch_contributor_managed_insight_rule",
       "aws_cloudwatch_dashboard",
       "aws_cloudwatch_event_api_destination",
       "aws_cloudwatch_event_archive",
@@ -1039,8 +1018,10 @@
       "aws_config_conformance_pack",
       "aws_config_organization_conformance_pack",
       "aws_config_remediation_configuration",
+      "aws_datazone_asset_type",
       "aws_datazone_environment_blueprint_configuration",
       "aws_db_subnet_group",
+      "aws_dynamodb_global_secondary_index",
       "aws_dynamodb_resource_policy",
       "aws_dynamodb_table",
       "aws_ecr_lifecycle_policy",
@@ -1054,6 +1035,8 @@
       "aws_eks_cluster",
       "aws_eks_fargate_profile",
       "aws_eks_node_group",
+      "aws_elb",
+      "aws_glue_catalog",
       "aws_glue_job",
       "aws_iam_group_policy_attachment",
       "aws_iam_instance_profile",
@@ -1062,21 +1045,29 @@
       "aws_iam_role_policy_attachment",
       "aws_iam_user",
       "aws_iam_user_policy_attachment",
+      "aws_kinesis_resource_policy",
       "aws_kinesis_stream",
       "aws_kms_alias",
       "aws_lambda_capacity_provider",
       "aws_lambda_function",
+      "aws_lambda_function_scaling_config",
+      "aws_launch_configuration",
       "aws_msk_topic",
       "aws_network_acl_rule",
       "aws_networkmanager_prefix_list_association",
       "aws_opensearchserverless_access_policy",
       "aws_opensearchserverless_lifecycle_policy",
       "aws_opensearchserverless_security_policy",
+      "aws_organizations_policy_attachment",
+      "aws_pinpointsmsvoicev2_event_destination",
+      "aws_pinpointsmsvoicev2_resource_policy",
+      "aws_pinpointsmsvoicev2_sender_id",
       "aws_prometheus_scraper_logging_configuration",
       "aws_rds_cluster",
       "aws_rekognition_collection",
       "aws_rekognition_project",
       "aws_rekognition_stream_processor",
+      "aws_route53_vpc_association_authorization",
       "aws_s3_bucket",
       "aws_s3_bucket_lifecycle_configuration",
       "aws_s3_bucket_policy",
@@ -1084,8 +1075,14 @@
       "aws_s3_bucket_server_side_encryption_configuration",
       "aws_s3_bucket_versioning",
       "aws_s3_directory_bucket",
+      "aws_s3control_multi_region_access_point",
+      "aws_s3files_file_system_policy",
+      "aws_s3tables_table_bucket_policy",
+      "aws_s3vectors_vector_bucket_policy",
       "aws_sagemaker_algorithm",
       "aws_sagemaker_endpoint_configuration",
+      "aws_sagemaker_hub_content_reference",
+      "aws_scheduler_schedule",
       "aws_secretsmanager_secret_policy",
       "aws_secretsmanager_secret_rotation",
       "aws_securityhub_configuration_policy_association",
@@ -1094,23 +1091,133 @@
       "aws_securityhub_standards_control_association",
       "aws_sns_topic_policy",
       "aws_sqs_queue_policy",
+      "aws_ssm_maintenance_window_target",
       "aws_ssm_parameter",
       "aws_ssm_patch_group",
       "aws_ssoadmin_account_assignment",
+      "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+      "aws_ssoadmin_managed_policy_attachments_exclusive",
+      "aws_ssoadmin_region",
       "aws_volume_attachment",
       "aws_vpc_endpoint_route_table_association",
+      "aws_vpc_security_group_vpc_association",
       "aws_wafv2_web_acl_rule",
+      "aws_workmail_domain",
       "aws_xray_resource_policy",
       "aws_xray_sampling_rule"
     ],
-    "held_by_corpus": [
-      "aws_launch_configuration",
-      "aws_organizations_policy_attachment",
-      "aws_route53_vpc_association_authorization",
-      "aws_s3tables_table_bucket_policy",
-      "aws_scheduler_schedule",
-      "aws_vpc_security_group_vpc_association"
-    ]
+    "reproduced_count": 134,
+    "not_reproduced": [
+      {
+        "type": "aws_alb_target_group_attachment",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_cloudfront_realtime_log_config",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_cloudwatch_event_rule",
+        "class": "other"
+      },
+      {
+        "type": "aws_codeartifact_domain",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_domain_permissions_policy",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_repository",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codeartifact_repository_permissions_policy",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codebuild_fleet",
+        "class": "other"
+      },
+      {
+        "type": "aws_codebuild_project",
+        "class": "other"
+      },
+      {
+        "type": "aws_codebuild_report_group",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_codepipeline_webhook",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_comprehend_entity_recognizer",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_ecs_capacity_provider",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_glue_registry",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_kinesis_firehose_delivery_stream",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_lambda_permission",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_lb_target_group_attachment",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_organizations_delegated_administrator",
+        "class": "other"
+      },
+      {
+        "type": "aws_route",
+        "class": "any-of"
+      },
+      {
+        "type": "aws_route53_record",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_route53_zone_association",
+        "class": "optional-trailing"
+      },
+      {
+        "type": "aws_route_table_association",
+        "class": "any-of"
+      },
+      {
+        "type": "aws_s3_account_public_access_block",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_sagemaker_user_profile",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_securityhub_member",
+        "class": "other"
+      },
+      {
+        "type": "aws_sns_topic",
+        "class": "arn-shaped"
+      },
+      {
+        "type": "aws_sqs_queue",
+        "class": "arn-shaped"
+      }
+    ],
+    "not_reproduced_count": 27
   },
   "types": [
     {
@@ -1890,6 +1997,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_arczonalshift_zonal_autoshift_configuration",
+      "service": "ARCZonalShift",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_athena_data_catalog",
       "service": "Athena",
       "proposed_bucket": "client-named",
@@ -1955,6 +2073,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_autoscaling_lifecycle_hook",
+      "service": "AutoScaling",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -2650,6 +2776,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_cloudfrontkeyvaluestore_key",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_cloudtrail",
       "service": "CloudTrail",
       "proposed_bucket": "client-named",
@@ -2707,6 +2841,14 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_cloudwatch_contributor_managed_insight_rule",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -3862,6 +4004,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_datazone_asset_type",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_datazone_domain",
       "service": "DataZone",
       "proposed_bucket": "server-assigned",
@@ -4365,6 +4515,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "Both sides agree the row is server-assigned; the only disagreement is that row-gen derives an identity-attribute claim and the ratified entry deliberately claims none. table.go documents the empty list as the honest answer when no attribute is a verified identity source, and the ratifiers took it: references to this type's attributes refuse rather than guess. Row-gen's fault here is claiming too much, not knowing too little."
+    },
+    {
+      "tf_type": "aws_dynamodb_global_secondary_index",
+      "service": "DynamoDB",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_dynamodb_global_table",
@@ -5307,6 +5465,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_elb",
+      "service": "ElasticLoadBalancing",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_emr_cluster",
       "service": "EMR",
       "proposed_bucket": "server-assigned",
@@ -5597,6 +5766,17 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_glue_catalog",
+      "service": "Glue",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, single argument, arity confirmed against the example string",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
       "matched": true,
       "annotated": false
@@ -6705,6 +6885,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_kinesis_resource_policy",
+      "service": "Kinesis",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_kinesis_stream",
       "service": "Kinesis",
       "proposed_bucket": "client-named",
@@ -6873,6 +7064,14 @@
       "matched": false,
       "annotated": true,
       "annotation_reason": "tryOpaqueOverride promotes to server-assigned for the same shape as aws_cognito_risk_configuration and aws_detective_member: the scrape's import_id_example is the page's first documented form ('ARN without qualifier'), a single string that does not split against the registry's two-part primaryIdentifier ['FunctionName','Qualifier'] because the function ARN itself contains colons. The same page documents a second, qualifier-bearing form ('arn:...:function:example:production') and a third, bare-name form ('example:production'), both of which ARE the composite the registry names; the scrape simply did not keep them as the pinned example. function_name is the Required top-level argument and the ARN-or-name value the doc's first form shows is exactly what function_name itself accepts, so the two forms are the same argument at two levels of qualification, not two different identities. The registry's primaryIdentifier carries no read-only property, and the doc names no server-provided segment anywhere on the page (issue #274's markerless-veto two-source exception). The ratified row is function_name + ':' + qualifier, the doc's own second form."
+    },
+    {
+      "tf_type": "aws_lambda_function_scaling_config",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
     },
     {
       "tf_type": "aws_lambda_layer_version_permission",
@@ -8456,6 +8655,14 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_pinpointsmsvoicev2_event_destination",
+      "service": "SMSVOICE",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_pinpointsmsvoicev2_opt_out_list",
       "service": "SMSVOICE",
       "proposed_bucket": "client-named",
@@ -8482,6 +8689,25 @@
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_resource_policy",
+      "service": "SMSVOICE",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_pinpointsmsvoicev2_sender_id",
+      "service": "SMSVOICE",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -9718,6 +9944,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_s3control_multi_region_access_point",
+      "service": "S3",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_s3control_object_lambda_access_point",
       "service": "S3ObjectLambda",
       "proposed_bucket": "composite",
@@ -9762,6 +9999,17 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_s3files_file_system_policy",
+      "service": "S3Files",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_s3tables_table_bucket",
       "service": "S3Tables",
       "proposed_bucket": "server-assigned",
@@ -9799,6 +10047,17 @@
       "service": "S3Vectors",
       "proposed_bucket": "server-assigned",
       "proposed_rule": "primaryIdentifier ⊆ readOnlyProperties",
+      "cosmetic_notes": [
+        "identity-attrs-not-proposed (issue #44 non-goal)"
+      ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_s3vectors_vector_bucket_policy",
+      "service": "S3Vectors",
+      "proposed_bucket": "client-named",
+      "proposed_rule": "len(primaryIdentifier)==1, in createOnlyProperties, not in readOnlyProperties",
       "cosmetic_notes": [
         "identity-attrs-not-proposed (issue #44 non-goal)"
       ],
@@ -9927,6 +10186,14 @@
         "identity-attrs-not-proposed (issue #44 non-goal)",
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_sagemaker_hub_content_reference",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -10878,6 +11145,21 @@
       "annotated": false
     },
     {
+      "tf_type": "aws_ssm_maintenance_window_target",
+      "service": "SSM",
+      "proposed_bucket": "needs-hand-separator",
+      "proposed_rule": "len(primaryIdentifier) \u003e 1 (composite; the separator is in no schema)",
+      "mismatch_classes": [
+        "components"
+      ],
+      "cosmetic_notes": [
+        "import-syntax-wording"
+      ],
+      "matched": false,
+      "annotated": true,
+      "annotation_reason": "registry primary_identifier=[WindowId, WindowTargetId] is composite; WindowTargetId is read-only (server-assigned) and WindowId is a real, Required argument - the same mixed-composite shape as the Kendra rows above, but here the provider's own formal v1.12 Identity Schema independently confirms it (Required: window_id, id). The ratified row is window_id then id (server-assigned, ServerAssignedIfAbsent), slash-joined."
+    },
+    {
       "tf_type": "aws_ssm_parameter",
       "service": "SSM",
       "proposed_bucket": "client-named",
@@ -11027,6 +11309,14 @@
       "annotation_reason": "The documented import ID joins a full application ARN with a principal id and a principal-type enum on commas. The same issue #132 commit that fixed aws_controltower_control stopped rule 6 claiming this as one opaque ARN; the proposal now claims nothing. The ARN segment's own separators and the bare enum value (USER) both defeat fail-closed attribution, so the ratified three-argument pairing is the ratifiers' reading of the page."
     },
     {
+      "tf_type": "aws_ssoadmin_customer_managed_policy_attachments_exclusive",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
       "tf_type": "aws_ssoadmin_instance_access_control_attributes",
       "service": "SSO",
       "proposed_bucket": "client-named",
@@ -11043,6 +11333,14 @@
       "service": "SSO",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_managed_policy_attachments_exclusive",
+      "service": "SSO",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
       "matched": true,
       "annotated": false
     },
@@ -11070,6 +11368,14 @@
       "service": "SSO",
       "proposed_bucket": "composite",
       "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, arity confirmed against the example string",
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_ssoadmin_region",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },
@@ -12003,6 +12309,14 @@
       "cosmetic_notes": [
         "import-syntax-wording"
       ],
+      "matched": true,
+      "annotated": false
+    },
+    {
+      "tf_type": "aws_workmail_domain",
+      "service": "(no CFN model)",
+      "proposed_bucket": "composite",
+      "proposed_rule": "import-grammar precedence: composed_of_arguments, multi-argument, order stated by the doc itself (arguments_in_doc_order: a format token, a separated-by clause or enumeration naming every argument, or an identity-block example whose values reproduce the documented ID)",
       "matched": true,
       "annotated": false
     },

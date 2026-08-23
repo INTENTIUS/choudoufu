@@ -106,40 +106,37 @@ type convergenceArtifact struct {
 	ByService   map[string]serviceSummary `json:"by_service"`
 
 	// SchemaReproduces is ruling 2 of rfc/20260823-foundation-order-ruling.md
-	// (#387): the config-identified ratified rows this run's own
-	// schemaFirstReproduced (schemafirst.go) found the provider's identity
-	// schema already reproduces, and so are held out of Types/Summary
-	// entirely - [buildConvergence] never sees them, the same way a
-	// RecordBacked or veto-excluded type never reaches it. Recorded here
-	// rather than only in the shrunk admitted_total, so the drop is an
-	// artifact fact and not a sentence in a PR description: the count is
-	// len(Types), always, and TestConvergenceArtifactMatchesCommitted holds
-	// the whole struct - this field included - to a fresh regeneration.
+	// (#387): issue #387's own measurement, over every config-identified
+	// ratified row the provider also serves an identity schema for - does
+	// [identity.SynthesizeTypeIdentity] say the same thing the row does?
+	// This is measurement only: nothing here removes a row from
+	// tools/row-gen/ratified.json or from the emitted table
+	// ([buildConvergence]'s own Types/Summary are computed over the emitted
+	// rows exactly as before and never consult this field). What acts on
+	// the measurement is the runtime precedence inversion in
+	// internal/live/identity/resolve.go's lookupType and
+	// internal/live/lint's admitted() - see schemafirst.go's own doc
+	// comment for why the ledger shrink itself waits for #388.
 	SchemaReproduces schemaReproducesBucket `json:"schema_reproduces"`
 
 	Types []convergenceRow `json:"types"`
 }
 
-// schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape.
-// Count and Types are the rows actually dropped from the emitted table
-// today - [schemaFirstDrop]'s dropped half. CandidateCount, HeldByGolden and
-// HeldByCorpus are the fuller, offline-only measurement: every
-// config-identified row the same-name comparison alone calls reproduced
-// (schemafirst.go), split by which safety net kept it in the table rather
-// than let it disappear from a schema-less instrument's output -
-// internal/live/check's identity golden (goldenexercised.go) or the
-// refusal-probe corpus, held by hand in schemaFirstHeldByCorpus because
-// `.corpus` cannot be a generator input. CandidateCount - Count ==
-// len(HeldByGolden) + len(HeldByCorpus) always; both lists are the visible
-// worklist for whatever later makes dropping them safe (the plan-node seam,
-// #388, or a fresh corpus sweep that clears an entry).
+// schemaReproducesBucket is [convergenceArtifact.SchemaReproduces]'s shape:
+// every config-identified ratified type with a provider identity schema
+// (HasIdentitySchema, live/import-grammar.json's identity_schema_required),
+// partitioned into Reproduced (schemafirst.go's own same-name comparison
+// agrees with the row) and NotReproduced (it does not, labelled by shape -
+// see schemafirst.go's notReproducedClass). ReproducedCount +
+// NotReproducedCount == HasIdentitySchema always.
 type schemaReproducesBucket struct {
-	Count int      `json:"count"`
-	Types []string `json:"types"`
+	HasIdentitySchema int `json:"has_identity_schema"`
 
-	CandidateCount int      `json:"candidate_count"`
-	HeldByGolden   []string `json:"held_by_golden"`
-	HeldByCorpus   []string `json:"held_by_corpus"`
+	Reproduced      []string `json:"reproduced"`
+	ReproducedCount int      `json:"reproduced_count"`
+
+	NotReproduced      []notReproducedEntry `json:"not_reproduced"`
+	NotReproducedCount int                  `json:"not_reproduced_count"`
 }
 
 // buildConvergence runs the comparison over emitted - every row -emit would
