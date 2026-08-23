@@ -925,19 +925,23 @@ no_marker_tag() {
   return 0
 }
 
-# located_import_id <address>: the located record's own rendered identity,
-# read straight off the local record store's files on disk (never off
-# choudoufu's own report of itself) - the located-record counterpart of
-# assert_tag, for HANDOFF.md's same standing bar. locatedPayload
-# (internal/live/projection/located.go) is compact, one-line JSON, so a
-# literal grep on its "address" field finds the one file that names this
-# exact instance, and a plain field extraction reads importID back out of
-# it - no jq dependency needed for two flat string fields.
+# located_import_id <address>: the record-backed instance's own rendered
+# identity, read straight off the local record store's files on disk
+# (never off choudoufu's own report of itself) - the record-store
+# counterpart of assert_tag, for HANDOFF.md's same standing bar.
+# internal/live/projection/record.go lays the store out as
+# .tofu-records/tofu-records/<estate>/<type>/<base64-of-address> since
+# GitHub issue #364 unit A1 collapsed the old separate tofu-located store
+# into one per-instance envelope; each file is compact, one-line JSON with
+# top-level "address" and a nested identity.import_id, so a literal grep on
+# "address" finds the one file naming this exact instance, and a plain
+# field extraction reads import_id back out of it - no jq dependency
+# needed for two flat string fields.
 located_import_id() {
   local want_addr="$1" f
-  f="$(grep -rlF "\"address\":\"${want_addr}\"" "$ESTATE/.tofu-records/tofu-located" 2>/dev/null | head -1)"
-  [ -n "$f" ] || { echo "  no located record file names address '$want_addr'"; return 1; }
-  grep -o '"importID":"[^"]*"' "$f" | head -1 | cut -d'"' -f4
+  f="$(grep -rlF "\"address\":\"${want_addr}\"" "$ESTATE/.tofu-records/tofu-records" 2>/dev/null | head -1)"
+  [ -n "$f" ] || { echo "  no record file names address '$want_addr'"; return 1; }
+  grep -o '"import_id":"[^"]*"' "$f" | head -1 | cut -d'"' -f4
 }
 
 assert_tag "$VPC_ID" "the crossing VPC" "$ESTATE_NAME" || fail "the crossing VPC's markers are wrong"
@@ -1079,12 +1083,19 @@ log "  identities by value: aws_vpc.crossing (tag) and"
 log "  module.server.module.server.module.host.aws_instance.instance[0] (located record, importID=$GOT_INSTANCE_IMPORT_ID_REPLAN)"
 
 # --- 3c: item 4's fix, confirmed at the store rather than only in the
-# plan's prose.
-[ -d "$ESTATE/.tofu-records/tofu-residue" ] || fail "live-import wrote no tofu-residue namespace, so this estate's record store is not what stage 2 reported"
-[ -d "$ESTATE/.tofu-records/tofu-located" ] \
-  || fail "no tofu-located namespace exists - live-import no longer honours markers=record; this script's header, item 4, has regressed"
-log "  confirmed at the store: .tofu-records/tofu-residue AND .tofu-records/tofu-located both exist -"
-log "  live-import now honours markers = record at migrate time (item 4, FIXED)."
+# plan's prose. GitHub issue #364 unit A1 collapsed the once-separate
+# tofu-residue and tofu-located namespaces into one per-instance envelope
+# under tofu-records/tofu-records, so item 4 (identity) and item 5
+# (residue) now live in the SAME file rather than in two directories -
+# confirm both halves of that one file rather than two directories that no
+# longer exist.
+[ -d "$ESTATE/.tofu-records/tofu-records" ] || fail "live-import wrote no tofu-records namespace, so this estate's record store is not what stage 2 reported"
+RECORD_FILE_INSTANCE="$(grep -rlF "\"address\":\"${INSTANCE_ADDR_FULL}\"" "$ESTATE/.tofu-records/tofu-records" 2>/dev/null | head -1)"
+[ -n "$RECORD_FILE_INSTANCE" ] || fail "no record file names module.server's instance - live-import no longer honours markers=record; this script's header, item 4, has regressed"
+grep -qF '"residue":{' "$RECORD_FILE_INSTANCE" \
+  || fail "module.server's instance record carries an identity but no residue - item 5 has regressed"
+log "  confirmed at the store: module.server's instance record carries BOTH its identity AND residue, unified -"
+log "  live-import now honours markers = record at migrate time (items 4 and 5, FIXED)."
 
 # --- 3d: items 4, 5 AND 6 are all fixed now (this script's header) - the
 # plan is genuinely EMPTY, the strongest form of "no diff": not "the
