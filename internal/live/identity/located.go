@@ -6,11 +6,14 @@
 package identity
 
 import (
+	"fmt"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -162,12 +165,23 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 // about). This route's promise is narrower: it records
 // locatedImportIDAttr or plan's own components, nothing else, so the
 // only sensitive material it can leak is a secret that IS one of those
-// attributes. Measured 2026-08-22 (issue #365 population 2): of the
-// types [credentialMaterial] excludes, nine of eleven carry their secret
-// on an attribute the plan never reads, and refusing them bought nothing
-// - the record it would have written never touched the secret either
-// way. [sensitiveIdentityAttr] is that narrower question, already
-// written for the operator-selected "markers record" route.
+// attributes. Measured 2026-08-22 (issue #365 population 2, commit
+// 361e0da9ab): of the types [credentialMaterial] excludes, nine of eleven
+// carry their secret on an attribute the plan never reads, and refusing
+// them here bought nothing - the record it would have written never
+// touched the secret either way. [sensitiveIdentityAttr] is that
+// narrower question, already written for the operator-selected "markers
+// record" route.
+//
+// It does NOT also refuse on [strictSecretsLocatedExclusion]. That was
+// this function's job before the maintainer's 2026-08-23 ruling
+// (rfc/20260823-foundation-order-ruling.md, ruling 5): an unconditional
+// veto, baked into the schema question itself, so a caller with no way to
+// express the operator's `strict { secrets }` setting still refused the
+// two named types. Schema admission and the operator's policy are
+// different questions - this function answers only the first now - and
+// [LocatedStrictSecretsRefusal] is where the second is asked, by the
+// three callers that need to ask it.
 func recordableIdentitySchema(resourceType string, schema providers.Schema) bool {
 	if schema.Block == nil {
 		return false
@@ -177,9 +191,6 @@ func recordableIdentitySchema(resourceType string, schema providers.Schema) bool
 		return false
 	}
 	if sensitiveIdentityAttr(plan, schema) != "" {
-		return false
-	}
-	if sanctionedCredentialExclusion[resourceType] {
 		return false
 	}
 	return true
@@ -256,23 +267,84 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 	return recordableIdentitySchema(resourceType, schema)
 }
 
-// sanctionedCredentialExclusion is the maintainer's 2026-08-15 parity ruling
-// (live/HARNESS.md's "credential-exclusions-are-exactly-four" ratchet,
-// internal/live/harness/assumptions.go's sanctionedCredentialExclusions),
-// applied here too. That ratchet's own enforcement only reads
-// tools/row-gen/rejected.json and [DefaultTable] - the ordinary tag-admission
-// path - because the located route did not exist when it was written; its
-// prose is broader ("none of them is admitted"), and honoring that literally
-// is what this list is for. Two of the four are markerless and therefore
-// reachable here at all: aws_appstream_directory_config and
-// aws_ivs_playback_key_pair are not in [MarkerlessTypes]. This is a second,
-// narrower hand list rather than an import of the harness one, because that
-// package reads a checked-out repo's working tree and this one must not
-// depend on that. Growing past four is the ratchet's question to answer, not
-// this predicate's.
-var sanctionedCredentialExclusion = map[string]bool{
+// strictSecretsLocatedExclusion is the maintainer's 2026-08-23 ruling
+// (rfc/20260823-foundation-order-ruling.md, ruling 5), which moved
+// aws_iam_access_key and aws_iot_certificate out of the unconditional,
+// pre-compatible-by-default veto this file carried before it (see git
+// history for the retired sanctionedCredentialExclusion, and
+// live/HARNESS.md's now-two-entry "credential-exclusions" ratchet in
+// internal/live/harness/assumptions.go, which used to name these two among
+// four) and onto the same toggle that already governs a RECORD_BACKED
+// type's [TypeIdentity.SecretMaterial]: stored by default, the way stock
+// stores it; refused under `strict { secrets = "refuse" }`.
+//
+// It stays a named list rather than becoming a schema-derived rule keyed on
+// [credentialMaterial]'s whole-schema sweep, and that is a measured
+// decision, not an oversight: issue #365 population 2 (commit 361e0da9ab,
+// 2026-08-22) applied exactly that narrowing as a proposal and refuted it by
+// reading the real hashicorp/aws provider directly, with no tofu in the
+// loop. Nulling a type's sensitive attributes and refreshing shows some of
+// them RESTORED by the provider's own Read - aws_cognito_user_pool_client's
+// client_secret, aws_appsync_api_key's key, aws_appconfig_hosted_configuration_version's
+// content - which is fine to manage under any secrets setting, since the
+// live system is the record; and shows others left null forever -
+// aws_iam_access_key's secret and ses_smtp_password_v4 among them - which a
+// stock state file is the only place that ever held. No schema fact
+// distinguishes the two groups: not Sensitive, not Computed-versus-settable,
+// not top-level-versus-nested. A generic credentialMaterial gate here would
+// therefore also refuse the first group under strict.Refuse, for no reason a
+// schema can state - exactly the narrowing that measurement disproved. This
+// list is the record of which types the maintainer has actually checked
+// against the API; growing it past what ruling 5 names is a ruling to make,
+// not a measurement this predicate can take on its own.
+//
+// aws_iot_certificate is named here because ruling 5 names it, and it is
+// unreachable through this route regardless of the secrets setting: condition
+// 0, [NotImportable], already refuses it (tools/survey-gen's own probe found
+// no classic Importer), which [LocatedType] checks ahead of everything else.
+// Nothing about that changes what this map says - the ruling is honored by
+// name here exactly as [sanctionedCredentialExclusion] honored it before,
+// whether or not the fact happens to be moot for one of the two entries.
+var strictSecretsLocatedExclusion = map[string]bool{
 	"aws_iam_access_key":  true,
 	"aws_iot_certificate": true,
+}
+
+// LocatedStrictSecretsRefusal reports why an operator's `strict { secrets =
+// "refuse" }` setting refuses resourceType's automatic record-located
+// admission even though [LocatedType] says the schema allows it, or "" when
+// nothing is refused - the default setting, or a type
+// [strictSecretsLocatedExclusion] does not name.
+//
+// [TypeIdentity.SecretMaterial]'s own doc comment names three places a
+// RECORD_BACKED type's version of this same toggle has to be asked:
+// internal/live/lint (the gate a configuration meets first),
+// [resolver.classify] (the layer that acts, asked again so a caller that
+// skipped lint still gets a refusal rather than a record it did not agree
+// to), and internal/live/liveimport's ratifyOne (which runs no lint pass and
+// builds no resolver at all). This is the same question for the
+// record-LOCATED route, asked the same three places.
+//
+// Only called where [LocatedType] has already said the schema allows the
+// route; a type LocatedType refuses needs no second reason, and this
+// function does not re-derive that answer.
+func LocatedStrictSecretsRefusal(resourceType string, secrets strict.Secrets) string {
+	if strict.StoresSecrets(secrets) {
+		return ""
+	}
+	if !strictSecretsLocatedExclusion[resourceType] {
+		return ""
+	}
+	return fmt.Sprintf(
+		"%q generates secret material - the access key's own secret half, or the certificate's private key - "+
+			"that AWS never returns again once the object is created. Its identity (the attribute this route "+
+			"records) never carries that secret, but a stock state file is the only place the secret itself has "+
+			"ever existed, and this fork otherwise keeps it there too, as residue in the estate's record store. "+
+			"This estate's live block sets strict { secrets = %q }, HANDOFF.md's \"no secrets stored by the tool\" "+
+			"principle, so the instance is refused rather than admitted through the record-located route. Remove "+
+			"that argument to get the default, %q, which manages it the way stock does.",
+		resourceType, secrets, strict.DefaultSecrets,
+	)
 }
 
 // hasLocatedImportID reports whether b carries a top-level string
