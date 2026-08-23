@@ -157,6 +157,138 @@ func TestApprove_RecordsResidueForForceNewLikeAttribute(t *testing.T) {
 	}
 }
 
+// nestingSetBlockSchema is aws_autoscaling_group's initial_lifecycle_hook
+// shape (GitHub issue #385), reduced to what this migrate-time path needs:
+// one NestingSet block ("hooks") with a Required string member and an
+// Optional+Computed one, alongside "tags" (always answered fresh, the
+// ordinary taggable case) and the identity attribute "id". The point of
+// this fixture living HERE rather than only in internal/live/projection's
+// own residue_test.go is #327's whole reason for recordResidueFor to
+// exist: Approve is a SECOND caller of classifyResidue, reached from a
+// migrated state file's real applied value rather than from an apply's
+// write-back, and a block-shaped candidate has to survive that path too.
+func nestingSetBlockSchema() providers.Schema {
+	return providers.Schema{Block: &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"id":   {Type: cty.String, Computed: true},
+			"tags": {Type: cty.Map(cty.String), Optional: true},
+		},
+		BlockTypes: map[string]*configschema.NestedBlock{
+			"hooks": {
+				Nesting: configschema.NestingSet,
+				Block: configschema.Block{Attributes: map[string]*configschema.Attribute{
+					"transition":     {Type: cty.String, Required: true},
+					"default_result": {Type: cty.String, Optional: true, Computed: true},
+				}},
+			},
+		},
+	}}
+}
+
+func hooksBlockType() cty.Type {
+	return cty.Object(map[string]cty.Type{"transition": cty.String, "default_result": cty.String})
+}
+
+// preserveBlockFromPriorProvider is [preserveFromPriorProvider]'s sibling
+// for the block-shaped candidate: it never reads "hooks" from anywhere -
+// exactly hashicorp/aws's resourceGroupFlatten never sourcing
+// initial_lifecycle_hook from DescribeAutoScalingGroups - and answers tags
+// fresh on every read, so a test can tell "recorded because residue-shaped"
+// apart from "recorded because everything gets recorded".
+func preserveBlockFromPriorProvider() *tofu.MockProvider {
+	p := &tofu.MockProvider{}
+	p.ConfigureProviderCalled = true
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		out := map[string]cty.Value{
+			"id":    cty.StringVal("asg-x"),
+			"tags":  cty.MapValEmpty(cty.String),
+			"hooks": cty.SetValEmpty(hooksBlockType()),
+		}
+		prior := r.PriorState
+		if prior != cty.NilVal && !prior.IsNull() && prior.Type().HasAttribute("hooks") {
+			if hooks := prior.GetAttr("hooks"); !hooks.IsNull() {
+				out["hooks"] = hooks
+			}
+		}
+		return providers.ReadResourceResponse{NewState: cty.ObjectVal(out)}
+	}
+	p.PlanResourceChangeFn = func(r providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+		return providers.PlanResourceChangeResponse{PlannedState: r.ProposedNewState}
+	}
+	p.ApplyResourceChangeFn = func(r providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
+		return providers.ApplyResourceChangeResponse{NewState: r.PlannedState}
+	}
+	return p
+}
+
+// TestApprove_RecordsResidueForANestingSetBlock is GitHub issue #385's own
+// crossing, through Approve's migrate-time write path rather than an
+// apply's write-back: a NestingSet block the provider's Read never sources
+// from the remote at all gets recorded as residue from the migrated state
+// file's own real applied value, the same way TestApprove_RecordsResidueForForceNewLikeAttribute
+// already proves for a flat attribute. Before commit 6452c3baf6 (#365 slice
+// 2) this was excluded outright by residueEligibleBlock's nesting-mode
+// filter; this test pins the CURRENT, block-admitting behavior by value so
+// a regression there is caught here, at the liveimport call site, and not
+// only in internal/live/projection's own unit tests.
+func TestApprove_RecordsResidueForANestingSetBlock(t *testing.T) {
+	addr := mustAddr(t, "aws_autoscaling_group.this")
+	store := residueStore(t)
+	p := preserveBlockFromPriorProvider()
+
+	appliedHooks := cty.SetVal([]cty.Value{
+		cty.ObjectVal(map[string]cty.Value{"transition": cty.StringVal("autoscaling:EC2_INSTANCE_TERMINATING"), "default_result": cty.StringVal("CONTINUE")}),
+		cty.ObjectVal(map[string]cty.Value{"transition": cty.StringVal("autoscaling:EC2_INSTANCE_LAUNCHING"), "default_result": cty.StringVal("")}),
+	})
+
+	rat := &Ratification{
+		Estate: "residue-test-estate",
+		Entries: []Entry{
+			{Addr: addr, TypeName: "aws_autoscaling_group", Status: StatusVerified},
+		},
+		eligible: map[string]*eligible{
+			addr.String(): {residuable{
+				provider: p,
+				schema:   nestingSetBlockSchema(),
+				typeName: "aws_autoscaling_group",
+				applied: cty.ObjectVal(map[string]cty.Value{
+					"id":    cty.StringVal("asg-x"),
+					"tags":  cty.MapValEmpty(cty.String),
+					"hooks": appliedHooks,
+				}),
+				identity: cty.NilVal,
+			}},
+		},
+		recordStore: store,
+	}
+
+	rep, diags := rat.Approve(context.Background())
+	if diags.HasErrors() {
+		t.Fatalf("Approve returned errors: %s", diags.Err())
+	}
+	if len(rep.Outcomes) != 1 || rep.Outcomes[0].Outcome != OutcomeStamped {
+		t.Fatalf("Outcomes = %+v, want one OutcomeStamped", rep.Outcomes)
+	}
+
+	attrs, _, _, exists, err := store.GetResidue(context.Background(), addr)
+	if err != nil {
+		t.Fatalf("store.Get: %s", err)
+	}
+	if !exists {
+		t.Fatalf("no residue was recorded for %s; the FIRST live-plan after this migrate would see an empty hooks set and propose 'must be replaced', exactly issue #385's bug", addr)
+	}
+	got, ok := attrs["hooks"]
+	if !ok {
+		t.Fatalf("residue attrs = %v, want hooks present", attrs)
+	}
+	if !got.RawEquals(appliedHooks) {
+		t.Errorf("residue hooks = %#v, want %#v", got, appliedHooks)
+	}
+	if _, ok := attrs["tags"]; ok {
+		t.Errorf("tags was recorded as residue; the provider always answers it fresh in this fixture, so classifyResidue must not have judged it residue-shaped")
+	}
+}
+
 // TestApprove_SecondRunIsIdempotent is issue #327's other real-world
 // requirement: live-import -approve is documented as idempotent over a
 // second run against the same state (OutcomeAlreadyStamped). Approve's new

@@ -1722,3 +1722,255 @@ func TestResidueLandsUnderTheMergedNamespaceOnRealDisk(t *testing.T) {
 		t.Errorf("GetResidue filename = %#v, want %#v", got, cty.StringVal("check_links.py.zip"))
 	}
 }
+
+// asgLikeSchema is aws_autoscaling_group's own shape for
+// initial_lifecycle_hook, GitHub issue #385's block: NestingSet, seven
+// attributes, one of them ("default_result") Optional AND Computed, the
+// rest plain Required or Optional, none Sensitive or WriteOnly - confirmed
+// against hashicorp/aws 6.59.0's own wire schema (`terraform providers
+// schema -json` against the pinned provider binary, offline, no estate or
+// emulator involved) rather than assumed from the issue's paraphrase.
+//
+// And against the provider's own Go source at the same tag
+// (internal/service/autoscaling/group.go): resourceGroupCreate sends the
+// hook set to a separate PutLifecycleHook call per hook, and
+// resourceGroupFlatten - the WHOLE of this resource's Read - never once
+// calls d.Set("initial_lifecycle_hook", ...). DescribeAutoScalingGroups
+// does not return lifecycle hooks at all; they are a distinct object this
+// resource's Read never queries (DescribeLifecycleHooks). That is exactly
+// the shape [residueEligibleBlock]'s own doc comment already describes for
+// `timeouts`, `root_block_device` and `ephemeral_block_device`: a block
+// declared in configuration that the provider's Read leaves completely
+// untouched, so an untouched ResourceData field carries through whatever
+// its prior held.
+//
+// Named after the real type deliberately, unlike hostLikeSchema's blocks
+// two tests above which the derivation-guard discipline keeps type-name-free
+// in PRODUCTION control flow: this is a test fixture pinning one concrete
+// crossing's regression, and residueEligibleBlock itself still takes no
+// name literal from this file - the two populations stay derived from the
+// schema's shape (Nesting mode, Sensitive, WriteOnly), never from "is this
+// aws_autoscaling_group".
+func asgLikeSchema() providers.Schema {
+	hook := configschema.Block{Attributes: map[string]*configschema.Attribute{
+		"default_result":          {Type: cty.String, Optional: true, Computed: true},
+		"heartbeat_timeout":       {Type: cty.Number, Optional: true},
+		"lifecycle_transition":    {Type: cty.String, Required: true},
+		"name":                    {Type: cty.String, Required: true},
+		"notification_metadata":   {Type: cty.String, Optional: true},
+		"notification_target_arn": {Type: cty.String, Optional: true},
+		"role_arn":                {Type: cty.String, Optional: true},
+	}}
+	return providers.Schema{
+		Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":       {Type: cty.String, Optional: true, Computed: true},
+				"arn":      {Type: cty.String, Computed: true},
+				"name":     {Type: cty.String, Optional: true, Computed: true},
+				"max_size": {Type: cty.Number, Required: true},
+				"min_size": {Type: cty.Number, Required: true},
+			},
+			BlockTypes: map[string]*configschema.NestedBlock{
+				"initial_lifecycle_hook": {Nesting: configschema.NestingSet, Block: hook},
+			},
+		},
+	}
+}
+
+func asgHookType() cty.Type {
+	return cty.Object(map[string]cty.Type{
+		"default_result":          cty.String,
+		"heartbeat_timeout":       cty.Number,
+		"lifecycle_transition":    cty.String,
+		"name":                    cty.String,
+		"notification_metadata":   cty.String,
+		"notification_target_arn": cty.String,
+		"role_arn":                cty.String,
+	})
+}
+
+const asgARN = "arn:aws:autoscaling:us-east-1:123456789012:autoScalingGroup:d15f0293-0d4e-4b8a-8f7a-example:autoScalingGroupName/my-asg"
+
+// asgApplied is the object a real apply produces: two lifecycle hooks, the
+// exact shape #385's own repro quotes (default_result/heartbeat_timeout/
+// lifecycle_transition/name/notification_metadata all set on the first,
+// only lifecycle_transition and name set on the second - default_result
+// left at its Computed zero value, "", the way an un-configured
+// Optional+Computed argument this provider never actually populates a
+// default for reads back after a real apply).
+func asgApplied() cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("my-asg"),
+		"arn":      cty.StringVal(asgARN),
+		"name":     cty.StringVal("my-asg"),
+		"max_size": cty.NumberIntVal(5),
+		"min_size": cty.NumberIntVal(1),
+		"initial_lifecycle_hook": cty.SetVal([]cty.Value{
+			cty.ObjectVal(map[string]cty.Value{
+				"default_result":          cty.StringVal("CONTINUE"),
+				"heartbeat_timeout":       cty.NumberIntVal(180),
+				"lifecycle_transition":    cty.StringVal("autoscaling:EC2_INSTANCE_TERMINATING"),
+				"name":                    cty.StringVal("ExampleTerminationLifeCycleHook"),
+				"notification_metadata":   cty.StringVal(`{"goodbye":"world"}`),
+				"notification_target_arn": cty.StringVal(""),
+				"role_arn":                cty.StringVal(""),
+			}),
+			cty.ObjectVal(map[string]cty.Value{
+				"default_result":          cty.StringVal(""),
+				"heartbeat_timeout":       cty.NumberIntVal(0),
+				"lifecycle_transition":    cty.StringVal("autoscaling:EC2_INSTANCE_LAUNCHING"),
+				"name":                    cty.StringVal("ExampleLaunchLifeCycleHook"),
+				"notification_metadata":   cty.StringVal(""),
+				"notification_target_arn": cty.StringVal(""),
+				"role_arn":                cty.StringVal(""),
+			}),
+		}),
+	})
+}
+
+// asgFlattenRead is hashicorp/aws's own resourceGroupFlatten, reduced to
+// this fixture's five flat attributes plus the one block under test, and
+// with the legacy SDK's own null-collection quirk modeled explicitly:
+// TypeSet has no flatmap encoding for "absent", so a null collection
+// surviving the shim's round trip comes back at length zero rather than as
+// null - [carriesNoInformation]'s own doc comment names the identical
+// quirk for aws_lambda_function.source_code_hash. arn, name, max_size and
+// min_size are the attributes DescribeAutoScalingGroups genuinely answers,
+// so this function overwrites them unconditionally from what it takes to
+// be the live object, exactly as resourceGroupFlatten's d.Set calls do;
+// initial_lifecycle_hook is not one of the names resourceGroupFlatten's
+// own d.Set calls list, so it passes through whatever the prior held.
+func asgFlattenRead(prior cty.Value) (cty.Value, error) {
+	out := map[string]cty.Value{}
+	for name, v := range prior.AsValueMap() {
+		out[name] = v
+	}
+	out["arn"] = cty.StringVal(asgARN)
+	out["name"] = cty.StringVal("my-asg")
+	out["max_size"] = cty.NumberIntVal(5)
+	out["min_size"] = cty.NumberIntVal(1)
+	if hook := out["initial_lifecycle_hook"]; hook.IsNull() {
+		out["initial_lifecycle_hook"] = cty.SetValEmpty(asgHookType())
+	}
+	return cty.ObjectVal(out), nil
+}
+
+// TestResidueCarriesTheAutoscalingLifecycleHookSet is GitHub issue #385's
+// own crossing, reproduced offline against the real schema and the real
+// Read behavior rather than against a live estate: aws_autoscaling_group's
+// initial_lifecycle_hook is a NestingSet block the provider's own Read
+// never sources from the remote at all (confirmed above, at the pinned
+// provider tag, with no tofu and no emulator in the loop), so a stateless
+// prior has nothing to fill it from and a plan built from that prior
+// proposes "+ initial_lifecycle_hook { # forces replacement }" forever.
+//
+// The issue's own text names GitHub issue #275's residueEligibleBlock as
+// "exactly the mechanism for this shape" and then quotes its doc comment
+// EXCLUDING every collection-nested block ("Nested object ATTRIBUTES ...
+// are out of scope, and so is every block whose nesting mode is a list, a
+// set, a map or a group"). That quote predates commit 6452c3baf6 (GitHub
+// issue #365 slice 2, "residue now covers list- and set-nested blocks"),
+// which is already on this branch's ancestry (main, merged before this
+// unit started) and which residueEligibleBlock's CURRENT doc comment
+// reflects: NestingSingle, NestingList, NestingSet and NestingMap are all
+// admitted today, NestingGroup is the sole holdout, and the change note
+// says corpus-sumaform-aws's ephemeral_block_device (NestingSet, exactly
+// initial_lifecycle_hook's own nesting mode) is what forced the widening.
+// So the premise the issue was filed under - "residueEligibleBlock excludes
+// this shape" - is no longer true of the code on this branch, and this
+// test is the value-asserted proof rather than a re-reading of the doc
+// comment: it fails the moment residueEligibleBlock (or classifyResidue,
+// or fillResidue) regresses on THIS EXACT real-world shape, independent of
+// whatever the doc comment currently claims.
+//
+// Asserted by value throughout, per HANDOFF.md's safety rule: an empty
+// record and a record holding the wrong hooks would both leave the
+// candidate list non-empty and a naive "was something recorded" check
+// green, so every assertion below compares against asgApplied's own
+// cty.Value with RawEquals, both on the way in (classifyResidue) and on the
+// way back out (fillResidue) - and the negative claim (arn/name/max_size/
+// min_size must NOT be recorded, because the provider genuinely answers
+// them) is checked with the same rigor as the positive one, since a fix
+// that recorded EVERY attribute unconditionally would pass a check that
+// only looked for the block.
+//
+// Mutation-checked by hand: commenting configschema.NestingSet out of
+// residueEligibleBlock's admitted-modes switch makes this test fail
+// immediately with "initial_lifecycle_hook was not a residue candidate",
+// confirming the assertion is load-bearing and not vacuously true; restored
+// afterward, and `git diff` over residue.go for this commit is empty.
+func TestResidueCarriesTheAutoscalingLifecycleHookSet(t *testing.T) {
+	for _, secrets := range []strict.Secrets{strict.Store, strict.Refuse} {
+		t.Run(string(secrets), func(t *testing.T) {
+			schema := asgLikeSchema()
+			applied := asgApplied()
+
+			candidates := residueCandidates(schema, applied, secrets)
+			want := []string{"arn", "initial_lifecycle_hook", "max_size", "min_size", "name"}
+			if !reflect.DeepEqual(candidates, want) {
+				t.Fatalf("residueCandidates = %v, want %v - initial_lifecycle_hook (NestingSet) should be a structural candidate alongside the ordinary flat ones", candidates, want)
+			}
+
+			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), asgFlattenRead)
+			if !ok {
+				t.Fatal("classifyResidue recorded nothing; initial_lifecycle_hook was not a residue candidate")
+			}
+
+			wantHook := applied.GetAttr("initial_lifecycle_hook")
+			gotHook, held := attrs["initial_lifecycle_hook"]
+			if !held {
+				t.Fatalf("initial_lifecycle_hook was not recorded as residue; recorded %v", attrs)
+			}
+			if !gotHook.RawEquals(wantHook) {
+				t.Fatalf("recorded initial_lifecycle_hook = %#v, want %#v", gotHook, wantHook)
+			}
+
+			// The negative claim: every attribute the provider's Read
+			// genuinely answers (arn, name, max_size, min_size - all
+			// overwritten unconditionally by asgFlattenRead, exactly as
+			// resourceGroupFlatten's own d.Set calls do) must NOT be
+			// recorded, even though residueCandidates lists all four as
+			// structural candidates.
+			for _, managed := range []string{"arn", "name", "max_size", "min_size"} {
+				if v, bad := attrs[managed]; bad {
+					t.Errorf("%s was recorded as residue (%#v), but the provider's own Read answers it - recording it would mask real drift", managed, v)
+				}
+			}
+			if len(attrs) != 1 {
+				t.Fatalf("classifyResidue recorded %d attribute(s) %v, want exactly 1 (initial_lifecycle_hook)", len(attrs), attrs)
+			}
+
+			// The round trip: a cold, state-file-free prior carries no
+			// hooks at all (SetValEmpty - the identical "provider answered
+			// nothing" shape read A itself produces above), and
+			// fillResidue must restore the exact two hooks the apply
+			// produced, not an equivalent pair - RawEquals over the whole
+			// set, order-independent per TestResidueSetOrderDoesNotAffectClassification.
+			cold := cty.ObjectVal(map[string]cty.Value{
+				"id":                     cty.StringVal("my-asg"),
+				"arn":                    cty.StringVal(asgARN),
+				"name":                   cty.StringVal("my-asg"),
+				"max_size":               cty.NumberIntVal(5),
+				"min_size":               cty.NumberIntVal(1),
+				"initial_lifecycle_hook": cty.SetValEmpty(asgHookType()),
+			})
+			filled, n := fillResidue(cold, schema.Block, attrs, secrets)
+			if n != 1 {
+				t.Fatalf("fillResidue filled %d, want 1 (initial_lifecycle_hook)", n)
+			}
+			if !filled.GetAttr("initial_lifecycle_hook").RawEquals(wantHook) {
+				t.Fatalf("filled initial_lifecycle_hook = %#v, want %#v", filled.GetAttr("initial_lifecycle_hook"), wantHook)
+			}
+
+			// A stateless replan's own emptiness check - the shape #385's
+			// repro quotes ("+/- resource ... must be replaced") - is a
+			// mismatch between the filled prior and the planned value. If
+			// fillResidue put the exact applied set back, the prior and a
+			// plan built from unchanged configuration agree on this
+			// attribute and nothing forces a replacement over it.
+			if !filled.GetAttr("initial_lifecycle_hook").RawEquals(applied.GetAttr("initial_lifecycle_hook")) {
+				t.Fatalf("filled prior's initial_lifecycle_hook does not match a plan built from unchanged configuration - this is #385's forced replacement, still reproducing")
+			}
+		})
+	}
+}
