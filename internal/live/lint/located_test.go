@@ -341,3 +341,101 @@ func TestLocatedAdmissionAgreesWithLint(t *testing.T) {
 		}
 	}
 }
+
+// TestLocatedStrictSecretsRefusalNamesExactlyAccessKey is #365 ruling 5's
+// own pattern at the lint layer: with a record_store declared, the toggle
+// refuses exactly aws_iam_access_key under strict { secrets = "refuse" },
+// admits it under the default, and does not reach a different markerless
+// type under either setting.
+func TestLocatedStrictSecretsRefusalNamesExactlyAccessKey(t *testing.T) {
+	schemas := locatableSchemas("aws_iam_access_key")
+
+	fixture := func(t *testing.T, secretsBlock string) *configs.Config {
+		t.Helper()
+		dir := t.TempDir()
+		src := `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }` + secretsBlock + `
+  }
+}
+
+resource "aws_iam_access_key" "this" {
+  user = "example"
+}
+`
+		if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+			t.Fatalf("writing fixture: %s", err)
+		}
+		return loadConfigDir(t, dir)
+	}
+
+	refuseCfg := fixture(t, `
+    strict {
+      secrets = "refuse"
+    }`)
+	var detail string
+	for _, issue := range CheckWith(t.Context(), refuseCfg, Context{Schemas: schemas}) {
+		if issue.Rule == RuleMarkerlessType {
+			detail = issue.Detail
+		}
+	}
+	if detail == "" {
+		t.Fatal("aws_iam_access_key was not refused under strict { secrets = \"refuse\" } with a record_store declared")
+	}
+	if !strings.Contains(detail, `strict { secrets`) {
+		t.Errorf("the refusal does not name the setting:\n%s", detail)
+	}
+
+	storeCfg := fixture(t, "")
+	for _, issue := range CheckWith(t.Context(), storeCfg, Context{Schemas: schemas}) {
+		if issue.Rule == RuleMarkerlessType || issue.Rule == RuleUnadmittedType {
+			t.Errorf("aws_iam_access_key was refused under the default secrets setting: %s\n%s", issue.Rule, issue.Detail)
+		}
+	}
+
+	// Refuses exactly this type: a different markerless type is unaffected
+	// by strict { secrets } at all, under the identical record_store shape.
+	other := aLocatableType(t)
+	if other == "aws_iam_access_key" || other == "aws_iot_certificate" {
+		t.Fatal("aLocatableType picked one of ruling 5's own names; this control needs a different type")
+	}
+	otherSchemas := locatableSchemas(other)
+	otherCfg := locatedFixtureWithStrictSecretsRefuse(t, other)
+	for _, issue := range CheckWith(t.Context(), otherCfg, Context{Schemas: otherSchemas}) {
+		if issue.Rule == RuleMarkerlessType || issue.Rule == RuleUnadmittedType {
+			t.Errorf("%s was refused under strict { secrets = \"refuse\" }, but the toggle must reach only aws_iam_access_key and aws_iot_certificate: %s\n%s", other, issue.Rule, issue.Detail)
+		}
+	}
+}
+
+// locatedFixtureWithStrictSecretsRefuse is [locatedFixture] with a
+// declared record store plus strict { secrets = "refuse" }, for asserting
+// the toggle's boundary against a type outside ruling 5's own two names.
+func locatedFixtureWithStrictSecretsRefuse(t *testing.T, typeName string) *configs.Config {
+	t.Helper()
+	dir := t.TempDir()
+	src := `
+terraform {
+  live {
+    estate = "test-estate"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+    strict {
+      secrets = "refuse"
+    }
+  }
+}
+
+resource "` + typeName + `" "thing" {
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+	return loadConfigDir(t, dir)
+}

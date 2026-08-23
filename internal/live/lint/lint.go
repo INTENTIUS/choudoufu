@@ -529,15 +529,27 @@ func checkManagedResources(ctx context.Context, mod *configs.Module, path addrs.
 				// With a record_store declared the type is admitted and
 				// resolution classifies it identity.ClassRecordLocated;
 				// nothing is raised here, exactly as a RECORD_ADMITTED
-				// type raises nothing above.
-				//
-				// Without one it is still refused - but the refusal names
-				// the store, because that is now a one-block fix rather
-				// than a permanent exclusion. Keeping the permanent
-				// wording here would be the #101 defect over again: an
-				// operator reading "no configuration edit changes that"
-				// about a type one block admits.
+				// type raises nothing above - UNLESS the operator's
+				// strict { secrets } setting refuses this specific type
+				// (GitHub issue #365 ruling 5): aws_iam_access_key and
+				// aws_iot_certificate generate secret material a stock
+				// state file is the only place that ever holds, and the
+				// gate a configuration meets first is this one, asked
+				// again by [resolver.classify] for a caller that skips
+				// lint (identity.LocatedStrictSecretsRefusal's own doc
+				// comment names all three places).
 				if recordStoreConfigured {
+					if detail := identity.LocatedStrictSecretsRefusal(resource.Type, secrets); detail != "" {
+						*issues = append(*issues, Issue{
+							Rule:      RuleMarkerlessType,
+							Construct: addr,
+							Type:      resource.Type,
+							Module:    path,
+							Detail:    detail,
+							Subject:   resource.DeclRange,
+						})
+						continue
+					}
 					continue
 				}
 				*issues = append(*issues, Issue{
