@@ -179,7 +179,7 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// [identity.DocumentedImportIDs] resolved every segment
 			// against this very schema. The string composed here is the
 			// documented import ID, read rather than invented.
-			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDVariadicGroup, plan.ImportIDSeparator)
+			rec.ImportID, recordable = identity.LocatedComposedImportID(obj, plan.ImportIDParts, plan.ImportIDVariadicGroup, plan.ImportIDAlternatives, plan.ImportIDSeparator)
 		case plan.Named():
 			// The wire identity schema said nothing usable, and a ratified
 			// row names a different attribute than "id" as the type's

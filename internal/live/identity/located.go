@@ -407,6 +407,23 @@ type LocatedIdentityPlan struct {
 	// it renders.
 	ImportIDVariadicGroup []string
 
+	// ImportIDAlternatives, present only alongside ImportIDParts, names -
+	// for each index into ImportIDParts - the several candidate attributes
+	// that documented segment may resolve to when [namedAlternativeGroup]
+	// found the type's own ratified row modelling that SAME position as an
+	// ANY-OF over more than one argument (GitHub issue #364's aws_route:
+	// its "destination" segment is whichever of destination_cidr_block,
+	// destination_ipv6_cidr_block or destination_prefix_list_id the route
+	// carries, never a single named argument). A nil entry at index i means
+	// ImportIDParts[i] is an ordinary, single-attribute segment;
+	// ImportIDParts[i] is itself empty at every OTHER index, a placeholder
+	// [LocatedComposedImportID] recognises rather than reads. See
+	// [resolveDocumentedImportID]'s "any-of segment" doc section for why
+	// this exists instead of the bare-`id` inference every other
+	// unresolved segment falls back to, and [resolveAlternativeSegment] for
+	// how the single populated candidate is chosen at write time.
+	ImportIDAlternatives [][]string
+
 	// Attr is a single attribute, OTHER than [locatedImportIDAttr], whose
 	// value is the type's whole identity. Set only where the provider's own
 	// wire identity schema says nothing usable (the [!compositeIdentity]
@@ -539,8 +556,8 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 		// records - so the string is all there is to go on, and the
 		// question becomes whether the documentation says it is enough.
 		if _, unproven := IDNotProvenWholeTypes[resourceType]; unproven {
-			if parts, variadicGroup, sep, ok := resolveDocumentedImportID(resourceType, schema.Block); ok {
-				return LocatedIdentityPlan{ImportIDParts: parts, ImportIDVariadicGroup: variadicGroup, ImportIDSeparator: sep}, true
+			if parts, variadicGroup, alternatives, sep, ok := resolveDocumentedImportID(resourceType, schema.Block); ok {
+				return LocatedIdentityPlan{ImportIDParts: parts, ImportIDVariadicGroup: variadicGroup, ImportIDAlternatives: alternatives, ImportIDSeparator: sep}, true
 			}
 			return LocatedIdentityPlan{}, false
 		}

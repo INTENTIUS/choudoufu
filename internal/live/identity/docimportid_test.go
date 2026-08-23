@@ -216,7 +216,7 @@ func TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema(t *testi
 			const subject = "documented_grammar_subject"
 			withDocumentedGrammar(t, subject, tc.grammar)
 
-			parts, variadicGroup, sep, ok := resolveDocumentedImportID(subject, tc.block)
+			parts, variadicGroup, _, sep, ok := resolveDocumentedImportID(subject, tc.block)
 			if ok != (tc.want != nil) {
 				t.Fatalf("ok = %v, want %v.\n%s", ok, tc.want != nil, tc.why)
 			}
@@ -235,7 +235,7 @@ func TestResolveDocumentedImportIDCorroboratesEveryNameAgainstTheSchema(t *testi
 	}
 
 	t.Run("a type the roster does not describe", func(t *testing.T) {
-		if _, _, _, ok := resolveDocumentedImportID("a_type_no_page_describes", docStringBlock("id", "api_id")); ok {
+		if _, _, _, _, ok := resolveDocumentedImportID("a_type_no_page_describes", docStringBlock("id", "api_id")); ok {
 			t.Error("resolved a grammar for a type no scraped page names. The route would then be inventing " +
 				"a composite for every type, which is the flattening issue #105 forbids.")
 		}
@@ -292,7 +292,7 @@ func TestLocatedComposedImportIDIsAllOrNothing(t *testing.T) {
 		})
 	}
 
-	got, ok := LocatedComposedImportID(obj(cty.StringVal("12345abcde"), cty.StringVal("67890fghij")), parts, nil, "/")
+	got, ok := LocatedComposedImportID(obj(cty.StringVal("12345abcde"), cty.StringVal("67890fghij")), parts, nil, nil, "/")
 	if !ok {
 		t.Fatal("refused an object carrying every segment")
 	}
@@ -323,17 +323,17 @@ func TestLocatedComposedImportIDIsAllOrNothing(t *testing.T) {
 	}
 	for _, tc := range refusals {
 		t.Run(tc.name, func(t *testing.T) {
-			if got, ok := LocatedComposedImportID(tc.obj, parts, nil, tc.sep); ok {
+			if got, ok := LocatedComposedImportID(tc.obj, parts, nil, nil, tc.sep); ok {
 				t.Errorf("composed %q, want a refusal.\n%s", got, tc.why)
 			}
 		})
 	}
 
-	if _, ok := LocatedComposedImportID(obj(cty.StringVal("a"), cty.StringVal("b")), []string{"id"}, nil, "/"); ok {
+	if _, ok := LocatedComposedImportID(obj(cty.StringVal("a"), cty.StringVal("b")), []string{"id"}, nil, nil, "/"); ok {
 		t.Error("composed a single-segment string. One segment is not a composite, and a caller reaching here " +
 			"with one has lost track of which of the three record shapes it is writing.")
 	}
-	if _, ok := LocatedComposedImportID(obj(cty.StringVal("a"), cty.StringVal("b")), parts, nil, ""); ok {
+	if _, ok := LocatedComposedImportID(obj(cty.StringVal("a"), cty.StringVal("b")), parts, nil, nil, ""); ok {
 		t.Error("composed with no separator, which concatenates two identities into one unsplittable string")
 	}
 }
@@ -374,7 +374,7 @@ func TestLocatedComposedImportIDRendersNumberSegmentsAsPlainDecimal(t *testing.T
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, tc.to), parts, nil, "_")
+			got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, tc.to), parts, nil, nil, "_")
 			if !ok {
 				t.Fatalf("refused an object carrying every segment (from_port=%s, to_port=%s)", tc.from.GoString(), tc.to.GoString())
 			}
@@ -397,7 +397,7 @@ func TestLocatedComposedImportIDRendersNumberSegmentsAsPlainDecimal(t *testing.T
 	}
 	for _, tc := range refusals {
 		t.Run(tc.name, func(t *testing.T) {
-			if got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, cty.NumberIntVal(443)), parts, nil, "_"); ok {
+			if got, ok := LocatedComposedImportID(obj(cty.StringVal("sg-123"), tc.from, cty.NumberIntVal(443)), parts, nil, nil, "_"); ok {
 				t.Errorf("composed %q, want a refusal.\n%s", got, tc.why)
 			}
 		})
