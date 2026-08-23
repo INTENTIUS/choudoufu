@@ -1248,7 +1248,13 @@ func TestLivePlan_provisionerTaintIsRead(t *testing.T) {
 	if addrDiags.HasErrors() {
 		t.Fatalf("parsing the address: %s", addrDiags.Err())
 	}
-	if _, err := projection.NewProvisionedStore(store, estate).Put(t.Context(), addr, ""); err != nil {
+	// GitHub issue #364 folded the provisioner-taint namespace into the one
+	// record envelope; this package cannot reach projection's unexported
+	// mergeEnvelope to seed it through the real write path, so the fixture
+	// writes the v2 wire shape by hand instead - kind=identity with a
+	// Provisioned member, exactly what writeBackRecordEnvelopes produces.
+	taintPayload := []byte(`{"format_version":2,"address":"` + addr.String() + `","kind":"identity","provisioned":{"tainted":true}}`)
+	if _, err := store.PutIfAbsent(t.Context(), projection.RecordKey(projection.RecordKeyPrefix(estate), addr), taintPayload); err != nil {
 		t.Fatalf("seeding the taint record: %s", err)
 	}
 
@@ -1261,7 +1267,7 @@ func TestLivePlan_provisionerTaintIsRead(t *testing.T) {
 		t.Fatalf("exit code %d, want 0\nstderr:\n%s", code2, out2.Stderr())
 	}
 	if !strings.Contains(combined, "aws_s3_bucket.app is tainted, so it must be replaced") {
-		t.Errorf("live-plan does not report the tainted resource as needing replacement; issue #353's ProvisionedStore is not wired into live-plan's own projection.Options, so this report would call a half-provisioned object healthy:\n%s", combined)
+		t.Errorf("live-plan does not report the tainted resource as needing replacement; issue #353's provisioner-taint envelope is not wired into live-plan's own projection.Options.RecordStore, so this report would call a half-provisioned object healthy:\n%s", combined)
 	}
 }
 

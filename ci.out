@@ -1,0 +1,9 @@
+ok  	github.com/intentius/choudoufu/internal/live/projection	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/liveimport	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/identity	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/lint	(cached)
+ok  	github.com/intentius/choudoufu/internal/live/check	6.455s
+ok  	github.com/intentius/choudoufu/internal/command	78.703s
+ok  	github.com/intentius/choudoufu/internal/configs	(cached)
+ok  	github.com/intentius/choudoufu/live	2.135s
+ok  	github.com/intentius/choudoufu/internal/live/marksafe	2.840s

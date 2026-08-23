@@ -344,7 +344,7 @@ func TestMaterializeRecordComposesSchemaSensitivityWithTheRecords(t *testing.T) 
 	res, diags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}},
 		SingleProvider(nullProvider, p),
-		Options{RecordStore: store, RecordKeyPrefix: prefix})
+		Options{RecordStore: NewRecordEnvelopeStore(store, prefix)})
 	assertNoErrors(t, diags)
 
 	if got := sensitivePathStrings(t, res, addr); len(got) != 1 || got[0] != ".triggers" {

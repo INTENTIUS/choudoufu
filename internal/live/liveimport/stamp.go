@@ -17,7 +17,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -199,7 +198,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// Issue #340. A record-backed instance is never also eligible
 			// (see [recordable]), so this branch and the ones below are
 			// alternatives, not a sequence.
-			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, r.recordKeyPrefix, entry.Addr, rec))
+			rep.Outcomes = append(rep.Outcomes, recordOne(ctx, r.recordStore, entry.Addr, rec))
 			continue
 		}
 		if loc, ok := r.located[entry.Addr.String()]; ok {
@@ -208,8 +207,8 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// estate's record store's located namespace and no tag is
 			// written. Residue is still recorded exactly as it is for an
 			// ordinary eligible instance - see [located]'s doc comment.
-			rep.Outcomes = append(rep.Outcomes, locateOne(ctx, r.locatedStore, entry.Addr, loc))
-			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, &loc.residuable))
+			rep.Outcomes = append(rep.Outcomes, locateOne(ctx, r.recordStore, entry.Addr, loc))
+			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &loc.residuable))
 			continue
 		}
 		elig, ok := r.eligible[entry.Addr.String()]
@@ -227,12 +226,17 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 			// The outcome stays SKIPPED on purpose - the marker write is what
 			// was skipped, and that is what this axis reports - so no count
 			// this run prints moves.
-			diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, r.residuable[entry.Addr.String()]))
-			diags = diags.Append(recordLocatedFor(ctx, r.recordStore, r.Estate, entry.Addr, entry.LiveID))
+			res := r.residuable[entry.Addr.String()]
+			diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, res))
+			var providerAddr addrs.AbsProviderConfig
+			if res != nil {
+				providerAddr = res.providerAddr
+			}
+			diags = diags.Append(recordLocatedFor(ctx, r.recordStore, entry.Addr, providerAddr, entry.LiveID))
 			continue
 		}
 		rep.Outcomes = append(rep.Outcomes, approveOne(ctx, r.Estate, entry.Addr, elig, slotFor[entry.Addr.String()]))
-		diags = diags.Append(recordResidueFor(ctx, r.residueStore, r.secrets, entry.Addr, &elig.residuable))
+		diags = diags.Append(recordResidueFor(ctx, r.recordStore, r.secrets, entry.Addr, &elig.residuable))
 	}
 
 	// GitHub issue #349: carry the state file's root output values across
@@ -262,7 +266,7 @@ func (r *Ratification) Approve(ctx context.Context) (*StampReport, tfdiags.Diagn
 // *recordable without one), but it is handled anyway rather than trusted:
 // [projection.SeedRecordForInstance] treats it as a no-op, which would
 // report ALREADY_RECORDED, so the guard here says the true thing instead.
-func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, addr addrs.AbsResourceInstance, rec *recordable) StampOutcome {
+func recordOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, rec *recordable) StampOutcome {
 	out := StampOutcome{Addr: addr, TypeName: rec.typeName}
 	if store == nil {
 		out.Outcome = OutcomeSkipped
@@ -270,7 +274,7 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 		return out
 	}
 
-	seeded, err := projection.SeedRecordForInstance(ctx, store, keyPrefix, addr, rec.value, rec.private, rec.status)
+	seeded, err := projection.SeedRecordForInstance(ctx, store, addr, rec.providerAddr, rec.value, rec.private, rec.status)
 	switch {
 	case err != nil:
 		out.Outcome = OutcomeFailed
@@ -315,7 +319,7 @@ func recordOne(ctx context.Context, store staterecord.Store, keyPrefix string, a
 // admitted for the selection by [identity.SelectedLocatedType] is read for
 // its identity exactly the way the apply path would read it. Neither
 // function names a resource type.
-func locateOne(ctx context.Context, store *projection.LocatedStore, addr addrs.AbsResourceInstance, loc *located) StampOutcome {
+func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, loc *located) StampOutcome {
 	out := StampOutcome{Addr: addr, TypeName: loc.typeName}
 	if store == nil {
 		out.Outcome = OutcomeSkipped
@@ -334,7 +338,7 @@ func locateOne(ctx context.Context, store *projection.LocatedStore, addr addrs.A
 		return out
 	}
 
-	seeded, err := projection.SeedLocatedForInstance(ctx, store, addr, rec)
+	seeded, err := projection.SeedLocatedForInstance(ctx, store, addr, loc.providerAddr, rec)
 	switch {
 	case err != nil:
 		out.Outcome = OutcomeFailed
@@ -368,7 +372,7 @@ func locateOne(ctx context.Context, store *projection.LocatedStore, addr addrs.A
 // without one) makes this an immediate no-op, and so does e itself being nil
 // - an instance with no carrier at all, such as one whose type is unadmitted
 // or whose state holds no current object, has nothing to classify from.
-func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secrets strict.Secrets, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
+func recordResidueFor(ctx context.Context, store *projection.RecordStore, secrets strict.Secrets, addr addrs.AbsResourceInstance, e *residuable) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if store == nil || e == nil {
 		return diags
@@ -391,7 +395,7 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secre
 		}
 		return resp.NewState, nil
 	}
-	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.schema, e.applied, secrets, read); err != nil {
+	if _, err := projection.RecordResidueForInstance(ctx, store, addr, e.providerAddr, e.schema, e.applied, secrets, read); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryResidueNotClassified, fmt.Sprintf(
 			"No argument values were recorded for %s's residue: %s. Any argument the provider's own read does not return on its own will be proposed for update - or, for a ForceNew argument, replacement - on the first live-plan after this migration, until a choudoufu apply classifies it. Nothing in the live system was changed.",
 			addr, err,
@@ -428,13 +432,12 @@ func recordResidueFor(ctx context.Context, store *projection.ResidueStore, secre
 // almost always exists) or an entry with no LiveID (nothing could be read,
 // or the type has no identity attribute this table knows) makes this an
 // immediate no-op via [SeedLocatedForInstance]/its own nil-store guard.
-func recordLocatedFor(ctx context.Context, store staterecord.Store, estate string, addr addrs.AbsResourceInstance, liveID string) tfdiags.Diagnostics {
+func recordLocatedFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, liveID string) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if store == nil || liveID == "" {
 		return diags
 	}
-	located := projection.NewLocatedStore(store, estate)
-	if _, err := projection.SeedLocatedForInstance(ctx, located, addr, projection.LocatedRecord{ImportID: liveID}); err != nil {
+	if _, err := projection.SeedLocatedForInstance(ctx, store, addr, provider, projection.LocatedRecord{ImportID: liveID}); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
 			"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again from a stateless replan until its identity is recorded some other way.",
 			addr, err,

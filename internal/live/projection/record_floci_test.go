@@ -70,7 +70,8 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 	// absent, so the plan should propose creating it - the same claim
 	// TestBuildRecordBackedAbsent makes against the local store.
 	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
-	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{RecordStore: store, RecordKeyPrefix: prefix})
+	rs := NewRecordEnvelopeStore(store, prefix)
+	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{RecordStore: rs})
 	assertNoErrors(t, diags)
 	assertOmitted(t, res, map[string]Reason{`null_resource.trigger`: ReasonAbsent})
 
@@ -90,8 +91,7 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 	finalState.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src, nullProvider, addrs.NoKey)
 
 	wbDiags := WriteBack(ctx, WriteBackRequest{
-		Store:         store,
-		KeyPrefix:     prefix,
+		Store:         rs,
 		PriorVersions: nil, // nothing existed yet: create semantics (expectedVersion "")
 		FinalState:    finalState,
 		Schemas:       ssmTestSchemas(schema),
@@ -100,7 +100,7 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 
 	// 3. Re-hydrate: the record just written back should now come back on
 	// the next Build, over the real wire, matching what was persisted.
-	res2, diags := BuildWith(ctx, cfg, resolutions, provs, Options{RecordStore: store, RecordKeyPrefix: prefix})
+	res2, diags := BuildWith(ctx, cfg, resolutions, provs, Options{RecordStore: rs})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res2, []string{`null_resource.trigger`})
 	if len(res2.RecordVersions) != 1 {
@@ -123,8 +123,7 @@ func TestRecordBackedLifecycleAgainstSSM(t *testing.T) {
 	// check.
 	emptyState := states.NewState()
 	wbDiags = WriteBack(ctx, WriteBackRequest{
-		Store:         store,
-		KeyPrefix:     prefix,
+		Store:         rs,
 		PriorVersions: res2.RecordVersions,
 		FinalState:    emptyState,
 		Schemas:       ssmTestSchemas(schema),

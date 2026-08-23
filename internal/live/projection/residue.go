@@ -19,7 +19,6 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -85,55 +84,10 @@ import (
 // So the classifier asks the provider instead, with two reads whose priors
 // differ in exactly the attributes under test - see [classifyResidue].
 
-// residueNamespaceRoot is the literal segment every residue key lives under.
-//
-// A different literal from [recordNamespaceRoot] ("tofu-records"),
-// hint_store.go's "tofu-hints", [locatedNamespaceRoot] ("tofu-located") and
-// live/RECEIPTS.md's "tofu-receipts", for the reason located.go gives about
-// its own root: the enumeration that feeds the destroy path lists the
-// RECORD root, so anything that must never be destroyable has to live
-// somewhere that listing physically cannot reach.
-//
-// Like the located root it is NOT derived from a record_store block's
-// key_prefix override, and internal/configs' validateRecordStoreKeyPrefix
-// closes the other direction by refusing an override rooted here.
-const residueNamespaceRoot = "tofu-residue"
-
-// ResidueKeyPrefix is the key namespace one estate's residue records live
-// under. Exported for the same reason [RecordKeyPrefix], [HintKey] and
-// [LocatedKeyPrefix] are: internal/command's store construction and this
-// package's own namespace-safety tests both have to name one definition.
-func ResidueKeyPrefix(estate string) string {
-	return residueNamespaceRoot + "/" + estate
-}
-
-// ResidueKey is the store key one resource instance's residue lives at, for
-// estate.
-//
-// The address is encoded exactly as [RecordKey] and [LocatedKey] encode it,
-// by [recordKeyEncoding], because the constraint is the same: a for_each key
-// can carry characters SSM parameter names and S3 object keys forbid.
-// Sharing the encoding is safe where sharing the ROOT would not be.
-//
-// There is deliberately no reverse of this function, for [LocatedKey]'s
-// reason: a reverse exists so that a LISTING can recover an address, and
-// building one here would be building the first half of a destroy path this
-// file exists to keep unbuilt.
-func ResidueKey(estate string, addr addrs.AbsResourceInstance) string {
-	return ResidueKeyPrefix(estate) + "/" + addr.Resource.Resource.Type + "/" + recordKeyEncoding.EncodeToString([]byte(addr.String()))
-}
-
-// residueFormatVersion identifies the JSON shape [residuePayload] writes.
-// An unrecognized version is refused rather than guessed at, and a refused
-// residue record simply leaves the attributes null - the plan proposes the
-// update it proposed before this mechanism existed, which is visible and
-// annoying rather than wrong.
-const residueFormatVersion = "tofu-live-residue-v1"
-
 // residueAttrValue is one recorded attribute: the cty type it was recorded
 // at, and its value at that type, both in cty's own JSON encoding.
 //
-// The type travels with the value for [recordPayload]'s reason - a value
+// The type travels with the value for [objectFields]'s reason - a value
 // with no type is not decodable - but PER ATTRIBUTE rather than once for
 // the object, because a residue record is deliberately a handful of named
 // attributes and not a copy of the object. A whole-object copy is what
@@ -144,129 +98,17 @@ type residueAttrValue struct {
 	Value json.RawMessage `json:"attrValue"`
 }
 
-// residuePayload is what one instance's residue key holds.
-//
-// Note that it shares no field name with [recordPayload]: it has no
-// value_type, no attrs, no private and no status. That is what makes
-// [decodeRecordPayload] refuse it outright rather than half-read it, which
-// is the third of the three independent stops between a residue key and the
-// destroy path.
-type residuePayload struct {
-	// FormatVersion is always [residueFormatVersion].
-	FormatVersion string `json:"formatVersion"`
-
-	// Address is the instance address this residue is for, written out in
-	// full. Redundant with the key, and deliberately so: [ResidueStore.Get]
-	// checks the two agree, so a key copied or hand-edited into pointing at
-	// another resource is refused rather than answering with another
-	// resource's argument values.
-	Address string `json:"address"`
-
-	// Attributes maps a top-level attribute name to the value this estate
-	// last sent for it. Only attributes [classifyResidue] proved the
-	// provider's Read does not manage are ever in here.
-	Attributes map[string]residueAttrValue `json:"attributes"`
-}
-
-// ResidueStore is the point-lookup view of an estate's residue records.
-//
-// It is NOT a [staterecord.Store] and does not embed one, for the reason
-// [LocatedStore]'s doc comment sets out in full: no List, no Keys, no
-// iteration of any kind, and every method keyed by an
-// [addrs.AbsResourceInstance] the caller must already hold. "What else is
-// in here" is not a question this type can be asked, so the enumeration
-// that feeds the destroy path cannot be handed one and cannot be given a
-// residue key by one.
-type ResidueStore struct {
-	store  staterecord.Store
-	estate string
-}
-
-// NewResidueStore wraps store as estate's residue store. store is
-// ordinarily the same [staterecord.Store] the run's record-backed and
-// record-located resources use - one store, three disjoint namespaces in
-// it.
-//
-// A nil store yields a nil ResidueStore, so a run with no record_store
-// declared has nowhere to keep residue and keeps none. That estate still
-// works exactly as it did before this mechanism existed: the perpetual
-// update is proposed on every cold replan, which is visible.
-func NewResidueStore(store staterecord.Store, estate string) *ResidueStore {
-	if store == nil || estate == "" {
-		return nil
-	}
-	return &ResidueStore{store: store, estate: estate}
-}
-
-// Get reads the residue recorded for addr, as a map from attribute name to
-// the value this estate last sent. exists is false when nothing has been
-// recorded, which is the ordinary "not created yet, or created before this
-// mechanism existed" answer and is not an error.
-//
-// version is the store's version for the key, for a later conditional Put
-// or Delete.
-func (s *ResidueStore) Get(ctx context.Context, addr addrs.AbsResourceInstance) (attrs map[string]cty.Value, version string, exists bool, err error) {
-	if s == nil {
-		return nil, "", false, nil
-	}
-	payload, version, exists, err := s.store.Get(ctx, ResidueKey(s.estate, addr))
-	if err != nil {
-		return nil, "", false, fmt.Errorf("reading the residue record for %s: %w", addr, err)
-	}
-	if !exists {
-		return nil, "", false, nil
-	}
-	var rec residuePayload
-	if err := json.Unmarshal(payload, &rec); err != nil {
-		return nil, "", false, fmt.Errorf("decoding the residue record for %s: %w", addr, err)
-	}
-	if rec.FormatVersion != residueFormatVersion {
-		return nil, "", false, fmt.Errorf("the residue record for %s names format %q, which this version of choudoufu does not understand", addr, rec.FormatVersion)
-	}
-	if rec.Address != addr.String() {
-		// The key said one address and the payload says another. Refusing
-		// is the only safe answer, for [LocatedStore.Get]'s reason: filling
-		// this instance's prior state from another resource's arguments
-		// would produce an empty plan that is wrong, and an empty plan that
-		// is wrong is invisible to every verdict-level check.
-		return nil, "", false, fmt.Errorf("the residue record stored for %s says it is for %s; refusing to fill one resource's prior state from another's", addr, rec.Address)
-	}
-	out := make(map[string]cty.Value, len(rec.Attributes))
-	for name, raw := range rec.Attributes {
-		ty, err := ctyjson.UnmarshalType(raw.Type)
-		if err != nil {
-			return nil, "", false, fmt.Errorf("the residue record for %s records attribute %q at a type that could not be read: %w", addr, name, err)
-		}
-		val, err := ctyjson.Unmarshal(raw.Value, ty)
-		if err != nil {
-			return nil, "", false, fmt.Errorf("the residue record for %s records attribute %q at a value that could not be read: %w", addr, name, err)
-		}
-		out[name] = val
-	}
-	return out, version, true, nil
-}
-
-// Put records attrs as addr's residue, conditional on the key's current
-// version - expectedVersion "" asserting that nothing is recorded yet, the
-// same convention [staterecord.Store.PutIfVersion] uses. It returns the new
-// version.
-//
-// An empty attrs is refused rather than written: the classifier returning
-// nothing means it proved nothing, and a key holding nothing is
-// indistinguishable from a key holding "this instance has no residue",
-// which is a claim nothing here is entitled to make.
-func (s *ResidueStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, attrs map[string]cty.Value, expectedVersion string) (string, error) {
-	if s == nil {
-		return "", fmt.Errorf("no record store is configured, so %s's residue cannot be recorded", addr)
-	}
+// encodeResidueFields turns a classified attribute map into the
+// [residueFields] a [recordEnvelope]'s Residue member holds, applying the
+// same validation [RecordResidueForInstance] and the write-back residue
+// path both need: nothing null, nothing unknown, nothing marked - see each
+// check's own comment below for why a silent skip would be worse than a
+// refusal.
+func encodeResidueFields(attrs map[string]cty.Value) (*residueFields, error) {
 	if len(attrs) == 0 {
-		return "", fmt.Errorf("refusing to record an empty residue for %s", addr)
+		return nil, fmt.Errorf("refusing to record an empty residue")
 	}
-	rec := residuePayload{
-		FormatVersion: residueFormatVersion,
-		Address:       addr.String(),
-		Attributes:    make(map[string]residueAttrValue, len(attrs)),
-	}
+	out := &residueFields{Attributes: make(map[string]residueAttrValue, len(attrs))}
 	for _, name := range sortedNames(attrs) {
 		val := attrs[name]
 		if val.IsNull() || !val.IsWhollyKnown() {
@@ -275,7 +117,7 @@ func (s *ResidueStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, 
 			// not an applied value. Refusing rather than skipping, because
 			// a silent skip here writes a record that is missing exactly
 			// the attribute the caller believed it had stored.
-			return "", fmt.Errorf("refusing to record attribute %q of %s: its applied value is null or not wholly known", name, addr)
+			return nil, fmt.Errorf("refusing to record attribute %q: its applied value is null or not wholly known", name)
 		}
 		if val.IsMarked() {
 			// Everything this store holds is held unmarked - ctyjson
@@ -284,40 +126,20 @@ func (s *ResidueStore) Put(ctx context.Context, addr addrs.AbsResourceInstance, 
 			// [builder.fillResidueFor]). So a marked value reaching here
 			// is a caller that skipped the unmarking, not a policy
 			// question, and it is refused under either secrets setting.
-			return "", fmt.Errorf("refusing to record attribute %q of %s: its value is marked sensitive", name, addr)
+			return nil, fmt.Errorf("refusing to record attribute %q: its value is marked sensitive", name)
 		}
 		ty := val.Type()
 		tyRaw, err := ctyjson.MarshalType(ty)
 		if err != nil {
-			return "", fmt.Errorf("encoding the type of attribute %q of %s: %w", name, addr, err)
+			return nil, fmt.Errorf("encoding the type of attribute %q: %w", name, err)
 		}
 		valRaw, err := ctyjson.Marshal(val, ty)
 		if err != nil {
-			return "", fmt.Errorf("encoding attribute %q of %s: %w", name, addr, err)
+			return nil, fmt.Errorf("encoding attribute %q: %w", name, err)
 		}
-		rec.Attributes[name] = residueAttrValue{Type: tyRaw, Value: valRaw}
+		out.Attributes[name] = residueAttrValue{Type: tyRaw, Value: valRaw}
 	}
-	payload, err := json.Marshal(rec)
-	if err != nil {
-		return "", fmt.Errorf("encoding the residue record for %s: %w", addr, err)
-	}
-	return s.store.PutIfVersion(ctx, ResidueKey(s.estate, addr), payload, expectedVersion)
-}
-
-// Delete removes addr's residue record, conditional on expectedVersion.
-//
-// Deleting a residue record is not deleting anything in the cloud, and
-// cannot be: it is a note about arguments, and the object it describes is
-// destroyed by the ordinary apply through the provider. The reverse case -
-// a residue key with no configuration behind it - deliberately reaches
-// nothing, because nothing enumerates this namespace. Such a key is inert:
-// it costs a few bytes and is overwritten the next time the same address is
-// applied.
-func (s *ResidueStore) Delete(ctx context.Context, addr addrs.AbsResourceInstance, expectedVersion string) error {
-	if s == nil {
-		return nil
-	}
-	return s.store.Delete(ctx, ResidueKey(s.estate, addr), expectedVersion)
+	return out, nil
 }
 
 func sortedNames(m map[string]cty.Value) []string {
@@ -345,10 +167,10 @@ func sortedNames(m map[string]cty.Value) []string {
 // was written. The second is annoying and completely visible. Stopping a
 // run over it would be trading a visible nuisance for an outage.
 func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema, obj *states.ResourceInstanceObject) {
-	if b.opts.ResidueStore == nil || obj == nil || schema.Block == nil {
+	if b.opts.RecordStore == nil || obj == nil || schema.Block == nil {
 		return
 	}
-	attrs, version, exists, err := b.opts.ResidueStore.Get(ctx, addr)
+	attrs, version, keyExists, residueFound, err := b.opts.RecordStore.GetResidue(ctx, addr)
 	if err != nil {
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueUnreadable, fmt.Sprintf(
 			"The residue record for %s could not be read: %s. The plan continues from what the provider returned, so any argument the provider does not give back will be proposed for update again on this run and every later one. Nothing was changed and nothing was written.",
@@ -356,10 +178,12 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 		)))
 		return
 	}
-	if !exists {
+	if keyExists {
+		b.recordEnvelopeVersion(addr, version)
+	}
+	if !residueFound {
 		return
 	}
-	b.residueVersions = append(b.residueVersions, RecordVersion{Addr: addr, Version: version})
 
 	filled, n := fillResidue(obj.Value, schema.Block, attrs, identity.SecretsFor(b.cfg))
 	if n == 0 {
@@ -843,7 +667,7 @@ func residueMarkRecoverable(attr *configschema.Attribute, v cty.Value) bool {
 // Every failure is closed the same way [writeBackResidue] closes one: the
 // caller is expected to turn a non-nil error into a warning, never into a
 // reason to fail the migration over a residue nicety.
-func RecordResidueForInstance(ctx context.Context, store *ResidueStore, addr addrs.AbsResourceInstance, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
+func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, schema providers.Schema, applied cty.Value, secrets strict.Secrets, read func(prior cty.Value) (cty.Value, error)) (recorded bool, err error) {
 	if store == nil || schema.Block == nil || applied == cty.NilVal || applied.IsNull() {
 		return false, nil
 	}
@@ -855,205 +679,34 @@ func RecordResidueForInstance(ctx context.Context, store *ResidueStore, addr add
 	if !ok {
 		return false, nil
 	}
+	rf, err := encodeResidueFields(attrs)
+	if err != nil {
+		return false, fmt.Errorf("encoding residue for %s: %w", addr, err)
+	}
 	// Read-before-write rather than a version this call was handed: unlike
-	// [writeBackResidue], which already tracked a prior-plan version through
-	// [builder.fillResidueFor], a migrate has never read this estate's
-	// residue store before, so there is nothing to have tracked. A second
-	// live-import run over the same state (documented as idempotent) is what
-	// makes this matter - without a fresh Get, its Put would always assert
-	// "nothing recorded yet" and fail every time but the first.
-	_, version, _, getErr := store.Get(ctx, addr)
+	// the apply write-back path, which already tracked a prior-plan version
+	// through [builder.fillResidueFor], a migrate has never read this
+	// estate's record store before, so there is nothing to have tracked. A
+	// second live-import run over the same state (documented as idempotent)
+	// is what makes this matter - without a fresh read, the write would
+	// always assert "nothing recorded yet" and fail every time but the
+	// first.
+	_, version, _, _, getErr := store.GetResidue(ctx, addr)
 	if getErr != nil {
 		return false, fmt.Errorf("reading the existing residue record for %s before writing: %w", addr, getErr)
 	}
-	if _, err := store.Put(ctx, addr, attrs, version); err != nil {
+	if _, err := store.mergeEnvelope(ctx, addr, version, func(env *recordEnvelope) {
+		env.Residue = rf
+		env.Provider = providerString(provider)
+	}); err != nil {
 		return false, fmt.Errorf("recording residue for %s: %w", addr, err)
 	}
 	return true, nil
 }
 
-// writeBackResidue is [WriteBack]'s residue half: after an apply, every
-// marker-managed instance in the final state is put to its provider twice
-// (see [classifyResidue]) and whatever the two answers prove the provider
-// does not manage is recorded, so the NEXT cold replan has somewhere to
-// read it from.
-//
-// This is the half that makes the mechanism converge in one run rather than
-// two. The plan side only reads; if nothing wrote on the first apply, the
-// first cold replan after it would still propose the phantom update and the
-// operator would have to apply twice to settle an estate. The maintainer's
-// ruling on issue #275 is that a single apply settles it, which is what
-// classifying here rather than on the next plan buys.
-//
-// # What it costs
-//
-// Two extra ReadResource calls per applied instance that has any candidate
-// attribute at all, stated plainly because it is not free. Nothing is
-// skipped to hide that: an instance whose provider answers both reads gets
-// both reads. The alternative measured against issue #275 was a static
-// rule, and there is none - the whole of hashicorp/aws 6.59.0 was searched
-// for one.
-//
-// # Every failure is closed
-//
-// A missing provider, a failing read, an undecodable object, a
-// classification that proves nothing: all of them record NOTHING for that
-// instance and leave any existing record alone. An estate that cannot be
-// classified keeps exactly the behavior it had before this mechanism
-// existed, which is a visible perpetual diff. It never gets a half-filled
-// record, because a wrong stored value produces an EMPTY plan that is
-// wrong, and that is invisible.
-//
-// # What is deleted
-//
-// Only the residue of an address the plan saw and the final state no
-// longer has - the resource was destroyed. An address still present whose
-// classification failed this time keeps its previous record: it describes
-// what some earlier apply sent, and if this apply sent something else the
-// configuration and the record simply disagree, which proposes an update.
-// That is self-healing on the next successful classification, and losing
-// the record would not be.
-func writeBackResidue(ctx context.Context, req WriteBackRequest) tfdiags.Diagnostics {
-	var diags tfdiags.Diagnostics
-
-	if req.ResidueStore == nil {
-		return diags
-	}
-	if req.Providers == nil {
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified,
-			"This estate declares a record_store, but the apply had no provider access to classify with, so no argument values were recorded. Arguments the provider's read does not return will be proposed for update again on the next plan. Nothing was changed and nothing was written.",
-		))
-		return diags
-	}
-
-	// The operator's secrets setting, read from the same configuration and
-	// through the same function the plan side read it with
-	// (identity.SecretsFor). The set that gets WRITTEN has to be the set that
-	// gets READ, which is [writeBackLocated]'s reason for reading its own
-	// toggle here rather than being handed one: an attribute this side
-	// declined to record while the plan side expected to fill it is an
-	// argument proposed for update on every run, forever.
-	//
-	// A nil req.Config resolves to the default, which is [strict.Store].
-	// Unlike the `markers "record"` selection, whose nil selects nothing
-	// because withholding a marker wrongly creates an unfindable object,
-	// nothing here moves an identity - see identity.SecretsFor for the
-	// asymmetry in full.
-	secrets := identity.SecretsFor(req.Config)
-
-	seen := make(map[string]bool, len(req.ResidueVersions))
-	cache := map[string]providers.Interface{}
-
-	if req.FinalState != nil {
-		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
-			if entry.DeposedKey != states.NotDeposed {
-				// A deposed object is a mid-replace leftover the graph is
-				// about to discard; the current object is what this
-				// address's arguments should be recorded from.
-				continue
-			}
-			addr := entry.Instance
-			typeName := addr.Resource.Resource.Type
-
-			if ti, ok := identity.LookupType(typeName); ok && ti.RecordBacked {
-				// A record-backed instance has no cloud object and no
-				// provider read at all - record.go persists the WHOLE
-				// object for it. There is nothing here for this mechanism
-				// to add and no read to classify with.
-				continue
-			}
-
-			res := req.FinalState.Resource(addr.ContainingResource())
-			if res == nil {
-				continue
-			}
-			ri := res.Instance(addr.Resource.Key)
-			if ri == nil || ri.Current == nil {
-				continue
-			}
-			schemaPtr, _ := req.Schemas.ResourceTypeConfig(res.ProviderConfig.Provider, addrs.ManagedResourceMode, typeName)
-			if schemaPtr == nil || schemaPtr.Block == nil {
-				continue
-			}
-			schema := *schemaPtr
-
-			// Marked before unmarked, and in that order: candidacy is
-			// decided on the value that still carries its marks, so
-			// [residueMarkRecoverable] can see what a stored value would
-			// have to give back, and only then is an unmarked copy made for
-			// the provider - a marked value cannot cross the plugin channel.
-			// Under `secrets = "refuse"` that ordering is what excludes a
-			// sensitive attribute by the mark as well as by the schema flag.
-			obj, err := ri.Current.Decode(schema.Block.ImpliedType())
-			if err != nil {
-				continue
-			}
-			seen[addr.String()] = true
-
-			candidates := residueCandidates(schema, obj.Value, secrets)
-			if len(candidates) == 0 {
-				continue
-			}
-			applied, _ := obj.Value.UnmarkDeep()
-
-			provider, err := residueProvider(ctx, req.Providers, cache, res.ProviderConfig)
-			if err != nil {
-				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified, fmt.Sprintf(
-					"No argument values were recorded for %s: provider %s could not be reached to classify them (%s). Arguments the provider's read does not return will be proposed for update again on the next plan. Nothing was changed and nothing was written.",
-					addr, res.ProviderConfig, err,
-				)))
-				continue
-			}
-
-			attrs, ok := classifyResidue(applied, candidates, residueIdentityAttrs(schema), func(prior cty.Value) (cty.Value, error) {
-				resp := provider.ReadResource(ctx, providers.ReadResourceRequest{
-					TypeName:   typeName,
-					PriorState: prior,
-					Private:    obj.Private,
-					// The same null-of-dynamic the plan path passes, and
-					// for the same reason: the plugin client marshals
-					// ProviderMeta whenever the provider declares a
-					// provider_meta schema, and a value with no type at all
-					// panics the conformance check.
-					ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-					PriorIdentity: obj.Identity,
-				})
-				if resp.Diagnostics.HasErrors() {
-					return cty.NilVal, resp.Diagnostics.Err()
-				}
-				return resp.NewState, nil
-			})
-			if !ok {
-				continue
-			}
-
-			if _, err := req.ResidueStore.Put(ctx, addr, attrs, priorVersion(req.ResidueVersions, addr)); err != nil {
-				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified, fmt.Sprintf(
-					"The argument values classified for %s could not be recorded: %s. Those arguments will be proposed for update again on the next plan. Nothing in the live system was changed.",
-					addr, err,
-				)))
-			}
-		}
-	}
-
-	for _, rv := range req.ResidueVersions {
-		if seen[rv.Addr.String()] {
-			continue
-		}
-		if err := req.ResidueStore.Delete(ctx, rv.Addr, rv.Version); err != nil {
-			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified, fmt.Sprintf(
-				"The residue record for %s, whose resource this run destroyed, could not be deleted: %s. The key is inert - nothing enumerates this namespace and nothing reads a residue record for an address the configuration does not declare - but it will be overwritten rather than removed if the address is ever applied again.",
-				rv.Addr, err,
-			)))
-		}
-	}
-
-	return diags
-}
-
 // SummaryResidueNotClassified is the summary of the warning
-// [writeBackResidue] raises when an apply could not record what it sent.
-// Named for [SummaryLocatedNoStore]'s reason.
+// [writeBackRecordEnvelopes] raises when an apply could not record what it
+// sent. Named for [SummaryLocatedNoStore]'s reason.
 const SummaryResidueNotClassified = "Argument values could not be recorded"
 
 // residueProvider resolves one provider configuration once per write-back,

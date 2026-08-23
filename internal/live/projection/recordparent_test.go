@@ -136,8 +136,7 @@ func TestDerivedFromRecordBackedParent(t *testing.T) {
 
 	res, diags := BuildWith(context.Background(), cfg, recordParentResolutions(parent, child),
 		twoProviders(t, cloud), Options{
-			RecordStore:     store,
-			RecordKeyPrefix: prefix,
+			RecordStore: NewRecordEnvelopeStore(store, prefix),
 		})
 	assertNoErrors(t, diags)
 
@@ -180,8 +179,7 @@ func TestDerivedFromAbsentRecordBackedParent(t *testing.T) {
 
 	res, diags := BuildWith(context.Background(), cfg, recordParentResolutions(parent, child),
 		twoProviders(t, cloud), Options{
-			RecordStore:     store,
-			RecordKeyPrefix: "tofu-records/record-parent",
+			RecordStore: NewRecordEnvelopeStore(store, "tofu-records/record-parent"),
 		})
 	assertNoErrors(t, diags)
 

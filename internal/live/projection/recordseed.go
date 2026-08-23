@@ -8,14 +8,12 @@ package projection
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -41,7 +39,7 @@ import (
 // # Why an existing record is never overwritten
 //
 // This reads before it writes, and a store that already holds a DIFFERENT
-// payload for addr is an error rather than a write. The record is the only
+// object for addr is an error rather than a write. The record is the only
 // carrier a record-backed instance's identity has - live/MARKERS.md's "a
 // wrong marker outranks a missing one" applies to it exactly as it applies
 // to a tag - and the store's value can legitimately be NEWER than the state
@@ -50,13 +48,27 @@ import (
 // replace a correct value with a stale one and produce an EMPTY plan that is
 // wrong, which is the invisible failure the whole discipline exists to stop.
 //
+// The comparison is made on the DECODED object fields
+// ([objectFields]) rather than on whole-envelope bytes, and that is GitHub
+// issue #364's own adaptation: a pre-#364 record decodes as a v1 payload
+// (see record.go's package comment) and a pre-existing v1 record's bytes
+// never equal a freshly-encoded v2 envelope's bytes even when the object
+// they describe is identical. Comparing the decoded fields is what keeps a
+// migration idempotent across that format boundary; every field compared is
+// still the exact bytes [encodeObjectFields] produced for each side, which
+// is what makes it a stricter test than comparing decoded cty values with
+// RawEquals - see [sensitivityOnlyUpgrade].
+//
 // A byte-identical existing record is the idempotent case and reports
 // [SeedUnchanged] with no error: re-running a migration over the same state
-// file is documented as a no-op, and this keeps it one.
+// file is documented as a no-op, and this keeps it one. Nothing this package
+// writes goes out as anything but a v2 envelope, so an unchanged v1 record
+// is simply left as v1 rather than being rewritten just to modernize its
+// wire shape.
 //
 // # The one byte-difference that is not a conflict
 //
-// GitHub issue #344. recordPayload.SensitiveAttrs did not always exist. A
+// GitHub issue #344. objectFields.SensitiveAttrs did not always exist. A
 // record written before it did carries no sensitivity at all, so re-seeding
 // the SAME object after that field landed produces different bytes and hits
 // the refusal above - a stale-record error for a record that is not stale.
@@ -70,64 +82,88 @@ import (
 // sensitivity to a record, never drop it. Anything else is the hard refusal
 // it has always been, including a value that differs by one byte.
 //
-// The alternative considered and rejected was a format-version field on
-// recordPayload with an upgrade path keyed off it. It fails on its own terms:
-// a version field is itself new bytes in every record, so adding one makes
-// every pre-existing record byte-different from its own re-migration - the
-// exact breakage it would be introduced to fix, applied to the whole
-// population instead of the sensitive slice of it. The payload's
-// compatibility story is "an absent field means the old default", which is
-// what unmarshalSensitivePaths and decodeObjectStatus already implement, and
-// this is that story's write side.
-//
 // A nil store makes this an immediate no-op - a configuration with no
 // record_store block declared, where a record-backed type is not admitted
 // for planning in the first place.
-func SeedRecordForInstance(ctx context.Context, store staterecord.Store, keyPrefix string, addr addrs.AbsResourceInstance, val cty.Value, private []byte, status states.ObjectStatus) (SeedResult, error) {
+func SeedRecordForInstance(ctx context.Context, store *RecordStore, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, val cty.Value, private []byte, status states.ObjectStatus) (SeedResult, error) {
 	if store == nil {
 		return SeedUnchanged, nil
 	}
 
-	payload, err := encodeRecordPayload(val, private, status)
+	proposed, err := encodeObjectFields(val, private, status)
 	if err != nil {
 		return SeedUnchanged, fmt.Errorf("encoding the record for %s: %w", addr, err)
 	}
 
-	key := RecordKey(keyPrefix, addr)
-	existing, version, exists, getErr := store.Get(ctx, key)
+	env, version, exists, getErr := store.getRaw(ctx, addr)
 	if getErr != nil {
 		return SeedUnchanged, fmt.Errorf("reading the existing record for %s before writing: %w", addr, getErr)
 	}
 	if exists {
-		if bytes.Equal(existing, payload) {
+		if env.Object == nil {
+			// A key exists at this address but carries no object - e.g. an
+			// earlier incarnation of this address recorded residue or a
+			// provisioner taint under identity.ClassRecordLocated or an
+			// ordinary marker-tracked class. Object and
+			// identity/residue/provisioned addresses are mutually exclusive
+			// by construction (identity.Class), so this should not arise
+			// from a key this package wrote for the SAME class; refusing
+			// rather than silently overwriting is the same discipline this
+			// function applies to a genuinely different object.
+			return SeedUnchanged, fmt.Errorf(
+				"the record store already holds a non-object record for %s (version %s); refusing to overwrite it with a record-backed object",
+				addr, displayVersion(version))
+		}
+		existing := env.Object
+		if objectFieldsEqual(existing, proposed) {
 			return SeedUnchanged, nil
 		}
-		upgrade, why := sensitivityOnlyUpgrade(existing, payload)
+		upgrade, why := sensitivityOnlyUpgrade(existing, proposed)
 		if !upgrade {
 			return SeedUnchanged, fmt.Errorf(
 				"the record store already holds a different record for %s (version %s), so this run left it alone: the stored value may be newer than the state file this migration was given, and a record is the only carrier a record-backed resource's value has (%s)",
 				addr, displayVersion(version), why)
 		}
-		// PutIfVersion against the version the Get above returned, not an
+		// mergeEnvelope against the version the read above returned, not an
 		// unconditional put: between the two calls another writer may have
 		// replaced the record with something this comparison never saw, and
 		// that writer must win rather than be silently clobbered by a
 		// decision made about bytes that are no longer there.
-		if _, putErr := store.PutIfVersion(ctx, key, payload, version); putErr != nil {
+		if _, putErr := store.mergeEnvelope(ctx, addr, version, func(e *recordEnvelope) {
+			e.Kind = recordKindObject
+			e.Object = proposed
+			e.Provider = providerString(provider)
+		}); putErr != nil {
 			return SeedUnchanged, fmt.Errorf("adding the recorded sensitivity of %s: %w", addr, putErr)
 		}
 		log.Printf("[TRACE] projection: rewrote the record for %s to add %s; the value, private bytes and status are unchanged", addr, why)
 		return SeedMarksAdded, nil
 	}
 
-	// PutIfVersion with the store's "" (no record) sentinel rather than an
-	// unconditional put: the Get above can go stale between the two calls,
+	// mergeEnvelope with the store's "" (no record) sentinel rather than an
+	// unconditional put: the read above can go stale between the two calls,
 	// and a second writer creating the record in that window should lose the
 	// race loudly, exactly the way every other write to this store does.
-	if _, putErr := store.PutIfVersion(ctx, key, payload, ""); putErr != nil {
+	if _, putErr := store.mergeEnvelope(ctx, addr, "", func(e *recordEnvelope) {
+		e.Kind = recordKindObject
+		e.Object = proposed
+		e.Provider = providerString(provider)
+	}); putErr != nil {
 		return SeedUnchanged, fmt.Errorf("writing the record for %s: %w", addr, putErr)
 	}
 	return SeedWritten, nil
+}
+
+// objectFieldsEqual compares two decoded object records field for field,
+// each field the exact bytes [encodeObjectFields] produced - see
+// [SeedRecordForInstance]'s own doc comment for why this replaces a
+// whole-envelope byte comparison.
+func objectFieldsEqual(a, b *objectFields) bool {
+	return bytes.Equal(a.ValueType, b.ValueType) &&
+		bytes.Equal(a.Attrs, b.Attrs) &&
+		bytes.Equal(a.Private, b.Private) &&
+		bytes.Equal(a.SensitiveAttrs, b.SensitiveAttrs) &&
+		a.Status == b.Status
 }
 
 // SeedResult is what [SeedRecordForInstance] did. It is an enumeration and
@@ -156,32 +192,14 @@ const (
 func (r SeedResult) Wrote() bool { return r != SeedUnchanged }
 
 // sensitivityOnlyUpgrade decides #344's one narrow question about two
-// payloads that are not byte-identical: is the ONLY difference that the
-// stored one records less sensitivity than this run would?
+// object records that are not field-for-field identical: is the ONLY
+// difference that the stored one records less sensitivity than this run
+// would?
 //
 // It returns false for everything else, and the second return is the reason,
 // phrased to be read inside the caller's message either way - what the
 // upgrade adds when it is one, and what else differs when it is not.
-//
-// The comparison is made on the decoded fields rather than on the raw bytes
-// minus a substring, for the obvious reason and one less obvious one: the
-// obvious one is that a substring edit on JSON is not a comparison; the less
-// obvious one is that ValueType, Attrs and Private are compared as the bytes
-// [encodeRecordPayload] produced, which is a stricter test than comparing
-// decoded cty values with RawEquals. A record whose value decodes equal but
-// encodes differently - a different provider version's type, say - is NOT
-// the case this is for, and byte comparison refuses it without having to
-// reason about how cty compares two types that print the same.
-func sensitivityOnlyUpgrade(existing, proposed []byte) (bool, string) {
-	var was, now recordPayload
-	if err := json.Unmarshal(existing, &was); err != nil {
-		return false, "the stored record could not be read to compare it"
-	}
-	if err := json.Unmarshal(proposed, &now); err != nil {
-		// Unreachable: proposed came out of encodeRecordPayload. Proven here
-		// rather than assumed across the call.
-		return false, "the record this run would write could not be read to compare it"
-	}
+func sensitivityOnlyUpgrade(was, now *objectFields) (bool, string) {
 	switch {
 	case !bytes.Equal(was.ValueType, now.ValueType):
 		return false, "the stored value's type differs"

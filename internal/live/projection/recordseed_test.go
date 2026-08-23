@@ -47,7 +47,7 @@ func TestSeedRecordForInstanceIsWhatBuildReads(t *testing.T) {
 		"id":       cty.StringVal("seeded-by-a-migration"),
 		"triggers": cty.MapVal(map[string]cty.Value{"input": cty.StringVal("value")}),
 	})
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("SeedRecordForInstance: %s", err)
 	}
@@ -58,7 +58,7 @@ func TestSeedRecordForInstanceIsWhatBuildReads(t *testing.T) {
 	provs := SingleProvider(nullProvider, nullResourceProvider())
 	res, diags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}},
-		provs, Options{RecordStore: store, RecordKeyPrefix: seedPrefix})
+		provs, Options{RecordStore: NewRecordEnvelopeStore(store, seedPrefix)})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{`null_resource.trigger`})
 
@@ -92,10 +92,10 @@ func TestSeedRecordForInstanceIsIdempotent(t *testing.T) {
 		"triggers": cty.NullVal(cty.Map(cty.String)),
 	})
 
-	if seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady); err != nil || seeded != SeedWritten {
+	if seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady); err != nil || seeded != SeedWritten {
 		t.Fatalf("the first seed: result = %v, err = %v", seeded, err)
 	}
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("the second seed returned an error: %s", err)
 	}
@@ -122,11 +122,11 @@ func TestSeedRecordForInstanceNeverOverwrites(t *testing.T) {
 		})
 	}
 
-	if _, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, mk("the-live-value"), nil, states.ObjectReady); err != nil {
+	if _, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, mk("the-live-value"), nil, states.ObjectReady); err != nil {
 		t.Fatalf("seeding the first value: %s", err)
 	}
 
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, mk("a-stale-value"), nil, states.ObjectReady)
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, mk("a-stale-value"), nil, states.ObjectReady)
 	if seeded.Wrote() {
 		t.Error("a conflicting seed reported a write")
 	}
@@ -156,7 +156,7 @@ func TestSeedRecordForInstanceNeverOverwrites(t *testing.T) {
 // nothing to report.
 func TestSeedRecordForInstanceWithNoStore(t *testing.T) {
 	addr := mustAddr(t, `null_resource.trigger`)
-	seeded, err := SeedRecordForInstance(context.Background(), nil, seedPrefix, addr,
+	seeded, err := testSeedRecordForInstance(context.Background(), nil, seedPrefix, addr,
 		cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("x")}), nil, states.ObjectReady)
 	if seeded != SeedUnchanged || err != nil {
 		t.Errorf("result = %v, err = %v; want SeedUnchanged, nil", seeded, err)
@@ -173,7 +173,7 @@ func TestSeedRecordForInstanceRefusesAPlannedObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building the local store: %s", err)
 	}
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr,
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr,
 		cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("x")}), nil, states.ObjectPlanned)
 	if seeded.Wrote() {
 		t.Error("a planned object was recorded")
@@ -242,7 +242,7 @@ func TestSeedRecordUpgradesAPreSensitivityRecord(t *testing.T) {
 	val := seedFixture("stable")
 	preSensitivityRecord(t, store, addr, val, nil, states.ObjectReady)
 
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
 	if err != nil {
 		t.Fatalf("re-seeding a pre-sensitivity record refused: %s", err)
 	}
@@ -274,7 +274,7 @@ func TestSeedRecordUpgradesAPreSensitivityRecord(t *testing.T) {
 
 	// Third run: now byte-identical, so back to the plain no-op. The upgrade
 	// has to be a one-time step, not a rewrite on every migration.
-	again, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
+	again, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, nil, states.ObjectReady)
 	if err != nil || again != SeedUnchanged {
 		t.Errorf("the third seed = %v, err = %v; want SeedUnchanged, nil", again, err)
 	}
@@ -407,7 +407,7 @@ func TestSeedRecordRefusesEverythingButAddedSensitivity(t *testing.T) {
 				t.Fatalf("reading the stored record: %s", err)
 			}
 
-			seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, tc.val, tc.private, tc.status)
+			seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, tc.val, tc.private, tc.status)
 			if err == nil {
 				t.Fatalf("the seed was accepted; result = %v", seeded)
 			}
@@ -437,7 +437,7 @@ func TestSeedRecordRefusesEverythingButAddedSensitivity(t *testing.T) {
 // mistaken for the state a case meant to set up.
 func seedOK(t *testing.T, store staterecord.Store, addr addrs.AbsResourceInstance, val cty.Value, private []byte, status states.ObjectStatus) {
 	t.Helper()
-	seeded, err := SeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, private, status)
+	seeded, err := testSeedRecordForInstance(context.Background(), store, seedPrefix, addr, val, private, status)
 	if err != nil || seeded != SeedWritten {
 		t.Fatalf("setting up the stored record: result = %v, err = %v", seeded, err)
 	}
@@ -455,7 +455,7 @@ func TestSeedRecordUpgradeLosesAConcurrentWriteRace(t *testing.T) {
 	preSensitivityRecord(t, store, addr, val, nil, states.ObjectReady)
 
 	racing := &raceOnGet{Store: store, key: RecordKey(seedPrefix, addr), t: t, addr: addr}
-	seeded, err := SeedRecordForInstance(context.Background(), racing, seedPrefix, addr, val, nil, states.ObjectReady)
+	seeded, err := testSeedRecordForInstance(context.Background(), racing, seedPrefix, addr, val, nil, states.ObjectReady)
 	if err == nil {
 		t.Fatalf("the upgrade won a race it should have lost; result = %v", seeded)
 	}

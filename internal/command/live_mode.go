@@ -317,36 +317,38 @@ type statelessRunner struct {
 	targets  []addrs.Targetable
 	excludes []addrs.Targetable
 
-	// recordStore, recordKeyPrefix and recordVersions are GitHub issue #73's
-	// write-back state, all set by PriorState once the estate name and the
-	// live block's record_store (if any) are settled. recordStore is nil
-	// for a run with no record_store block, which is what makes WriteBack
-	// (and, upstream of it, RECORD_ADMITTED admission at lint) a no-op.
-	recordStore     staterecord.Store
-	recordKeyPrefix string
-	recordVersions  []projection.RecordVersion
+	// recordStore and recordVersions are GitHub issue #73's write-back
+	// state, both set by PriorState once the estate name and the live
+	// block's record_store (if any) are settled. recordStore is nil for a
+	// run with no record_store block, which is what makes WriteBack (and,
+	// upstream of it, RECORD_ADMITTED admission at lint) a no-op.
+	//
+	// GitHub issue #364 folded what used to be three more (co-opened) store
+	// handles - locatedStore, residueStore, provisionedStore - into this
+	// same field: they are now the same [*projection.RecordStore], reading
+	// and writing kind=identity envelopes for the same physical key
+	// recordStore reads and writes kind=object ones for. What is still
+	// genuinely separate is the version bookkeeping - see envelopeVersions.
+	recordStore    *projection.RecordStore
+	recordVersions []projection.RecordVersion
 
-	// locatedStore and locatedVersions are GitHub issue #270's half of the
-	// same write-back state, set alongside the three above and from the
-	// same store. They are separate fields rather than a widening of them
-	// because the two namespaces answer different questions and only one of
-	// them may ever be enumerated - see internal/live/projection/located.go.
-	locatedStore    *projection.LocatedStore
-	locatedVersions []projection.RecordVersion
+	// rawStore is the same underlying [staterecord.Store] recordStore
+	// wraps, kept separately because two callers still need the raw
+	// interface rather than the envelope view: guided discovery's hint
+	// (issue #109, r.mgr.EnableHint and discovery.Request.HintStore) and
+	// GitHub issue #349's root-output namespace (rootOutputStore), neither
+	// of which is a per-instance record and so neither of which moved into
+	// [projection.RecordStore]'s envelope.
+	rawStore staterecord.Store
 
-	// residueStore and residueVersions are GitHub issue #275's half again,
-	// set alongside the others and from the same store. See liveConfig,
-	// below, for the configuration this half re-opens providers from.
-	residueStore    *projection.ResidueStore
-	residueVersions []projection.RecordVersion
-
-	// provisionedStore and provisionedVersions are GitHub issue #353's
-	// half again, set alongside the others and from the same store: the one
-	// bit saying a create-time provisioner failed on an instance whose
-	// prior state is otherwise read back out of the cloud. See
-	// internal/live/projection/provisioned.go.
-	provisionedStore    *projection.ProvisionedStore
-	provisionedVersions []projection.RecordVersion
+	// envelopeVersions is GitHub issue #364's merge of what used to be
+	// three separate fields (locatedVersions, residueVersions,
+	// provisionedVersions) for GitHub issues #270, #275 and #353: the
+	// plan-time version of every kind=identity envelope that already
+	// existed. One field rather than three because the three concerns now
+	// share one physical key per instance - see
+	// [projection.Result.EnvelopeVersions].
+	envelopeVersions []projection.RecordVersion
 
 	// liveConfig is the configuration WriteBack works from. The residue
 	// classifier re-opens providers from it - the ones PriorState read
@@ -511,37 +513,28 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 			diags = diags.Append(provs.close(ctx))
 			return nil, diags
 		}
-		r.recordStore = store
-		r.recordKeyPrefix = projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
-		// Issue #270's located namespace rides the same store. Note it
-		// takes the ESTATE and not r.recordKeyPrefix: a record_store
-		// block's key_prefix override moves the record namespace and must
-		// not be able to move this one, or the override could put a located
-		// key where orphan discovery would list it. internal/configs'
-		// validateRecordStoreKeyPrefix closes the other direction by
-		// refusing an override rooted at the located namespace.
-		r.locatedStore = projection.NewLocatedStore(store, estate)
-		// Issue #275's residue namespace rides the same store, and takes
-		// the ESTATE rather than r.recordKeyPrefix for the located
-		// namespace's exact reason: a key_prefix override must not be able
-		// to move a residue key under the record root, where orphan
-		// discovery's listing would find it and the plan would propose
-		// destroying whatever it names.
-		r.residueStore = projection.NewResidueStore(store, estate)
-		// Issue #353's provisioner-taint namespace rides the same store,
-		// and takes the ESTATE rather than r.recordKeyPrefix for the
-		// located and residue namespaces' exact reason: a key_prefix
-		// override must not be able to move one of these keys under the
+		r.rawStore = store
+		recordKeyPrefix := projection.RecordStoreKeyPrefix(recordStoreCfg, estate)
+		// GitHub issue #364: one store now, for the record-backed
+		// (kind=object), record-located (issue #270), residue (issue #275)
+		// and provisioner-taint (issue #353) halves alike - all four read
+		// and write through the same envelope at the same key. Before this
+		// merge, the located/residue/provisioned namespaces deliberately
+		// ignored any key_prefix override and stayed pinned to the estate
+		// name alone; that asymmetry cannot survive the merge, since there
+		// is only one key per instance now - an override moves all four
+		// facts together, consistently, which is the intended consequence
+		// of collapsing four namespace roots into one.
+		r.recordStore = projection.NewRecordEnvelopeStore(store, recordKeyPrefix)
+		// Issue #349's root-output namespace rides the same underlying
+		// store, but stays a namespace of its own rather than joining the
+		// envelope: orphan discovery never needs to see it, so it keeps the
+		// ESTATE rather than recordKeyPrefix for the reason it always did -
+		// a key_prefix override must not be able to move it under the
 		// record root, where orphan discovery's listing would find it and
-		// the plan would propose destroying whatever it names.
-		r.provisionedStore = projection.NewProvisionedStore(store, estate)
-		// Issue #349's root-output namespace rides the same store, sixth and
-		// last, and takes the ESTATE for the same reason the three above it
-		// do: a key_prefix override must not be able to move one of these
-		// keys under the record root, where orphan discovery's listing would
-		// find it and the plan would propose destroying whatever it names.
-		// An output names no live object at all, so that would be a destroy
-		// proposal for something that never existed.
+		// the plan would propose destroying whatever it names. An output
+		// names no live object at all, so that would be a destroy proposal
+		// for something that never existed.
 		//
 		// Read immediately, while the estate name is settled and the store
 		// is open: [projection.ApplyRootOutputValues] runs several steps
@@ -586,7 +579,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	}
 
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.recordStore, r.view)
+	disco, discoProvider, undeclaredProviders, discoDiags := statelessDiscover(ctx, config, resolutions, estate, provs, r.policy, r.rawStore, r.view)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		// A marker problem means the estate's ownership records disagree with
@@ -636,10 +629,6 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 		UndeclaredProviders: undeclaredProviders,
 		Ownership:           statelessOwnershipWith(estate, disco, r.policy, reconcileVerified),
 		RecordStore:         r.recordStore,
-		RecordKeyPrefix:     r.recordKeyPrefix,
-		LocatedStore:        r.locatedStore,
-		ResidueStore:        r.residueStore,
-		ProvisionedStore:    r.provisionedStore,
 	})
 	// GitHub issue #349's root-output data reads, taken here because this is
 	// the last moment the provider instances that read the live system are
@@ -660,9 +649,7 @@ func (r *statelessRunner) PriorState(ctx context.Context, config *configs.Config
 	// applying nothing - in which case WriteBack is simply never called,
 	// and this is harmless to have set.
 	r.recordVersions = projResult.RecordVersions
-	r.locatedVersions = projResult.LocatedVersions
-	r.residueVersions = projResult.ResidueVersions
-	r.provisionedVersions = projResult.ProvisionedVersions
+	r.envelopeVersions = projResult.EnvelopeVersions
 	diags = diags.Append(projDiags)
 	if projDiags.HasErrors() {
 		return nil, diags
@@ -743,10 +730,10 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	// Issue #275's residue classifier is the one write-back half that needs
 	// a live provider, and PriorState's are long closed by now, so this
 	// opens its own and closes them again - exactly what AfterApply already
-	// does below and for the same reason. Only when there is a residue
+	// does below and for the same reason. Only when there is a record
 	// store to write to: a run with no record_store pays nothing.
 	var provs *statelessProviders
-	if r.residueStore != nil && r.liveConfig != nil {
+	if r.recordStore != nil && r.liveConfig != nil {
 		provs = newStatelessProviders(r.liveConfig, r.lib)
 	}
 
@@ -756,23 +743,19 @@ func (r *statelessRunner) WriteBack(ctx context.Context, finalState *states.Stat
 	}
 
 	diags = diags.Append(projection.WriteBack(ctx, projection.WriteBackRequest{
-		Store:           r.recordStore,
-		KeyPrefix:       r.recordKeyPrefix,
-		PriorVersions:   r.recordVersions,
-		LocatedStore:    r.locatedStore,
-		LocatedVersions: r.locatedVersions,
-		ResidueStore:    r.residueStore,
-		ResidueVersions: r.residueVersions,
-		Providers:       provAccess,
-		FinalState:      finalState,
-		Schemas:         schemas,
+		Store:            r.recordStore,
+		PriorVersions:    r.recordVersions,
+		EnvelopeVersions: r.envelopeVersions,
+		Providers:        provAccess,
+		FinalState:       finalState,
+		Schemas:          schemas,
 
-		// Issue #353's half. Config is what the write side asks "does this
-		// instance's resource block declare a create-time provisioner",
-		// which the final state cannot answer.
-		ProvisionedStore:    r.provisionedStore,
-		ProvisionedVersions: r.provisionedVersions,
-		Config:              r.liveConfig,
+		// Issues #270 and #353's halves both need Config: the located half
+		// asks the `markers "record"` selection, and the provisioned half
+		// asks whether this instance's resource block declares a
+		// create-time provisioner - neither is answerable from the final
+		// state alone.
+		Config: r.liveConfig,
 
 		// Issue #349's half. The apply just settled these values, and this
 		// is the moment stock writes them into its state file.

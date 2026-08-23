@@ -185,10 +185,10 @@ func TestRootOutputNamespaceIsDisjointFromTheRecordRoot(t *testing.T) {
 	key := RootOutputKey(estate, "local_filename")
 
 	for _, other := range []string{
+		// GitHub issue #364 collapsed the located, residue and provisioned
+		// namespaces into the record root itself; RecordKeyPrefix alone now
+		// stands in for what used to be four separate prefixes here.
 		RecordKeyPrefix(estate),
-		LocatedKeyPrefix(estate),
-		ResidueKeyPrefix(estate),
-		ProvisionedKeyPrefix(estate),
 	} {
 		if strings.HasPrefix(key, other+"/") || strings.HasPrefix(other, RootOutputKeyPrefix(estate)+"/") {
 			t.Errorf("the root output key %q and the namespace %q overlap; every namespace in this store must be prefix-disjoint from every other", key, other)
