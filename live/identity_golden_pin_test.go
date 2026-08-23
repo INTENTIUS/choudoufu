@@ -355,7 +355,7 @@ var identityGoldenPin = map[string]int{
 	// above is - once from its own child module directory, once as its
 	// parent's module.child.aws_eks_cluster.this. See
 	// identityGoldenPinInstances's own note.
-	"CONCRETE":        819,
+	"CONCRETE": 819,
 
 	// 601, up from 589 (issue #289's marker fallback): 12 ADDED rows across
 	// nine fixtures - internal/live/identity/testdata/concrete-parent-attr
@@ -2021,7 +2021,7 @@ const (
 	// proving checkIgnoreChanges declines the per-key ignore_changes shape
 	// internal/live/stamp now synthesizes the same way it already declines
 	// the whole-tags shape.
-	identityGoldenPinDirs      = 590
+	identityGoldenPinDirs = 590
 
 	// identityGoldenSweepFloor is the anti-tamper leg, in the same spirit as
 	// universeFloor in admission_coverage_test.go.
