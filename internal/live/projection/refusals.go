@@ -162,6 +162,10 @@ var refusals = []Refusal{
 		What:    "The record saying which live object a markerless resource owns could not be read: the store failed, the payload did not decode, or it names a different resource address. Reading on would bind the instance to another object's identity.",
 	},
 	{
+		Summary: SummaryStaleRecord,
+		What:    "GitHub issue #364 unit B's universal record-first read found an object through the estate's record store, but the object's own tofu-address marker does not confirm it - it names a different address, or (for a taggable type) there is no address marker at all. The record is treated as absent rather than as a claim to defend: the instance falls back to marker discovery or static derivation, exactly as if no record existed for it. Always a warning; the plan that follows is correct either way.",
+	},
+	{
 		Summary: "Record-backed instance with no record store",
 		What:    "An effect resource that keeps its whole state in a record was projected with no record_store configured, so there is nowhere to read its prior state from.",
 	},

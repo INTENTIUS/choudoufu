@@ -7,6 +7,7 @@ package projection
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -108,6 +109,18 @@ const (
 	// ownershipUnowned keeps it out: it carries no marker, or another
 	// estate's.
 	ownershipUnowned
+	// ownershipStale is GitHub issue #364 unit B's third answer, reachable
+	// only when recordFirst is set: the object [builder.materializeFromRecord]
+	// found through the estate's record store does not carry a tofu-address
+	// marker naming this instance (or, for a taggable schema, carries no
+	// tags at all), so the record cannot be trusted as this binding's proof
+	// the way [ownershipOK]'s located branch trusts one. It is not
+	// [ownershipUnowned]: nothing here says the object belongs to someone
+	// else, only that this record no longer proves it belongs to this
+	// instance, and the caller falls back to whatever identity.Class would
+	// have done with no record in play - the marker sweep or static
+	// derivation - rather than being refused outright.
+	ownershipStale
 )
 
 // checkOwnership applies [Ownership] to one materialized object, and - when
@@ -150,7 +163,20 @@ const (
 // declared would read an orphan as declared_tagged and hand it a
 // declared-quadrant verb it was never assigned - see
 // TestOwnershipPolicy_ReconcileCandidateIsNotDeclaredTagged.
-func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located bool) ownershipVerdict {
+//
+// recordFirst is GitHub issue #364 unit B's addition: true when the
+// identity being checked came from [builder.materializeFromRecord]'s
+// universal, ahead-of-class record read rather than from identity.Class's
+// own ClassRecordLocated route. It changes nothing when located is also
+// true (an operator's `markers = record` selection still trusts
+// unconditionally - see the located case below) or when the type has
+// nowhere to carry a marker (nothing to check the record against either
+// way). Where it changes the answer is exactly the case ClassRecordLocated
+// never reached before this issue: a TAGGABLE type bound by a record. There
+// the record is evidence, not proof, and this function verifies it against
+// the live object's own tofu-address before trusting it - see
+// [ownershipStale].
+func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, obj cty.Value, declared, located, recordFirst bool) ownershipVerdict {
 	own := b.opts.Ownership
 	switch {
 	case own == nil:
@@ -208,6 +234,15 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 
 	tags, taggable := markers.TagsOf(obj)
 	if !taggable {
+		if recordFirst {
+			// Nothing on the object says whose it is, which is exactly
+			// what a stale record looks like when there is no tags
+			// attribute at all to disagree with by value. Fall back rather
+			// than refuse: identity.Class's own recovery path gets a
+			// chance to find this instance some other way.
+			b.recordStale(addr, typeName, importID, "")
+			return ownershipStale
+		}
 		// The schema says the type is taggable and the object came back
 		// without the attribute. That is a provider bug rather than an
 		// ownership fact, and it is not a licence to adopt: the object has
@@ -216,6 +251,27 @@ func (b *builder) checkOwnership(addr addrs.AbsResourceInstance, typeName, impor
 			"The provider read the %s with identity %q back without a tags attribute, so nothing on it says which estate owns it. A resource enters the prior state only when it carries this estate's %s marker, so it was left alone: nothing in this plan reads, changes or destroys it.",
 			typeName, importID, markers.TagEstate), noMarkerCause(typeName), false)
 		return ownershipUnowned
+	}
+
+	if recordFirst {
+		// The stale-record rule ("In upstream terms", #389, ruled
+		// 2026-08-23): a record is trusted for a taggable type only while
+		// the live object's own tofu-address marker still names this
+		// instance. Checked with the identical rule [addressNames] applies
+		// to a config-derived identity's second look ([moved.Accepts],
+		// so a `moved` block or an older escaping grammar still counts as
+		// naming this instance) - but unlike addressNames, an ABSENT
+		// marker is not the safe "nothing to stamp yet" case here: that
+		// reading is sound when the identity came from the configuration
+		// itself, which is independent evidence the object is this
+		// instance's. A record is not independent evidence of anything
+		// once the marker it should have written stops confirming it, so
+		// silence is treated the same as disagreement.
+		raw, corrupt := markers.GatherAddress(tags)
+		if corrupt || raw == "" || !moved.Accepts(b.movedStmts, addr, markers.EscapeAddress(raw)) {
+			b.recordStale(addr, typeName, importID, raw)
+			return ownershipStale
+		}
 	}
 
 	estate := tags[markers.TagEstate]
@@ -414,6 +470,43 @@ func quadrantFor(tagged bool) policy.Quadrant {
 		return policy.DeclaredTagged
 	}
 	return policy.DeclaredUntagged
+}
+
+// SummaryStaleRecord is the summary [builder.recordStale]'s diagnostic
+// carries - registered in refusals.go so internal/live/refusalscan's lockstep
+// test can find it, the way [SummaryOutsideEstate] and [SummaryWrongAddress]
+// are.
+const SummaryStaleRecord = "Record does not match the live marker"
+
+// recordStale reports GitHub issue #364 unit B's stale-record finding: a
+// record [builder.materializeFromRecord] read named a live object at
+// importID, but the object's own tofu-address marker does not confirm the
+// binding - either it names some other address, or (foundAddress == "") it
+// carries no address marker to check at all. Always a warning, never an
+// error: the plan that follows is correct and safe either way, because the
+// instance falls back to its identity.Class's own recovery path rather than
+// being left out of the plan the way [builder.unowned]'s refusal leaves an
+// instance out.
+//
+// No [Omission] or [Unowned] entry is recorded here, unlike every other
+// finding in this file: this is not this function's last word on addr. The
+// caller ([builder.applyRecordFirst], through [builder.materialize]'s
+// ownershipStale case) returns the resolution to normal routing, and
+// whatever that produces - materialized, absent, or a fresh refusal of its
+// own - is the answer that belongs in the result, not this one.
+func (b *builder) recordStale(addr addrs.AbsResourceInstance, typeName, importID, foundAddress string) {
+	var found string
+	if foundAddress == "" {
+		found = "carries no address marker at all"
+	} else {
+		found = fmt.Sprintf("names %q instead", foundAddress)
+	}
+	detail := fmt.Sprintf(
+		"The estate's record for %s pointed at a live %s with identity %q, but that object's own %s marker %s. Treating the record as stale: this instance falls back to marker discovery or static derivation, exactly as if no record existed for it.",
+		addr, typeName, importID, markers.TagAddress, found,
+	)
+	log.Printf("[WARN] projection: %s", detail)
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryStaleRecord, detail))
 }
 
 // unowned records one refusal: on the result, in the omissions, and - unless
