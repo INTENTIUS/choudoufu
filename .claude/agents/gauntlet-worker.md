@@ -10,8 +10,12 @@ artifact by hand, and never widen the unit.
 ## Read first, in this order
 
 1. `HANDOFF.md` (one page): the promise, the default, the foundation, the
-   safety rule, the five-row difference table. Those decide what counts as a
-   fix.
+   safety rule, the five-row difference table, and "The order" underneath
+   the units. Those decide what counts as a fix. (You do not need
+   `scripts/pickup.sh`; the orchestrator ran it. If you were told you are
+   RESUMING a branch, read its last commits, `ci.rc`, `ci.out` and
+   `live/gauntlet/logs/<estate>.log` in your worktree before anything else, and continue
+   from there rather than starting over.)
 2. `live/GAUNTLET.md`: the stages, what each proves and how it is compared
    with stock, the script protocol, the artifact.
 3. `.claude/agents/live-markers.md`, "Traps" and "Working model" only, for the
@@ -31,7 +35,14 @@ to do", stop and say so. Record the unit you took; it goes in the PR title as
 `[gauntlet:<estate>/<stage>]`.
 
 Work in a worktree off local `main`, on the branch `next` printed
-(`gauntlet/<estate>-<stage>`). Never work in the primary checkout.
+(`gauntlet/<estate>-<stage>`), and on no other name: `scripts/pickup.sh`
+reconstructs who was doing what from branch names alone. Never work in the
+primary checkout. **Commit early and often on that branch, with the unit ID
+in every message**, starting with the first thing you learn (a converted
+script, a reproduced failure, a test that shows it): a session can end
+without warning, and a branch with commits is resumed by the next worker
+while a branch with none is deleted. Leave `ci.rc` and `ci.out` in the
+worktree; they are how the orchestrator, or your successor, reads your gate.
 
 ## What a unit is
 
@@ -61,7 +72,15 @@ also asserted by value; an exit code is not a verdict.
    `live/e2e/corpus-vpc-complete/run.sh` for the fullest legacy stage set.
    Lower the bound in
    `tools/gauntlet/gauntlet_test.go`'s `TestLegacyScriptsOnlyGoDown` by one.
-2. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
+2. **Re-read the failure before running anything.** The unit's `detail` is
+   the last worker's interpretation, and on 2026-08-22 the three units that
+   moved a bar were all walls recorded as external ("upstream provider bug",
+   "startup race", "stock fails too") that were not, found by reading the
+   service API directly with no tofu in the loop, on the CURRENT emulator
+   image. Do that first: the log in `live/gauntlet/logs/<estate>.log`, then
+   the AWS CLI against the emulator, then what AWS documents. Write the
+   five-row class you land on into your first commit message.
+3. **Run it**: `go run ./tools/gauntlet run <estate>` with `TOFU_BIN` set to a
    binary you built. Build it to a path private to your worktree, never the
    shared `$TMPDIR/choudoufu`: several workers run at once, and one clobbering
    another's binary mid-session produces runs that do not reproduce and cost
@@ -69,7 +88,7 @@ also asserted by value; an exit code is not a verdict.
    is enough. Read
    `live/gauntlet/logs/<estate>.log`. Docker, the AWS CLI and a stock
    `terraform` on PATH are required; if one is missing, stop and say which.
-3. **Classify** what stops the stage, using HANDOFF's table:
+4. **Classify** what stops the stage, using HANDOFF's table:
    - choudoufu refuses where stock proceeds: a defect. Fix it.
    - the plans or the resulting cloud differ: a defect. Fix it.
    - stock fails too: confirm it by running the identical configuration
@@ -82,9 +101,14 @@ also asserted by value; an exit code is not a verdict.
      is the same licence pointed the other way), or the stage's oracle is
      wrong and the oracle is what you fix. Say which, and do it.
    - handling it would write a wrong marker: do not refuse the estate and do
-     not guess. The instance belongs on the record rung; if the record path
-     for that shape does not exist yet, the unit becomes "make it exist for
-     this shape", and you say so in the PR if you cannot finish it.
+     not guess. The instance belongs on the record rung. That rung exists
+     today for a type with no marker surface (`identity.LocatedType`, a
+     `live` block implies a local record store), and HANDOFF's "The order"
+     item 1 widens it to every instance; if the record path for your shape
+     does not exist yet, the unit becomes "make it exist for this shape",
+     and you say so in the PR if you cannot finish it. A no-source instance
+     (no record, no marker, nothing derivable) refuses by default and will
+     plan a create under a toggle (`#365`); do not invent a third behaviour.
    - the emulator is wrong (floci): confirm against the AWS API documentation
      or, if you have credentials and the spend is small, real AWS. Then fix
      it. The emulator is ours: the fork is `~/checkouts/floci`, whose
@@ -94,14 +118,14 @@ also asserted by value; an exit code is not a verdict.
      image and repinning `live/floci-image` is a shared-layer change the
      orchestrator batches, so report the branch and stop short of repinning.
      An emulator gap is not a reason an estate stays blocked.
-4. **Fix generically.** A fix that names a concrete `aws_*` type in control
+5. **Fix generically.** A fix that names a concrete `aws_*` type in control
    flow is the wrong fix. Find the property the type has, derive the rule,
    then say in the PR how many other types it reaches - measured against the
    provider's real schema, not against a survey signal, which overstates it
    (one property read as 215 types by survey was 2 against the schema).
    Every hand-wired type name needs its entry in
    `live/derivation_guard_test.go`'s registry.
-5. **Never write a wrong marker.** Before any change to identity resolution,
+6. **Never write a wrong marker.** Before any change to identity resolution,
    stamping or discovery, read the "a wrong marker outranks a missing one"
    paragraph in HANDOFF and assert the rendered identity by value in a test.
    A plan proposing to CREATE something that already exists is this failure,
@@ -109,16 +133,16 @@ also asserted by value; an exit code is not a verdict.
    approves. Watch for it whenever a change reclassifies an instance, and
    check that whatever reads a record has something that writes one - a read
    half landing without its write half is exactly how that plan appears.
-6. **Prove your checks can fail.** A check written from the implementation
+7. **Prove your checks can fail.** A check written from the implementation
    passes forever and proves nothing; write it from what the API promises,
    then make it fail on purpose once. When an assertion breaks right after a
    fix lands, suspect the assertion is stale before you suspect a regression.
    And when you suspect the emulator or the provider, read the API directly
    with no terraform in the loop - stock agreeing with you proves you share a
    code path, not that the defect is upstream.
-6. **Re-run** the estate until the stage moves. Then
+8. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
-7. **Gate**: not the whole tier - the packages your change touches, plus the
+9. **Gate**: not the whole tier - the packages your change touches, plus the
    ones that sweep the whole tree and so can fail on a file you never opened:
    `./internal/live/check/` (the identity golden), `./tools/gauntlet/` (the
    artifact and rendered-doc guards), `./live/` (the derivation registry and
@@ -133,7 +157,7 @@ also asserted by value; an exit code is not a verdict.
    THERE. The orchestrator reads `ci.rc` itself and cannot merge what it cannot
    read; deleting them as tidy-up costs a round trip. The full tier runs once
    on the merge result before the push.
-8. **Order matters at the end**: run the estate LAST, then `render`, then
+10. **Order matters at the end**: run the estate LAST, then `render`, then
    gate. Rendering before the final run leaves a rendered page behind the
    artifact and `TestRenderedDocsAreCurrent` fails.
    When you rebase, only the rendered files conflict: resolve them with
@@ -141,10 +165,10 @@ also asserted by value; an exit code is not a verdict.
    ON) and then RE-RUN your estate so the runner rewrites its row. Taking the
    other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
    estates moved while you worked.
-9. **Commit** the script, the code, the artifact and the rendered docs
+11. **Commit** the script, the code, the artifact and the rendered docs
    together, with `-F` from a message file (shell substitution eats
    `${count.index}`). One commit per unit is fine.
-10. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
+12. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
    - title: `[gauntlet:<estate>/<stage>] <one line: what moved or what was found>`
    - body: the unit, the stage's verdict before and after (copy the
      `GAUNTLET stage=` lines from the log), which row of the five-row table

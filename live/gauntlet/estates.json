@@ -44,6 +44,15 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
     },
     {
+      "name": "corpus-ec2-instance-complete",
+      "source": "terraform-aws-modules/terraform-aws-ec2-instance examples/complete (tag v6.4.0), the most-downloaded module on the registry; absent from the measurement set until 2026-08-23",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-ec2-instance.git",
+      "pin": "v6.4.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
       "name": "corpus-ecs-fargate",
       "source": "terraform-aws-modules/terraform-aws-ecs examples/fargate (tag v7.6.0), its Fargate flagship example",
       "url": "https://github.com/terraform-aws-modules/terraform-aws-ecs.git",

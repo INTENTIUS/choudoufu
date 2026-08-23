@@ -198,6 +198,7 @@ is the whole approval step. Anything real goes in the growing set without one.
 | `corpus-alb-complete` | terraform-popular | v9.9.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-autoscaling-complete` | terraform-popular | v9.3.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-dynamodb-table-basic` | terraform-popular | v5.5.1 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
+| `corpus-ec2-instance-complete` | terraform-popular | v6.4.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-ecs-fargate` | terraform-popular | v7.6.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-eks-basic` | terraform-popular | v9.0.0 | a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy |
 | `corpus-evoteum-modules` | opentofu-native | 7e8764035c50d1cb2a6ac04636a9f85ba6708d39 | a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised |
