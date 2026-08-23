@@ -366,61 +366,83 @@ gauntlet_stage migrate pass "$(grep -oE '[0-9]+ resource\(s\) newly stamped, 0 a
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 3: TEST PLAN - state deleted, live-plan, empty + identities re-asserted
 # ══════════════════════════════════════════════════════════════════════════
-# WHERE THIS STAGE ACTUALLY STOPS, re-measured 2026-08-22 against real
+# WHERE THIS STAGE ACTUALLY STOPS, re-measured 2026-08-22/23 against real
 # Docker/floci/terraform/AWS CLI, hashicorp/aws 6.59.0, read off this
-# script's own output and not inferred. Three prior walls are now gone:
+# script's own output and not inferred. History of fixed walls, oldest
+# first:
 #
 #   1. FIXED (GitHub issue #354). "Non-static identity argument" on
-#      module.complete.aws_autoscaling_traffic_source_attachment.this["ex-alb"].identifier
-#      - the for_each element's own expression, layered under its converted
-#      value.
+#      module.complete.aws_autoscaling_traffic_source_attachment.this["ex-alb"].identifier.
 #   2. FIXED (GitHub issue #369). "Ambiguous list-valued identity argument"
-#      on module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids
-#      - a zero-element Component.SoleElement alternation member now defers
-#      to its satisfied sibling (source_security_group_id) instead of
-#      refusing ambiguous.
-#   3. FIXED THIS PASS. #354's fix made this type's identity resolve for
-#      real for the first time, which is what surfaced a THIRD, unrelated
-#      wall behind it: "The identity table names something the provider
-#      does not have" on aws_autoscaling_traffic_source_attachment, from
-#      internal/live/identity/schema_verify.go's checkArguments. The row
-#      itself (internal/live/identity/table.go's aws_autoscaling_traffic_source_attachment
-#      comment, GitHub issue #310) is correct - "type" and "identifier" are
-#      real, required arguments of the type's traffic_source block, verified
-#      against `terraform providers schema -json` at 6.59.0 - but
-#      checkArguments checked every component's Attrs against the
-#      resource's TOP-LEVEL block only, never descending into the nested
-#      block a Component.Block names, so a correct Block-bearing row always
-#      read as "names an argument the provider does not have". Fixed
-#      generically (componentSchemaBlock in schema_verify.go, reached by
-#      any Component.Block user - this AWS type plus four kubernetes_*
-#      table rows), with a regression test
-#      (TestVerifyTableBlockComponent) built from the real 6.59.0 shape.
+#      on module.asg_sg.aws_security_group_rule.computed_ingress_with_source_security_group_id[0].prefix_list_ids.
+#   3. FIXED. "The identity table names something the provider does not
+#      have" on aws_autoscaling_traffic_source_attachment
+#      (componentSchemaBlock in internal/live/identity/schema_verify.go).
+#   4. FIXED. SEVEN aws_autoscaling_group instances (one per module call
+#      using name_prefix instead of name) fell to the record rung via
+#      identity.RecordFallbackType rather than refusing outright.
+#   5. FIXED 2026-08-23. The IAM role/instance-profile trio under
+#      module.complete (name_prefix'd, so NEEDS_DISCOVERY at plan time)
+#      showed "will be created" despite migrate having stamped both
+#      correctly: internal/live/discovery/bindtags.go's tag-index join
+#      (issue #266) keys a listed object's import ID against the estate's
+#      tag index by the tagged resource's ARN resource-id segment - correct
+#      for a root-path IAM entity, but an IAM entity under a non-default
+#      Path (both of these are, name_prefix'd under "/ec2/") has an ARN
+#      resource-id of "PATH/NAME" while its import ID (and iam:ListRoles'/
+#      iam:ListInstanceProfiles' own listing) is the bare NAME alone - so
+#      the join silently missed (joinNone, no diagnostic) for any such
+#      entity. markerJoinKeys now adds the ARN's trailing path segment as a
+#      third join key for IAM ARNs specifically (TestMarkerJoinKeysAddsIAMBareNameForAPathedEntity),
+#      safe because IAM enforces name uniqueness per entity kind account-
+#      wide independent of Path.
 #
-# What stands now, exposed only once the false failure above stopped
-# masking it: SEVEN aws_autoscaling_group instances (one per module call
-# using name_prefix instead of name: default, efa, external,
-# instance_requirements, mixed_instance, target_tracking_customized_metrics,
-# warm_pool) are "Unstamped marker-only resource" / "Unmarked apply of a
-# marker-only resource". An aws_autoscaling_group has no top-level tags map
-# (its tags are `tag` nested blocks - see stage 2's own comment on this),
-# so it cannot carry a marker, and a name_prefix-named instance's live name
-# is unknowable from configuration, so it cannot be identified by argument
-# either. Migrate (stage 2) binds it anyway, by reading the live name
-# straight out of the state file being imported - but nothing durable
-# records that binding: no marker (untaggable), and no record-backed
-# fallback is registered for this shape either (searched
-# internal/live/identity/discoverablefallback_generated.go - no
-# aws_autoscaling_group entry). So once the state file is gone, the
-# instance really is unfindable, and refusing rather than proposing a
-# silent duplicate create is HANDOFF's safety rule working as designed -
-# not a wrong answer, but a rung ("record-only") that has no path built for
-# this shape yet. That is a mechanism gap (the record store would have to
-# accept a provider-assigned name with no tag surface as a type's whole
-# identity), not a one-line fix, and is left for its own unit.
+# What stands now:
 #
-# Stages 4 and 5 are therefore never reached and stay not_run in
-# live/corpus-crossing-manifest.json: running them against a refused plan
+#   - Several floci emulator gaps, confirmed at the API level with the AWS
+#     CLI (no Terraform), each already fixed on a branch
+#     (lex00/floci fix/launch-template-metadata-monitoring) but not yet
+#     reflected here because publishing an image is a shared-layer change
+#     this unit does not make: aws_launch_template drops metadata_options/
+#     monitoring entirely (module.default/.efa/.instance_requirements/
+#     .instance_requirements_accelerators/.launch_template_only/
+#     .mixed_instance/.target_tracking_customized_metrics/.warm_pool/
+#     .complete, and every aws_autoscaling_group whose launch_template.version
+#     is therefore unknown); aws_autoscaling_policy drops Enabled/
+#     StepAdjustments/PredictiveScalingConfiguration/ResourceLabel and
+#     defaults Cooldown to 300 for every policy type instead of only
+#     SimpleScaling (module.complete, module.target_tracking_customized_metrics);
+#     aws_cloudwatch_metric_alarm drops TreatMissingData and invents a
+#     DatapointsToAlarm default real AWS does not (lex00/floci#93,
+#     reopened - confirmed directly against real AWS the earlier closure's
+#     premise was backwards).
+#   - lex00/floci#111 (already filed, open): module.vpc's default network
+#     ACL loses its IPv6 egress/ingress rule's CIDR type on read.
+#   - lex00/floci#112 (filed 2026-08-23): aws_autoscaling_group's
+#     DescribeAutoScalingGroups drops most of its own optional fields
+#     (default_instance_warmup, capacity_rebalance, service_linked_role_arn,
+#     instance_maintenance_policy, availability_zone_distribution,
+#     capacity_reservation_specification, mixed_instances_policy override
+#     fields, traffic sources) - module.complete and module.mixed_instance.
+#   - choudoufu#384 (filed 2026-08-23, NOT an emulator gap): a
+#     Component.SoleElement identity alternation binds the wrong live
+#     object - not merely a missing feature - when TWO of its alternative
+#     attributes are genuinely non-empty at once, which is exactly
+#     module.asg_sg's default shape (egress_cidr_blocks and
+#     egress_ipv6_cidr_blocks both default non-empty in
+#     terraform-aws-modules/security-group). module.asg_sg.aws_security_group_rule.egress_rules[0]
+#     binds to the IPv4 rule while the config's real identity is the IPv6
+#     one.
+#   - choudoufu#385 (filed 2026-08-23): aws_autoscaling_group's
+#     initial_lifecycle_hook is a NestingSet, ForceNew block the provider
+#     never sources from the remote at all - internal/live/projection/residue.go
+#     (issue #275) is the mechanism for exactly this shape but its own doc
+#     comment explicitly excludes every collection-nested block, pending a
+#     real design pass on whether the two-read discriminator generalizes
+#     safely to a Set value.
+#
+# Stages 4 and 5 are therefore still not reached and stay not_run in
+# live/corpus-crossing-manifest.json: running them against a non-empty plan
 # would prove nothing.
 CURRENT_STAGE=test_plan
 log "=== STAGE 3: test plan (state deleted, live-plan empty) ==="
@@ -457,8 +479,16 @@ if [ "$PLAN_RC" -ne 0 ]; then
   fail "live-plan exited $PLAN_RC: $(printf '%s' "$ERROR_SUMMARIES" | tr '\n' '; ')"
 fi
 [ ! -f "$ADOPTED/terraform.tfstate" ] || fail "live-plan wrote a state file"
-grep -qE '^  # .+ will be (created|updated|destroyed)' <<< "$PLAN_OUT" \
-  && { grep -E '^  # .+ will be' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
+# "must be replaced" is Terraform's own summary line for a forced
+# create_before_destroy=false replacement, and it carries no "will be" at
+# all - a plan-emptiness check that only matched "will be
+# (created|updated|destroyed)" let a replacement through undetected for as
+# long as something else in the plan already failed this same check, which
+# is exactly what happened here until 2026-08-22 (a real replacement was
+# masked by unrelated "will be created" noise the whole time). Both verbs
+# now covered so the loudest hole in this check cannot silently reopen.
+grep -qE '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$PLAN_OUT" \
+  && { grep -E '^  # .+ (will be|must be replaced)' <<< "$PLAN_OUT"; fail "the plan proposes a resource change with no local record store and no drift"; }
 log "  no resource change proposed, with zero local memory of the migration that stamped it"
 
 # Re-assert the two marker-carrying identities, after the local state file

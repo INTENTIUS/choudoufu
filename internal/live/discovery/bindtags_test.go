@@ -424,6 +424,47 @@ func TestMarkerJoinKeysCoverBothSpellings(t *testing.T) {
 	}
 }
 
+// TestMarkerJoinKeysAddsIAMBareNameForAPathedEntity is the
+// corpus-autoscaling-complete regression: an IAM role or instance profile
+// built under a non-default Path (module.complete's aws_iam_role and
+// aws_iam_instance_profile, both name_prefix'd under "/ec2/") imports by
+// its bare NAME, never by "PATH/NAME" - but that is exactly the string
+// [cloudcontrol.ParseARN] puts in ResourceID for a "type/PATH/NAME" ARN.
+// Without a third key keyed on the trailing segment, a stateless replan's
+// tag-index join for such an object always misses (joinNone, no log line,
+// no diagnostic) and the plan proposes creating an object that already
+// exists.
+func TestMarkerJoinKeysAddsIAMBareNameForAPathedEntity(t *testing.T) {
+	const arn = "arn:aws:iam::000000000000:role/ec2/complete-6020beeaa727eb5cf8845f0942"
+	keys := markerJoinKeys(arn)
+	want := []string{arn, "ec2/complete-6020beeaa727eb5cf8845f0942", "complete-6020beeaa727eb5cf8845f0942"}
+	if len(keys) != len(want) {
+		t.Fatalf("markerJoinKeys(%q) = %v, want %v", arn, keys, want)
+	}
+	for i, w := range want {
+		if keys[i] != w {
+			t.Errorf("key %d = %q, want %q", i, keys[i], w)
+		}
+	}
+
+	// A root-path IAM entity has no path segment to strip, so the
+	// resource-id key and the bare-name key already coincide - no third,
+	// redundant key.
+	const rootARN = "arn:aws:iam::000000000000:role/complete"
+	if got := markerJoinKeys(rootARN); len(got) != 2 {
+		t.Errorf("markerJoinKeys(%q) = %v, want exactly 2 keys (no duplicate)", rootARN, got)
+	}
+
+	// A non-IAM ARN with a "/"-bearing resource-id (ELBv2's own shape,
+	// covered above) must not gain this third key: the trailing-segment
+	// guess is scoped to IAM's own documented Path convention and nothing
+	// else.
+	const elb = "arn:aws:elasticloadbalancing:us-east-1:000000000000:loadbalancer/app/main/50dc6c495c0c9188"
+	if got := markerJoinKeys(elb); len(got) != 2 {
+		t.Errorf("markerJoinKeys(%q) = %v, want exactly 2 keys - the IAM-only rule must not fire here", elb, got)
+	}
+}
+
 // TestScanTypeMarkerFallbackBindsAnUnlistableTaggableType is issue #293 at
 // unit scale: aws_route_table has no list route at all in this fake cloud
 // (the shape aws_wafv2_web_acl and aws_iam_service_linked_role are in for
