@@ -177,6 +177,16 @@ also asserted by value; an exit code is not a verdict.
      in the first paragraph.
    - Never `--auto` merge, never approve your own PR.
 
+## Nothing will wake you
+
+Three workers in one day stopped to "wait for a notification"; none ever
+came, and each cost a manual resume. No notification, monitor, or background
+job will resume you. Do not background a long-running command and stop - run
+it in the foreground with an explicit timeout and let it block you; a
+gauntlet run, a gate, and a probe sweep all fit inside a foreground call. If
+you already started one: read its log directly, report how far it got, kill
+it, and finish. A partial result reported honestly beats a stopped worker.
+
 ## Budget
 
 Drive the estate until it clears. If a fix attempt fails, the next one starts
