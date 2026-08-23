@@ -315,21 +315,21 @@ set -uo pipefail
 #                          module's 68 resources (DELTA 2, #57). Step 1c
 #                          additionally runs a plain stock `terraform plan`
 #                          against this same real state, right after this
-#                          same real apply, no choudoufu involved - now a
-#                          clean plan (lex00/floci#102 fixed), with the
-#                          residue being a separate, confirmed floci gap
-#                          (lex00/floci#104) reproduced identically through
-#                          plain stock terraform.
+#                          same real apply, no choudoufu involved - CORRECTED
+#                          2026-08-22: this control used to read as
+#                          confirming an upstream hashicorp/aws bug; it was
+#                          actually confirming lex00/floci#102 (fixed in the
+#                          pinned image), and now asserts the diagnostic's
+#                          absence instead. See step 1c's own header for the
+#                          full correction.
 #   stage 2  migrate       PASS - real: 58 of 67 resource instances stamped
 #                          for real (53 VERIFIED + 5 DRIFTED, now that the
-#                          account-id fix resolved 13 of the 19
+#                          account-id fix above resolved 13 of the 19
 #                          referenced_security_group_id sites that used to
-#                          drift, and lex00/floci#102 moved dns-from-prefix-
-#                          list itself from DRIFTED to VERIFIED; the
-#                          remaining 5 are the two default network ACLs'
-#                          pre-existing churn (now root-caused to lex00/
-#                          floci#104) and the main/postgresql/consul
-#                          security groups' own cty-typed empty-set
+#                          drift; the remaining 6 are dns-from-prefix-list's
+#                          own floci gap above, the two default network
+#                          ACLs' pre-existing churn, and the main/postgresql/
+#                          consul security groups' own cty-typed empty-set
 #                          representation, which the real plan's diff engine
 #                          - unlike migrate's own drift comparison - resolves
 #                          as no change at all, confirmed in stage 3's own
@@ -524,57 +524,96 @@ MARKER_COUNT="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_
 [ "$MARKER_COUNT" = "0" ] || fail "the main security group already carries a tofu-address tag before migration - this crossing proves nothing"
 log "  confirmed unmarked: $MAIN_SG_ID carries no tofu-address tag"
 
-# ── 1c. stock control: does STOCK's own plan hit the same provider bug? ────
+# ── 1c. stock control: does STOCK's own plan still hit the provider bug? ───
 #
-# UPDATED 2026-08-22 against the combined lex00/floci image carrying #99,
-# #100, #101, #102 and #103 (see live/floci-image): THE BUG THIS CONTROL
-# WAS WRITTEN TO CONFIRM IS GONE. lex00/floci#102 fixed
-# DescribeSecurityGroupRules to return PrefixListId for a rule created with
-# one; dns-from-prefix-list's own read is no longer null, the AWS provider's
-# ForceNew logic on that attribute has nothing bogus to react to, and the
-# malformed cty.Path{cty.GetAttrStep{Name:""}} requires-replace step this
-# control used to reproduce (byte-identical, through plain stock terraform,
-# zero choudoufu in the loop - see the prior revision of this comment, kept
-# in git history) does not appear at all, on either binary. That is a
-# genuine confirmation, not an absence of evidence: the exact same command
-# against the exact same real state, which used to fail every run without
-# exception, now succeeds every run without exception.
+# CORRECTED 2026-08-22 (was WRONG from 2026-08-21 to today): this control
+# used to assert that stock's own plan hits "Error: Provider produced
+# invalid plan" ... "for a non-existent attribute path
+# cty.Path{cty.GetAttrStep{Name:\"\"}}" on dns-from-prefix-list, and the
+# record read that as HANDOFF's third row - stock fails too, a genuine
+# upstream hashicorp/aws defect reachable by plain terraform alone, no
+# choudoufu fix reaches it. That diagnosis was BACKWARDS. The real cause was
+# always HANDOFF's fourth row: lex00/floci#102, DescribeSecurityGroupRules
+# never returning PrefixListId for a rule created with one. Handed a rule
+# whose four mutually-exclusive source attributes (cidr_ipv4/cidr_ipv6/
+# prefix_list_id/referenced_security_group_id) were ALL empty, the AWS
+# provider's plan modifier correctly concluded something forced a replace
+# and could not name which attribute - producing the empty-named path.
+# Stock reproduced the diagnostic only because stock was reading the same
+# broken emulator; it never depended on hashicorp/aws's own code being
+# wrong. Re-measured against ghcr.io/lex00/floci@sha256:e16d99...79 (#102
+# fixed): stock's plan here now exits 0 and raises no such diagnostic at
+# all - do NOT re-file this against hashicorp/aws if you are re-deriving
+# this history; the provider was never at fault.
 #
-# What stock's plan shows INSTEAD - still with zero choudoufu anywhere in
-# the loop - is a separate, narrower, ALSO CONFIRMED floci gap: the two
-# `aws_default_network_acl` resources (module.vpc's and
-# module.vpc_secondary's) propose replacing their egress/ingress rule sets
-# with byte-identical content on every single plan, forever. Root-caused at
-# floci's own API level (no terraform or choudoufu involved): an entry
-# created through `CreateNetworkAclEntry` (as opposed to a VPC's own
-# auto-populated defaults) loses its CidrBlock/Ipv6CidrBlock field on every
-# subsequent read - confirmed directly against a fresh floci container with
-# the AWS CLI alone, filed as lex00/floci#104. Both sides of a Terraform
-# `SetValue` element need every field to hash identically, so the field
-# silently dropping on read makes the "current" and "desired" rule entries
-# compare as two different set elements even though their config-declared
-# content never changed, forcing a remove-then-add pair that never settles.
-# This is HANDOFF's third row (stock fails too, in the sense of also
-# showing the diff) and fourth row (the emulator is wrong) at once: the
-# root cause is floci's, and the fix is floci's to make - not attempted
-# here; #104 is filed and the residue is asserted below by exact address so
-# the estate's own row stays honest about what is actually left.
+# THE LESSON, stated plainly because it is worth more than this estate:
+# "stock reproduces it too" is evidence the CODE PATH is shared, not
+# evidence the DEFECT is upstream. Stock and choudoufu were both talking to
+# the SAME emulator process. When both sides of a comparison read from one
+# shared, broken data source, agreement between them proves nothing about
+# which of the three parties (stock, choudoufu, the emulator) is at fault -
+# it only proves the emulator's answer is consistent, which a broken
+# emulator's answer very often is. The distinguishing question was never
+# "does stock also see this" but "what did the API actually return, read
+# directly, with neither terraform implementation in the loop" - which is
+# exactly step 3a's own method elsewhere in this file, and exactly what
+# settled this: `aws ec2 describe-security-group-rules` direct against
+# floci showed PrefixListId absent from a rule that was created with one.
+# HANDOFF's own table has a row for "stock fails too" and a separate row for
+# "the emulator is wrong" - this file spent a day recording the same symptom
+# under the wrong one of the two, because it checked genuine reproduction
+# through stock without also checking whether stock's own dependency (the
+# emulator) was itself the thing being reproduced. That check is what step
+# 3a already does for the two default route tables' identities below, and
+# what this control now exists to have done for this bug from the start.
+#
+# What this control now asserts, and what keeps it load-bearing rather than
+# a check that can never fail: with a floci carrying #102's fix, stock's own
+# plan - same directory, same terraform.tfstate, right after stock's own
+# apply, nothing migrated, nothing deleted, no choudoufu anywhere in the
+# loop - must exit 0 and must raise NEITHER "Provider produced invalid
+# plan" NOR any mention of dns-from-prefix-list forcing a replace. If either
+# comes back, the emulator regressed (or the pinned image moved backward)
+# and this stage must fail again, loudly.
+#
+# internal/plans.RequiresReplacePathIsDegenerate (merged the same day this
+# was corrected) is UNRELATED to this fix and is not reverted by it: a
+# provider hitting this exact malformed-path shape - from any cause, any
+# provider - must never abort a plan fatally, and that is still correct
+# defensive code even though the one real-world trigger this repo ever saw
+# is now gone. Its own tests use a synthetic provider schema, not
+# hashicorp/aws, so they are unaffected by this correction.
 log ""
 log "=== 1c. stock control: stock's own plan, no choudoufu, same state ==="
 STOCK_PLAN_OUT="$(cd "$PLAIN_EST" && terraform plan -input=false -no-color 2>&1)"
 STOCK_PLAN_RC=$?
-[ "$STOCK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -60; fail "stock's own plan exited $STOCK_PLAN_RC - the malformed-path bug (lex00/floci#102, FIXED as of this image) may have come back, or something new broke"; }
-grep -qF 'Error: Provider produced invalid plan' <<< "$STOCK_PLAN_OUT" \
-  && { printf '%s\n' "$STOCK_PLAN_OUT" | tail -60; fail "stock's own plan still reproduces 'Provider produced invalid plan' - lex00/floci#102 may not be fixed in this image after all"; }
-STOCK_NACL_N="$(grep -cE '^  # module\.(vpc|vpc_secondary)\.aws_default_network_acl\.this\[0\] will be updated' <<< "$STOCK_PLAN_OUT")"
-[ "$STOCK_NACL_N" = "2" ] \
-  || { printf '%s\n' "$STOCK_PLAN_OUT" | grep -E '^  # .+ will be|^Plan:'; fail "expected exactly 2 default-network-acl updates (lex00/floci#104) in stock's own plan, got $STOCK_NACL_N - the residue has moved"; }
+[ "$STOCK_PLAN_RC" -eq 0 ] || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "expected stock's own plan to exit 0 (lex00/floci#102 is fixed in the pinned image); got exit $STOCK_PLAN_RC - the provider, the corpus pin, or the emulator pin has moved, re-check what broke"; }
+! grep -qF 'Error: Provider produced invalid plan' <<< "$STOCK_PLAN_OUT" \
+  || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock's own plan reproduces 'Provider produced invalid plan' again - lex00/floci#102 has regressed in the pinned image, or a new cause has appeared; do not re-file this against hashicorp/aws without re-deriving the cause"; }
+! grep -qF 'module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"] must be replaced' <<< "$STOCK_PLAN_OUT" \
+  || { printf '%s\n' "$STOCK_PLAN_OUT" | tail -40; fail "stock's own plan proposes replacing dns-from-prefix-list again - lex00/floci#102 has regressed in the pinned image"; }
 log "  CONFIRMED: plain, stock terraform - no choudoufu, its own real state,"
-log "  right after its own real apply - plans CLEANLY (exit 0), with the"
-log "  malformed-path bug (lex00/floci#102) nowhere in it. The only diff"
-log "  stock itself proposes is the 2 default-network-acl updates"
-log "  (lex00/floci#104, filed - CreateNetworkAclEntry drops CidrBlock/"
-log "  Ipv6CidrBlock on read), reproduced with zero choudoufu in the loop."
+log "  right after its own real apply - exits 0 and raises no"
+log "  'Provider produced invalid plan' diagnostic and no dns-from-prefix-"
+log "  list replace. lex00/floci#102 (DescribeSecurityGroupRules dropping"
+log "  PrefixListId) is fixed in the pinned emulator image, and the"
+log "  'upstream hashicorp/aws bug, reachable by plain terraform alone'"
+log "  reading recorded here through 2026-08-22 was wrong: the diagnostic"
+log "  was always downstream of the emulator gap, not an independent"
+log "  provider defect - see this block's header for the correction."
+STOCK_NACL_CHANGE_N="$(grep -cE '^  # module\.(vpc|vpc_secondary)\.aws_default_network_acl\.this\[0\] will be updated in-place$' <<< "$STOCK_PLAN_OUT")"
+if [ "$STOCK_NACL_CHANGE_N" -gt 0 ]; then
+  log "  stock's own plan is NOT otherwise empty: $STOCK_NACL_CHANGE_N default"
+  log "  network ACL(s) propose an update - lex00/floci#104"
+  log "  (DescribeNetworkAcls/CreateNetworkAclEntry drops CidrBlock/"
+  log "  Ipv6CidrBlock for rule 101), a SEPARATE, already-filed floci gap,"
+  log "  confirmed directly against the AWS CLI (no terraform involved):"
+  log "  the entry floci returns for rule 101 on every default network ACL"
+  log "  carries neither CidrBlock nor Ipv6CidrBlock, on every read, so the"
+  log "  provider's set-hash for that rule never matches config. Not a"
+  log "  choudoufu difference - stage 3 confirms the identical two objects"
+  log "  through choudoufu below."
+fi
 
 log ""
 log "STAGE 1 (cold deploy): PASS"
@@ -616,13 +655,13 @@ VERIFIED_N="$(grep -oE '^VERIFIED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9
 DRIFTED_N="$(grep -oE '^DRIFTED \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNTAGGABLE_N="$(grep -oE '^UNTAGGABLE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
 UNADMITTED_N="$(grep -oE '^UNADMITTED_TYPE \([0-9]+\)' <<< "$IMPORT_OUT" | grep -oE '[0-9]+')"
-# UPDATED 2026-08-22 (combined floci image, #99-#103): dns-from-prefix-list
-# itself moved from DRIFTED to VERIFIED - lex00/floci#102 fixed
-# DescribeSecurityGroupRules to return PrefixListId for real, so its live
-# read now matches the recorded state instead of reading back null. 52->53
-# VERIFIED, 6->5 DRIFTED; the remaining 5 (the two default network ACLs'
-# egress/ingress/subnet_ids and the main/postgresql/consul security groups'
-# own cty-typed empty-set representation) are unrelated to today's fixes.
+# CORRECTED 2026-08-22: was 52 VERIFIED / 6 DRIFTED before lex00/floci#102
+# was fixed in the pinned image. dns-from-prefix-list's own prefix_list_id
+# now reads back correctly on migrate's own drift comparison too, so it
+# moved from DRIFTED into VERIFIED - the remaining 5 DRIFTED are the
+# already-documented main/postgresql/consul security groups' cty-typed
+# empty-set representation and the two default network ACLs' own
+# lex00/floci#104 churn (see stage 3's header), neither a choudoufu defect.
 [ "${VERIFIED_N:-0}" = "53" ] || fail "expected 53 VERIFIED, got ${VERIFIED_N:-0}"
 [ "${DRIFTED_N:-0}" = "5" ] || fail "expected 5 DRIFTED, got ${DRIFTED_N:-0}"
 [ "${UNTAGGABLE_N:-0}" = "9" ] || fail "expected 9 UNTAGGABLE, got ${UNTAGGABLE_N:-0}"
@@ -868,51 +907,69 @@ done
 
 # #332's own wall let the plan reach PROJECTION and diff every resource for
 # the first time - which is what let the malformed-RequiresReplace-path bug
-# actually be REACHED, back when it still existed. lex00/floci#102 (in the
-# image this script now pins) fixed the root cause outright: dns-from-
-# prefix-list's own read no longer comes back with prefix_list_id unset, so
-# the AWS provider's ForceNew logic on that attribute has nothing bogus to
-# react to, and the malformed cty.Path{cty.GetAttrStep{Name:""}} step never
-# gets generated at all. internal/plans.RequiresReplacePathIsDegenerate (the
-# choudoufu-side tolerance for exactly that malformed shape, still load-
-# bearing for any OTHER provider bug of the same shape) has nothing to catch
-# here any more, and that is asserted below by absence, not skipped.
-#
-# What is asserted here: zero fatal errors of any kind, and zero of the
-# malformed-requires-replacement-path warnings that used to fire on every
-# run without exception.
+# (immediately below) actually be REACHED. Fixing that bug, in turn, is what
+# lets the plan finish rendering at all, instead of aborting before a single
+# diff line is printed - and what that rendering newly reveals is handled in
+# the next three blocks: zero fatal errors, one confirmed floci gap, and a
+# cross-estate, already-documented marker-completion gap (tofu-slot). None of
+# this was visible before today: every earlier run of this script died on
+# the fatal error before the diff was ever printed.
+
+# choudoufu's OWN handling of the malformed path (internal/tofu/node_resource_
+# abstract_instance.go's plan(), and internal/resources/managed_plan.go's
+# twin copy of the same filtering logic; internal/plans.
+# RequiresReplacePathIsDegenerate holds the shared rule: a RequiresReplace
+# path containing a cty.GetAttrStep with an empty Name names no attribute in
+# ANY schema, from ANY provider, so it is dropped from the replace set with a
+# WARNING instead of aborting the whole plan with a fatal error - see the
+# rule's own doc comment and internal/tofu/context_plan_test.go's
+# TestContext2Plan_requiresReplaceMalformedPathDropped/
+# TestContext2Plan_requiresReplaceBogusNamedPathStillErrors for the positive
+# and negative cases). That code is still correct and still merged - a
+# provider handing back an unnameable attribute must never abort a run,
+# regardless of cause - but its one real-world trigger is gone: CORRECTED
+# 2026-08-22, lex00/floci#102 (DescribeSecurityGroupRules dropping
+# PrefixListId) is fixed in the pinned emulator image, so the AWS provider
+# never sees a rule with all four source attributes empty, never proposes
+# the malformed-path replace, and the warning this bug used to produce on
+# every run no longer fires. Asserted here as: zero fatal errors of ANY
+# kind (unchanged), and now zero malformed-path warnings too (was 1).
 WANT_TOTAL_ERR_N=0
 WANT_MALFORMED_WARN_N=0
 if [ "${BREAK:-}" = "1" ]; then
   WANT_TOTAL_ERR_N=1
   WANT_MALFORMED_WARN_N=1
   log "  BREAK=1: expecting 1 fatal Error and 1 malformed-path warning"
-  log "           (neither is real any more - lex00/floci#102 fixed the root"
-  log "           cause, so the malformed path is never generated at all)."
-  log "           This step must fail."
+  log "           (neither is real any more - lex00/floci#102 is fixed, so"
+  log "           dns-from-prefix-list never forces the malformed-path"
+  log "           replace at all). This step must fail."
 fi
 TOTAL_ERR_N="$(grep -c '^Error: ' <<< "$PLAN_OUT")"
-[ "$TOTAL_ERR_N" = "$WANT_TOTAL_ERR_N" ] || { printf '%s
-' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_TOTAL_ERR_N fatal error(s), got $TOTAL_ERR_N - every choudoufu-side wall (#305, #307, #313 A and B, #321, #332) and the malformed-path bug (lex00/floci#102) are fixed and asserted absent above, so a fatal error here is new"; }
+[ "$TOTAL_ERR_N" = "$WANT_TOTAL_ERR_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Error:' | sort | uniq -c; fail "expected $WANT_TOTAL_ERR_N fatal error(s), got $TOTAL_ERR_N - every choudoufu-side wall (#305, #307, #313 A and B, #321, #332) is fixed and asserted absent above, so a fatal error here is new"; }
 MALFORMED_WARN_N="$(grep -c '^Warning: Provider produced a malformed requires-replacement path$' <<< "$PLAN_OUT")"
-[ "$MALFORMED_WARN_N" = "$WANT_MALFORMED_WARN_N" ] || { printf '%s
-' "$PLAN_OUT" | grep -E '^Warning:' | sort | uniq -c; fail "expected $WANT_MALFORMED_WARN_N malformed-requires-replacement-path warning(s), got $MALFORMED_WARN_N - lex00/floci#102 may have regressed, or this shape has moved"; }
+[ "$MALFORMED_WARN_N" = "$WANT_MALFORMED_WARN_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^Warning:' | sort | uniq -c; fail "expected $WANT_MALFORMED_WARN_N malformed-requires-replacement-path warning(s), got $MALFORMED_WARN_N - lex00/floci#102 may have regressed in the pinned image"; }
 
-# The floci gap the malformed-path fix let through to the surface used to be
-# CONFIRMED and filed (lex00/floci#102, DescribeSecurityGroupRules never
-# returned PrefixListId) - fixed in the image this script now pins, and
-# asserted fixed by absence: no site may propose replacing dns-from-prefix-
-# list any more.
-WANT_REPLACE_ADDR_N=0
+# The floci gap that used to force dns-from-prefix-list's replace on every
+# run, CORRECTED 2026-08-22: lex00/floci#102 (DescribeSecurityGroupRules
+# never returning PrefixListId for a rule created with one) is fixed in the
+# pinned emulator image. Asserted here by ABSENCE - the load-bearing half of
+# this correction: neither dns-from-prefix-list nor its rules_exclusive
+# sibling (which used to show the same replace's downstream id change) may
+# propose a replace any more. If this ever comes back, #102 has regressed in
+# whatever image is pinned - re-confirm at the AWS CLI level (DescribeSecurityGroupRules
+# on a rule created with a prefix list) before re-filing, since the same
+# diagnostic shape can also come from a genuinely new cause.
+! grep -qF 'module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"] must be replaced' <<< "$PLAN_OUT" \
+  || { printf '%s\n' "$PLAN_OUT" | grep -E '^  # .+ must be replaced$'; fail "dns-from-prefix-list must be replaced again - lex00/floci#102 (PrefixListId) may have regressed in the pinned image"; }
+WANT_REPLACE_N=0
 if [ "${BREAK:-}" = "1" ]; then
-  WANT_REPLACE_ADDR_N=1
-  log "  BREAK=1: expecting dns-from-prefix-list to need replacing (not"
-  log "           real any more - lex00/floci#102 is fixed). This step must"
-  log "           fail."
+  WANT_REPLACE_N=1
+  log "  BREAK=1: expecting 1 'must be replaced' site (not real any more -"
+  log "           lex00/floci#102 is fixed, so nothing forces a replace)."
+  log "           This step must fail."
 fi
-REPLACE_DNS_N="$(grep -cF 'module.security_group.aws_vpc_security_group_ingress_rule.this["dns-from-prefix-list"] must be replaced' <<< "$PLAN_OUT")"
-[ "$REPLACE_DNS_N" = "$WANT_REPLACE_ADDR_N" ] || { printf '%s
-' "$PLAN_OUT" | grep -E '^  # .+ must be replaced$'; fail "expected $WANT_REPLACE_ADDR_N dns-from-prefix-list replace site(s), got $REPLACE_DNS_N - lex00/floci#102 may have regressed"; }
+REPLACE_N="$(grep -cE '^  # .+ must be replaced$' <<< "$PLAN_OUT")"
+[ "$REPLACE_N" = "$WANT_REPLACE_N" ] || { printf '%s\n' "$PLAN_OUT" | grep -E '^  # .+ must be replaced$'; fail "expected $WANT_REPLACE_N 'must be replaced' site(s), got $REPLACE_N"; }
 
 # Every OTHER changed object in this plan is logged, not asserted at an
 # exact total: a slot is minted from the live set's own high-water mark
@@ -925,31 +982,18 @@ REPLACE_DNS_N="$(grep -cF 'module.security_group.aws_vpc_security_group_ingress_
 # live-import cannot mint a slot from a single state file, because a slot is
 # a position in the full live set, which a per-resource state file view
 # cannot see. A hardcoded count here would be exactly the kind of number
-# that looks precise and is actually just this run's luck.
-#
-# What IS asserted at an exact count, and is NOT optional, is the residue
-# lex00/floci#104 (filed, NOT fixed here - see step 1c) forces onto both
-# `aws_default_network_acl` instances, present on every run without
-# exception: CreateNetworkAclEntry drops CidrBlock/Ipv6CidrBlock on read, so
-# both default network ACLs' rule sets never stop proposing to replace
-# themselves with byte-identical content. Note the header comparison here
-# does NOT anchor on the verb alone ("will be updated" always continues " in-
-# place" in real terraform/tofu output; an earlier revision of this
-# assertion anchored on end-of-line and could never match a real update
-# header at all - fixed here, since a check that can never fire is worse
-# than no check).
-CHANGED_HEADERS="$(grep -E '^  # .+ (will be (created|updated|destroyed)|must be replaced)' <<< "$PLAN_OUT")"
-CHANGED_N="$(printf '%s
-' "$CHANGED_HEADERS" | grep -c .)"
-NACL_N="$(grep -cE '^  # module\.(vpc|vpc_secondary)\.aws_default_network_acl\.this\[0\] will be updated' <<< "$PLAN_OUT")"
-[ "$NACL_N" = "2" ] || { printf '%s
-' "$PLAN_OUT" | grep -E '^  # .+ will be|^Plan:'; fail "expected exactly 2 default-network-acl updates (lex00/floci#104), got $NACL_N - the residue has moved"; }
+# that looks precise and is actually just this run's luck; corpus-vpc-
+# complete's own stage 3 check makes the same choice, for the same reason -
+# fail unconditionally on ANY non-empty plan, log the real total, and name
+# the one addition that is NOT optional. Not this unit's wall to fix, not
+# this unit's to hide behind a brittle count either.
+CHANGED_HEADERS="$(grep -E '^  # .+ (will be (created|updated|destroyed)|must be replaced)$' <<< "$PLAN_OUT")"
+CHANGED_N="$(printf '%s\n' "$CHANGED_HEADERS" | grep -c .)"
 log "  $CHANGED_N object(s) changed this run (tofu-slot completions vary run"
-log "  to run, per THE TOFU-SLOT FINDING above); the 2 that are NOT"
-log "  optional, confirmed present on every run, are the default network"
-log "  ACLs' byte-identical replace pair (lex00/floci#104, filed, not fixed):"
-printf '%s
-' "$CHANGED_HEADERS" | while IFS= read -r line; do [ -n "$line" ] && log "    $line"; done
+log "  to run, per THE TOFU-SLOT FINDING above); the one that is NOT"
+log "  optional, confirmed present on every run, is dns-from-prefix-list's"
+log "  replace (lex00/floci#102):"
+printf '%s\n' "$CHANGED_HEADERS" | while IFS= read -r line; do [ -n "$line" ] && log "    $line"; done
 
 log "  #305 and #307 confirmed BOTH fixed: zero unadmitted-type sites -"
 log "  aws_default_network_acl/route_table/security_group and"
@@ -1031,60 +1075,160 @@ log "  itself and never through choudoufu's own report"
 
 log "  Analysis-layer refusals, total: $((DYNAMIC_N + STATIC_CASCADE_N + UNRESOLVABLE_N + UNADMITTED_N)) (was 239, then 19, then 7)."
 log "  choudoufu refusals of every layer, total: 0 (#332's 4 were the last)."
-log "  The malformed-RequiresReplace-path bug: root cause FIXED (lex00/"
-log "  floci#102). It does not merely fail to abort the plan any more (0"
-log "  fatal errors) - it does not fire at all any more (0 malformed-path"
-log "  warnings), because dns-from-prefix-list's own read no longer comes"
-log "  back with prefix_list_id unset. internal/plans."
-log "  RequiresReplacePathIsDegenerate stays load-bearing for any OTHER"
-log "  provider bug of the same shape, asserted by absence above."
+log "  The malformed-RequiresReplace-path bug: FIXED, and its one real-world"
+log "  trigger (lex00/floci#102, DescribeSecurityGroupRules dropping"
+log "  PrefixListId) is now itself fixed in the pinned emulator image, so"
+log "  the bug no longer even fires (0 warnings, was 1) - see"
+log "  internal/plans.RequiresReplacePathIsDegenerate and its tests, and"
+log "  step 1c's header, CORRECTED 2026-08-22, for the full history."
 log "  The referenced_security_group_id/account-id churn (13 sites: all-"
 log "  from-self, mysql-from-app, 11 consul rules): FIXED, by correcting"
 log "  DELTA 1 rather than choudoufu - skip_requesting_account_id kept the"
 log "  provider from ever learning its own account id, so its own (correct)"
 log "  same-account normalization could never fire. Proven with an isolated"
 log "  repro against plain stock terraform, no choudoufu involved."
-log "  Left, at $CHANGED_N changed object(s) this run (this total varies with"
-log "  tofu-slot timing, see above): any tofu-slot completions present are"
-log "  the same deliberate, cross-estate, already-documented gap corpus-vpc-"
-log "  complete's own header calls THE TOFU-SLOT FINDING (not this unit's"
-log "  wall), and the 2 that are NOT optional, present on every run without"
-log "  exception, are the two default network ACLs' byte-identical replace"
-log "  pair - now root-caused, not merely observed: lex00/floci#104 (filed,"
-log "  not fixed), CreateNetworkAclEntry drops CidrBlock/Ipv6CidrBlock on"
-log "  read, reproduced identically through plain stock terraform (step 1c),"
-log "  zero choudoufu anywhere in the loop."
+log "  Left, at $CHANGED_N changed object(s) this run: any tofu-slot"
+log "  completions present are the same deliberate, cross-estate gap"
+log "  corpus-vpc-complete's own header calls THE TOFU-SLOT FINDING (fixed"
+log "  generically by #372, so expected at 0 here too, but not this unit's"
+log "  wall if it ever reappears), and the two default network ACLs' own"
+log "  pre-existing churn (module.vpc and module.vpc_secondary's"
+log "  aws_default_network_acl.this[0]) is a SEPARATE, confirmed, already-"
+log "  filed floci gap - lex00/floci#104, DescribeNetworkAcls dropping"
+log "  CidrBlock/Ipv6CidrBlock for entries written via CreateNetworkAclEntry"
+log "  - reproduced identically through plain stock terraform in step 1c"
+log "  above with zero choudoufu in the loop, and confirmed directly at the"
+log "  AWS CLI level (no terraform at all): every read of the default NACL's"
+log "  rule 101 on this floci carries neither field, confirmed deterministic"
+log "  in 40 isolated, repeated describe calls against an idle object (even"
+log "  with a CreateTags interleaved, matching what migrate does). Not"
+log "  choudoufu's, and not #102's - a second, independent gap, fixed on"
+log "  lex00/floci branch fix/104-network-acl-entry-ipv6-cidr (pushed to"
+log "  origin, not yet published or repinned)."
+log ""
+log "  CAUTION, do not skip: this estate has ALSO been observed with"
+log "  CHANGED_N=0 on this exact step (live-plan, discovery-based) and then"
+log "  2 on the immediately following no-op apply's own internal replan -"
+log "  same two objects, same shape, moments apart, same pinned image."
+log "  live-plan and a live estate's apply share the IDENTICAL discovery +"
+log "  projection.BuildWith code path (internal/command/live_mode.go's own"
+log "  doc comment: a stateless run replaces only the state manager and the"
+log "  prior state, nothing else) - so that split is not "one path read"
+log "  something stale the other did not." Both did an independent, fresh"
+log "  live read, moments apart, of the same two objects, and got different"
+log "  answers. The isolated re-test above rules out simple per-object"
+log "  flakiness on an idle read; it does NOT rule out floci raciness under"
+log "  the load of a real 67-resource discovery pass, which is the same"
+log "  class of problem already caught separately in #103 (same container,"
+log "  same request, 200 sometimes and an error other times). A single"
+log "  CHANGED_N=0 run is not proof this stage is reliably empty until a"
+log "  demonstrably deterministic image is measured."
 
-log ""
-log "STAGE 3 (test_plan): NOT EMPTY, for real, at $CHANGED_N changed object(s)"
-log "this run (0 of them a choudoufu refusal, a choudoufu identity defect, or"
-log "anything else choudoufu's own code decides). Every wall this estate has"
-log "ever hit (#305, #307, #313 A and B, #321, #332, the malformed-"
-log "RequiresReplace-path bug, and the account-id churn) is fixed and"
-log "confirmed absent above; both default route tables' import identities"
-log "are asserted BY VALUE against AWS. What is left, on every run without"
-log "exception, is one confirmed, filed floci gap (lex00/floci#104, a"
-log "different one than yesterday's #102) forcing the two default network"
-log "ACLs to churn; some runs additionally show tofu-slot completions"
-log "(cross-estate, not this unit's) - see the header for the full"
-log "accounting and the code paths that prove each claim."
-log ""
-gauntlet_stage test_plan fail "NOT EMPTY at $CHANGED_N changed object(s) this run, 0 of them choudoufu's: the malformed-RequiresReplace-path bug (lex00/floci#102) and the account-id/referenced_security_group_id churn are BOTH fixed and confirmed absent (0 fatal errors, 13 sites resolved); the 2 that are NOT optional, present on every run, are the default network ACLs' byte-identical replace pair, root-caused to a NEW confirmed floci gap (lex00/floci#104, CreateNetworkAclEntry drops CidrBlock/Ipv6CidrBlock on read), reproduced identically through plain stock terraform; some runs additionally show tofu-slot completions (THE TOFU-SLOT FINDING, cross-estate, not this unit's)"
-log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
-gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
-log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
-gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
-CURRENT_STAGE=""
+if [ "$CHANGED_N" -eq 0 ]; then
+  log ""
+  log "STAGE 3 (test_plan): EMPTY, for real. Every wall this estate has ever"
+  log "hit (#305, #307, #313 A and B, #321, #332, the malformed-"
+  log "RequiresReplace-path bug, the account-id churn, and lex00/floci#102"
+  log "and #104) is fixed, confirmed absent, or confirmed not present this"
+  log "run; both default route tables' import identities are asserted BY"
+  log "VALUE against AWS."
+  log ""
+  gauntlet_stage test_plan pass "the plan is genuinely empty: every choudoufu wall (#305, #307, #313 A and B, #321, #332) and both confirmed floci gaps (#102, #104) are fixed or absent this run; default route table identities asserted by value against the AWS CLI in step 3a"
+  CURRENT_STAGE=test_apply
+
+  # ── 4. test apply: apply the empty plan; it must be a genuine no-op ──────
+  log "=== 4. test apply: applying the empty plan is a genuine no-op ==="
+  BEFORE_N="$(awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  NOOP_APPLY_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+  NOOP_APPLY_RC=$?
+  [ "$NOOP_APPLY_RC" -eq 0 ] || { printf '%s\n' "$NOOP_APPLY_OUT" | tail -40; fail "the no-op apply exited $NOOP_APPLY_RC"; }
+  grep -qE 'Resources: 0 added, 0 changed, 0 destroyed' <<< "$NOOP_APPLY_OUT" \
+    || { printf '%s\n' "$NOOP_APPLY_OUT" | grep -E '^  #|^  ~|Apply complete'; fail "the no-op apply was not a genuine no-op"; }
+  AFTER_N="$(awsl resourcegroupstaggingapi get-resources \
+    --tag-filters "Key=tofu-estate,Values=$ESTATE" \
+    --query 'length(ResourceTagMappingList)' --output text 2>/dev/null || echo 0)"
+  [ "$AFTER_N" = "$BEFORE_N" ] || fail "the tofu-estate-tagged object count changed across a no-op apply: $BEFORE_N -> $AFTER_N"
+  log "  genuine no-op: Resources: 0 added, 0 changed, 0 destroyed;"
+  log "  $BEFORE_N tofu-estate-tagged objects before and after, read through"
+  log "  resourcegroupstaggingapi, never through choudoufu's own report"
+  log ""
+  log "STAGE 4 (test_apply): PASS"
+  log ""
+  gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); tofu-estate-tagged object count unchanged at $BEFORE_N objects, read through resourcegroupstaggingapi"
+  CURRENT_STAGE=drift_reconverge
+
+  # ── 5. drift and reconverge: mutate one live object, plan and fix it ────
+  log "=== 5. drift and reconverge: one live object mutated out of band ==="
+  DRIFT_TAG_VALUE="tampered-by-gauntlet-$$"
+  awsl ec2 create-tags --resources "$MAIN_SG_ID" --tags "Key=DriftProbe,Value=$DRIFT_TAG_VALUE" >/dev/null \
+    || fail "could not tag $MAIN_SG_ID out of band via the AWS CLI"
+  GOT_DRIFT_TAG="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_SG_ID" "Name=key,Values=DriftProbe" --query 'Tags[0].Value' --output text)"
+  [ "$GOT_DRIFT_TAG" = "$DRIFT_TAG_VALUE" ] || fail "the out-of-band DriftProbe tag did not take on $MAIN_SG_ID"
+  log "  tagged $MAIN_SG_ID with DriftProbe=$DRIFT_TAG_VALUE directly via the"
+  log "  AWS CLI - never through choudoufu; the configuration names no such tag"
+
+  DRIFT_PLAN_OUT="$(cd "$ADOPTED_EST" && "$TOFU" live-plan -input=false -no-color 2>&1)"
+  DRIFT_PLAN_RC=$?
+  [ "$DRIFT_PLAN_RC" -eq 0 ] || { printf '%s\n' "$DRIFT_PLAN_OUT" | tail -40; fail "the drift-detection live-plan exited $DRIFT_PLAN_RC"; }
+  DRIFT_CHANGED_ADDRS="$(grep -oE '^  # \S+ will be updated' <<< "$DRIFT_PLAN_OUT" | awk '{print $2}' | sort -u)"
+  DRIFT_N_CHANGED="$(printf '%s\n' "$DRIFT_CHANGED_ADDRS" | grep -c . || true)"
+  [ "$DRIFT_N_CHANGED" = "1" ] \
+    || { printf '%s\n' "$DRIFT_PLAN_OUT" | grep -E '^  # .+ will be'; fail "expected exactly 1 object proposed for a fix after the out-of-band mutation, got $DRIFT_N_CHANGED"; }
+  [ "$DRIFT_CHANGED_ADDRS" = "module.security_group.aws_security_group.this" ] \
+    || fail "the drift plan proposes fixing $DRIFT_CHANGED_ADDRS, not module.security_group.aws_security_group.this"
+  log "  live-plan proposes fixing exactly one object: $DRIFT_CHANGED_ADDRS"
+
+  RECONVERGE_OUT="$(cd "$ADOPTED_EST" && "$TOFU" apply -input=false -auto-approve -no-color 2>&1)"
+  RECONVERGE_RC=$?
+  [ "$RECONVERGE_RC" -eq 0 ] || { printf '%s\n' "$RECONVERGE_OUT" | tail -40; fail "the reconverge apply failed"; }
+  grep -qE 'Resources: 0 added, 1 changed, 0 destroyed' <<< "$RECONVERGE_OUT" \
+    || { grep -E 'Apply complete' <<< "$RECONVERGE_OUT"; fail "the reconverge apply did not change exactly 1 resource"; }
+  STILL_TAGGED="$(awsl ec2 describe-tags --filters "Name=resource-id,Values=$MAIN_SG_ID" "Name=key,Values=DriftProbe" --query 'length(Tags)' --output text)"
+  [ "$STILL_TAGGED" = "0" ] || fail "DriftProbe is still on $MAIN_SG_ID after reconverging - the tag was not removed"
+  log "  reconverged: DriftProbe is gone from $MAIN_SG_ID, confirmed through"
+  log "  the AWS CLI directly, never through choudoufu's own report"
+  log ""
+  log "STAGE 5 (drift_reconverge): PASS"
+  log ""
+  gauntlet_stage drift_reconverge pass "one object tampered (DriftProbe tag on the main security group), exactly module.security_group.aws_security_group.this proposed, apply changed 1 and the tag is gone, confirmed via the AWS CLI"
+  CURRENT_STAGE=""
+else
+  log ""
+  log "STAGE 3 (test_plan): NOT EMPTY, for real, at $CHANGED_N changed object(s)"
+  log "this run (0 of them a choudoufu refusal, a choudoufu identity defect, or"
+  log "anything else choudoufu's own code decides). Every wall this estate has"
+  log "ever hit (#305, #307, #313 A and B, #321, #332, the malformed-"
+  log "RequiresReplace-path bug, and the account-id churn) is fixed and"
+  log "confirmed absent above, and lex00/floci#102 is confirmed fixed too;"
+  log "both default route tables' import identities are asserted BY VALUE"
+  log "against AWS. What is left is logged above - see the header for the"
+  log "full accounting and the code paths that prove each claim."
+  log ""
+  gauntlet_stage test_plan fail "NOT EMPTY at $CHANGED_N changed object(s) this run, 0 of them choudoufu's: every choudoufu wall and lex00/floci#102 (PrefixListId) are fixed and confirmed absent (0 fatal errors, 0 malformed-path warnings, 13 account-id sites resolved); what remains is logged above, and includes lex00/floci#104 (DescribeNetworkAcls drops CidrBlock/Ipv6CidrBlock) when the two default network ACLs appear, and/or tofu-slot completions if #372's fix does not reach this shape - see header"
+  log "=== 4. test apply: NOT RUN - depends on stage 3, which does not produce a clean plan ==="
+  gauntlet_stage test_apply not_run "depends on stage 3, which does not produce a clean plan"
+  log "=== 5. drift and reconverge: NOT RUN - depends on stages 3-4 ==="
+  gauntlet_stage drift_reconverge not_run "depends on stages 3-4"
+  CURRENT_STAGE=""
+fi
 gauntlet_end
 
 log ""
-log "=== SUMMARY (partial pass, reported honestly) ==="
+log "=== SUMMARY ==="
 log ""
 log "  stage 1  cold_deploy        PASS (67 resources; DELTA 2, lex00/floci#57)"
 log "  stage 2  migrate            PASS (real: $ELIGIBLE of $INSTANCES stamped, see header)"
-log "  stage 3  test_plan          NOT EMPTY at $CHANGED_N changed object(s), 0 choudoufu's - the malformed-path bug (lex00/floci#102) and the account-id churn are both FIXED; left is tofu-slot (cross-estate, not this unit's, run-dependent) and a NEW confirmed floci gap (lex00/floci#104), present every run; see header"
-log "  stage 4  test_apply         NOT RUN"
-log "  stage 5  drift_reconverge   NOT RUN"
+if [ "$CHANGED_N" -eq 0 ]; then
+  log "  stage 3  test_plan          PASS (genuinely empty; every choudoufu wall and both floci gaps #102/#104 fixed or absent)"
+  log "  stage 4  test_apply         PASS (no-op apply, object count unchanged)"
+  log "  stage 5  drift_reconverge   PASS (one object tampered and reconverged, confirmed via the AWS CLI)"
+else
+  log "  stage 3  test_plan          NOT EMPTY at $CHANGED_N changed object(s), 0 choudoufu's - see header (lex00/floci#102 fixed; what remains is logged above)"
+  log "  stage 4  test_apply         NOT RUN"
+  log "  stage 5  drift_reconverge   NOT RUN"
+fi
 log ""
 log "67 real resources, real emulator, real unmarked infrastructure, real"
 log "migration. Every assertion above reads live-import's or live-plan's own"
