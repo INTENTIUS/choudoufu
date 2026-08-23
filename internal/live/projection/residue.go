@@ -179,7 +179,7 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 		return
 	}
 	if keyExists {
-		b.envelopeVersions = append(b.envelopeVersions, RecordVersion{Addr: addr, Version: version})
+		b.recordEnvelopeVersion(addr, version)
 	}
 	if !residueFound {
 		return

@@ -311,7 +311,22 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return recordEnvelope{}, fmt.Errorf("the stored record is not valid JSON: %w", err)
 	}
-	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil && len(env.LegacyValueType) > 0 {
+	if env.Kind == "" && env.Object == nil && env.Identity == nil && env.Residue == nil && env.Provisioned == nil {
+		if len(env.LegacyValueType) == 0 {
+			// Neither v1-shaped (no legacy value_type) nor v2-shaped (no
+			// kind, no member at all) - a payload this package cannot
+			// recognize as anything it ever wrote, whether foreign,
+			// corrupted, or truncated. [RecordStore.mergeEnvelope] never
+			// writes an envelope this empty - isEmpty() makes it delete the
+			// key instead - so nothing legitimate looks like this on disk.
+			// Treating it as "an empty envelope" here would read a garbage
+			// or corrupted payload as "nothing recorded, nothing tainted,
+			// nothing to fill", which is exactly the silent under-run this
+			// whole mechanism exists to prevent (see provisioned.go's
+			// [ProvisionedStore.Get] history). A decode error is loud and
+			// stops the run instead.
+			return recordEnvelope{}, fmt.Errorf("the stored record names no recognizable format - not a v1 record-backed payload and not a v2 envelope this version of choudoufu understands")
+		}
 		env.Kind = recordKindObject
 		env.Object = &objectFields{
 			ValueType:      env.LegacyValueType,

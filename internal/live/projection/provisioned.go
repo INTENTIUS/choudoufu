@@ -193,7 +193,7 @@ func (b *builder) applyProvisionedTaint(ctx context.Context, addr addrs.AbsResou
 		return false
 	}
 	if keyExists {
-		b.envelopeVersions = append(b.envelopeVersions, RecordVersion{Addr: addr, Version: version})
+		b.recordEnvelopeVersion(addr, version)
 	}
 	if !tainted {
 		return true

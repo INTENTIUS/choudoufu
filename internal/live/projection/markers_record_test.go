@@ -148,7 +148,7 @@ func TestMarkersRecordOwnershipAdmitsAnUntaggedLocatedObject(t *testing.T) {
 	const liveID = "vol-0123456789abcdef0"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 	if _, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: liveID}, ""); err != nil {
 		t.Fatalf("seeding the located record: %s", err)
 	}
@@ -160,8 +160,8 @@ func TestMarkersRecordOwnershipAdmitsAnUntaggedLocatedObject(t *testing.T) {
 	res, diags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordLocated}},
 		provs, Options{
-			LocatedStore: located,
-			Ownership:    &Ownership{Estate: estate, Policy: pol},
+			RecordStore: located.rs,
+			Ownership:   &Ownership{Estate: estate, Policy: pol},
 		})
 	assertNoErrors(t, diags)
 
@@ -195,7 +195,7 @@ func TestMarkersRecordWriteBackRecordsTheSelectedIdentity(t *testing.T) {
 	const appliedID = "vol-0123456789abcdef0"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 
 	final := states.NewState()
 	applied := cty.ObjectVal(map[string]cty.Value{
@@ -219,10 +219,10 @@ func TestMarkersRecordWriteBackRecordsTheSelectedIdentity(t *testing.T) {
 	}}
 
 	assertNoErrors(t, WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
-		Schemas:      schemas,
-		Config:       cfg,
+		Store:      located.rs,
+		FinalState: final,
+		Schemas:    schemas,
+		Config:     cfg,
 	}))
 
 	rec, _, exists, err := located.Get(context.Background(), addr)
@@ -268,7 +268,7 @@ resource "` + markersRecordTestType + `" "data" {
 	const estate = "test-estate"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 
 	final := states.NewState()
 	applied := cty.ObjectVal(map[string]cty.Value{
@@ -292,10 +292,10 @@ resource "` + markersRecordTestType + `" "data" {
 	}}
 
 	assertNoErrors(t, WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
-		Schemas:      schemas,
-		Config:       cfg,
+		Store:      located.rs,
+		FinalState: final,
+		Schemas:    schemas,
+		Config:     cfg,
 	}))
 
 	if _, _, exists, err := located.Get(context.Background(), addr); err != nil || exists {

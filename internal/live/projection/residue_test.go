@@ -17,7 +17,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -456,7 +455,7 @@ func TestResidueRoundTripsASensitiveArgumentWithItsMark(t *testing.T) {
 		t.Fatalf("classified filename = %#v, want %#v", got, want)
 	}
 
-	store := NewResidueStore(localHintStore(t), "my-estate")
+	store := newTestResidueStore(localHintStore(t), "my-estate")
 	if _, err := store.Put(ctx, addr, attrs, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
@@ -711,113 +710,6 @@ func TestFillResidueFillsAComputedOnlyAttribute(t *testing.T) {
 	}
 }
 
-// TestResidueKeysAreInvisibleToOrphanDiscovery is issue #275's version of
-// issue #270's central safety property, and the reason a fifth namespace
-// root exists rather than a subdirectory of an existing one.
-//
-// builder.discoverOrphanedRecords lists [Options.RecordKeyPrefix] and
-// materializes every key it can decode as an UNDECLARED prior-state entry,
-// which makes the plan propose DESTROYING it. A residue key names arguments
-// of a live cloud object the estate owns and the record namespace has no
-// authority over, so a residue key reaching that listing is a cloud
-// deletion driven by a note about a filename.
-//
-// Proven three ways, exactly as the located version is: lexically,
-// functionally through the real List call, and by decoding.
-func TestResidueKeysAreInvisibleToOrphanDiscovery(t *testing.T) {
-	const estate = "my-estate"
-	ctx := context.Background()
-
-	recordPrefix := RecordKeyPrefix(estate)
-	residuePrefix := ResidueKeyPrefix(estate)
-
-	if strings.HasPrefix(residuePrefix, recordPrefix+"/") || residuePrefix == recordPrefix {
-		t.Fatalf("ResidueKeyPrefix(%q) = %q lives under RecordKeyPrefix %q; orphan discovery would list it", estate, residuePrefix, recordPrefix)
-	}
-	if strings.HasPrefix(recordPrefix, residueNamespaceRoot+"/") {
-		t.Fatalf("RecordKeyPrefix(%q) = %q lives under the residue namespace %q", estate, recordPrefix, residueNamespaceRoot)
-	}
-	for _, other := range []string{hintNamespaceRoot, locatedNamespaceRoot, "tofu-receipts"} {
-		if residueNamespaceRoot == other || strings.HasPrefix(residueNamespaceRoot, other+"/") {
-			t.Errorf("the residue namespace %q collides with %q", residueNamespaceRoot, other)
-		}
-	}
-
-	store := localHintStore(t)
-	recAddr := locatedTestAddr(t, "terraform_data", "seed")
-	recordKey := RecordKey(recordPrefix, recAddr)
-	if _, err := store.PutIfAbsent(ctx, recordKey, []byte(`{"value_type":"\"string\"","attrs":"\"x\""}`)); err != nil {
-		t.Fatalf("writing the record fixture: %s", err)
-	}
-	resAddr := locatedTestAddr(t, "aws_lambda_function", "check-links")
-	residue := NewResidueStore(store, estate)
-	if _, err := residue.Put(ctx, resAddr, map[string]cty.Value{"filename": cty.StringVal("check_links.py.zip")}, ""); err != nil {
-		t.Fatalf("Put: %s", err)
-	}
-
-	keys, err := store.List(ctx, recordPrefix)
-	if err != nil {
-		t.Fatalf("List(%q): %s", recordPrefix, err)
-	}
-	if len(keys) != 1 || keys[0] != recordKey {
-		t.Errorf("List(%q) = %v, want exactly the one record key %q.\n"+
-			"A residue key reaching orphan discovery is a cloud deletion driven by a note about arguments.", recordPrefix, keys, recordKey)
-	}
-
-	if got, ok := RecordAddr(recordPrefix, ResidueKey(estate, resAddr)); ok {
-		t.Errorf("RecordAddr decoded a residue key into %s under the record prefix; it must refuse it", got)
-	}
-}
-
-// TestResidueStoreExposesNoEnumeration is the other half of the same
-// construction, and the load-bearing assertion is the second one: if
-// *ResidueStore satisfied staterecord.Store it could be handed straight to
-// builder.discoverOrphanedRecords, and every argument about which prefix
-// that function lists would be beside the point.
-func TestResidueStoreExposesNoEnumeration(t *testing.T) {
-	ty := reflect.TypeOf(&ResidueStore{})
-	want := map[string]bool{"Get": true, "Put": true, "Delete": true}
-	for i := 0; i < ty.NumMethod(); i++ {
-		name := ty.Method(i).Name
-		if !want[name] {
-			t.Errorf("*ResidueStore has an exported method %q. The only three permitted are Get, Put and Delete, all keyed by a declared address; "+
-				"anything that can return a set of keys re-creates the enumeration this namespace exists to stay out of.", name)
-		}
-		delete(want, name)
-	}
-	for name := range want {
-		t.Errorf("*ResidueStore no longer has a %q method", name)
-	}
-
-	storeIface := reflect.TypeOf((*staterecord.Store)(nil)).Elem()
-	if ty.Implements(storeIface) {
-		t.Error("*ResidueStore satisfies staterecord.Store, so it can be handed to builder.discoverOrphanedRecords directly. " +
-			"It must not: the whole point is that a residue store has no List for a destroy path to walk.")
-	}
-}
-
-// TestResiduePayloadIsNotAReadableRecord closes the last step of the chain a
-// careless caller would have to complete to turn a residue key into a
-// destroy proposal. Even having reached past ResidueStore to the raw store,
-// listed the residue prefix by name, and fed the result to
-// materializeRecord, the payload does not decode as a record.
-func TestResiduePayloadIsNotAReadableRecord(t *testing.T) {
-	ctx := context.Background()
-	store := localHintStore(t)
-	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
-	residue := NewResidueStore(store, "my-estate")
-	if _, err := residue.Put(ctx, addr, map[string]cty.Value{"filename": cty.StringVal("a.zip")}, ""); err != nil {
-		t.Fatalf("Put: %s", err)
-	}
-	raw, _, exists, err := store.Get(ctx, ResidueKey("my-estate", addr))
-	if err != nil || !exists {
-		t.Fatalf("reading the residue key back: err=%v exists=%v", err, exists)
-	}
-	if _, _, _, err := decodeRecordPayload(raw); err == nil {
-		t.Fatal("a residue payload decoded as a record payload. That is the third of three independent stops between a residue key and a destroy proposal, and it just stopped stopping anything.")
-	}
-}
-
 // TestResidueStoreRefusesAnotherAddressesRecord pins the key/payload
 // agreement check. Filling one instance's prior state from another's
 // arguments would produce an EMPTY plan that is wrong, which no
@@ -828,17 +720,18 @@ func TestResidueStoreRefusesAnotherAddressesRecord(t *testing.T) {
 	mine := locatedTestAddr(t, "aws_lambda_function", "check-links")
 	theirs := locatedTestAddr(t, "aws_lambda_function", "salesforce-api")
 
-	residue := NewResidueStore(store, "my-estate")
+	residue := newTestResidueStore(store, "my-estate")
 	if _, err := residue.Put(ctx, theirs, map[string]cty.Value{"filename": cty.StringVal("theirs.zip")}, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
-	raw, _, _, err := store.Get(ctx, ResidueKey("my-estate", theirs))
+	prefix := RecordKeyPrefix("my-estate")
+	raw, _, _, err := store.Get(ctx, RecordKey(prefix, theirs))
 	if err != nil {
 		t.Fatalf("Get: %s", err)
 	}
 	// Copy their payload onto my key, which is what a hand-edit or a
 	// careless rename looks like from here.
-	if _, err := store.PutIfVersion(ctx, ResidueKey("my-estate", mine), raw, ""); err != nil {
+	if _, err := store.PutIfVersion(ctx, RecordKey(prefix, mine), raw, ""); err != nil {
 		t.Fatalf("PutIfVersion: %s", err)
 	}
 	if _, _, _, err := residue.Get(ctx, mine); err == nil {
@@ -853,7 +746,7 @@ func TestResidueStoreRefusesAnotherAddressesRecord(t *testing.T) {
 // instance has no residue.
 func TestResidueStoreRefusesAnEmptyOrUnstorableWrite(t *testing.T) {
 	ctx := context.Background()
-	residue := NewResidueStore(localHintStore(t), "my-estate")
+	residue := newTestResidueStore(localHintStore(t), "my-estate")
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
 
 	for _, tc := range []struct {
@@ -888,7 +781,7 @@ func TestResidueRoundTripsThroughTheStore(t *testing.T) {
 	if !ok {
 		t.Fatal("classifyResidue proved nothing")
 	}
-	residue := NewResidueStore(localHintStore(t), "my-estate")
+	residue := newTestResidueStore(localHintStore(t), "my-estate")
 	if _, err := residue.Put(ctx, addr, attrs, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
@@ -1027,12 +920,16 @@ func TestNoSentinelValueExists(t *testing.T) {
 // the same disjointness: this test holds the defaults apart, and that check
 // stops an operator moving one on top of another.
 func TestResidueNamespaceRootsAreDisjoint(t *testing.T) {
+	// GitHub issue #364 collapsed the located, residue and provisioned
+	// roots into the one record envelope (recordNamespaceRoot,
+	// "tofu-records"): what used to be four disjoint namespaces (plus the
+	// hint and root-output ones) is now one, still disjoint from the
+	// per-estate namespaces that were never part of the merge - the hint
+	// (issue #109), the root-output cache (issue #349) and the receipts
+	// pattern.
 	roots := []string{
 		recordNamespaceRoot,
 		hintNamespaceRoot,
-		locatedNamespaceRoot,
-		residueNamespaceRoot,
-		provisionedNamespaceRoot,
 		rootOutputNamespaceRoot,
 		"tofu-receipts",
 	}

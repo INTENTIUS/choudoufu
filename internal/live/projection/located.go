@@ -99,7 +99,7 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 		return
 	}
 	if keyExists {
-		b.envelopeVersions = append(b.envelopeVersions, RecordVersion{Addr: addr, Version: version})
+		b.recordEnvelopeVersion(addr, version)
 	}
 	if !identityFound {
 		b.omit(addr, ReasonAbsent,

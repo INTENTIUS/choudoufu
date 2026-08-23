@@ -126,8 +126,7 @@ func TestBuildHydratesRecordBacked(t *testing.T) {
 	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
 
 	res, diags := BuildWith(context.Background(), cfg, resolutions, provs, Options{
-		RecordStore:     store,
-		RecordKeyPrefix: prefix,
+		RecordStore: NewRecordEnvelopeStore(store, prefix),
 	})
 	assertNoErrors(t, diags)
 
@@ -169,8 +168,7 @@ func TestBuildRecordBackedAbsent(t *testing.T) {
 	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
 
 	res, diags := BuildWith(context.Background(), cfg, resolutions, provs, Options{
-		RecordStore:     store,
-		RecordKeyPrefix: "tofu-records/test-estate",
+		RecordStore: NewRecordEnvelopeStore(store, "tofu-records/test-estate"),
 	})
 	assertNoErrors(t, diags)
 
@@ -239,8 +237,7 @@ func TestBuildDiscoversOrphanedRecords(t *testing.T) {
 	// No resolutions at all: the resource block is gone, so identity
 	// resolution would never produce one for this address either.
 	res, diags := BuildWith(context.Background(), cfg, nil, provs, Options{
-		RecordStore:     store,
-		RecordKeyPrefix: prefix,
+		RecordStore: NewRecordEnvelopeStore(store, prefix),
 	})
 	assertNoErrors(t, diags)
 
@@ -355,8 +352,7 @@ func TestWriteBackPersistsAndDeletes(t *testing.T) {
 	}
 
 	diags := WriteBack(ctx, WriteBackRequest{
-		Store:     store,
-		KeyPrefix: prefix,
+		Store: NewRecordEnvelopeStore(store, prefix),
 		PriorVersions: []RecordVersion{
 			{Addr: keptAddr, Version: keptVersion},
 			{Addr: destroyedAddr, Version: destroyedVersion},
@@ -453,8 +449,7 @@ func TestWriteBackVersionConflict(t *testing.T) {
 	}
 
 	diags := WriteBack(ctx, WriteBackRequest{
-		Store:         store,
-		KeyPrefix:     prefix,
+		Store:         NewRecordEnvelopeStore(store, prefix),
 		PriorVersions: []RecordVersion{{Addr: addr, Version: planTimeVersion}},
 		FinalState:    finalState,
 		Schemas:       schemas,
@@ -568,8 +563,7 @@ func TestTaintedRecordSurvivesWriteBackAndMaterialization(t *testing.T) {
 	// Step 2: the real write-back, no prior record (this is the create's
 	// first-ever write).
 	diags := WriteBack(ctx, WriteBackRequest{
-		Store:      store,
-		KeyPrefix:  prefix,
+		Store:      NewRecordEnvelopeStore(store, prefix),
 		FinalState: finalState,
 		Schemas:    schemas,
 	})
@@ -597,8 +591,7 @@ func TestTaintedRecordSurvivesWriteBackAndMaterialization(t *testing.T) {
 	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
 
 	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{
-		RecordStore:     store,
-		RecordKeyPrefix: prefix,
+		RecordStore: NewRecordEnvelopeStore(store, prefix),
 	})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{`null_resource.trigger`})
@@ -789,8 +782,7 @@ func TestSensitiveAttributeSurvivesWriteBackAndMaterialization(t *testing.T) {
 	// AttrSensitivePaths - so this call is the one that used to hand a
 	// MARKED value to ctyjson.Marshal with no unmark of its own.
 	diags := WriteBack(ctx, WriteBackRequest{
-		Store:      store,
-		KeyPrefix:  prefix,
+		Store:      NewRecordEnvelopeStore(store, prefix),
 		FinalState: finalState,
 		Schemas:    schemas,
 	})
@@ -814,8 +806,7 @@ func TestSensitiveAttributeSurvivesWriteBackAndMaterialization(t *testing.T) {
 	resolutions := []identity.Resolution{{Addr: addr, Class: identity.ClassRecordBacked}}
 
 	res, diags := BuildWith(ctx, cfg, resolutions, provs, Options{
-		RecordStore:     store,
-		RecordKeyPrefix: prefix,
+		RecordStore: NewRecordEnvelopeStore(store, prefix),
 	})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{`null_resource.trigger`})

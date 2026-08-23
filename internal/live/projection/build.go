@@ -237,14 +237,15 @@ func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts 
 	signal, _ := identity.ScanConfig(ctx, cfg)
 
 	return &builder{
-		cfg:        cfg,
-		opts:       opts,
-		providers:  newProviderCache(provs, signal),
-		state:      states.NewState(),
-		live:       make(map[string]cty.Value),
-		omitted:    make(map[string]Omission),
-		causes:     make(map[string]string),
-		depsByType: make(map[string][]addrs.ConfigResource),
+		cfg:                  cfg,
+		opts:                 opts,
+		providers:            newProviderCache(provs, signal),
+		state:                states.NewState(),
+		live:                 make(map[string]cty.Value),
+		omitted:              make(map[string]Omission),
+		causes:               make(map[string]string),
+		depsByType:           make(map[string][]addrs.ConfigResource),
+		envelopeVersionAddrs: make(map[string]bool),
 		// The `moved` blocks this configuration's markers may follow (GitHub
 		// issue #198), computed once for the whole projection because
 		// [builder.checkOwnership] asks about them per instance. A
@@ -293,7 +294,16 @@ type builder struct {
 	// fillResidueFor or applyProvisionedTaint happened to read it first for
 	// a given address. See [Result.EnvelopeVersions] for why one list is
 	// correct now that the three concerns share one physical key.
-	envelopeVersions []RecordVersion
+	//
+	// Populated only through [builder.recordEnvelopeVersion], never by a
+	// direct append: since the three concerns share one key, materializing
+	// a located instance can have all three read the identical key/version
+	// pair in the same pass (identity for materializeLocated, then residue
+	// and provisioned again for the ordinary materialize() call it makes) -
+	// recordEnvelopeVersion is what keeps that one physical fact from
+	// entering write-back's expected-version list two or three times over.
+	envelopeVersions     []RecordVersion
+	envelopeVersionAddrs map[string]bool
 
 	// causes holds a short subordinate clause per omitted instance, for
 	// use inside another instance's explanation. Omission.Detail is a
@@ -2209,6 +2219,24 @@ func (b *builder) dependencies(rc *configs.Resource, modPath addrs.Module, schem
 	}
 	b.depsByType[key] = deps
 	return deps
+}
+
+// recordEnvelopeVersion appends addr's kind=identity envelope version to
+// b.envelopeVersions, deduplicated by address. Located, residue and
+// provisioned data now share one physical key, so a located instance's
+// materialize() call can have all three of materializeLocated,
+// fillResidueFor and applyProvisionedTaint read that identical key/version
+// pair in the same pass; without the dedup here, write-back's expected
+// version list would carry the same address two or three times over
+// (harmlessly identical values, but [Result.EnvelopeVersions]'s own contract
+// is one entry per address).
+func (b *builder) recordEnvelopeVersion(addr addrs.AbsResourceInstance, version string) {
+	key := addr.String()
+	if b.envelopeVersionAddrs[key] {
+		return
+	}
+	b.envelopeVersionAddrs[key] = true
+	b.envelopeVersions = append(b.envelopeVersions, RecordVersion{Addr: addr, Version: version})
 }
 
 func (b *builder) omit(addr addrs.AbsResourceInstance, reason Reason, detail, cause string) {

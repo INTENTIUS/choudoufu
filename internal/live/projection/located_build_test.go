@@ -175,7 +175,7 @@ func TestBuildMaterializesLocatedFromTheStore(t *testing.T) {
 	const wantID = "eipassoc-0f1e2d3c4b5a69780"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 	wantVersion, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: wantID}, "")
 	if err != nil {
 		t.Fatalf("seeding the located record: %s", err)
@@ -186,7 +186,7 @@ func TestBuildMaterializesLocatedFromTheStore(t *testing.T) {
 
 	res, diags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordLocated}},
-		provs, Options{LocatedStore: located})
+		provs, Options{RecordStore: located.rs})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{locatedTestType + `.bastion`})
 
@@ -208,10 +208,10 @@ func TestBuildMaterializesLocatedFromTheStore(t *testing.T) {
 		t.Errorf("the prior state holds id %q, want %q", got, wantID)
 	}
 
-	if len(res.LocatedVersions) != 1 {
-		t.Fatalf("LocatedVersions = %v, want one entry so write-back can open a conditional Put", res.LocatedVersions)
+	if len(res.EnvelopeVersions) != 1 {
+		t.Fatalf("LocatedVersions = %v, want one entry so write-back can open a conditional Put", res.EnvelopeVersions)
 	}
-	if got := res.LocatedVersions[0]; got.Addr.String() != addr.String() || got.Version != wantVersion {
+	if got := res.EnvelopeVersions[0]; got.Addr.String() != addr.String() || got.Version != wantVersion {
 		t.Errorf("LocatedVersions[0] = %+v, want {%s %s}", got, addr, wantVersion)
 	}
 	if len(res.RecordVersions) != 0 {
@@ -271,13 +271,13 @@ func TestBuildLocatedRecordLostProposesCreate(t *testing.T) {
 	addr := mustAddr(t, locatedTestType+`.bastion`)
 
 	// A store with nothing in it: the shape a lost record leaves behind.
-	located := NewLocatedStore(localHintStore(t), "test-estate")
+	located := newTestLocatedStore(localHintStore(t), "test-estate")
 
 	var imported []string
 	provs := SingleProvider(locatedTestProvider, locatedTypeProvider(&imported))
 	res, diags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordLocated}},
-		provs, Options{LocatedStore: located})
+		provs, Options{RecordStore: located.rs})
 	assertNoErrors(t, diags)
 
 	if len(imported) != 0 {
@@ -319,7 +319,7 @@ func TestWriteBackLocatedRoundTrip(t *testing.T) {
 	const appliedID = "eipassoc-00112233445566778"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 
 	// The state an apply finished with: the object exists and carries the
 	// identity the cloud minted.
@@ -342,9 +342,9 @@ func TestWriteBackLocatedRoundTrip(t *testing.T) {
 	}}
 
 	diags := WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
-		Schemas:      schemas,
+		Store:      located.rs,
+		FinalState: final,
+		Schemas:    schemas,
 	})
 	assertNoErrors(t, diags)
 
@@ -366,7 +366,7 @@ func TestWriteBackLocatedRoundTrip(t *testing.T) {
 	provs := SingleProvider(locatedTestProvider, locatedTypeProvider(&imported))
 	res, buildDiags := BuildWith(context.Background(), cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordLocated}},
-		provs, Options{LocatedStore: NewLocatedStore(store, estate)})
+		provs, Options{RecordStore: NewRecordEnvelopeStore(store, RecordKeyPrefix(estate))})
 	assertNoErrors(t, buildDiags)
 	if len(imported) != 1 || imported[0] != appliedID {
 		t.Fatalf("the replan imported %v, want [%q]", imported, appliedID)
@@ -385,7 +385,7 @@ func TestWriteBackLocatedDeletesAWithdrawnInstance(t *testing.T) {
 	const estate = "test-estate"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 	version, err := located.Put(context.Background(), addr, LocatedRecord{ImportID: "eipassoc-gone"}, "")
 	if err != nil {
 		t.Fatalf("seeding: %s", err)
@@ -396,10 +396,10 @@ func TestWriteBackLocatedDeletesAWithdrawnInstance(t *testing.T) {
 	}}
 
 	diags := WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore:    located,
-		LocatedVersions: []RecordVersion{{Addr: addr, Version: version}},
-		FinalState:      states.NewState(), // the apply destroyed it
-		Schemas:         schemas,
+		Store:            located.rs,
+		EnvelopeVersions: []RecordVersion{{Addr: addr, Version: version}},
+		FinalState:       states.NewState(), // the apply destroyed it
+		Schemas:          schemas,
 	})
 	assertNoErrors(t, diags)
 
@@ -423,7 +423,7 @@ func TestWriteBackLocatedIgnoresNonLocatedTypes(t *testing.T) {
 	const estate = "test-estate"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 
 	final := states.NewState()
 	val := cty.ObjectVal(map[string]cty.Value{
@@ -443,9 +443,9 @@ func TestWriteBackLocatedIgnoresNonLocatedTypes(t *testing.T) {
 	}}
 
 	diags := WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
-		Schemas:      schemas,
+		Store:      located.rs,
+		FinalState: final,
+		Schemas:    schemas,
 	})
 	assertNoErrors(t, diags)
 

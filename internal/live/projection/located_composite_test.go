@@ -7,8 +7,10 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -139,7 +141,7 @@ func TestCompositeLocatedRoundTripRecordsTheWholeIdentity(t *testing.T) {
 	const wantLeaf = "1122334"
 
 	store := localHintStore(t)
-	located := NewLocatedStore(store, estate)
+	located := newTestLocatedStore(store, estate)
 
 	// The state an apply finished with. "id" is the LEAF, which is the whole
 	// of the defect: it is not the import identity and never was.
@@ -162,9 +164,9 @@ func TestCompositeLocatedRoundTripRecordsTheWholeIdentity(t *testing.T) {
 	}}
 
 	assertNoErrors(t, WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
-		Schemas:      schemas,
+		Store:      located.rs,
+		FinalState: final,
+		Schemas:    schemas,
 	}))
 
 	rec, _, exists, err := located.Get(context.Background(), addr)
@@ -191,7 +193,7 @@ func TestCompositeLocatedRoundTripRecordsTheWholeIdentity(t *testing.T) {
 	provs := SingleProvider(locatedTestProvider, compositeLocatedProvider(&targets))
 	res, buildDiags := BuildWith(context.Background(), loadConfig(t, writeCompositeLocatedFixture(t)),
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassRecordLocated}},
-		provs, Options{LocatedStore: located})
+		provs, Options{RecordStore: located.rs})
 	assertNoErrors(t, buildDiags)
 
 	if len(targets) != 1 {
@@ -222,7 +224,7 @@ func TestCompositeLocatedRoundTripRecordsTheWholeIdentity(t *testing.T) {
 func TestWriteBackRefusesAPartialCompositeIdentity(t *testing.T) {
 	addr := mustAddr(t, compositeLocatedType+`.pets`)
 	store := localHintStore(t)
-	located := NewLocatedStore(store, "test-estate")
+	located := newTestLocatedStore(store, "test-estate")
 
 	// The parent component came back null, which is every way a component
 	// can be unusable collapsed into the one an encoded object can carry.
@@ -241,8 +243,8 @@ func TestWriteBackRefusesAPartialCompositeIdentity(t *testing.T) {
 		SetResourceInstanceCurrent(addr.Resource, src, locatedTestProvider, addrs.NoKey)
 
 	diags := WriteBack(context.Background(), WriteBackRequest{
-		LocatedStore: located,
-		FinalState:   final,
+		Store:      located.rs,
+		FinalState: final,
 		Schemas: &tofu.Schemas{Providers: map[addrs.Provider]providers.ProviderSchema{
 			locatedTestProvider.Provider: {ResourceTypes: map[string]providers.Schema{compositeLocatedType: compositeLocatedSchema()}},
 		}},
@@ -263,7 +265,7 @@ func TestWriteBackRefusesAPartialCompositeIdentity(t *testing.T) {
 func TestLocatedStoreRefusesAnEmptyComponent(t *testing.T) {
 	ctx := context.Background()
 	addr := mustAddr(t, compositeLocatedType+`.pets`)
-	located := NewLocatedStore(localHintStore(t), "test-estate")
+	located := newTestLocatedStore(localHintStore(t), "test-estate")
 
 	if _, err := located.Put(ctx, addr, LocatedRecord{Components: map[string]string{"api_id": "", "id": "1122334"}}, ""); err == nil {
 		t.Error("Put accepted an identity with an empty component")
@@ -286,28 +288,40 @@ func TestLocatedStoreRefusesAnEmptyComponent(t *testing.T) {
 	}
 }
 
-// TestSingleStringLocatedRecordsAreUnchanged is the other half of the
+// TestSingleStringLocatedRecordsOmitAttrs is the other half of the
 // compatibility claim, and the one a reader should be most suspicious of: a
-// type whose identity is one string must record and read back exactly what
-// it did before composite identities existed, including the payload's JSON.
-func TestSingleStringLocatedRecordsAreUnchanged(t *testing.T) {
+// type whose identity is one string must record and read back exactly that
+// string, with the envelope's "attrs" member absent rather than
+// present-and-empty - the same discriminator [identityPayload] documents
+// for telling a single-string identity from a composite one.
+func TestSingleStringLocatedRecordsOmitAttrs(t *testing.T) {
 	ctx := context.Background()
 	addr := mustAddr(t, locatedTestType+`.bastion`)
-	store := localHintStore(t)
-	located := NewLocatedStore(store, "test-estate")
+	prefix := RecordKeyPrefix("test-estate")
+	rawStore := localHintStore(t)
+	located := newTestLocatedStore(rawStore, "test-estate")
 
 	const wantID = "eipassoc-00112233445566778"
 	if _, err := located.Put(ctx, addr, LocatedRecord{ImportID: wantID}, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
-	raw, _, exists, err := store.Get(ctx, LocatedKey("test-estate", addr))
+	raw, _, exists, err := rawStore.Get(ctx, RecordKey(prefix, addr))
 	if err != nil || !exists {
 		t.Fatalf("reading the raw payload: exists=%v err=%v", exists, err)
 	}
-	// The wire form, not merely the decoded one: "identity" must be absent
-	// rather than present-and-empty, so a record written today is
-	// byte-identical to one written before this field existed.
-	if got := string(raw); got != `{"formatVersion":"`+locatedFormatVersion+`","address":"`+addr.String()+`","importID":"`+wantID+`"}` {
-		t.Errorf("the stored payload is %s.\nA single-string record must be byte-identical to one written before composite identities existed; that is why the format version did not move.", got)
+	// The wire form, not merely the decoded one: "attrs" must be absent
+	// rather than present-and-empty.
+	var env recordEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		t.Fatalf("decoding the raw payload: %s", err)
+	}
+	if env.Identity == nil || env.Identity.ImportID != wantID {
+		t.Fatalf("the stored envelope's identity = %+v, want ImportID %q", env.Identity, wantID)
+	}
+	if len(env.Identity.Attrs) != 0 {
+		t.Errorf("the stored envelope's identity carries %v attrs for a single-string identity; want none", env.Identity.Attrs)
+	}
+	if !strings.Contains(string(raw), `"import_id":"`+wantID+`"`) || strings.Contains(string(raw), `"attrs"`) {
+		t.Errorf("the stored payload is %s.\nA single-string identity must carry import_id and omit attrs entirely.", raw)
 	}
 }

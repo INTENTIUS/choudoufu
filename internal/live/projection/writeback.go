@@ -292,6 +292,12 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	secrets := identity.SecretsFor(req.Config)
 	providerCache := map[string]providers.Interface{}
 
+	// noProvidersWarned makes the "no provider access to classify residue
+	// with" warning fire once per write-back rather than once per instance
+	// that has a residue candidate - the same one-warning-per-run shape the
+	// pre-#364 writeBackResidue gave a nil req.Providers.
+	noProvidersWarned := false
+
 	seen := make(map[string]bool, len(req.EnvelopeVersions))
 
 	if req.FinalState != nil {
@@ -368,7 +374,18 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				} else {
 					touched = true
 					candidates := residueCandidates(schema, obj.Value, secrets)
-					if len(candidates) > 0 {
+					if len(candidates) > 0 && req.Providers == nil {
+						if !noProvidersWarned {
+							noProvidersWarned = true
+							diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryResidueNotClassified,
+								"This estate declares a record_store, but the apply had no provider access to classify with, so no argument values were recorded. Arguments the provider's read does not return will be proposed for update again on the next plan. Nothing was changed and nothing was written.",
+							))
+						}
+						// Leave residue exactly as it was: neither set nor
+						// cleared. A nil req.Providers is a caller that never
+						// intended to classify this run, not a proof that
+						// this instance has no residue.
+					} else if len(candidates) > 0 {
 						applied, _ := obj.Value.UnmarkDeep()
 						provider, provErr := residueProvider(ctx, req.Providers, providerCache, res.ProviderConfig)
 						if provErr != nil {

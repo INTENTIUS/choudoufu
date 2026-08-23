@@ -171,21 +171,21 @@ func TestFailedProvisionerTaintSurvivesWriteBackAndMaterialization(t *testing.T)
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 
 	// Step 1: the apply. Its final state carries the object stock's
 	// maybeTainted marked tainted when the provisioner failed.
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectTainted),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectTainted),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
 
 	// The wire format actually says so, rather than "whatever WriteBack
 	// felt like".
-	raw, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr))
+	raw, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr))
 	if err != nil || !exists {
 		t.Fatalf("no provisioner record after write-back: exists=%v err=%v", exists, err)
 	}
@@ -197,7 +197,7 @@ func TestFailedProvisionerTaintSurvivesWriteBackAndMaterialization(t *testing.T)
 	provs := SingleProvider(provisionedTestProvider, provisionedTypeProvider())
 	res, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
-		provs, Options{ProvisionedStore: provisioned})
+		provs, Options{RecordStore: provisioned.rs})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{provisionedTestType + `.web`})
 
@@ -215,12 +215,15 @@ func TestFailedProvisionerTaintSurvivesWriteBackAndMaterialization(t *testing.T)
 			inst.Current.Status)
 	}
 
-	if len(res.ProvisionedVersions) != 1 || res.ProvisionedVersions[0].Addr.String() != addr.String() {
-		t.Errorf("ProvisionedVersions = %v, want one entry for %s so write-back can open a conditional Put or Delete", res.ProvisionedVersions, addr)
+	if len(res.EnvelopeVersions) != 1 || res.EnvelopeVersions[0].Addr.String() != addr.String() {
+		t.Errorf("EnvelopeVersions = %v, want one entry for %s so write-back can open a conditional Put or Delete", res.EnvelopeVersions, addr)
 	}
-	if len(res.RecordVersions) != 0 || len(res.LocatedVersions) != 0 || len(res.ResidueVersions) != 0 {
-		t.Errorf("a provisioner-taint version leaked into another namespace's version list: record=%v located=%v residue=%v",
-			res.RecordVersions, res.LocatedVersions, res.ResidueVersions)
+	// GitHub issue #364 merged what used to be four separate version lists
+	// (RecordVersions stays its own for kind=object; located, residue and
+	// provisioned now share EnvelopeVersions) into two. A provisioner-taint
+	// version must still never leak into the kind=object list.
+	if len(res.RecordVersions) != 0 {
+		t.Errorf("a provisioner-taint version leaked into the record-backed version list: %v", res.RecordVersions)
 	}
 }
 
@@ -239,17 +242,17 @@ func TestSucceedingProvisionerLeavesNoRecord(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 
 	// Direction one: a clean apply with nothing recorded before it.
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectReady),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectReady),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr)); err != nil || exists {
+	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
 		t.Fatalf("a successful provisioner left a record behind: exists=%v err=%v", exists, err)
 	}
 
@@ -261,14 +264,14 @@ func TestSucceedingProvisionerLeavesNoRecord(t *testing.T) {
 		t.Fatalf("seeding the stale record: %s", err)
 	}
 	diags = WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore:    provisioned,
-		ProvisionedVersions: []RecordVersion{{Addr: addr, Version: version}},
-		Config:              cfg,
-		FinalState:          provisionedFinalState(t, addr, states.ObjectReady),
-		Schemas:             provisionedSchemas(),
+		Store:            provisioned.rs,
+		EnvelopeVersions: []RecordVersion{{Addr: addr, Version: version}},
+		Config:           cfg,
+		FinalState:       provisionedFinalState(t, addr, states.ObjectReady),
+		Schemas:          provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr)); err != nil || exists {
+	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
 		t.Errorf("a stale taint record survived a successful re-run: exists=%v err=%v.\n"+
 			"The resource would be proposed for replacement on every plan from now on.", exists, err)
 	}
@@ -286,21 +289,21 @@ func TestDestroyClearsTheProvisionerRecord(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	version, err := provisioned.Put(ctx, addr, "")
 	if err != nil {
 		t.Fatalf("seeding the record: %s", err)
 	}
 
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore:    provisioned,
-		ProvisionedVersions: []RecordVersion{{Addr: addr, Version: version}},
-		Config:              cfg,
-		FinalState:          states.NewState(),
-		Schemas:             provisionedSchemas(),
+		Store:            provisioned.rs,
+		EnvelopeVersions: []RecordVersion{{Addr: addr, Version: version}},
+		Config:           cfg,
+		FinalState:       states.NewState(),
+		Schemas:          provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, ProvisionedKey(estate, addr)); exists {
+	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); exists {
 		t.Error("the taint record survived the resource being destroyed")
 	}
 }
@@ -325,16 +328,16 @@ func TestNoProvisionerDeclaredFabricatesNoRecord(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectTainted),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectTainted),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, ProvisionedKey(estate, addr)); exists {
+	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); exists {
 		t.Error("a taint record was fabricated for a resource whose configuration declares no create-time provisioner")
 	}
 }
@@ -390,15 +393,15 @@ resource "` + provisionedTestType + `" "web" {
 	}
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectTainted),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectTainted),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, ProvisionedKey(estate, addr)); exists {
+	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); exists {
 		t.Error("a destroy-time provisioner caused a taint record to be written; the marker is already the signal")
 	}
 }
@@ -446,11 +449,11 @@ resource "null_resource" "trigger" {
 	finalState.EnsureModule(addr.Module).SetResourceInstanceCurrent(addr.Resource, src2, nullProvider, addrs.NoKey)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       finalState,
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: finalState,
 		Schemas: &tofu.Schemas{Providers: map[addrs.Provider]providers.ProviderSchema{
 			nullProvider.Provider: {
 				Provider:      providers.Schema{Block: &configschema.Block{}},
@@ -459,8 +462,24 @@ resource "null_resource" "trigger" {
 		}},
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, ProvisionedKey(estate, addr)); exists {
-		t.Error("a record-backed instance got a second copy of its tainted bit in the provisioned namespace")
+	// GitHub issue #364: there is no separate "provisioned namespace" any
+	// more for a second copy to land in - a record-backed instance's kind
+	// object record legitimately lives at this very key, carrying its own
+	// tainted bit (objectFields.Status). What must still be true is that
+	// nothing ALSO wrote a Provisioned member alongside it: two sources for
+	// one fact, which could disagree.
+	env, _, exists, err := provisioned.rs.getRaw(ctx, addr)
+	if err != nil || !exists {
+		t.Fatalf("the record-backed instance's own record is missing after write-back: exists=%v err=%v", exists, err)
+	}
+	if env.Kind != recordKindObject || env.Object == nil {
+		t.Fatalf("the record for a record-backed instance is not kind=object: %+v", env)
+	}
+	if env.Object.Status != recordStatusTainted {
+		t.Errorf("the record-backed instance's own object.status = %q, want %q - its tainted bit has no other carrier", env.Object.Status, recordStatusTainted)
+	}
+	if env.Provisioned != nil {
+		t.Error("a record-backed instance got a second copy of its tainted bit in the envelope's Provisioned member; recordPayload.Status is the only carrier it should ever have")
 	}
 }
 
@@ -474,7 +493,7 @@ func TestProvisionedRecordForAnotherAddressIsRefused(t *testing.T) {
 	const estate = "provisioned-estate"
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	mine := mustAddr(t, provisionedTestType+`.web`)
 	theirs := mustAddr(t, provisionedTestType+`.other`)
 
@@ -483,11 +502,11 @@ func TestProvisionedRecordForAnotherAddressIsRefused(t *testing.T) {
 	if _, err := provisioned.Put(ctx, theirs, ""); err != nil {
 		t.Fatalf("seeding: %s", err)
 	}
-	payload, _, _, err := store.Get(ctx, ProvisionedKey(estate, theirs))
+	payload, _, _, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), theirs))
 	if err != nil {
 		t.Fatalf("reading the seed: %s", err)
 	}
-	if _, err := store.PutIfAbsent(ctx, ProvisionedKey(estate, mine), payload); err != nil {
+	if _, err := store.PutIfAbsent(ctx, RecordKey(RecordKeyPrefix(estate), mine), payload); err != nil {
 		t.Fatalf("planting the mismatched key: %s", err)
 	}
 
@@ -509,14 +528,14 @@ func TestUnreadableProvisionedRecordStopsTheRun(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	if _, err := store.PutIfAbsent(ctx, ProvisionedKey(estate, addr), []byte(`{"formatVersion":"from-the-future"}`)); err != nil {
+	if _, err := store.PutIfAbsent(ctx, RecordKey(RecordKeyPrefix(estate), addr), []byte(`{"formatVersion":"from-the-future"}`)); err != nil {
 		t.Fatalf("planting the unreadable record: %s", err)
 	}
 
 	provs := SingleProvider(provisionedTestProvider, provisionedTypeProvider())
 	res, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
-		provs, Options{ProvisionedStore: NewProvisionedStore(store, estate)})
+		provs, Options{RecordStore: newTestProvisionedStore(store, estate).rs})
 
 	if !diags.HasErrors() {
 		t.Fatal("an unreadable provisioner record produced no error; the object would be reported healthy")
@@ -550,7 +569,7 @@ func TestProvisionedStoreIsNotConsultedWithoutAProvisioner(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	if _, err := provisioned.Put(ctx, addr, ""); err != nil {
 		t.Fatalf("seeding: %s", err)
 	}
@@ -558,7 +577,7 @@ func TestProvisionedStoreIsNotConsultedWithoutAProvisioner(t *testing.T) {
 	provs := SingleProvider(provisionedTestProvider, provisionedTypeProvider())
 	res, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
-		provs, Options{ProvisionedStore: provisioned})
+		provs, Options{RecordStore: provisioned.rs})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{provisionedTestType + `.web`})
 
@@ -569,101 +588,26 @@ func TestProvisionedStoreIsNotConsultedWithoutAProvisioner(t *testing.T) {
 	if inst.Current.Status != states.ObjectReady {
 		t.Errorf("status = %s, want ObjectReady: a record for a resource with no provisioner block must be inert, not a standing order to replace it", inst.Current.Status)
 	}
-	if len(res.ProvisionedVersions) != 0 {
-		t.Errorf("ProvisionedVersions = %v, want empty; the store must not be consulted for an instance with no create-time provisioner", res.ProvisionedVersions)
-	}
+	// GitHub issue #364: EnvelopeVersions is no longer provisioned-specific
+	// - fillResidueFor's own, unrelated, unconditional consultation of the
+	// same shared key populates it regardless of whether a provisioner is
+	// declared, so its emptiness can no longer stand in for
+	// "applyProvisionedTaint never ran". The Status assertion above is the
+	// one that actually proves the taint record was never consulted: if it
+	// had been, this instance would have come back ObjectTainted.
 }
 
-// TestProvisionedKeysAreInvisibleToOrphanDiscovery is issue #353's version
-// of the central safety property located.go and residue.go each carry, and
-// the reason a fifth namespace root exists rather than a subdirectory of an
-// existing one.
-//
-// builder.discoverOrphanedRecords lists [Options.RecordKeyPrefix] and
-// materializes every key it can decode as an UNDECLARED prior-state entry,
-// which makes the plan propose DESTROYING it. A key here says only that a
-// shell command failed against a live object the record namespace has no
-// authority over, so one reaching that listing is a cloud deletion driven
-// by a note about `echo`.
-//
-// Proven three ways, exactly as the other two are: lexically, functionally
-// through the real List call, and by decoding.
-func TestProvisionedKeysAreInvisibleToOrphanDiscovery(t *testing.T) {
-	const estate = "my-estate"
-	ctx := context.Background()
-
-	recordPrefix := RecordKeyPrefix(estate)
-	provisionedPrefix := ProvisionedKeyPrefix(estate)
-
-	if strings.HasPrefix(provisionedPrefix, recordPrefix+"/") || provisionedPrefix == recordPrefix {
-		t.Fatalf("ProvisionedKeyPrefix(%q) = %q lives under RecordKeyPrefix %q; orphan discovery would list it", estate, provisionedPrefix, recordPrefix)
-	}
-	if strings.HasPrefix(recordPrefix, provisionedNamespaceRoot+"/") {
-		t.Fatalf("RecordKeyPrefix(%q) = %q lives under the provisioned namespace %q", estate, recordPrefix, provisionedNamespaceRoot)
-	}
-	for _, other := range []string{hintNamespaceRoot, locatedNamespaceRoot, residueNamespaceRoot, "tofu-receipts"} {
-		if provisionedNamespaceRoot == other || strings.HasPrefix(provisionedNamespaceRoot, other+"/") {
-			t.Errorf("the provisioned namespace %q collides with %q", provisionedNamespaceRoot, other)
-		}
-	}
-
-	store := localHintStore(t)
-	recAddr := locatedTestAddr(t, "terraform_data", "seed")
-	recordKey := RecordKey(recordPrefix, recAddr)
-	if _, err := store.PutIfAbsent(ctx, recordKey, []byte(`{"value_type":"\"string\"","attrs":"\"x\""}`)); err != nil {
-		t.Fatalf("writing the record fixture: %s", err)
-	}
-	provAddr := locatedTestAddr(t, provisionedTestType, "web")
-	provisioned := NewProvisionedStore(store, estate)
-	if _, err := provisioned.Put(ctx, provAddr, ""); err != nil {
-		t.Fatalf("Put: %s", err)
-	}
-
-	keys, err := store.List(ctx, recordPrefix)
-	if err != nil {
-		t.Fatalf("List(%q): %s", recordPrefix, err)
-	}
-	if len(keys) != 1 || keys[0] != recordKey {
-		t.Errorf("List(%q) = %v, want exactly the one record key %q.\n"+
-			"A provisioner-taint key reaching orphan discovery is a cloud deletion driven by a note that a shell command failed.", recordPrefix, keys, recordKey)
-	}
-
-	if got, ok := RecordAddr(recordPrefix, ProvisionedKey(estate, provAddr)); ok {
-		t.Errorf("RecordAddr decoded a provisioner key into %s under the record prefix; it must refuse it", got)
-	}
-
-	// And the payload cannot be half-read as a resource record either,
-	// which is the third independent stop.
-	payload, _, _, err := store.Get(ctx, ProvisionedKey(estate, provAddr))
-	if err != nil {
-		t.Fatalf("reading the planted key: %s", err)
-	}
-	if _, _, _, err := decodeRecordPayload(payload); err == nil {
-		t.Error("decodeRecordPayload accepted a provisioner payload; it must refuse it outright")
-	}
-}
-
-// TestProvisionedRecordCarriesNoProvisionerContent is the pin against the
-// design issue #353 explicitly rejected.
-//
-// An earlier sketch proposed storing a hash of the provisioner's
-// configuration and re-running when it changed. Stock has no such memory
-// and never re-runs a provisioner because its command changed, so a diff
-// like that would violate "match stock and go no further" - and it is by
-// name the terraform_data.triggers_replace pseudo-receipt pattern
-// live/RECEIPTS.md forbids. The payload is asserted by content, not by
-// intention, so a future field that reintroduces it fails here.
 func TestProvisionedRecordCarriesNoProvisionerContent(t *testing.T) {
 	ctx := context.Background()
 	const estate = "provisioned-estate"
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	addr := mustAddr(t, provisionedTestType+`.web`)
 	if _, err := provisioned.Put(ctx, addr, ""); err != nil {
 		t.Fatalf("Put: %s", err)
 	}
-	payload, _, _, err := store.Get(ctx, ProvisionedKey(estate, addr))
+	payload, _, _, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr))
 	if err != nil {
 		t.Fatalf("Get: %s", err)
 	}
@@ -738,18 +682,18 @@ func TestStaleTaintDoesNotSurviveAHealthyRecreate(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 
 	// Leg 1: the create-time provisioner failed, so the apply's final state
 	// carries a tainted object and write-back records it.
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectTainted),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectTainted),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr)); err != nil || !exists {
+	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || !exists {
 		t.Fatalf("leg 1 wrote no record, so the rest of this test would prove nothing: exists=%v err=%v", exists, err)
 	}
 
@@ -758,27 +702,27 @@ func TestStaleTaintDoesNotSurviveAHealthyRecreate(t *testing.T) {
 	absent, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
 		SingleProvider(provisionedTestProvider, provisionedAbsentProvider()),
-		Options{ProvisionedStore: provisioned})
+		Options{RecordStore: provisioned.rs})
 	assertNoErrors(t, diags)
 	assertOmitted(t, absent, map[string]Reason{provisionedTestType + `.web`: ReasonAbsent})
-	if len(absent.ProvisionedVersions) != 0 {
+	if len(absent.EnvelopeVersions) != 0 {
 		t.Fatalf("ProvisionedVersions = %v, want empty.\n"+
 			"An absent object returns from materialize before the taint record is consulted. If that ever changes this test stops reproducing the bug it was written for, so it is asserted rather than assumed.",
-			absent.ProvisionedVersions)
+			absent.EnvelopeVersions)
 	}
 
 	// Leg 3: the apply creates the object and the provisioner succeeds this
 	// time, so the final state is healthy - and this run's plan holds no
 	// version for the record it has to clear.
 	diags = WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore:    provisioned,
-		ProvisionedVersions: absent.ProvisionedVersions,
-		Config:              cfg,
-		FinalState:          provisionedFinalState(t, addr, states.ObjectReady),
-		Schemas:             provisionedSchemas(),
+		Store:            provisioned.rs,
+		EnvelopeVersions: absent.EnvelopeVersions,
+		Config:           cfg,
+		FinalState:       provisionedFinalState(t, addr, states.ObjectReady),
+		Schemas:          provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr)); err != nil || exists {
+	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
 		t.Errorf("the taint record survived a successful re-provision: exists=%v err=%v.\n"+
 			"The provisioner ran and succeeded on a freshly created object. Nothing about that resource is tainted, and the record now says otherwise.", exists, err)
 	}
@@ -788,7 +732,7 @@ func TestStaleTaintDoesNotSurviveAHealthyRecreate(t *testing.T) {
 	res, diags := BuildWith(ctx, cfg,
 		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: "i-0abcdef"}},
 		SingleProvider(provisionedTestProvider, provisionedTypeProvider()),
-		Options{ProvisionedStore: provisioned})
+		Options{RecordStore: provisioned.rs})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{provisionedTestType + `.web`})
 	inst := res.State.ResourceInstance(addr)
@@ -818,7 +762,7 @@ func TestStaleTaintIsClearedWhenTheBlockComesBackAndSucceeds(t *testing.T) {
 
 	addr := mustAddr(t, provisionedTestType+`.web`)
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 
 	// A record stands from an older apply, from before the block was taken
 	// out of the configuration.
@@ -831,26 +775,26 @@ func TestStaleTaintIsClearedWhenTheBlockComesBackAndSucceeds(t *testing.T) {
 	// behaviour and is parity with stock's own tainted bit surviving an
 	// edit to the provisioner block.
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           loadConfig(t, writeProvisionedFixture(t, false)),
-		FinalState:       provisionedFinalState(t, addr, states.ObjectReady),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     loadConfig(t, writeProvisionedFixture(t, false)),
+		FinalState: provisionedFinalState(t, addr, states.ObjectReady),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, _ := store.Get(ctx, ProvisionedKey(estate, addr)); !exists {
+	if _, _, exists, _ := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); !exists {
 		t.Fatal("the record was swept by an apply whose configuration declares no create-time provisioner, which is a gate this mechanism does not have and must not grow: the read side is gated the same way, so sweeping here would mean writing and reading different sets")
 	}
 
 	// The block comes back, with its provisioner, and this time the
 	// provisioner succeeds. The record must go.
 	diags = WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           loadConfig(t, writeProvisionedFixture(t, true)),
-		FinalState:       provisionedFinalState(t, addr, states.ObjectReady),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     loadConfig(t, writeProvisionedFixture(t, true)),
+		FinalState: provisionedFinalState(t, addr, states.ObjectReady),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
-	if _, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr)); err != nil || exists {
+	if _, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr)); err != nil || exists {
 		t.Errorf("a record from before the block was removed survived the block's return and a clean provision: exists=%v err=%v", exists, err)
 	}
 }
@@ -872,20 +816,20 @@ func TestTaintIsRecordedOverAStaleRecordFromAnEarlierIncarnation(t *testing.T) {
 	addr := mustAddr(t, provisionedTestType+`.web`)
 
 	store := localHintStore(t)
-	provisioned := NewProvisionedStore(store, estate)
+	provisioned := newTestProvisionedStore(store, estate)
 	if _, err := provisioned.Put(ctx, addr, ""); err != nil {
 		t.Fatalf("seeding the standing record: %s", err)
 	}
 
 	diags := WriteBack(ctx, WriteBackRequest{
-		ProvisionedStore: provisioned,
-		Config:           cfg,
-		FinalState:       provisionedFinalState(t, addr, states.ObjectTainted),
-		Schemas:          provisionedSchemas(),
+		Store:      provisioned.rs,
+		Config:     cfg,
+		FinalState: provisionedFinalState(t, addr, states.ObjectTainted),
+		Schemas:    provisionedSchemas(),
 	})
 	assertNoErrors(t, diags)
 
-	raw, _, exists, err := store.Get(ctx, ProvisionedKey(estate, addr))
+	raw, _, exists, err := store.Get(ctx, RecordKey(RecordKeyPrefix(estate), addr))
 	if err != nil || !exists {
 		t.Fatalf("the taint went unrecorded because a record from an earlier incarnation was in the way: exists=%v err=%v", exists, err)
 	}
@@ -919,17 +863,14 @@ func TestProvisionedWriteConflictStopsTheRun(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		status states.ObjectStatus
-		want   string
 	}{
 		{
 			name:   "the taint cannot be written",
 			status: states.ObjectTainted,
-			want:   "will read it back as healthy",
 		},
 		{
 			name:   "the stale record cannot be cleared",
 			status: states.ObjectReady,
-			want:   "propose destroying and replacing it",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -938,37 +879,44 @@ func TestProvisionedWriteConflictStopsTheRun(t *testing.T) {
 			addr := mustAddr(t, provisionedTestType+`.web`)
 
 			store := localHintStore(t)
-			provisioned := NewProvisionedStore(store, estate)
+			provisioned := newTestProvisionedStore(store, estate)
 			if _, err := provisioned.Put(ctx, addr, ""); err != nil {
 				t.Fatalf("seeding: %s", err)
 			}
 
 			diags := WriteBack(ctx, WriteBackRequest{
-				ProvisionedStore:    provisioned,
-				ProvisionedVersions: []RecordVersion{{Addr: addr, Version: otherWriter}},
-				Config:              cfg,
-				FinalState:          provisionedFinalState(t, addr, tc.status),
-				Schemas:             provisionedSchemas(),
+				Store:            provisioned.rs,
+				EnvelopeVersions: []RecordVersion{{Addr: addr, Version: otherWriter}},
+				Config:           cfg,
+				FinalState:       provisionedFinalState(t, addr, tc.status),
+				Schemas:          provisionedSchemas(),
 			})
 			if !diags.HasErrors() {
 				t.Fatalf("a rejected conditional write did not stop the run: %v", diags.ErrWithWarnings())
 			}
+			// GitHub issue #364: a provisioner-taint conflict now shares the
+			// SAME merged-envelope write as the located and residue
+			// concerns, so it is reported through the same generic
+			// "Record store write conflict" diagnostic the record-backed
+			// half already used - not a provisioner-specific message,
+			// because the physical write it failed on is no longer a
+			// provisioner-specific operation.
 			var found bool
 			for _, d := range diags {
-				if d.Severity() != tfdiags.Error || d.Description().Summary != SummaryProvisionedNotRecorded {
+				if d.Severity() != tfdiags.Error || d.Description().Summary != "Record store write conflict" {
 					continue
 				}
 				found = true
 				detail := d.Description().Detail
-				if !strings.Contains(detail, "Another writer changed this record") {
+				if !strings.Contains(detail, "another writer changed it") {
 					t.Errorf("the conflict is reported without naming both versions: %s", detail)
 				}
-				if !strings.Contains(detail, tc.want) {
-					t.Errorf("the error does not say what the operator is left with (want it to mention %q): %s", tc.want, detail)
+				if !strings.Contains(detail, otherWriter) {
+					t.Errorf("the conflict does not name the version this run expected (%q): %s", otherWriter, detail)
 				}
 			}
 			if !found {
-				t.Errorf("no %q error was raised: %v", SummaryProvisionedNotRecorded, diags.ErrWithWarnings())
+				t.Errorf("no %q error was raised: %v", "Record store write conflict", diags.ErrWithWarnings())
 			}
 		})
 	}

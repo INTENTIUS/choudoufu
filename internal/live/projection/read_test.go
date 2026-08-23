@@ -219,12 +219,21 @@ func TestReadInstancesReportsWhatItCannotName(t *testing.T) {
 	})
 }
 
-// The narrow read must not do any of the things a full projection does. The
-// record store is the one that would be destructive to get wrong: a full
-// build lists it to find records whose configuration is gone, and a first
-// pass run against an incomplete resolution list is exactly the state in
-// which that list is misleading.
-func TestReadInstancesNeverOpensTheRecordStore(t *testing.T) {
+// The narrow read must not do the one thing that would be destructive to
+// get wrong: LIST the record store. A full build lists it to find records
+// whose configuration is gone, and a first pass run against an incomplete
+// resolution list is exactly the state in which that list is misleading -
+// discoverOrphanedRecords is never called from here.
+//
+// It may, and since GitHub issue #364's envelope merge routinely does,
+// point-read the SAME store for residue and provisioner-taint on an
+// ordinary concrete instance ([builder.fillResidueFor],
+// [builder.applyProvisionedTaint]) and for a record-located instance's
+// identity ([builder.materializeLocated]) - none of those enumerate
+// anything, so none of them can turn an incomplete resolution list into a
+// destroy proposal. fatalStore is scoped to the one call that could:
+// List.
+func TestReadInstancesNeverListsTheRecordStore(t *testing.T) {
 	cfg := loadConfig(t, "testdata/expanded")
 
 	cloud := newFakeCloud()
@@ -233,7 +242,7 @@ func TestReadInstancesNeverOpensTheRecordStore(t *testing.T) {
 
 	store := &fatalStore{t: t}
 	got, diags := ReadInstances(context.Background(), cfg, expandedResolutions(t), cloud.providers(t),
-		Options{Ownership: &Ownership{Estate: readEstate}, RecordStore: store, RecordKeyPrefix: "x/"})
+		Options{Ownership: &Ownership{Estate: readEstate}, RecordStore: NewRecordEnvelopeStore(store, "x/")})
 	assertNoErrors(t, diags)
 
 	if len(got.Values) != 2 {
@@ -278,12 +287,15 @@ func (v *ReadValues) assertUnread(t *testing.T, want map[string]Reason) {
 	}
 }
 
-// fatalStore fails the test on any call. It is how "this phase does not open
-// the record store" is proved rather than asserted.
+// fatalStore fails the test on any write or on List. It is how "this phase
+// never enumerates the record store" is proved rather than asserted -
+// GitHub issue #364's envelope merge made an ordinary point Get legitimate
+// here (residue, provisioner taint and record-located identity are all
+// point lookups on the very instances a narrow read is already reading),
+// so Get answers "not found" instead of failing the test.
 type fatalStore struct{ t *testing.T }
 
 func (s *fatalStore) Get(context.Context, string) ([]byte, string, bool, error) {
-	s.t.Fatal("the narrow read opened the record store")
 	return nil, "", false, nil
 }
 
