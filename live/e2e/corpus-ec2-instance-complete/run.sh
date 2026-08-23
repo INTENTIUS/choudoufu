@@ -43,7 +43,7 @@ set -uo pipefail
 # hand-authored: main.tf, outputs.tf and versions.tf are the real upstream
 # files with a real subset of their content removed.
 #
-# THE ONBOARDING DELTAS, beyond the emulator connection flags every corpus
+# THE ONBOARDING DELTA, beyond the emulator connection flags every corpus
 # crossing needs:
 #   INSTANCE TYPE   ec2_complete's `instance_type` is changed from the
 #                   upstream "c5.xlarge" (chosen upstream to size
@@ -55,59 +55,59 @@ set -uo pipefail
 #                   is simply not in it ("reading EC2 Instance Type
 #                   (c5.xlarge): empty result"). t3.micro is the same type
 #                   reference-ec2-vpc's own hand-written estate already uses.
-#   METADATA OPTIONS  ec2_complete pins `metadata_options.http_tokens` to
-#                   "optional" - a real floci defect, not a reduction. See
-#                   "THE METADATA-OPTIONS DEFECT" below.
 #
-# THE SSM-PARAMETER DEFECT (floci issue lex00/floci#114, FIXED, not yet
-# repinned). The module's root main.tf reads
-# `data "aws_ssm_parameter" "this" { name = var.ami_ssm_parameter }`
-# UNCONDITIONALLY - no `count`, evaluated even for `ec2_disabled` and even
-# though `ec2_complete` passes an explicit `ami`. The default
-# ami_ssm_parameter, "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-
-# default-x86_64", is one of AWS's own documented public parameters
-# (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-public-parameters-ami.html),
-# seeded in every real account with no setup. Confirmed directly against the
-# AWS CLI with no terraform in the loop before touching any code:
-# `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`
-# returned ParameterNotFound on the pinned image, and
-# `aws ssm get-parameters-by-path --path /aws/service/ami-amazon-linux-latest --recursive`
-# returned nothing at all - not an upstream module bug, floci was missing
-# AWS's own guaranteed public data. Fixed on branch
-# fix/ssm-public-ami-parameters (pushed to floci's `origin`, not `upstream`):
-# SsmService now resolves a GetParameter miss under "/aws/service/" against
-# the EC2 image catalog's own `publicParameterAliases`, seeding it
-# write-through on first access. Not yet published/repinned (a shared-layer
-# change the maintainer batches). Until then, this script seeds the exact
-# parameter itself via `aws ssm put-parameter` (STAGE 0 below) - the same
-# value a real account already has, not a fabricated one.
+# TWO FLOCI DEFECTS FOUND, FIXED, AND REPINNED (no workaround left in this
+# script - both onboarding deltas that used to route around them are gone):
 #
-# THE METADATA-OPTIONS DEFECT (floci issue lex00/floci#115, FIXED, not yet
-# repinned). The module's `metadata_options` variable DEFAULTS to
-# `{ http_endpoint = "enabled", http_put_response_hop_limit = 1, http_tokens
-# = "required" }` - the AWS-recommended IMDSv2-enforcing default, a real
-# shape most modules that set this at all use, not something this crossing
-# invented. floci's RunInstances/DescribeInstances hardcoded every
-# metadataOptions field ("optional"/"1"/"enabled"/"disabled"/"disabled")
-# regardless of what was requested, so every launch of this shape produced a
-# PERMANENT non-empty second plan
-# (`~ metadata_options { ~ http_tokens = "optional" -> "required" }`).
-# Confirmed this is not a choudoufu-vs-stock difference before touching any
-# code: plain, unmodified stock terraform's own second `plan` (no migration,
-# no choudoufu at all) on the identical reduced config independently
-# reproduces the same diff, because real hashicorp/terraform-provider-aws
-# computes "required" as the field's default when the block is present but
-# the field unset - the emulator just never stored what was actually
-# requested. Fixed on branch fix/ec2-metadata-options-fidelity (pushed to
-# `origin`): RunInstances/ModifyInstanceMetadataOptions/DescribeInstances now
-# honour MetadataOptions.* end to end. Not yet published/repinned. Until
-# then, ec2_complete pins `metadata_options = { http_tokens = "optional" }`
-# to match what the currently-pinned image actually returns, so this
-# script's plans are stable against the image pinned TODAY; re-running after
-# the repin should still pass with this delta left in place (it only pins
-# ONE field of the module's default object, and stock's own second plan
-# above proves "optional" is a legitimate, config-driven value - it isn't a
-# workaround pretending config that was never really honoured).
+#   THE SSM-PARAMETER DEFECT (lex00/floci#114). The module's root main.tf
+#   reads `data "aws_ssm_parameter" "this" { name = var.ami_ssm_parameter }`
+#   UNCONDITIONALLY - no `count`, evaluated even for `ec2_disabled` and even
+#   though `ec2_complete` passes an explicit `ami`. The default
+#   ami_ssm_parameter, "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-
+#   default-x86_64", is one of AWS's own documented public parameters
+#   (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-public-parameters-ami.html),
+#   seeded in every real account with no setup. Confirmed directly against
+#   the AWS CLI with no terraform in the loop before touching any code:
+#   `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64`
+#   returned ParameterNotFound, and `aws ssm get-parameters-by-path --path
+#   /aws/service/ami-amazon-linux-latest --recursive` returned nothing at
+#   all - not an upstream module bug, floci was missing AWS's own guaranteed
+#   public data. Fixed on branch fix/ssm-public-ami-parameters (merged to
+#   floci's `origin` main, lex00/floci#116): SsmService now resolves a
+#   GetParameter miss under "/aws/service/" against the EC2 image catalog's
+#   own `publicParameterAliases`, seeding it write-through on first access.
+#   This script used to seed the parameter itself via `aws ssm put-parameter`
+#   before STAGE 1 as a stand-in; that workaround is removed now that the
+#   pinned image resolves it on its own - a run against a pin that regresses
+#   this would fail loudly (ParameterNotFound propagating into the AMI data
+#   source) rather than silently keep passing behind a workaround nobody
+#   would notice needed to come out.
+#
+#   THE METADATA-OPTIONS DEFECT (lex00/floci#115). The module's
+#   `metadata_options` variable DEFAULTS to `{ http_endpoint = "enabled",
+#   http_put_response_hop_limit = 1, http_tokens = "required" }` - the
+#   AWS-recommended IMDSv2-enforcing default, a real shape most modules that
+#   set this at all use, not something this crossing invented. floci's
+#   RunInstances/DescribeInstances hardcoded every metadataOptions field
+#   ("optional"/"1"/"enabled"/"disabled"/"disabled") regardless of what was
+#   requested, so every launch of this shape produced a PERMANENT non-empty
+#   second plan (`~ metadata_options { ~ http_tokens = "optional" ->
+#   "required" }`). Confirmed this is not a choudoufu-vs-stock difference
+#   before touching any code: plain, unmodified stock terraform's own second
+#   `plan` (no migration, no choudoufu at all) on the identical reduced
+#   config independently reproduces the same diff, because real
+#   hashicorp/terraform-provider-aws computes "required" as the field's
+#   default when the block is present but the field unset - the emulator
+#   just never stored what was actually requested. Fixed on branch
+#   fix/ec2-metadata-options-fidelity (merged to floci's `origin` main,
+#   lex00/floci#116): RunInstances/ModifyInstanceMetadataOptions/
+#   DescribeInstances now honour MetadataOptions.* end to end. This script
+#   used to pin `ec2_complete`'s own `metadata_options = { http_tokens =
+#   "optional" }`, overriding the module's real "required" default, as a
+#   stand-in for the fix; that onboarding delta is removed now that the
+#   pinned image honours the module's own default correctly, so this
+#   crossing exercises the real upstream shape (http_tokens = "required")
+#   rather than a value chosen to dodge the defect.
 #
 # THE RESOURCE SHAPE (35 resources - measured off `terraform state list` on
 # a real run, not derived from reading the module source):
@@ -312,9 +312,7 @@ perl -0pi -e 's/instance_type          = "c5\.xlarge" # used to set core count b
 grep -q 'c5.xlarge' "$EST/main.tf" && fail "the instance-type onboarding delta did not apply - the corpus pin has moved"
 
 perl -0pi -e 's/  placement_group        = aws_placement_group\.web\.id\n  # conflicts with placement_group\n  # placement_group_id = aws_placement_group\.web\.placement_group_id\n//' "$EST/main.tf"
-perl -0pi -e 's/  create_eip       = true\n  disable_api_stop = false\n/  create_eip = true\n\n  # floci issue lex00\/floci#115 (fixed, not yet repinned): DescribeInstances\n  # hardcoded every metadataOptions field regardless of what a launch\n  # requested. Pinning http_tokens to what the currently-pinned image\n  # actually returns keeps this plan stable until the repin; see the\n  # header'"'"'s "THE METADATA-OPTIONS DEFECT".\n  metadata_options = {\n    http_tokens = "optional"\n  }\n/' "$EST/main.tf"
 grep -q 'placement_group' "$EST/main.tf" && fail "the placement_group removal did not apply - the corpus pin has moved"
-grep -q 'metadata_options = {' "$EST/main.tf" || fail "the metadata_options onboarding delta did not apply - the corpus pin has moved"
 
 perl -0pi -e 's/  # only one of these can be enabled at a time\n  hibernation = true\n  # enclave_options_enabled = true\n\n//' "$EST/main.tf"
 grep -q 'hibernation' "$EST/main.tf" && fail "the hibernation removal did not apply - the corpus pin has moved"
@@ -364,15 +362,6 @@ log "  healthy"
 export AWS_ENDPOINT_URL="$ENDPOINT"
 export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION="$REGION"
 
-# floci issue lex00/floci#114 (fixed, not yet repinned): the module reads
-# this AWS-documented public parameter unconditionally, for every module
-# instance including the disabled one. Seed it directly so this run behaves
-# the way a real account already does, rather than routing around the
-# module's real behaviour.
-awsl ssm put-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
-  --type String --value ami-0abcdef1234567891 --overwrite >/dev/null \
-  || fail "seeding the public AMI SSM parameter failed"
-log "  seeded /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 (floci issue #114 workaround)"
 
 # ══════════════════════════════════════════════════════════════════════════
 # STAGE 1: COLD DEPLOY - plain terraform, no choudoufu, no live block
@@ -654,4 +643,4 @@ log "(aws_iam_role_policy_attachment, aws_volume_attachment,"
 log "aws_security_group_rule, aws_route, aws_route_table_association), every"
 log "one resolved by the provider's own identity schema and asserted by"
 log "value. Tagged, plus derived-from-tagged; no third bucket. Two real"
-log "floci defects found and fixed (issues #114, #115), pending repin."
+log "floci defects found, fixed, merged, and repinned (lex00/floci#114, #115), onboarding deltas removed."
