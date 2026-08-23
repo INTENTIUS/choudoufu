@@ -12,7 +12,7 @@ pinned emulator. It is clear when every active stage passes.
 
 {{< gauntlet-bars >}}
 
-Measured at commit `d7d1faaade` against `ghcr.io/lex00/floci@sha256:52b819326e712c791261685ce46a03ab5f2a47fa1f221dcc91c8dad9b5f09b00`, 2026-08-23T21:35:32Z.
+Measured at commit `1bb746d9a4` against `ghcr.io/lex00/floci@sha256:52b819326e712c791261685ce46a03ab5f2a47fa1f221dcc91c8dad9b5f09b00`, 2026-08-23T22:38:13Z.
 
 ## The stages
 
@@ -65,7 +65,7 @@ answer is and how each check is proven non-vacuous, is
 | [corpus-simpleinfra-dns]({{< relref "corpus-simpleinfra-dns" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-sqs-basic]({{< relref "corpus-sqs-basic" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-sumaform-aws]({{< relref "corpus-sumaform-aws" >}}) | core | opentofu-native | yes | pass pass pass pass pass |
-| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | no | pass pass FAIL pass pass |
+| [corpus-vpc-complete]({{< relref "corpus-vpc-complete" >}}) | core | terraform-popular | yes | pass pass pass pass pass |
 | [corpus-xancloud-iac]({{< relref "corpus-xancloud-iac" >}}) | core | opentofu-native | yes | pass pass pass pass pass |
 | [reference-ec2-vpc]({{< relref "reference-ec2-vpc" >}}) | core | reference | yes | pass pass pass pass pass |
 | [corpus-mastino-dns]({{< relref "corpus-mastino-dns" >}}) | growing | published-deployment | yes | pass pass pass pass pass |
