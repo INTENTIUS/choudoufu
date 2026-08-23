@@ -53,9 +53,17 @@ its `main` is where merges land and what gets pushed.
 
 A full re-measure (`just gauntlet`, the core set, a few hours) is the
 nightly's job. Run one yourself only after a change to a shared layer
-(`internal/live/stamp`, `discovery`, `projection`, `identity`), and then only
-the estates that were clear, so a regression shows before it is pushed as
-progress.
+(`internal/live/stamp`, `discovery`, `projection`, `identity`) or a repin of
+`live/floci-image`, and then only the estates that were clear, so a
+regression shows before it is pushed as progress.
+
+A repin is the expensive one, so batch it: emulator fixes into ONE image, the
+crossing scripts that depend on them merged in the SAME commit as the pin.
+A corrected script landing before its pin flips a verdict backwards; landing
+after, the re-measure reads assertions written for the old world. And before
+holding an estate behind a blocker, check the blocker can actually reach it -
+an estate was held for hours on an emulator defect in a code path it never
+executes. Check the premise instead of respecting it.
 
 ## Stop and ask the maintainer
 
@@ -85,6 +93,12 @@ Do not proceed past any of these; state the question and wait.
   description of scope, not a reason to stop, and treating it as one is how a
   night ends with findings instead of cleared estates.
 - A worker's verdict moving backwards on any estate without a stated cause.
+- Two changes that reach the same behaviour from different files. They merge
+  clean and interact anyway: a read half that reclassifies an instance and a
+  write half that records it are one mechanism, and the read half alone makes
+  a plan propose creating infrastructure that already exists. When two workers
+  converge on one problem, have each read the other's diff and say plainly
+  whether it is one mechanism or two, before either lands.
 
 ## Never
 

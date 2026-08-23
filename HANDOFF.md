@@ -89,6 +89,31 @@ unfinished unit, never a finished one. An estate stays on the list until it
 clears. The two numbers on the site, core estates clear and all estates
 clear, are read from `live/gauntlet.json`, which only the runner writes.
 
+## What a measurement is worth
+
+The oracle only counts when it is independent. Stock and choudoufu talk to
+the same emulator, so stock agreeing is evidence the two share a code path,
+never evidence a defect is upstream. An estate was recorded for weeks as
+blocked on a hashicorp/aws bug because plain terraform reproduced its
+diagnostic byte for byte; the provider was choking on a rule the emulator
+returned with no source, and fixing the emulator made it vanish. Before
+calling anything upstream, read the API directly, with no terraform in the
+loop, and compare against what AWS documents. Real AWS is the oracle for the
+emulator; it is not the runner, and one call settles what a night of
+inference cannot.
+
+A check written from the implementation passes forever and proves nothing.
+Three of those surfaced in one night: emulator tests that encoded the same
+wrong wire key as the code they covered, crossing scripts asserting the
+broken behaviour they were written beside, and a `BREAK=1` control that
+tampered a resource carrying `ignore_changes = [tags]` and so could never
+fail. Write a check from what the API promises, and prove it is load-bearing
+by making it fail on purpose.
+
+So a fixed wall makes stale scripts fail. When an assertion breaks right
+after a fix lands, read it as the assertion being stale before reading it as
+a regression; the estate usually got better and the script did not.
+
 ## The loop
 
 1. `go run ./tools/gauntlet next` names the unit: the core estate closest to

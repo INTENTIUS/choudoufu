@@ -96,18 +96,48 @@ also asserted by value; an exit code is not a verdict.
      An emulator gap is not a reason an estate stays blocked.
 4. **Fix generically.** A fix that names a concrete `aws_*` type in control
    flow is the wrong fix. Find the property the type has, derive the rule,
-   then say in the PR how many other types it reaches. Every hand-wired type
-   name needs its entry in `live/derivation_guard_test.go`'s registry.
+   then say in the PR how many other types it reaches - measured against the
+   provider's real schema, not against a survey signal, which overstates it
+   (one property read as 215 types by survey was 2 against the schema).
+   Every hand-wired type name needs its entry in
+   `live/derivation_guard_test.go`'s registry.
 5. **Never write a wrong marker.** Before any change to identity resolution,
    stamping or discovery, read the "a wrong marker outranks a missing one"
    paragraph in HANDOFF and assert the rendered identity by value in a test.
+   A plan proposing to CREATE something that already exists is this failure,
+   not a safe fallback: a refusal stops a human, a create is something a human
+   approves. Watch for it whenever a change reclassifies an instance, and
+   check that whatever reads a record has something that writes one - a read
+   half landing without its write half is exactly how that plan appears.
+6. **Prove your checks can fail.** A check written from the implementation
+   passes forever and proves nothing; write it from what the API promises,
+   then make it fail on purpose once. When an assertion breaks right after a
+   fix lands, suspect the assertion is stale before you suspect a regression.
+   And when you suspect the emulator or the provider, read the API directly
+   with no terraform in the loop - stock agreeing with you proves you share a
+   code path, not that the defect is upstream.
 6. **Re-run** the estate until the stage moves. Then
    `go run ./tools/gauntlet render`.
-7. **Gate**: `just ci` green, from a file: `just ci > ci.out 2>&1; echo $? > ci.rc`.
-8. **Commit** the script, the code, the artifact and the rendered docs
+7. **Gate**: not the whole tier - the packages your change touches, plus
+   `./internal/live/check/`, `./tools/gauntlet/` and `./live/`, which hold the
+   identity golden, the artifact guards and the derivation registry. Several
+   workers running `just ci` each repeats the same minutes N times. Write it
+   from a file: `{ ...; } > ci.out 2>&1; echo $? > ci.rc`, and LEAVE BOTH FILES
+   THERE. The orchestrator reads `ci.rc` itself and cannot merge what it cannot
+   read; deleting them as tidy-up costs a round trip. The full tier runs once
+   on the merge result before the push.
+8. **Order matters at the end**: run the estate LAST, then `render`, then
+   gate. Rendering before the final run leaves a rendered page behind the
+   artifact and `TestRenderedDocsAreCurrent` fails.
+   When you rebase, only the rendered files conflict: resolve them with
+   `git checkout --ours` (during a rebase that is the branch you are landing
+   ON) and then RE-RUN your estate so the runner rewrites its row. Taking the
+   other side, or hand-merging `live/gauntlet.json`, silently reverts whatever
+   estates moved while you worked.
+9. **Commit** the script, the code, the artifact and the rendered docs
    together, with `-F` from a message file (shell substitution eats
    `${count.index}`). One commit per unit is fine.
-9. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
+10. **Open the pull request** against `INTENTIUS/choudoufu` `main` with:
    - title: `[gauntlet:<estate>/<stage>] <one line: what moved or what was found>`
    - body: the unit, the stage's verdict before and after (copy the
      `GAUNTLET stage=` lines from the log), which row of the five-row table
