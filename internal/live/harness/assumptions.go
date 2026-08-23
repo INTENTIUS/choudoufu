@@ -46,8 +46,8 @@ type Assumption struct {
 	Tracker string
 
 	// Recorded is the authored set the claim is about - the four
-	// non-blocking refusal IDs, the four sanctioned exclusions - so the
-	// rendered document names them rather than saying "four". Authored,
+	// non-blocking refusal IDs, the two sanctioned exclusions - so the
+	// rendered document names them rather than saying "four" or "two". Authored,
 	// not measured: the check holds the code to it, so it does not move
 	// when a measurement does.
 	Recorded []string
@@ -68,7 +68,7 @@ func Assumptions() []Assumption {
 	return []Assumption{
 		checkedLayersAreFour(),
 		corpusArtifactCurrency(),
-		credentialExclusionsAreFour(),
+		credentialExclusionsAreTwo(),
 		artifactsAreCommitDated(),
 		onboardingNonBlockingIDs(),
 	}
@@ -246,13 +246,21 @@ func checkedLayersAreFour() Assumption {
 	}
 }
 
-// sanctionedCredentialExclusions is CLAUDE.md's list, which the maintainer's
-// 2026-08-15 parity ruling says does not grow: client-supplied or minted
-// secret material that would persist in configuration or state.
+// sanctionedCredentialExclusions is CLAUDE.md's list, shrunk from four to
+// two by the maintainer's 2026-08-23 ruling (rfc/20260823-foundation-order-ruling.md,
+// ruling 5): aws_iam_access_key and aws_iot_certificate moved off this
+// unconditional, admission-table-wide veto and onto a `strict { secrets }`
+// toggle instead - internal/live/identity/located.go's
+// strictSecretsLocatedExclusion and LocatedStrictSecretsRefusal, tracked by
+// live/derivation_guard_test.go's registry rather than by this ratchet,
+// because the two are admitted by default now (through the record-located
+// route, not through internal/live/identity.DefaultTable this check reads)
+// and this ratchet's own claim - "none of them is admitted" - would be false
+// for them. What remains here is client-supplied or minted secret material
+// with NO route to admission at all, under any setting: the maintainer's
+// 2026-08-15 parity ruling says this two-entry set does not grow either.
 var sanctionedCredentialExclusions = []string{
 	"aws_appstream_directory_config",
-	"aws_iam_access_key",
-	"aws_iot_certificate",
 	"aws_ivs_playback_key_pair",
 }
 
@@ -272,17 +280,18 @@ func credentialReason(reason string) bool {
 	return strings.Contains(strings.ReplaceAll(strings.ToLower(reason), "-", " "), "credential material")
 }
 
-func credentialExclusionsAreFour() Assumption {
+func credentialExclusionsAreTwo() Assumption {
 	return Assumption{
-		ID: "credential-exclusions-are-exactly-four",
-		Claim: "Exactly four provider types are excluded from admission on credential-material grounds, " +
-			"they are all in the hand veto ledger, and none of them is admitted.",
-		Consequence: "Type parity is the bar, and the credential exclusion is its one sanctioned hole. " +
-			"A fifth type vetoed on credential grounds is admission debt wearing policy's clothes, and " +
-			"it shrinks the parity denominator without anybody deciding to. This has already drifted " +
-			"once in the other direction: aws_secretsmanager_secret_version sat on tools/survey-gen's " +
-			"ops-excluded list reading \"credential\" until the 2026-08-16 ruling that the marker goes " +
-			"into a tag and never into the secret.",
+		ID: "credential-exclusions-are-exactly-two",
+		Claim: "Exactly two provider types are excluded from admission on credential-material grounds with no " +
+			"route to admission at all, they are all in the hand veto ledger, and none of them is admitted.",
+		Consequence: "Type parity is the bar, and this credential exclusion is its one remaining sanctioned hole - " +
+			"down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto " +
+			"strict { secrets } instead, where they are admitted by default. A third type vetoed on credential " +
+			"grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the parity " +
+			"denominator without anybody deciding to. This has already drifted once in the other direction: " +
+			"aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading \"credential\" " +
+			"until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.",
 		Evidence: "CLAUDE.md's sanctioned list, checked against tools/row-gen/rejected.json's own " +
 			"reason text and against internal/live/identity.DefaultTable. See credentialReason for " +
 			"what the text half of this cannot see.",
@@ -306,10 +315,13 @@ func credentialExclusionsAreFour() Assumption {
 					problems = append(problems, t+" is admitted by internal/live/identity.DefaultTable")
 				}
 			}
-			// The other half: nothing outside the four may cite credential
+			// The other half: nothing outside the two may cite credential
 			// material as its reason. A veto reasoned that way is either a
-			// fifth exclusion, or a type whose real obstacle is something
-			// else described in borrowed language.
+			// third exclusion with no route at all, or a type whose real
+			// obstacle is something else described in borrowed language -
+			// or, now, one of ruling 5's two names, whose rejected.json
+			// entries carry no "reason" text at all and so never trip this
+			// leg either way.
 			var extra []string
 			for t, e := range rj.Rejected {
 				if sanctioned[t] {
@@ -322,14 +334,14 @@ func credentialExclusionsAreFour() Assumption {
 			if len(extra) > 0 {
 				sort.Strings(extra)
 				problems = append(problems, fmt.Sprintf(
-					"%d veto entr(y/ies) outside the sanctioned four cite credential material: %s",
+					"%d veto entr(y/ies) outside the sanctioned two cite credential material: %s",
 					len(extra), strings.Join(extra, " ")))
 			}
 			if len(problems) > 0 {
 				sort.Strings(problems)
 				return "", fmt.Errorf("%s", strings.Join(problems, "; "))
 			}
-			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no fifth veto cites credential material",
+			return fmt.Sprintf("%d sanctioned exclusions, all vetoed, none admitted, and no third veto cites credential material",
 				len(sanctionedCredentialExclusions)), nil
 		},
 	}

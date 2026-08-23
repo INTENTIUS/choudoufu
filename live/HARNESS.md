@@ -226,16 +226,14 @@ Evidence: git log over live/corpus-refusals.json's own path versus internal/live
 
 Tracker: #256
 
-<a id="credential-exclusions-are-exactly-four"></a>
-### `credential-exclusions-are-exactly-four`
+<a id="credential-exclusions-are-exactly-two"></a>
+### `credential-exclusions-are-exactly-two`
 
-Exactly four provider types are excluded from admission on credential-material grounds, they are all in the hand veto ledger, and none of them is admitted.
+Exactly two provider types are excluded from admission on credential-material grounds with no route to admission at all, they are all in the hand veto ledger, and none of them is admitted.
 
-**If this stops being true.** Type parity is the bar, and the credential exclusion is its one sanctioned hole. A fifth type vetoed on credential grounds is admission debt wearing policy's clothes, and it shrinks the parity denominator without anybody deciding to. This has already drifted once in the other direction: aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading "credential" until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.
+**If this stops being true.** Type parity is the bar, and this credential exclusion is its one remaining sanctioned hole - down from four after ruling 5 (2026-08-23) moved aws_iam_access_key and aws_iot_certificate onto strict { secrets } instead, where they are admitted by default. A third type vetoed on credential grounds with no route at all is admission debt wearing policy's clothes, and it shrinks the parity denominator without anybody deciding to. This has already drifted once in the other direction: aws_secretsmanager_secret_version sat on tools/survey-gen's ops-excluded list reading "credential" until the 2026-08-16 ruling that the marker goes into a tag and never into the secret.
 
 - `aws_appstream_directory_config`
-- `aws_iam_access_key`
-- `aws_iot_certificate`
 - `aws_ivs_playback_key_pair`
 
 Evidence: CLAUDE.md's sanctioned list, checked against tools/row-gen/rejected.json's own reason text and against internal/live/identity.DefaultTable. See credentialReason for what the text half of this cannot see.
